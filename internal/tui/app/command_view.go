@@ -90,7 +90,10 @@ func (m model) renderCommandView() string {
 	}
 
 	height := frame.Height
-	if m.isSessionListCommandView() || m.isModelsCommandView() || m.isProvidersCommandView() {
+	if m.isSessionListCommandView() ||
+		m.isModelsCommandView() ||
+		m.isProvidersCommandView() ||
+		m.isProviderAPIKeyCommandView() {
 		height++
 	}
 

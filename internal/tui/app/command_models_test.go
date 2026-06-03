@@ -3,9 +3,11 @@ package tui
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
@@ -514,6 +516,7 @@ func TestModel_ModelSelectionPromptsForMissingProviderAPIKeyAndRetries(t *testin
 	runModel = updated.(model)
 	require.Equal(t, commandViewKindProviderAPIKey, runModel.commandView.Kind)
 	require.Equal(t, "provider API key required", runModel.status.Text())
+	require.Equal(t, "API key for openrouter", runModel.apiKeyInput.Placeholder)
 
 	runModel.apiKeyInput.SetValue("router-key")
 	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
@@ -534,10 +537,70 @@ func TestModel_ModelSelectionPromptsForMissingProviderAPIKeyAndRetries(t *testin
 	require.Equal(t, "openrouter", client.selectedModelProvider)
 }
 
+func TestModel_ProviderAPIKeyPromptAcceptsPaste(t *testing.T) {
+	runModel := newModel()
+	runModel.showCommandView(commandViewPayload{
+		Kind:           commandViewKindProviderAPIKey,
+		ModelProvider:  "openrouter",
+		PendingModelID: "openai/gpt-4o",
+	})
+
+	updated, cmd := runModel.Update(tea.PasteMsg{Content: " pasted-router-key\n"})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.input.Value())
+	require.Equal(t, "pasted-router-key", runModel.apiKeyInput.Value())
+	require.Contains(
+		t,
+		stripANSI(runModel.renderProviderAPIKeyCommandViewContent(commandViewContent{Width: 80})),
+		"pasted-router-key",
+	)
+}
+
+func TestModel_RenderProviderAPIKeyCommandViewHidesBottomBorder(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 16
+	runModel.width = 80
+	runModel.showCommandView(commandViewPayload{
+		Kind:          commandViewKindProviderAPIKey,
+		TitleLeft:     "Provider API Key",
+		TitleSubtext:  "openrouter",
+		ModelProvider: "openrouter",
+		Height:        commandViewMinHeight,
+	})
+
+	lines := strings.Split(stripANSI(runModel.View().Content), "\n")
+	if len(lines) > runModel.height {
+		lines = lines[:runModel.height]
+	}
+
+	require.NotEmpty(t, lines)
+	require.NotContains(t, lines[len(lines)-1], "╰")
+	require.NotContains(t, lines[len(lines)-1], "╯")
+}
+
+func TestNormalizeProviderAPIKeyPasteTrimsWhitespace(t *testing.T) {
+	require.Equal(t, "sk-or-v1-key", normalizeProviderAPIKeyPaste(" sk-or-v1-key \n"))
+	require.Equal(t, "key with space", normalizeProviderAPIKeyPaste(" key with space \n"))
+}
+
+func TestNewProviderAPIKeyInputUsesLegibleTextColor(t *testing.T) {
+	input := newProviderAPIKeyInput("API key for openrouter")
+
+	require.Equal(t, lipgloss.Color("15"), input.Styles().Focused.Text.GetForeground())
+	require.Equal(t, 4096, input.CharLimit)
+	require.Equal(t, "API key for openrouter", input.Placeholder)
+
+	input = newProviderAPIKeyInput(" ")
+	require.Equal(t, "API key", input.Placeholder)
+}
+
 func TestModel_ProviderAPIKeyPromptEdgeCases(t *testing.T) {
 	runModel := newModel()
 	runModel.showCommandView(commandViewPayload{Kind: commandViewKindProviderAPIKey})
-	require.Contains(t, stripANSI(runModel.renderProviderAPIKeyCommandViewContent(commandViewContent{Width: 20})), "Enter API key")
+	require.Contains(t, stripANSI(runModel.renderProviderAPIKeyCommandViewContent(commandViewContent{Width: 20})), "API key")
+	require.NotContains(t, stripANSI(runModel.renderProviderAPIKeyCommandViewContent(commandViewContent{Width: 20})), "Enter API key")
 
 	updated, cmd := runModel.updateProviderAPIKeyCommandView(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
 	require.NotNil(t, cmd)

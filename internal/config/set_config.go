@@ -185,6 +185,7 @@ func validateConfigYAML(envPath string, configPath string, data []byte) error {
 
 func encodeYAMLNode(node *yaml.Node) ([]byte, error) {
 	var buf bytes.Buffer
+	normalizeConfigYAMLStyle(node)
 	encoder := yaml.NewEncoder(&buf)
 	encoder.SetIndent(4)
 	if err := encoder.Encode(node); err != nil {
@@ -196,6 +197,19 @@ func encodeYAMLNode(node *yaml.Node) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func normalizeConfigYAMLStyle(node *yaml.Node) {
+	if node == nil {
+		return
+	}
+
+	if node.Kind == yaml.MappingNode || node.Kind == yaml.SequenceNode {
+		node.Style = 0
+	}
+	for _, child := range node.Content {
+		normalizeConfigYAMLStyle(child)
+	}
 }
 
 func resolveConfigPath(path string) ([]configPathStep, reflect.Type, error) {

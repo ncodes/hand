@@ -596,6 +596,24 @@ func TestModel_ViewAlignsHeaderInfoKeys(t *testing.T) {
 	}
 }
 
+func TestModel_ViewPlacesProviderAboveModelInfo(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 180
+	runModel.runtimeInfo.Provider = "openrouter"
+	runModel.runtimeInfo.Streaming = "on"
+	runModel.resize()
+
+	lines := strings.Split(stripANSI(runModel.renderHeaderInfoPanel()), "\n")
+
+	require.GreaterOrEqual(t, len(lines), 5)
+	require.Contains(t, lines[0], "version:")
+	require.Contains(t, lines[0], "provider: openrouter")
+	require.Contains(t, lines[1], "commit:")
+	require.Contains(t, lines[1], "model:")
+	require.Contains(t, lines[4], "streaming: on")
+	require.Contains(t, lines[4], "storage:")
+}
+
 func TestRenderHeaderInfoPanel_UsesOneColorForBothColumns(t *testing.T) {
 	panel := getHeaderPanel(newModel(), 180)
 	content := renderHeaderInfoPanel(panel)

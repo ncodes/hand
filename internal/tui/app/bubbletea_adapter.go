@@ -152,6 +152,10 @@ func (m model) handleTerminalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			next, cmd := m.handleNamePromptPaste(msg)
 			return next, cmd, true
 		}
+		if m.isCommandViewVisible() {
+			next, cmd := m.updateCommandView(msg)
+			return next, cmd, true
+		}
 		next, cmd := m.handlePasteMsg(msg)
 		return next, cmd, true
 	case tea.KeyPressMsg:

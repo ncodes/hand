@@ -24,7 +24,7 @@ const (
 type model struct {
 	transcript  viewport.Model
 	input       textarea.Model
-	apiKeyInput textarea.Model
+	apiKeyInput textinput.Model
 	nameInput   textinput.Model
 	renameInput textinput.Model
 	tuiState
@@ -65,7 +65,7 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	appModel := model{
 		transcript:  newTranscript(),
 		input:       newInputComposer(),
-		apiKeyInput: newProviderAPIKeyInput(),
+		apiKeyInput: newProviderAPIKeyInput("API key"),
 		nameInput:   newNameInput(),
 		renameInput: newChatRenameInput(),
 		tuiState:    newTUIState(history, cfg.TUIThinkingComposerEnabled()),

@@ -101,6 +101,37 @@ func TestSetConfigValues_UpdatesMultipleFieldsAtomically(t *testing.T) {
 	require.Equal(t, 2*time.Hour, cfg.Session.DefaultIdleExpiry)
 }
 
+func TestSetConfigValues_RewritesFlowMappingsAsBlockYAML(t *testing.T) {
+	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	resetSetConfigProfileState(t)
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: test-agent
+models:
+    maxRetries: 2
+    providers: {openrouter: {apiKey: old-key}}
+    main:
+        name: openai/gpt-4o
+        provider: openrouter
+search:
+    vector:
+        enabled: false
+storage:
+    backend: memory
+`), 0o600))
+
+	_, err := SetConfigValue("", configPath, "models.providers.openrouter.apiKey", "new-key")
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	rendered := string(data)
+	require.NotContains(t, rendered, "{openrouter:")
+	require.NotContains(t, rendered, "{apiKey:")
+	require.Contains(t, rendered, "providers:\n        openrouter:\n            apiKey: new-key")
+}
+
 func TestSetConfigValue_RejectsInvalidPathOrValue(t *testing.T) {
 	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)

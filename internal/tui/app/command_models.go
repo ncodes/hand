@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -50,17 +50,20 @@ type providerAPIKeySetMsg struct {
 	Err      error
 }
 
-func newProviderAPIKeyInput() textarea.Model {
-	input := textarea.New()
+func newProviderAPIKeyInput(placeholder string) textinput.Model {
+	input := textinput.New()
 	input.Prompt = ""
-	input.Placeholder = "API key"
+	input.Placeholder = strings.TrimSpace(placeholder)
+	if input.Placeholder == "" {
+		input.Placeholder = "API key"
+	}
 	input.CharLimit = 4096
-	input.SetHeight(1)
+	input.SetWidth(80)
 	input.Focus()
 
 	styles := input.Styles()
 	styles.Focused.Text = styles.Focused.Text.
-		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground)).
+		Foreground(lipgloss.Color("15")).
 		UnsetBackground()
 	styles.Focused.Placeholder = styles.Focused.Placeholder.
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
@@ -428,6 +431,11 @@ func (m *model) updateProviderAPIKeyCommandView(msg tea.Msg) (tea.Model, tea.Cmd
 	}
 
 	switch msg := msg.(type) {
+	case tea.PasteMsg:
+		msg.Content = normalizeProviderAPIKeyPaste(msg.Content)
+		var cmd tea.Cmd
+		m.apiKeyInput, cmd = m.apiKeyInput.Update(msg)
+		return *m, cmd
 	case tea.KeyPressMsg:
 		switch msg.Key().Code {
 		case tea.KeyEsc:
@@ -441,6 +449,10 @@ func (m *model) updateProviderAPIKeyCommandView(msg tea.Msg) (tea.Model, tea.Cmd
 	var cmd tea.Cmd
 	m.apiKeyInput, cmd = m.apiKeyInput.Update(msg)
 	return *m, cmd
+}
+
+func normalizeProviderAPIKeyPaste(value string) string {
+	return strings.TrimSpace(value)
 }
 
 func getModelsCommandTitleRight() string {
@@ -578,7 +590,7 @@ func (m *model) showProviderAPIKeyPrompt(option rpcclient.ModelOption) (tea.Mode
 		return *m, m.setStatus("model selection unavailable")
 	}
 
-	m.apiKeyInput = newProviderAPIKeyInput()
+	m.apiKeyInput = newProviderAPIKeyInput("API key for " + provider)
 	m.showCommandView(commandViewPayload{
 		TitleLeft:       "Provider API Key",
 		TitleSubtext:    provider,
@@ -598,10 +610,7 @@ func (m model) renderProviderAPIKeyCommandViewContent(content commandViewContent
 	input := m.apiKeyInput
 	input.SetWidth(width)
 
-	return strings.Join([]string{
-		"Enter API key for " + strings.TrimSpace(m.commandView.ModelProvider) + ".",
-		input.View(),
-	}, "\n")
+	return input.View()
 }
 
 func (m *model) submitProviderAPIKey() (tea.Model, tea.Cmd) {

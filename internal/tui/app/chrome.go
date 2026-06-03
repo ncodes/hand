@@ -138,12 +138,12 @@ func getHeaderInfoRows(m model) []headerInfoRow {
 		{key: "commit", value: getRuntimeValue(info.Commit, "unknown")},
 		{key: "profile", value: getRuntimeValue(info.Profile, "default")},
 		{key: "session", value: getRuntimeValue(m.sessionID, "default")},
+		{key: "streaming", value: getRuntimeValue(info.Streaming, "on")},
 		{key: "provider", value: getRuntimeValue(info.Provider, "openrouter")},
 		{key: "model", value: getModelDisplayName(getRuntimeValue(m.modelName, info.Model))},
 		{key: "summary", value: getModelDisplayName(info.SummaryModel)},
 		{key: "embedding", value: getModelDisplayName(info.EmbeddingModel)},
 		{key: "storage", value: getRuntimeValue(info.Storage, "sqlite")},
-		{key: "streaming", value: getRuntimeValue(info.Streaming, "on")},
 	}
 }
 
