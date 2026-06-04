@@ -27,6 +27,13 @@ func TestConfig_WebAPIKeyEffective_UsesConfigBeforeStoredAndEnvironment(t *testi
 
 	require.NoError(t, err)
 	require.Equal(t, "config-key", value)
+
+	source, err := (&Config{Web: WebConfig{
+		Provider: constants.WebProviderExa,
+		APIKey:   " config-key ",
+	}}).WebAPIKeySourceEffective()
+	require.NoError(t, err)
+	require.Equal(t, WebCredentialSource{Configured: true, Source: "config"}, source)
 }
 
 func TestConfig_WebAPIKeyEffective_UsesStoredKeyBeforeEnvironment(t *testing.T) {
@@ -43,6 +50,10 @@ func TestConfig_WebAPIKeyEffective_UsesStoredKeyBeforeEnvironment(t *testing.T) 
 
 	require.NoError(t, err)
 	require.Equal(t, "stored-key", value)
+
+	source, err := (&Config{Web: WebConfig{Provider: constants.WebProviderExa}}).WebAPIKeySourceEffective()
+	require.NoError(t, err)
+	require.Equal(t, WebCredentialSource{Configured: true, Source: "stored", Name: constants.WebProviderExa}, source)
 }
 
 func TestConfig_WebAPIKeyEffective_UsesProviderEnvironmentBeforeGenericEnvironment(t *testing.T) {
@@ -57,6 +68,10 @@ func TestConfig_WebAPIKeyEffective_UsesProviderEnvironmentBeforeGenericEnvironme
 
 	require.NoError(t, err)
 	require.Equal(t, "provider-key", value)
+
+	source, err := (&Config{Web: WebConfig{Provider: constants.WebProviderExa}}).WebAPIKeySourceEffective()
+	require.NoError(t, err)
+	require.Equal(t, WebCredentialSource{Configured: true, Source: "environment", Name: "EXA_API_KEY"}, source)
 }
 
 func TestConfig_WebAPIKeyEffective_UsesGenericEnvironmentWhenProviderEnvironmentMissing(t *testing.T) {
@@ -114,6 +129,9 @@ func TestConfig_WebCredentialHelpersCoverFallbackBranches(t *testing.T) {
 	value, err := cfg.WebAPIKeyEffective()
 	require.NoError(t, err)
 	require.Empty(t, value)
+	source, err := cfg.WebAPIKeySourceEffective()
+	require.NoError(t, err)
+	require.False(t, source.Configured)
 
 	value, err = ResolveWebProviderAPIKey("", " config-key ")
 	require.NoError(t, err)
@@ -123,10 +141,25 @@ func TestConfig_WebCredentialHelpersCoverFallbackBranches(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, value)
 
+	source, err = ResolveWebProviderAPIKeySource(" ", "")
+	require.NoError(t, err)
+	require.False(t, source.Configured)
+
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "custom", provider)
+		return StoredModelCredential{}, errors.New("stored source failed")
+	})
+	_, err = ResolveWebProviderAPIKeySource("custom", "")
+	require.EqualError(t, err, "stored source failed")
+
 	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
 		require.Equal(t, "custom", provider)
 		return StoredModelCredential{}, nil
 	})
+	source, err = ResolveWebProviderAPIKeySource("custom", "")
+	require.NoError(t, err)
+	require.False(t, source.Configured)
+
 	t.Setenv("HAND_WEB_API_KEY", "generic-key")
 	value, err = ResolveWebProviderAPIKey("custom", "")
 	require.NoError(t, err)

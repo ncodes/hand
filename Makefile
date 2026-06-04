@@ -73,4 +73,7 @@ lint:
 	@golangci-lint run ./...
 
 install: build-proto
+	@install_dir="$$( $(GO) env GOBIN )"; \
+		if [ -z "$$install_dir" ]; then install_dir="$$( $(GO) env GOPATH )/bin"; fi; \
+		rm -f "$$install_dir/$(APP)"
 	@CGO_ENABLED=1 $(GO) install -tags $(GO_SQLITE_TAGS) -ldflags "$(LD_FLAGS)" ./cmd/hand

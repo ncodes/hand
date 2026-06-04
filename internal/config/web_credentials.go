@@ -9,6 +9,13 @@ import (
 	appcredential "github.com/wandxy/hand/internal/credential"
 )
 
+// WebCredentialSource describes web credential provenance without exposing values.
+type WebCredentialSource struct {
+	Configured bool
+	Source     string
+	Name       string
+}
+
 // WebAPIKeyEffective resolves the configured web provider API key.
 func (c *Config) WebAPIKeyEffective() (string, error) {
 	if c == nil {
@@ -17,6 +24,16 @@ func (c *Config) WebAPIKeyEffective() (string, error) {
 
 	c.normalizeFields()
 	return ResolveWebProviderAPIKey(c.Web.Provider, c.Web.APIKey)
+}
+
+// WebAPIKeySourceEffective resolves web credential provenance without returning the credential value.
+func (c *Config) WebAPIKeySourceEffective() (WebCredentialSource, error) {
+	if c == nil {
+		return WebCredentialSource{}, nil
+	}
+
+	c.normalizeFields()
+	return ResolveWebProviderAPIKeySource(c.Web.Provider, c.Web.APIKey)
 }
 
 // ResolveWebProviderAPIKey resolves a web provider API key from config, stored, then environment sources.
@@ -39,6 +56,31 @@ func ResolveWebProviderAPIKey(provider string, configAPIKey string) (string, err
 	}
 
 	return "", nil
+}
+
+// ResolveWebProviderAPIKeySource resolves web credential provenance without exposing the credential value.
+func ResolveWebProviderAPIKeySource(provider string, configAPIKey string) (WebCredentialSource, error) {
+	if strings.TrimSpace(configAPIKey) != "" {
+		return WebCredentialSource{Configured: true, Source: "config"}, nil
+	}
+
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	if provider == "" {
+		return WebCredentialSource{}, nil
+	}
+
+	if _, ok, err := loadStoredWebProviderAPIKey(provider); ok || err != nil {
+		if err != nil {
+			return WebCredentialSource{}, err
+		}
+
+		return WebCredentialSource{Configured: true, Source: "stored", Name: provider}, nil
+	}
+	if _, envName := getWebProviderEnvAPIKey(provider); envName != "" {
+		return WebCredentialSource{Configured: true, Source: "environment", Name: envName}, nil
+	}
+
+	return WebCredentialSource{}, nil
 }
 
 // WebCredentialProviderIDs returns providers that can resolve credentials through web provider config.

@@ -3,6 +3,8 @@ package doctor
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,6 +15,9 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	handcli "github.com/wandxy/hand/internal/cli"
+	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/diagnostics"
+	"github.com/wandxy/hand/internal/diagnostics/readiness"
 	"github.com/wandxy/hand/internal/profile"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -43,7 +48,13 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] config validation: configuration is valid")
 	require.Contains(t, output.String(), "safety: input=enabled, output=enabled, pii=disabled")
+	require.Contains(t, output.String(), "\nprofile readiness:")
+	require.Contains(t, output.String(), "\ndaemon readiness:")
+	require.Contains(t, output.String(), "\nmodels readiness:")
+	require.Contains(t, output.String(), "\ncapabilities readiness:")
+	require.Contains(t, output.String(), "fix: hand up - start the daemon for this profile")
 	require.Contains(t, output.String(), "doctor checks passed")
+	require.NotContains(t, output.String(), "flag-key")
 }
 
 func TestNewCommand_PrintsSafetyModeFromConfig(t *testing.T) {
@@ -113,6 +124,7 @@ search:
 	require.ErrorContains(t, err, "hand auth login openrouter")
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] config validation")
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] model auth")
+	require.Contains(t, output.String(), "fix: hand config set models.providers.openrouter.apiKey <api-key>")
 	require.Contains(t, output.String(), "safety: input=enabled, output=enabled, pii=disabled")
 }
 
@@ -138,8 +150,200 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "[PASS] config validation: configuration is valid")
+	require.Contains(t, output.String(), "[WARN] runtime: runtime metadata is not present")
 	require.Contains(t, output.String(), "safety: input=enabled, output=enabled, pii=disabled")
 	require.NotRegexp(t, regexp.MustCompile(`\x1b\[[0-9;]*m`), output.String())
+}
+
+func TestNewCommand_PrintsJSONReport(t *testing.T) {
+	isolateProfile(t)
+	originalOutput := doctorOutput
+	t.Cleanup(func() {
+		doctorOutput = originalOutput
+	})
+
+	var output bytes.Buffer
+	doctorOutput = &output
+
+	cmd := newRootCommandForTest()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--name", "flag-agent",
+		"--model", "gpt-4o-mini",
+		"--model.provider", "openrouter",
+		"--model.api-key", "flag-key",
+		"doctor",
+		"--json",
+	})
+	require.NoError(t, err)
+	require.NotRegexp(t, regexp.MustCompile(`\x1b\[[0-9;]*m`), output.String())
+	require.NotContains(t, output.String(), "flag-key")
+
+	var payload jsonReport
+	require.NoError(t, json.Unmarshal(output.Bytes(), &payload))
+	require.True(t, payload.OK)
+	require.Equal(t, "doctor checks passed", payload.Summary)
+	require.NotEmpty(t, payload.Diagnostics)
+	require.Equal(t, "input=enabled, output=enabled, pii=disabled", payload.Safety)
+	require.NotEmpty(t, payload.Readiness)
+	require.Equal(t, "profile", payload.Readiness[0].Name)
+	require.NotEmpty(t, findJSONCheck(t, payload.Readiness, "models", "embedding").Message)
+}
+
+func TestNewCommand_PrintsJSONFailureReport(t *testing.T) {
+	isolateProfile(t)
+	originalOutput := doctorOutput
+	t.Cleanup(func() {
+		doctorOutput = originalOutput
+	})
+
+	var output bytes.Buffer
+	doctorOutput = &output
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+search:
+  vector:
+    enabled: false
+`), 0o600))
+
+	cmd := newRootCommandForTest()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--config", configPath,
+		"--name", "flag-agent",
+		"--model", "gpt-4o-mini",
+		"doctor",
+		"--json",
+	})
+
+	require.ErrorContains(t, err, "doctor checks failed")
+	var payload jsonReport
+	require.NoError(t, json.Unmarshal(output.Bytes(), &payload))
+	require.False(t, payload.OK)
+	require.Contains(t, payload.Summary, "model auth")
+	require.NotEmpty(t, payload.Diagnostics)
+}
+
+func TestNewCommand_ReadinessFailureAffectsExit(t *testing.T) {
+	isolateProfile(t)
+	originalOutput := doctorOutput
+	t.Cleanup(func() {
+		doctorOutput = originalOutput
+	})
+
+	var output bytes.Buffer
+	doctorOutput = &output
+
+	home := t.TempDir()
+	configPath := filepath.Join(home, "config.yaml")
+	require.NoError(t, os.WriteFile(filepath.Join(home, "runtime.json"), []byte(`{`), 0o600))
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{
+		Name:    "test",
+		HomeDir: home,
+	}))
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: flag-agent
+models:
+  providers:
+    openrouter:
+      apiKey: flag-key
+  main:
+    name: gpt-4o-mini
+    provider: openrouter
+search:
+  vector:
+    enabled: false
+`), 0o600))
+
+	cmd := newRootCommandForTest()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--config", configPath,
+		"doctor",
+	})
+
+	require.ErrorContains(t, err, "daemon runtime")
+	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] runtime: parse runtime metadata")
+	require.NotContains(t, output.String(), "flag-key")
+}
+
+func TestRenderReadinessReport(t *testing.T) {
+	var output bytes.Buffer
+	report := readiness.Report{Groups: []readiness.Group{
+		{
+			Name: "models",
+			Checks: []readiness.Check{
+				{
+					Name:    "main",
+					Status:  readiness.StatusWarn,
+					Message: "missing",
+					Actions: []readiness.Action{
+						{Command: "hand auth login openai", Description: "login"},
+						{Command: "/models"},
+					},
+				},
+			},
+		},
+	}}
+
+	err := renderReadinessReport(&output, report, &config.Config{})
+
+	require.NoError(t, err)
+	require.Contains(t, output.String(), "models readiness:")
+	require.Contains(t, output.String(), "fix: hand auth login openai - login")
+	require.Contains(t, output.String(), "fix: /models")
+	require.Error(t, renderReadinessReport(failingWriter{}, report, &config.Config{}))
+}
+
+func TestRenderJSONReport(t *testing.T) {
+	var output bytes.Buffer
+	diagnosticsReport := diagnostics.Report{Checks: []diagnostics.Check{{
+		Name:    "config",
+		Status:  diagnostics.StatusPass,
+		Message: "valid",
+	}}}
+	readinessReport := readiness.Report{Groups: []readiness.Group{{
+		Name: "models",
+		Checks: []readiness.Check{{
+			Name:    "main",
+			Status:  readiness.StatusWarn,
+			Message: "missing",
+			Actions: []readiness.Action{{
+				Command:     "/models",
+				Description: "choose model",
+			}},
+		}},
+	}}}
+
+	err := renderJSONReport(&output, diagnosticsReport, readinessReport, " safety ")
+
+	require.NoError(t, err)
+	var payload jsonReport
+	require.NoError(t, json.Unmarshal(output.Bytes(), &payload))
+	require.True(t, payload.OK)
+	require.Equal(t, "safety", payload.Safety)
+	require.Equal(t, "config", payload.Diagnostics[0].Name)
+	require.Equal(t, "/models", payload.Readiness[0].Checks[0].Actions[0].Command)
+	require.Error(t, renderJSONReport(failingWriter{}, diagnosticsReport, readinessReport, ""))
+}
+
+func TestDoctorSummaryUsesReadinessFailure(t *testing.T) {
+	diagnosticsReport := diagnostics.Report{Checks: []diagnostics.Check{{
+		Name:    "config",
+		Status:  diagnostics.StatusPass,
+		Message: "valid",
+	}}}
+	readinessReport := readiness.Report{Groups: []readiness.Group{{
+		Name: "daemon",
+		Checks: []readiness.Check{{
+			Name:    "runtime",
+			Status:  readiness.StatusFail,
+			Message: "invalid runtime metadata",
+		}},
+	}}}
+
+	require.Equal(t, "daemon runtime: invalid runtime metadata", getDoctorSummary(diagnosticsReport, readinessReport))
 }
 
 func newRootCommandForTest() *cli.Command {
@@ -184,4 +388,28 @@ func clearEnv(t *testing.T, keys ...string) {
 		}
 		require.NoError(t, os.Unsetenv(key))
 	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, errors.New("write failed")
+}
+
+func findJSONCheck(t *testing.T, groups []jsonReadinessGroup, groupName string, checkName string) jsonCheck {
+	t.Helper()
+
+	for _, group := range groups {
+		if group.Name != groupName {
+			continue
+		}
+		for _, check := range group.Checks {
+			if check.Name == checkName {
+				return check
+			}
+		}
+	}
+
+	require.Failf(t, "missing json check", "%s/%s", groupName, checkName)
+	return jsonCheck{}
 }

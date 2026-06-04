@@ -298,6 +298,93 @@ func TestResolveRPC_RemovesUnreachableRuntimeMetadataAndFallsBackToConfig(t *tes
 	require.NoFileExists(t, runtimePath)
 }
 
+func TestProbe_ReadOnlyRuntimeProbe(t *testing.T) {
+	resetRuntimeHooks(t)
+	home := t.TempDir()
+	runtimePath := writeRuntimeFile(t, home, Metadata{
+		Profile: "work",
+		PID:     123,
+		RPC:     RPC{Address: "127.0.0.9", Port: 50090},
+	})
+	active := profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: home})
+	checkPID = func(pid int) error {
+		require.Equal(t, 123, pid)
+		return nil
+	}
+	dialRuntime = func(_ context.Context, address string, port int) error {
+		require.Equal(t, "127.0.0.9", address)
+		require.Equal(t, 50090, port)
+		return nil
+	}
+
+	result := Probe(context.Background(), active)
+
+	require.NoError(t, result.Err)
+	require.Equal(t, ProbeStateReady, result.State)
+	require.Equal(t, "work", result.Metadata.Profile)
+	require.FileExists(t, runtimePath)
+}
+
+func TestProbe_ReturnsStaleWithoutDeletingRuntimeMetadata(t *testing.T) {
+	resetRuntimeHooks(t)
+	home := t.TempDir()
+	runtimePath := writeRuntimeFile(t, home, Metadata{
+		Profile: "work",
+		PID:     999,
+		RPC:     RPC{Address: "127.0.0.1", Port: 50051},
+	})
+	active := profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: home})
+	checkPID = func(int) error { return errors.New("missing process") }
+
+	result := Probe(context.Background(), active)
+
+	require.ErrorContains(t, result.Err, "missing process")
+	require.Equal(t, ProbeStateStale, result.State)
+	require.FileExists(t, runtimePath)
+}
+
+func TestProbe_ReturnsStaleWhenEndpointIsUnreachable(t *testing.T) {
+	resetRuntimeHooks(t)
+	home := t.TempDir()
+	runtimePath := writeRuntimeFile(t, home, Metadata{
+		Profile: "work",
+		PID:     999,
+		RPC:     RPC{Address: "127.0.0.1", Port: 50051},
+	})
+	active := profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: home})
+	checkPID = func(int) error { return nil }
+	dialRuntime = func(context.Context, string, int) error { return errors.New("connection refused") }
+
+	result := Probe(context.Background(), active)
+
+	require.ErrorContains(t, result.Err, "connection refused")
+	require.Equal(t, ProbeStateStale, result.State)
+	require.FileExists(t, runtimePath)
+}
+
+func TestProbe_ReturnsInvalidWhenRuntimePathIsMissing(t *testing.T) {
+	resetRuntimeHooks(t)
+
+	result := Probe(context.Background(), profile.Profile{Name: "work"})
+
+	require.EqualError(t, result.Err, "profile runtime path is required")
+	require.Equal(t, ProbeStateInvalid, result.State)
+}
+
+func TestProbe_ReturnsMissingAndInvalidStates(t *testing.T) {
+	resetRuntimeHooks(t)
+	active := profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()})
+
+	result := Probe(context.Background(), active)
+	require.ErrorContains(t, result.Err, "runtime metadata is not present")
+	require.Equal(t, ProbeStateMissing, result.State)
+
+	require.NoError(t, os.WriteFile(active.RuntimePath, []byte(`{`), 0o600))
+	result = Probe(context.Background(), active)
+	require.ErrorContains(t, result.Err, "parse runtime metadata")
+	require.Equal(t, ProbeStateInvalid, result.State)
+}
+
 func TestCheckProcessAcceptsCurrentProcess(t *testing.T) {
 	require.NoError(t, checkProcess(os.Getpid()))
 	require.EqualError(t, checkProcess(0), "runtime pid is required")

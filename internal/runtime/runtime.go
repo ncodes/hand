@@ -33,6 +33,23 @@ type Metadata struct {
 	StartedAt time.Time `json:"started_at"`
 }
 
+// ProbeState identifies the result category for a read-only daemon probe.
+type ProbeState string
+
+const (
+	ProbeStateReady   ProbeState = "ready"
+	ProbeStateMissing ProbeState = "missing"
+	ProbeStateInvalid ProbeState = "invalid"
+	ProbeStateStale   ProbeState = "stale"
+)
+
+// ProbeResult describes daemon runtime readiness without mutating runtime metadata.
+type ProbeResult struct {
+	State    ProbeState
+	Metadata Metadata
+	Err      error
+}
+
 var (
 	now           = time.Now
 	processPID    = os.Getpid
@@ -124,6 +141,26 @@ func Load(active profile.Profile) (Metadata, error) {
 	}
 
 	return metadata, nil
+}
+
+// Probe checks runtime metadata, PID, and endpoint reachability without removing stale metadata.
+func Probe(ctx context.Context, active profile.Profile) ProbeResult {
+	metadata, err := Load(active)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ProbeResult{State: ProbeStateMissing, Err: fmt.Errorf("runtime metadata is not present")}
+		}
+
+		return ProbeResult{State: ProbeStateInvalid, Err: err}
+	}
+	if err := checkPID(metadata.PID); err != nil {
+		return ProbeResult{State: ProbeStateStale, Metadata: metadata, Err: err}
+	}
+	if err := dialRuntime(ctx, metadata.RPC.Address, metadata.RPC.Port); err != nil {
+		return ProbeResult{State: ProbeStateStale, Metadata: metadata, Err: err}
+	}
+
+	return ProbeResult{State: ProbeStateReady, Metadata: metadata}
 }
 
 // ResolveRPC returns the RPC endpoint for cfg, preferring profile runtime metadata unless RPC was explicitly configured.
