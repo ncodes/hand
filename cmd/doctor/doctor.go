@@ -3,11 +3,14 @@ package doctor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/term"
 	cli "github.com/urfave/cli/v3"
 
 	handcli "github.com/wandxy/hand/internal/cli"
@@ -17,6 +20,15 @@ import (
 )
 
 var doctorOutput io.Writer = os.Stdout
+
+var doctorOutputWidth = func() int {
+	width, _, err := term.GetSize(os.Stdout.Fd())
+	if err != nil {
+		return 0
+	}
+
+	return width
+}
 
 func SetOutput(w io.Writer) io.Writer {
 	previous := doctorOutput
@@ -30,9 +42,11 @@ func SetOutput(w io.Writer) io.Writer {
 
 const (
 	colorReset  = "\x1b[0m"
+	colorGray   = "\x1b[90m"
 	colorGreen  = "\x1b[32m"
 	colorYellow = "\x1b[33m"
 	colorRed    = "\x1b[31m"
+	colorWhite  = "\x1b[97m"
 )
 
 func NewCommand() *cli.Command {
@@ -71,10 +85,8 @@ func NewCommand() *cli.Command {
 				return doctorError(report, readinessReport)
 			}
 
-			for _, check := range report.Checks {
-				if _, writeErr := fmt.Fprintf(doctorOutput, "[%s] %s: %s\n", formatStatus(check.Status, cfg), check.Name, check.Message); writeErr != nil {
-					return writeErr
-				}
+			if err := renderDiagnosticsReport(doctorOutput, report, cfg); err != nil {
+				return err
 			}
 			if safety != "" {
 				if _, writeErr := fmt.Fprintf(doctorOutput, "safety: %s\n", safety); writeErr != nil {
@@ -117,6 +129,19 @@ type jsonCheck struct {
 type jsonAction struct {
 	Command     string `json:"command"`
 	Description string `json:"description,omitempty"`
+}
+
+type CheckFailedError struct {
+	Summary string
+}
+
+func (err CheckFailedError) Error() string {
+	return "doctor checks failed: " + err.Summary
+}
+
+func IsCheckFailed(err error) bool {
+	var checkErr CheckFailedError
+	return errors.As(err, &checkErr)
 }
 
 func renderJSONReport(w io.Writer, diagnosticsReport diagnostics.Report, readinessReport readiness.Report, safety string) error {
@@ -181,10 +206,10 @@ func readinessActionsToJSON(actions []readiness.Action) []jsonAction {
 
 func doctorError(diagnosticsReport diagnostics.Report, readinessReport readiness.Report) error {
 	if diagnosticsReport.HasFailures() {
-		return fmt.Errorf("doctor checks failed: %s", diagnosticsReport.Summary())
+		return CheckFailedError{Summary: diagnosticsReport.Summary()}
 	}
 	if readinessReport.HasFailures() {
-		return fmt.Errorf("doctor checks failed: %s", readinessReport.Summary())
+		return CheckFailedError{Summary: readinessReport.Summary()}
 	}
 
 	return nil
@@ -201,21 +226,30 @@ func getDoctorSummary(diagnosticsReport diagnostics.Report, readinessReport read
 	return "doctor checks passed"
 }
 
+func renderDiagnosticsReport(w io.Writer, report diagnostics.Report, cfg *config.Config) error {
+	if _, err := fmt.Fprintln(w, "general readiness:"); err != nil {
+		return err
+	}
+	for _, check := range report.Checks {
+		if err := renderCheckLine(w, formatStatus(check.Status, cfg), check.Name, check.Message, cfg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func renderReadinessReport(w io.Writer, report readiness.Report, cfg *config.Config) error {
 	for _, group := range report.Groups {
 		if _, err := fmt.Fprintf(w, "\n%s readiness:\n", group.Name); err != nil {
 			return err
 		}
 		for _, check := range group.Checks {
-			if _, err := fmt.Fprintf(w, "[%s] %s: %s\n", formatStatus(check.Status, cfg), check.Name, check.Message); err != nil {
+			if err := renderCheckLine(w, formatStatus(check.Status, cfg), check.Name, check.Message, cfg); err != nil {
 				return err
 			}
 			for _, action := range check.Actions {
-				line := action.Command
-				if action.Description != "" {
-					line += " - " + action.Description
-				}
-				if _, err := fmt.Fprintf(w, "  fix: %s\n", line); err != nil {
+				if _, err := fmt.Fprintf(w, "  fix: %s\n", formatAction(action, cfg)); err != nil {
 					return err
 				}
 			}
@@ -223,6 +257,99 @@ func renderReadinessReport(w io.Writer, report readiness.Report, cfg *config.Con
 	}
 
 	return nil
+}
+
+func renderCheckLine(w io.Writer, status string, name string, message string, cfg *config.Config) error {
+	prefix := fmt.Sprintf("[%s] %s: ", status, name)
+	continuation := strings.Repeat(" ", ansi.StringWidth(prefix))
+	for _, line := range wrapCheckMessage(message, doctorOutputWidth(), prefix, continuation, cfg) {
+		if _, err := fmt.Fprintln(w, line); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func wrapCheckMessage(message string, width int, firstPrefix string, restPrefix string, cfg *config.Config) []string {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return []string{firstPrefix}
+	}
+	if width <= 0 {
+		return []string{firstPrefix + message}
+	}
+
+	lines := make([]string, 0)
+	for paragraphIndex, paragraph := range strings.Split(message, "\n") {
+		currentPrefix := firstPrefix
+		if paragraphIndex > 0 {
+			currentPrefix = restPrefix
+		}
+		current := ""
+		currentWidth := 0
+		for _, word := range strings.Fields(paragraph) {
+			available := max(1, width-ansi.StringWidth(currentPrefix))
+			lines, current, currentWidth, currentPrefix = appendWrapWord(
+				lines,
+				current,
+				currentWidth,
+				currentPrefix,
+				restPrefix,
+				word,
+				available,
+			)
+		}
+		if current != "" {
+			lines = append(lines, currentPrefix+current)
+		}
+	}
+	if len(lines) == 0 {
+		return []string{firstPrefix}
+	}
+
+	return lines
+}
+
+func appendWrapWord(
+	lines []string,
+	current string,
+	currentWidth int,
+	currentPrefix string,
+	restPrefix string,
+	word string,
+	available int,
+) ([]string, string, int, string) {
+	wordWidth := ansi.StringWidth(word)
+	if current == "" {
+		return lines, word, wordWidth, currentPrefix
+	}
+	if currentWidth+1+wordWidth > available {
+		lines = append(lines, currentPrefix+current)
+		return lines, word, wordWidth, restPrefix
+	}
+
+	return lines, current + " " + word, currentWidth + 1 + wordWidth, currentPrefix
+}
+
+func formatAction(action readiness.Action, cfg *config.Config) string {
+	command := strings.TrimSpace(action.Command)
+	description := strings.TrimSpace(action.Description)
+	if cfg != nil && cfg.Log.NoColor {
+		command = "`" + command + "`"
+		if description == "" {
+			return command
+		}
+
+		return command + " - " + description
+	}
+
+	command = colorWhite + command + colorReset
+	if description == "" {
+		return command
+	}
+
+	return command + colorGray + " - " + description + colorReset
 }
 
 func formatStatus(status diagnostics.Status, cfg *config.Config) string {

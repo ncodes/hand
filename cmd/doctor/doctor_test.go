@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -46,13 +47,14 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 		"doctor",
 	})
 	require.NoError(t, err)
+	require.Contains(t, output.String(), "general readiness:\n")
 	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] config validation: configuration is valid")
 	require.Contains(t, output.String(), "safety: input=enabled, output=enabled, pii=disabled")
 	require.Contains(t, output.String(), "\nprofile readiness:")
 	require.Contains(t, output.String(), "\ndaemon readiness:")
 	require.Contains(t, output.String(), "\nmodels readiness:")
 	require.Contains(t, output.String(), "\ncapabilities readiness:")
-	require.Contains(t, output.String(), "fix: hand up - start the daemon for this profile")
+	require.Contains(t, output.String(), "fix: \x1b[97mhand up\x1b[0m\x1b[90m - start the daemon for this profile\x1b[0m")
 	require.Contains(t, output.String(), "doctor checks passed")
 	require.NotContains(t, output.String(), "flag-key")
 }
@@ -121,10 +123,12 @@ search:
 		"--model", "gpt-4o-mini",
 		"doctor",
 	})
-	require.ErrorContains(t, err, "hand auth login openrouter")
+	require.ErrorContains(t, err, "model API key is required")
+	require.Contains(t, output.String(), "general readiness:\n")
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] config validation")
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] model auth")
-	require.Contains(t, output.String(), "fix: hand config set models.providers.openrouter.apiKey <api-key>")
+	require.Contains(t, output.String(), "fix: \x1b[97mhand auth login openrouter --api-key <api-key>\x1b[0m")
+	require.Contains(t, output.String(), "fix: \x1b[97mhand config set models.providers.openrouter.apiKey <api-key>\x1b[0m")
 	require.Contains(t, output.String(), "safety: input=enabled, output=enabled, pii=disabled")
 }
 
@@ -149,8 +153,10 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 		"doctor",
 	})
 	require.NoError(t, err)
+	require.Contains(t, output.String(), "general readiness:\n")
 	require.Contains(t, output.String(), "[PASS] config validation: configuration is valid")
 	require.Contains(t, output.String(), "[WARN] runtime: runtime metadata is not present")
+	require.Contains(t, output.String(), "fix: `hand up` - start the daemon for this profile")
 	require.Contains(t, output.String(), "safety: input=enabled, output=enabled, pii=disabled")
 	require.NotRegexp(t, regexp.MustCompile(`\x1b\[[0-9;]*m`), output.String())
 }
@@ -291,9 +297,45 @@ func TestRenderReadinessReport(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "models readiness:")
-	require.Contains(t, output.String(), "fix: hand auth login openai - login")
-	require.Contains(t, output.String(), "fix: /models")
+	require.Contains(t, output.String(), "fix: \x1b[97mhand auth login openai\x1b[0m\x1b[90m - login\x1b[0m")
+	require.Contains(t, output.String(), "fix: \x1b[97m/models\x1b[0m")
+	require.Equal(
+		t,
+		"`hand auth login openai` - login",
+		formatAction(readiness.Action{Command: "hand auth login openai", Description: "login"}, &config.Config{Log: config.LogConfig{NoColor: true}}),
+	)
+	require.Equal(
+		t,
+		"\x1b[97m/models\x1b[0m\x1b[90m - choose after hand up; then continue\x1b[0m",
+		formatAction(readiness.Action{Command: "/models", Description: "choose after hand up; then continue"}, &config.Config{}),
+	)
 	require.Error(t, renderReadinessReport(failingWriter{}, report, &config.Config{}))
+}
+
+func TestRenderCheckLineWrapsMessageWithHangingIndent(t *testing.T) {
+	originalWidth := doctorOutputWidth
+	t.Cleanup(func() {
+		doctorOutputWidth = originalWidth
+	})
+	doctorOutputWidth = func() int { return 100 }
+
+	var output bytes.Buffer
+	err := renderCheckLine(
+		&output,
+		"WARN",
+		"config validation",
+		`embedding API key is required for provider "openai"; set a provider API key, provider env var, or role apiKey`,
+		&config.Config{Log: config.LogConfig{NoColor: true}},
+	)
+
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimRight(output.String(), "\n"), "\n")
+	require.Greater(t, len(lines), 1)
+	require.True(t, strings.HasPrefix(lines[0], "[WARN] config validation: "))
+	require.True(t, strings.HasPrefix(lines[1], strings.Repeat(" ", len("[WARN] config validation: "))))
+	for _, line := range lines {
+		require.LessOrEqual(t, len(line), 100)
+	}
 }
 
 func TestRenderJSONReport(t *testing.T) {

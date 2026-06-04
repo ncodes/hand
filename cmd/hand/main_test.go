@@ -174,7 +174,7 @@ search:
 		"--rpc.port", nextTestPort(t),
 		"up",
 	})
-	require.ErrorContains(t, err, "hand auth login openrouter")
+	require.ErrorContains(t, err, `model API key is required for provider "openrouter"`)
 }
 
 func TestNewCommand_DefaultsBaseURLWhenProviderIsImplicit(t *testing.T) {

@@ -489,7 +489,7 @@ func TestConfig_ResolveModelAuthDoesNotLoadOpenAICredentialForOpenAICodex(t *tes
 	}
 
 	_, err := cfg.ResolveModelAuth()
-	require.ErrorContains(t, err, "hand auth login openai-codex")
+	require.ErrorContains(t, err, `model API key is required for provider "openai-codex"`)
 }
 
 func TestConfig_ResolveModelAuthRefreshesExpiredStoredCredential(t *testing.T) {
@@ -663,7 +663,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 
 	t.Setenv("OPENAI_API_KEY", "")
 	_, err = (&Config{Models: ModelsConfig{Embedding: EmbeddingModelConfig{Provider: "openai"}}}).ResolveEmbeddingModelAuth()
-	require.ErrorContains(t, err, "hand auth login openai")
+	require.EqualError(t, err, `embedding API key is required for provider "openai"; set a provider API key, provider env var, or role apiKey`)
 
 	_, err = (&Config{
 		Models: ModelsConfig{Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}}, Embedding: EmbeddingModelConfig{Provider: "test"}},
@@ -1131,7 +1131,7 @@ func TestConfig_EffectiveAuthHelpersCoverFallbackBranches(t *testing.T) {
 	require.EqualError(
 		t,
 		newMissingModelCredentialError("", ""),
-		"model API key is required; set a provider API key, provider env var, role apiKey, or run hand auth login <provider>",
+		"model API key is required; set a provider API key, provider env var, role apiKey, or provider login",
 	)
 }
 
@@ -1397,7 +1397,7 @@ func TestConfig_ResolveSummaryModelAuth_FailsWhenSummaryProviderHasNoKey(t *test
 	cfg.Normalize()
 
 	_, err := cfg.ResolveSummaryModelAuth()
-	require.ErrorContains(t, err, "hand auth login openai")
+	require.ErrorContains(t, err, `model API key is required for provider "openai"`)
 }
 
 func TestConfig_ResolveSummaryModelAuth_ReturnsCredentialResolverError(t *testing.T) {

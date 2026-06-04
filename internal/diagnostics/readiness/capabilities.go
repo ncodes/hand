@@ -53,17 +53,24 @@ func buildVectorSearchCheck(cfg *config.Config) Check {
 
 	status := StatusPass
 	message := "vector search is enabled"
+	var actions []Action
 	if cfg.Search.Vector.Required {
 		message = "vector search is enabled and required"
 	}
 	if cfg.Search.Vector.Required {
 		if _, err := cfg.ResolveEmbeddingModelAuth(); err != nil {
 			status = StatusFail
-			message = "required vector search cannot resolve embedding auth: " + err.Error()
+			message = fmt.Sprintf(
+				"required vector search cannot resolve embedding auth for provider %q",
+				cfg.ModelEmbeddingProviderEffective(),
+			)
+			if isMissingAuthError(err) {
+				actions = append(actions, providerAPIKeyActions(cfg.ModelEmbeddingProviderEffective())...)
+			}
 		}
 	}
 
-	return check("vector search", status, message)
+	return check("vector search", status, message, actions...)
 }
 
 func buildRerankerCheck(cfg *config.Config) Check {

@@ -3,7 +3,6 @@ package doctor
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -57,8 +56,7 @@ search:
 `), 0o600))
 
 		output, err := runDoctorCommand(t, "hand", "--config", configPath, "doctor")
-		fmt.Println(output)
-		require.ErrorContains(t, err, "hand auth login openrouter")
+		require.ErrorContains(t, err, "model API key is required")
 		assert.Contains(t, output, "config validation")
 		assert.Contains(t, output, "model auth")
 	})

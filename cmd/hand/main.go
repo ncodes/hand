@@ -92,6 +92,9 @@ func main() {
 		if exitErr, ok := errors.AsType[cli.ExitCoder](err); ok {
 			os.Exit(exitErr.ExitCode())
 		}
+		if doctorcmd.IsCheckFailed(err) {
+			os.Exit(1)
+		}
 		log.Fatal().Err(err).Msg("Failed to run")
 	}
 }

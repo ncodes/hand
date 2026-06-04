@@ -131,8 +131,15 @@ func TestBuild_CoversModelAndCapabilityBranches(t *testing.T) {
 	})
 
 	require.True(t, report.HasFailures())
-	require.Equal(t, StatusFail, findReadinessCheck(t, report, "models", "embedding").Status)
-	require.Equal(t, StatusFail, findReadinessCheck(t, report, "capabilities", "vector search").Status)
+	embedding := findReadinessCheck(t, report, "models", "embedding")
+	require.Equal(t, StatusFail, embedding.Status)
+	require.Equal(t, "hand auth login openai --api-key <api-key>", embedding.Actions[0].Command)
+	require.Equal(t, "hand config set models.providers.openai.apiKey <api-key>", embedding.Actions[1].Command)
+	vector := findReadinessCheck(t, report, "capabilities", "vector search")
+	require.Equal(t, StatusFail, vector.Status)
+	require.Equal(t, `required vector search cannot resolve embedding auth for provider "openai"`, vector.Message)
+	require.Equal(t, "hand auth login openai --api-key <api-key>", vector.Actions[0].Command)
+	require.Equal(t, "hand config set models.providers.openai.apiKey <api-key>", vector.Actions[1].Command)
 	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "capabilities", "memory").Status)
 	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "capabilities", "reranker").Status)
 	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "capabilities", "web tools").Status)
@@ -256,8 +263,13 @@ func TestBuild_CoversRerankDisabledBySearch(t *testing.T) {
 }
 
 func TestMissingAuthActionAndCredentialSourceFormatting(t *testing.T) {
-	missingAuthActions := modelErrorActions(constants.ModelProviderOpenRouter, errors.New("model API key is required for provider"))
-	require.Equal(t, "hand config set models.providers.openrouter.apiKey <api-key>", missingAuthActions[0].Command)
+	modelMissingAuthActions := modelErrorActions(constants.ModelProviderOpenRouter, errors.New("model API key is required for provider"))
+	require.Equal(t, "hand auth login openrouter --api-key <api-key>", modelMissingAuthActions[0].Command)
+	require.Equal(t, "hand config set models.providers.openrouter.apiKey <api-key>", modelMissingAuthActions[1].Command)
+
+	embeddingMissingAuthActions := embeddingModelErrorActions(constants.ModelProviderOpenAI, errors.New("embedding API key is required for provider"))
+	require.Equal(t, "hand auth login openai --api-key <api-key>", embeddingMissingAuthActions[0].Command)
+	require.Equal(t, "hand config set models.providers.openai.apiKey <api-key>", embeddingMissingAuthActions[1].Command)
 
 	modelSelectionActions := modelErrorActions(constants.ModelProviderOpenRouter, errors.New("model provider must be one of: openrouter"))
 	require.Len(t, modelSelectionActions, 2)
@@ -265,16 +277,21 @@ func TestMissingAuthActionAndCredentialSourceFormatting(t *testing.T) {
 	require.Equal(t, "/models", modelSelectionActions[1].Command)
 
 	require.False(t, isMissingAuthError(nil))
-	require.Equal(t, "hand auth login openai", missingAuthAction(constants.ModelProviderOpenAI).Command)
+	require.Equal(t, "hand auth login openai", missingAuthActions(constants.ModelProviderOpenAI)[0].Command)
 	require.Equal(
 		t,
-		"hand config set models.providers.openrouter.apiKey <api-key>",
-		missingAuthAction(constants.ModelProviderOpenRouter).Command,
+		"hand auth login openrouter --api-key <api-key>",
+		missingAuthActions(constants.ModelProviderOpenRouter)[0].Command,
 	)
 	require.Equal(
 		t,
 		"hand config set models.providers.openrouter.apiKey <api-key>",
-		missingAuthAction("").Command,
+		missingAuthActions(constants.ModelProviderOpenRouter)[1].Command,
+	)
+	require.Equal(
+		t,
+		"hand auth login openrouter --api-key <api-key>",
+		missingAuthActions("")[0].Command,
 	)
 
 	require.Equal(t, "role-config", formatCredentialSource(config.ModelAuth{

@@ -350,7 +350,7 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 				t.Setenv("OPENAI_API_KEY", "")
 				cfg.Models.Providers = nil
 			},
-			err: `embedding API key is required for provider "openai"; set a provider API key, provider env var, role apiKey, or run hand auth login openai`,
+			err: `embedding API key is required for provider "openai"; set a provider API key, provider env var, or role apiKey`,
 		},
 	}
 

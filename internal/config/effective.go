@@ -888,11 +888,19 @@ func newMissingModelCredentialError(role string, provider string) error {
 		role = "model"
 	}
 	provider = strings.TrimSpace(strings.ToLower(provider))
+	if role == "embedding" {
+		if provider == "" {
+			return fmt.Errorf("%s API key is required; set a provider API key, provider env var, or role apiKey", role)
+		}
+
+		return fmt.Errorf("%s API key is required for provider %q; set a provider API key, provider env var, or role apiKey",
+			role,
+			provider,
+		)
+	}
 	if provider == "" {
-		return fmt.Errorf("%s API key is required; set a provider API key, provider env var, role apiKey, "+
-			"or run hand auth login <provider>", role)
+		return fmt.Errorf("%s API key is required; set a provider API key, provider env var, role apiKey, or provider login", role)
 	}
 
-	return fmt.Errorf("%s API key is required for provider %q; set a provider API key, provider env var, role apiKey,"+
-		" or run hand auth login %s", role, provider, provider)
+	return fmt.Errorf("%s API key is required for provider %q; set a provider API key, provider env var, role apiKey, or provider login", role, provider)
 }

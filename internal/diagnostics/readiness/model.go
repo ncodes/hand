@@ -28,8 +28,13 @@ func buildModelGroup(cfg *config.Config) Group {
 
 func buildEmbeddingRoleCheck(cfg *config.Config) Check {
 	if cfg.Search.Vector.Enabled {
-		return buildModelRoleCheck("embedding", cfg.ModelEmbeddingProviderEffective(), cfg.Models.Embedding.Name,
-			cfg.ResolveEmbeddingModelAuth)
+		return buildModelRoleCheckWithActions(
+			"embedding",
+			cfg.ModelEmbeddingProviderEffective(),
+			cfg.Models.Embedding.Name,
+			cfg.ResolveEmbeddingModelAuth,
+			embeddingModelErrorActions,
+		)
 	}
 
 	return check(
@@ -49,13 +54,23 @@ func buildModelRoleCheck(
 	model string,
 	resolve func() (config.ModelAuth, error),
 ) Check {
+	return buildModelRoleCheckWithActions(role, provider, model, resolve, modelErrorActions)
+}
+
+func buildModelRoleCheckWithActions(
+	role string,
+	provider string,
+	model string,
+	resolve func() (config.ModelAuth, error),
+	actions func(string, error) []Action,
+) Check {
 	auth, err := resolve()
 	if err != nil {
 		return check(
 			role,
 			StatusFail,
 			err.Error(),
-			modelErrorActions(provider, err)...,
+			actions(provider, err)...,
 		)
 	}
 
@@ -78,7 +93,19 @@ func modelErrorActions(provider string, err error) []Action {
 		commandAction("/models", "review models for the selected provider"),
 	}
 	if isMissingAuthError(err) {
-		actions = append([]Action{missingAuthAction(provider)}, actions...)
+		actions = append(missingAuthActions(provider), actions...)
+	}
+
+	return actions
+}
+
+func embeddingModelErrorActions(provider string, err error) []Action {
+	actions := []Action{
+		commandAction("/providers", "review known providers in the TUI"),
+		commandAction("/models", "review models for the selected provider"),
+	}
+	if isMissingAuthError(err) {
+		actions = append(providerAPIKeyActions(provider), actions...)
 	}
 
 	return actions
@@ -94,7 +121,7 @@ func isMissingAuthError(err error) bool {
 		strings.Contains(message, "hand auth login")
 }
 
-func missingAuthAction(provider string) Action {
+func missingAuthActions(provider string) []Action {
 	provider = strings.TrimSpace(strings.ToLower(provider))
 	if provider == "" {
 		provider = constants.DefaultModelProvider
@@ -102,12 +129,27 @@ func missingAuthAction(provider string) Action {
 	switch provider {
 	case constants.ModelProviderOpenAI, constants.ModelProviderOpenAICodex,
 		constants.ModelProviderAnthropic, constants.ModelProviderGitHubCopilot:
-		return commandAction("hand auth login "+provider, "store OAuth credentials for this provider")
+		return []Action{commandAction("hand auth login "+provider, "store OAuth credentials for this provider")}
 	default:
-		return commandAction(
+		return providerAPIKeyActions(provider)
+	}
+}
+
+func providerAPIKeyActions(provider string) []Action {
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	if provider == "" {
+		provider = constants.DefaultModelProvider
+	}
+
+	return []Action{
+		commandAction(
+			fmt.Sprintf("hand auth login %s --api-key <api-key>", provider),
+			"store a provider API key",
+		),
+		commandAction(
 			fmt.Sprintf("hand config set models.providers.%s.apiKey <api-key>", provider),
-			"configure a provider API key",
-		)
+			"write the provider API key to the profile config",
+		),
 	}
 }
 
