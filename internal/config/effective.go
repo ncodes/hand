@@ -204,6 +204,28 @@ func (c *Config) MemoryEnabled() bool {
 	return getBoolValueDefault(c.Memory.Enabled, true)
 }
 
+func (c *Config) MemoryBackendEffective() string {
+	if c == nil {
+		return ""
+	}
+
+	c.normalizeFields()
+	if c.Memory.Backend != "" {
+		return c.Memory.Backend
+	}
+
+	return c.Storage.Backend
+}
+
+func (c *Config) MemoryPinnedEnabled() bool {
+	if c == nil {
+		return false
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.Memory.Pinned.Enabled, constants.DefaultProfileMemoryPinnedEnabled)
+}
+
 func (c *Config) MemoryRetrievalEnabled() bool {
 	if c == nil {
 		return false
@@ -220,6 +242,33 @@ func (c *Config) MemoryFlushEnabled() bool {
 
 	c.normalizeFields()
 	return getBoolValueDefault(c.Memory.Flush.Enabled, true)
+}
+
+func (c *Config) MemoryEpisodicEnabled() bool {
+	if c == nil {
+		return false
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.Memory.Episodic.Enabled, constants.DefaultMemoryEpisodicEnabled)
+}
+
+func (c *Config) MemoryReflectionEnabled() bool {
+	if c == nil {
+		return false
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.Memory.Reflection.Enabled, constants.DefaultMemoryReflectionEnabled)
+}
+
+func (c *Config) MemoryPromotionEnabled() bool {
+	if c == nil {
+		return false
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.Memory.Promotion.Enabled, constants.DefaultProfileMemoryPromotionEnabled)
 }
 
 func (c *Config) MemoryWriteEnabled() bool {

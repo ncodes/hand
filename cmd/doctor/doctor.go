@@ -85,22 +85,14 @@ func NewCommand() *cli.Command {
 				return doctorError(report, readinessReport)
 			}
 
-			if err := renderDiagnosticsReport(doctorOutput, report, cfg); err != nil {
-				return err
-			}
-			if safety != "" {
-				if _, writeErr := fmt.Fprintf(doctorOutput, "safety: %s\n", safety); writeErr != nil {
-					return writeErr
-				}
-			}
-			if err := renderReadinessReport(doctorOutput, readinessReport, cfg); err != nil {
+			if err := renderDoctorReport(doctorOutput, report, readinessReport, cfg); err != nil {
 				return err
 			}
 			if err := doctorError(report, readinessReport); err != nil {
 				return err
 			}
 
-			_, err = fmt.Fprintln(doctorOutput, "doctor checks passed")
+			_, err = fmt.Fprintln(doctorOutput, "\n[OK] doctor checks passed")
 			return err
 		},
 	}
@@ -227,10 +219,14 @@ func getDoctorSummary(diagnosticsReport diagnostics.Report, readinessReport read
 }
 
 func renderDiagnosticsReport(w io.Writer, report diagnostics.Report, cfg *config.Config) error {
-	if _, err := fmt.Fprintln(w, "general readiness:"); err != nil {
+	checks := getRenderableDiagnosticChecks(report)
+	if len(checks) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintln(w, "config:"); err != nil {
 		return err
 	}
-	for _, check := range report.Checks {
+	for _, check := range checks {
 		if err := renderCheckLine(w, formatStatus(check.Status, cfg), check.Name, check.Message, cfg); err != nil {
 			return err
 		}
@@ -239,14 +235,66 @@ func renderDiagnosticsReport(w io.Writer, report diagnostics.Report, cfg *config
 	return nil
 }
 
+func getRenderableDiagnosticChecks(report diagnostics.Report) []diagnostics.Check {
+	checks := make([]diagnostics.Check, 0, len(report.Checks))
+	for _, check := range report.Checks {
+		switch check.Name {
+		case "config load", "config validation":
+			checks = append(checks, check)
+		}
+	}
+
+	return checks
+}
+
+func renderDoctorReport(
+	w io.Writer,
+	diagnosticsReport diagnostics.Report,
+	readinessReport readiness.Report,
+	cfg *config.Config,
+) error {
+	if len(readinessReport.Groups) == 0 {
+		return renderDiagnosticsReport(w, diagnosticsReport, cfg)
+	}
+
+	return renderReadinessReportWithDiagnostics(
+		w,
+		readinessReport,
+		getRenderableDiagnosticChecks(diagnosticsReport),
+		cfg,
+	)
+}
+
 func renderReadinessReport(w io.Writer, report readiness.Report, cfg *config.Config) error {
+	return renderReadinessReportWithDiagnostics(w, report, nil, cfg)
+}
+
+func renderReadinessReportWithDiagnostics(
+	w io.Writer,
+	report readiness.Report,
+	profileDiagnostics []diagnostics.Check,
+	cfg *config.Config,
+) error {
 	for _, group := range report.Groups {
-		if _, err := fmt.Fprintf(w, "\n%s readiness:\n", group.Name); err != nil {
+		if _, err := fmt.Fprintf(w, "\n%s:\n", group.Name); err != nil {
 			return err
 		}
 		for _, check := range group.Checks {
 			if err := renderCheckLine(w, formatStatus(check.Status, cfg), check.Name, check.Message, cfg); err != nil {
 				return err
+			}
+			if group.Name == "profile" && check.Name == "env" {
+				for _, diagnostic := range profileDiagnostics {
+					if err := renderCheckLine(
+						w,
+						formatStatus(diagnostic.Status, cfg),
+						diagnostic.Name,
+						diagnostic.Message,
+						cfg,
+					); err != nil {
+						return err
+					}
+				}
 			}
 			for _, action := range check.Actions {
 				if _, err := fmt.Fprintf(w, "  fix: %s\n", formatAction(action, cfg)); err != nil {

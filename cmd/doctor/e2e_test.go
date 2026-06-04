@@ -58,7 +58,7 @@ search:
 		output, err := runDoctorCommand(t, "hand", "--config", configPath, "doctor")
 		require.ErrorContains(t, err, "model API key is required")
 		assert.Contains(t, output, "config validation")
-		assert.Contains(t, output, "model auth")
+		assert.Contains(t, output, "models:")
 	})
 }
 

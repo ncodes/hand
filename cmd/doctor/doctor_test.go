@@ -47,15 +47,27 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 		"doctor",
 	})
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "general readiness:\n")
+	require.NotContains(t, output.String(), "config:\n")
+	require.Contains(t, output.String(), "\nprofile:")
+	requireInOrder(
+		t,
+		output.String(),
+		"config:",
+		"env:",
+		"config validation: configuration is valid",
+	)
 	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] config validation: configuration is valid")
-	require.Contains(t, output.String(), "safety: input=enabled, output=enabled, pii=disabled")
-	require.Contains(t, output.String(), "\nprofile readiness:")
-	require.Contains(t, output.String(), "\ndaemon readiness:")
-	require.Contains(t, output.String(), "\nmodels readiness:")
-	require.Contains(t, output.String(), "\ncapabilities readiness:")
+	require.Contains(t, output.String(), "\ndaemon:")
+	require.Contains(t, output.String(), "\nmodels:")
+	require.Contains(t, output.String(), "\nsession:")
+	require.Contains(t, output.String(), "compaction: enabled, triggerPercent=0.85, warnPercent=0.95, recentSessionTail=8")
+	require.Contains(t, output.String(), "\nmemory:")
+	require.Contains(t, output.String(), "\nsearch:")
+	require.Contains(t, output.String(), "\nsafety:")
+	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] policy: input=enabled, output=enabled, pii=disabled")
+	require.Contains(t, output.String(), "\ntools:")
 	require.Contains(t, output.String(), "fix: \x1b[97mhand up\x1b[0m\x1b[90m - start the daemon for this profile\x1b[0m")
-	require.Contains(t, output.String(), "doctor checks passed")
+	require.Contains(t, output.String(), "\n[OK] doctor checks passed")
 	require.NotContains(t, output.String(), "flag-key")
 }
 
@@ -95,7 +107,8 @@ search:
 		"doctor",
 	})
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "safety: input=disabled, output=enabled, pii=enabled")
+	require.Contains(t, output.String(), "\nsafety:")
+	require.Contains(t, output.String(), "policy: input=disabled, output=enabled, pii=enabled")
 }
 
 func TestNewCommand_PrintsFailureReport(t *testing.T) {
@@ -124,12 +137,19 @@ search:
 		"doctor",
 	})
 	require.ErrorContains(t, err, "model API key is required")
-	require.Contains(t, output.String(), "general readiness:\n")
+	require.NotContains(t, output.String(), "config:\n")
+	require.Contains(t, output.String(), "\nprofile:")
+	requireInOrder(
+		t,
+		output.String(),
+		"config:",
+		"env:",
+		"config validation",
+	)
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] config validation")
-	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] model auth")
 	require.Contains(t, output.String(), "fix: \x1b[97mhand auth login openrouter --api-key <api-key>\x1b[0m")
 	require.Contains(t, output.String(), "fix: \x1b[97mhand config set models.providers.openrouter.apiKey <api-key>\x1b[0m")
-	require.Contains(t, output.String(), "safety: input=enabled, output=enabled, pii=disabled")
+	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] policy: input=enabled, output=enabled, pii=disabled")
 }
 
 func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
@@ -153,11 +173,19 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 		"doctor",
 	})
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "general readiness:\n")
+	require.NotContains(t, output.String(), "config:\n")
+	require.Contains(t, output.String(), "\nprofile:")
+	requireInOrder(
+		t,
+		output.String(),
+		"config:",
+		"env:",
+		"config validation: configuration is valid",
+	)
 	require.Contains(t, output.String(), "[PASS] config validation: configuration is valid")
 	require.Contains(t, output.String(), "[WARN] runtime: runtime metadata is not present")
 	require.Contains(t, output.String(), "fix: `hand up` - start the daemon for this profile")
-	require.Contains(t, output.String(), "safety: input=enabled, output=enabled, pii=disabled")
+	require.Contains(t, output.String(), "[PASS] policy: input=enabled, output=enabled, pii=disabled")
 	require.NotRegexp(t, regexp.MustCompile(`\x1b\[[0-9;]*m`), output.String())
 }
 
@@ -296,7 +324,7 @@ func TestRenderReadinessReport(t *testing.T) {
 	err := renderReadinessReport(&output, report, &config.Config{})
 
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "models readiness:")
+	require.Contains(t, output.String(), "models:")
 	require.Contains(t, output.String(), "fix: \x1b[97mhand auth login openai\x1b[0m\x1b[90m - login\x1b[0m")
 	require.Contains(t, output.String(), "fix: \x1b[97m/models\x1b[0m")
 	require.Equal(
@@ -454,4 +482,15 @@ func findJSONCheck(t *testing.T, groups []jsonReadinessGroup, groupName string, 
 
 	require.Failf(t, "missing json check", "%s/%s", groupName, checkName)
 	return jsonCheck{}
+}
+
+func requireInOrder(t *testing.T, value string, fragments ...string) {
+	t.Helper()
+
+	offset := 0
+	for _, fragment := range fragments {
+		index := strings.Index(value[offset:], fragment)
+		require.NotEqualf(t, -1, index, "missing fragment %q after offset %d", fragment, offset)
+		offset += index + len(fragment)
+	}
 }

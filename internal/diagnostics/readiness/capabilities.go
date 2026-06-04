@@ -14,78 +14,14 @@ var resolveWebAPIKeySource = func(cfg *config.Config) (config.WebCredentialSourc
 
 func buildCapabilityGroup(cfg *config.Config) Group {
 	if cfg == nil {
-		return Group{Name: "capabilities", Checks: []Check{check("config", StatusFail, "config is required")}}
+		return Group{Name: "tools", Checks: []Check{check("config", StatusFail, "config is required")}}
 	}
 
 	checks := []Check{
-		buildMemoryCheck(cfg),
-		buildVectorSearchCheck(cfg),
-		buildRerankerCheck(cfg),
 		buildWebCheck(cfg),
 	}
 
-	return Group{Name: "capabilities", Checks: checks}
-}
-
-func buildMemoryCheck(cfg *config.Config) Check {
-	if !cfg.MemoryEnabled() {
-		return check("memory", StatusWarn, "memory is disabled")
-	}
-
-	return check(
-		"memory",
-		StatusPass,
-		fmt.Sprintf(
-			"enabled with provider %q, backend %q, retrieval=%t, flush=%t, write=%t",
-			cfg.Memory.Provider,
-			cfg.Memory.Backend,
-			cfg.MemoryRetrievalEnabled(),
-			cfg.MemoryFlushEnabled(),
-			cfg.MemoryWriteEnabled(),
-		),
-	)
-}
-
-func buildVectorSearchCheck(cfg *config.Config) Check {
-	if !cfg.Search.Vector.Enabled {
-		return check("vector search", StatusWarn, "vector search is disabled")
-	}
-
-	status := StatusPass
-	message := "vector search is enabled"
-	var actions []Action
-	if cfg.Search.Vector.Required {
-		message = "vector search is enabled and required"
-	}
-	if cfg.Search.Vector.Required {
-		if _, err := cfg.ResolveEmbeddingModelAuth(); err != nil {
-			status = StatusFail
-			message = fmt.Sprintf(
-				"required vector search cannot resolve embedding auth for provider %q",
-				cfg.ModelEmbeddingProviderEffective(),
-			)
-			if isMissingAuthError(err) {
-				actions = append(actions, providerAPIKeyActions(cfg.ModelEmbeddingProviderEffective())...)
-			}
-		}
-	}
-
-	return check("vector search", status, message, actions...)
-}
-
-func buildRerankerCheck(cfg *config.Config) Check {
-	enabled := true
-	if cfg.Reranker.Enabled != nil {
-		enabled = *cfg.Reranker.Enabled
-	}
-	if cfg.Search.EnableRerank != nil && !*cfg.Search.EnableRerank {
-		enabled = false
-	}
-	if !enabled {
-		return check("reranker", StatusWarn, "reranking is disabled")
-	}
-
-	return check("reranker", StatusPass, fmt.Sprintf("using %q reranker", cfg.RerankerEffective()))
+	return Group{Name: "tools", Checks: checks}
 }
 
 func buildWebCheck(cfg *config.Config) Check {
@@ -94,11 +30,8 @@ func buildWebCheck(cfg *config.Config) Check {
 	}
 
 	provider := strings.TrimSpace(strings.ToLower(cfg.Web.Provider))
-	if provider == "" {
-		return check("web tools", StatusWarn, "no web provider configured")
-	}
-	if provider == "native" {
-		return check("web tools", StatusPass, "native web extraction is configured")
+	if provider == "" || provider == "native" {
+		return check("web tools", StatusWarn, "native web extraction is configured; web search requires a configured web provider")
 	}
 	if !config.IsWebCredentialProvider(provider) {
 		return check("web tools", StatusWarn, fmt.Sprintf("web provider %q does not use managed credentials", provider))

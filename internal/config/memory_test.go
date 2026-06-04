@@ -11,6 +11,7 @@ import (
 func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	var cfg *Config
 	require.False(t, cfg.MemoryEnabled())
+	require.Empty(t, cfg.MemoryBackendEffective())
 
 	cfg = &Config{Memory: MemoryConfig{Provider: " Default-Memory ", Backend: " SQLite "}}
 	cfg.Normalize()
@@ -27,14 +28,23 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	require.False(t, getBoolValue(cfg.Memory.Reflection.Enabled))
 	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
 	require.True(t, getBoolValue(cfg.Memory.Write.Enabled))
+	require.True(t, cfg.MemoryPinnedEnabled())
 	require.True(t, cfg.MemoryRetrievalEnabled())
 	require.True(t, cfg.MemoryFlushEnabled())
+	require.False(t, cfg.MemoryEpisodicEnabled())
+	require.False(t, cfg.MemoryReflectionEnabled())
+	require.True(t, cfg.MemoryPromotionEnabled())
 	require.True(t, cfg.MemoryWriteEnabled())
 
 	cfg = &Config{Memory: MemoryConfig{Enabled: new(false)}}
 	cfg.Normalize()
 	require.False(t, cfg.MemoryEnabled())
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
+	require.Equal(t, "sqlite", cfg.MemoryBackendEffective())
+
+	cfg = &Config{Storage: StorageConfig{Backend: "memory"}, Memory: MemoryConfig{Backend: "sqlite"}}
+	cfg.Normalize()
+	require.Equal(t, "sqlite", cfg.MemoryBackendEffective())
 
 	cfg = &Config{Memory: MemoryConfig{
 		Reflection: ReflectionMemoryConfig{

@@ -53,6 +53,25 @@ func TestBuild_ReportsProfileAndMissingDaemonWithoutFailure(t *testing.T) {
 
 	require.False(t, report.HasFailures())
 	require.Equal(t, StatusPass, findReadinessCheck(t, report, "profile", "home").Status)
+	safety := findReadinessCheck(t, report, "safety", "policy")
+	require.Equal(t, StatusPass, safety.Status)
+	require.Equal(t, "input=enabled, output=enabled, pii=disabled", safety.Message)
+	memory := findReadinessCheck(t, report, "memory", "status")
+	require.Equal(t, StatusPass, memory.Status)
+	require.Contains(t, memory.Message, `enabled, provider="default-memory", backend="sqlite"`)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "memory", "pinned").Status)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "memory", "retrieval").Status)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "memory", "flush").Status)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "memory", "episodic").Status)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "memory", "reflection").Status)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "memory", "promotion").Status)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "memory", "write").Status)
+	compaction := findReadinessCheck(t, report, "session", "compaction")
+	require.Equal(t, StatusPass, compaction.Status)
+	require.Equal(t, "enabled, triggerPercent=0.85, warnPercent=0.95, recentSessionTail=8", compaction.Message)
+	web := findReadinessCheck(t, report, "tools", "web tools")
+	require.Equal(t, StatusWarn, web.Status)
+	require.Equal(t, "native web extraction is configured; web search requires a configured web provider", web.Message)
 	daemon := findReadinessCheck(t, report, "daemon", "runtime")
 	require.Equal(t, StatusWarn, daemon.Status)
 	require.Contains(t, daemon.Message, "runtime metadata is not present")
@@ -78,6 +97,64 @@ func TestBuild_ReportsModelAuthWithoutLeakingCredentials(t *testing.T) {
 	require.NotContains(t, report.Summary()+main.Message, "secret-openrouter-key")
 }
 
+func TestBuild_ReportsDisabledMemoryAsWarningOnly(t *testing.T) {
+	disabled := false
+	cfg := readyConfig()
+	cfg.Memory.Enabled = &disabled
+
+	report := Build(context.Background(), Options{
+		Config:  cfg,
+		Profile: profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()}),
+	})
+
+	memory := findReadinessCheck(t, report, "memory", "status")
+	require.Equal(t, StatusWarn, memory.Status)
+	require.Contains(t, memory.Message, `disabled, provider="default-memory", backend="sqlite"`)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "memory", "pinned").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "memory", "retrieval").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "memory", "flush").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "memory", "episodic").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "memory", "reflection").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "memory", "promotion").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "memory", "write").Status)
+	require.False(t, report.HasFailures())
+}
+
+func TestBuild_ReportsExplicitMemoryBackend(t *testing.T) {
+	cfg := readyConfig()
+	cfg.Storage.Backend = "sqlite"
+	cfg.Memory.Backend = "memory"
+
+	report := Build(context.Background(), Options{
+		Config:  cfg,
+		Profile: profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()}),
+	})
+
+	memory := findReadinessCheck(t, report, "memory", "status")
+	require.Equal(t, StatusPass, memory.Status)
+	require.Contains(t, memory.Message, `backend="memory"`)
+}
+
+func TestBuild_ReportsDisabledCompactionAsWarningOnly(t *testing.T) {
+	disabled := false
+	cfg := readyConfig()
+	cfg.Compaction.Enabled = &disabled
+	cfg.Compaction.TriggerPercent = 0.7
+	cfg.Compaction.WarnPercent = 0.9
+	recentTail := 3
+	cfg.Compaction.RecentSessionTail = &recentTail
+
+	report := Build(context.Background(), Options{
+		Config:  cfg,
+		Profile: profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()}),
+	})
+
+	compaction := findReadinessCheck(t, report, "session", "compaction")
+	require.Equal(t, StatusWarn, compaction.Status)
+	require.Equal(t, "disabled, triggerPercent=0.70, warnPercent=0.90, recentSessionTail=3", compaction.Message)
+	require.False(t, report.HasFailures())
+}
+
 func TestBuild_ReportsMissingWebCredentialAsWarning(t *testing.T) {
 	clearWebCredentialEnv(t)
 	original := resolveWebAPIKeySource
@@ -95,7 +172,7 @@ func TestBuild_ReportsMissingWebCredentialAsWarning(t *testing.T) {
 		Profile: profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()}),
 	})
 
-	web := findReadinessCheck(t, report, "capabilities", "web tools")
+	web := findReadinessCheck(t, report, "tools", "web tools")
 	require.Equal(t, StatusWarn, web.Status)
 	require.Contains(t, web.Message, "exa web credentials are not configured")
 	require.Equal(t, "hand config set web.provider exa && hand config set web.apiKey <api-key>", web.Actions[0].Command)
@@ -135,14 +212,15 @@ func TestBuild_CoversModelAndCapabilityBranches(t *testing.T) {
 	require.Equal(t, StatusFail, embedding.Status)
 	require.Equal(t, "hand auth login openai --api-key <api-key>", embedding.Actions[0].Command)
 	require.Equal(t, "hand config set models.providers.openai.apiKey <api-key>", embedding.Actions[1].Command)
-	vector := findReadinessCheck(t, report, "capabilities", "vector search")
+	vector := findReadinessCheck(t, report, "search", "vector")
 	require.Equal(t, StatusFail, vector.Status)
-	require.Equal(t, `required vector search cannot resolve embedding auth for provider "openai"`, vector.Message)
+	require.Contains(t, vector.Message, `auth=missing for provider "openai"`)
 	require.Equal(t, "hand auth login openai --api-key <api-key>", vector.Actions[0].Command)
 	require.Equal(t, "hand config set models.providers.openai.apiKey <api-key>", vector.Actions[1].Command)
-	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "capabilities", "memory").Status)
-	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "capabilities", "reranker").Status)
-	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "capabilities", "web tools").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "memory", "status").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "memory", "retrieval").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "search", "rerank").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "tools", "web tools").Status)
 }
 
 func TestBuild_CoversWebCredentialBranches(t *testing.T) {
@@ -157,23 +235,25 @@ func TestBuild_CoversWebCredentialBranches(t *testing.T) {
 		return config.WebCredentialSource{Configured: true, Source: "environment"}, nil
 	}
 	report := Build(context.Background(), Options{Config: cfg})
-	require.Equal(t, StatusPass, findReadinessCheck(t, report, "capabilities", "web tools").Status)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "tools", "web tools").Status)
 
 	resolveWebAPIKeySource = func(*config.Config) (config.WebCredentialSource, error) {
 		return config.WebCredentialSource{}, errors.New("stored failed")
 	}
 	report = Build(context.Background(), Options{Config: cfg})
-	web := findReadinessCheck(t, report, "capabilities", "web tools")
+	web := findReadinessCheck(t, report, "tools", "web tools")
 	require.Equal(t, StatusWarn, web.Status)
 	require.Contains(t, web.Message, "stored failed")
 
 	cfg.Web.Provider = "custom"
 	report = Build(context.Background(), Options{Config: cfg})
-	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "capabilities", "web tools").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "tools", "web tools").Status)
 
 	cfg.Web.Provider = "native"
 	report = Build(context.Background(), Options{Config: cfg})
-	require.Equal(t, StatusPass, findReadinessCheck(t, report, "capabilities", "web tools").Status)
+	nativeWeb := findReadinessCheck(t, report, "tools", "web tools")
+	require.Equal(t, StatusWarn, nativeWeb.Status)
+	require.Equal(t, "native web extraction is configured; web search requires a configured web provider", nativeWeb.Message)
 
 	require.Equal(t, "hand config set web.provider exa && hand config set web.apiKey <api-key>", webAuthAction("").Command)
 }
@@ -247,7 +327,10 @@ func TestBuild_CoversNilConfig(t *testing.T) {
 
 	require.True(t, report.HasFailures())
 	require.Equal(t, StatusFail, findReadinessCheck(t, report, "models", "config").Status)
-	require.Equal(t, StatusFail, findReadinessCheck(t, report, "capabilities", "config").Status)
+	require.Equal(t, StatusFail, findReadinessCheck(t, report, "session", "config").Status)
+	require.Equal(t, StatusFail, findReadinessCheck(t, report, "memory", "config").Status)
+	require.Equal(t, StatusFail, findReadinessCheck(t, report, "search", "config").Status)
+	require.Equal(t, StatusFail, findReadinessCheck(t, report, "tools", "config").Status)
 }
 
 func TestBuild_CoversRerankDisabledBySearch(t *testing.T) {
@@ -259,7 +342,7 @@ func TestBuild_CoversRerankDisabledBySearch(t *testing.T) {
 
 	report := Build(context.Background(), Options{Config: cfg})
 
-	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "capabilities", "reranker").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "search", "rerank").Status)
 }
 
 func TestMissingAuthActionAndCredentialSourceFormatting(t *testing.T) {

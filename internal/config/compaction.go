@@ -10,6 +10,15 @@ type CompactionConfig struct {
 	RecentSessionTail *int    `yaml:"recentSessionTail"`
 }
 
+func (c *Config) CompactionEnabled() bool {
+	if c == nil {
+		return constants.DefaultProfileCompactionEnabled
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.Compaction.Enabled, constants.DefaultProfileCompactionEnabled)
+}
+
 func (c *Config) CompactionRecentSessionTailEffective() int {
 	if c == nil || c.Compaction.RecentSessionTail == nil {
 		return constants.RecentSessionTail

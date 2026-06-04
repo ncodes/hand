@@ -56,6 +56,10 @@ func Build(ctx context.Context, opts Options) Report {
 		buildProfileGroup(opts.Profile, opts.EnvPath, opts.ConfigPath),
 		buildRuntimeGroup(ctx, opts.Profile),
 		buildModelGroup(cfg),
+		buildSessionGroup(cfg),
+		buildMemoryGroup(cfg),
+		buildSearchGroup(cfg),
+		buildSafetyGroup(cfg),
 		buildCapabilityGroup(cfg),
 	}}
 }
