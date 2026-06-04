@@ -50,6 +50,25 @@ func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
 	require.Equal(t, constants.RerankerLLM, DefaultConfig.Reranker.Overrides["memory_reflection"].Type)
 }
 
+func TestNewProfileConfig_LeavesModelSelectionEmpty(t *testing.T) {
+	cfg := NewProfileConfig()
+
+	require.Empty(t, cfg.Models.Main.Name)
+	require.Empty(t, cfg.Models.Main.Provider)
+	require.Empty(t, cfg.Models.Main.API)
+	require.Empty(t, cfg.Models.Main.BaseURL)
+	require.Empty(t, cfg.Models.Summary.Name)
+	require.Empty(t, cfg.Models.Summary.Provider)
+	require.Empty(t, cfg.Models.Summary.API)
+	require.Empty(t, cfg.Models.Summary.BaseURL)
+	require.Empty(t, cfg.Models.Embedding.Name)
+	require.Empty(t, cfg.Models.Embedding.Provider)
+	require.Empty(t, cfg.Models.Embedding.API)
+	require.Empty(t, cfg.Models.Embedding.BaseURL)
+	require.NotEmpty(t, cfg.FS.Roots)
+	require.Equal(t, DefaultConfig.RPC.Address, cfg.RPC.Address)
+}
+
 func TestCloneConfig_ClonesPersonalityPointers(t *testing.T) {
 	cfg := Config{
 		Personalities: map[string]PersonalityConfig{

@@ -164,6 +164,24 @@ func NewDefaultConfig() *Config {
 	return &cfg
 }
 
+func NewProfileConfig() *Config {
+	cfg := NewDefaultConfig()
+	cfg.Models.Main.Name = ""
+	cfg.Models.Main.Provider = ""
+	cfg.Models.Main.API = ""
+	cfg.Models.Main.BaseURL = ""
+	cfg.Models.Summary.Name = ""
+	cfg.Models.Summary.Provider = ""
+	cfg.Models.Summary.API = ""
+	cfg.Models.Summary.BaseURL = ""
+	cfg.Models.Embedding.Name = ""
+	cfg.Models.Embedding.Provider = ""
+	cfg.Models.Embedding.API = ""
+	cfg.Models.Embedding.BaseURL = ""
+
+	return cfg
+}
+
 func cloneConfig(cfg Config) Config {
 	cfg.Models.MaxRetries = cloneIntPtr(cfg.Models.MaxRetries)
 	cfg.Models.Providers = cloneProviderModelConfigs(cfg.Models.Providers)

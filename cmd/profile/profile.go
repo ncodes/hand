@@ -135,7 +135,7 @@ func newInitCommand() *cli.Command {
 				return err
 			}
 			if !cmd.Bool("bare") {
-				cfg := config.NewDefaultConfig()
+				cfg := config.NewProfileConfig()
 				cfg.Name = resolved.Name
 				if err := config.SaveYAML(resolved.ConfigPath, cfg); err != nil {
 					return err
