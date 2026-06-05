@@ -8,27 +8,30 @@ import (
 )
 
 type Option struct {
-	ID            string
-	Name          string
-	Provider      string
-	API           string
-	ContextWindow int
-	MaxTokens     int
-	Input         []string
-	Reasoning     bool
-	SupportsOAuth bool
-	Current       bool
+	ID             string
+	Name           string
+	Provider       string
+	API            string
+	ContextWindow  int
+	MaxTokens      int
+	Input          []string
+	Reasoning      bool
+	SupportsOAuth  bool
+	DisplayDefault bool
+	Current        bool
 }
 
 type ProviderOption struct {
-	ID             string
-	Name           string
-	Type           string
-	ModelCount     int
-	SupportsAPIKey bool
-	SupportsOAuth  bool
-	AuthType       string
-	Current        bool
+	ID              string
+	Name            string
+	DisplayIndex    int
+	HasDisplayIndex bool
+	Type            string
+	ModelCount      int
+	SupportsAPIKey  bool
+	SupportsOAuth   bool
+	AuthType        string
+	Current         bool
 }
 
 type OptionQuery struct {
@@ -39,9 +42,11 @@ type OptionQuery struct {
 }
 
 type ProviderQuery struct {
-	Current  string
-	Auth     map[string]string
-	Registry *modelprovider.Registry
+	Current    string
+	Auth       map[string]string
+	OAuthOnly  bool
+	APIKeyOnly bool
+	Registry   *modelprovider.Registry
 }
 
 func ListOptions(query OptionQuery) []Option {
@@ -66,6 +71,9 @@ func ListOptions(query OptionQuery) []Option {
 	}
 
 	sort.Slice(options, func(i, j int) bool {
+		if options[i].DisplayDefault != options[j].DisplayDefault {
+			return options[i].DisplayDefault
+		}
 		if options[i].Current != options[j].Current {
 			return options[i].Current
 		}
@@ -89,6 +97,12 @@ func ListProviders(query ProviderQuery) []ProviderOption {
 		if !provider.SupportsModels {
 			continue
 		}
+		if query.OAuthOnly && !provider.SupportsOAuth {
+			continue
+		}
+		if query.APIKeyOnly && !provider.SupportsAPIKey {
+			continue
+		}
 
 		count := countGenerationModels(registry, provider.ID)
 		if count == 0 {
@@ -96,18 +110,26 @@ func ListProviders(query ProviderQuery) []ProviderOption {
 		}
 
 		options = append(options, ProviderOption{
-			ID:             strings.TrimSpace(provider.ID),
-			Name:           strings.TrimSpace(provider.DisplayName),
-			Type:           getProviderOptionType(provider),
-			ModelCount:     count,
-			SupportsAPIKey: provider.SupportsAPIKey,
-			SupportsOAuth:  provider.SupportsOAuth,
-			AuthType:       strings.TrimSpace(query.Auth[provider.ID]),
-			Current:        strings.TrimSpace(provider.ID) == current,
+			ID:              strings.TrimSpace(provider.ID),
+			Name:            strings.TrimSpace(provider.DisplayName),
+			DisplayIndex:    provider.DisplayIndex,
+			HasDisplayIndex: provider.HasDisplayIndex,
+			Type:            getProviderOptionType(provider),
+			ModelCount:      count,
+			SupportsAPIKey:  provider.SupportsAPIKey,
+			SupportsOAuth:   provider.SupportsOAuth,
+			AuthType:        strings.TrimSpace(query.Auth[provider.ID]),
+			Current:         strings.TrimSpace(provider.ID) == current,
 		})
 	}
 
 	sort.Slice(options, func(i, j int) bool {
+		if options[i].HasDisplayIndex != options[j].HasDisplayIndex {
+			return options[i].HasDisplayIndex
+		}
+		if options[i].HasDisplayIndex && options[i].DisplayIndex != options[j].DisplayIndex {
+			return options[i].DisplayIndex < options[j].DisplayIndex
+		}
 		if options[i].Current != options[j].Current {
 			return options[i].Current
 		}
@@ -163,15 +185,16 @@ func modelDefinitionToOption(model modelprovider.ModelDefinition, current string
 	}
 
 	return Option{
-		ID:            strings.TrimSpace(model.ID),
-		Name:          strings.TrimSpace(model.Name),
-		Provider:      strings.TrimSpace(model.Provider),
-		API:           strings.TrimSpace(model.API),
-		ContextWindow: model.ContextWindow,
-		MaxTokens:     model.MaxTokens,
-		Input:         inputs,
-		Reasoning:     model.Reasoning,
-		SupportsOAuth: model.SupportsOAuth,
-		Current:       strings.TrimSpace(model.ID) == current,
+		ID:             strings.TrimSpace(model.ID),
+		Name:           strings.TrimSpace(model.Name),
+		Provider:       strings.TrimSpace(model.Provider),
+		API:            strings.TrimSpace(model.API),
+		ContextWindow:  model.ContextWindow,
+		MaxTokens:      model.MaxTokens,
+		Input:          inputs,
+		Reasoning:      model.Reasoning,
+		SupportsOAuth:  model.SupportsOAuth,
+		DisplayDefault: model.DisplayDefault,
+		Current:        strings.TrimSpace(model.ID) == current,
 	}
 }

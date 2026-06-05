@@ -39,6 +39,9 @@ func (c *Config) Validate() error {
 		return errors.New("summary model is invalid")
 	}
 
+	if strings.TrimSpace(c.Models.Main.Provider) == "" {
+		return errors.New("model provider is required")
+	}
 	if !hasModelProvider(c.Models.Main.Provider) {
 		return fmt.Errorf("model provider must be one of: %s", getModelProviderList())
 	}

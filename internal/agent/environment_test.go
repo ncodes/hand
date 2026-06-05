@@ -9,12 +9,26 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/mocks"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 )
 
 func TestEnvironment_NewEnvironmentFactoryCreatesUsableRuntime(t *testing.T) {
-	env := NewEnvironment(context.Background(), &config.Config{})
+	env := NewEnvironment(context.Background(), &config.Config{
+		Models: config.ModelsConfig{
+			Main: config.MainModelConfig{
+				Provider: "openai",
+				Name:     "gpt-4o-mini",
+				API:      modelprovider.APIOpenAIResponses,
+			},
+			Summary: config.SummaryModelConfig{
+				Provider: "openai",
+				Name:     "gpt-4o-mini",
+				API:      modelprovider.APIOpenAIResponses,
+			},
+		},
+	})
 	manager, err := statemanager.NewManager(
 		&stateStoreStub{session: storage.Session{ID: storage.DefaultSessionID}},
 		time.Hour,

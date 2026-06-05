@@ -89,10 +89,9 @@ log:
 	require.Equal(t, constants.DefaultContextLength, cfg.Models.Main.ContextLength)
 }
 
-func TestConfig_ValidateDefaultsModelWhenEmpty(t *testing.T) {
+func TestConfig_ValidateRequiresModelWhenEmpty(t *testing.T) {
 	cfg := &Config{Name: "test-agent", Models: ModelsConfig{Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}}}, Log: LogConfig{Level: "info"}}
-	require.NoError(t, cfg.Validate())
-	require.Equal(t, constants.DefaultModel, cfg.Models.Main.Name)
+	require.EqualError(t, cfg.Validate(), "model is required")
 }
 
 func TestConfig_ValidateAcceptsProviderNativeModelID(t *testing.T) {

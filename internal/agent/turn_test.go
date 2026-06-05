@@ -18,6 +18,7 @@ import (
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/mocks"
 	models "github.com/wandxy/hand/internal/model"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	handtools "github.com/wandxy/hand/internal/tools"
@@ -553,7 +554,15 @@ func TestTurn_HelperPaths(t *testing.T) {
 	})
 
 	turn := &Turn{
-		cfg: &config.Config{},
+		cfg: &config.Config{
+			Models: config.ModelsConfig{
+				Main: config.MainModelConfig{
+					Provider: "openrouter",
+					Name:     "openai/gpt-4o-mini",
+					API:      modelprovider.APIOpenAIResponses,
+				},
+			},
+		},
 		summary: &summary.State{Current: &summary.SummaryState{
 			SessionID:       "default",
 			SourceEndOffset: 1,
@@ -594,6 +603,7 @@ memory
 - Architecture: %s
 - Working directory: /tmp/hand
 - Filesystem roots: /tmp/hand
+- Model: openai/gpt-4o-mini
 - Model provider: openrouter
 - API: openai-responses
 - Session ID: default

@@ -102,7 +102,7 @@ func (m *model) resize() {
 
 	width := m.getMainPaneWidth()
 	m.input.SetWidth(getInputInnerWidth(width))
-	if m.shouldShowNamePrompt() {
+	if m.shouldShowNamePrompt() || m.shouldShowProfileModelSetup() {
 		m.transcript.SetWidth(width)
 		m.transcript.SetHeight(max(m.height, 1))
 		if wasAtBottom {

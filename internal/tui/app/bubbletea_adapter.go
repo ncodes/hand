@@ -152,6 +152,10 @@ func (m model) handleTerminalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			next, cmd := m.handleNamePromptPaste(msg)
 			return next, cmd, true
 		}
+		if m.shouldShowProfileModelSetup() {
+			next, cmd := m.handleProfileModelSetupPaste(msg)
+			return next, cmd, true
+		}
 		if m.isCommandViewVisible() {
 			next, cmd := m.updateCommandView(msg)
 			return next, cmd, true
@@ -167,12 +171,20 @@ func (m model) handleTerminalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			next, cmd := m.handleNamePromptKey(msg)
 			return next, cmd, true
 		}
+		if m.shouldShowProfileModelSetup() {
+			next, cmd := m.handleProfileModelSetupKey(msg)
+			return next, cmd, true
+		}
 		if next, cmd, ok := m.handleKeyPressMsg(msg); ok {
 			return next, cmd, true
 		}
 		next, cmd := m.updateInputComposer(msg)
 		return next, cmd, true
 	case tea.MouseWheelMsg:
+		if m.shouldShowProfileModelSetup() {
+			next, cmd := m.handleProfileModelSetupWheel(msg)
+			return next, cmd, true
+		}
 		if m.isCommandViewVisible() {
 			next, cmd := m.updateCommandView(msg)
 			return next, cmd, true
@@ -183,6 +195,10 @@ func (m model) handleTerminalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.updateTranscriptWithScrollTracking(msg)
 		return next, cmd, true
 	case tea.MouseClickMsg:
+		if m.shouldShowProfileModelSetup() {
+			next, cmd := m.handleProfileModelSetupClick(msg)
+			return next, cmd, true
+		}
 		if m.isCommandViewVisible() {
 			if m.startCommandViewSelection(msg) {
 				return m, nil, true
@@ -201,6 +217,9 @@ func (m model) handleTerminalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			return m, nil, true
 		}
 	case tea.MouseMotionMsg:
+		if m.shouldShowProfileModelSetup() {
+			return m, nil, true
+		}
 		if handled, cmd := m.updateCommandViewSelection(msg); handled {
 			return m, cmd, true
 		}
@@ -211,6 +230,9 @@ func (m model) handleTerminalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			return m, cmd, true
 		}
 	case tea.MouseReleaseMsg:
+		if m.shouldShowProfileModelSetup() {
+			return m, nil, true
+		}
 		if handled, cmd := m.finishCommandViewSelection(msg); handled {
 			return m, cmd, true
 		}

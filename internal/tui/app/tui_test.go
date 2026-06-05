@@ -17,6 +17,7 @@ import (
 
 	agentapi "github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -40,6 +41,20 @@ func TestMain(m *testing.M) {
 		_ = os.WriteFile(
 			filepath.Join(testProfileHome, userNameFilename),
 			[]byte("{\"name\":\"Kennedy\"}\n"),
+			0o600,
+		)
+		_ = os.WriteFile(
+			filepath.Join(testProfileHome, "config.yaml"),
+			[]byte(`
+name: test-agent
+models:
+    main:
+        provider: openrouter
+        name: openai/gpt-4o-mini
+search:
+    vector:
+        enabled: false
+`),
 			0o600,
 		)
 		profile.SetActive(profile.Profile{Name: profile.DefaultName, HomeDir: testProfileHome})
@@ -71,7 +86,7 @@ func TestModel_ViewRendersShellAreas(t *testing.T) {
 	require.Contains(t, content, emptyUserPromptQuestion)
 	require.Contains(t, content, inputPrompt+"Ask Hand...")
 	require.Contains(t, content, "Ask Hand...")
-	require.Contains(t, content, "minimax-m2.7")
+	require.NotContains(t, content, "minimax-m2.7")
 	require.Contains(t, content, "enter to send")
 }
 
@@ -119,6 +134,16 @@ func TestNewModel_ShowsNamePromptForEmptyProfile(t *testing.T) {
 func TestNewModel_LoadsSavedProfileName(t *testing.T) {
 	home := t.TempDir()
 	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: openrouter
+        name: openai/gpt-4o-mini
+search:
+    vector:
+        enabled: false
+`)
 	require.NoError(t, os.WriteFile(
 		filepath.Join(home, userNameFilename),
 		[]byte("{\"name\":\"Nedy\"}\n"),
@@ -132,9 +157,52 @@ func TestNewModel_LoadsSavedProfileName(t *testing.T) {
 	require.Contains(t, stripANSI(runModel.renderHeader()), "Welcome, Nedy")
 }
 
+func TestNewModel_StartsModelSetupForSavedNameWhenModelMissing(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+search:
+    vector:
+        enabled: false
+`)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(home, userNameFilename),
+		[]byte("{\"name\":\"Nedy\"}\n"),
+		0o600,
+	))
+
+	runModel := newModel()
+	content := stripANSI(runModel.View().Content)
+
+	require.False(t, runModel.shouldShowNamePrompt())
+	require.True(t, runModel.shouldShowProfileModelSetup())
+	require.Equal(t, setupModelStepAuthMethod, runModel.setupModelStep)
+	require.Contains(t, content, "Select login method")
+	require.Contains(t, content, "enter to select")
+	require.Contains(t, content, "Use a subscription")
+	require.Contains(t, content, "Use an API Key")
+	require.NotContains(t, content, emptyUserPromptQuestion)
+	require.NotContains(t, content, inputPrompt+"Ask Hand")
+}
+
 func TestNewModel_ShowsEmptyPromptForSavedProfileName(t *testing.T) {
 	home := t.TempDir()
 	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: openrouter
+        name: openai/gpt-4o-mini
+search:
+    vector:
+        enabled: false
+`)
 	require.NoError(t, os.WriteFile(
 		filepath.Join(home, userNameFilename),
 		[]byte("{\"name\":\"Nedy\"}\n"),
@@ -169,6 +237,560 @@ func TestModel_SubmitsNamePrompt(t *testing.T) {
 	require.Equal(t, "Nedy-Okpala", runModel.userName)
 	require.JSONEq(t, `{"name":"Nedy-Okpala"}`, string(data))
 	require.Contains(t, stripANSI(runModel.renderHeader()), "Welcome, Nedy-Okpala")
+}
+
+func TestModel_SubmitsNamePromptStartsModelSetupWhenMissing(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+search:
+    vector:
+        enabled: false
+`)
+	runModel := newModel()
+	runModel.nameInput.SetValue("Nedy")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.False(t, runModel.shouldShowNamePrompt())
+	require.False(t, runModel.commandView.Visible)
+	require.Equal(t, setupModelStepAuthMethod, runModel.setupModelStep)
+	require.Empty(t, runModel.setupProviders)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "████")
+	require.Contains(t, content, "Select login method")
+	require.Contains(t, content, "enter to select")
+	require.Contains(t, content, "Use a subscription")
+	require.Contains(t, content, "Use an API Key")
+}
+
+func TestModel_SetupAuthMethodSelectionShowsFilteredProviders(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupAuthMethod(t, &runModel, setupAuthMethodSubscription)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.False(t, runModel.commandView.Visible)
+	require.Equal(t, setupModelStepProvider, runModel.setupModelStep)
+	require.NotEmpty(t, runModel.setupProviders)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Select model provider")
+	require.Contains(t, content, "enter to select")
+	require.Contains(t, content, "backspace to auth")
+	require.Contains(t, content, "Anthropic")
+	require.Contains(t, content, "Use your Anthropic subscription")
+	require.Contains(t, content, "OpenAI Codex")
+	require.Contains(t, content, "Use your OpenAI account")
+	require.Contains(t, content, "GitHub Copilot")
+	require.NotContains(t, content, "OpenRouter")
+}
+
+func TestModel_SetupAPIKeyAuthMethodSelectionShowsAPIKeyProviders(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupAuthMethod(t, &runModel, setupAuthMethodAPIKey)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepProvider, runModel.setupModelStep)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Anthropic")
+	require.Contains(t, content, "Use your Anthropic API key")
+	require.Contains(t, content, "OpenAI")
+	require.Contains(t, content, "Use your OpenAI API key")
+	require.Contains(t, content, "OpenRouter")
+	require.Contains(t, content, "Use your OpenRouter API key")
+	require.NotContains(t, content, "OpenAI Codex")
+	require.NotContains(t, content, "GitHub Copilot")
+}
+
+func TestModel_SetupModelBackReturnsToProviderSelector(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	runModel.apiKeyInput.SetValue("router-key")
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepProvider, runModel.setupModelStep)
+	require.Empty(t, runModel.setupModelProvider)
+	require.NotEmpty(t, runModel.setupProviders)
+	require.Equal(t, "openrouter", runModel.setupProviders[runModel.setupItemSelected].ID)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Select model provider")
+}
+
+func TestModel_SetupProviderClickShowsLocalModels(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	row := getVisibleSetupProviderRow(t, &runModel, "openrouter")
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		Y:      runModel.getProfileModelSetupListFirstRow() + row,
+	}))
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	require.Equal(t, "openrouter", runModel.setupModelProvider)
+	require.NotEmpty(t, runModel.setupModels)
+}
+
+func TestModel_SetupProviderDescriptionClickShowsLocalModels(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	row := getVisibleSetupProviderRow(t, &runModel, "openrouter")
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		Y:      runModel.getProfileModelSetupListFirstRow() + row + 1,
+	}))
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	require.Equal(t, "openrouter", runModel.setupModelProvider)
+	require.NotEmpty(t, runModel.setupModels)
+}
+
+func TestRenderProfileModelSetupProviderRowKeepsSelectedEntryFullWidth(t *testing.T) {
+	row := renderProfileModelSetupProviderRow(
+		rpcclient.ProviderOption{ID: "anthropic", Name: "Anthropic"},
+		setupAuthMethodSubscription,
+		48,
+		true,
+	)
+	lines := strings.Split(row, "\n")
+
+	require.Len(t, lines, 2)
+	require.Contains(t, stripANSI(lines[0]), "Anthropic")
+	require.Contains(t, stripANSI(lines[1]), "Use your Anthropic subscription")
+	require.NotEqual(t, lines[0], lines[1])
+	for _, line := range lines {
+		require.Equal(t, 48, lipgloss.Width(stripANSI(line)))
+		require.Contains(t, line, "\x1b[")
+	}
+}
+
+func TestModel_SetupModelSelectionPersistsMainAndSummary(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "env-key")
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	runModel.apiKeyInput.SetValue("router-key")
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupModel(t, &runModel, "openai/gpt-4o-mini")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
+	require.Equal(t, "openrouter", cfg.Models.Summary.Provider)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Summary.Name)
+	require.Equal(t, "openrouter", cfg.Models.Embedding.Provider)
+	require.Equal(t, "text-embedding-3-small", cfg.Models.Embedding.Name)
+}
+
+func TestModel_SetupModelClickPersistsMainAndSummary(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "env-key")
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	runModel.apiKeyInput.SetValue("router-key")
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	row := getVisibleSetupModelRow(t, &runModel, "openai/gpt-4o-mini")
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		Y:      runModel.getProfileModelSetupListFirstRow() + row,
+	}))
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
+	require.Equal(t, "openrouter", cfg.Models.Summary.Provider)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Summary.Name)
+	require.Equal(t, "openrouter", cfg.Models.Embedding.Provider)
+	require.Equal(t, "text-embedding-3-small", cfg.Models.Embedding.Name)
+}
+
+func TestModel_SetupMissingAPIKeyShowsInput(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupProvider(t, &runModel, "openrouter")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	require.Equal(t, "openrouter", runModel.setupModelProvider)
+	require.Empty(t, runModel.setupPendingModelID)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "████")
+	require.Contains(t, content, "Enter API key for OpenRouter")
+	require.Contains(t, content, "Enter key")
+	require.Contains(t, content, "enter to save")
+	require.Contains(t, content, "esc to go back")
+}
+
+func TestModel_SetupAPIKeyBackspaceEditsInput(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	runModel.apiKeyInput.SetValue("router-key")
+	runModel.apiKeyInput.CursorEnd()
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	require.Equal(t, "openrouter", runModel.setupModelProvider)
+	require.Equal(t, "router-ke", runModel.apiKeyInput.Value())
+}
+
+func TestModel_SetupAPIKeyLeftStaysInInput(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	runModel.apiKeyInput.SetValue("router-key")
+	runModel.apiKeyInput.CursorEnd()
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	require.Equal(t, "openrouter", runModel.setupModelProvider)
+	require.Equal(t, "router-key", runModel.apiKeyInput.Value())
+}
+
+func TestModel_SetupAPIKeyEscapeReturnsToProviderSelector(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	require.Contains(t, stripANSI(runModel.View().Content), "esc to go back")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepProvider, runModel.setupModelStep)
+	require.Empty(t, runModel.setupModelProvider)
+	require.Contains(t, stripANSI(runModel.View().Content), "Select model provider")
+}
+
+func TestModel_SetupAPIKeySubmitPersistsProviderKey(t *testing.T) {
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	runModel.apiKeyInput.SetValue("router-key")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.True(t, runModel.shouldShowProfileModelSetup())
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+	require.Equal(t, "router-key", runModel.setupProviderAPIKey)
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.Empty(t, cfg.Models.Main.Provider)
+	require.Empty(t, cfg.Models.Main.Name)
+	require.Empty(t, cfg.Models.Providers["openrouter"].APIKey)
+}
+
+func TestModel_SetupAPIKeySubmitRejectsEmptyKey(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	require.Equal(t, "provider API key required", runModel.status.Text())
+}
+
+func TestModel_SetupAPIKeyAcceptsPaste(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+
+	updated, cmd := runModel.Update(tea.PasteMsg{Content: " pasted-router-key\n"})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	require.Empty(t, runModel.input.Value())
+	require.Equal(t, "pasted-router-key", runModel.apiKeyInput.Value())
+	require.Contains(t, stripANSI(runModel.View().Content), "pasted-router-key")
+}
+
+func TestModel_SetupMissingAPIKeyShowsInputBeforeEmbeddingValidation(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+    embedding:
+        provider: openrouter
+        name: text-embedding-3-small
+search:
+    vector:
+        enabled: true
+`)
+	runModel := newModel()
+	runModel.nameInput.SetValue("Nedy")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupProvider(t, &runModel, "openrouter")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Enter API key")
+	require.NotContains(t, content, "Embedding setup required")
+}
+
+func TestModel_SetupMissingOAuthShowsLoginInstruction(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupAuthMethod(t, &runModel, setupAuthMethodSubscription)
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupProvider(t, &runModel, "anthropic")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepNotice, runModel.setupModelStep)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Authentication required")
+	require.Contains(t, content, "run hand auth login anthropic in a")
+	require.Contains(t, content, "new")
+	require.Contains(t, content, "terminal")
+}
+
+func TestModel_SetupOpenRouterSelectionSetsEmbeddingModel(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "env-key")
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+    embedding:
+        provider: openrouter
+        name: ""
+search:
+    vector:
+        enabled: true
+`)
+	runModel := newModel()
+	runModel.nameInput.SetValue("Nedy")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	runModel.apiKeyInput.SetValue("router-key")
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupModel(t, &runModel, "openai/gpt-4o-mini")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.True(t, cfg.Search.Vector.Enabled)
+	require.Equal(t, "openrouter", cfg.Models.Embedding.Provider)
+	require.Equal(t, "text-embedding-3-small", cfg.Models.Embedding.Name)
+}
+
+func TestModel_SetupOtherProviderSelectionDisablesVector(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "env-key")
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+    embedding:
+        provider: openrouter
+        name: text-embedding-3-small
+search:
+    vector:
+        enabled: true
+`)
+	runModel := newModel()
+	runModel.nameInput.SetValue("Nedy")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupProvider(t, &runModel, "anthropic")
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	runModel.apiKeyInput.SetValue("anthropic-key")
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupModel(t, &runModel, "claude-sonnet-4-6")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.False(t, cfg.Search.Vector.Enabled)
+}
+
+func TestSetupEmbeddingConfigUpdates(t *testing.T) {
+	require.Equal(t, []config.ConfigUpdate{
+		{Path: "models.embedding.provider", Value: "openai"},
+		{Path: "models.embedding.name", Value: "text-embedding-3-small"},
+	}, setupEmbeddingConfigUpdates("openai"))
+
+	require.Equal(t, []config.ConfigUpdate{
+		{Path: "search.vector.enabled", Value: "false"},
+	}, setupEmbeddingConfigUpdates("openai-codex"))
+}
+
+func TestModel_SetupProviderWheelMovesSelection(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupAuthMethod(t, &runModel, setupAuthMethodAPIKey)
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Greater(t, len(runModel.setupProviders), 1)
+	require.Equal(t, 0, runModel.setupItemSelected)
+
+	updated, cmd := runModel.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelDown}))
+	require.Nil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, 1, runModel.setupItemSelected)
+
+	updated, cmd = runModel.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelUp}))
+	require.Nil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, 0, runModel.setupItemSelected)
+}
+
+func TestGetProfileModelSetupProviderDescription(t *testing.T) {
+	require.Equal(t, "Use your Anthropic subscription", getProfileModelSetupProviderDescription(rpcclient.ProviderOption{ID: "anthropic"}, setupAuthMethodSubscription))
+	require.Equal(t, "Use your Anthropic API key", getProfileModelSetupProviderDescription(rpcclient.ProviderOption{ID: "anthropic"}, setupAuthMethodAPIKey))
+	require.Equal(t, "Use your OpenAI account", getProfileModelSetupProviderDescription(rpcclient.ProviderOption{ID: "openai-codex"}, setupAuthMethodSubscription))
+	require.Equal(t, "Use your GitHub Copilot subscription", getProfileModelSetupProviderDescription(rpcclient.ProviderOption{ID: "github-copilot"}, setupAuthMethodSubscription))
+	require.Equal(t, "Use your OpenAI API key", getProfileModelSetupProviderDescription(rpcclient.ProviderOption{ID: "openai"}, setupAuthMethodAPIKey))
+	require.Equal(t, "Use your OpenRouter API key", getProfileModelSetupProviderDescription(rpcclient.ProviderOption{ID: "openrouter"}, setupAuthMethodAPIKey))
+	require.Equal(t, "Use your Custom account", getProfileModelSetupProviderDescription(rpcclient.ProviderOption{
+		ID:            "custom",
+		Name:          "Custom",
+		SupportsOAuth: true,
+	}, setupAuthMethodSubscription))
+	require.Equal(t, "Use your Custom API key", getProfileModelSetupProviderDescription(rpcclient.ProviderOption{
+		ID:             "custom",
+		Name:           "Custom",
+		SupportsAPIKey: true,
+	}, setupAuthMethodAPIKey))
+	require.Equal(t, "manual setup", getProfileModelSetupProviderDescription(rpcclient.ProviderOption{
+		ID:       "custom",
+		Name:     "Custom",
+		AuthType: "manual setup",
+	}, ""))
+}
+
+func TestProfileModelSetupHelpers(t *testing.T) {
+	require.Equal(t, "option-provider", getSetupModelProvider("", rpcclient.ModelOption{Provider: "option-provider"}))
+	require.False(t, isEmbeddingSetupError(nil))
+	require.False(t, isEmbeddingSetupError(errors.New("model API key is required")))
+	require.True(t, isEmbeddingSetupError(errors.New("embedding model is required")))
+	require.True(t, isEmbeddingSetupError(errors.New("embedding API key is required")))
+	require.Contains(t, getEmbeddingSetupInstruction(), "search.vector.enabled false")
+	require.Empty(t, renderProfileModelSetupPaddedLabel("ABC", 1))
+	require.Equal(t, "\n", renderProfileModelSetupProviderRow(rpcclient.ProviderOption{Name: "ABC", AuthType: "DEF"}, "", 1, false))
+}
+
+func TestModel_SubmitsNamePromptSkipsModelSetupWhenConfigured(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: openrouter
+        name: openai/gpt-4o-mini
+search:
+    vector:
+        enabled: false
+`)
+	runModel := newModel()
+	runModel.nameInput.SetValue("Nedy")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.False(t, runModel.commandView.Visible)
+	require.False(t, runModel.shouldShowProfileModelSetup())
 }
 
 func TestModel_SubmitNamePromptRejectsInvalidName(t *testing.T) {
@@ -730,7 +1352,7 @@ func TestModel_ViewRendersBottomStatusPanelBelowComposer(t *testing.T) {
 	runModel := newModel()
 	content := stripANSI(runModel.View().Content)
 	inputIndex := strings.Index(content, inputPrompt+"Ask Hand...")
-	infoIndex := strings.LastIndex(content, "minimax-m2.7")
+	infoIndex := strings.LastIndex(content, defaultSessionTitle)
 
 	require.NotEqual(t, -1, inputIndex)
 	require.NotEqual(t, -1, infoIndex)
@@ -763,12 +1385,13 @@ func TestRenderComposerInputPrompt_HasNoBackgroundColor(t *testing.T) {
 
 func TestModel_RenderBottomStatusPanelMovesContextToRight(t *testing.T) {
 	runModel := newModel()
+	runModel.modelName = "openai/gpt-4o-mini"
 	runModel.context = "64,000 used · 50%"
 	content := stripANSI(runModel.renderBottomStatusPanel())
 
 	require.True(t, strings.HasPrefix(content, " "))
 	require.Equal(t, runModel.width, lipgloss.Width(content))
-	require.Contains(t, content, "minimax-m2.7")
+	require.Contains(t, content, "gpt-4o-mini")
 	require.Contains(t, content, "default session")
 	require.Contains(t, content, "64,000")
 	require.Contains(t, content, "used · 50%")
@@ -778,13 +1401,14 @@ func TestModel_RenderBottomStatusPanelMovesContextToRight(t *testing.T) {
 
 func TestModel_RenderBottomStatusPanelShowsThinkingBeforeModel(t *testing.T) {
 	runModel := newModel()
+	runModel.modelName = "openai/gpt-4o-mini"
 	runModel.responding = true
 
 	content := stripANSI(runModel.renderBottomStatusPanel())
 
 	require.Contains(t, content, "Thinking")
-	require.Contains(t, content, "minimax-m2.7")
-	require.Less(t, strings.Index(content, "Thinking"), strings.Index(content, "minimax-m2.7"))
+	require.Contains(t, content, "gpt-4o-mini")
+	require.Less(t, strings.Index(content, "Thinking"), strings.Index(content, "gpt-4o-mini"))
 }
 
 func TestModel_RenderBottomStatusPanelHidesThinkingWhenNotThinking(t *testing.T) {
@@ -839,13 +1463,15 @@ func TestGetThinkingStatusColor_UsesGrayBaseAndThreeCharacterShimmer(t *testing.
 
 func TestModel_RenderBottomStatusPanelKeepsMutedCellsWhenThinking(t *testing.T) {
 	runModel := newModel()
+	runModel.modelName = "openai/gpt-4o-mini"
 	runModel.responding = true
 
 	content := runModel.renderBottomStatusPanel()
 
-	require.Contains(t, content, renderBottomStatusMutedCell("minimax-m2.7"))
+	require.Contains(t, content, renderBottomStatusMutedCell("openai/gpt-4o-mini"))
 	require.Contains(t, content, renderBottomStatusMutedCell(statusCancelSuffix))
-	require.Contains(t, content, renderBottomStatusMutedCell(defaultSessionTitle))
+	require.Contains(t, stripANSI(content), "default")
+	require.Contains(t, stripANSI(content), "session")
 }
 
 func TestSpaceAroundBottomStatusPanel_CentersTitle(t *testing.T) {
@@ -3873,6 +4499,120 @@ func setActiveTestProfile(t *testing.T, home string) {
 	})
 
 	profile.SetActive(profile.Profile{Name: profile.DefaultName, HomeDir: home})
+}
+
+func writeSetupProfileConfig(t *testing.T, home string, content string) {
+	t.Helper()
+
+	require.NoError(t, os.WriteFile(filepath.Join(home, "config.yaml"), []byte(strings.TrimSpace(content)+"\n"), 0o600))
+}
+
+func newSetupModelSelectionTestModel(t *testing.T) model {
+	t.Helper()
+
+	return newSetupModelSelectionTestModelWithHome(t, t.TempDir())
+}
+
+func newSetupModelSelectionTestModelWithHome(t *testing.T, home string) model {
+	t.Helper()
+
+	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+search:
+    vector:
+        enabled: false
+`)
+	runModel := newModel()
+	runModel.nameInput.SetValue("Nedy")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	return updated.(model)
+}
+
+func selectSetupProvider(t *testing.T, runModel *model, providerID string) {
+	t.Helper()
+
+	if runModel.setupModelStep == setupModelStepAuthMethod {
+		authMethod := setupAuthMethodAPIKey
+		switch providerID {
+		case constants.ModelProviderOpenAICodex, constants.ModelProviderGitHubCopilot:
+			authMethod = setupAuthMethodSubscription
+		}
+		selectSetupAuthMethod(t, runModel, authMethod)
+		updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		*runModel = updated.(model)
+	}
+
+	for index, provider := range runModel.setupProviders {
+		if provider.ID == providerID {
+			runModel.setupItemSelected = index
+			return
+		}
+	}
+
+	t.Fatalf("setup provider %q not found", providerID)
+}
+
+func selectSetupAuthMethod(t *testing.T, runModel *model, authMethod string) {
+	t.Helper()
+
+	for index, option := range setupAuthMethodOptions {
+		if option.ID == authMethod {
+			runModel.setupItemSelected = index
+			return
+		}
+	}
+
+	t.Fatalf("setup auth method %q not found", authMethod)
+}
+
+func selectSetupModel(t *testing.T, runModel *model, modelID string) {
+	t.Helper()
+
+	for index, model := range runModel.setupModels {
+		if model.ID == modelID {
+			runModel.setupItemSelected = index
+			return
+		}
+	}
+
+	t.Fatalf("setup model %q not found", modelID)
+}
+
+func getVisibleSetupProviderRow(t *testing.T, runModel *model, providerID string) int {
+	t.Helper()
+
+	if runModel.setupModelStep == setupModelStepAuthMethod {
+		selectSetupProvider(t, runModel, providerID)
+	}
+
+	for index, provider := range runModel.setupProviders {
+		if provider.ID == providerID {
+			runModel.setProfileModelSetupSelection(index, len(runModel.setupProviders))
+			return (index - runModel.setupOffset) * 2
+		}
+	}
+
+	t.Fatalf("setup provider %q not found", providerID)
+	return 0
+}
+
+func getVisibleSetupModelRow(t *testing.T, runModel *model, modelID string) int {
+	t.Helper()
+
+	for index, model := range runModel.setupModels {
+		if model.ID == modelID {
+			runModel.setProfileModelSetupSelection(index, len(runModel.setupModels))
+			return index - runModel.setupOffset
+		}
+	}
+
+	t.Fatalf("setup model %q not found", modelID)
+	return 0
 }
 
 func getTranscriptContentRow(t *testing.T, runModel model, needle string) int {

@@ -253,7 +253,7 @@ models:
 
 	_, err := runRootChatCommand(t, "hand", "--config", configPath, "--rpc.port", nextTestPort(t), "up")
 	require.Error(t, err)
-	require.ErrorContains(t, err, "model provider must be one of: anthropic, github-copilot, openai, openrouter")
+	require.ErrorContains(t, err, "model provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
 }
 
 func Test_E2E_HandRootChat_FileGuardrailFailureReturnsCoherentAnswer(t *testing.T) {

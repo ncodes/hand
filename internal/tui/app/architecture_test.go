@@ -199,7 +199,7 @@ func TestModelView_FullScreenLayoutSnapshot(t *testing.T) {
 	require.Contains(t, view, "❯ hello")
 	require.Contains(t, view, "Hi")
 	require.Contains(t, view, "Ask Hand...")
-	require.Contains(t, view, "minimax-m2.7")
+	require.NotContains(t, view, "minimax-m2.7")
 	require.Contains(t, view, statusReadySuffix)
 	require.Less(t, strings.Index(view, "❯ hello"), strings.Index(view, "Ask Hand..."))
 	require.Less(t, strings.Index(view, "Ask Hand..."), strings.Index(view, statusReadySuffix))
@@ -275,7 +275,7 @@ func TestBottomStatusPanelData_SeparatesModelStateFromRendering(t *testing.T) {
 
 	require.Equal(t, getInputBoxWidth(runModel.width), panel.Width)
 	require.Equal(t, getPanelContentWidth(panel.Width), panel.ContentWidth)
-	require.Equal(t, "minimax-m2.7", panel.ModelName)
+	require.Empty(t, panel.ModelName)
 	require.Equal(t, statusCancelSuffix, panel.Status)
 	require.Equal(t, "Project Planning", panel.SessionTitle)
 	require.True(t, panel.Thinking)

@@ -21,12 +21,12 @@ func TestConfig_ValidateRejectsInvalidLogLevel(t *testing.T) {
 	require.EqualError(t, err, "log level must be one of debug, info, warn, or error; use --log.level")
 }
 
-func TestConfig_ValidateAllowsEmptyProviderAndLogLevel(t *testing.T) {
+func TestConfig_ValidateRejectsEmptyProvider(t *testing.T) {
 	err := (&Config{
 		Name:   "test-agent",
 		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel}},
 	}).Validate()
-	require.NoError(t, err)
+	require.EqualError(t, err, "model provider is required")
 }
 
 func TestConfig_ValidateRejectsEmptyRPCAddress(t *testing.T) {

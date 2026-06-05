@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	agentapi "github.com/wandxy/hand/internal/agent"
@@ -36,6 +37,17 @@ func transcriptCellPlainTexts(cells []transcriptCell) []string {
 	}
 
 	return values
+}
+
+func TestRenderErrorTranscriptCell_FillsWidth(t *testing.T) {
+	rendered := renderErrorTranscriptCell(
+		`rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:50051: connect: connection refused"`,
+		80,
+	)
+
+	for _, line := range strings.Split(rendered, "\n") {
+		require.Equal(t, 80, lipgloss.Width(stripANSI(line)), line)
+	}
 }
 
 func renderTranscriptTestCellWithWidth(cell transcriptCell, width int) string {

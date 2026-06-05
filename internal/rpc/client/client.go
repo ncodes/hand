@@ -25,18 +25,26 @@ import (
 
 // Client wraps a gRPC connection to the Hand RPC services.
 type Client struct {
-	conn    *grpc.ClientConn
-	client  handpb.HandServiceClient
-	Session *SessionService
-	Model   *ModelService
+	conn        *grpc.ClientConn
+	reconnector rpcReconnector
+	client      handpb.HandServiceClient
+	Session     *SessionService
+	Model       *ModelService
 }
 
 type SessionService struct {
-	client handpb.SessionServiceClient
+	client      handpb.SessionServiceClient
+	reconnector rpcReconnector
 }
 
 type ModelService struct {
-	client handpb.ModelServiceClient
+	client      handpb.ModelServiceClient
+	reconnector rpcReconnector
+}
+
+type rpcReconnector interface {
+	ResetConnectBackoff()
+	Connect()
 }
 
 // RespondOptions mirrors agent response options at this package boundary.
@@ -153,19 +161,37 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 	}
 
 	return &Client{
-		conn:    conn,
-		client:  handpb.NewHandServiceClient(conn),
-		Session: NewSessionService(handpb.NewSessionServiceClient(conn)),
-		Model:   NewModelService(handpb.NewModelServiceClient(conn)),
+		conn:        conn,
+		reconnector: conn,
+		client:      handpb.NewHandServiceClient(conn),
+		Session:     newSessionService(handpb.NewSessionServiceClient(conn), conn),
+		Model:       newModelService(handpb.NewModelServiceClient(conn), conn),
 	}, nil
 }
 
 func NewSessionService(client handpb.SessionServiceClient) *SessionService {
-	return &SessionService{client: client}
+	return newSessionService(client, nil)
 }
 
 func NewModelService(client handpb.ModelServiceClient) *ModelService {
-	return &ModelService{client: client}
+	return newModelService(client, nil)
+}
+
+func newSessionService(client handpb.SessionServiceClient, reconnector rpcReconnector) *SessionService {
+	return &SessionService{client: client, reconnector: reconnector}
+}
+
+func newModelService(client handpb.ModelServiceClient, reconnector rpcReconnector) *ModelService {
+	return &ModelService{client: client, reconnector: reconnector}
+}
+
+func prepareRPCConnection(reconnector rpcReconnector) {
+	if reconnector == nil {
+		return
+	}
+
+	reconnector.ResetConnectBackoff()
+	reconnector.Connect()
 }
 
 func (c *Client) Respond(ctx context.Context, message string, opts RespondOptions) (string, error) {
@@ -178,6 +204,7 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 		req.Stream = opts.Stream
 	}
 
+	prepareRPCConnection(c.reconnector)
 	stream, err := c.client.Respond(ctx, req)
 	if err != nil {
 		return "", err
@@ -283,6 +310,7 @@ func (s *ModelService) ListProviders(ctx context.Context) (ProviderList, error) 
 		return ProviderList{}, err
 	}
 
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.ListProviders(ctx, &handpb.ListProvidersRequest{})
 	if err != nil {
 		return ProviderList{}, err
@@ -303,6 +331,7 @@ func (s *ModelService) ListModels(ctx context.Context, opts ...ModelListOptions)
 	}
 
 	listOpts := getModelListOptions(opts...)
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.ListModels(ctx, &handpb.ListModelsRequest{Provider: strings.TrimSpace(listOpts.Provider)})
 	if err != nil {
 		return ModelList{}, err
@@ -347,6 +376,7 @@ func (s *ModelService) SelectModel(
 	}
 
 	selectOpts := getModelSelectOptions(opts...)
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.SelectModel(ctx, &handpb.SelectModelRequest{
 		Id:       strings.TrimSpace(id),
 		Provider: strings.TrimSpace(selectOpts.Provider),
@@ -364,6 +394,7 @@ func (s *ModelService) SetProviderAPIKey(ctx context.Context, provider string, a
 		return err
 	}
 
+	prepareRPCConnection(s.reconnector)
 	_, err = client.SetProviderAPIKey(ctx, &handpb.SetProviderAPIKeyRequest{
 		Provider: strings.TrimSpace(provider),
 		ApiKey:   strings.TrimSpace(apiKey),
@@ -386,6 +417,7 @@ func (s *SessionService) CreateWithOptions(ctx context.Context, opts CreateSessi
 		req.AutoSwitch = opts.AutoSwitch
 	}
 
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.Create(ctx, req)
 	if err != nil {
 		return storage.Session{}, err
@@ -405,6 +437,7 @@ func (s *SessionService) List(ctx context.Context, opts ...SessionListOptions) (
 	}
 
 	listOpts := getSessionListOptions(opts...)
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.List(ctx, &handpb.ListSessionsRequest{Archived: listOpts.Archived})
 	if err != nil {
 		return nil, err
@@ -437,6 +470,7 @@ func (s *SessionService) Use(ctx context.Context, id string) error {
 		return err
 	}
 
+	prepareRPCConnection(s.reconnector)
 	_, err = client.Use(ctx, &handpb.UseSessionRequest{Id: strings.TrimSpace(id)})
 	return err
 }
@@ -447,6 +481,7 @@ func (s *SessionService) Archive(ctx context.Context, id string) error {
 		return err
 	}
 
+	prepareRPCConnection(s.reconnector)
 	_, err = client.Archive(ctx, &handpb.ArchiveSessionRequest{Id: strings.TrimSpace(id)})
 	return err
 }
@@ -457,6 +492,7 @@ func (s *SessionService) Unarchive(ctx context.Context, id string) (storage.Sess
 		return storage.Session{}, err
 	}
 
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.Unarchive(ctx, &handpb.UnarchiveSessionRequest{Id: strings.TrimSpace(id)})
 	if err != nil {
 		return storage.Session{}, err
@@ -471,6 +507,7 @@ func (s *SessionService) Rename(ctx context.Context, id string, title string) (s
 		return storage.Session{}, err
 	}
 
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.Rename(ctx, &handpb.RenameSessionRequest{
 		Id:    strings.TrimSpace(id),
 		Title: strings.TrimSpace(title),
@@ -488,6 +525,7 @@ func (s *SessionService) Current(ctx context.Context) (storage.Session, error) {
 		return storage.Session{}, err
 	}
 
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.Current(ctx, &handpb.CurrentSessionRequest{})
 	if err != nil {
 		return storage.Session{}, err
@@ -506,6 +544,7 @@ func (s *SessionService) Compact(ctx context.Context, id string) (CompactSession
 		return CompactSessionResult{}, err
 	}
 
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.Compact(ctx, &handpb.CompactSessionRequest{Id: strings.TrimSpace(id)})
 	if err != nil {
 		return CompactSessionResult{}, err
@@ -530,6 +569,7 @@ func (s *SessionService) Repair(
 		return RepairSessionResult{}, err
 	}
 
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.Repair(ctx, &handpb.RepairSessionRequest{
 		Type: handpb.RepairSessionRequest_VECTOR,
 		Vector: &handpb.VectorRepairOption{
@@ -561,6 +601,7 @@ func (s *SessionService) Status(ctx context.Context, id string) (ContextStatus, 
 		return ContextStatus{}, err
 	}
 
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.Status(ctx, &handpb.GetSessionStatusRequest{
 		Context: &handpb.GetSessionStatusRequestContext{Id: strings.TrimSpace(id)},
 	})
@@ -596,6 +637,7 @@ func (s *SessionService) Timeline(
 		return SessionTimeline{}, err
 	}
 
+	prepareRPCConnection(s.reconnector)
 	resp, err := client.Timeline(ctx, &handpb.GetSessionTimelineRequest{
 		Id:            strings.TrimSpace(opts.SessionID),
 		MessageOffset: int32(opts.MessageOffset),

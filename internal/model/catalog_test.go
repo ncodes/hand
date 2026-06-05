@@ -9,15 +9,17 @@ import (
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 )
 
-func TestListOptions_FiltersGenerationModelsAndOrdersCurrentFirst(t *testing.T) {
+func TestListOptions_FiltersGenerationModelsAndOrdersDisplayDefaultFirst(t *testing.T) {
 	options := ListOptions(OptionQuery{
 		Provider: constants.ModelProviderOpenAI,
 		Current:  constants.DefaultModel,
 	})
 
 	require.NotEmpty(t, options)
-	require.Equal(t, constants.DefaultModel, options[0].ID)
-	require.True(t, options[0].Current)
+	require.Equal(t, "gpt-5.5", options[0].ID)
+	require.True(t, options[0].DisplayDefault)
+	current := findModelOption(t, options, constants.DefaultModel)
+	require.True(t, current.Current)
 	for _, option := range options {
 		require.NotEqual(t, modelprovider.APIOpenAIEmbeddings, option.API)
 		require.NotEmpty(t, option.Input)
@@ -32,8 +34,10 @@ func TestListOptions_FiltersOAuthOnlyModels(t *testing.T) {
 	})
 
 	require.NotEmpty(t, options)
-	require.Equal(t, "gpt-5.4", options[0].ID)
-	require.True(t, options[0].Current)
+	require.Equal(t, "gpt-5.5", options[0].ID)
+	require.True(t, options[0].DisplayDefault)
+	current := findModelOption(t, options, "gpt-5.4")
+	require.True(t, current.Current)
 	for _, option := range options {
 		require.True(t, option.SupportsOAuth)
 	}
@@ -56,6 +60,8 @@ func TestListOptions_FiltersAnthropicOAuthOnlyModels(t *testing.T) {
 
 	require.NotEmpty(t, options)
 	require.Equal(t, "claude-sonnet-4-6", options[0].ID)
+	require.True(t, options[0].DisplayDefault)
+	require.True(t, options[0].Current)
 	require.Len(t, options, 3)
 
 	ids := make([]string, 0, len(options))
@@ -70,6 +76,19 @@ func TestListOptions_FiltersAnthropicOAuthOnlyModels(t *testing.T) {
 	}, ids)
 }
 
+func TestListOptions_OrdersOpenRouterDisplayDefaultFirst(t *testing.T) {
+	options := ListOptions(OptionQuery{
+		Provider: constants.ModelProviderOpenRouter,
+		Current:  "openai/gpt-5.5",
+	})
+
+	require.NotEmpty(t, options)
+	require.Equal(t, constants.DefaultProfileModel, options[0].ID)
+	require.True(t, options[0].DisplayDefault)
+	current := findModelOption(t, options, "openai/gpt-5.5")
+	require.True(t, current.Current)
+}
+
 func TestListOptions_ReturnsEmptyForMissingProviderOrRegistry(t *testing.T) {
 	require.Empty(t, ListOptions(OptionQuery{Provider: "missing"}))
 	require.Empty(t, ListOptions(OptionQuery{
@@ -78,7 +97,20 @@ func TestListOptions_ReturnsEmptyForMissingProviderOrRegistry(t *testing.T) {
 	}))
 }
 
-func TestListProviders_ReturnsGenerationProviderCountsAndOrdersCurrentFirst(t *testing.T) {
+func findModelOption(t *testing.T, options []Option, id string) Option {
+	t.Helper()
+
+	for _, option := range options {
+		if option.ID == id {
+			return option
+		}
+	}
+
+	t.Fatalf("model option %q not found", id)
+	return Option{}
+}
+
+func TestListProviders_ReturnsGenerationProviderCountsAndOrdersByDisplayIndex(t *testing.T) {
 	options := ListProviders(ProviderQuery{
 		Current: constants.ModelProviderOpenRouter,
 		Auth: map[string]string{
@@ -87,14 +119,18 @@ func TestListProviders_ReturnsGenerationProviderCountsAndOrdersCurrentFirst(t *t
 	})
 
 	require.NotEmpty(t, options)
-	require.Equal(t, constants.ModelProviderOpenRouter, options[0].ID)
-	require.Equal(t, "OpenRouter", options[0].Name)
-	require.Equal(t, "api-key", options[0].Type)
-	require.Equal(t, "api-key", options[0].AuthType)
-	require.True(t, options[0].Current)
-	require.True(t, options[0].SupportsAPIKey)
-	require.False(t, options[0].SupportsOAuth)
-	require.Greater(t, options[0].ModelCount, 0)
+	require.Equal(t, constants.ModelProviderOpenAI, options[0].ID)
+	require.Equal(t, 0, options[0].DisplayIndex)
+	require.True(t, options[0].HasDisplayIndex)
+
+	openrouter := findProviderOption(t, options, constants.ModelProviderOpenRouter)
+	require.Equal(t, "OpenRouter", openrouter.Name)
+	require.Equal(t, "api-key", openrouter.Type)
+	require.Equal(t, "api-key", openrouter.AuthType)
+	require.True(t, openrouter.Current)
+	require.True(t, openrouter.SupportsAPIKey)
+	require.False(t, openrouter.SupportsOAuth)
+	require.Greater(t, openrouter.ModelCount, 0)
 }
 
 func TestListProviders_ReturnsEmptyForNilRegistry(t *testing.T) {
@@ -103,6 +139,51 @@ func TestListProviders_ReturnsEmptyForNilRegistry(t *testing.T) {
 	})
 
 	require.Empty(t, options)
+}
+
+func TestListProviders_FiltersByAuthMethod(t *testing.T) {
+	oauthOptions := ListProviders(ProviderQuery{OAuthOnly: true})
+	require.NotEmpty(t, oauthOptions)
+	require.Equal(t, constants.ModelProviderOpenAICodex, oauthOptions[0].ID)
+	require.Equal(t, constants.ModelProviderAnthropic, oauthOptions[1].ID)
+	require.Equal(t, constants.ModelProviderGitHubCopilot, oauthOptions[2].ID)
+	oauthIDs := map[string]bool{}
+	for _, option := range oauthOptions {
+		require.True(t, option.SupportsOAuth, option.ID)
+		oauthIDs[option.ID] = true
+	}
+	require.True(t, oauthIDs[constants.ModelProviderAnthropic])
+	require.True(t, oauthIDs[constants.ModelProviderOpenAICodex])
+	require.True(t, oauthIDs[constants.ModelProviderGitHubCopilot])
+	require.False(t, oauthIDs[constants.ModelProviderOpenRouter])
+
+	apiKeyOptions := ListProviders(ProviderQuery{APIKeyOnly: true})
+	require.NotEmpty(t, apiKeyOptions)
+	require.Equal(t, constants.ModelProviderOpenAI, apiKeyOptions[0].ID)
+	require.Equal(t, constants.ModelProviderAnthropic, apiKeyOptions[1].ID)
+	apiKeyIDs := map[string]bool{}
+	for _, option := range apiKeyOptions {
+		require.True(t, option.SupportsAPIKey, option.ID)
+		apiKeyIDs[option.ID] = true
+	}
+	require.True(t, apiKeyIDs[constants.ModelProviderAnthropic])
+	require.True(t, apiKeyIDs[constants.ModelProviderOpenAI])
+	require.True(t, apiKeyIDs[constants.ModelProviderOpenRouter])
+	require.False(t, apiKeyIDs[constants.ModelProviderOpenAICodex])
+	require.True(t, apiKeyIDs[constants.ModelProviderGitHubCopilot])
+}
+
+func findProviderOption(t *testing.T, options []ProviderOption, id string) ProviderOption {
+	t.Helper()
+
+	for _, option := range options {
+		if option.ID == id {
+			return option
+		}
+	}
+
+	t.Fatalf("provider option %q not found", id)
+	return ProviderOption{}
 }
 
 func TestListProviders_FormatsProviderTypes(t *testing.T) {

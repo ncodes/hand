@@ -8,7 +8,7 @@ import (
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 )
 
-func TestConfig_ValidateRequiresKey(t *testing.T) {
+func TestConfig_ValidateRequiresProvider(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "")
 
 	cfg := &Config{
@@ -16,9 +16,9 @@ func TestConfig_ValidateRequiresKey(t *testing.T) {
 		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel}},
 		Log:    LogConfig{Level: "info"},
 	}
-	require.ErrorContains(t, cfg.Validate(), `model API key is required for provider "openrouter"`)
-	require.Equal(t, constants.DefaultModelProvider, cfg.Models.Main.Provider)
-	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
+	require.EqualError(t, cfg.Validate(), "model provider is required")
+	require.Empty(t, cfg.Models.Main.Provider)
+	require.Empty(t, cfg.Models.Main.BaseURL)
 }
 
 func TestConfig_ValidateNilConfig(t *testing.T) {

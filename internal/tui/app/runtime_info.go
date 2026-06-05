@@ -24,17 +24,11 @@ type runtimeInfo struct {
 
 func defaultRuntimeInfo() runtimeInfo {
 	return runtimeInfo{
-		Version:           getRuntimeValue(constants.AppVersion, "dev"),
-		Commit:            getRuntimeValue(constants.CommitHash, "unknown"),
-		Profile:           profile.DefaultName,
-		Provider:          "openrouter",
-		Model:             constants.DefaultProfileModel,
-		SummaryProvider:   "openrouter",
-		SummaryModel:      constants.DefaultProfileSummaryModel,
-		EmbeddingProvider: "openrouter",
-		EmbeddingModel:    constants.DefaultProfileEmbeddingModel,
-		Storage:           constants.DefaultStorageBackend,
-		Streaming:         "on",
+		Version:   getRuntimeValue(constants.AppVersion, "dev"),
+		Commit:    getRuntimeValue(constants.CommitHash, "unknown"),
+		Profile:   profile.DefaultName,
+		Storage:   constants.DefaultStorageBackend,
+		Streaming: "on",
 	}
 }
 

@@ -10,18 +10,12 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/constants"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 )
 
 func TestModel_StartModelsCommandLoadsModels(t *testing.T) {
-	client := &fakeTUIChatClient{modelList: rpcclient.ModelList{
-		Provider: "openai",
-		AuthType: "oauth",
-		Models: []rpcclient.ModelOption{
-			{ID: "gpt-5.4-mini", Name: "GPT 5.4 Mini", Current: true, Reasoning: true, ContextWindow: 272000},
-			{ID: "gpt-5.4", Name: "GPT 5.4", ContextWindow: 272000},
-		},
-	}}
+	client := &fakeTUIChatClient{}
 	runModel := newModelWithClient(client)
 	runModel.input.SetValue("/models")
 
@@ -32,49 +26,38 @@ func TestModel_StartModelsCommandLoadsModels(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, 1, client.listModelCalls)
-	require.Empty(t, client.modelListProvider)
+	require.Zero(t, client.listModelCalls)
 	require.Equal(t, commandViewKindModels, runModel.commandView.Kind)
 	require.Equal(t, "Models", runModel.commandView.TitleLeft)
-	require.Equal(t, "enter to select · esc to close", runModel.commandView.TitleRight)
-	require.Equal(t, "openai", runModel.commandView.ModelProvider)
-	require.Equal(t, "oauth", runModel.commandView.ModelAuthType)
-	require.Len(t, runModel.commandView.Models, 2)
-	require.Equal(t, "gpt-5.4-mini", runModel.commandView.Models[0].ID)
+	require.Equal(t, "enter to select · left/backspace to providers · esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "OpenRouter", runModel.commandView.TitleSubtext)
+	require.Equal(t, "openrouter", runModel.commandView.ModelProvider)
+	require.NotEmpty(t, runModel.commandView.Models)
+	require.Equal(t, constants.DefaultProfileModel, runModel.commandView.Models[0].ID)
+	require.True(t, runModel.commandView.Models[0].DisplayDefault)
+	current := findCommandModelOption(t, runModel.commandView.Models, "openai/gpt-4o-mini")
+	require.True(t, current.Current)
 }
 
 func TestLoadModelsCmdUsesBackgroundContextWhenMissing(t *testing.T) {
-	client := &fakeTUIChatClient{modelList: rpcclient.ModelList{
-		Provider: "openai",
-		Models:   []rpcclient.ModelOption{{ID: "gpt-4o"}},
-	}}
+	msg := loadModelsCmd("openai", "gpt-5.4")()
 
-	msg := loadModelsCmd(nil, client, "openai")()
-
-	require.Equal(t, 1, client.listModelCalls)
-	require.Equal(t, "openai", client.modelListProvider)
 	require.Equal(t, "openai", msg.(modelsLoadedMsg).List.Provider)
-	require.Equal(t, "gpt-4o", msg.(modelsLoadedMsg).List.Models[0].ID)
+	require.Equal(t, "gpt-5.5", msg.(modelsLoadedMsg).List.Models[0].ID)
+	require.True(t, msg.(modelsLoadedMsg).List.Models[0].DisplayDefault)
+	current := findCommandModelOption(t, msg.(modelsLoadedMsg).List.Models, "gpt-5.4")
+	require.True(t, current.Current)
 }
 
 func TestLoadProvidersCmdUsesBackgroundContextWhenMissing(t *testing.T) {
-	client := &fakeTUIChatClient{providerList: rpcclient.ProviderList{
-		Providers: []rpcclient.ProviderOption{{ID: "openai"}},
-	}}
+	msg := loadProvidersCmd("openai")()
 
-	msg := loadProvidersCmd(nil, client)()
-
-	require.Equal(t, 1, client.listProviderCalls)
 	require.Equal(t, "openai", msg.(providersLoadedMsg).List.Providers[0].ID)
+	require.True(t, msg.(providersLoadedMsg).List.Providers[0].Current)
 }
 
 func TestModel_StartProvidersCommandLoadsProviders(t *testing.T) {
-	client := &fakeTUIChatClient{providerList: rpcclient.ProviderList{
-		Providers: []rpcclient.ProviderOption{
-			{ID: "openai", Name: "OpenAI", ModelCount: 2, AuthType: "api-key", Current: true},
-			{ID: "openrouter", Name: "OpenRouter", ModelCount: 4, Type: "api-key"},
-		},
-	}}
+	client := &fakeTUIChatClient{}
 	runModel := newModelWithClient(client)
 	runModel.input.SetValue("/providers")
 
@@ -85,18 +68,17 @@ func TestModel_StartProvidersCommandLoadsProviders(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, 1, client.listProviderCalls)
+	require.Zero(t, client.listProviderCalls)
 	require.Equal(t, commandViewKindProviders, runModel.commandView.Kind)
 	require.Equal(t, "Providers", runModel.commandView.TitleLeft)
-	require.Len(t, runModel.commandView.Providers, 2)
+	require.NotEmpty(t, runModel.commandView.Providers)
+	require.Equal(t, "openai", runModel.commandView.Providers[0].ID)
+	openrouter := findCommandProviderOption(t, runModel.commandView.Providers, "openrouter")
+	require.True(t, openrouter.Current)
 }
 
 func TestModel_SelectProviderLoadsProviderModels(t *testing.T) {
-	client := &fakeTUIChatClient{modelList: rpcclient.ModelList{
-		Provider: "openrouter",
-		AuthType: "api-key",
-		Models:   []rpcclient.ModelOption{{ID: "openai/gpt-4o", Provider: "openrouter"}},
-	}}
+	client := &fakeTUIChatClient{}
 	runModel := newModelWithClient(client)
 	runModel.showCommandView(commandViewPayload{
 		Kind: commandViewKindProviders,
@@ -114,10 +96,10 @@ func TestModel_SelectProviderLoadsProviderModels(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, "openrouter", client.modelListProvider)
+	require.Zero(t, client.listModelCalls)
 	require.Equal(t, commandViewKindModels, runModel.commandView.Kind)
 	require.Equal(t, "openrouter", runModel.commandView.ModelProvider)
-	require.Len(t, runModel.commandView.Models, 1)
+	require.NotEmpty(t, runModel.commandView.Models)
 }
 
 func TestModel_RenderProvidersCommandViewHighlightsCurrentAndFallbackDetails(t *testing.T) {
@@ -139,8 +121,14 @@ func TestModel_RenderProvidersCommandViewHighlightsCurrentAndFallbackDetails(t *
 	require.Contains(t, content, "none")
 
 	require.Equal(t, "No providers available.", newModel().renderProvidersCommandViewContent(commandViewContent{}))
-	require.Contains(t, stripANSI(renderProvidersCommandRow(rpcclient.ProviderOption{ID: "openai", Type: "api-key"}, 32)), "openai")
-	require.Empty(t, stripANSI(renderProvidersCommandRow(rpcclient.ProviderOption{ID: "openai", Type: "api-key"}, 1)))
+	require.Contains(t, stripANSI(renderProvidersCommandRow(rpcclient.ProviderOption{ID: "openai", Type: "api-key"}, 32, false)), "OpenAI")
+	require.Empty(t, stripANSI(renderProvidersCommandRow(rpcclient.ProviderOption{ID: "openai", Type: "api-key"}, 1, false)))
+}
+
+func TestGetProviderDisplayName(t *testing.T) {
+	require.Equal(t, "OpenRouter", getProviderDisplayName("openrouter"))
+	require.Equal(t, "OpenAI Codex", getProviderDisplayName("openai-codex"))
+	require.Equal(t, "custom-provider", getProviderDisplayName("custom-provider"))
 }
 
 func TestModel_UpdateProvidersCommandViewNavigatesSelection(t *testing.T) {
@@ -250,28 +238,59 @@ func TestModel_RenderModelsCommandViewHighlightsCurrentAndSelection(t *testing.T
 	content := stripANSI(runModel.renderModelsCommandViewContent(commandViewContent{Width: 48, Height: 2}))
 
 	require.Contains(t, content, "GPT 5.4 Mini")
-	require.Contains(t, content, "current")
-	require.Contains(t, content, "reasoning")
 	require.Contains(t, content, "272k")
+	require.Contains(t, content, "reasoning")
 	require.Contains(t, content, "GPT 4o")
+	require.Contains(t, content, "128k")
+	require.NotContains(t, content, "current")
 }
 
-func TestModel_RenderModelsCommandViewHandlesEmptyAndFallbackDetails(t *testing.T) {
+func TestModel_RenderModelsCommandViewHandlesEmptyAndContextLength(t *testing.T) {
 	runModel := newModel()
 	runModel.showCommandView(commandViewPayload{Kind: commandViewKindModels})
 	require.Equal(t, "No models available.", runModel.renderModelsCommandViewContent(commandViewContent{}))
 
-	row := stripANSI(renderModelsCommandRow(rpcclient.ModelOption{ID: "model-a", API: "openai-responses"}, 1))
+	row := stripANSI(renderModelsCommandRow(rpcclient.ModelOption{ID: "model-a", API: "openai-responses"}, 1, false))
 	require.Empty(t, row)
 
-	row = stripANSI(renderModelsCommandRow(rpcclient.ModelOption{ID: "model-a", API: "openai-responses"}, 32))
+	rendered := renderModelsCommandRow(
+		rpcclient.ModelOption{ID: "model-a", API: "openai-responses", ContextWindow: 128000},
+		32,
+		false,
+	)
+	require.Contains(t, rendered, "\x1b[")
+	row = stripANSI(rendered)
 	require.Contains(t, row, "model-a")
-	require.Contains(t, row, "openai-responses")
-	require.Equal(t, "openai-responses", getModelOptionDetail(rpcclient.ModelOption{API: "openai-responses"}))
-	require.Equal(t, "oauth", getModelOptionDetail(rpcclient.ModelOption{SupportsOAuth: true}))
+	require.Contains(t, row, "128k")
+	require.NotContains(t, row, "openai-responses")
+	require.Equal(t, "             128k", getModelOptionMutedDetail(rpcclient.ModelOption{ContextWindow: 128000}))
+	require.Equal(t, "reasoning ·  128k", getModelOptionMutedDetail(rpcclient.ModelOption{
+		Reasoning:     true,
+		ContextWindow: 128000,
+	}))
+	require.Equal(t, "reasoning · 1000k", getModelOptionMutedDetail(rpcclient.ModelOption{
+		Reasoning:     true,
+		ContextWindow: 1000000,
+	}))
+	require.Empty(t, getModelOptionMutedDetail(rpcclient.ModelOption{SupportsOAuth: true}))
+}
+
+func TestRenderModelsCommandRowStylesSelectedLabelOnly(t *testing.T) {
+	rendered := renderModelsCommandRow(
+		rpcclient.ModelOption{ID: "model-a", ContextWindow: 128000},
+		32,
+		true,
+	)
+
+	require.Contains(t, rendered, "\x1b[")
+	require.Contains(t, rendered, "\x1b[90;")
+	require.Contains(t, rendered, "48;")
+	require.Contains(t, stripANSI(rendered), "model-a")
+	require.Contains(t, stripANSI(rendered), "128k")
 }
 
 func TestModel_SelectModelCallsClientHidesCommandViewAndUpdatesChrome(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "env-key")
 	client := &fakeTUIChatClient{
 		selectedModel: rpcclient.ModelOption{ID: "gpt-4o", Provider: "openai", Current: true},
 	}
@@ -380,6 +399,26 @@ func TestModel_UpdateModelsCommandViewNavigatesSelection(t *testing.T) {
 	require.Equal(t, runModel.commandViewItemSelected, updated.(model).commandViewItemSelected)
 }
 
+func TestModel_UpdateModelsCommandViewBacksToProviders(t *testing.T) {
+	runModel := newModel()
+	runModel.showCommandView(commandViewPayload{
+		Kind:          commandViewKindModels,
+		ModelProvider: "openrouter",
+		Models:        []rpcclient.ModelOption{{ID: "openai/gpt-4o"}},
+	})
+
+	updated, cmd := runModel.updateModelsCommandView(tea.KeyPressMsg(tea.Key{Code: tea.KeyLeft}))
+	require.Nil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, commandViewKindProviders, runModel.commandView.Kind)
+	require.Equal(t, "Providers", runModel.commandView.TitleLeft)
+	require.NotEmpty(t, runModel.commandView.Providers)
+	require.Equal(t, "openai", runModel.commandView.Providers[0].ID)
+	openrouter := findCommandProviderOption(t, runModel.commandView.Providers, "openrouter")
+	require.True(t, openrouter.Current)
+}
+
 func TestModel_UpdateModelsCommandViewHandlesEmptyListAndSelectionMessage(t *testing.T) {
 	runModel := newModel()
 	runModel.showCommandView(commandViewPayload{Kind: commandViewKindModels})
@@ -403,27 +442,17 @@ func TestModel_UpdateModelsCommandViewHandlesEmptyListAndSelectionMessage(t *tes
 
 func TestModel_ModelsCommandReportsUnavailableStates(t *testing.T) {
 	runModel := newModel()
-	require.NotNil(t, runModel.startModelsCommand())
+	msg := loadModelsCmd("", "")()
+	cmd := runModel.completeModelsCommand(msg.(modelsLoadedMsg))
+	require.NotNil(t, cmd)
 	require.Equal(t, "models unavailable", runModel.status.Text())
 
-	require.NotNil(t, runModel.startProvidersCommand())
-	require.Equal(t, "providers unavailable", runModel.status.Text())
-
-	client := &fakeTUIChatClient{providerListErr: errors.New("load failed")}
-	runModel = newModelWithClient(client)
-	providerMsg := loadProvidersCmd(context.Background(), client)()
-	cmd := runModel.completeProvidersCommand(providerMsg.(providersLoadedMsg))
-	require.NotNil(t, cmd)
-	require.Equal(t, "providers unavailable", runModel.status.Text())
-
-	client = &fakeTUIChatClient{modelListErr: errors.New("load failed")}
-	runModel = newModelWithClient(client)
-	msg := loadModelsCmd(context.Background(), client, "")()
+	msg = modelsLoadedMsg{Err: errors.New("load failed")}
 	cmd = runModel.completeModelsCommand(msg.(modelsLoadedMsg))
 	require.NotNil(t, cmd)
 	require.Equal(t, "models unavailable", runModel.status.Text())
 
-	client = &fakeTUIChatClient{selectModelErr: errors.New("select failed")}
+	client := &fakeTUIChatClient{selectModelErr: errors.New("select failed")}
 	runModel = newModelWithClient(client)
 	runModel.showCommandView(commandViewPayload{
 		Kind:   commandViewKindModels,
@@ -442,15 +471,6 @@ func TestModel_ModelsCommandReportsUnavailableStates(t *testing.T) {
 	updated, cmd = runModel.selectCurrentProviderOption()
 	require.NotNil(t, cmd)
 	require.Equal(t, "provider selection unavailable", updated.(model).status.Text())
-
-	runModel = newModel()
-	runModel.showCommandView(commandViewPayload{
-		Kind:      commandViewKindProviders,
-		Providers: []rpcclient.ProviderOption{{ID: "openai"}},
-	})
-	updated, cmd = runModel.selectCurrentProviderOption()
-	require.NotNil(t, cmd)
-	require.Equal(t, "models unavailable", updated.(model).status.Text())
 }
 
 func TestModel_ModelSelectionEdgeCases(t *testing.T) {
@@ -516,7 +536,7 @@ func TestModel_ModelSelectionPromptsForMissingProviderAPIKeyAndRetries(t *testin
 	runModel = updated.(model)
 	require.Equal(t, commandViewKindProviderAPIKey, runModel.commandView.Kind)
 	require.Equal(t, "provider API key required", runModel.status.Text())
-	require.Equal(t, "API key for openrouter", runModel.apiKeyInput.Placeholder)
+	require.Equal(t, "API key for OpenRouter", runModel.apiKeyInput.Placeholder)
 
 	runModel.apiKeyInput.SetValue("router-key")
 	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
@@ -655,10 +675,9 @@ func TestModel_ProviderAPIKeyPromptEdgeCases(t *testing.T) {
 	runModel.showCommandView(commandViewPayload{
 		Kind:          commandViewKindModels,
 		ModelProvider: "openrouter",
-		ModelAuthType: "api-key",
 	})
+	t.Setenv("OPENROUTER_API_KEY", "env-key")
 	require.False(t, runModel.shouldPromptForProviderAPIKey(rpcclient.ModelOption{ID: "openai/gpt-4o"}))
-	runModel.commandView.ModelAuthType = "none"
 	require.False(t, runModel.shouldPromptForProviderAPIKey(rpcclient.ModelOption{ID: "gpt-5.4", SupportsOAuth: true}))
 
 	runModel = newModel()
@@ -800,4 +819,30 @@ func providerAPIKeySetMessageFromBatch(t *testing.T, cmd tea.Cmd) providerAPIKey
 	require.True(t, ok)
 
 	return msg
+}
+
+func findCommandProviderOption(t *testing.T, providers []rpcclient.ProviderOption, id string) rpcclient.ProviderOption {
+	t.Helper()
+
+	for _, provider := range providers {
+		if provider.ID == id {
+			return provider
+		}
+	}
+
+	t.Fatalf("provider option %q not found", id)
+	return rpcclient.ProviderOption{}
+}
+
+func findCommandModelOption(t *testing.T, models []rpcclient.ModelOption, id string) rpcclient.ModelOption {
+	t.Helper()
+
+	for _, model := range models {
+		if model.ID == id {
+			return model
+		}
+	}
+
+	t.Fatalf("model option %q not found", id)
+	return rpcclient.ModelOption{}
 }

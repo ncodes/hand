@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 )
 
@@ -62,6 +63,7 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	history, err := loadPromptHistory()
 	userName, userNameSet, namePromptEnabled, userNameErr := loadProfileUserName()
 	runtimeInfo := runtimeInfoFromConfig(cfg)
+	activeProfile := profile.WithMetadataPaths(profile.Active())
 	appModel := model{
 		transcript:  newTranscript(),
 		input:       newInputComposer(),
@@ -72,10 +74,15 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 		chatClient:  client,
 		chatCtx:     ctx,
 	}
+	appModel.configEnvPath = activeProfile.EnvPath
+	appModel.configPath = activeProfile.ConfigPath
 	if userNameSet {
 		appModel.userName = userName
 	}
 	appModel.namePromptEnabled = namePromptEnabled
+	if userNameSet && appModel.profileModelSetupMissing() {
+		_ = appModel.startProfileModelSetup()
+	}
 	appModel.runtimeInfo = runtimeInfo
 	appModel.modelName = getModelDisplayName(runtimeInfo.Model)
 	if sessions, ok := client.(rpcclient.SessionAPI); ok {

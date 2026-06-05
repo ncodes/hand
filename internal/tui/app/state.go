@@ -6,7 +6,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/wandxy/hand/internal/constants"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 )
@@ -56,6 +55,19 @@ type tuiState struct {
 	commandViewOffset          int
 	commandViewSelection       commandViewSelection
 	commandViewItemSelected    int
+	setupModelStep             string
+	setupAuthMethod            string
+	setupProviders             []rpcclient.ProviderOption
+	setupModels                []rpcclient.ModelOption
+	setupModelProvider         string
+	setupProviderAPIKey        string
+	setupPendingModelID        string
+	setupNoticeMessage         string
+	setupNoticeHint            string
+	setupItemSelected          int
+	setupOffset                int
+	configEnvPath              string
+	configPath                 string
 	chatsArchiveConfirm        bool
 	chatsRenaming              bool
 	chatsRenameSessionID       string
@@ -101,7 +113,6 @@ func newTUIState(history []string, thinkingComposerEnabled bool) tuiState {
 		status:                   newStatusModel(),
 		sessionID:                defaultSessionID,
 		sessionTitle:             defaultSessionTitle,
-		modelName:                getModelDisplayName(constants.DefaultProfileModel),
 		runtimeInfo:              defaultRuntimeInfo(),
 		showIntro:                true,
 		reasoningMessageIndex:    -1,

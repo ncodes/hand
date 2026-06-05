@@ -440,7 +440,7 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cmd.IsSet("model.api-key") {
 		provider := strings.TrimSpace(strings.ToLower(cfg.Models.Main.Provider))
 		if provider == "" {
-			provider = constants.DefaultModelProvider
+			return
 		}
 		if cfg.Models.Providers == nil {
 			cfg.Models.Providers = make(map[string]config.ProviderModelConfig)

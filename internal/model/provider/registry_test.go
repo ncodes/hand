@@ -51,6 +51,8 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 	openai, ok := registry.GetProvider(constants.ModelProviderOpenAI)
 	require.True(t, ok)
 	require.Equal(t, APIOpenAIResponses, openai.DefaultAPI)
+	require.True(t, openai.HasDisplayIndex)
+	require.Equal(t, 0, openai.DisplayIndex)
 	require.Equal(t, constants.DefaultOpenAIBaseURL, registry.GetBaseURL("openai", ""))
 	require.Equal(t, constants.DefaultOpenAIBaseURL, registry.GetBaseURL("openai", APIOpenAICompletions))
 	require.Equal(t, constants.DefaultOpenAIBaseURL, registry.GetBaseURL("openai", APIOpenAIResponses))
@@ -61,6 +63,8 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 	openaiCodex, ok := registry.GetProvider(constants.ModelProviderOpenAICodex)
 	require.True(t, ok)
 	require.Equal(t, APIOpenAIResponses, openaiCodex.DefaultAPI)
+	require.True(t, openaiCodex.HasDisplayIndex)
+	require.Equal(t, 0, openaiCodex.DisplayIndex)
 	require.Equal(t, constants.DefaultOpenAISubscriptionBaseURL, registry.GetBaseURL("openai-codex", ""))
 	require.Equal(t, constants.DefaultOpenAISubscriptionBaseURL, registry.GetBaseURL("openai-codex", APIOpenAIResponses))
 	require.Empty(t, openaiCodex.APIKeyEnv)
@@ -69,6 +73,8 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 	anthropic, ok := registry.GetProvider(constants.ModelProviderAnthropic)
 	require.True(t, ok)
 	require.Equal(t, APIAnthropicMessages, anthropic.DefaultAPI)
+	require.True(t, anthropic.HasDisplayIndex)
+	require.Equal(t, 1, anthropic.DisplayIndex)
 	require.Equal(t, constants.DefaultAnthropicBaseURL, registry.GetBaseURL("anthropic", ""))
 	require.Equal(t, constants.DefaultAnthropicBaseURL, registry.GetBaseURL("anthropic", APIAnthropicMessages))
 	require.Equal(t, []string{"ANTHROPIC_API_KEY"}, anthropic.APIKeyEnv)
@@ -77,6 +83,8 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 	copilot, ok := registry.GetProvider(constants.ModelProviderGitHubCopilot)
 	require.True(t, ok)
 	require.Equal(t, APIOpenAIResponses, copilot.DefaultAPI)
+	require.True(t, copilot.HasDisplayIndex)
+	require.Equal(t, 2, copilot.DisplayIndex)
 	require.Equal(t, constants.DefaultGitHubCopilotBaseURL, registry.GetBaseURL("github-copilot", ""))
 	require.Equal(t, constants.DefaultGitHubCopilotBaseURL, registry.GetBaseURL("github-copilot", APIOpenAICompletions))
 	require.Equal(t, constants.DefaultGitHubCopilotBaseURL, registry.GetBaseURL("github-copilot", APIOpenAIResponses))
@@ -103,6 +111,9 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.Equal(t, []InputKind{InputText, InputImage}, openAIModel.Input)
 	require.Equal(t, constants.DefaultContextLength, openAIModel.ContextWindow)
 	require.False(t, openAIModel.SupportsOAuth)
+	openAIDefaultModel, ok := registry.GetModel("openai", "gpt-5.5")
+	require.True(t, ok)
+	require.True(t, openAIDefaultModel.DisplayDefault)
 
 	openAICodexModel, ok := registry.GetModel("openai-codex", "gpt-5.4")
 	require.True(t, ok)
@@ -124,6 +135,9 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 		require.True(t, ok)
 		require.True(t, model.SupportsOAuth)
 	}
+	openAICodexDefaultModel, ok := registry.GetModel("openai-codex", "gpt-5.5")
+	require.True(t, ok)
+	require.True(t, openAICodexDefaultModel.DisplayDefault)
 	for _, modelID := range []string{"gpt-5.2", "gpt-5.2-codex", "gpt-5.3-codex"} {
 		_, ok = registry.GetModel("openai-codex", modelID)
 		require.False(t, ok, modelID)
@@ -136,6 +150,9 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.True(t, copilotResponsesModel.SupportsOAuth)
 	require.True(t, copilotResponsesModel.Reasoning)
 	require.Equal(t, []InputKind{InputText, InputImage}, copilotResponsesModel.Input)
+	copilotDefaultModel, ok := registry.GetModel("github-copilot", "gpt-5.5")
+	require.True(t, ok)
+	require.True(t, copilotDefaultModel.DisplayDefault)
 
 	copilotCompletionModel, ok := registry.GetModel("github-copilot", "gpt-4o")
 	require.True(t, ok)
@@ -161,6 +178,7 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, APIAnthropicMessages, anthropicOAuthModel.API)
 	require.True(t, anthropicOAuthModel.SupportsOAuth)
+	require.True(t, anthropicOAuthModel.DisplayDefault)
 
 	for modelID, api := range map[string]string{
 		"claude-haiku-4.5":       APIAnthropicMessages,
@@ -243,6 +261,7 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.Equal(t, "minimax", openRouterModel.Owner)
 	require.Equal(t, APIOpenAIResponses, openRouterModel.API)
 	require.Equal(t, []InputKind{InputText}, openRouterModel.Input)
+	require.True(t, openRouterModel.DisplayDefault)
 
 	openRouterOpenAIModel, ok := registry.GetModel("openrouter", "openai/"+constants.DefaultModel)
 	require.True(t, ok)

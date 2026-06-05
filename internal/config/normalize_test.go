@@ -27,14 +27,14 @@ func TestConfig_NormalizeTrimsInstruct(t *testing.T) {
 	require.Equal(t, "be terse", cfg.Session.Instruct)
 }
 
-func TestConfig_NormalizeDefaultsProviderWhenEmpty(t *testing.T) {
+func TestConfig_NormalizeLeavesProviderEmptyWhenUnset(t *testing.T) {
 	cfg := &Config{
 		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel}},
 		Log:    LogConfig{Level: "info"},
 	}
 	cfg.Normalize()
-	require.Equal(t, constants.DefaultModelProvider, cfg.Models.Main.Provider)
-	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
+	require.Empty(t, cfg.Models.Main.Provider)
+	require.Empty(t, cfg.Models.Main.BaseURL)
 }
 
 func TestConfig_NormalizeIgnoresNilReceiver(t *testing.T) {
@@ -46,15 +46,15 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
 	require.Empty(t, cfg.Name)
-	require.Equal(t, constants.DefaultModel, cfg.Models.Main.Name)
-	require.Equal(t, constants.DefaultModelProvider, cfg.Models.Main.Provider)
+	require.Empty(t, cfg.Models.Main.Name)
+	require.Empty(t, cfg.Models.Main.Provider)
 	require.Equal(t, "cli", cfg.Platform)
 	require.True(t, getBoolValue(cfg.Cap.Filesystem))
 	require.True(t, getBoolValue(cfg.Cap.Network))
 	require.True(t, getBoolValue(cfg.Cap.Exec))
 	require.True(t, getBoolValue(cfg.Cap.Memory))
 	require.False(t, getBoolValue(cfg.Cap.Browser))
-	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
+	require.Empty(t, cfg.Models.Main.BaseURL)
 	require.Equal(t, "127.0.0.1", cfg.RPC.Address)
 	require.Equal(t, 50051, cfg.RPC.Port)
 	require.Equal(t, constants.DefaultMaxIterations, cfg.Session.MaxIterations)

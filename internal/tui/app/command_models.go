@@ -10,16 +10,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/wandxy/hand/internal/config"
+	modelcatalog "github.com/wandxy/hand/internal/model"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 )
-
-type providerListLoader interface {
-	ListProviders(context.Context) (rpcclient.ProviderList, error)
-}
-
-type modelListLoader interface {
-	ListModels(context.Context, ...rpcclient.ModelListOptions) (rpcclient.ModelList, error)
-}
 
 type modelSelector interface {
 	SelectModel(context.Context, string, ...rpcclient.ModelSelectOptions) (rpcclient.ModelOption, error)
@@ -28,6 +23,11 @@ type modelSelector interface {
 type providerAPIKeySetter interface {
 	SetProviderAPIKey(context.Context, string, string) error
 }
+
+const (
+	modelOptionReasoningWidth = len("reasoning")
+	modelOptionContextWidth   = 5
+)
 
 type providersLoadedMsg struct {
 	List rpcclient.ProviderList
@@ -76,25 +76,18 @@ func newProviderAPIKeyInput(placeholder string) textinput.Model {
 }
 
 func (m *model) startProvidersCommand() tea.Cmd {
-	client, ok := m.modelClient.(providerListLoader)
-	if m.modelClient == nil || !ok {
-		return m.setStatus("providers unavailable")
-	}
-
 	return tea.Batch(
 		m.setStatus("loading providers"),
-		loadProvidersCmd(m.chatCtx, client),
+		loadProvidersCmd(m.loadRawProfileMainProvider()),
 	)
 }
 
-func loadProvidersCmd(ctx context.Context, client providerListLoader) tea.Cmd {
+func loadProvidersCmd(currentProvider string) tea.Cmd {
 	return func() tea.Msg {
-		if ctx == nil {
-			ctx = context.Background()
-		}
-
-		list, err := client.ListProviders(ctx)
-		return providersLoadedMsg{List: list, Err: err}
+		providers := modelcatalog.ListProviders(modelcatalog.ProviderQuery{
+			Current: currentProvider,
+		})
+		return providersLoadedMsg{List: rpcclient.ProviderList{Providers: providers}}
 	}
 }
 
@@ -115,25 +108,29 @@ func (m *model) completeProvidersCommand(msg providersLoadedMsg) tea.Cmd {
 }
 
 func (m *model) startModelsCommand() tea.Cmd {
-	client, ok := m.modelClient.(modelListLoader)
-	if m.modelClient == nil || !ok {
-		return m.setStatus("models unavailable")
-	}
+	provider := m.loadRawProfileMainProvider()
 
 	return tea.Batch(
 		m.setStatus("loading models"),
-		loadModelsCmd(m.chatCtx, client, ""),
+		loadModelsCmd(provider, m.loadRawProfileMainModel()),
 	)
 }
 
-func loadModelsCmd(ctx context.Context, client modelListLoader, provider string) tea.Cmd {
+func loadModelsCmd(provider string, currentModel string) tea.Cmd {
 	return func() tea.Msg {
-		if ctx == nil {
-			ctx = context.Background()
+		provider = strings.TrimSpace(provider)
+		if provider == "" {
+			return modelsLoadedMsg{Err: errors.New("model provider is required")}
 		}
 
-		list, err := client.ListModels(ctx, rpcclient.ModelListOptions{Provider: provider})
-		return modelsLoadedMsg{List: list, Err: err}
+		models := modelcatalog.ListOptions(modelcatalog.OptionQuery{
+			Provider: provider,
+			Current:  currentModel,
+		})
+		return modelsLoadedMsg{List: rpcclient.ModelList{
+			Provider: provider,
+			Models:   models,
+		}}
 	}
 }
 
@@ -144,7 +141,7 @@ func (m *model) completeModelsCommand(msg modelsLoadedMsg) tea.Cmd {
 
 	m.showCommandView(commandViewPayload{
 		TitleLeft:       "Models",
-		TitleSubtext:    msg.List.Provider,
+		TitleSubtext:    getProviderDisplayName(msg.List.Provider),
 		TitleRight:      getModelsCommandTitleRight(),
 		TitleRightColor: defaultTUITheme.MutedText,
 		Kind:            commandViewKindModels,
@@ -179,14 +176,11 @@ func (m model) renderProvidersCommandViewContent(content commandViewContent) str
 	end := min(offset+height, len(providers))
 	rows := make([]string, 0, end-offset)
 	for index := offset; index < end; index++ {
-		row := renderProvidersCommandRow(providers[index], content.Width)
-		if index == m.commandViewItemSelected {
-			row = renderSelectedChatsCommandRow(row, content.Width)
-		} else if !providers[index].Current {
-			row = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
-				Render(row)
-		}
+		row := renderProvidersCommandRow(
+			providers[index],
+			content.Width,
+			index == m.commandViewItemSelected,
+		)
 		rows = append(rows, row)
 	}
 
@@ -197,21 +191,13 @@ func (m model) renderProvidersCommandViewContent(content commandViewContent) str
 	return strings.Join(rows, "\n")
 }
 
-func renderProvidersCommandRow(provider rpcclient.ProviderOption, width int) string {
+func renderProvidersCommandRow(provider rpcclient.ProviderOption, width int, selected bool) string {
 	width = max(width, 1)
 	contentWidth := max(width-2, 1)
 	name := getProviderOptionDisplayName(provider)
 	detail := getProviderOptionDetail(provider)
-	detailWidth := lipgloss.Width(detail)
-	nameWidth := max(contentWidth-detailWidth-2, 1)
-	name = truncateCommandMenuText(name, nameWidth)
-	gap := max(contentWidth-lipgloss.Width(name)-detailWidth, 1)
-	row := name + strings.Repeat(" ", gap) + detail
-	if width <= 1 {
-		return truncateChatsCommandRow(row, width)
-	}
 
-	return " " + truncateChatsCommandRow(row, contentWidth) + " "
+	return renderCommandListEntryRow(name, detail, width, contentWidth, selected)
 }
 
 func getProviderOptionDisplayName(provider rpcclient.ProviderOption) string {
@@ -219,7 +205,22 @@ func getProviderOptionDisplayName(provider rpcclient.ProviderOption) string {
 		return strings.TrimSpace(provider.Name)
 	}
 
-	return strings.TrimSpace(provider.ID)
+	return getProviderDisplayName(provider.ID)
+}
+
+func getProviderDisplayName(providerID string) string {
+	providerID = strings.TrimSpace(providerID)
+	if providerID == "" {
+		return ""
+	}
+
+	if provider, ok := modelprovider.DefaultRegistry().GetProvider(providerID); ok {
+		if name := strings.TrimSpace(provider.DisplayName); name != "" {
+			return name
+		}
+	}
+
+	return providerID
 }
 
 func getProviderOptionDetail(provider rpcclient.ProviderOption) string {
@@ -251,14 +252,7 @@ func (m model) renderModelsCommandViewContent(content commandViewContent) string
 	end := min(offset+height, len(models))
 	rows := make([]string, 0, end-offset)
 	for index := offset; index < end; index++ {
-		row := renderModelsCommandRow(models[index], content.Width)
-		if index == m.commandViewItemSelected {
-			row = renderSelectedChatsCommandRow(row, content.Width)
-		} else if !models[index].Current {
-			row = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
-				Render(row)
-		}
+		row := renderModelsCommandRow(models[index], content.Width, index == m.commandViewItemSelected)
 		rows = append(rows, row)
 	}
 
@@ -269,18 +263,55 @@ func (m model) renderModelsCommandViewContent(content commandViewContent) string
 	return strings.Join(rows, "\n")
 }
 
-func renderModelsCommandRow(model rpcclient.ModelOption, width int) string {
+func renderModelsCommandRow(model rpcclient.ModelOption, width int, selected bool) string {
 	width = max(width, 1)
 	contentWidth := max(width-2, 1)
 	name := getModelOptionDisplayName(model)
-	detail := getModelOptionDetail(model)
+	detail := getModelOptionMutedDetail(model)
+	return renderCommandListEntryRow(name, detail, width, contentWidth, selected)
+}
+
+func renderCommandListEntryRow(label string, detail string, width int, contentWidth int, selected bool) string {
 	detailWidth := lipgloss.Width(detail)
-	nameWidth := max(contentWidth-detailWidth-2, 1)
-	name = truncateCommandMenuText(name, nameWidth)
-	gap := max(contentWidth-lipgloss.Width(name)-detailWidth, 1)
-	row := name + strings.Repeat(" ", gap) + detail
+	labelWidth := max(contentWidth-detailWidth-2, 1)
+	label = truncateCommandMenuText(label, labelWidth)
+	gap := 0
+	if detail != "" {
+		gap = max(contentWidth-lipgloss.Width(label)-detailWidth, 1)
+	}
+	trailing := max(contentWidth-lipgloss.Width(label)-gap-detailWidth, 0)
+	row := label + strings.Repeat(" ", gap) + detail
+	if selected {
+		background := lipgloss.NewStyle().
+			Background(lipgloss.Color(defaultTUITheme.JumpToBottomBackground))
+		label = background.
+			Foreground(lipgloss.Color(defaultTUITheme.MarkdownLinkForeground)).
+			Render(label)
+		if detail != "" {
+			detail = background.
+				Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+				Render(detail)
+		}
+		row = label +
+			background.Render(strings.Repeat(" ", gap)) +
+			detail +
+			background.Render(strings.Repeat(" ", trailing))
+	} else if detail != "" {
+		detail = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+			Render(detail)
+		row = label + strings.Repeat(" ", gap) + detail
+	}
 	if width <= 1 {
 		return truncateChatsCommandRow(row, width)
+	}
+
+	if selected {
+		background := lipgloss.NewStyle().
+			Background(lipgloss.Color(defaultTUITheme.JumpToBottomBackground))
+		return background.Render(" ") +
+			truncateChatsCommandRow(row, contentWidth) +
+			background.Render(" ")
 	}
 
 	return " " + truncateChatsCommandRow(row, contentWidth) + " "
@@ -294,25 +325,42 @@ func getModelOptionDisplayName(model rpcclient.ModelOption) string {
 	return strings.TrimSpace(model.ID)
 }
 
-func getModelOptionDetail(model rpcclient.ModelOption) string {
-	parts := make([]string, 0, 4)
-	if model.Current {
-		parts = append(parts, "current")
-	}
-	if model.SupportsOAuth {
-		parts = append(parts, "oauth")
-	}
-	if model.Reasoning {
-		parts = append(parts, "reasoning")
-	}
+func getModelOptionContextLength(model rpcclient.ModelOption) string {
 	if model.ContextWindow > 0 {
-		parts = append(parts, fmt.Sprintf("%dk", model.ContextWindow/1000))
-	}
-	if len(parts) == 0 {
-		return strings.TrimSpace(model.API)
+		return fmt.Sprintf("%dk", model.ContextWindow/1000)
 	}
 
-	return strings.Join(parts, " · ")
+	return ""
+}
+
+func getModelOptionMutedDetail(model rpcclient.ModelOption) string {
+	contextLength := getModelOptionContextLength(model)
+	if !model.Reasoning && contextLength == "" {
+		return ""
+	}
+
+	if model.Reasoning {
+		reasoning := padCommandCell("reasoning", modelOptionReasoningWidth, false)
+		if contextLength != "" {
+			contextCell := padCommandCell(contextLength, modelOptionContextWidth, true)
+			return reasoning + " · " + contextCell
+		}
+
+		return reasoning
+	}
+
+	return strings.Repeat(" ", modelOptionReasoningWidth+3) +
+		padCommandCell(contextLength, modelOptionContextWidth, true)
+}
+
+func padCommandCell(value string, width int, alignRight bool) string {
+	value = truncateCommandMenuText(strings.TrimSpace(value), max(width, 1))
+	padding := strings.Repeat(" ", max(width-lipgloss.Width(value), 0))
+	if alignRight {
+		return padding + value
+	}
+
+	return value + padding
 }
 
 func (m *model) updateProvidersCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -395,6 +443,8 @@ func (m *model) updateModelsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			selection -= max(m.getCommandViewContentHeight(), 1)
 		case tea.KeyPgDown:
 			selection += max(m.getCommandViewContentHeight(), 1)
+		case tea.KeyLeft, tea.KeyBackspace:
+			return m.showProvidersFromModelCommand()
 		case tea.KeyEnter:
 			return m.selectCurrentModelOption()
 		default:
@@ -456,7 +506,7 @@ func normalizeProviderAPIKeyPaste(value string) string {
 }
 
 func getModelsCommandTitleRight() string {
-	return "enter to select · esc to close"
+	return "enter to select · left/backspace to providers · esc to close"
 }
 
 func getProvidersCommandTitleRight() string {
@@ -470,15 +520,25 @@ func (m *model) selectCurrentProviderOption() (tea.Model, tea.Cmd) {
 		return *m, m.setStatus("provider selection unavailable")
 	}
 
-	client, ok := m.modelClient.(modelListLoader)
-	if m.modelClient == nil || !ok {
-		return *m, m.setStatus("models unavailable")
-	}
-
 	return *m, tea.Batch(
 		m.setStatus("loading models"),
-		loadModelsCmd(m.chatCtx, client, providerID),
+		loadModelsCmd(providerID, m.loadRawProfileMainModel()),
 	)
+}
+
+func (m *model) showProvidersFromModelCommand() (tea.Model, tea.Cmd) {
+	providers := modelcatalog.ListProviders(modelcatalog.ProviderQuery{
+		Current: m.commandView.ModelProvider,
+	})
+	m.showCommandView(commandViewPayload{
+		TitleLeft:       "Providers",
+		TitleRight:      getProvidersCommandTitleRight(),
+		TitleRightColor: defaultTUITheme.MutedText,
+		Kind:            commandViewKindProviders,
+		Providers:       providers,
+	})
+
+	return *m, nil
 }
 
 func (m *model) selectCurrentModelOption() (tea.Model, tea.Cmd) {
@@ -573,12 +633,39 @@ func (m model) shouldPromptForProviderAPIKey(option rpcclient.ModelOption) bool 
 	if option.SupportsOAuth {
 		return false
 	}
-	if strings.TrimSpace(m.commandView.ModelAuthType) != "" &&
-		strings.TrimSpace(m.commandView.ModelAuthType) != "none" {
+	if m.hasModelAuth(option) {
 		return false
 	}
 
 	return strings.TrimSpace(m.commandView.ModelProvider) != ""
+}
+
+func (m model) hasModelAuth(option rpcclient.ModelOption) bool {
+	provider := strings.TrimSpace(m.commandView.ModelProvider)
+	if provider == "" {
+		provider = strings.TrimSpace(option.Provider)
+	}
+	modelID := strings.TrimSpace(option.ID)
+	if provider == "" || modelID == "" {
+		return false
+	}
+
+	cfg, err := config.Load(m.configEnvPath, m.configPath)
+	if err != nil {
+		return false
+	}
+	cfg.Models.Main.Provider = provider
+	cfg.Models.Main.Name = modelID
+	cfg.Models.Summary.Provider = provider
+	cfg.Models.Summary.Name = modelID
+	cfg.Search.Vector.Enabled = false
+	if option.API != "" {
+		cfg.Models.Main.API = option.API
+		cfg.Models.Summary.API = option.API
+	}
+	_, err = cfg.ResolveModelAuth()
+
+	return err == nil
 }
 
 func (m *model) showProviderAPIKeyPrompt(option rpcclient.ModelOption) (tea.Model, tea.Cmd) {
@@ -590,10 +677,11 @@ func (m *model) showProviderAPIKeyPrompt(option rpcclient.ModelOption) (tea.Mode
 		return *m, m.setStatus("model selection unavailable")
 	}
 
-	m.apiKeyInput = newProviderAPIKeyInput("API key for " + provider)
+	providerLabel := getProviderDisplayName(provider)
+	m.apiKeyInput = newProviderAPIKeyInput("API key for " + providerLabel)
 	m.showCommandView(commandViewPayload{
 		TitleLeft:       "Provider API Key",
-		TitleSubtext:    provider,
+		TitleSubtext:    providerLabel,
 		TitleRight:      "enter to save · esc to cancel",
 		TitleRightColor: defaultTUITheme.MutedText,
 		Kind:            commandViewKindProviderAPIKey,

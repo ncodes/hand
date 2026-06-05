@@ -42,7 +42,7 @@ func defaultModels() []ModelDefinition {
 		openAIReasoningModel("gpt-5.4-mini", "GPT-5.4 mini", []InputKind{InputText, InputImage}, 272000, 128000),
 		openAIReasoningModel("gpt-5.4-nano", "GPT-5.4 nano", []InputKind{InputText, InputImage}, 400000, 128000),
 		openAIReasoningModel("gpt-5.4-pro", "GPT-5.4 pro", []InputKind{InputText, InputImage}, 1050000, 128000),
-		openAIReasoningModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 272000, 128000),
+		displayDefaultModel(openAIReasoningModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 272000, 128000)),
 		openAIReasoningModel("gpt-5.5-pro", "GPT-5.5 pro", []InputKind{InputText, InputImage}, 1050000, 128000),
 		openAIReasoningModel("o1", "o1", []InputKind{InputText, InputImage}, 200000, 100000),
 		openAIReasoningModel("o1-pro", "o1 pro", []InputKind{InputText, InputImage}, 200000, 100000),
@@ -66,7 +66,7 @@ func defaultModels() []ModelDefinition {
 		openAICodexModel("gpt-5.3-codex-spark", "GPT-5.3 Codex Spark", []InputKind{InputText}, 272000, 128000),
 		openAICodexModel("gpt-5.4", "GPT-5.4", []InputKind{InputText, InputImage}, 272000, 128000),
 		openAICodexModel("gpt-5.4-mini", "GPT-5.4 mini", []InputKind{InputText, InputImage}, 272000, 128000),
-		openAICodexModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 272000, 128000),
+		displayDefaultModel(openAICodexModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 272000, 128000)),
 
 		// GitHub Copilot models
 		gitHubCopilotAnthropicModel("claude-haiku-4.5", "Claude Haiku 4.5", []InputKind{InputText, InputImage}, 144000, 32000),
@@ -93,7 +93,7 @@ func defaultModels() []ModelDefinition {
 		gitHubCopilotResponsesModel("gpt-5.3-codex", "GPT-5.3 Codex", []InputKind{InputText, InputImage}, 400000, 128000),
 		gitHubCopilotResponsesModel("gpt-5.4", "GPT-5.4", []InputKind{InputText, InputImage}, 400000, 128000),
 		gitHubCopilotResponsesModel("gpt-5.4-mini", "GPT-5.4 Mini", []InputKind{InputText, InputImage}, 400000, 128000),
-		gitHubCopilotResponsesModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 400000, 128000),
+		displayDefaultModel(gitHubCopilotResponsesModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 400000, 128000)),
 		gitHubCopilotCompletionModel("grok-code-fast-1", "Grok Code Fast 1", []InputKind{InputText}, true, 128000, 64000),
 
 		// OpenRouter models
@@ -179,7 +179,7 @@ func defaultModels() []ModelDefinition {
 		openRouterReasoningModel("minimax/minimax-m2.1", "MiniMax: MiniMax M2.1", []InputKind{InputText}, 204800, 196608),
 		openRouterReasoningModel("minimax/minimax-m2.5", "MiniMax: MiniMax M2.5", []InputKind{InputText}, 204800, 196608),
 		openRouterReasoningModel("minimax/minimax-m2.5:free", "MiniMax: MiniMax M2.5 (free)", []InputKind{InputText}, 204800, 8192),
-		openRouterReasoningModel("minimax/minimax-m2.7", "MiniMax: MiniMax M2.7", []InputKind{InputText}, 204800, 131072),
+		displayDefaultModel(openRouterReasoningModel("minimax/minimax-m2.7", "MiniMax: MiniMax M2.7", []InputKind{InputText}, 204800, 131072)),
 		openRouterModel("mistralai/codestral-2508", "Mistral: Codestral 2508", []InputKind{InputText}, 256000, 4096),
 		openRouterModel("mistralai/devstral-2512", "Mistral: Devstral 2 2512", []InputKind{InputText}, 262144, 4096),
 		openRouterModel("mistralai/devstral-medium", "Mistral: Devstral Medium", []InputKind{InputText}, 131072, 4096),
@@ -396,8 +396,14 @@ func defaultModels() []ModelDefinition {
 		anthropicReasoningModel("claude-sonnet-4-20250514", "Claude Sonnet 4", []InputKind{InputText, InputImage}, 200000, 64000),
 		anthropicReasoningModel("claude-sonnet-4-5", "Claude Sonnet 4.5 (latest)", []InputKind{InputText, InputImage}, 200000, 64000),
 		anthropicReasoningModel("claude-sonnet-4-5-20250929", "Claude Sonnet 4.5", []InputKind{InputText, InputImage}, 200000, 64000),
-		anthropicOAuthReasoningModel("claude-sonnet-4-6", "Claude Sonnet 4.6", []InputKind{InputText, InputImage}, 1000000, 64000),
+		displayDefaultModel(anthropicOAuthReasoningModel("claude-sonnet-4-6", "Claude Sonnet 4.6", []InputKind{InputText, InputImage}, 1000000, 64000)),
 	}
+}
+
+func displayDefaultModel(model ModelDefinition) ModelDefinition {
+	model.DisplayDefault = true
+
+	return model
 }
 
 func openAIModel(

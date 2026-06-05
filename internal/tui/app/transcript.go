@@ -22,6 +22,9 @@ func (m model) renderTranscript() string {
 	if m.shouldShowNamePrompt() {
 		return m.renderNamePrompt()
 	}
+	if m.shouldShowProfileModelSetup() {
+		return m.renderProfileModelSetup()
+	}
 
 	return lipgloss.NewStyle().
 		Width(m.getMainPaneWidth()).

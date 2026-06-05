@@ -90,8 +90,8 @@ func TestNewLiveClients(t *testing.T) {
 					"openai":     {APIKey: "openai-key"},
 				},
 				MaxRetries: &retries,
-				Main:       config.MainModelConfig{Provider: "openrouter"},
-				Summary:    config.SummaryModelConfig{Provider: "openai", BaseURL: "https://openai.example/v1"},
+				Main:       config.MainModelConfig{Provider: "openrouter", Name: "openai/gpt-4o-mini"},
+				Summary:    config.SummaryModelConfig{Provider: "openai", Name: "gpt-4o-mini", BaseURL: "https://openai.example/v1"},
 			},
 		}
 
@@ -103,7 +103,7 @@ func TestNewLiveClients(t *testing.T) {
 		assert.Equal(t, []modelclient.ClientRequest{
 			{
 				Role:       modelclient.ModelRoleMain,
-				Model:      constants.DefaultModel,
+				Model:      "openai/gpt-4o-mini",
 				Provider:   "openrouter",
 				API:        modelprovider.APIOpenAIResponses,
 				APIKey:     "router-key",
@@ -112,7 +112,7 @@ func TestNewLiveClients(t *testing.T) {
 			},
 			{
 				Role:       modelclient.ModelRoleSummary,
-				Model:      constants.DefaultModel,
+				Model:      "gpt-4o-mini",
 				Provider:   "openai",
 				API:        modelprovider.APIOpenAIResponses,
 				APIKey:     "openai-key",
@@ -130,7 +130,10 @@ func TestNewLiveClients(t *testing.T) {
 		}
 
 		cfg := &config.Config{
-			Models: config.ModelsConfig{Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "router-key"}}, Main: config.MainModelConfig{Provider: "openrouter"}},
+			Models: config.ModelsConfig{
+				Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "router-key"}},
+				Main:      config.MainModelConfig{Provider: "openrouter", Name: "openai/gpt-4o-mini"},
+			},
 		}
 
 		modelClient, summaryClient, err := NewLiveClients(cfg)
@@ -145,11 +148,17 @@ func TestNewLiveClients(t *testing.T) {
 		t.Setenv("OPENROUTER_API_KEY", "")
 		liveModelClientFactoryInstance = originalFactory
 
-		modelClient, summaryClient, err := NewLiveClients(&config.Config{})
+		cfg := &config.Config{
+			Models: config.ModelsConfig{
+				Main: config.MainModelConfig{Provider: "openrouter", Name: "openai/gpt-4o-mini"},
+			},
+		}
+
+		modelClient, summaryClient, err := NewLiveClients(cfg)
 		require.Error(t, err)
 		assert.Nil(t, modelClient)
 		assert.Nil(t, summaryClient)
-		assert.ErrorContains(t, err, "hand auth login openrouter")
+		assert.ErrorContains(t, err, `model API key is required for provider "openrouter"`)
 	})
 
 	t.Run("returns summary auth error", func(t *testing.T) {
@@ -160,8 +169,8 @@ func TestNewLiveClients(t *testing.T) {
 		cfg := &config.Config{
 			Models: config.ModelsConfig{
 				Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "router-key"}},
-				Main:      config.MainModelConfig{Provider: "openrouter"},
-				Summary:   config.SummaryModelConfig{Provider: "openai"},
+				Main:      config.MainModelConfig{Provider: "openrouter", Name: "openai/gpt-4o-mini"},
+				Summary:   config.SummaryModelConfig{Provider: "openai", Name: "gpt-4o-mini"},
 			},
 		}
 
@@ -169,7 +178,7 @@ func TestNewLiveClients(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, modelClient)
 		assert.Nil(t, summaryClient)
-		assert.ErrorContains(t, err, "hand auth login openai")
+		assert.ErrorContains(t, err, `model API key is required for provider "openai"`)
 	})
 
 	t.Run("returns summary client factory error", func(t *testing.T) {

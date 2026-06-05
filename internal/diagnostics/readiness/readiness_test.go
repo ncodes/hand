@@ -371,11 +371,7 @@ func TestMissingAuthActionAndCredentialSourceFormatting(t *testing.T) {
 		"hand config set models.providers.openrouter.apiKey <api-key>",
 		missingAuthActions(constants.ModelProviderOpenRouter)[1].Command,
 	)
-	require.Equal(
-		t,
-		"hand auth login openrouter --api-key <api-key>",
-		missingAuthActions("")[0].Command,
-	)
+	require.Empty(t, missingAuthActions(""))
 
 	require.Equal(t, "role-config", formatCredentialSource(config.ModelAuth{
 		CredentialSource: config.ModelCredentialSource{Kind: config.ModelCredentialSourceRoleConfig},

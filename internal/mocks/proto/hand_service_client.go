@@ -43,9 +43,14 @@ type HandServiceClientStub struct {
 	SelectResp    *handpb.SelectModelResponse
 	APIKeyReq     *handpb.SetProviderAPIKeyRequest
 	APIKeyResp    *handpb.SetProviderAPIKeyResponse
+	OnRespond     func()
+	OnListModels  func()
 }
 
 func (s *HandServiceClientStub) Respond(_ context.Context, req *handpb.RespondRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[handpb.RespondEvent], error) {
+	if s.OnRespond != nil {
+		s.OnRespond()
+	}
 	s.Req = req
 	if s.Err != nil {
 		return nil, s.Err
@@ -108,6 +113,9 @@ func (s *HandServiceClientStub) Timeline(_ context.Context, req *handpb.GetSessi
 }
 
 func (s *HandServiceClientStub) ListModels(_ context.Context, req *handpb.ListModelsRequest, _ ...grpc.CallOption) (*handpb.ListModelsResponse, error) {
+	if s.OnListModels != nil {
+		s.OnListModels()
+	}
 	s.ModelsReq = req
 	return s.ModelsResp, s.Err
 }

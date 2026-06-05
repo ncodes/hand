@@ -1844,7 +1844,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 		"up",
 	})
 
-	require.ErrorContains(t, err, "hand auth login openrouter")
+	require.ErrorContains(t, err, "model is required")
 }
 
 func newRootCommandForTest(configFile *string) *cli.Command {

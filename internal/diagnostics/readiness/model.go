@@ -124,7 +124,7 @@ func isMissingAuthError(err error) bool {
 func missingAuthActions(provider string) []Action {
 	provider = strings.TrimSpace(strings.ToLower(provider))
 	if provider == "" {
-		provider = constants.DefaultModelProvider
+		return nil
 	}
 	switch provider {
 	case constants.ModelProviderOpenAI, constants.ModelProviderOpenAICodex,
@@ -138,7 +138,7 @@ func missingAuthActions(provider string) []Action {
 func providerAPIKeyActions(provider string) []Action {
 	provider = strings.TrimSpace(strings.ToLower(provider))
 	if provider == "" {
-		provider = constants.DefaultModelProvider
+		return nil
 	}
 
 	return []Action{

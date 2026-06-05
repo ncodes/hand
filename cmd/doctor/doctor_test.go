@@ -136,7 +136,7 @@ search:
 		"--model", "gpt-4o-mini",
 		"doctor",
 	})
-	require.ErrorContains(t, err, "model API key is required")
+	require.ErrorContains(t, err, "model provider is required")
 	require.NotContains(t, output.String(), "config:\n")
 	require.Contains(t, output.String(), "\nprofile:")
 	requireInOrder(
@@ -147,8 +147,9 @@ search:
 		"config validation",
 	)
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] config validation")
-	require.Contains(t, output.String(), "fix: \x1b[97mhand auth login openrouter --api-key <api-key>\x1b[0m")
-	require.Contains(t, output.String(), "fix: \x1b[97mhand config set models.providers.openrouter.apiKey <api-key>\x1b[0m")
+	require.Contains(t, output.String(), "model provider is required")
+	require.Contains(t, output.String(), "fix: \x1b[97m/providers\x1b[0m")
+	require.Contains(t, output.String(), "fix: \x1b[97m/models\x1b[0m")
 	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] policy: input=enabled, output=enabled, pii=disabled")
 }
 

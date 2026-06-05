@@ -349,18 +349,20 @@ func renderErrorTranscriptCell(message string, width int) string {
 	}
 
 	contentWidth := max(width, 1)
-	frameWidth := max(contentWidth-2, 1)
-	bodyWidth := max(frameWidth-2, 1)
+	bodyWidth := max(contentWidth-2, 1)
 	background := lipgloss.Color(defaultTUITheme.InputFrameBackground)
 	titleStyle := transcriptCellLabelStyle(transcriptCellError).Background(background)
 	descriptionStyle := lipgloss.NewStyle().
 		Background(background).
+		MaxWidth(bodyWidth).
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText))
 	bodyStyle := lipgloss.NewStyle().
 		Background(background).
+		MaxWidth(bodyWidth).
 		Foreground(lipgloss.Color(defaultTUITheme.ToolDetail))
 	commandStyle := lipgloss.NewStyle().
 		Background(background).
+		MaxWidth(bodyWidth).
 		Foreground(lipgloss.Color("15"))
 	title := titleStyle.Render("Error")
 	content := []string{title}
@@ -378,7 +380,7 @@ func renderErrorTranscriptCell(message string, width int) string {
 	}
 
 	return lipgloss.NewStyle().
-		Width(frameWidth).
+		Width(contentWidth).
 		Background(background).
 		Padding(1, 1).
 		Render(strings.Join(content, "\n"))

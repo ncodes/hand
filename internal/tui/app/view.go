@@ -10,7 +10,7 @@ const jumpToBottomLabel = "Jump to bottom (ctrl+End) ↓"
 // View composes the scrollable transcript and fixed input composer.
 func (m model) View() tea.View {
 	bottomPanel := m.renderInput()
-	if m.shouldShowNamePrompt() {
+	if m.shouldShowNamePrompt() || m.shouldShowProfileModelSetup() {
 		bottomPanel = ""
 	}
 	if m.isCommandViewVisible() {
@@ -30,7 +30,7 @@ func (m model) View() tea.View {
 }
 
 func (m model) renderJumpToBottom() string {
-	if m.shouldShowNamePrompt() {
+	if m.shouldShowNamePrompt() || m.shouldShowProfileModelSetup() {
 		return ""
 	}
 	if m.transcript.AtBottom() || m.isCommandMenuVisible() || m.isCommandViewVisible() {

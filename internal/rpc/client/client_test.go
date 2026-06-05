@@ -16,6 +16,18 @@ import (
 	agent "github.com/wandxy/hand/pkg/agent"
 )
 
+type reconnectRecorder struct {
+	calls []string
+}
+
+func (r *reconnectRecorder) ResetConnectBackoff() {
+	r.calls = append(r.calls, "reset")
+}
+
+func (r *reconnectRecorder) Connect() {
+	r.calls = append(r.calls, "connect")
+}
+
 func TestClient_RespondSendsInstruct(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
 		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "hello back", Channel: handpb.RespondEvent_ASSISTANT},
@@ -28,6 +40,22 @@ func TestClient_RespondSendsInstruct(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
 	require.Equal(t, &handpb.RespondRequest{Message: "hello", Instruct: "be terse"}, stub.Req)
+}
+
+func TestClient_RespondPreparesConnectionBeforeRequest(t *testing.T) {
+	reconnector := &reconnectRecorder{}
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_DONE},
+	}}
+	stub.OnRespond = func() {
+		require.Equal(t, []string{"reset", "connect"}, reconnector.calls)
+	}
+	client := &Client{client: stub, reconnector: reconnector}
+
+	_, err := client.Respond(context.Background(), "hello", RespondOptions{})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"reset", "connect"}, reconnector.calls)
 }
 
 func TestClient_RespondSendsSessionID(t *testing.T) {
@@ -56,6 +84,20 @@ func TestClient_RespondSendsStreamOption(t *testing.T) {
 	require.Empty(t, reply)
 	require.NotNil(t, stub.Req.Stream)
 	require.False(t, stub.Req.GetStream())
+}
+
+func TestModelService_ListModelsPreparesConnectionBeforeRequest(t *testing.T) {
+	reconnector := &reconnectRecorder{}
+	stub := &protomock.HandServiceClientStub{ModelsResp: &handpb.ListModelsResponse{}}
+	stub.OnListModels = func() {
+		require.Equal(t, []string{"reset", "connect"}, reconnector.calls)
+	}
+	service := newModelService(stub, reconnector)
+
+	_, err := service.ListModels(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"reset", "connect"}, reconnector.calls)
 }
 
 func TestClient_RespondPropagatesRPCError(t *testing.T) {

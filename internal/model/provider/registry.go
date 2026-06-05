@@ -39,6 +39,8 @@ type APIDefinition struct {
 type ProviderDefinition struct {
 	ID                 string
 	DisplayName        string
+	DisplayIndex       int
+	HasDisplayIndex    bool
 	DefaultAPI         string
 	BaseURLs           map[string]string
 	Headers            map[string]string
@@ -51,16 +53,17 @@ type ProviderDefinition struct {
 
 // ModelDefinition describes provider-specific model metadata used for resolution and validation.
 type ModelDefinition struct {
-	ID            string
-	Name          string
-	Owner         string
-	Provider      string
-	API           string
-	Input         []InputKind
-	Reasoning     bool
-	SupportsOAuth bool
-	ContextWindow int
-	MaxTokens     int
+	ID             string
+	Name           string
+	Owner          string
+	Provider       string
+	API            string
+	Input          []InputKind
+	Reasoning      bool
+	SupportsOAuth  bool
+	DisplayDefault bool
+	ContextWindow  int
+	MaxTokens      int
 }
 
 // Registry stores API, provider, and model definitions for model resolution.
@@ -328,12 +331,14 @@ func defaultAPIs() []APIDefinition {
 func defaultProviders() []ProviderDefinition {
 	return []ProviderDefinition{
 		{
-			ID:             constants.ModelProviderOpenRouter,
-			DisplayName:    "OpenRouter",
-			DefaultAPI:     APIOpenAIResponses,
-			APIKeyEnv:      []string{"OPENROUTER_API_KEY"},
-			SupportsModels: true,
-			SupportsAPIKey: true,
+			ID:              constants.ModelProviderOpenRouter,
+			DisplayName:     "OpenRouter",
+			DisplayIndex:    3,
+			HasDisplayIndex: true,
+			DefaultAPI:      APIOpenAIResponses,
+			APIKeyEnv:       []string{"OPENROUTER_API_KEY"},
+			SupportsModels:  true,
+			SupportsAPIKey:  true,
 			BaseURLs: map[string]string{
 				APIOpenAICompletions:    constants.DefaultOpenRouterBaseURL,
 				APIOpenAIResponses:      constants.DefaultOpenRouterResponsesBaseURL,
@@ -341,12 +346,14 @@ func defaultProviders() []ProviderDefinition {
 			},
 		},
 		{
-			ID:             constants.ModelProviderOpenAI,
-			DisplayName:    "OpenAI",
-			DefaultAPI:     APIOpenAIResponses,
-			APIKeyEnv:      []string{"OPENAI_API_KEY"},
-			SupportsModels: true,
-			SupportsAPIKey: true,
+			ID:              constants.ModelProviderOpenAI,
+			DisplayName:     "OpenAI",
+			DisplayIndex:    0,
+			HasDisplayIndex: true,
+			DefaultAPI:      APIOpenAIResponses,
+			APIKeyEnv:       []string{"OPENAI_API_KEY"},
+			SupportsModels:  true,
+			SupportsAPIKey:  true,
 			BaseURLs: map[string]string{
 				APIOpenAICompletions: constants.DefaultOpenAIBaseURL,
 				APIOpenAIResponses:   constants.DefaultOpenAIBaseURL,
@@ -354,35 +361,41 @@ func defaultProviders() []ProviderDefinition {
 			},
 		},
 		{
-			ID:             constants.ModelProviderOpenAICodex,
-			DisplayName:    "OpenAI Codex",
-			DefaultAPI:     APIOpenAIResponses,
-			SupportsModels: true,
-			SupportsOAuth:  true,
+			ID:              constants.ModelProviderOpenAICodex,
+			DisplayName:     "OpenAI Codex",
+			DisplayIndex:    0,
+			HasDisplayIndex: true,
+			DefaultAPI:      APIOpenAIResponses,
+			SupportsModels:  true,
+			SupportsOAuth:   true,
 			BaseURLs: map[string]string{
 				APIOpenAIResponses: constants.DefaultOpenAISubscriptionBaseURL,
 			},
 		},
 		{
-			ID:             constants.ModelProviderAnthropic,
-			DisplayName:    "Anthropic",
-			DefaultAPI:     APIAnthropicMessages,
-			APIKeyEnv:      []string{"ANTHROPIC_API_KEY"},
-			SupportsModels: true,
-			SupportsAPIKey: true,
-			SupportsOAuth:  true,
+			ID:              constants.ModelProviderAnthropic,
+			DisplayName:     "Anthropic",
+			DisplayIndex:    1,
+			HasDisplayIndex: true,
+			DefaultAPI:      APIAnthropicMessages,
+			APIKeyEnv:       []string{"ANTHROPIC_API_KEY"},
+			SupportsModels:  true,
+			SupportsAPIKey:  true,
+			SupportsOAuth:   true,
 			BaseURLs: map[string]string{
 				APIAnthropicMessages: constants.DefaultAnthropicBaseURL,
 			},
 		},
 		{
-			ID:             constants.ModelProviderGitHubCopilot,
-			DisplayName:    "GitHub Copilot",
-			DefaultAPI:     APIOpenAIResponses,
-			APIKeyEnv:      []string{"COPILOT_GITHUB_TOKEN"},
-			SupportsModels: true,
-			SupportsAPIKey: true,
-			SupportsOAuth:  true,
+			ID:              constants.ModelProviderGitHubCopilot,
+			DisplayName:     "GitHub Copilot",
+			DisplayIndex:    2,
+			HasDisplayIndex: true,
+			DefaultAPI:      APIOpenAIResponses,
+			APIKeyEnv:       []string{"COPILOT_GITHUB_TOKEN"},
+			SupportsModels:  true,
+			SupportsAPIKey:  true,
+			SupportsOAuth:   true,
 			BaseURLs: map[string]string{
 				APIOpenAICompletions: constants.DefaultGitHubCopilotBaseURL,
 				APIOpenAIResponses:   constants.DefaultGitHubCopilotBaseURL,

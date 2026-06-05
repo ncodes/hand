@@ -5,22 +5,15 @@ import (
 	"slices"
 
 	"github.com/wandxy/hand/internal/constants"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
 )
 
 var DefaultConfig = Config{
 	Models: ModelsConfig{
 		Main: MainModelConfig{
-			Name:          constants.DefaultProfileModel,
-			Provider:      constants.ModelProviderOpenRouter,
 			Stream:        new(constants.DefaultProfileModelStream),
 			ContextLength: constants.DefaultContextLength,
-			API:           modelprovider.APIOpenAIResponses,
-			BaseURL:       constants.DefaultOpenRouterResponsesBaseURL,
 		},
-		Summary: SummaryModelConfig{
-			Name: constants.DefaultProfileSummaryModel,
-		},
+		Summary: SummaryModelConfig{},
 		Embedding: EmbeddingModelConfig{
 			Name: constants.DefaultProfileEmbeddingModel,
 		},

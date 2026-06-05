@@ -55,9 +55,6 @@ func (c *Config) normalizeFields() {
 	c.Reranker.Overrides = normalizeRerankerOverrides(c.Reranker.Overrides)
 	c.normalizePersonalities()
 
-	if c.Models.Main.Name == "" {
-		c.Models.Main.Name = constants.DefaultModel
-	}
 	if c.Models.Main.Stream == nil {
 		c.Models.Main.Stream = new(constants.DefaultProfileModelStream)
 	}
@@ -66,10 +63,6 @@ func (c *Config) normalizeFields() {
 	}
 	if c.Models.Main.ContextLength <= 0 {
 		c.Models.Main.ContextLength = constants.DefaultContextLength
-	}
-
-	if c.Models.Main.Provider == "" {
-		c.Models.Main.Provider = constants.DefaultModelProvider
 	}
 
 	if c.Models.Main.API == "" {

@@ -197,7 +197,11 @@ func TestNormalizeRerankerOverrides_CleansKeysAndValues(t *testing.T) {
 }
 
 func TestValidateRerankerOverride_RejectsInvalidValues(t *testing.T) {
-	cfg := &Config{}
+	cfg := &Config{
+		Models: ModelsConfig{
+			Main: MainModelConfig{Name: "gpt-4o-mini", Provider: "openai"},
+		},
+	}
 
 	require.NoError(t, cfg.validateRerankerSettings())
 	cfg.Reranker.Type = constants.RerankerLLM
