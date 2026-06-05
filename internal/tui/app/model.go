@@ -83,7 +83,7 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	}
 	appModel.namePromptEnabled = namePromptEnabled
 	if userNameSet && appModel.profileModelSetupMissing() {
-		_ = appModel.startProfileModelSetup()
+		_ = appModel.startProfileSetup(false)
 	}
 	appModel.runtimeInfo = runtimeInfo
 	appModel.modelName = getModelDisplayName(runtimeInfo.Model)

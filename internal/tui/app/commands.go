@@ -22,6 +22,7 @@ var slashCommandDefinitions = []slashCommandDefinition{
 	{Name: "new-chat", Description: "Start a new chat session"},
 	{Name: "archive", Description: "Show archived chat sessions"},
 	{Name: "providers", Description: "Show supported model providers"},
+	{Name: "setup", Description: "Open setup"},
 }
 
 func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
@@ -44,6 +45,8 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 		cmd = m.startModelsCommand()
 	case "providers":
 		cmd = m.startProvidersCommand()
+	case "setup":
+		cmd = m.startProfileSetup(true)
 	case "copy":
 		cmd = m.copyTranscript()
 	case "new-chat":

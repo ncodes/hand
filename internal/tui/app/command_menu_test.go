@@ -76,6 +76,13 @@ func TestCommandMenu_FiltersCommandsByPrefix(t *testing.T) {
 	require.NotContains(t, menu, "/help")
 	require.Equal(t, 2, runModel.getCommandMenuHeight())
 	require.Zero(t, runModel.commandMenuSelected)
+
+	runModel.input.SetValue("/se")
+	runModel.updateCommandMenuForInput(runModel.input.Value())
+	menu = stripANSI(runModel.renderCommandMenu())
+	require.Contains(t, menu, "/setup")
+	require.Contains(t, menu, "Open setup")
+	require.NotContains(t, menu, "/providers")
 }
 
 func TestCommandMenu_HidesWhenPrefixHasNoMatches(t *testing.T) {

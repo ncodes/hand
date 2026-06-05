@@ -46,6 +46,7 @@ const (
 
 	setupModelMaxWidth      = 72
 	setupModelMinWidth      = 34
+	setupModelLoginMinWidth = 52
 	setupModelMaxListHeight = 8
 	setupModelFilterWidth   = 18
 )
@@ -158,8 +159,14 @@ func profileUserPath() string {
 }
 
 func (m model) shouldShowNamePrompt() bool {
-	return m.namePromptEnabled &&
-		strings.TrimSpace(m.userName) == "" &&
+	if !m.namePromptEnabled {
+		return false
+	}
+	if m.setupNamePromptActive {
+		return true
+	}
+
+	return strings.TrimSpace(m.userName) == "" &&
 		len(m.messages) == 0 &&
 		(m.live == nil || m.live.IsEmpty())
 }
@@ -204,6 +211,11 @@ func (m model) renderNamePrompt() string {
 	if errorText := strings.TrimSpace(m.namePromptError); errorText != "" {
 		hintText = errorText
 		hintColor = defaultTUITheme.ToolDeletion
+	} else if m.setupNamePromptActive {
+		hintText = "Enter to continue"
+		if m.setupDismissible {
+			hintText += " · esc to close"
+		}
 	}
 	hint := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(hintColor)).
@@ -270,6 +282,9 @@ func (m model) renderEmptyUserPromptContent() string {
 }
 
 func (m model) handleNamePromptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if msg.Key().Code == tea.KeyEsc && m.setupDismissible {
+		return m.closeProfileSetup()
+	}
 	if msg.Key().Code == tea.KeyEnter {
 		return m.submitNamePrompt()
 	}
@@ -300,8 +315,10 @@ func (m model) submitNamePrompt() (tea.Model, tea.Cmd) {
 
 	m.userName = name
 	m.namePromptEnabled = false
+	startSetup := m.setupNamePromptActive || m.profileModelSetupMissing()
+	m.setupNamePromptActive = false
 	m.nameInput.SetValue("")
-	if m.profileModelSetupMissing() {
+	if startSetup {
 		return m, m.startProfileModelSetup()
 	}
 
@@ -332,6 +349,7 @@ func (m model) expireNamePromptError(msg namePromptErrorExpiredMsg) tea.Model {
 }
 
 func (m *model) startProfileModelSetup() tea.Cmd {
+	m.setupNamePromptActive = false
 	m.setupModelStep = setupModelStepAuthMethod
 	m.setupAuthMethod = ""
 	m.setupProviders = nil
@@ -344,6 +362,22 @@ func (m *model) startProfileModelSetup() tea.Cmd {
 	m.resize()
 
 	return m.setStatus("choose an auth method")
+}
+
+func (m *model) startProfileSetup(dismissible bool) tea.Cmd {
+	name := strings.TrimSpace(m.userName)
+	m.clearProfileModelSetup()
+	m.namePromptEnabled = true
+	m.setupNamePromptActive = true
+	m.setupDismissible = dismissible
+	m.namePromptError = ""
+	m.namePromptErrorStartedAt = time.Time{}
+	m.nameInput = newNameInput()
+	m.nameInput.SetValue(name)
+	m.nameInput.CursorEnd()
+	m.resize()
+
+	return m.setStatus("enter your name")
 }
 
 func (m *model) selectCurrentSetupAuthMethodOption() (tea.Model, tea.Cmd) {
@@ -431,7 +465,7 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 		return m.showSetupNotice(
 			"Authentication required",
 			"run hand auth login "+providerID+" in a new terminal",
-			"enter to continue · backspace to providers",
+			"enter to continue · esc to go back",
 		)
 	}
 
@@ -540,6 +574,7 @@ func (m *model) showSetupProviderAPIKeyPrompt(option rpcclient.ModelOption) (tea
 	m.setupModelProvider = provider
 	m.setupPendingModelID = strings.TrimSpace(option.ID)
 	m.apiKeyInput = newProviderAPIKeyInput("API key for " + getProviderDisplayName(provider))
+	m.prefillSetupProviderAPIKeyInput(provider)
 	m.resize()
 
 	return *m, m.setStatus("provider API key required")
@@ -555,9 +590,20 @@ func (m *model) showSetupProviderAPIKeyPromptForProvider(provider string) (tea.M
 	m.setupModelProvider = provider
 	m.setupPendingModelID = ""
 	m.apiKeyInput = newProviderAPIKeyInput("API key for " + getProviderDisplayName(provider))
+	m.prefillSetupProviderAPIKeyInput(provider)
 	m.resize()
 
 	return *m, m.setStatus("provider API key required")
+}
+
+func (m *model) prefillSetupProviderAPIKeyInput(provider string) {
+	apiKey := m.loadRawProviderAPIKey(provider)
+	if apiKey == "" {
+		return
+	}
+
+	m.apiKeyInput.SetValue(apiKey)
+	m.apiKeyInput.CursorEnd()
 }
 
 func (m *model) completeSetupModelSelection(option rpcclient.ModelOption) (tea.Model, tea.Cmd) {
@@ -646,10 +692,14 @@ func setupEmbeddingConfigUpdates(provider string) []config.ConfigUpdate {
 func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.setupModelStep {
 	case setupModelStepAuthMethod:
+		if msg.Key().Code == tea.KeyEsc {
+			return *m, m.startProfileSetup(m.setupDismissible)
+		}
+
 		return m.handleProfileModelSetupListKey(msg, len(setupAuthMethodOptions), m.selectCurrentSetupAuthMethodOption)
 	case setupModelStepProvider:
 		switch msg.Key().Code {
-		case tea.KeyLeft, tea.KeyBackspace:
+		case tea.KeyEsc, tea.KeyLeft, tea.KeyBackspace:
 			return m.showSetupAuthMethodSelection()
 		}
 
@@ -665,7 +715,7 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 		}
 
 		switch msg.Key().Code {
-		case tea.KeyLeft:
+		case tea.KeyEsc, tea.KeyLeft:
 			return m.showSetupProviderSelection()
 		}
 
@@ -690,7 +740,7 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 		switch msg.Key().Code {
 		case tea.KeyEnter:
 			return m.showSetupModelSelection()
-		case tea.KeyLeft, tea.KeyBackspace:
+		case tea.KeyEsc, tea.KeyLeft, tea.KeyBackspace:
 			return m.showSetupProviderSelection()
 		}
 
@@ -887,15 +937,17 @@ func (m *model) setProfileModelSetupSelection(selection int, count int) {
 func (m model) renderProfileModelSetup() string {
 	switch m.setupModelStep {
 	case setupModelStepAuthMethod:
+		hint := "enter to select · esc to go back"
+
 		return m.renderProfileModelSetupList(
 			"Select login method",
-			"enter to select",
+			hint,
 			m.renderProfileModelSetupAuthMethodRows(),
 		)
 	case setupModelStepProvider:
 		return m.renderProfileModelSetupList(
 			"Select model provider",
-			"enter to select · backspace to auth method",
+			"enter to select · esc to go back",
 			m.renderProfileModelSetupProviderRows(),
 		)
 	case setupModelStepModel:
@@ -954,7 +1006,7 @@ func (m model) renderProfileModelSetupModelList() string {
 	hint := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
 		Width(boxWidth).
-		Render(renderProfileModelSetupPaddedLabel("enter to select · left to providers", boxWidth))
+		Render(renderProfileModelSetupPaddedLabel("enter to select · esc to go back", boxWidth))
 
 	return m.renderProfileModelSetupFrameWithTitleContent(
 		m.renderProfileModelSetupModelTitle(boxWidth),
@@ -967,15 +1019,45 @@ func (m model) renderProfileModelSetupModelTitle(width int) string {
 	width = max(width, 1)
 	title := "Select model from " + getProviderDisplayName(m.setupModelProvider)
 	inputWidth := min(setupModelFilterWidth, max(width/2, 10))
-	titleWidth := max(width-inputWidth-1, 1)
-	titleText := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground)).
-		Bold(true).
-		Render(renderProfileModelSetupPaddedLabel(title, titleWidth))
+	titleText := m.renderProfileModelSetupTitleLeft(title, max(width-inputWidth-1, 1))
 	filter := m.renderInlineModelFilterInput(inputWidth)
 	gap := max(width-lipgloss.Width(titleText)-lipgloss.Width(filter), 1)
 
 	return titleText + strings.Repeat(" ", gap) + filter
+}
+
+func (m model) renderProfileModelSetupTitle(width int, title string) string {
+	width = max(width, 1)
+	right := m.getProfileModelSetupLoginMethodLabel()
+	if right == "" {
+		return m.renderProfileModelSetupTitleLeft(title, width)
+	}
+
+	rightText := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Render(renderProfileModelSetupPaddedLabel(right, min(lipgloss.Width(right)+2, width)))
+	titleText := m.renderProfileModelSetupTitleLeft(title, max(width-lipgloss.Width(rightText)-1, 1))
+	gap := max(width-lipgloss.Width(titleText)-lipgloss.Width(rightText), 1)
+
+	return titleText + strings.Repeat(" ", gap) + rightText
+}
+
+func (m model) renderProfileModelSetupTitleLeft(title string, width int) string {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground)).
+		Bold(true).
+		Render(renderProfileModelSetupPaddedLabel(title, width))
+}
+
+func (m model) getProfileModelSetupLoginMethodLabel() string {
+	switch strings.TrimSpace(m.setupAuthMethod) {
+	case setupAuthMethodSubscription:
+		return "login type: subscription"
+	case setupAuthMethodAPIKey:
+		return "login type: api key"
+	default:
+		return ""
+	}
 }
 
 func (m model) renderInlineModelFilterInput(width int) string {
@@ -995,8 +1077,8 @@ func (m model) renderProfileModelSetupFrame(title string, hintText string, body 
 	boxWidth := m.getProfileModelSetupBoxWidth()
 	hint := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
-		Width(boxWidth + 2).
-		Render(renderProfileModelSetupPaddedLabel(strings.TrimSpace(hintText), boxWidth+2))
+		Width(boxWidth).
+		Render(renderProfileModelSetupPaddedLabel(strings.TrimSpace(hintText), boxWidth))
 
 	return m.renderProfileModelSetupFrameWithHint(title, hint, body)
 }
@@ -1006,13 +1088,9 @@ func (m model) renderProfileModelSetupFrameWithHint(title string, hint string, b
 	height := max(m.transcript.Height(), 1)
 	boxWidth := m.getProfileModelSetupBoxWidth()
 
-	titleText := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground)).
-		Bold(true).
-		Width(boxWidth + 2).
-		Render(renderProfileModelSetupPaddedLabel(strings.TrimSpace(title), boxWidth+2))
+	titleText := m.renderProfileModelSetupTitle(boxWidth, strings.TrimSpace(title))
 	mark := lipgloss.NewStyle().
-		Width(boxWidth + 2).
+		Width(boxWidth).
 		Align(lipgloss.Center).
 		Render(renderHandBanner(handHeaderMark))
 	content := lipgloss.JoinVertical(
@@ -1222,6 +1300,10 @@ func renderProfileModelSetupPaddedLabel(label string, width int) string {
 
 func (m model) renderProfileModelSetupNotice() string {
 	boxWidth := m.getProfileModelSetupBoxWidth()
+	hint := strings.TrimSpace(m.setupNoticeHint)
+	if !strings.Contains(strings.ToLower(hint), "esc") {
+		hint = strings.TrimSpace(hint + " · esc to go back")
+	}
 
 	message := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
@@ -1236,7 +1318,7 @@ func (m model) renderProfileModelSetupNotice() string {
 
 	return m.renderProfileModelSetupFrame(
 		strings.TrimSpace(m.setupPendingModelID),
-		strings.TrimSpace(m.setupNoticeHint),
+		hint,
 		body,
 	)
 }
@@ -1273,7 +1355,12 @@ func (m model) getProfileModelSetupListWidth() int {
 
 func (m model) getProfileModelSetupBoxWidth() int {
 	width := max(m.transcript.Width(), m.getMainPaneWidth())
-	return min(max(width/2, setupModelMinWidth), min(setupModelMaxWidth, width))
+	minWidth := setupModelMinWidth
+	if m.getProfileModelSetupLoginMethodLabel() != "" {
+		minWidth = max(minWidth, setupModelLoginMinWidth)
+	}
+
+	return min(max(width/2, minWidth), min(setupModelMaxWidth, width))
 }
 
 func (m model) getProfileModelSetupListFirstRow() int {
@@ -1299,6 +1386,21 @@ func (m *model) clearProfileModelSetup() {
 	m.setupItemSelected = 0
 	m.setupOffset = 0
 	m.modelFilterInput = newModelFilterInput()
+	m.setupDismissible = false
+}
+
+func (m model) closeProfileSetup() (tea.Model, tea.Cmd) {
+	m.namePromptEnabled = false
+	m.setupNamePromptActive = false
+	m.setupDismissible = false
+	m.namePromptError = ""
+	m.namePromptErrorStartedAt = time.Time{}
+	m.nameInput.SetValue("")
+	m.clearProfileModelSetup()
+	m.resize()
+	m.setTranscriptContent()
+
+	return m, m.setStatus("setup closed")
 }
 
 func getSetupModelProvider(provider string, option rpcclient.ModelOption) string {
@@ -1343,6 +1445,20 @@ func (m model) loadRawProfileMainProvider() string {
 
 func (m model) loadRawProfileMainModel() string {
 	return strings.TrimSpace(m.loadRawProfileConfig().Models.Main.Name)
+}
+
+func (m model) loadRawProviderAPIKey(provider string) string {
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		return ""
+	}
+
+	raw := m.loadRawProfileConfig()
+	if raw.Models.Providers == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(raw.Models.Providers[provider].APIKey)
 }
 
 func (m model) loadRawProfileConfig() *config.Config {

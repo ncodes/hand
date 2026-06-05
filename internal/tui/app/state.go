@@ -18,6 +18,8 @@ type tuiState struct {
 	sessionTitle               string
 	userName                   string
 	namePromptEnabled          bool
+	setupNamePromptActive      bool
+	setupDismissible           bool
 	namePromptError            string
 	namePromptErrorStartedAt   time.Time
 	modelName                  string

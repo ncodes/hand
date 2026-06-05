@@ -179,15 +179,33 @@ search:
 	runModel := newModel()
 	content := stripANSI(runModel.View().Content)
 
+	require.True(t, runModel.shouldShowNamePrompt())
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	require.True(t, runModel.setupNamePromptActive)
+	require.Equal(t, "Nedy", runModel.nameInput.Value())
+	require.Contains(t, content, namePromptTitle)
+	require.Contains(t, content, "Nedy")
+	require.NotContains(t, content, emptyUserPromptQuestion)
+	require.NotContains(t, content, inputPrompt+"Ask Hand")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
 	require.False(t, runModel.shouldShowNamePrompt())
 	require.True(t, runModel.shouldShowProfileModelSetup())
 	require.Equal(t, setupModelStepAuthMethod, runModel.setupModelStep)
-	require.Contains(t, content, "Select login method")
-	require.Contains(t, content, "enter to select")
-	require.Contains(t, content, "Use a subscription")
-	require.Contains(t, content, "Use an API Key")
-	require.NotContains(t, content, emptyUserPromptQuestion)
-	require.NotContains(t, content, inputPrompt+"Ask Hand")
+	require.Contains(t, stripANSI(runModel.View().Content), "Select login method")
+	require.Contains(t, stripANSI(runModel.View().Content), "esc to go back")
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.shouldShowNamePrompt())
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	require.True(t, runModel.setupNamePromptActive)
+	require.False(t, runModel.setupDismissible)
+	require.Equal(t, "Nedy", runModel.nameInput.Value())
+	require.Contains(t, stripANSI(runModel.View().Content), namePromptTitle)
 }
 
 func TestNewModel_ShowsEmptyPromptForSavedProfileName(t *testing.T) {
@@ -285,7 +303,13 @@ func TestModel_SetupAuthMethodSelectionShowsFilteredProviders(t *testing.T) {
 	content := stripANSI(runModel.View().Content)
 	require.Contains(t, content, "Select model provider")
 	require.Contains(t, content, "enter to select")
-	require.Contains(t, content, "backspace to auth")
+	require.Contains(t, content, "esc to go back")
+	require.Contains(t, getLineContaining(content, "Select model provider"), "login type: subscription")
+	require.Equal(
+		t,
+		lipgloss.Width(getLineContaining(content, "╭")),
+		lipgloss.Width(getLineContaining(content, "Select model provider")),
+	)
 	require.Contains(t, content, "Anthropic")
 	require.Contains(t, content, "Use your Anthropic subscription")
 	require.Contains(t, content, "OpenAI Codex")
@@ -456,11 +480,77 @@ func TestModel_SetupMissingAPIKeyShowsInput(t *testing.T) {
 	require.Equal(t, "openrouter", runModel.setupModelProvider)
 	require.Empty(t, runModel.setupPendingModelID)
 	content := stripANSI(runModel.View().Content)
+	require.Contains(t, getLineContaining(content, "Enter API key for OpenRouter"), "login type: api key")
+	require.Equal(
+		t,
+		lipgloss.Width(getLineContaining(content, "╭")),
+		lipgloss.Width(getLineContaining(content, "Enter API key for OpenRouter")),
+	)
 	require.Contains(t, content, "████")
 	require.Contains(t, content, "Enter API key for OpenRouter")
 	require.Contains(t, content, "Enter key")
 	require.Contains(t, content, "enter to save")
 	require.Contains(t, content, "esc to go back")
+}
+
+func TestModel_SetupAPIKeyPromptPrefillsCurrentProviderKey(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+    providers:
+        openrouter:
+            apiKey: existing-router-key
+search:
+    vector:
+        enabled: false
+`)
+	runModel := newModel()
+	runModel.nameInput.SetValue("Nedy")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupProvider(t, &runModel, "openrouter")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	require.Equal(t, "existing-router-key", runModel.apiKeyInput.Value())
+	require.Contains(t, stripANSI(runModel.View().Content), "existing-router-key")
+}
+
+func TestModel_SetupModelAPIKeyPromptPrefillsCurrentProviderKey(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+    providers:
+        openrouter:
+            apiKey: existing-router-key
+search:
+    vector:
+        enabled: false
+`)
+	runModel := newModel()
+	updated, cmd := runModel.showSetupProviderAPIKeyPrompt(rpcclient.ModelOption{
+		ID:       "openai/gpt-4o-mini",
+		Provider: "openrouter",
+	})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	require.Equal(t, "openai/gpt-4o-mini", runModel.setupPendingModelID)
+	require.Equal(t, "existing-router-key", runModel.apiKeyInput.Value())
 }
 
 func TestModel_SetupAPIKeyBackspaceEditsInput(t *testing.T) {
@@ -513,6 +603,23 @@ func TestModel_SetupAPIKeyEscapeReturnsToProviderSelector(t *testing.T) {
 	runModel = updated.(model)
 	require.Equal(t, setupModelStepProvider, runModel.setupModelStep)
 	require.Empty(t, runModel.setupModelProvider)
+	require.Contains(t, stripANSI(runModel.View().Content), "Select model provider")
+}
+
+func TestModel_SetupAPIKeyEscapeReturnsToProviderSelectorInSetupMode(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	runModel.setupDismissible = true
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepProvider, runModel.setupModelStep)
+	require.True(t, runModel.setupDismissible)
 	require.Contains(t, stripANSI(runModel.View().Content), "Select model provider")
 }
 
@@ -694,6 +801,7 @@ func TestModel_SetupMissingOAuthShowsLoginInstruction(t *testing.T) {
 	require.Contains(t, content, "run hand auth login anthropic in a")
 	require.Contains(t, content, "new")
 	require.Contains(t, content, "terminal")
+	require.Contains(t, content, "esc to go back")
 }
 
 func TestModel_SetupOpenRouterSelectionSetsEmbeddingModel(t *testing.T) {
@@ -2142,6 +2250,7 @@ func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
 		"/new-chat",
 		"/archive",
 		"/providers",
+		"/setup",
 	}, "\n")
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
@@ -2153,7 +2262,79 @@ func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
 	transcript := stripANSI(runModel.transcript.View())
 	require.Contains(t, transcript, "Commands:")
 	require.Contains(t, transcript, "/archive")
+	require.Contains(t, transcript, "/setup")
 	require.NotContains(t, transcript, "/archi\nve")
+}
+
+func TestModel_UpdateHandlesSetupCommand(t *testing.T) {
+	runModel := newModel()
+	runModel.userName = "Nedy"
+	runModel.messages = []transcriptCell{assistantTranscriptCell{text: "existing conversation"}}
+	runModel.input.SetValue("/setup")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.shouldShowNamePrompt())
+	require.True(t, runModel.setupNamePromptActive)
+	require.True(t, runModel.setupDismissible)
+	require.Equal(t, "Nedy", runModel.nameInput.Value())
+	require.Empty(t, runModel.input.Value())
+	require.Contains(t, stripANSI(runModel.View().Content), namePromptTitle)
+	require.Contains(t, stripANSI(runModel.View().Content), "Nedy")
+	require.Contains(t, stripANSI(runModel.View().Content), "esc to close")
+	require.Equal(t, "enter your name", runModel.status.Text())
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.shouldShowNamePrompt())
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	require.False(t, runModel.setupDismissible)
+	require.Equal(t, "setup closed", runModel.status.Text())
+
+	runModel.input.SetValue("/setup")
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.setupNamePromptActive)
+	require.True(t, runModel.setupDismissible)
+	require.Equal(t, setupModelStepAuthMethod, runModel.setupModelStep)
+	require.Contains(t, stripANSI(runModel.View().Content), "Select login method")
+	require.Contains(t, stripANSI(runModel.View().Content), "esc to go back")
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepProvider, runModel.setupModelStep)
+	require.Contains(t, stripANSI(runModel.View().Content), "esc to go back")
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAuthMethod, runModel.setupModelStep)
+	require.True(t, runModel.setupDismissible)
+	require.Contains(t, stripANSI(runModel.View().Content), "Select login method")
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.shouldShowNamePrompt())
+	require.True(t, runModel.setupNamePromptActive)
+	require.True(t, runModel.setupDismissible)
+	require.Equal(t, "Nedy", runModel.nameInput.Value())
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.shouldShowNamePrompt())
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	require.False(t, runModel.setupDismissible)
+	require.Equal(t, "setup closed", runModel.status.Text())
 }
 
 func TestModel_UpdateSubmitsDefaultCommandMenuItemForBareSlash(t *testing.T) {
@@ -4041,6 +4222,7 @@ func TestModel_UpdateKeepsCommandsLocalDuringActiveResponse(t *testing.T) {
 		"/new-chat",
 		"/archive",
 		"/providers",
+		"/setup",
 	}, "\n")
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
@@ -4705,6 +4887,16 @@ func getVisibleSetupModelRow(t *testing.T, runModel *model, modelID string) int 
 
 	t.Fatalf("setup model %q not found", modelID)
 	return 0
+}
+
+func getLineContaining(content string, value string) string {
+	for _, line := range strings.Split(content, "\n") {
+		if strings.Contains(line, value) {
+			return line
+		}
+	}
+
+	return ""
 }
 
 func getTranscriptContentRow(t *testing.T, runModel model, needle string) int {
