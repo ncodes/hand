@@ -831,14 +831,14 @@ func (m *model) prefillSetupProviderAPIKeyInput(provider string) {
 
 func (m *model) completeSetupModelSelection(option rpcclient.ModelOption) (tea.Model, tea.Cmd) {
 	m.clearProfileModelSetup()
-	m.applySelectedModelToRuntime(option)
+	m.applySetupModelSelectionToRuntime(option)
 	m.resize()
 	m.setTranscriptContent()
 
 	return *m, m.setStatus("model setup saved")
 }
 
-func (m model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey string) error {
+func (m *model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey string) error {
 	provider := getSetupModelProvider(m.setupModelProvider, option)
 	modelID := strings.TrimSpace(option.ID)
 	if provider == "" || modelID == "" {
@@ -868,9 +868,28 @@ func (m model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey s
 	cfg, err := config.Load(m.configEnvPath, m.configPath)
 	if err == nil {
 		config.Set(cfg)
+		m.setupSavedConfig = cfg
 	}
 
 	return nil
+}
+
+func (m *model) applySetupModelSelectionToRuntime(option rpcclient.ModelOption) {
+	m.applySelectedModelToRuntime(option)
+	if m.setupSavedConfig == nil {
+		return
+	}
+
+	info := runtimeInfoFromConfig(m.setupSavedConfig)
+	m.runtimeInfo.Provider = info.Provider
+	m.runtimeInfo.Model = info.Model
+	m.runtimeInfo.SummaryProvider = info.SummaryProvider
+	m.runtimeInfo.SummaryModel = info.SummaryModel
+	m.runtimeInfo.EmbeddingProvider = info.EmbeddingProvider
+	m.runtimeInfo.EmbeddingModel = info.EmbeddingModel
+	m.runtimeInfo.Storage = info.Storage
+	m.runtimeInfo.Streaming = info.Streaming
+	m.modelName = getModelDisplayName(info.Model)
 }
 
 func (m model) checkSetupModelAuth(option rpcclient.ModelOption) error {

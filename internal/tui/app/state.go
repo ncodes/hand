@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/wandxy/hand/internal/config"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 )
@@ -73,6 +74,7 @@ type tuiState struct {
 	setupOffset                int
 	configEnvPath              string
 	configPath                 string
+	setupSavedConfig           *config.Config
 	chatsArchiveConfirm        bool
 	chatsRenaming              bool
 	chatsRenameSessionID       string

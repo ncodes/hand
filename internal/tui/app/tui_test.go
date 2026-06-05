@@ -1122,6 +1122,55 @@ search:
 	require.True(t, cfg.Search.Vector.Enabled)
 	require.Equal(t, "openrouter", cfg.Models.Embedding.Provider)
 	require.Equal(t, "text-embedding-3-small", cfg.Models.Embedding.Name)
+	require.Equal(t, "openrouter", runModel.runtimeInfo.EmbeddingProvider)
+	require.Equal(t, "text-embedding-3-small", runModel.runtimeInfo.EmbeddingModel)
+	runModel.width = 180
+	require.Contains(t, stripANSI(runModel.renderHeaderInfoPanel()), "embedding: text-embedding-3-small")
+}
+
+func TestModel_SetupOpenAISelectionSetsEffectiveEmbeddingModel(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "env-key")
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+    embedding:
+        provider: ""
+        name: ""
+search:
+    vector:
+        enabled: true
+`)
+	runModel := newModel()
+	runModel.nameInput.SetValue("Nedy")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupProvider(t, &runModel, "openai")
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	runModel.apiKeyInput.SetValue("openai-key")
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupModel(t, &runModel, "gpt-5.5")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.True(t, cfg.Search.Vector.Enabled)
+	require.Equal(t, "openai", cfg.Models.Embedding.Provider)
+	require.Equal(t, "text-embedding-3-small", cfg.Models.Embedding.Name)
+	require.Equal(t, "openai", runModel.runtimeInfo.EmbeddingProvider)
+	require.Equal(t, "text-embedding-3-small", runModel.runtimeInfo.EmbeddingModel)
+	runModel.width = 180
+	require.Contains(t, stripANSI(runModel.renderHeaderInfoPanel()), "embedding: text-embedding-3-small")
 }
 
 func TestModel_SetupOtherProviderSelectionDisablesVector(t *testing.T) {
