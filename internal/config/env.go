@@ -69,6 +69,47 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.RPC.Port = port
 		}
 	}
+	if value, ok := parseOptionalBoolEnv("HAND_GATEWAY_ENABLED"); ok {
+		cfg.Gateway.Enabled = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_ADDRESS")); value != "" {
+		cfg.Gateway.Address = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_PORT")); value != "" {
+		if port, err := strconv.Atoi(value); err == nil {
+			cfg.Gateway.Port = port
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_AUTH_TOKEN")); value != "" {
+		cfg.Gateway.AuthToken = value
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_GATEWAY_TELEGRAM_ENABLED"); ok {
+		cfg.Gateway.Telegram.Enabled = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_TELEGRAM_MODE")); value != "" {
+		cfg.Gateway.Telegram.Mode = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_TELEGRAM_BOT_TOKEN")); value != "" {
+		cfg.Gateway.Telegram.BotToken = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET")); value != "" {
+		cfg.Gateway.Telegram.WebhookSecret = value
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_GATEWAY_SLACK_ENABLED"); ok {
+		cfg.Gateway.Slack.Enabled = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_SLACK_MODE")); value != "" {
+		cfg.Gateway.Slack.Mode = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_SLACK_BOT_TOKEN")); value != "" {
+		cfg.Gateway.Slack.BotToken = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_SLACK_APP_TOKEN")); value != "" {
+		cfg.Gateway.Slack.AppToken = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_SLACK_SIGNING_SECRET")); value != "" {
+		cfg.Gateway.Slack.SigningSecret = value
+	}
 	if value := strings.TrimSpace(os.Getenv("HAND_SESSION_MAX_ITERATIONS")); value != "" {
 		if maxIterations, err := strconv.Atoi(value); err == nil {
 			cfg.Session.MaxIterations = maxIterations

@@ -226,6 +226,166 @@ models:
 	require.True(t, cfg.StreamEnabled())
 }
 
+func TestLoad_UsesGatewayConfigFromConfigAndEnv(t *testing.T) {
+	clearEnvKeys(t,
+		"HAND_GATEWAY_ENABLED",
+		"HAND_GATEWAY_ADDRESS",
+		"HAND_GATEWAY_PORT",
+		"HAND_GATEWAY_AUTH_TOKEN",
+		"HAND_GATEWAY_TELEGRAM_ENABLED",
+		"HAND_GATEWAY_TELEGRAM_MODE",
+		"HAND_GATEWAY_TELEGRAM_BOT_TOKEN",
+		"HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET",
+		"HAND_GATEWAY_SLACK_ENABLED",
+		"HAND_GATEWAY_SLACK_MODE",
+		"HAND_GATEWAY_SLACK_BOT_TOKEN",
+		"HAND_GATEWAY_SLACK_APP_TOKEN",
+		"HAND_GATEWAY_SLACK_SIGNING_SECRET",
+	)
+
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(envPath, []byte(strings.Join([]string{
+		"HAND_GATEWAY_ENABLED=true",
+		"HAND_GATEWAY_ADDRESS=127.0.0.2",
+		"HAND_GATEWAY_PORT=7200",
+		"HAND_GATEWAY_AUTH_TOKEN=HAND_GATEWAY_AUTH_TOKEN",
+		"HAND_GATEWAY_TELEGRAM_ENABLED=true",
+		"HAND_GATEWAY_TELEGRAM_MODE=webhook",
+		"HAND_GATEWAY_TELEGRAM_BOT_TOKEN=HAND_GATEWAY_TELEGRAM_BOT_TOKEN",
+		"HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET=HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET",
+		"HAND_GATEWAY_SLACK_ENABLED=true",
+		"HAND_GATEWAY_SLACK_MODE=http",
+		"HAND_GATEWAY_SLACK_BOT_TOKEN=HAND_GATEWAY_SLACK_BOT_TOKEN",
+		"HAND_GATEWAY_SLACK_APP_TOKEN=HAND_GATEWAY_SLACK_APP_TOKEN",
+		"HAND_GATEWAY_SLACK_SIGNING_SECRET=HAND_GATEWAY_SLACK_SIGNING_SECRET",
+		"",
+	}, "\n")), 0o600))
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+gateway:
+  enabled: false
+  address: 127.0.0.1
+  port: 7100
+  authToken: CONFIG_GATEWAY_TOKEN
+  telegram:
+    enabled: false
+    mode: polling
+    botToken: CONFIG_HAND_GATEWAY_TELEGRAM_BOT_TOKEN
+  slack:
+    enabled: false
+    mode: socket
+    botToken: CONFIG_HAND_GATEWAY_SLACK_BOT_TOKEN
+    appToken: CONFIG_HAND_GATEWAY_SLACK_APP_TOKEN
+`), 0o600))
+
+	cfg, err := Load(envPath, configPath)
+
+	require.NoError(t, err)
+	require.True(t, cfg.Gateway.Enabled)
+	require.Equal(t, "127.0.0.2", cfg.Gateway.Address)
+	require.Equal(t, 7200, cfg.Gateway.Port)
+	require.Equal(t, "HAND_GATEWAY_AUTH_TOKEN", cfg.Gateway.AuthToken)
+	require.True(t, cfg.Gateway.Telegram.Enabled)
+	require.Equal(t, GatewayTelegramModeWebhook, cfg.Gateway.Telegram.Mode)
+	require.Equal(t, "HAND_GATEWAY_TELEGRAM_BOT_TOKEN", cfg.Gateway.Telegram.BotToken)
+	require.Equal(t, "HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET", cfg.Gateway.Telegram.WebhookSecret)
+	require.True(t, cfg.Gateway.Slack.Enabled)
+	require.Equal(t, GatewaySlackModeHTTP, cfg.Gateway.Slack.Mode)
+	require.Equal(t, "HAND_GATEWAY_SLACK_BOT_TOKEN", cfg.Gateway.Slack.BotToken)
+	require.Equal(t, "HAND_GATEWAY_SLACK_APP_TOKEN", cfg.Gateway.Slack.AppToken)
+	require.Equal(t, "HAND_GATEWAY_SLACK_SIGNING_SECRET", cfg.Gateway.Slack.SigningSecret)
+}
+
+func TestLoad_UsesGatewayConfigFromConfigFile(t *testing.T) {
+	clearEnvKeys(t,
+		"HAND_GATEWAY_ENABLED",
+		"HAND_GATEWAY_ADDRESS",
+		"HAND_GATEWAY_PORT",
+		"HAND_GATEWAY_AUTH_TOKEN",
+		"HAND_GATEWAY_TELEGRAM_ENABLED",
+		"HAND_GATEWAY_TELEGRAM_MODE",
+		"HAND_GATEWAY_TELEGRAM_BOT_TOKEN",
+		"HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET",
+		"HAND_GATEWAY_SLACK_ENABLED",
+		"HAND_GATEWAY_SLACK_MODE",
+		"HAND_GATEWAY_SLACK_BOT_TOKEN",
+		"HAND_GATEWAY_SLACK_APP_TOKEN",
+		"HAND_GATEWAY_SLACK_SIGNING_SECRET",
+	)
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+gateway:
+  enabled: true
+  address: 127.0.0.3
+  port: 7300
+  authToken: CONFIG_GATEWAY_TOKEN
+  telegram:
+    enabled: true
+    mode: webhook
+    botToken: CONFIG_HAND_GATEWAY_TELEGRAM_BOT_TOKEN
+    webhookSecret: CONFIG_HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET
+  slack:
+    enabled: true
+    mode: http
+    botToken: CONFIG_HAND_GATEWAY_SLACK_BOT_TOKEN
+    appToken: CONFIG_HAND_GATEWAY_SLACK_APP_TOKEN
+    signingSecret: CONFIG_HAND_GATEWAY_SLACK_SIGNING_SECRET
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+
+	require.NoError(t, err)
+	require.True(t, cfg.Gateway.Enabled)
+	require.Equal(t, "127.0.0.3", cfg.Gateway.Address)
+	require.Equal(t, 7300, cfg.Gateway.Port)
+	require.Equal(t, "CONFIG_GATEWAY_TOKEN", cfg.Gateway.AuthToken)
+	require.True(t, cfg.Gateway.Telegram.Enabled)
+	require.Equal(t, GatewayTelegramModeWebhook, cfg.Gateway.Telegram.Mode)
+	require.Equal(t, "CONFIG_HAND_GATEWAY_TELEGRAM_BOT_TOKEN", cfg.Gateway.Telegram.BotToken)
+	require.Equal(t, "CONFIG_HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET", cfg.Gateway.Telegram.WebhookSecret)
+	require.True(t, cfg.Gateway.Slack.Enabled)
+	require.Equal(t, GatewaySlackModeHTTP, cfg.Gateway.Slack.Mode)
+	require.Equal(t, "CONFIG_HAND_GATEWAY_SLACK_BOT_TOKEN", cfg.Gateway.Slack.BotToken)
+	require.Equal(t, "CONFIG_HAND_GATEWAY_SLACK_APP_TOKEN", cfg.Gateway.Slack.AppToken)
+	require.Equal(t, "CONFIG_HAND_GATEWAY_SLACK_SIGNING_SECRET", cfg.Gateway.Slack.SigningSecret)
+}
+
+func TestLoad_UsesGatewayCredentialEnvVars(t *testing.T) {
+	clearEnvKeys(t,
+		"HAND_GATEWAY_AUTH_TOKEN",
+		"HAND_GATEWAY_TELEGRAM_BOT_TOKEN",
+		"HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET",
+		"HAND_GATEWAY_SLACK_BOT_TOKEN",
+		"HAND_GATEWAY_SLACK_APP_TOKEN",
+		"HAND_GATEWAY_SLACK_SIGNING_SECRET",
+	)
+
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	require.NoError(t, os.WriteFile(envPath, []byte(strings.Join([]string{
+		"HAND_GATEWAY_AUTH_TOKEN=generic-token",
+		"HAND_GATEWAY_TELEGRAM_BOT_TOKEN=telegram-token",
+		"HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET=telegram-secret",
+		"HAND_GATEWAY_SLACK_BOT_TOKEN=slack-bot-token",
+		"HAND_GATEWAY_SLACK_APP_TOKEN=slack-app-token",
+		"HAND_GATEWAY_SLACK_SIGNING_SECRET=slack-signing-secret",
+		"",
+	}, "\n")), 0o600))
+
+	cfg, err := Load(envPath, "")
+
+	require.NoError(t, err)
+	require.Equal(t, "generic-token", cfg.Gateway.AuthToken)
+	require.Equal(t, "telegram-token", cfg.Gateway.Telegram.BotToken)
+	require.Equal(t, "telegram-secret", cfg.Gateway.Telegram.WebhookSecret)
+	require.Equal(t, "slack-bot-token", cfg.Gateway.Slack.BotToken)
+	require.Equal(t, "slack-app-token", cfg.Gateway.Slack.AppToken)
+	require.Equal(t, "slack-signing-secret", cfg.Gateway.Slack.SigningSecret)
+}
+
 func TestLoad_UsesSafetyConfigFromConfigAndEnv(t *testing.T) {
 	clearEnvKeys(t, "HAND_SAFETY_INPUT", "HAND_SAFETY_OUTPUT", "HAND_SAFETY_PII")
 

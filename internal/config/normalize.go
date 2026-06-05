@@ -40,6 +40,15 @@ func (c *Config) normalizeFields() {
 	c.Web.NativeBlockedHosts = dedupeAndTrim(c.Web.NativeBlockedHosts)
 	c.Web.NativeAllowedHostFiles = dedupeAndTrim(c.Web.NativeAllowedHostFiles)
 	c.Web.NativeBlockedHostFiles = dedupeAndTrim(c.Web.NativeBlockedHostFiles)
+	c.Gateway.Address = strings.TrimSpace(c.Gateway.Address)
+	c.Gateway.AuthToken = strings.TrimSpace(c.Gateway.AuthToken)
+	c.Gateway.Telegram.Mode = strings.TrimSpace(strings.ToLower(c.Gateway.Telegram.Mode))
+	c.Gateway.Telegram.BotToken = strings.TrimSpace(c.Gateway.Telegram.BotToken)
+	c.Gateway.Telegram.WebhookSecret = strings.TrimSpace(c.Gateway.Telegram.WebhookSecret)
+	c.Gateway.Slack.Mode = strings.TrimSpace(strings.ToLower(c.Gateway.Slack.Mode))
+	c.Gateway.Slack.BotToken = strings.TrimSpace(c.Gateway.Slack.BotToken)
+	c.Gateway.Slack.AppToken = strings.TrimSpace(c.Gateway.Slack.AppToken)
+	c.Gateway.Slack.SigningSecret = strings.TrimSpace(c.Gateway.Slack.SigningSecret)
 	c.Rules.Files = normalizeRulePaths(c.Rules.Files)
 	c.Session.Instruct = strings.TrimSpace(c.Session.Instruct)
 	c.Platform = strings.TrimSpace(strings.ToLower(c.Platform))
@@ -78,6 +87,18 @@ func (c *Config) normalizeFields() {
 
 	if c.RPC.Port == 0 {
 		c.RPC.Port = constants.DefaultRPCPort
+	}
+	if c.Gateway.Address == "" {
+		c.Gateway.Address = constants.DefaultRPCAddress
+	}
+	if c.Gateway.Port == 0 {
+		c.Gateway.Port = constants.DefaultGatewayPort
+	}
+	if c.Gateway.Telegram.Mode == "" {
+		c.Gateway.Telegram.Mode = GatewayTelegramModePolling
+	}
+	if c.Gateway.Slack.Mode == "" {
+		c.Gateway.Slack.Mode = GatewaySlackModeSocket
 	}
 	if c.Session.MaxIterations == 0 {
 		c.Session.MaxIterations = constants.DefaultMaxIterations

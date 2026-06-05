@@ -569,6 +569,24 @@ func TestNewCommand_HelpShowsUpdatedExamples(t *testing.T) {
 	require.Contains(t, output.String(), "HAND_PROFILE=work hand session list")
 	require.Contains(t, output.String(), "hand trace view")
 	require.Contains(t, output.String(), "hand --config ./config.yaml trace view --listen 127.0.0.1:9090")
+	require.Contains(t, output.String(), "--gateway.enabled")
+	require.Contains(t, output.String(), "--gateway.telegram.mode")
+	require.Contains(t, output.String(), "--gateway.slack.mode")
+}
+
+func TestNewCommand_DaemonStartHelpShowsGatewayFlags(t *testing.T) {
+	clearEnvKeys(t, "HAND_ENV_FILE")
+	resetGlobals(t)
+
+	var output bytes.Buffer
+	cmd := newCommand()
+	cmd.Writer = &output
+	cmd.ErrWriter = &output
+	err := cmd.Run(context.Background(), []string{"hand", "daemon", "start", "--help"})
+	require.NoError(t, err)
+	require.Contains(t, output.String(), "--gateway.enabled")
+	require.Contains(t, output.String(), "--gateway.telegram.mode")
+	require.Contains(t, output.String(), "--gateway.slack.mode")
 }
 
 func TestNewCommand_VersionCommandShowsVersionAndCommit(t *testing.T) {

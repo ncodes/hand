@@ -28,6 +28,16 @@ var DefaultConfig = Config{
 		Address: constants.DefaultRPCAddress,
 		Port:    constants.DefaultRPCPort,
 	},
+	Gateway: GatewayConfig{
+		Address: constants.DefaultRPCAddress,
+		Port:    constants.DefaultGatewayPort,
+		Telegram: GatewayTelegramConfig{
+			Mode: GatewayTelegramModePolling,
+		},
+		Slack: GatewaySlackConfig{
+			Mode: GatewaySlackModeSocket,
+		},
+	},
 	FS: FSConfig{
 		NoProfileAccess: true,
 	},

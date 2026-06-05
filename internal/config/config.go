@@ -17,6 +17,7 @@ type Config struct {
 	Platform      string                       `yaml:"platform"`
 	Models        ModelsConfig                 `yaml:"models"`
 	RPC           RPCConfig                    `yaml:"rpc"`
+	Gateway       GatewayConfig                `yaml:"gateway"`
 	FS            FSConfig                     `yaml:"fs"`
 	Exec          ExecConfig                   `yaml:"exec"`
 	Storage       StorageConfig                `yaml:"storage"`

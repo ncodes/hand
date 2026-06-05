@@ -221,6 +221,7 @@ func getStartupDetailRows(cfg *config.Config) []startupDetailRow {
 	rows = append(rows,
 		startupDetailRow{label: "Streaming", value: fmt.Sprintf("%t", cfg.StreamEnabled())},
 		startupDetailRow{label: "RPC", value: fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)},
+		startupDetailRow{label: "Gateway", value: getGatewayStartupSummary(cfg)},
 		startupDetailRow{label: "Logs", value: fmt.Sprintf("%s (%s)", cfg.Log.Level, logStyle)},
 		startupDetailRow{label: "Debug requests", value: debugRequests},
 		startupDetailRow{label: "Traces", value: traceStatus},
@@ -235,6 +236,22 @@ func getStartupDetailRows(cfg *config.Config) []startupDetailRow {
 	}
 
 	return rows
+}
+
+func getGatewayStartupSummary(cfg *config.Config) string {
+	if cfg == nil || !cfg.Gateway.Enabled {
+		return "disabled"
+	}
+
+	parts := []string{fmt.Sprintf("%s:%d", cfg.Gateway.Address, cfg.Gateway.Port)}
+	if cfg.Gateway.Telegram.Enabled {
+		parts = append(parts, "telegram="+cfg.Gateway.Telegram.Mode)
+	}
+	if cfg.Gateway.Slack.Enabled {
+		parts = append(parts, "slack="+cfg.Gateway.Slack.Mode)
+	}
+
+	return strings.Join(parts, " ")
 }
 
 func formatStartupVersion() string {

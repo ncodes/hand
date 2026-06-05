@@ -125,8 +125,9 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	startupOutput := stripANSI(startupBuffer.String())
 	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Version: dev \(commit unknown\)$`), startupOutput)
 	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Instance: flag-agent$`), startupOutput)
-	require.Regexp(t, regexp.MustCompile(`(?m)^ +█ █ █    ░██     ░██.+│   Summary provider: openrouter$`), startupOutput)
-	require.Regexp(t, regexp.MustCompile(`(?m)^ +▀▀▀▀▀    ░██     ░██░░████████ ███  ░██░░██████ +│   Logs: debug \(color\)$`), startupOutput)
+	require.Contains(t, startupOutput, "Summary provider: openrouter")
+	require.Contains(t, startupOutput, "Gateway: disabled")
+	require.Contains(t, startupOutput, "Logs: debug (color)")
 	require.Contains(t, startupBuffer.String(), "\x1b[38;5;38m")
 	require.Contains(t, startupBuffer.String(), "\x1b[38;5;44m")
 	require.Contains(t, startupBuffer.String(), "\x1b[38;5;49m")
@@ -365,18 +366,51 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	require.NotContains(t, output, "\x1b[38;5;")
 	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Version: dev \(commit unknown\)$`), output)
 	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Instance: daemon$`), output)
-	require.Regexp(t, regexp.MustCompile(`(?m)^ +█ █ █    ░██     ░██.+│   Summary model: gpt-4o-mini$`), output)
-	require.Regexp(t, regexp.MustCompile(`(?m)^ +▀▀▀▀▀    ░██     ░██░░████████ ███  ░██░░██████ +│   RPC: 127.0.0.1:50051$`), output)
+	require.Contains(t, output, "Summary model: gpt-4o-mini")
+	require.Contains(t, output, "RPC: 127.0.0.1:50051")
 	require.NotContains(t, output, handcli.AppDescription)
 	require.Contains(t, output, "Instance: daemon")
 	require.Contains(t, output, "Summary model: gpt-4o-mini")
 	require.Contains(t, output, "Summary provider: openrouter")
 	require.Contains(t, output, "Storage: sqlite")
 	require.Contains(t, output, "Streaming: false")
+	require.Contains(t, output, "Gateway: disabled")
 	require.Contains(t, output, "Debug requests: enabled")
 	require.Contains(t, output, "Traces: enabled (/tmp/hand-traces)")
 	require.Contains(t, output, "Safety: input=enabled, output=enabled, pii=disabled")
 	require.NotContains(t, output, "Ready to accept RPC connections.")
+}
+
+func TestRenderStartupPanel_IncludesGatewaySummaryWithoutSecrets(t *testing.T) {
+	output := renderStartupPanel(&config.Config{
+		Name:   "daemon",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"}},
+		RPC:    config.RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Gateway: config.GatewayConfig{
+			Enabled:   true,
+			Address:   "127.0.0.1",
+			Port:      50052,
+			AuthToken: "HAND_GATEWAY_AUTH_TOKEN",
+			Telegram: config.GatewayTelegramConfig{
+				Enabled:  true,
+				Mode:     config.GatewayTelegramModePolling,
+				BotToken: "HAND_GATEWAY_TELEGRAM_BOT_TOKEN",
+			},
+			Slack: config.GatewaySlackConfig{
+				Enabled:  true,
+				Mode:     config.GatewaySlackModeSocket,
+				BotToken: "HAND_GATEWAY_SLACK_BOT_TOKEN",
+				AppToken: "HAND_GATEWAY_SLACK_APP_TOKEN",
+			},
+		},
+		Log: config.LogConfig{Level: "info", NoColor: true},
+	})
+
+	require.Contains(t, output, "Gateway: 127.0.0.1:50052 telegram=polling slack=socket")
+	require.NotContains(t, output, "HAND_GATEWAY_AUTH_TOKEN")
+	require.NotContains(t, output, "HAND_GATEWAY_TELEGRAM_BOT_TOKEN")
+	require.NotContains(t, output, "HAND_GATEWAY_SLACK_BOT_TOKEN")
+	require.NotContains(t, output, "HAND_GATEWAY_SLACK_APP_TOKEN")
 }
 
 func TestRenderStartupPanel_IncludesSafetyMode(t *testing.T) {

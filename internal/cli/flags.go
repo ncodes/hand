@@ -96,6 +96,77 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:  config.Get().RPC.Port,
 			Hidden: true,
 		},
+		&cli.BoolFlag{
+			Name:  "gateway.enabled",
+			Usage: "Enable the external client gateway inside the daemon",
+			Value: config.Get().Gateway.Enabled,
+		},
+		&cli.StringFlag{
+			Name:  "gateway.address",
+			Usage: "Bind address for the external client gateway",
+			Value: config.Get().Gateway.Address,
+		},
+		&cli.IntFlag{
+			Name:  "gateway.port",
+			Usage: "Bind port for the external client gateway",
+			Value: config.Get().Gateway.Port,
+		},
+		&cli.StringFlag{
+			Name:   "gateway.auth-token",
+			Usage:  "Bearer token for generic HTTP gateway requests",
+			Value:  config.Get().Gateway.AuthToken,
+			Hidden: true,
+		},
+		&cli.BoolFlag{
+			Name:  "gateway.telegram.enabled",
+			Usage: "Enable Telegram gateway ingress",
+			Value: config.Get().Gateway.Telegram.Enabled,
+		},
+		&cli.StringFlag{
+			Name:  "gateway.telegram.mode",
+			Usage: "Telegram ingress mode: polling or webhook",
+			Value: config.Get().Gateway.Telegram.Mode,
+		},
+		&cli.StringFlag{
+			Name:   "gateway.telegram.bot-token",
+			Usage:  "Telegram bot token",
+			Value:  config.Get().Gateway.Telegram.BotToken,
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "gateway.telegram.webhook-secret",
+			Usage:  "Telegram webhook secret token",
+			Value:  config.Get().Gateway.Telegram.WebhookSecret,
+			Hidden: true,
+		},
+		&cli.BoolFlag{
+			Name:  "gateway.slack.enabled",
+			Usage: "Enable Slack gateway ingress",
+			Value: config.Get().Gateway.Slack.Enabled,
+		},
+		&cli.StringFlag{
+			Name:  "gateway.slack.mode",
+			Usage: "Slack ingress mode: socket or http",
+			Value: config.Get().Gateway.Slack.Mode,
+		},
+		&cli.StringFlag{
+			Name:   "gateway.slack.bot-token",
+			Usage:  "Slack bot token",
+			Value:  config.Get().Gateway.Slack.BotToken,
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "gateway.slack.app-token",
+			Usage:  "Slack app token for socket mode",
+			Value:  config.Get().Gateway.Slack.AppToken,
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "gateway.slack.signing-secret",
+			Usage:  "Slack signing secret for HTTP mode",
+			Value:  config.Get().Gateway.Slack.SigningSecret,
+			Hidden: true,
+		},
 		&cli.IntFlag{
 			Name:   "max-iterations",
 			Usage:  "Maximum model iterations allowed in a tool-calling loop",
@@ -480,6 +551,45 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("rpc.port") {
 		cfg.RPC.Port = cmd.Int("rpc.port")
+	}
+	if cmd.IsSet("gateway.enabled") {
+		cfg.Gateway.Enabled = cmd.Bool("gateway.enabled")
+	}
+	if cmd.IsSet("gateway.address") {
+		cfg.Gateway.Address = strings.TrimSpace(cmd.String("gateway.address"))
+	}
+	if cmd.IsSet("gateway.port") {
+		cfg.Gateway.Port = cmd.Int("gateway.port")
+	}
+	if cmd.IsSet("gateway.auth-token") {
+		cfg.Gateway.AuthToken = strings.TrimSpace(cmd.String("gateway.auth-token"))
+	}
+	if cmd.IsSet("gateway.telegram.enabled") {
+		cfg.Gateway.Telegram.Enabled = cmd.Bool("gateway.telegram.enabled")
+	}
+	if cmd.IsSet("gateway.telegram.mode") {
+		cfg.Gateway.Telegram.Mode = strings.TrimSpace(cmd.String("gateway.telegram.mode"))
+	}
+	if cmd.IsSet("gateway.telegram.bot-token") {
+		cfg.Gateway.Telegram.BotToken = strings.TrimSpace(cmd.String("gateway.telegram.bot-token"))
+	}
+	if cmd.IsSet("gateway.telegram.webhook-secret") {
+		cfg.Gateway.Telegram.WebhookSecret = strings.TrimSpace(cmd.String("gateway.telegram.webhook-secret"))
+	}
+	if cmd.IsSet("gateway.slack.enabled") {
+		cfg.Gateway.Slack.Enabled = cmd.Bool("gateway.slack.enabled")
+	}
+	if cmd.IsSet("gateway.slack.mode") {
+		cfg.Gateway.Slack.Mode = strings.TrimSpace(cmd.String("gateway.slack.mode"))
+	}
+	if cmd.IsSet("gateway.slack.bot-token") {
+		cfg.Gateway.Slack.BotToken = strings.TrimSpace(cmd.String("gateway.slack.bot-token"))
+	}
+	if cmd.IsSet("gateway.slack.app-token") {
+		cfg.Gateway.Slack.AppToken = strings.TrimSpace(cmd.String("gateway.slack.app-token"))
+	}
+	if cmd.IsSet("gateway.slack.signing-secret") {
+		cfg.Gateway.Slack.SigningSecret = strings.TrimSpace(cmd.String("gateway.slack.signing-secret"))
 	}
 	if cmd.IsSet("max-iterations") {
 		cfg.Session.MaxIterations = cmd.Int("max-iterations")

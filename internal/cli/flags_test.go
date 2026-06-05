@@ -102,6 +102,49 @@ func TestApplyConfigOverrides_AppliesModelMaxRetries(t *testing.T) {
 	require.Equal(t, 0, cfg.ModelMaxRetriesEffective())
 }
 
+func TestApplyConfigOverrides_AppliesGatewaySettings(t *testing.T) {
+	cfg := &config.Config{}
+	var cmd *cli.Command
+	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd.Action = func(context.Context, *cli.Command) error {
+		ApplyConfigOverrides(cmd, cfg)
+		return nil
+	}
+
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--gateway.enabled",
+		"--gateway.address", " 127.0.0.2 ",
+		"--gateway.port", "7100",
+		"--gateway.auth-token", " HAND_GATEWAY_AUTH_TOKEN ",
+		"--gateway.telegram.enabled",
+		"--gateway.telegram.mode", " WEBHOOK ",
+		"--gateway.telegram.bot-token", " HAND_GATEWAY_TELEGRAM_BOT_TOKEN ",
+		"--gateway.telegram.webhook-secret", " HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET ",
+		"--gateway.slack.enabled",
+		"--gateway.slack.mode", " HTTP ",
+		"--gateway.slack.bot-token", " HAND_GATEWAY_SLACK_BOT_TOKEN ",
+		"--gateway.slack.app-token", " HAND_GATEWAY_SLACK_APP_TOKEN ",
+		"--gateway.slack.signing-secret", " HAND_GATEWAY_SLACK_SIGNING_SECRET ",
+	})
+
+	require.NoError(t, err)
+	cfg.Normalize()
+	require.True(t, cfg.Gateway.Enabled)
+	require.Equal(t, "127.0.0.2", cfg.Gateway.Address)
+	require.Equal(t, 7100, cfg.Gateway.Port)
+	require.Equal(t, "HAND_GATEWAY_AUTH_TOKEN", cfg.Gateway.AuthToken)
+	require.True(t, cfg.Gateway.Telegram.Enabled)
+	require.Equal(t, config.GatewayTelegramModeWebhook, cfg.Gateway.Telegram.Mode)
+	require.Equal(t, "HAND_GATEWAY_TELEGRAM_BOT_TOKEN", cfg.Gateway.Telegram.BotToken)
+	require.Equal(t, "HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET", cfg.Gateway.Telegram.WebhookSecret)
+	require.True(t, cfg.Gateway.Slack.Enabled)
+	require.Equal(t, config.GatewaySlackModeHTTP, cfg.Gateway.Slack.Mode)
+	require.Equal(t, "HAND_GATEWAY_SLACK_BOT_TOKEN", cfg.Gateway.Slack.BotToken)
+	require.Equal(t, "HAND_GATEWAY_SLACK_APP_TOKEN", cfg.Gateway.Slack.AppToken)
+	require.Equal(t, "HAND_GATEWAY_SLACK_SIGNING_SECRET", cfg.Gateway.Slack.SigningSecret)
+}
+
 func TestApplyConfigOverrides_AppliesModelStream(t *testing.T) {
 	cfg := &config.Config{}
 	var cmd *cli.Command

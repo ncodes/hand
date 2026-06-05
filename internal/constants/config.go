@@ -44,6 +44,8 @@ const (
 	DefaultRPCAddress = "127.0.0.1"
 	// DefaultRPCPort is the fallback RPC bind port.
 	DefaultRPCPort = 50051
+	// DefaultGatewayPort is the fallback external gateway bind port.
+	DefaultGatewayPort = 50052
 	// DefaultLogLevel is the fallback application log level.
 	DefaultLogLevel = "info"
 	// DefaultTraceMaxEventsPerSession is the fallback maximum stored trace events per session.

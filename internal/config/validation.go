@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"sort"
 	"strings"
 
@@ -80,6 +81,10 @@ func (c *Config) Validate() error {
 		return errors.New("rpc port must be non-negative; set HAND_RPC_PORT, provide it in config, or use --rpc.port")
 	}
 
+	if err := c.validateGatewaySettings(); err != nil {
+		return err
+	}
+
 	if c.Session.MaxIterations <= 0 {
 		return errors.New("max iterations must be greater than zero; set HAND_SESSION_MAX_ITERATIONS, provide it in config, " +
 			"or use --max-iterations")
@@ -113,6 +118,90 @@ func (c *Config) Validate() error {
 	default:
 		return errors.New("log level must be one of debug, info, warn, or error; use --log.level")
 	}
+}
+
+func (c *Config) validateGatewaySettings() error {
+	if strings.TrimSpace(c.Gateway.Address) == "" {
+		return errors.New("gateway address is required; set HAND_GATEWAY_ADDRESS, provide it in config, or use --gateway.address")
+	}
+	if c.Gateway.Port < 0 {
+		return errors.New("gateway port must be non-negative; set HAND_GATEWAY_PORT, provide it in config, or use --gateway.port")
+	}
+	if !c.Gateway.Enabled {
+		return nil
+	}
+	if !isLoopbackGatewayAddress(c.Gateway.Address) && strings.TrimSpace(c.Gateway.AuthToken) == "" {
+		return errors.New("gateway auth token is required for non-loopback binds; set HAND_GATEWAY_AUTH_TOKEN, " +
+			"provide it in config, or use --gateway.auth-token")
+	}
+	if err := validateGatewayTelegramSettings(c.Gateway.Telegram); err != nil {
+		return err
+	}
+	if err := validateGatewaySlackSettings(c.Gateway.Slack); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateGatewayTelegramSettings(cfg GatewayTelegramConfig) error {
+	switch cfg.Mode {
+	case GatewayTelegramModePolling, GatewayTelegramModeWebhook:
+	default:
+		return errors.New("gateway telegram mode must be one of: polling, webhook")
+	}
+	if !cfg.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(cfg.BotToken) == "" {
+		return errors.New("gateway telegram bot token is required when telegram gateway is enabled; " +
+			"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
+	}
+	if cfg.Mode == GatewayTelegramModeWebhook && strings.TrimSpace(cfg.WebhookSecret) == "" {
+		return errors.New("gateway telegram webhook secret is required in webhook mode; " +
+			"set HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET, provide it in config, or use --gateway.telegram.webhook-secret")
+	}
+
+	return nil
+}
+
+func validateGatewaySlackSettings(cfg GatewaySlackConfig) error {
+	switch cfg.Mode {
+	case GatewaySlackModeSocket, GatewaySlackModeHTTP:
+	default:
+		return errors.New("gateway slack mode must be one of: socket, http")
+	}
+	if !cfg.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(cfg.BotToken) == "" {
+		return errors.New("gateway slack bot token is required when slack gateway is enabled; " +
+			"set HAND_GATEWAY_SLACK_BOT_TOKEN, provide it in config, or use --gateway.slack.bot-token")
+	}
+	switch cfg.Mode {
+	case GatewaySlackModeSocket:
+		if strings.TrimSpace(cfg.AppToken) == "" {
+			return errors.New("gateway slack app token is required in socket mode; " +
+				"set HAND_GATEWAY_SLACK_APP_TOKEN, provide it in config, or use --gateway.slack.app-token")
+		}
+	case GatewaySlackModeHTTP:
+		if strings.TrimSpace(cfg.SigningSecret) == "" {
+			return errors.New("gateway slack signing secret is required in http mode; " +
+				"set HAND_GATEWAY_SLACK_SIGNING_SECRET, provide it in config, or use --gateway.slack.signing-secret")
+		}
+	}
+
+	return nil
+}
+
+func isLoopbackGatewayAddress(address string) bool {
+	address = strings.TrimSpace(strings.Trim(address, "[]"))
+	if address == "" || strings.EqualFold(address, "localhost") {
+		return true
+	}
+
+	ip := net.ParseIP(address)
+	return ip != nil && ip.IsLoopback()
 }
 
 func (c *Config) validateModelSettings() error {

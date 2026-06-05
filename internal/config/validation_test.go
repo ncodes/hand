@@ -57,6 +57,159 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	require.Equal(t, "warn", cfg.Log.Level)
 }
 
+func TestConfig_ValidateAppliesGatewayDefaults(t *testing.T) {
+	cfg := &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+		},
+		Log: LogConfig{Level: "info"},
+	}
+
+	require.NoError(t, cfg.Validate())
+	require.False(t, cfg.Gateway.Enabled)
+	require.Equal(t, constants.DefaultRPCAddress, cfg.Gateway.Address)
+	require.Equal(t, constants.DefaultGatewayPort, cfg.Gateway.Port)
+	require.Equal(t, GatewayTelegramModePolling, cfg.Gateway.Telegram.Mode)
+	require.Equal(t, GatewaySlackModeSocket, cfg.Gateway.Slack.Mode)
+}
+
+func TestConfig_ValidateRejectsGatewayNonLoopbackWithoutAuthToken(t *testing.T) {
+	cfg := validGatewayConfig()
+	cfg.Gateway.Address = "0.0.0.0"
+	cfg.Gateway.AuthToken = ""
+
+	err := cfg.Validate()
+
+	require.EqualError(t, err, "gateway auth token is required for non-loopback binds; set "+
+		"HAND_GATEWAY_AUTH_TOKEN, provide it in config, or use --gateway.auth-token")
+}
+
+func TestConfig_ValidateAcceptsGatewayNonLoopbackWithAuthToken(t *testing.T) {
+	cfg := validGatewayConfig()
+	cfg.Gateway.Address = "::"
+
+	require.NoError(t, cfg.Validate())
+}
+
+func TestConfig_ValidateRejectsNegativeGatewayPort(t *testing.T) {
+	cfg := validGatewayConfig()
+	cfg.Gateway.Port = -1
+
+	require.EqualError(t, cfg.Validate(), "gateway port must be non-negative; set HAND_GATEWAY_PORT, provide it in config, "+
+		"or use --gateway.port")
+}
+
+func TestConfig_ValidateGatewaySettingsRejectsEmptyAddress(t *testing.T) {
+	cfg := validGatewayConfig()
+	cfg.Gateway.Address = ""
+
+	require.EqualError(t, cfg.validateGatewaySettings(), "gateway address is required; set HAND_GATEWAY_ADDRESS, "+
+		"provide it in config, or use --gateway.address")
+}
+
+func TestConfig_ValidateRejectsInvalidGatewayModes(t *testing.T) {
+	cfg := validGatewayConfig()
+	cfg.Gateway.Telegram.Mode = "long-polling"
+
+	require.EqualError(t, cfg.Validate(), "gateway telegram mode must be one of: polling, webhook")
+
+	cfg = validGatewayConfig()
+	cfg.Gateway.Slack.Mode = "events"
+
+	require.EqualError(t, cfg.Validate(), "gateway slack mode must be one of: socket, http")
+}
+
+func TestConfig_ValidateRejectsMissingGatewayChannelSecrets(t *testing.T) {
+	tests := []struct {
+		name string
+		edit func(*Config)
+		want string
+	}{
+		{
+			name: "telegram bot token",
+			edit: func(cfg *Config) {
+				cfg.Gateway.Telegram.BotToken = ""
+			},
+			want: "gateway telegram bot token is required when telegram gateway is enabled; " +
+				"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token",
+		},
+		{
+			name: "telegram webhook secret",
+			edit: func(cfg *Config) {
+				cfg.Gateway.Telegram.Mode = GatewayTelegramModeWebhook
+				cfg.Gateway.Telegram.WebhookSecret = ""
+			},
+			want: "gateway telegram webhook secret is required in webhook mode; " +
+				"set HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET, provide it in config, or use --gateway.telegram.webhook-secret",
+		},
+		{
+			name: "slack bot token",
+			edit: func(cfg *Config) {
+				cfg.Gateway.Slack.BotToken = ""
+			},
+			want: "gateway slack bot token is required when slack gateway is enabled; " +
+				"set HAND_GATEWAY_SLACK_BOT_TOKEN, provide it in config, or use --gateway.slack.bot-token",
+		},
+		{
+			name: "slack app token",
+			edit: func(cfg *Config) {
+				cfg.Gateway.Slack.AppToken = ""
+			},
+			want: "gateway slack app token is required in socket mode; " +
+				"set HAND_GATEWAY_SLACK_APP_TOKEN, provide it in config, or use --gateway.slack.app-token",
+		},
+		{
+			name: "slack signing secret",
+			edit: func(cfg *Config) {
+				cfg.Gateway.Slack.Mode = GatewaySlackModeHTTP
+				cfg.Gateway.Slack.SigningSecret = ""
+			},
+			want: "gateway slack signing secret is required in http mode; " +
+				"set HAND_GATEWAY_SLACK_SIGNING_SECRET, provide it in config, or use --gateway.slack.signing-secret",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validGatewayConfig()
+			tt.edit(cfg)
+
+			require.EqualError(t, cfg.Validate(), tt.want)
+		})
+	}
+}
+
+func TestConfig_ValidateSkipsDisabledGatewayChannels(t *testing.T) {
+	cfg := validGatewayConfig()
+	cfg.Gateway.Telegram.Enabled = false
+	cfg.Gateway.Telegram.BotToken = ""
+	cfg.Gateway.Telegram.WebhookSecret = ""
+	cfg.Gateway.Slack.Enabled = false
+	cfg.Gateway.Slack.BotToken = ""
+	cfg.Gateway.Slack.AppToken = ""
+	cfg.Gateway.Slack.SigningSecret = ""
+
+	require.NoError(t, cfg.Validate())
+}
+
+func TestConfig_ValidateAcceptsGatewayWebhookAndSlackHTTPSecrets(t *testing.T) {
+	cfg := validGatewayConfig()
+	cfg.Gateway.Telegram.Mode = GatewayTelegramModeWebhook
+	cfg.Gateway.Slack.Mode = GatewaySlackModeHTTP
+
+	require.NoError(t, cfg.Validate())
+}
+
+func TestIsLoopbackGatewayAddress(t *testing.T) {
+	require.True(t, isLoopbackGatewayAddress(""))
+	require.True(t, isLoopbackGatewayAddress("localhost"))
+	require.True(t, isLoopbackGatewayAddress("[::1]"))
+	require.False(t, isLoopbackGatewayAddress("0.0.0.0"))
+	require.False(t, isLoopbackGatewayAddress("gateway.example"))
+}
+
 func TestConfig_ValidateRequiresName(t *testing.T) {
 	err := (&Config{
 		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel}},
@@ -131,4 +284,34 @@ func TestConfig_Validate_ReturnsSummaryAuthErrorWhenOpenAIKeyMissing(t *testing.
 	}).Validate()
 
 	require.ErrorContains(t, err, `model API key is required for provider "openai"`)
+}
+
+func validGatewayConfig() *Config {
+	return &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+		},
+		Gateway: GatewayConfig{
+			Enabled:   true,
+			Address:   constants.DefaultRPCAddress,
+			Port:      constants.DefaultGatewayPort,
+			AuthToken: "HAND_GATEWAY_AUTH_TOKEN",
+			Telegram: GatewayTelegramConfig{
+				Enabled:       true,
+				Mode:          GatewayTelegramModePolling,
+				BotToken:      "HAND_GATEWAY_TELEGRAM_BOT_TOKEN",
+				WebhookSecret: "HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET",
+			},
+			Slack: GatewaySlackConfig{
+				Enabled:       true,
+				Mode:          GatewaySlackModeSocket,
+				BotToken:      "HAND_GATEWAY_SLACK_BOT_TOKEN",
+				AppToken:      "HAND_GATEWAY_SLACK_APP_TOKEN",
+				SigningSecret: "HAND_GATEWAY_SLACK_SIGNING_SECRET",
+			},
+		},
+		Log: LogConfig{Level: "info"},
+	}
 }

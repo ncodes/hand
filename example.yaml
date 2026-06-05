@@ -40,6 +40,23 @@
 #   address: "127.0.0.1"
 #   port: 50051
 
+# gateway:
+#   enabled: false
+#   address: "127.0.0.1"
+#   port: 50052
+#   authToken: ""
+#   telegram:
+#     enabled: false
+#     mode: "polling"
+#     botToken: ""
+#     webhookSecret: ""
+#   slack:
+#     enabled: false
+#     mode: "socket"
+#     botToken: ""
+#     appToken: ""
+#     signingSecret: ""
+
 # fs:
 #   roots:
 #     - "."

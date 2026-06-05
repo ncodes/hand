@@ -43,7 +43,7 @@ go run ./cmd/hand \
 
 Config precedence is:
 
-`flags > env > config file`
+`flags > > config file`
 
 Config file values:
 - `name`
@@ -58,6 +58,19 @@ Config file values:
 - `model.stream`
 - `rpc.address`
 - `rpc.port`
+- `gateway.enabled`
+- `gateway.address`
+- `gateway.port`
+- `gateway.authToken`
+- `gateway.telegram.enabled`
+- `gateway.telegram.mode`
+- `gateway.telegram.botToken`
+- `gateway.telegram.webhookSecret`
+- `gateway.slack.enabled`
+- `gateway.slack.mode`
+- `gateway.slack.botToken`
+- `gateway.slack.appToken`
+- `gateway.slack.signingSecret`
 - `log.level`
 - `log.noColor`
 - `debug.requests`
@@ -81,6 +94,19 @@ Env equivalents:
 - `HAND_MODEL_STREAM`
 - `HAND_RPC_ADDRESS`
 - `HAND_RPC_PORT`
+- `HAND_GATEWAY_ENABLED`
+- `HAND_GATEWAY_ADDRESS`
+- `HAND_GATEWAY_PORT`
+- `HAND_GATEWAY_AUTH_TOKEN`
+- `HAND_GATEWAY_TELEGRAM_ENABLED`
+- `HAND_GATEWAY_TELEGRAM_MODE`
+- `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`
+- `HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET`
+- `HAND_GATEWAY_SLACK_ENABLED`
+- `HAND_GATEWAY_SLACK_MODE`
+- `HAND_GATEWAY_SLACK_BOT_TOKEN`
+- `HAND_GATEWAY_SLACK_APP_TOKEN`
+- `HAND_GATEWAY_SLACK_SIGNING_SECRET`
 - `HAND_LOG_LEVEL`
 - `HAND_LOG_NO_COLOR`
 - `HAND_DEBUG_REQUESTS`
@@ -115,6 +141,14 @@ Typical model settings:
 - `model.stream`: stream assistant text responses during chat requests; defaults to `true`
 - `rpc.address`: interface the daemon binds to
 - `rpc.port`: port the daemon binds to
+- `gateway.enabled`: enables external client ingress inside the daemon
+- `gateway.address`: interface the gateway binds to; non-loopback binds require `gateway.authToken`
+- `gateway.port`: port the gateway binds to
+- `gateway.telegram.mode`: `polling` or `webhook`; defaults to `polling`
+- `gateway.slack.mode`: `socket` or `http`; defaults to `socket`
+- Gateway credentials can be set directly in config or `HAND_`-prefixed environment variables:
+  `HAND_GATEWAY_AUTH_TOKEN`, `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`, `HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET`, `HAND_GATEWAY_SLACK_BOT_TOKEN`,
+  `HAND_GATEWAY_SLACK_APP_TOKEN`, and `HAND_GATEWAY_SLACK_SIGNING_SECRET`.
 - `debug.requests`: emits model request metadata at debug level without request bodies
 
 ## Commands
@@ -151,7 +185,7 @@ make test
 
 Foundation:
 - [x] Define package boundaries for runtime, tools, UI, storage, and integrations
-- [x] Implement config file loading plus env overrides
+- [x] Implement config file loading plus overrides
 - [x] Implement provider-specific auth resolution and validation
 - [x] Define a normalized model client interface
 - [x] Add structured logging and request metadata diagnostics
