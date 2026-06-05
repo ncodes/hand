@@ -238,6 +238,7 @@ func TestOpenStore_ConfiguresMemoryVectorStore(t *testing.T) {
 func TestOpenStore_ReturnsMemoryVectorConfigError(t *testing.T) {
 	store, err := OpenStore(&config.Config{
 		Storage: config.StorageConfig{Backend: "memory"},
+		Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Provider: "openai"}},
 		Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 	})
 
