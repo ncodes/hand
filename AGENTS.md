@@ -1,5 +1,15 @@
 # Repository Guidelines
 
+## Testing
+
+- Run the full project test suite with `make test`.
+- Prefer the Makefile targets over raw `go test ./...` because they run `build-proto` first and pass the sqlite FTS5 build settings:
+  - `CGO_ENABLED=1`
+  - `-tags sqlite_fts5`
+- If you need a focused package test, mirror the Makefile flags, for example:
+  - `CGO_ENABLED=1 go test -tags sqlite_fts5 ./cmd/hand`
+- Missing those flags can cause sqlite-backed tests to fail with `no such module: fts5`.
+
 ## Naming
 
 - Prefer action-oriented prefixes for functions and methods that retrieve or prepare data:

@@ -19,7 +19,7 @@ let `View` redraw the screen from that state.
 
 The CLI command is outside this package:
 
-- `cmd/tui/tui.go` defines the `hand tui` command.
+- `cmd/tui/tui.go` exposes the root TUI runner used by `hand`.
 - `cmd/tui/program.go` loads config, creates the RPC client, builds the TUI
   model, and starts Bubble Tea.
 

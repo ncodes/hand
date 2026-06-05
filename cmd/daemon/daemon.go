@@ -1,4 +1,4 @@
-package up
+package daemon
 
 import (
 	"context"
@@ -778,7 +778,7 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner, 
 	log.Info().
 		Str("rpcAddress", cfg.RPC.Address).
 		Int("rpcPort", cfg.RPC.Port).
-		Msg("RPC server listening for agent requests")
+		Msg("RPC server listening for daemon requests")
 
 	select {
 	case err := <-serverErr:
@@ -821,11 +821,20 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner, 
 
 func NewCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "up",
-		Usage: "Start the agent runtime",
+		Name:  "daemon",
+		Usage: "Manage the Hand daemon",
 		Flags: []cli.Flag{handcli.PersistentInstructFlag()},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			return runDaemonWithConfigRestarts(ctx, cmd, daemonConfigWatchDebounce)
+		Commands: []*cli.Command{
+			{
+				Name:  "start",
+				Usage: "Start the Hand daemon",
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					return runDaemonWithConfigRestarts(ctx, cmd, daemonConfigWatchDebounce)
+				},
+			},
+		},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			return cli.ShowSubcommandHelp(cmd)
 		},
 	}
 }

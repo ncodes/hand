@@ -1,4 +1,4 @@
-package up
+package daemon
 
 import (
 	"bytes"
@@ -30,7 +30,7 @@ func init() {
 	logutils.SetOutput(io.Discard)
 }
 
-func Test_E2E_UpCommand_BootsAndServesRPC(t *testing.T) {
+func Test_E2E_DaemonCommand_BootsAndServesRPC(t *testing.T) {
 	originalRunner := newAgentRunner
 	originalFactory := modelClientFactory
 	originalOutput := startupOutput
@@ -85,9 +85,8 @@ rpc:
 	envFile := ""
 	configFile := ""
 	rootCmd := &cli.Command{
-		Name:           "hand",
-		DefaultCommand: "up",
-		Flags:          handcli.RootFlags(&envFile, &configFile),
+		Name:  "hand",
+		Flags: handcli.RootFlags(&envFile, &configFile),
 		Commands: []*cli.Command{
 			NewCommand(),
 		},
@@ -101,7 +100,7 @@ rpc:
 			"--env-file", envPath,
 			"--config", configPath,
 			"--name", "cli-up",
-			"up",
+			"daemon", "start",
 		})
 	}()
 

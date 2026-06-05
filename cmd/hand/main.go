@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -11,13 +12,13 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	authcmd "github.com/wandxy/hand/cmd/auth"
+	daemoncmd "github.com/wandxy/hand/cmd/daemon"
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
 	configcmd "github.com/wandxy/hand/cmd/hand/configcmd"
 	profilecmd "github.com/wandxy/hand/cmd/profile"
 	sessioncmd "github.com/wandxy/hand/cmd/session"
 	tracecmd "github.com/wandxy/hand/cmd/trace"
 	tuicmd "github.com/wandxy/hand/cmd/tui"
-	upcmd "github.com/wandxy/hand/cmd/up"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/profile"
@@ -29,9 +30,11 @@ func init() {
 }
 
 var (
-	envFile              = ".env"
-	configFile           = "config.yaml"
-	rootOutput io.Writer = os.Stdout
+	envFile                     = ".env"
+	configFile                  = "config.yaml"
+	rootOutput        io.Writer = os.Stdout
+	runRootTUI                  = tuicmd.Run
+	newRootChatAction           = handcli.NewMainAction
 )
 
 const rootHelpTemplate = `HAND_NAME:
@@ -56,16 +59,20 @@ GLOBAL OPTIONS:{{template "visibleFlagCategoryTemplate" .}}{{else if .VisibleFla
 GLOBAL OPTIONS:{{template "visibleFlagTemplate" .}}{{end}}
 
 EXAMPLES:
-   Start the agent runtime:
-      hand up
-      hand --profile work up
+   Start the interactive terminal UI:
+      hand
+      hand --profile work
+
+   Start the daemon:
+      hand daemon start
+      hand --profile work daemon start
       hand profile use work
-      hand --config ./config.yaml --trace.enabled up
+      hand --config ./config.yaml --trace.enabled daemon start
 
    Chat with the agent:
-      hand "summarize the failing tests"
-      hand --profile work "continue"
-      hand --session ses_abc123 --instruct "be brief" "continue from the last debugging step"
+      hand --chat "summarize the failing tests"
+      hand -c --profile work "continue"
+      hand --chat --session ses_abc123 --instruct "be brief" "continue from the last debugging step"
       HAND_PROFILE=work hand session list
 
    Start the trace viewer:
@@ -107,7 +114,10 @@ func newCommand() *cli.Command {
 		Description:                   handcli.AppDescription,
 		Version:                       formatRootVersion(),
 		CustomRootCommandHelpTemplate: rootHelpTemplate,
-		Flags:                         append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
+		Flags: append(
+			handcli.RootFlags(&envFile, &configFile),
+			handcli.ChatFlag(),
+			handcli.RequestInstructFlag()),
 		Commands: []*cli.Command{
 			authcmd.NewCommand(),
 			newDatabaseCommand(),
@@ -117,15 +127,30 @@ func newCommand() *cli.Command {
 			profilecmd.NewCommand(),
 			sessioncmd.NewCommand(),
 			tracecmd.NewCommand(),
-			tuicmd.NewCommand(),
-			upcmd.NewCommand(),
+			daemoncmd.NewCommand(),
 		},
-		Action: handcli.NewMainAction(handcli.MainActionOptions{
-			Output: rootOutput,
-		}),
+		Action: newRootAction(),
 	}
 
 	return cmd
+}
+
+func newRootAction() func(context.Context, *cli.Command) error {
+	chatAction := newRootChatAction(handcli.MainActionOptions{
+		Output: rootOutput,
+	})
+
+	return func(ctx context.Context, cmd *cli.Command) error {
+		if cmd.Bool("chat") {
+			return chatAction(ctx, cmd)
+		}
+		if cmd.Args().Len() > 0 {
+			return fmt.Errorf("unexpected root arguments %q; use --chat or -c to send a one-shot chat request",
+				strings.Join(cmd.Args().Slice(), " "))
+		}
+
+		return runRootTUI(ctx, cmd)
+	}
 }
 
 func getEnvFile(args []string) string {

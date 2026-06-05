@@ -19,13 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 	urfavecli "github.com/urfave/cli/v3"
 
+	daemoncmd "github.com/wandxy/hand/cmd/daemon"
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
 	configcmd "github.com/wandxy/hand/cmd/hand/configcmd"
 	profilecmd "github.com/wandxy/hand/cmd/profile"
 	sessioncmd "github.com/wandxy/hand/cmd/session"
 	tracecmd "github.com/wandxy/hand/cmd/trace"
-	tuicmd "github.com/wandxy/hand/cmd/tui"
-	upcmd "github.com/wandxy/hand/cmd/up"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/e2e"
@@ -251,7 +250,7 @@ models:
     provider: unsupported
 `), 0o600))
 
-	_, err := runRootChatCommand(t, "hand", "--config", configPath, "--rpc.port", nextTestPort(t), "up")
+	_, err := runRootChatCommand(t, "hand", "--config", configPath, "--rpc.port", nextTestPort(t), "daemon", "start")
 	require.Error(t, err)
 	require.ErrorContains(t, err, "model provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
 }
@@ -1254,8 +1253,7 @@ func newRootChatCommand(output io.Writer) *urfavecli.Command {
 			profilecmd.NewCommand(),
 			sessioncmd.NewCommand(),
 			tracecmd.NewCommand(),
-			tuicmd.NewCommand(),
-			upcmd.NewCommand(),
+			daemoncmd.NewCommand(),
 		},
 		Action: handcli.NewMainAction(handcli.MainActionOptions{
 			Output: output,

@@ -13,10 +13,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	cli "github.com/urfave/cli/v3"
 
+	daemoncmd "github.com/wandxy/hand/cmd/daemon"
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
 	profilecmd "github.com/wandxy/hand/cmd/profile"
-	upcmd "github.com/wandxy/hand/cmd/up"
+	tuicmd "github.com/wandxy/hand/cmd/tui"
+	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
@@ -28,7 +31,7 @@ func init() {
 	logutils.SetOutput(io.Discard)
 }
 
-func TestNewCommand_RegistersTUICommand(t *testing.T) {
+func TestNewCommand_RegistersDaemonCommand(t *testing.T) {
 	cmd := newCommand()
 
 	var names []string
@@ -36,7 +39,7 @@ func TestNewCommand_RegistersTUICommand(t *testing.T) {
 		names = append(names, command.Name)
 	}
 
-	require.Contains(t, names, "tui")
+	require.Contains(t, names, "daemon")
 	require.Contains(t, names, "config")
 	require.Contains(t, names, "version")
 }
@@ -73,7 +76,7 @@ search:
 		"hand",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"up",
+		"daemon", "start",
 	})
 	require.NoError(t, err)
 
@@ -130,7 +133,7 @@ search:
 		"--env-file", envPath,
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"up",
+		"daemon", "start",
 	})
 	require.NoError(t, err)
 
@@ -172,7 +175,7 @@ search:
 		"hand",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"up",
+		"daemon", "start",
 	})
 	require.ErrorContains(t, err, "model provider is required")
 }
@@ -203,7 +206,7 @@ storage:
 		"hand",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"up",
+		"daemon", "start",
 	})
 	require.NoError(t, err)
 
@@ -239,7 +242,7 @@ storage:
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
 		"--model.provider", "openrouter",
-		"up",
+		"daemon", "start",
 	})
 	require.NoError(t, err)
 
@@ -296,7 +299,7 @@ storage:
 		"--rpc.port", nextTestPort(t),
 		"--log.level", "debug",
 		"--log.no-color=true",
-		"up",
+		"daemon", "start",
 	})
 	require.NoError(t, err)
 
@@ -338,7 +341,7 @@ storage:
 		"agent",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"up",
+		"daemon", "start",
 	})
 	require.NoError(t, err)
 
@@ -462,7 +465,90 @@ func TestConfigureProfileDefaults_EnvOverridesStoredCurrentProfile(t *testing.T)
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
 }
 
-func TestNewCommand_RootActionShowsHelp(t *testing.T) {
+func TestNewCommand_RootActionStartsTUI(t *testing.T) {
+	clearEnvKeys(t, "HAND_ENV_FILE")
+	resetGlobals(t)
+
+	called := false
+	originalRunRootTUI := runRootTUI
+	t.Cleanup(func() {
+		runRootTUI = originalRunRootTUI
+	})
+	runRootTUI = func(context.Context, *cli.Command) error {
+		called = true
+		return nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{"hand"})
+	require.NoError(t, err)
+	require.True(t, called)
+}
+
+func TestNewCommand_RootActionRejectsMessageWithoutChatFlag(t *testing.T) {
+	clearEnvKeys(t, "HAND_ENV_FILE")
+	resetGlobals(t)
+
+	originalRunRootTUI := runRootTUI
+	t.Cleanup(func() {
+		runRootTUI = originalRunRootTUI
+	})
+	runRootTUI = func(context.Context, *cli.Command) error {
+		t.Fatal("root args should not start TUI")
+		return nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{"hand", "hello"})
+	require.EqualError(t, err, `unexpected root arguments "hello"; use --chat or -c to send a one-shot chat request`)
+}
+
+func TestNewCommand_RootActionUsesChatFlag(t *testing.T) {
+	clearEnvKeys(t, "HAND_ENV_FILE")
+	resetGlobals(t)
+
+	var gotArgs []string
+	newRootChatAction = func(options handcli.MainActionOptions) func(context.Context, *cli.Command) error {
+		require.Equal(t, rootOutput, options.Output)
+		return func(_ context.Context, cmd *cli.Command) error {
+			gotArgs = cmd.Args().Slice()
+			return nil
+		}
+	}
+	runRootTUI = func(context.Context, *cli.Command) error {
+		t.Fatal("chat flag should not start TUI")
+		return nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{"hand", "--chat", "hello", "world"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"hello", "world"}, gotArgs)
+}
+
+func TestNewCommand_RootActionUsesChatShortFlag(t *testing.T) {
+	clearEnvKeys(t, "HAND_ENV_FILE")
+	resetGlobals(t)
+
+	var gotArgs []string
+	newRootChatAction = func(handcli.MainActionOptions) func(context.Context, *cli.Command) error {
+		return func(_ context.Context, cmd *cli.Command) error {
+			gotArgs = cmd.Args().Slice()
+			return nil
+		}
+	}
+	runRootTUI = func(context.Context, *cli.Command) error {
+		t.Fatal("chat short flag should not start TUI")
+		return nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{"hand", "-c", "hello"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"hello"}, gotArgs)
+}
+
+func TestNewCommand_HelpShowsUpdatedExamples(t *testing.T) {
 	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
 
@@ -470,16 +556,16 @@ func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	cmd := newCommand()
 	cmd.Writer = &output
 	cmd.ErrWriter = &output
-	err := cmd.Run(context.Background(), []string{"hand"})
+	err := cmd.Run(context.Background(), []string{"hand", "--help"})
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "EXAMPLES:")
-	require.Contains(t, output.String(), "hand up")
-	require.Contains(t, output.String(), "hand --profile work up")
+	require.Contains(t, output.String(), "hand daemon start")
+	require.Contains(t, output.String(), "hand --profile work daemon start")
 	require.Contains(t, output.String(), "hand profile use work")
-	require.Contains(t, output.String(), "hand --config ./config.yaml --trace.enabled up")
-	require.Contains(t, output.String(), `hand "summarize the failing tests"`)
-	require.Contains(t, output.String(), `hand --profile work "continue"`)
-	require.Contains(t, output.String(), `hand --session ses_abc123 --instruct "be brief" "continue from the last debugging step"`)
+	require.Contains(t, output.String(), "hand --config ./config.yaml --trace.enabled daemon start")
+	require.Contains(t, output.String(), `hand --chat "summarize the failing tests"`)
+	require.Contains(t, output.String(), `hand -c --profile work "continue"`)
+	require.Contains(t, output.String(), `hand --chat --session ses_abc123 --instruct "be brief" "continue from the last debugging step"`)
 	require.Contains(t, output.String(), "HAND_PROFILE=work hand session list")
 	require.Contains(t, output.String(), "hand trace view")
 	require.Contains(t, output.String(), "hand --config ./config.yaml trace view --listen 127.0.0.1:9090")
@@ -552,7 +638,7 @@ models:
 		"hand",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"up",
+		"daemon", "start",
 	})
 	require.EqualError(t, err, "model provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
 }
@@ -583,7 +669,7 @@ storage:
 		"hand",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"up",
+		"daemon", "start",
 	})
 	require.NoError(t, err)
 
@@ -698,24 +784,30 @@ func resetGlobals(t *testing.T) {
 	originalEnvFile := envFile
 	originalConfigFile := configFile
 	originalRootOutput := rootOutput
+	originalRunRootTUI := runRootTUI
+	originalNewRootChatAction := newRootChatAction
 	originalDoctorOutput := doctorcmd.SetOutput(io.Discard)
 	originalProfileOutput := profilecmd.SetOutput(io.Discard)
-	originalStartupOutput := upcmd.SetOutput(io.Discard)
+	originalStartupOutput := daemoncmd.SetOutput(io.Discard)
 	originalConfig := config.Get()
 	originalProfile := profile.Active()
 	t.Cleanup(func() {
 		envFile = originalEnvFile
 		configFile = originalConfigFile
 		rootOutput = originalRootOutput
+		runRootTUI = originalRunRootTUI
+		newRootChatAction = originalNewRootChatAction
 		doctorcmd.SetOutput(originalDoctorOutput)
 		profilecmd.SetOutput(originalProfileOutput)
-		upcmd.SetOutput(originalStartupOutput)
+		daemoncmd.SetOutput(originalStartupOutput)
 		config.Set(originalConfig)
 		profile.SetActive(originalProfile)
 	})
 	envFile = ".env"
 	configFile = "config.yaml"
 	rootOutput = io.Discard
+	runRootTUI = tuicmd.Run
+	newRootChatAction = handcli.NewMainAction
 	logutils.SetOutput(io.Discard)
 	config.Set(nil)
 	t.Setenv("HOME", t.TempDir())

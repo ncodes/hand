@@ -22,15 +22,16 @@ The long-term dream for Hand is a personal agent that can understand your workfl
 4. Start the daemon:
 
 ```bash
-go run ./cmd/hand up
+go run ./cmd/hand daemon start
 ```
 
-The `up` command prepares the runtime and starts the gRPC service.
+The `daemon start` command prepares the runtime service.
 
 You can also send a direct prompt through the root command:
 
 ```bash
 go run ./cmd/hand \
+  --chat \
   --name Daemon \
   --model qwen/qwen3.5-27b \
   --model.provider openrouter \
@@ -118,9 +119,9 @@ Typical model settings:
 
 ## Commands
 
-- `hand up`: prepare the runtime and start the gRPC daemon
+- `hand daemon start`: start the runtime service
 - `hand doctor`: run startup diagnostics and readiness checks
-- `hand "<message>"`: send a single chat message
+- `hand --chat "<message>"` or `hand -c "<message>"`: send a single chat message
 
 ## gRPC
 

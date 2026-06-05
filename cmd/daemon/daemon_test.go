@@ -1,4 +1,4 @@
-package up
+package daemon
 
 import (
 	"bytes"
@@ -104,7 +104,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 		"--trace.enabled",
 		"--trace.disk.dir", "/tmp/hand-traces",
 		"--log.level", "debug",
-		"up",
+		"daemon", "start",
 	}))
 
 	cfg := config.Get()
@@ -233,7 +233,7 @@ func TestNewCommand_RestartsDaemonWhenConfigFileChanges(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	done := make(chan error, 1)
 	go func() {
-		done <- cmd.Run(context.Background(), []string{"hand", "--config", configPath, "up"})
+		done <- cmd.Run(context.Background(), []string{"hand", "--config", configPath, "daemon", "start"})
 	}()
 
 	select {
@@ -311,7 +311,7 @@ func TestNewCommand_KeepsRunningWhenChangedConfigIsInvalid(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	done := make(chan error, 1)
 	go func() {
-		done <- cmd.Run(ctx, []string{"hand", "--config", configPath, "up"})
+		done <- cmd.Run(ctx, []string{"hand", "--config", configPath, "daemon", "start"})
 	}()
 
 	select {
@@ -618,7 +618,7 @@ func TestRunDaemonWithConfigRestartsReturnsConfigFingerprintError(t *testing.T) 
 		return nil, errors.New("stat failed")
 	}
 
-	err := runParsedUpCommand(t, []string{"--config", configPath, "up"}, func(ctx context.Context, cmd *cli.Command) error {
+	err := runParsedDaemonCommand(t, []string{"--config", configPath, "daemon", "start"}, func(ctx context.Context, cmd *cli.Command) error {
 		return runDaemonWithConfigRestarts(ctx, cmd, 0)
 	})
 
@@ -865,7 +865,7 @@ func TestRunDaemonUntilConfigChangeReturnsShutdownErrorOnRestart(t *testing.T) {
 	}
 
 	done := make(chan error, 1)
-	err = runParsedUpCommand(t, []string{"--config", configPath, "up"}, func(ctx context.Context, cmd *cli.Command) error {
+	err = runParsedDaemonCommand(t, []string{"--config", configPath, "daemon", "start"}, func(ctx context.Context, cmd *cli.Command) error {
 		go func() {
 			snapshot := daemonConfigSnapshot{
 				cfg:         newUpTestConfig("first"),
@@ -1370,7 +1370,7 @@ func TestNewCommand_ReturnsConfigLoadError(t *testing.T) {
 
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
-	err := cmd.Run(context.Background(), []string{"hand", "--config", badPath, "up"})
+	err := cmd.Run(context.Background(), []string{"hand", "--config", badPath, "daemon", "start"})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to parse config file")
 }
@@ -1450,7 +1450,7 @@ func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
 		"--model.api-key", "k",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
-		"up",
+		"daemon", "start",
 	}
 
 	startupOutput = startupWriteFailAlways{}
@@ -1491,7 +1491,7 @@ func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
 		"--model.base-url", serverURL,
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
-		"up",
+		"daemon", "start",
 	})
 	require.EqualError(t, err, "model factory boom")
 }
@@ -1523,7 +1523,7 @@ func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 		"--model.base-url", serverURL,
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
-		"up",
+		"daemon", "start",
 	})
 	require.EqualError(t, err, "summary auth boom")
 }
@@ -1566,7 +1566,7 @@ func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 		"--model.summary-base-url", "https://api.openai.com/v1",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
-		"up",
+		"daemon", "start",
 	})
 	require.EqualError(t, err, "summary client boom")
 }
@@ -1613,7 +1613,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 		"--model.summary-base-url", "https://openai.example/v1",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
-		"up",
+		"daemon", "start",
 	}))
 
 	require.Equal(t, []modelclient.ClientRequest{
@@ -1695,7 +1695,7 @@ func TestNewCommand_PassesSeparateRerankerClientWhenAuthDiffers(t *testing.T) {
 		"--model.base-url", serverURL,
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
-		"up",
+		"daemon", "start",
 	}))
 
 	require.Len(t, clients, 2)
@@ -1756,7 +1756,7 @@ func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 		"--model.base-url", serverURL,
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
-		"up",
+		"daemon", "start",
 	})
 	require.EqualError(t, err, "start failed")
 }
@@ -1813,7 +1813,7 @@ func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 		"--model.summary-base-url", "https://api.openai.com/v1",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
-		"up",
+		"daemon", "start",
 	}))
 
 	require.True(t, runCalled)
@@ -1841,7 +1841,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 		"--model", "",
 		"--model.provider", "openrouter",
 		"--model.api-key", "",
-		"up",
+		"daemon", "start",
 	})
 
 	require.ErrorContains(t, err, "model is required")
@@ -1849,16 +1849,15 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 
 func newRootCommandForTest(configFile *string) *cli.Command {
 	return &cli.Command{
-		Name:           "hand",
-		DefaultCommand: "up",
-		Flags:          handcli.RootFlags(nil, configFile),
+		Name:  "hand",
+		Flags: handcli.RootFlags(nil, configFile),
 		Commands: []*cli.Command{
 			NewCommand(),
 		},
 	}
 }
 
-func runParsedUpCommand(t *testing.T, args []string, action func(context.Context, *cli.Command) error) error {
+func runParsedDaemonCommand(t *testing.T, args []string, action func(context.Context, *cli.Command) error) error {
 	t.Helper()
 
 	configFile := ""
@@ -1867,8 +1866,13 @@ func runParsedUpCommand(t *testing.T, args []string, action func(context.Context
 		Flags: handcli.RootFlags(nil, &configFile),
 		Commands: []*cli.Command{
 			{
-				Name:   "up",
-				Action: action,
+				Name: "daemon",
+				Commands: []*cli.Command{
+					{
+						Name:   "start",
+						Action: action,
+					},
+				},
 			},
 		},
 	}

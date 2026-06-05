@@ -372,7 +372,6 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		}
 		configFlag := &cli.StringFlag{
 			Name:        "config",
-			Aliases:     []string{"c"},
 			Usage:       "Read base settings from this YAML config file",
 			Value:       "config.yaml",
 			Destination: configFile,
@@ -384,6 +383,14 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 	}
 
 	return flags
+}
+
+func ChatFlag() cli.Flag {
+	return &cli.BoolFlag{
+		Name:    "chat",
+		Aliases: []string{"c"},
+		Usage:   "Send root arguments as a one-shot chat request",
+	}
 }
 
 // ProfileFlag returns the persistent profile selection flag.

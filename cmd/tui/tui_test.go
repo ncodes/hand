@@ -43,7 +43,7 @@ func (fakeModel) View() tea.View {
 	return tea.NewView("")
 }
 
-func TestNewCommand_StartsProgram(t *testing.T) {
+func TestRun_StartsProgram(t *testing.T) {
 	originalNewProgram := newProgram
 	originalLoadCommandModel := loadCommandModel
 	t.Cleanup(func() {
@@ -60,14 +60,14 @@ func TestNewCommand_StartsProgram(t *testing.T) {
 		return fakeModel{}, func() {}, nil
 	}
 
-	err := NewCommand().Run(context.Background(), []string{"tui"})
+	err := Run(context.Background(), &cli.Command{})
 
 	require.NoError(t, err)
 	require.True(t, program.ran)
 	require.IsType(t, fakeModel{}, program.model)
 }
 
-func TestNewCommand_ReturnsProgramError(t *testing.T) {
+func TestRun_ReturnsProgramError(t *testing.T) {
 	originalNewProgram := newProgram
 	originalLoadCommandModel := loadCommandModel
 	t.Cleanup(func() {
@@ -83,12 +83,12 @@ func TestNewCommand_ReturnsProgramError(t *testing.T) {
 		return fakeModel{}, func() {}, nil
 	}
 
-	err := NewCommand().Run(context.Background(), []string{"tui"})
+	err := Run(context.Background(), &cli.Command{})
 
 	require.ErrorIs(t, err, expectedErr)
 }
 
-func TestNewCommand_ReturnsModelLoadError(t *testing.T) {
+func TestRun_ReturnsModelLoadError(t *testing.T) {
 	originalLoadCommandModel := loadCommandModel
 	t.Cleanup(func() {
 		loadCommandModel = originalLoadCommandModel
@@ -99,7 +99,7 @@ func TestNewCommand_ReturnsModelLoadError(t *testing.T) {
 		return nil, nil, expectedErr
 	}
 
-	err := NewCommand().Run(context.Background(), []string{"tui"})
+	err := Run(context.Background(), &cli.Command{})
 
 	require.ErrorIs(t, err, expectedErr)
 }

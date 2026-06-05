@@ -43,7 +43,7 @@ test-agent-baseline: build-proto
 		./cmd/hand
 
 test-spec:
-	@CGO_ENABLED=1 $(GO) test -tags $(GO_SQLITE_TAGS) ./internal/e2e ./cmd/hand ./cmd/session ./cmd/trace ./cmd/up -count=1
+	@CGO_ENABLED=1 $(GO) test -tags $(GO_SQLITE_TAGS) ./internal/e2e ./cmd/hand ./cmd/session ./cmd/trace ./cmd/daemon -count=1
 
 test-live:
 	@$(MAKE) test-live-sqlite

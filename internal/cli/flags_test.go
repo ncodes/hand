@@ -42,6 +42,30 @@ func TestApplyConfigOverrides_AppliesInstruct(t *testing.T) {
 	require.Equal(t, "be terse", cfg.Session.Instruct)
 }
 
+func TestChatFlag_AcceptsLongAndShortForms(t *testing.T) {
+	for _, args := range [][]string{
+		{"hand", "--chat", "hello"},
+		{"hand", "-c", "hello"},
+	} {
+		var gotChat bool
+		var gotArgs []string
+		cmd := &cli.Command{
+			Flags: []cli.Flag{ChatFlag()},
+			Action: func(_ context.Context, cmd *cli.Command) error {
+				gotChat = cmd.Bool("chat")
+				gotArgs = cmd.Args().Slice()
+				return nil
+			},
+		}
+
+		err := cmd.Run(context.Background(), args)
+
+		require.NoError(t, err)
+		require.True(t, gotChat)
+		require.Equal(t, []string{"hello"}, gotArgs)
+	}
+}
+
 func TestApplyConfigOverrides_AppliesPlatformAndCapabilities(t *testing.T) {
 	cfg := &config.Config{}
 	var cmd *cli.Command
