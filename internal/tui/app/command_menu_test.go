@@ -28,6 +28,24 @@ func TestCommandMenu_RendersAboveComposerForSlashInput(t *testing.T) {
 	require.Contains(t, content, "Show supported commands")
 }
 
+func TestCommandMenu_OpeningKeepsHeaderVisible(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 120
+	runModel.height = 20
+	runModel.resize()
+	runModel.setTranscriptContent()
+	runModel.transcript.GotoTop()
+	require.Contains(t, stripANSI(runModel.View().Content), "Welcome, Kennedy")
+
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
+
+	runModel = updated.(model)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Welcome, Kennedy")
+	require.Contains(t, content, "/clear")
+	require.Zero(t, runModel.transcript.YOffset())
+}
+
 func TestCommandMenu_HidesJumpToBottomPanel(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10

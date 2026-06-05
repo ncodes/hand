@@ -131,6 +131,12 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case providerAPIKeySetMsg:
 		next, cmd := m.completeProviderAPIKeySet(msg)
 		return next, cmd, true
+	case setupOAuthOutputMsg:
+		next, cmd := m.updateSetupOAuthOutput(msg)
+		return next, cmd, true
+	case setupOAuthCompletedMsg:
+		next, cmd := m.completeSetupOAuthLogin(msg)
+		return next, cmd, true
 	case toolInvocationStartedMsg:
 		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 		return next, cmd, true
@@ -269,11 +275,12 @@ func (m model) handlePasteMsg(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	previousValue := m.input.Value()
 	msg.Content = normalizeComposerPaste(msg.Content)
 	m.resizeInputForValue(m.input.Value() + msg.Content)
 	m.input, _ = m.input.Update(msg)
 	m.updateCommandMenuForInput(m.input.Value())
-	m.resize()
+	m.resizeAfterInputValueChange(previousValue)
 
 	return m, nil
 }
@@ -360,6 +367,7 @@ func (m model) updateBubbleTeaChildren(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	previousValue := m.input.Value()
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
@@ -367,7 +375,7 @@ func (m model) updateBubbleTeaChildren(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 	m.transcript, cmd = m.transcript.Update(msg)
 	cmds = append(cmds, cmd)
-	m.resize()
+	m.resizeAfterInputValueChange(previousValue)
 
 	return m, tea.Batch(cmds...)
 }
@@ -377,10 +385,22 @@ func (m model) updateInputComposer(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	previousValue := m.input.Value()
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	m.updateCommandMenuForInput(m.input.Value())
-	m.resize()
+	m.resizeAfterInputValueChange(previousValue)
 
 	return m, cmd
+}
+
+func (m *model) resizeAfterInputValueChange(previousValue string) {
+	previousMenuHeight := getCommandMenuHeightForValue(previousValue)
+	nextMenuHeight := m.getCommandMenuHeight()
+	shouldKeepHeaderVisible := m.transcript.YOffset() == 0 && nextMenuHeight > previousMenuHeight
+
+	m.resize()
+	if shouldKeepHeaderVisible {
+		m.transcript.GotoTop()
+	}
 }

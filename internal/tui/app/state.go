@@ -20,6 +20,9 @@ type tuiState struct {
 	namePromptEnabled          bool
 	setupNamePromptActive      bool
 	setupDismissible           bool
+	setupOAuthPending          bool
+	setupOAuthProvider         string
+	setupOAuthCancel           context.CancelFunc
 	namePromptError            string
 	namePromptErrorStartedAt   time.Time
 	modelName                  string

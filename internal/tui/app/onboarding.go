@@ -1,9 +1,13 @@
 package tui
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,8 +22,12 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
+	appcredential "github.com/wandxy/hand/internal/credential"
 	modelcatalog "github.com/wandxy/hand/internal/model"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	_ "github.com/wandxy/hand/internal/model/provider_anthropic"
+	_ "github.com/wandxy/hand/internal/model/provider_copilot"
+	_ "github.com/wandxy/hand/internal/model/provider_openai"
 	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 )
@@ -54,6 +62,13 @@ const (
 
 var validUserName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*$`)
 
+var (
+	getSetupSubscriptionProvider = appcredential.GetSubscriptionProvider
+	newSetupCredentialStore      = func() setupCredentialStore {
+		return appcredential.NewFileStore("")
+	}
+)
+
 var setupAuthMethodOptions = []setupAuthMethodOption{
 	{
 		ID:          setupAuthMethodSubscription,
@@ -79,6 +94,23 @@ type setupAuthMethodOption struct {
 
 type profileUser struct {
 	Name string `json:"name"`
+}
+
+type setupCredentialStore interface {
+	Set(string, appcredential.StoredCredential) error
+}
+
+type setupOAuthOutputMsg struct {
+	provider string
+	reader   *io.PipeReader
+	line     string
+	err      error
+}
+
+type setupOAuthCompletedMsg struct {
+	provider string
+	output   string
+	err      error
 }
 
 func newNameInput() textinput.Model {
@@ -474,11 +506,13 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 		return m.showSetupProviderAPIKeyPromptForProvider(providerID)
 	}
 	if m.setupAuthMethod == setupAuthMethodSubscription {
-		return m.showSetupNotice(
-			"Authentication required",
-			"run hand auth login "+providerID+" in a new terminal",
-			"enter to continue · esc to go back",
-		)
+		if err := m.checkSetupModelAuth(models[0]); err == nil {
+			return m.showSetupModelSelection()
+		} else if !isMissingModelCredentialError(err) {
+			return m.showSetupNotice("Authentication unavailable", err.Error(), "enter to continue")
+		}
+
+		return m.startSetupOAuthLogin(providerID)
 	}
 
 	return m.showSetupModelSelection()
@@ -495,11 +529,7 @@ func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
 	if apiKey == "" {
 		if err := m.checkSetupModelAuth(option); err != nil {
 			if option.SupportsOAuth {
-				return m.showSetupNotice(
-					"Authentication required",
-					"run hand auth login "+getSetupModelProvider(m.setupModelProvider, option)+" in a new terminal",
-					"enter to continue",
-				)
+				return m.startSetupOAuthLogin(getSetupModelProvider(m.setupModelProvider, option))
 			}
 			if isMissingModelCredentialError(err) {
 				return m.showSetupProviderAPIKeyPrompt(option)
@@ -514,11 +544,7 @@ func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
 		return m.completeSetupModelSelection(option)
 	}
 	if option.SupportsOAuth {
-		return m.showSetupNotice(
-			"Authentication required",
-			"run hand auth login "+getSetupModelProvider(m.setupModelProvider, option)+" in a new terminal",
-			"enter to continue",
-		)
+		return m.startSetupOAuthLogin(getSetupModelProvider(m.setupModelProvider, option))
 	}
 	if isEmbeddingSetupError(err) {
 		return m.showSetupNotice("Embedding setup required", getEmbeddingSetupInstruction(), "enter to continue")
@@ -567,13 +593,198 @@ func (m *model) submitSetupProviderAPIKey() (tea.Model, tea.Cmd) {
 }
 
 func (m *model) showSetupNotice(title string, message string, hint string) (tea.Model, tea.Cmd) {
+	m.cancelSetupOAuthLogin()
 	m.setupModelStep = setupModelStepNotice
 	m.setupPendingModelID = strings.TrimSpace(title)
 	m.setupNoticeMessage = strings.TrimSpace(message)
 	m.setupNoticeHint = strings.TrimSpace(hint)
+	m.setupOAuthPending = false
+	m.setupOAuthProvider = ""
 	m.resize()
 
 	return *m, m.setStatus(strings.ToLower(strings.TrimSpace(title)))
+}
+
+func (m *model) startSetupOAuthLogin(provider string) (tea.Model, tea.Cmd) {
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		return *m, m.setStatus("provider selection unavailable")
+	}
+	subscriptionProvider, ok := getSetupSubscriptionProvider(provider)
+	if !ok {
+		return m.showSetupNotice(
+			"Authentication unavailable",
+			"Subscription login is not available for "+getProviderDisplayName(provider)+".",
+			"enter to continue",
+		)
+	}
+
+	m.cancelSetupOAuthLogin()
+	ctx, cancel := context.WithCancel(m.chatCtx)
+	reader, writer := io.Pipe()
+	m.setupModelStep = setupModelStepNotice
+	m.setupModelProvider = provider
+	m.setupPendingModelID = "Connect " + getProviderDisplayName(provider)
+	m.setupNoticeMessage = strings.Join([]string{
+		"Opening browser to connect " + getProviderDisplayName(provider) + ".",
+		"Complete login in your browser, then return here.",
+	}, "\n")
+	m.setupNoticeHint = "esc to go back"
+	m.setupOAuthPending = true
+	m.setupOAuthProvider = provider
+	m.setupOAuthCancel = cancel
+	m.resize()
+
+	return *m, tea.Batch(
+		runSetupOAuthLoginCommand(ctx, provider, subscriptionProvider, writer),
+		readSetupOAuthOutputCommand(provider, reader),
+		m.setStatus("waiting for oauth login"),
+	)
+}
+
+func runSetupOAuthLoginCommand(
+	ctx context.Context,
+	provider string,
+	subscriptionProvider appcredential.SubscriptionProvider,
+	writer *io.PipeWriter,
+) tea.Cmd {
+	return func() tea.Msg {
+		var output bytes.Buffer
+		multiWriter := io.MultiWriter(writer, &output)
+		credential, err := subscriptionProvider.Login(ctx, appcredential.LoginOptions{
+			Provider: provider,
+			Output:   multiWriter,
+		})
+		if err == nil {
+			err = newSetupCredentialStore().Set(provider, credential)
+		}
+		if closeErr := writer.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+
+		return setupOAuthCompletedMsg{
+			provider: provider,
+			output:   strings.TrimSpace(output.String()),
+			err:      err,
+		}
+	}
+}
+
+func readSetupOAuthOutputCommand(provider string, reader *io.PipeReader) tea.Cmd {
+	return func() tea.Msg {
+		buffer := make([]byte, 1024)
+		n, err := reader.Read(buffer)
+		if err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
+				return setupOAuthOutputMsg{provider: provider, reader: reader}
+			}
+
+			return setupOAuthOutputMsg{provider: provider, reader: reader, err: err}
+		}
+		if n == 0 {
+			return setupOAuthOutputMsg{provider: provider, reader: reader}
+		}
+
+		return setupOAuthOutputMsg{
+			provider: provider,
+			reader:   reader,
+			line:     strings.TrimRight(string(buffer[:n]), "\r\n"),
+		}
+	}
+}
+
+func (m model) updateSetupOAuthOutput(msg setupOAuthOutputMsg) (tea.Model, tea.Cmd) {
+	if !m.isCurrentSetupOAuthLogin(msg.provider) {
+		return m, nil
+	}
+	if msg.err != nil {
+		next, cmd := m.showSetupNotice("Authentication unavailable", msg.err.Error(), "enter to continue")
+		return next, cmd
+	}
+	output := shortenSetupOAuthOutput(msg.line)
+	if output == "" {
+		return m, nil
+	}
+
+	m.setupNoticeMessage = strings.TrimSpace(m.setupNoticeMessage + "\n" + output)
+	m.resize()
+
+	return m, readSetupOAuthOutputCommand(msg.provider, msg.reader)
+}
+
+func shortenSetupOAuthOutput(output string) string {
+	lines := strings.Split(output, "\n")
+	shortened := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = shortenSetupOAuthOutputLine(line)
+		if line != "" {
+			shortened = append(shortened, line)
+		}
+	}
+
+	return strings.Join(shortened, "\n")
+}
+
+func shortenSetupOAuthOutputLine(line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return ""
+	}
+	parsed, err := url.Parse(line)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return line
+	}
+
+	shortURL := parsed.Scheme + "://" + parsed.Host
+	if parsed.EscapedPath() != "" {
+		shortURL += parsed.EscapedPath()
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		shortURL += "..."
+	}
+
+	return "URL: " + shortURL
+}
+
+func (m model) completeSetupOAuthLogin(msg setupOAuthCompletedMsg) (tea.Model, tea.Cmd) {
+	if !m.isCurrentSetupOAuthLogin(msg.provider) {
+		return m, nil
+	}
+	if msg.err != nil {
+		m.cancelSetupOAuthLogin()
+		message := strings.TrimSpace(msg.output)
+		if message != "" {
+			message += "\n"
+		}
+		message += msg.err.Error()
+		next, cmd := m.showSetupNotice("Authentication failed", message, "enter to retry")
+		nextModel := next.(model)
+		nextModel.setupOAuthProvider = msg.provider
+
+		return nextModel, cmd
+	}
+
+	m.cancelSetupOAuthLogin()
+	m.setupOAuthPending = false
+	m.setupOAuthProvider = ""
+	m.setupNoticeMessage = ""
+	m.setupNoticeHint = ""
+	m.resize()
+
+	return m.showSetupModelSelection()
+}
+
+func (m *model) cancelSetupOAuthLogin() {
+	if m.setupOAuthCancel != nil {
+		m.setupOAuthCancel()
+		m.setupOAuthCancel = nil
+	}
+}
+
+func (m model) isCurrentSetupOAuthLogin(provider string) bool {
+	return m.setupOAuthPending &&
+		m.setupModelStep == setupModelStepNotice &&
+		strings.TrimSpace(m.setupOAuthProvider) == strings.TrimSpace(provider)
 }
 
 func (m *model) showSetupProviderAPIKeyPrompt(option rpcclient.ModelOption) (tea.Model, tea.Cmd) {
@@ -755,6 +966,13 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 	case setupModelStepNotice:
 		switch msg.Key().Code {
 		case tea.KeyEnter:
+			if m.setupOAuthPending {
+				return *m, nil
+			}
+			if strings.TrimSpace(m.setupOAuthProvider) != "" {
+				return m.startSetupOAuthLogin(m.setupOAuthProvider)
+			}
+
 			return m.showSetupModelSelection()
 		case tea.KeyEsc, tea.KeyLeft, tea.KeyBackspace:
 			return m.showSetupProviderSelection()
@@ -767,6 +985,7 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 }
 
 func (m *model) showSetupAuthMethodSelection() (tea.Model, tea.Cmd) {
+	m.cancelSetupOAuthLogin()
 	authMethod := strings.TrimSpace(m.setupAuthMethod)
 	m.setupModelStep = setupModelStepAuthMethod
 	m.setupAuthMethod = ""
@@ -777,6 +996,8 @@ func (m *model) showSetupAuthMethodSelection() (tea.Model, tea.Cmd) {
 	m.setupPendingModelID = ""
 	m.setupNoticeMessage = ""
 	m.setupNoticeHint = ""
+	m.setupOAuthPending = false
+	m.setupOAuthProvider = ""
 	for index, option := range setupAuthMethodOptions {
 		if option.ID == authMethod {
 			m.setProfileModelSetupSelection(index, len(setupAuthMethodOptions))
@@ -789,6 +1010,7 @@ func (m *model) showSetupAuthMethodSelection() (tea.Model, tea.Cmd) {
 }
 
 func (m *model) showSetupProviderSelection() (tea.Model, tea.Cmd) {
+	m.cancelSetupOAuthLogin()
 	provider := strings.TrimSpace(m.setupModelProvider)
 	m.setupModelStep = setupModelStepProvider
 	m.setupModels = nil
@@ -797,6 +1019,8 @@ func (m *model) showSetupProviderSelection() (tea.Model, tea.Cmd) {
 	m.setupPendingModelID = ""
 	m.setupNoticeMessage = ""
 	m.setupNoticeHint = ""
+	m.setupOAuthPending = false
+	m.setupOAuthProvider = ""
 	for index, option := range m.setupProviders {
 		if strings.TrimSpace(option.ID) == provider {
 			m.setProfileModelSetupSelection(index, len(m.setupProviders))
@@ -1449,6 +1673,7 @@ func (m model) getProfileModelSetupListFirstRow() int {
 }
 
 func (m *model) clearProfileModelSetup() {
+	m.cancelSetupOAuthLogin()
 	m.setupModelStep = ""
 	m.setupAuthMethod = ""
 	m.setupProviders = nil
@@ -1462,6 +1687,9 @@ func (m *model) clearProfileModelSetup() {
 	m.setupOffset = 0
 	m.modelFilterInput = newModelFilterInput()
 	m.setupDismissible = false
+	m.setupOAuthPending = false
+	m.setupOAuthProvider = ""
+	m.setupOAuthCancel = nil
 }
 
 func (m model) closeProfileSetup() (tea.Model, tea.Cmd) {

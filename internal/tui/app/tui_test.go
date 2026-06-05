@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	agentapi "github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
+	appcredential "github.com/wandxy/hand/internal/credential"
 	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -784,7 +786,14 @@ search:
 	require.NotContains(t, content, "Embedding setup required")
 }
 
-func TestModel_SetupMissingOAuthShowsLoginInstruction(t *testing.T) {
+func TestModel_SetupMissingOAuthStartsLoginAndAdvancesToModels(t *testing.T) {
+	store := newFakeSetupCredentialStore()
+	restore := stubSetupOAuth(t, store, fakeSetupSubscriptionProvider{
+		output:     "Open this URL to authenticate Anthropic:\nhttps://auth.test/login?client_id=very-long-client&state=very-long-state&redirect_uri=http%3A%2F%2Flocalhost%2Fcallback\n",
+		credential: appcredential.StoredCredential{Type: appcredential.TypeOAuth, Token: "oauth-token"},
+	})
+	defer restore()
+
 	runModel := newSetupModelSelectionTestModel(t)
 	selectSetupAuthMethod(t, &runModel, setupAuthMethodSubscription)
 	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -796,19 +805,282 @@ func TestModel_SetupMissingOAuthShowsLoginInstruction(t *testing.T) {
 
 	runModel = updated.(model)
 	require.Equal(t, setupModelStepNotice, runModel.setupModelStep)
+	require.True(t, runModel.setupOAuthPending)
+	require.Equal(t, "anthropic", runModel.setupOAuthProvider)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Connect Anthropic")
+	require.Contains(t, content, "Opening browser to connect Anthropic.")
+	require.Contains(t, content, "Complete login in your browser")
+	require.Contains(t, content, "here.")
+	require.Contains(t, content, "esc to go back")
+	oauthCmd := cmd
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.setupOAuthPending)
+
+	outputMsg, completedMsg := runSetupOAuthBatch(t, oauthCmd)
+	updated, cmd = runModel.Update(outputMsg)
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	content = stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Open this URL to authenticate Anthropic:")
+	require.Contains(t, content, "URL: https://auth.test/login...")
+	require.NotContains(t, content, "client_id=very-long-client")
+
+	updated, cmd = runModel.Update(completedMsg)
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.setupOAuthPending)
+	require.Empty(t, runModel.setupOAuthProvider)
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+	require.Equal(t, "oauth-token", store.credentials["anthropic"].Token)
+	require.Contains(t, stripANSI(runModel.View().Content), "Select model from Anthropic")
+}
+
+func TestModel_SetupSubscriptionProviderSkipsLoginWithExistingOAuthCredential(t *testing.T) {
+	store := newFakeSetupCredentialStore()
+	restore := stubSetupOAuth(t, store, fakeSetupSubscriptionProvider{
+		err: errors.New("login should not run"),
+	})
+	defer restore()
+
+	runModel := newSetupModelSelectionTestModel(t)
+	require.NoError(t, appcredential.NewFileStore("").Set("anthropic", appcredential.StoredCredential{
+		Type:  appcredential.TypeOAuth,
+		Token: "existing-token",
+	}))
+	selectSetupAuthMethod(t, &runModel, setupAuthMethodSubscription)
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupProvider(t, &runModel, "anthropic")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+	require.False(t, runModel.setupOAuthPending)
+	require.Contains(t, stripANSI(runModel.View().Content), "Select model from Anthropic")
+}
+
+func TestModel_SetupOAuthFailureShowsRetryNotice(t *testing.T) {
+	store := newFakeSetupCredentialStore()
+	restore := stubSetupOAuth(t, store, fakeSetupSubscriptionProvider{
+		output: "Open this URL to authenticate Anthropic:\nhttps://auth.test/login\n",
+		err:    errors.New("oauth failed"),
+	})
+	defer restore()
+
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupAuthMethod(t, &runModel, setupAuthMethodSubscription)
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupProvider(t, &runModel, "anthropic")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	_, completedMsg := runSetupOAuthBatch(t, cmd)
+	updated, cmd = runModel.Update(completedMsg)
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepNotice, runModel.setupModelStep)
+	require.False(t, runModel.setupOAuthPending)
+	require.Equal(t, "anthropic", runModel.setupOAuthProvider)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Authentication failed")
+	require.Contains(t, content, "oauth failed")
+	require.Contains(t, content, "enter to retry")
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.setupOAuthPending)
+	require.Equal(t, "anthropic", runModel.setupOAuthProvider)
+	require.Contains(t, stripANSI(runModel.View().Content), "Opening browser to connect Anthropic.")
+}
+
+func TestModel_SetupOAuthBackCancelsPendingLogin(t *testing.T) {
+	store := newFakeSetupCredentialStore()
+	restore := stubSetupOAuth(t, store, fakeSetupSubscriptionProvider{waitForCancel: true})
+	defer restore()
+
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupAuthMethod(t, &runModel, setupAuthMethodSubscription)
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupProvider(t, &runModel, "anthropic")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.setupOAuthPending)
+	require.NotNil(t, runModel.setupOAuthCancel)
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	completedCh := make(chan setupOAuthCompletedMsg, 1)
+	go func() {
+		msg, _ := batch[0]().(setupOAuthCompletedMsg)
+		completedCh <- msg
+	}()
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepProvider, runModel.setupModelStep)
+	require.False(t, runModel.setupOAuthPending)
+	require.Nil(t, runModel.setupOAuthCancel)
+
+	select {
+	case msg := <-completedCh:
+		require.ErrorIs(t, msg.err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for setup oauth cancellation")
+	}
+}
+
+func TestModel_StartSetupOAuthLoginHandlesUnavailableProvider(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+
+	updated, cmd := runModel.startSetupOAuthLogin("")
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "provider selection unavailable", runModel.status.Text())
+
+	restore := stubSetupOAuth(t, newFakeSetupCredentialStore(), nil)
+	defer restore()
+
+	updated, cmd = runModel.startSetupOAuthLogin("anthropic")
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepNotice, runModel.setupModelStep)
+	require.False(t, runModel.setupOAuthPending)
+	require.Contains(t, stripANSI(runModel.View().Content), "Subscription login is not available")
+	require.Contains(t, stripANSI(runModel.View().Content), "for Anthropic.")
+}
+
+func TestModel_SetupOAuthOutputHandlesStaleEmptyAndErrorMessages(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	runModel.setupModelStep = setupModelStepNotice
+	runModel.setupOAuthPending = true
+	runModel.setupOAuthProvider = "anthropic"
+	runModel.setupNoticeMessage = "Waiting"
+
+	updated, cmd := runModel.Update(setupOAuthOutputMsg{provider: "openai", line: "ignored"})
+	require.Nil(t, cmd)
+	require.Equal(t, "Waiting", updated.(model).setupNoticeMessage)
+
+	updated, cmd = runModel.Update(setupOAuthOutputMsg{provider: "anthropic"})
+	require.Nil(t, cmd)
+	require.Equal(t, "Waiting", updated.(model).setupNoticeMessage)
+
+	updated, cmd = runModel.Update(setupOAuthOutputMsg{provider: "anthropic", err: errors.New("pipe failed")})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepNotice, runModel.setupModelStep)
+	require.False(t, runModel.setupOAuthPending)
+	require.Contains(t, stripANSI(runModel.View().Content), "pipe failed")
+}
+
+func TestShortenSetupOAuthOutputLine(t *testing.T) {
+	require.Equal(
+		t,
+		"Open this URL\nURL: https://auth.test/login...",
+		shortenSetupOAuthOutput("Open this URL\nhttps://auth.test/login?client_id=long&state=secret\n"),
+	)
+	require.Equal(t, "", shortenSetupOAuthOutputLine(" "))
+	require.Equal(t, "Enter code: ABCD-EFGH", shortenSetupOAuthOutputLine("Enter code: ABCD-EFGH"))
+	require.Equal(
+		t,
+		"URL: https://auth.openai.com/oauth/authorize...",
+		shortenSetupOAuthOutputLine(
+			"https://auth.openai.com/oauth/authorize?client_id=long&state=secret&redirect_uri=http%3A%2F%2Flocalhost%2Fcallback",
+		),
+	)
+	require.Equal(
+		t,
+		"URL: https://github.com/login/device",
+		shortenSetupOAuthOutputLine("https://github.com/login/device"),
+	)
+}
+
+func TestReadSetupOAuthOutputCommandHandlesClosedPipe(t *testing.T) {
+	reader, writer := io.Pipe()
+	require.NoError(t, writer.Close())
+
+	msg := readSetupOAuthOutputCommand("anthropic", reader)()
+
+	outputMsg, ok := msg.(setupOAuthOutputMsg)
+	require.True(t, ok)
+	require.Equal(t, "anthropic", outputMsg.provider)
+	require.Empty(t, outputMsg.line)
+	require.NoError(t, outputMsg.err)
+
+	reader, writer = io.Pipe()
+	expectedErr := errors.New("pipe failed")
+	require.NoError(t, writer.CloseWithError(expectedErr))
+
+	msg = readSetupOAuthOutputCommand("anthropic", reader)()
+
+	outputMsg, ok = msg.(setupOAuthOutputMsg)
+	require.True(t, ok)
+	require.ErrorIs(t, outputMsg.err, expectedErr)
+}
+
+func TestRunSetupOAuthLoginCommandReturnsStoreFailure(t *testing.T) {
+	store := newFakeSetupCredentialStore()
+	store.err = errors.New("store failed")
+	restore := stubSetupOAuth(t, store, fakeSetupSubscriptionProvider{})
+	defer restore()
+	reader, writer := io.Pipe()
+	require.NoError(t, reader.Close())
+
+	msg := runSetupOAuthLoginCommand(
+		context.Background(),
+		"anthropic",
+		fakeSetupSubscriptionProvider{},
+		writer,
+	)()
+
+	completedMsg, ok := msg.(setupOAuthCompletedMsg)
+	require.True(t, ok)
+	require.Equal(t, "anthropic", completedMsg.provider)
+	require.ErrorContains(t, completedMsg.err, "store failed")
+	require.Empty(t, store.credentials)
+}
+
+func TestModel_CompleteSetupOAuthLoginIgnoresStaleMessage(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	runModel.setupModelStep = setupModelStepNotice
+	runModel.setupOAuthPending = true
+	runModel.setupOAuthProvider = "anthropic"
+
+	updated, cmd := runModel.Update(setupOAuthCompletedMsg{provider: "openai"})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.setupOAuthPending)
+	require.Equal(t, "anthropic", runModel.setupOAuthProvider)
+}
+
+func TestRenderProfileModelSetupNoticeMessageStylesAuthCommand(t *testing.T) {
+	rendered := renderProfileModelSetupNoticeMessage("run hand auth login anthropic in a new terminal", 80)
+
 	require.Contains(
 		t,
-		runModel.View().Content,
+		rendered,
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color(defaultTUITheme.MarkdownLinkForeground)).
 			Render("hand auth login anthropic"),
 	)
-	content := stripANSI(runModel.View().Content)
-	require.Contains(t, content, "Authentication required")
-	require.Contains(t, content, "run hand auth login anthropic in a")
-	require.Contains(t, content, "new")
-	require.Contains(t, content, "terminal")
-	require.Contains(t, content, "esc to go back")
+	require.Contains(t, stripANSI(rendered), "run hand auth login anthropic in a new terminal")
+	require.Empty(t, renderProfileModelSetupNoticeMessage("", 80))
+	require.Empty(t, getProfileModelSetupNoticeAuthCommand("run something else"))
 }
 
 func TestModel_SetupOpenRouterSelectionSetsEmbeddingModel(t *testing.T) {
@@ -4962,6 +5234,118 @@ func requireSetupHintAlignedToBorder(t *testing.T, content string) {
 	require.NotEmpty(t, borderLine)
 	require.NotEmpty(t, hintLine)
 	require.Equal(t, lipgloss.Width(borderLine), lipgloss.Width(visibleHintLine)+1)
+}
+
+type fakeSetupSubscriptionProvider struct {
+	output        string
+	credential    appcredential.StoredCredential
+	err           error
+	waitForCancel bool
+}
+
+func (p fakeSetupSubscriptionProvider) Login(
+	ctx context.Context,
+	options appcredential.LoginOptions,
+) (appcredential.StoredCredential, error) {
+	if options.Output != nil && p.output != "" {
+		_, _ = io.WriteString(options.Output, p.output)
+	}
+	if p.waitForCancel {
+		<-ctx.Done()
+		return appcredential.StoredCredential{}, ctx.Err()
+	}
+	if p.err != nil {
+		return appcredential.StoredCredential{}, p.err
+	}
+	if strings.TrimSpace(p.credential.Type) == "" {
+		p.credential.Type = appcredential.TypeOAuth
+	}
+	if strings.TrimSpace(p.credential.Token) == "" {
+		p.credential.Token = "oauth-token"
+	}
+
+	return p.credential, nil
+}
+
+func (p fakeSetupSubscriptionProvider) Refresh(
+	context.Context,
+	appcredential.StoredCredential,
+) (appcredential.StoredCredential, error) {
+	return appcredential.StoredCredential{}, errors.New("refresh not implemented")
+}
+
+func (p fakeSetupSubscriptionProvider) AuthHeaders(
+	context.Context,
+	appcredential.StoredCredential,
+) (map[string]string, error) {
+	return nil, errors.New("auth headers not implemented")
+}
+
+type fakeSetupCredentialStore struct {
+	credentials map[string]appcredential.StoredCredential
+	err         error
+}
+
+func newFakeSetupCredentialStore() *fakeSetupCredentialStore {
+	return &fakeSetupCredentialStore{credentials: make(map[string]appcredential.StoredCredential)}
+}
+
+func (s *fakeSetupCredentialStore) Set(provider string, credential appcredential.StoredCredential) error {
+	if s.err != nil {
+		return s.err
+	}
+
+	s.credentials[strings.TrimSpace(provider)] = credential
+	return nil
+}
+
+func stubSetupOAuth(
+	t *testing.T,
+	store setupCredentialStore,
+	provider appcredential.SubscriptionProvider,
+) func() {
+	t.Helper()
+
+	originalProvider := getSetupSubscriptionProvider
+	originalStore := newSetupCredentialStore
+	getSetupSubscriptionProvider = func(string) (appcredential.SubscriptionProvider, bool) {
+		return provider, provider != nil
+	}
+	newSetupCredentialStore = func() setupCredentialStore {
+		return store
+	}
+
+	return func() {
+		getSetupSubscriptionProvider = originalProvider
+		newSetupCredentialStore = originalStore
+	}
+}
+
+func runSetupOAuthBatch(t *testing.T, cmd tea.Cmd) (setupOAuthOutputMsg, setupOAuthCompletedMsg) {
+	t.Helper()
+
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, len(batch), 2)
+
+	outputCh := make(chan tea.Msg, 1)
+	go func() {
+		outputCh <- batch[1]()
+	}()
+
+	completedMsg, ok := batch[0]().(setupOAuthCompletedMsg)
+	require.True(t, ok)
+
+	select {
+	case msg := <-outputCh:
+		outputMsg, ok := msg.(setupOAuthOutputMsg)
+		require.True(t, ok)
+		return outputMsg, completedMsg
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for setup oauth output")
+		return setupOAuthOutputMsg{}, setupOAuthCompletedMsg{}
+	}
 }
 
 func getTranscriptContentRow(t *testing.T, runModel model, needle string) int {
