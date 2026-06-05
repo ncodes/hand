@@ -49,6 +49,7 @@ const (
 	setupModelLoginMinWidth = 52
 	setupModelMaxListHeight = 8
 	setupModelFilterWidth   = 18
+	setupCloseHint          = "ctrl+x to close"
 )
 
 var validUserName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*$`)
@@ -213,13 +214,8 @@ func (m model) renderNamePrompt() string {
 		hintColor = defaultTUITheme.ToolDeletion
 	} else if m.setupNamePromptActive {
 		hintText = "Enter to continue"
-		if m.setupDismissible {
-			hintText += " · esc to close"
-		}
 	}
-	hint := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(hintColor)).
-		Render(hintText)
+	hint := m.renderNamePromptHint(hintText, hintColor, lipgloss.Width(inputBox))
 	content := lipgloss.JoinVertical(
 		lipgloss.Center,
 		mark,
@@ -267,6 +263,19 @@ func (m model) renderEmptyUserPrompt() string {
 	)
 }
 
+func (m model) renderNamePromptHint(hintText string, hintColor string, width int) string {
+	width = max(width, 1)
+	hintText = strings.TrimSpace(hintText)
+	if m.setupDismissible {
+		return renderProfileModelSetupSplitHint(hintText, setupCloseHint, width)
+	}
+
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(hintColor)).
+		Width(width).
+		Render(renderProfileModelSetupPaddedLabel(hintText, width))
+}
+
 func (m model) renderEmptyUserPromptContent() string {
 	width := m.transcript.Width()
 	if width <= 0 {
@@ -282,6 +291,9 @@ func (m model) renderEmptyUserPromptContent() string {
 }
 
 func (m model) handleNamePromptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.setupDismissible && isSetupCloseKey(msg) {
+		return m.closeProfileSetup()
+	}
 	if msg.Key().Code == tea.KeyEsc && m.setupDismissible {
 		return m.closeProfileSetup()
 	}
@@ -690,6 +702,10 @@ func setupEmbeddingConfigUpdates(provider string) []config.ConfigUpdate {
 }
 
 func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.setupDismissible && isSetupCloseKey(msg) {
+		return m.closeProfileSetup()
+	}
+
 	switch m.setupModelStep {
 	case setupModelStepAuthMethod:
 		if msg.Key().Code == tea.KeyEsc {
@@ -1006,7 +1022,7 @@ func (m model) renderProfileModelSetupModelList() string {
 	hint := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
 		Width(boxWidth).
-		Render(renderProfileModelSetupPaddedLabel("enter to select · esc to go back", boxWidth))
+		Render(m.renderProfileModelSetupHint("enter to select · esc to go back", boxWidth))
 
 	return m.renderProfileModelSetupFrameWithTitleContent(
 		m.renderProfileModelSetupModelTitle(boxWidth),
@@ -1075,10 +1091,7 @@ func (m model) renderInlineModelFilterInput(width int) string {
 
 func (m model) renderProfileModelSetupFrame(title string, hintText string, body string) string {
 	boxWidth := m.getProfileModelSetupBoxWidth()
-	hint := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
-		Width(boxWidth).
-		Render(renderProfileModelSetupPaddedLabel(strings.TrimSpace(hintText), boxWidth))
+	hint := m.renderProfileModelSetupHint(hintText, boxWidth)
 
 	return m.renderProfileModelSetupFrameWithHint(title, hint, body)
 }
@@ -1263,7 +1276,7 @@ func (m model) renderProfileModelSetupAPIKey() string {
 		Padding(0, 1).
 		Width(boxWidth).
 		Render(input.View())
-	hint := renderProfileModelSetupSplitHint("enter to save", "esc to go back", lipgloss.Width(body))
+	hint := renderProfileModelSetupAPIKeyHint(m.setupDismissible, lipgloss.Width(body))
 
 	return m.renderProfileModelSetupFrameWithHint(
 		"Enter API key for "+getProviderDisplayName(m.setupModelProvider),
@@ -1278,14 +1291,34 @@ func renderProfileModelSetupSplitHint(left string, right string, width int) stri
 	right = strings.TrimSpace(right)
 	leftWidth := lipgloss.Width(left)
 	rightWidth := lipgloss.Width(right)
-	innerWidth := max(width-2, 1)
-	spacer := max(innerWidth-leftWidth-rightWidth, 1)
+	spacer := max(width-2-leftWidth-rightWidth, 1)
 	row := " " + left + strings.Repeat(" ", spacer) + right + " "
 
 	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
 		Width(width).
 		Render(row)
+}
+
+func (m model) renderProfileModelSetupHint(hintText string, width int) string {
+	width = max(width, 1)
+	hintText = strings.TrimSpace(hintText)
+	if m.setupDismissible {
+		return renderProfileModelSetupSplitHint(hintText, setupCloseHint, width)
+	}
+
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Width(width).
+		Render(renderProfileModelSetupPaddedLabel(hintText, width))
+}
+
+func renderProfileModelSetupAPIKeyHint(dismissible bool, width int) string {
+	if dismissible {
+		return renderProfileModelSetupSplitHint("enter to save · esc to go back", setupCloseHint, width)
+	}
+
+	return renderProfileModelSetupSplitHint("enter to save", "esc to go back", width)
 }
 
 func renderProfileModelSetupPaddedLabel(label string, width int) string {
@@ -1306,9 +1339,8 @@ func (m model) renderProfileModelSetupNotice() string {
 	}
 
 	message := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
 		Width(max(boxWidth-2, 1)).
-		Render(strings.TrimSpace(wordwrap.String(strings.TrimSpace(m.setupNoticeMessage), max(boxWidth-2, 1))))
+		Render(renderProfileModelSetupNoticeMessage(m.setupNoticeMessage, max(boxWidth-2, 1)))
 	body := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(defaultTUITheme.InputFrameBorder)).
@@ -1321,6 +1353,49 @@ func (m model) renderProfileModelSetupNotice() string {
 		hint,
 		body,
 	)
+}
+
+func renderProfileModelSetupNoticeMessage(message string, width int) string {
+	width = max(width, 1)
+	wrapped := strings.TrimSpace(wordwrap.String(strings.TrimSpace(message), width))
+	if wrapped == "" {
+		return ""
+	}
+
+	lines := strings.Split(wrapped, "\n")
+	for index, line := range lines {
+		lines[index] = renderProfileModelSetupNoticeMessageLine(line)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func renderProfileModelSetupNoticeMessageLine(line string) string {
+	command := getProfileModelSetupNoticeAuthCommand(line)
+	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.MutedText))
+	if command == "" {
+		return mutedStyle.Render(line)
+	}
+
+	commandIndex := strings.Index(line, command)
+	commandStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.MarkdownLinkForeground))
+
+	return strings.Join([]string{
+		mutedStyle.Render(line[:commandIndex]),
+		commandStyle.Render(command),
+		mutedStyle.Render(line[commandIndex+len(command):]),
+	}, "")
+}
+
+func getProfileModelSetupNoticeAuthCommand(line string) string {
+	fields := strings.Fields(line)
+	for index := 0; index+3 < len(fields); index++ {
+		if fields[index] == "hand" && fields[index+1] == "auth" && fields[index+2] == "login" {
+			return strings.Join(fields[index:index+4], " ")
+		}
+	}
+
+	return ""
 }
 
 func (m model) getProfileModelSetupListHeight() int {
@@ -1356,7 +1431,7 @@ func (m model) getProfileModelSetupListWidth() int {
 func (m model) getProfileModelSetupBoxWidth() int {
 	width := max(m.transcript.Width(), m.getMainPaneWidth())
 	minWidth := setupModelMinWidth
-	if m.getProfileModelSetupLoginMethodLabel() != "" {
+	if m.setupDismissible || m.getProfileModelSetupLoginMethodLabel() != "" {
 		minWidth = max(minWidth, setupModelLoginMinWidth)
 	}
 
@@ -1401,6 +1476,10 @@ func (m model) closeProfileSetup() (tea.Model, tea.Cmd) {
 	m.setTranscriptContent()
 
 	return m, m.setStatus("setup closed")
+}
+
+func isSetupCloseKey(msg tea.KeyPressMsg) bool {
+	return msg.Keystroke() == "ctrl+x"
 }
 
 func getSetupModelProvider(provider string, option rpcclient.ModelOption) string {

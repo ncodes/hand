@@ -796,6 +796,13 @@ func TestModel_SetupMissingOAuthShowsLoginInstruction(t *testing.T) {
 
 	runModel = updated.(model)
 	require.Equal(t, setupModelStepNotice, runModel.setupModelStep)
+	require.Contains(
+		t,
+		runModel.View().Content,
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color(defaultTUITheme.MarkdownLinkForeground)).
+			Render("hand auth login anthropic"),
+	)
 	content := stripANSI(runModel.View().Content)
 	require.Contains(t, content, "Authentication required")
 	require.Contains(t, content, "run hand auth login anthropic in a")
@@ -2283,10 +2290,10 @@ func TestModel_UpdateHandlesSetupCommand(t *testing.T) {
 	require.Empty(t, runModel.input.Value())
 	require.Contains(t, stripANSI(runModel.View().Content), namePromptTitle)
 	require.Contains(t, stripANSI(runModel.View().Content), "Nedy")
-	require.Contains(t, stripANSI(runModel.View().Content), "esc to close")
+	require.Contains(t, stripANSI(runModel.View().Content), "ctrl+x to close")
 	require.Equal(t, "enter your name", runModel.status.Text())
 
-	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'x', Mod: tea.ModCtrl}))
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.False(t, runModel.shouldShowNamePrompt())
@@ -2306,12 +2313,16 @@ func TestModel_UpdateHandlesSetupCommand(t *testing.T) {
 	require.Equal(t, setupModelStepAuthMethod, runModel.setupModelStep)
 	require.Contains(t, stripANSI(runModel.View().Content), "Select login method")
 	require.Contains(t, stripANSI(runModel.View().Content), "esc to go back")
+	require.Contains(t, stripANSI(runModel.View().Content), "ctrl+x to close")
+	requireSetupHintAlignedToBorder(t, stripANSI(runModel.View().Content))
 
 	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, setupModelStepProvider, runModel.setupModelStep)
 	require.Contains(t, stripANSI(runModel.View().Content), "esc to go back")
+	require.Contains(t, stripANSI(runModel.View().Content), "ctrl+x to close")
+	requireSetupHintAlignedToBorder(t, stripANSI(runModel.View().Content))
 
 	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
 	require.NotNil(t, cmd)
@@ -2328,13 +2339,56 @@ func TestModel_UpdateHandlesSetupCommand(t *testing.T) {
 	require.True(t, runModel.setupDismissible)
 	require.Equal(t, "Nedy", runModel.nameInput.Value())
 
-	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'x', Mod: tea.ModCtrl}))
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.False(t, runModel.shouldShowNamePrompt())
 	require.False(t, runModel.shouldShowProfileModelSetup())
 	require.False(t, runModel.setupDismissible)
 	require.Equal(t, "setup closed", runModel.status.Text())
+}
+
+func TestModel_SetupCloseHotKeyClosesFromAnySetupStep(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	runModel.setupDismissible = true
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'x', Mod: tea.ModCtrl}))
+	require.NotNil(t, cmd)
+	closed := updated.(model)
+	require.False(t, closed.shouldShowProfileModelSetup())
+	require.False(t, closed.setupDismissible)
+	require.Equal(t, "setup closed", closed.status.Text())
+
+	runModel = newSetupModelSelectionTestModel(t)
+	runModel.setupDismissible = true
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepProvider, runModel.setupModelStep)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'x', Mod: tea.ModCtrl}))
+	require.NotNil(t, cmd)
+	closed = updated.(model)
+	require.False(t, closed.shouldShowProfileModelSetup())
+	require.False(t, closed.setupDismissible)
+	require.Equal(t, "setup closed", closed.status.Text())
+
+	runModel = newSetupModelSelectionTestModel(t)
+	runModel.setupDismissible = true
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepAPIKey, runModel.setupModelStep)
+	require.Contains(t, stripANSI(runModel.View().Content), "ctrl+x to close")
+	requireSetupHintAlignedToBorder(t, stripANSI(runModel.View().Content))
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'x', Mod: tea.ModCtrl}))
+	require.NotNil(t, cmd)
+	closed = updated.(model)
+	require.False(t, closed.shouldShowProfileModelSetup())
+	require.False(t, closed.setupDismissible)
+	require.Equal(t, "setup closed", closed.status.Text())
 }
 
 func TestModel_UpdateSubmitsDefaultCommandMenuItemForBareSlash(t *testing.T) {
@@ -4897,6 +4951,17 @@ func getLineContaining(content string, value string) string {
 	}
 
 	return ""
+}
+
+func requireSetupHintAlignedToBorder(t *testing.T, content string) {
+	t.Helper()
+
+	borderLine := strings.TrimRight(getLineContaining(content, "╭"), " ")
+	hintLine := getLineContaining(content, setupCloseHint)
+	visibleHintLine := strings.TrimRight(hintLine, " ")
+	require.NotEmpty(t, borderLine)
+	require.NotEmpty(t, hintLine)
+	require.Equal(t, lipgloss.Width(borderLine), lipgloss.Width(visibleHintLine)+1)
 }
 
 func getTranscriptContentRow(t *testing.T, runModel model, needle string) int {
