@@ -47,6 +47,7 @@ const (
 	setupModelMaxWidth      = 72
 	setupModelMinWidth      = 34
 	setupModelMaxListHeight = 8
+	setupModelFilterWidth   = 18
 )
 
 var validUserName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*$`)
@@ -419,6 +420,7 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 
 	m.setupModels = models
 	m.setupModelProvider = providerID
+	m.modelFilterInput = newModelFilterInput()
 	m.setupItemSelected = 0
 	m.setupOffset = 0
 
@@ -437,11 +439,12 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 }
 
 func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
-	if len(m.setupModels) == 0 {
+	models := m.filteredSetupModels()
+	if len(models) == 0 {
 		return *m, nil
 	}
 
-	option := m.setupModels[m.setupItemSelected]
+	option := models[min(max(m.setupItemSelected, 0), len(models)-1)]
 	apiKey := strings.TrimSpace(m.setupProviderAPIKey)
 	if apiKey == "" {
 		if err := m.checkSetupModelAuth(option); err != nil {
@@ -652,12 +655,21 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 
 		return m.handleProfileModelSetupListKey(msg, len(m.setupProviders), m.selectCurrentSetupProviderOption)
 	case setupModelStepModel:
+		if isModelFilterKey(msg) {
+			var cmd tea.Cmd
+			m.modelFilterInput, cmd = m.modelFilterInput.Update(msg)
+			m.setupItemSelected = 0
+			m.setupOffset = 0
+			m.resize()
+			return *m, cmd
+		}
+
 		switch msg.Key().Code {
-		case tea.KeyLeft, tea.KeyBackspace:
+		case tea.KeyLeft:
 			return m.showSetupProviderSelection()
 		}
 
-		return m.handleProfileModelSetupListKey(msg, len(m.setupModels), m.selectCurrentSetupModelOption)
+		return m.handleProfileModelSetupListKey(msg, len(m.filteredSetupModels()), m.selectCurrentSetupModelOption)
 	case setupModelStepAPIKey:
 		switch msg.Key().Code {
 		case tea.KeyEsc:
@@ -774,6 +786,14 @@ func (m *model) handleProfileModelSetupListKey(
 }
 
 func (m *model) handleProfileModelSetupPaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.setupModelStep == setupModelStepModel {
+		var cmd tea.Cmd
+		m.modelFilterInput, cmd = m.modelFilterInput.Update(msg)
+		m.setupItemSelected = 0
+		m.setupOffset = 0
+		m.resize()
+		return *m, cmd
+	}
 	if m.setupModelStep != setupModelStepAPIKey {
 		return *m, nil
 	}
@@ -794,7 +814,7 @@ func (m *model) handleProfileModelSetupWheel(msg tea.MouseWheelMsg) (tea.Model, 
 	case setupModelStepProvider:
 		count = len(m.setupProviders)
 	case setupModelStepModel:
-		count = len(m.setupModels)
+		count = len(m.filteredSetupModels())
 	default:
 		return *m, nil
 	}
@@ -826,7 +846,7 @@ func (m *model) handleProfileModelSetupClick(msg tea.MouseClickMsg) (tea.Model, 
 		count = len(m.setupProviders)
 		submit = m.selectCurrentSetupProviderOption
 	case setupModelStepModel:
-		count = len(m.setupModels)
+		count = len(m.filteredSetupModels())
 		submit = m.selectCurrentSetupModelOption
 	default:
 		return *m, nil
@@ -879,11 +899,7 @@ func (m model) renderProfileModelSetup() string {
 			m.renderProfileModelSetupProviderRows(),
 		)
 	case setupModelStepModel:
-		return m.renderProfileModelSetupList(
-			"Select model from "+getProviderDisplayName(m.setupModelProvider),
-			"enter to select · backspace to providers",
-			m.renderProfileModelSetupModelRows(),
-		)
+		return m.renderProfileModelSetupModelList()
 	case setupModelStepAPIKey:
 		return m.renderProfileModelSetupAPIKey()
 	case setupModelStepNotice:
@@ -926,6 +942,55 @@ func (m model) renderProfileModelSetupList(title string, hintText string, rows [
 	return m.renderProfileModelSetupFrame(title, hintText, list)
 }
 
+func (m model) renderProfileModelSetupModelList() string {
+	boxWidth := m.getProfileModelSetupBoxWidth()
+
+	list := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(defaultTUITheme.InputFrameBorder)).
+		Width(boxWidth).
+		Render(strings.Join(m.renderProfileModelSetupModelRows(), "\n"))
+
+	hint := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Width(boxWidth).
+		Render(renderProfileModelSetupPaddedLabel("enter to select · left to providers", boxWidth))
+
+	return m.renderProfileModelSetupFrameWithTitleContent(
+		m.renderProfileModelSetupModelTitle(boxWidth),
+		hint,
+		list,
+	)
+}
+
+func (m model) renderProfileModelSetupModelTitle(width int) string {
+	width = max(width, 1)
+	title := "Select model from " + getProviderDisplayName(m.setupModelProvider)
+	inputWidth := min(setupModelFilterWidth, max(width/2, 10))
+	titleWidth := max(width-inputWidth-1, 1)
+	titleText := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground)).
+		Bold(true).
+		Render(renderProfileModelSetupPaddedLabel(title, titleWidth))
+	filter := m.renderInlineModelFilterInput(inputWidth)
+	gap := max(width-lipgloss.Width(titleText)-lipgloss.Width(filter), 1)
+
+	return titleText + strings.Repeat(" ", gap) + filter
+}
+
+func (m model) renderInlineModelFilterInput(width int) string {
+	width = max(width, 1)
+	input := m.modelFilterInput
+	input.SetWidth(width)
+	content := truncateCommandMenuText(input.View(), width)
+	content += strings.Repeat(" ", max(width-lipgloss.Width(content), 0))
+
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Width(width).
+		Render(content)
+}
+
 func (m model) renderProfileModelSetupFrame(title string, hintText string, body string) string {
 	boxWidth := m.getProfileModelSetupBoxWidth()
 	hint := lipgloss.NewStyle().
@@ -955,6 +1020,26 @@ func (m model) renderProfileModelSetupFrameWithHint(title string, hint string, b
 		mark,
 		"",
 		titleText,
+		body,
+		hint,
+	)
+
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, content)
+}
+
+func (m model) renderProfileModelSetupFrameWithTitleContent(titleContent string, hint string, body string) string {
+	width := max(m.transcript.Width(), m.getMainPaneWidth())
+	height := max(m.transcript.Height(), 1)
+	boxWidth := m.getProfileModelSetupBoxWidth()
+	mark := lipgloss.NewStyle().
+		Width(boxWidth + 2).
+		Align(lipgloss.Center).
+		Render(renderHandBanner(handHeaderMark))
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		mark,
+		"",
+		titleContent,
 		body,
 		hint,
 	)
@@ -1062,21 +1147,30 @@ func getProfileModelSetupProviderDescription(provider rpcclient.ProviderOption, 
 
 func (m model) renderProfileModelSetupModelRows() []string {
 	height := m.getProfileModelSetupListHeight()
-	end := min(m.setupOffset+height, len(m.setupModels))
+	models := m.filteredSetupModels()
+	end := min(m.setupOffset+height, len(models))
 	rows := make([]string, 0, max(end-m.setupOffset, 1))
-	for index := m.setupOffset; index < end; index++ {
-		row := renderModelsCommandRow(
-			m.setupModels[index],
-			m.getProfileModelSetupListWidth(),
-			index == m.setupItemSelected,
-		)
-		rows = append(rows, row)
+	if len(models) == 0 {
+		rows = append(rows, renderNoMatchingModelsRow(m.getProfileModelSetupListWidth()))
+	} else {
+		for index := m.setupOffset; index < end; index++ {
+			row := renderModelsCommandRow(
+				models[index],
+				m.getProfileModelSetupListWidth(),
+				index == m.setupItemSelected,
+			)
+			rows = append(rows, row)
+		}
 	}
 	for len(rows) < height {
 		rows = append(rows, "")
 	}
 
 	return rows
+}
+
+func (m model) filteredSetupModels() []rpcclient.ModelOption {
+	return filterModelOptions(m.setupModels, m.modelFilterInput.Value())
 }
 
 func (m model) renderProfileModelSetupAPIKey() string {
@@ -1204,6 +1298,7 @@ func (m *model) clearProfileModelSetup() {
 	m.setupNoticeHint = ""
 	m.setupItemSelected = 0
 	m.setupOffset = 0
+	m.modelFilterInput = newModelFilterInput()
 }
 
 func getSetupModelProvider(provider string, option rpcclient.ModelOption) string {

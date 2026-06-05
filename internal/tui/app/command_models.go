@@ -75,6 +75,27 @@ func newProviderAPIKeyInput(placeholder string) textinput.Model {
 	return input
 }
 
+func newModelFilterInput() textinput.Model {
+	input := textinput.New()
+	input.Prompt = ""
+	input.Placeholder = "Filter models"
+	input.CharLimit = 120
+	input.SetWidth(24)
+	input.Focus()
+
+	styles := input.Styles()
+	styles.Focused.Text = styles.Focused.Text.
+		Foreground(lipgloss.Color(defaultTUITheme.MarkdownLinkForeground)).
+		UnsetBackground()
+	styles.Focused.Placeholder = styles.Focused.Placeholder.
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		UnsetBackground()
+	styles.Focused.Prompt = styles.Focused.Prompt.UnsetBackground()
+	input.SetStyles(styles)
+
+	return input
+}
+
 func (m *model) startProvidersCommand() tea.Cmd {
 	return tea.Batch(
 		m.setStatus("loading providers"),
@@ -149,6 +170,7 @@ func (m *model) completeModelsCommand(msg modelsLoadedMsg) tea.Cmd {
 		ModelProvider:   msg.List.Provider,
 		ModelAuthType:   msg.List.AuthType,
 	})
+	m.modelFilterInput = newModelFilterInput()
 
 	return nil
 }
@@ -242,25 +264,80 @@ func getProviderOptionDetail(provider rpcclient.ProviderOption) string {
 }
 
 func (m model) renderModelsCommandViewContent(content commandViewContent) string {
-	models := m.commandView.Models
-	if len(models) == 0 {
+	if len(m.commandView.Models) == 0 {
 		return "No models available."
 	}
 
+	filterBlock := m.renderModelFilterBlock(content.Width)
+	filterHeight := lipgloss.Height(filterBlock)
+	height := max(content.Height-filterHeight, 1)
+	models := m.filteredCommandModels()
 	offset := min(max(content.Offset, 0), max(len(models)-1, 0))
-	height := max(content.Height, 1)
 	end := min(offset+height, len(models))
-	rows := make([]string, 0, end-offset)
-	for index := offset; index < end; index++ {
-		row := renderModelsCommandRow(models[index], content.Width, index == m.commandViewItemSelected)
-		rows = append(rows, row)
+	rows := make([]string, 0, height+filterHeight)
+	rows = append(rows, strings.Split(filterBlock, "\n")...)
+	if len(models) == 0 {
+		rows = append(rows, renderNoMatchingModelsRow(content.Width))
+	} else {
+		for index := offset; index < end; index++ {
+			row := renderModelsCommandRow(models[index], content.Width, index == m.commandViewItemSelected)
+			rows = append(rows, row)
+		}
 	}
 
-	for len(rows) <= height+1 {
+	for len(rows) < height+filterHeight {
 		rows = append(rows, "")
 	}
 
 	return strings.Join(rows, "\n")
+}
+
+func renderNoMatchingModelsRow(width int) string {
+	width = max(width, 1)
+	if width == 1 {
+		return " "
+	}
+
+	return " " + truncateCommandMenuText("No matching models.", width-1)
+}
+
+func (m model) renderModelFilterBlock(width int) string {
+	return strings.Join([]string{"", m.renderModelFilterRow(width), ""}, "\n")
+}
+
+func (m model) renderModelFilterRow(width int) string {
+	width = max(width, 1)
+	input := m.modelFilterInput
+	input.SetWidth(max(width-1, 1))
+
+	return lipgloss.NewStyle().
+		Width(width).
+		PaddingLeft(1).
+		Render(input.View())
+}
+
+func (m model) filteredCommandModels() []rpcclient.ModelOption {
+	return filterModelOptions(m.commandView.Models, m.modelFilterInput.Value())
+}
+
+func filterModelOptions(models []rpcclient.ModelOption, query string) []rpcclient.ModelOption {
+	query = strings.TrimSpace(strings.ToLower(query))
+	if query == "" {
+		return models
+	}
+
+	filtered := make([]rpcclient.ModelOption, 0, len(models))
+	for _, model := range models {
+		haystack := strings.ToLower(strings.Join([]string{
+			model.ID,
+			model.Name,
+		}, " "))
+		if strings.Contains(haystack, query) {
+			filtered = append(filtered, model)
+		}
+	}
+
+	return filtered
 }
 
 func renderModelsCommandRow(model rpcclient.ModelOption, width int, selected bool) string {
@@ -423,13 +500,30 @@ func (m *model) updateModelsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.completeSelectModel(selected)
 	}
 
+	models := m.filteredCommandModels()
 	if len(m.commandView.Models) == 0 {
 		return *m, nil
 	}
 
 	selection := m.commandViewItemSelected
 	switch msg := msg.(type) {
+	case tea.PasteMsg:
+		var cmd tea.Cmd
+		m.modelFilterInput, cmd = m.modelFilterInput.Update(msg)
+		m.commandViewItemSelected = 0
+		m.commandViewOffset = 0
+		m.clearCommandViewSelection()
+		return *m, cmd
 	case tea.KeyPressMsg:
+		if isModelFilterKey(msg) {
+			var cmd tea.Cmd
+			m.modelFilterInput, cmd = m.modelFilterInput.Update(msg)
+			m.commandViewItemSelected = 0
+			m.commandViewOffset = 0
+			m.clearCommandViewSelection()
+			return *m, cmd
+		}
+
 		switch msg.Key().Code {
 		case tea.KeyUp:
 			selection--
@@ -438,14 +532,17 @@ func (m *model) updateModelsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyHome:
 			selection = 0
 		case tea.KeyEnd:
-			selection = len(m.commandView.Models) - 1
+			selection = len(models) - 1
 		case tea.KeyPgUp:
 			selection -= max(m.getCommandViewContentHeight(), 1)
 		case tea.KeyPgDown:
 			selection += max(m.getCommandViewContentHeight(), 1)
-		case tea.KeyLeft, tea.KeyBackspace:
+		case tea.KeyLeft:
 			return m.showProvidersFromModelCommand()
 		case tea.KeyEnter:
+			if len(models) == 0 {
+				return *m, nil
+			}
 			return m.selectCurrentModelOption()
 		default:
 			return *m, nil
@@ -463,12 +560,18 @@ func (m *model) updateModelsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return *m, nil
 	}
 
-	m.commandViewItemSelected = min(max(selection, 0), len(m.commandView.Models)-1)
+	if len(models) == 0 {
+		m.commandViewItemSelected = 0
+		m.commandViewOffset = 0
+		return *m, nil
+	}
+
+	m.commandViewItemSelected = min(max(selection, 0), len(models)-1)
 	m.commandViewOffset = getChatsCommandViewOffsetForSelection(
 		m.commandViewItemSelected,
 		m.commandViewOffset,
-		m.getCommandViewContentHeight(),
-		len(m.commandView.Models),
+		max(m.getCommandViewContentHeight()-lipgloss.Height(m.renderModelFilterBlock(m.getCommandViewContentWidth())), 1),
+		len(models),
 	)
 	m.clearCommandViewSelection()
 
@@ -506,7 +609,7 @@ func normalizeProviderAPIKeyPaste(value string) string {
 }
 
 func getModelsCommandTitleRight() string {
-	return "enter to select · left/backspace to providers · esc to close"
+	return "enter to select · left to providers · esc to close"
 }
 
 func getProvidersCommandTitleRight() string {
@@ -541,8 +644,23 @@ func (m *model) showProvidersFromModelCommand() (tea.Model, tea.Cmd) {
 	return *m, nil
 }
 
+func isModelFilterKey(msg tea.KeyPressMsg) bool {
+	key := msg.Key()
+	switch key.Code {
+	case tea.KeyBackspace, tea.KeyDelete:
+		return true
+	}
+
+	return key.Mod == 0 && (key.Text != "" || key.Code >= ' ' && key.Code <= '~')
+}
+
 func (m *model) selectCurrentModelOption() (tea.Model, tea.Cmd) {
-	model := m.commandView.Models[m.commandViewItemSelected]
+	models := m.filteredCommandModels()
+	if len(models) == 0 {
+		return *m, nil
+	}
+
+	model := models[min(max(m.commandViewItemSelected, 0), len(models)-1)]
 	modelID := strings.TrimSpace(model.ID)
 	if modelID == "" {
 		return *m, m.setStatus("model selection unavailable")

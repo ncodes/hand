@@ -29,7 +29,7 @@ func TestModel_StartModelsCommandLoadsModels(t *testing.T) {
 	require.Zero(t, client.listModelCalls)
 	require.Equal(t, commandViewKindModels, runModel.commandView.Kind)
 	require.Equal(t, "Models", runModel.commandView.TitleLeft)
-	require.Equal(t, "enter to select · left/backspace to providers · esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "enter to select · left to providers · esc to close", runModel.commandView.TitleRight)
 	require.Equal(t, "OpenRouter", runModel.commandView.TitleSubtext)
 	require.Equal(t, "openrouter", runModel.commandView.ModelProvider)
 	require.NotEmpty(t, runModel.commandView.Models)
@@ -235,7 +235,7 @@ func TestModel_RenderModelsCommandViewHighlightsCurrentAndSelection(t *testing.T
 		},
 	})
 
-	content := stripANSI(runModel.renderModelsCommandViewContent(commandViewContent{Width: 48, Height: 2}))
+	content := stripANSI(runModel.renderModelsCommandViewContent(commandViewContent{Width: 48, Height: 5}))
 
 	require.Contains(t, content, "GPT 5.4 Mini")
 	require.Contains(t, content, "272k")
@@ -273,6 +273,60 @@ func TestModel_RenderModelsCommandViewHandlesEmptyAndContextLength(t *testing.T)
 		ContextWindow: 1000000,
 	}))
 	require.Empty(t, getModelOptionMutedDetail(rpcclient.ModelOption{SupportsOAuth: true}))
+}
+
+func TestModel_UpdateModelsCommandViewFiltersModels(t *testing.T) {
+	runModel := newModel()
+	runModel.showCommandView(commandViewPayload{
+		Kind: commandViewKindModels,
+		Models: []rpcclient.ModelOption{
+			{ID: "gpt-5.4-mini", Name: "GPT 5.4 Mini"},
+			{ID: "claude-sonnet-4.5", Name: "Claude Sonnet 4.5"},
+		},
+	})
+	runModel.commandViewItemSelected = 1
+
+	content := stripANSI(runModel.renderModelsCommandViewContent(commandViewContent{Width: 48, Height: 5}))
+	require.Contains(t, content, "Filter models")
+
+	updated, cmd := runModel.updateModelsCommandView(tea.KeyPressMsg{Code: 's', Text: "s"})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, "s", runModel.modelFilterInput.Value())
+	require.Zero(t, runModel.commandViewItemSelected)
+	require.Len(t, runModel.filteredCommandModels(), 1)
+	require.Equal(t, "claude-sonnet-4.5", runModel.filteredCommandModels()[0].ID)
+
+	content = stripANSI(runModel.renderModelsCommandViewContent(commandViewContent{Width: 48, Height: 5}))
+	require.Contains(t, content, "Claude Sonnet 4.5")
+	require.NotContains(t, content, "GPT 5.4 Mini")
+	require.Equal(t, 5, lipgloss.Height(content))
+
+	updated, cmd = runModel.updateModelsCommandView(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.modelFilterInput.Value())
+	require.Len(t, runModel.filteredCommandModels(), 2)
+
+	updated, cmd = runModel.updateModelsCommandView(tea.PasteMsg{Content: "missing"})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	content = stripANSI(runModel.renderModelsCommandViewContent(commandViewContent{Width: 48, Height: 5}))
+	require.Contains(t, content, "No matching models.")
+	require.Contains(t, content, "\n No matching models.")
+	require.Equal(t, 5, lipgloss.Height(content))
+}
+
+func TestFilterModelOptionsIgnoresProviderMetadata(t *testing.T) {
+	models := []rpcclient.ModelOption{
+		{ID: "gpt-5.5", Name: "GPT-5.5", Provider: "openai-codex"},
+		{ID: "gpt-5.3-codex-spark", Name: "GPT-5.3 Codex Spark", Provider: "openai-codex"},
+	}
+
+	filtered := filterModelOptions(models, "codex")
+
+	require.Equal(t, []rpcclient.ModelOption{models[1]}, filtered)
 }
 
 func TestRenderModelsCommandRowStylesSelectedLabelOnly(t *testing.T) {

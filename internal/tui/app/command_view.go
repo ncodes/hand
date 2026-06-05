@@ -97,13 +97,18 @@ func (m model) renderCommandView() string {
 		height++
 	}
 
+	body := lipgloss.JoinVertical(lipgloss.Left, frame.Title, "", content)
+	if m.isModelsCommandView() {
+		body = lipgloss.JoinVertical(lipgloss.Left, frame.Title, content)
+	}
+
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(frame.BorderColor)).
 		Padding(0, 1).
 		Width(frame.Width).
 		Height(height).
-		Render(lipgloss.JoinVertical(lipgloss.Left, frame.Title, "", content))
+		Render(body)
 }
 
 func (m model) getCommandViewFrame() commandViewFrame {

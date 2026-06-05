@@ -23,11 +23,12 @@ const (
 
 // model is the root Bubble Tea application state for the interactive shell.
 type model struct {
-	transcript  viewport.Model
-	input       textarea.Model
-	apiKeyInput textinput.Model
-	nameInput   textinput.Model
-	renameInput textinput.Model
+	transcript       viewport.Model
+	input            textarea.Model
+	apiKeyInput      textinput.Model
+	modelFilterInput textinput.Model
+	nameInput        textinput.Model
+	renameInput      textinput.Model
 	tuiState
 	chatClient    rpcclient.ChatAPI
 	sessionClient rpcclient.SessionAPI
@@ -65,14 +66,15 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	runtimeInfo := runtimeInfoFromConfig(cfg)
 	activeProfile := profile.WithMetadataPaths(profile.Active())
 	appModel := model{
-		transcript:  newTranscript(),
-		input:       newInputComposer(),
-		apiKeyInput: newProviderAPIKeyInput("API key"),
-		nameInput:   newNameInput(),
-		renameInput: newChatRenameInput(),
-		tuiState:    newTUIState(history, cfg.TUIThinkingComposerEnabled()),
-		chatClient:  client,
-		chatCtx:     ctx,
+		transcript:       newTranscript(),
+		input:            newInputComposer(),
+		apiKeyInput:      newProviderAPIKeyInput("API key"),
+		modelFilterInput: newModelFilterInput(),
+		nameInput:        newNameInput(),
+		renameInput:      newChatRenameInput(),
+		tuiState:         newTUIState(history, cfg.TUIThinkingComposerEnabled()),
+		chatClient:       client,
+		chatCtx:          ctx,
 	}
 	appModel.configEnvPath = activeProfile.EnvPath
 	appModel.configPath = activeProfile.ConfigPath

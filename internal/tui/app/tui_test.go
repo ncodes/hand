@@ -539,6 +539,80 @@ func TestModel_SetupAPIKeySubmitPersistsProviderKey(t *testing.T) {
 	require.Empty(t, cfg.Models.Providers["openrouter"].APIKey)
 }
 
+func TestModel_SetupModelSelectionFiltersModels(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupProvider(t, &runModel, "openrouter")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	runModel.apiKeyInput.SetValue("router-key")
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+	require.Greater(t, len(runModel.setupModels), 1)
+
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Select model from")
+	require.Contains(t, content, "Filter models")
+	initialHeight := runModel.getProfileModelSetupRenderedListHeight()
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: 'm', Text: "m"})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: 'i', Text: "i"})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: 'n', Text: "n"})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: 'i', Text: "i"})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.Equal(t, "mini", runModel.modelFilterInput.Value())
+	require.NotEmpty(t, runModel.filteredSetupModels())
+	for _, option := range runModel.filteredSetupModels() {
+		require.Contains(t, strings.ToLower(option.ID+" "+option.Name), "mini")
+	}
+	content = stripANSI(runModel.View().Content)
+	require.Contains(t, content, "mini")
+	require.Equal(t, initialHeight, runModel.getProfileModelSetupRenderedListHeight())
+
+	updated, cmd = runModel.Update(tea.PasteMsg{Content: "missing"})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.filteredSetupModels())
+	require.Equal(t, initialHeight, runModel.getProfileModelSetupRenderedListHeight())
+	require.Contains(t, stripANSI(runModel.View().Content), " No matching models.")
+}
+
+func TestModel_SetupModelFilterTitleUsesFixedInputWidth(t *testing.T) {
+	runModel := newModel()
+	runModel.setupModelProvider = "openai-codex"
+
+	require.Equal(t, 18, getSetupModelFilterTitleInputWidth(t, runModel.renderProfileModelSetupModelTitle(42)))
+	require.Equal(t, 18, getSetupModelFilterTitleInputWidth(t, runModel.renderProfileModelSetupModelTitle(72)))
+
+	runModel.modelFilterInput.SetValue(strings.Repeat("k", 40))
+	title := runModel.renderProfileModelSetupModelTitle(42)
+	require.Equal(t, 42, lipgloss.Width(stripANSI(title)))
+	require.Equal(t, 18, getSetupModelFilterTitleInputWidth(t, title))
+}
+
+func getSetupModelFilterTitleInputWidth(t *testing.T, title string) int {
+	t.Helper()
+
+	title = stripANSI(title)
+	if start := strings.Index(title, "Filter models"); start >= 0 {
+		return lipgloss.Width(title[start:])
+	}
+
+	trimmed := strings.TrimRight(title, " ")
+	start := strings.LastIndex(title, " ")
+	require.GreaterOrEqual(t, start, 0)
+
+	return lipgloss.Width(trimmed[start+1:])
+}
+
 func TestModel_SetupAPIKeySubmitRejectsEmptyKey(t *testing.T) {
 	runModel := newSetupModelSelectionTestModel(t)
 	selectSetupProvider(t, &runModel, "openrouter")
@@ -2198,6 +2272,24 @@ func TestCommandViewFrame_AddsGapBetweenTitleAndContent(t *testing.T) {
 	require.NotContains(t, lines[2], "Release Notes")
 	require.NotContains(t, lines[2], "latest update")
 	require.Contains(t, lines[3], "latest update")
+}
+
+func TestCommandViewFrame_ModelViewPadsFilterInput(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 80
+	runModel.showCommandView(commandViewPayload{
+		Kind:      commandViewKindModels,
+		TitleLeft: "Models",
+		Models:    []rpcclient.ModelOption{{ID: "gpt-5.5"}},
+	})
+
+	lines := strings.Split(stripANSI(runModel.renderCommandView()), "\n")
+
+	require.GreaterOrEqual(t, len(lines), 5)
+	require.Contains(t, lines[1], "Models")
+	require.Empty(t, strings.Trim(lines[2], " │"))
+	require.Contains(t, lines[3], "Filter models")
+	require.Empty(t, strings.Trim(lines[4], " │"))
 }
 
 func TestCommandViewFrame_UsesComposerBorderColor(t *testing.T) {
