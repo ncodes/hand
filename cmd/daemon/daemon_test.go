@@ -40,6 +40,37 @@ func (s modelClientFactoryStub) NewClient(req modelclient.ClientRequest) (models
 	return s.newClient(req)
 }
 
+type gatewayManagerStub struct {
+	start func(context.Context, config.GatewayConfig) error
+	stop  func(context.Context) error
+	wait  <-chan error
+}
+
+func (s gatewayManagerStub) Start(ctx context.Context, cfg config.GatewayConfig) error {
+	if s.start != nil {
+		return s.start(ctx, cfg)
+	}
+
+	return nil
+}
+
+func (s gatewayManagerStub) Stop(ctx context.Context) error {
+	if s.stop != nil {
+		return s.stop(ctx)
+	}
+
+	return nil
+}
+
+func (s gatewayManagerStub) Wait() <-chan error {
+	if s.wait != nil {
+		return s.wait
+	}
+
+	wait := make(chan error)
+	return wait
+}
+
 func init() {
 	logutils.SetOutput(io.Discard)
 }
@@ -1390,6 +1421,233 @@ func TestServeRPC_ForcesStopWhenGracefulShutdownSlow(t *testing.T) {
 	}
 }
 
+func TestServeDaemonServices_DisabledGatewayRunsOnlyRPC(t *testing.T) {
+	origServe := serveRPC
+	origGateway := newGatewayManager
+	t.Cleanup(func() {
+		serveRPC = origServe
+		newGatewayManager = origGateway
+	})
+
+	serveCalled := false
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+		serveCalled = true
+		return nil
+	}
+	newGatewayManager = func() gatewayManager {
+		t.Fatal("gateway manager should not be created when gateway is disabled")
+		return nil
+	}
+
+	cfg := &config.Config{}
+	err := serveDaemonServices(context.Background(), cfg, &agentstub.AgentRunnerStub{}, noopListener{})
+
+	require.NoError(t, err)
+	require.True(t, serveCalled)
+}
+
+func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {
+	origServe := serveRPC
+	origGateway := newGatewayManager
+	t.Cleanup(func() {
+		serveRPC = origServe
+		newGatewayManager = origGateway
+	})
+
+	wait := make(chan error)
+	started := false
+	stopped := false
+	newGatewayManager = func() gatewayManager {
+		return gatewayManagerStub{
+			wait: wait,
+			start: func(context.Context, config.GatewayConfig) error {
+				started = true
+				return nil
+			},
+			stop: func(context.Context) error {
+				stopped = true
+				close(wait)
+				return nil
+			},
+		}
+	}
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+		return nil
+	}
+
+	cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
+	err := serveDaemonServices(context.Background(), cfg, &agentstub.AgentRunnerStub{}, noopListener{})
+
+	require.NoError(t, err)
+	require.True(t, started)
+	require.True(t, stopped)
+}
+
+func TestServeDaemonServices_ReturnsGatewayStartError(t *testing.T) {
+	origServe := serveRPC
+	origGateway := newGatewayManager
+	t.Cleanup(func() {
+		serveRPC = origServe
+		newGatewayManager = origGateway
+	})
+
+	lis := &closeTrackingListener{}
+	newGatewayManager = func() gatewayManager {
+		return gatewayManagerStub{
+			start: func(context.Context, config.GatewayConfig) error {
+				return errors.New("gateway start failed")
+			},
+		}
+	}
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+		t.Fatal("serveRPC should not run when gateway startup fails")
+		return nil
+	}
+
+	cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
+	err := serveDaemonServices(context.Background(), cfg, &agentstub.AgentRunnerStub{}, lis)
+
+	require.EqualError(t, err, "gateway start failed")
+	require.True(t, lis.closed)
+}
+
+func TestServeDaemonServices_GatewayErrorStopsRPC(t *testing.T) {
+	origServe := serveRPC
+	origGateway := newGatewayManager
+	t.Cleanup(func() {
+		serveRPC = origServe
+		newGatewayManager = origGateway
+	})
+
+	wait := make(chan error, 1)
+	rpcStopped := make(chan struct{})
+	newGatewayManager = func() gatewayManager {
+		return gatewayManagerStub{
+			wait: wait,
+			start: func(context.Context, config.GatewayConfig) error {
+				wait <- errors.New("gateway failed")
+				return nil
+			},
+		}
+	}
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
+		<-ctx.Done()
+		close(rpcStopped)
+		return nil
+	}
+
+	cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
+	err := serveDaemonServices(context.Background(), cfg, &agentstub.AgentRunnerStub{}, noopListener{})
+
+	require.EqualError(t, err, "gateway failed")
+	select {
+	case <-rpcStopped:
+	case <-time.After(time.Second):
+		t.Fatal("RPC was not stopped after gateway failure")
+	}
+}
+
+func TestServeDaemonServices_CleanGatewayStopReturnsRPCResult(t *testing.T) {
+	origServe := serveRPC
+	origGateway := newGatewayManager
+	t.Cleanup(func() {
+		serveRPC = origServe
+		newGatewayManager = origGateway
+	})
+
+	wait := make(chan error, 1)
+	rpcStopped := make(chan struct{})
+	newGatewayManager = func() gatewayManager {
+		return gatewayManagerStub{
+			wait: wait,
+			start: func(context.Context, config.GatewayConfig) error {
+				wait <- nil
+				return nil
+			},
+		}
+	}
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
+		<-ctx.Done()
+		close(rpcStopped)
+		return errors.New("rpc stopped")
+	}
+
+	cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
+	err := serveDaemonServices(context.Background(), cfg, &agentstub.AgentRunnerStub{}, noopListener{})
+
+	require.EqualError(t, err, "rpc stopped")
+	select {
+	case <-rpcStopped:
+	case <-time.After(time.Second):
+		t.Fatal("RPC was not stopped after gateway stopped")
+	}
+}
+
+func TestServeDaemonServices_ContextCancelStopsGatewayAndRPC(t *testing.T) {
+	origServe := serveRPC
+	origGateway := newGatewayManager
+	t.Cleanup(func() {
+		serveRPC = origServe
+		newGatewayManager = origGateway
+	})
+
+	wait := make(chan error)
+	gatewayStopped := make(chan struct{})
+	newGatewayManager = func() gatewayManager {
+		return gatewayManagerStub{
+			wait: wait,
+			stop: func(context.Context) error {
+				close(gatewayStopped)
+				close(wait)
+				return nil
+			},
+		}
+	}
+	rpcStopped := make(chan struct{})
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
+		<-ctx.Done()
+		close(rpcStopped)
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
+		done <- serveDaemonServices(ctx, cfg, &agentstub.AgentRunnerStub{}, noopListener{})
+	}()
+
+	cancel()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("daemon services did not stop after context cancellation")
+	}
+	select {
+	case <-gatewayStopped:
+	default:
+		t.Fatal("gateway was not stopped")
+	}
+	select {
+	case <-rpcStopped:
+	default:
+		t.Fatal("RPC was not stopped")
+	}
+}
+
+func TestStopGatewayWithTimeoutAttemptsStopWhenManagerReturnsError(t *testing.T) {
+	stopped := false
+	stopGatewayWithTimeout(gatewayManagerStub{
+		stop: func(context.Context) error {
+			stopped = true
+			return errors.New("stop failed")
+		},
+	})
+
+	require.True(t, stopped)
+}
+
 func TestNewCommand_ReturnsConfigLoadError(t *testing.T) {
 	isolateCommandProfile(t)
 	origServe := serveRPC
@@ -1441,6 +1699,23 @@ func (noopListener) Close() error {
 }
 
 func (noopListener) Addr() net.Addr {
+	return &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0}
+}
+
+type closeTrackingListener struct {
+	closed bool
+}
+
+func (l *closeTrackingListener) Accept() (net.Conn, error) {
+	return nil, errors.New("listener closed")
+}
+
+func (l *closeTrackingListener) Close() error {
+	l.closed = true
+	return nil
+}
+
+func (l *closeTrackingListener) Addr() net.Addr {
 	return &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0}
 }
 
@@ -2019,7 +2294,13 @@ func newUpTestConfig(name string) *config.Config {
 func writeUpTestConfig(t *testing.T, path string, name string) {
 	t.Helper()
 
-	data, err := newUpTestConfig(name).ToYAML()
+	writeConfigFile(t, path, newUpTestConfig(name))
+}
+
+func writeConfigFile(t *testing.T, path string, cfg *config.Config) {
+	t.Helper()
+
+	data, err := cfg.ToYAML()
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
 	require.NoError(t, os.WriteFile(path, data, 0o600))

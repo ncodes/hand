@@ -197,7 +197,9 @@ This feature adds new external integration surfaces to a personal agent that can
 
 ### U1. Gateway Configuration and Validation
 
-**Goal:** Add gateway config types, defaults, CLI flag overrides, overrides, validation, and startup display fields.
+**Status:** Completed.
+
+**Goal:** Add gateway config types, defaults, CLI flag overrides, environment overrides, validation, and startup display fields.
 
 **Requirements:** R1, R2, R3, R5, R7, R8, R11, R12.
 
@@ -228,6 +230,8 @@ This feature adds new external integration surfaces to a personal agent that can
 
 ### U2. Daemon Lifecycle Integration
 
+**Status:** Completed.
+
 **Goal:** Start and stop gateway integrations inside the existing daemon runtime beside the gRPC server.
 
 **Requirements:** R1, R2, R3, R19, R21, R22, R23.
@@ -254,7 +258,7 @@ This feature adds new external integration surfaces to a personal agent that can
 - Gateway restart stops existing HTTP/socket/polling components before starting replacements and leaves gRPC responsive throughout the transition.
 - HTTP graceful shutdown timeout logs a warning and closes the server.
 
-**Verification:** Existing daemon tests still pass, and new lifecycle tests prove no second process is required.
+**Verification:** Gateway manager/server tests cover disabled, start, stop, restart, listener failure, HTTP serve failure, cancellation, stuck shutdown, and adapter lifecycle paths. Daemon lifecycle tests cover disabled gateway behavior, gateway startup failure, RPC-triggered shutdown, gateway-triggered shutdown, context cancellation, and shutdown error tolerance.
 
 ### U3. Gateway Core HTTP Contract
 

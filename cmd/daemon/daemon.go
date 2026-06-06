@@ -24,6 +24,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/diagnostics"
+	"github.com/wandxy/hand/internal/gateway"
 	models "github.com/wandxy/hand/internal/model"
 	modelclient "github.com/wandxy/hand/internal/model/client"
 	"github.com/wandxy/hand/internal/profile"
@@ -118,6 +119,18 @@ var postShutdownServeErrHook = func(err error) error { return err }
 var writeRuntimeMetadata = handruntime.WriteActive
 
 var openRPCListener = openRPCListenerImpl
+
+type gatewayManager interface {
+	Start(context.Context, config.GatewayConfig) error
+	Stop(context.Context) error
+	Wait() <-chan error
+}
+
+var newGatewayManager = func() gatewayManager {
+	return gateway.NewManager(gateway.Options{})
+}
+
+var stopGatewayTimeout = 5 * time.Second
 
 type modelClientFactoryAPI interface {
 	NewClient(modelclient.ClientRequest) (models.Client, error)
@@ -738,7 +751,7 @@ func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	err = serveRPC(ctx, cfg, agent, lis)
+	err = serveDaemonServices(ctx, cfg, agent, lis)
 	if closer, ok := agent.(closeableAgentRunner); ok {
 		if closeErr := closer.Close(); err == nil {
 			if isMissingCredentialLockError(closeErr) {
@@ -750,6 +763,54 @@ func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
 	}
 
 	return err
+}
+
+func serveDaemonServices(ctx context.Context, cfg *config.Config, agent agentRunner, lis net.Listener) error {
+	if cfg == nil || !cfg.Gateway.Enabled {
+		return serveRPC(ctx, cfg, agent, lis)
+	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	manager := newGatewayManager()
+	if err := manager.Start(runCtx, cfg.Gateway); err != nil {
+		_ = lis.Close()
+		return err
+	}
+
+	rpcDone := make(chan error, 1)
+	go func() {
+		rpcDone <- serveRPC(runCtx, cfg, agent, lis)
+	}()
+
+	var err error
+	select {
+	case err = <-rpcDone:
+		cancel()
+		stopGatewayWithTimeout(manager)
+		return err
+	case err = <-manager.Wait():
+		cancel()
+		rpcErr := <-rpcDone
+		if err != nil {
+			return err
+		}
+
+		return rpcErr
+	case <-ctx.Done():
+		cancel()
+		stopGatewayWithTimeout(manager)
+		return <-rpcDone
+	}
+}
+
+func stopGatewayWithTimeout(manager gatewayManager) {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), stopGatewayTimeout)
+	defer cancel()
+	if err := manager.Stop(shutdownCtx); err != nil {
+		log.Warn().Err(err).Msg("Gateway shutdown failed")
+	}
 }
 
 func isMissingCredentialLockError(err error) bool {

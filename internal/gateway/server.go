@@ -1,0 +1,141 @@
+package gateway
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"time"
+
+	"github.com/rs/zerolog/log"
+
+	"github.com/wandxy/hand/internal/config"
+)
+
+type HTTPServer interface {
+	Serve(net.Listener) error
+	Shutdown(context.Context) error
+	Close() error
+}
+
+type Options struct {
+	Listen               func(network string, address string) (net.Listener, error)
+	NewHTTPServer        func(config.GatewayConfig) HTTPServer
+	StartSlackSocket     func(context.Context, config.GatewaySlackConfig) error
+	StartTelegramPolling func(context.Context, config.GatewayTelegramConfig) error
+	ShutdownTimeout      time.Duration
+}
+
+func setDefaultOptions(opts Options) Options {
+	if opts.Listen == nil {
+		opts.Listen = net.Listen
+	}
+	if opts.NewHTTPServer == nil {
+		opts.NewHTTPServer = newHTTPServer
+	}
+	if opts.StartSlackSocket == nil {
+		opts.StartSlackSocket = waitForComponentStop[config.GatewaySlackConfig]
+	}
+	if opts.StartTelegramPolling == nil {
+		opts.StartTelegramPolling = waitForComponentStop[config.GatewayTelegramConfig]
+	}
+	if opts.ShutdownTimeout <= 0 {
+		opts.ShutdownTimeout = 5 * time.Second
+	}
+
+	return opts
+}
+
+type component struct {
+	name string
+	run  func(context.Context) error
+	stop func(context.Context) error
+}
+
+func newComponents(cfg config.GatewayConfig, opts Options) ([]component, error) {
+	var components []component
+	if gatewayHTTPEnabled(cfg) {
+		server := opts.NewHTTPServer(cfg)
+		address := fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
+		lis, err := opts.Listen("tcp", address)
+		if err != nil {
+			return nil, err
+		}
+		if tcpAddr, ok := lis.Addr().(*net.TCPAddr); ok {
+			cfg.Port = tcpAddr.Port
+		}
+		components = append(components, newHTTPComponent(cfg, server, lis, opts.ShutdownTimeout))
+	}
+    
+	if cfg.Slack.Enabled && cfg.Slack.Mode == config.GatewaySlackModeSocket {
+		components = append(components, component{
+			name: "slack socket",
+			run: func(ctx context.Context) error {
+				return opts.StartSlackSocket(ctx, cfg.Slack)
+			},
+		})
+	}
+    
+	if cfg.Telegram.Enabled && cfg.Telegram.Mode == config.GatewayTelegramModePolling {
+		components = append(components, component{
+			name: "telegram polling",
+			run: func(ctx context.Context) error {
+				return opts.StartTelegramPolling(ctx, cfg.Telegram)
+			},
+		})
+	}
+
+	return components, nil
+}
+
+func gatewayHTTPEnabled(cfg config.GatewayConfig) bool {
+	return cfg.Enabled
+}
+
+func newHTTPComponent(
+	_ config.GatewayConfig,
+	server HTTPServer,
+	lis net.Listener,
+	shutdownTimeout time.Duration,
+) component {
+	return component{
+		name: "gateway http",
+		run: func(context.Context) error {
+			err := server.Serve(lis)
+			if errors.Is(err, http.ErrServerClosed) {
+				return nil
+			}
+
+			return err
+		},
+		stop: func(context.Context) error {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+			defer cancel()
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					log.Warn().Msg("Gateway HTTP graceful shutdown timed out, forcing close")
+				}
+				_ = server.Close()
+				return err
+			}
+
+			return nil
+		},
+	}
+}
+
+func newHTTPServer(config.GatewayConfig) HTTPServer {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok\n"))
+	})
+
+	return &http.Server{Handler: mux}
+}
+
+func waitForComponentStop[T any](ctx context.Context, _ T) error {
+	<-ctx.Done()
+	return nil
+}
