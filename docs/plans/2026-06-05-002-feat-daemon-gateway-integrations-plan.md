@@ -262,6 +262,8 @@ This feature adds new external integration surfaces to a personal agent that can
 
 ### U3. Gateway Core HTTP Contract
 
+**Status:** Completed.
+
 **Goal:** Implement generic HTTP routes, auth middleware, normalized request/response types, and safe error responses.
 
 **Requirements:** R4, R5, R6, R17, R19.
@@ -284,7 +286,7 @@ This feature adds new external integration surfaces to a personal agent that can
 - Agent errors return a safe error response without stack traces or provider details.
 - `pkg/gateway` request/response and auth helpers can be tested without constructing daemon config, agent services, or state stores.
 
-**Verification:** Generic HTTP tests prove the public contract and auth rules before channel adapters use the core.
+**Verification:** Generic HTTP tests cover unauthenticated health, bearer auth rejection, request validation, single-object JSON decoding, method rejection, responder option propagation, assistant response shape, and safe internal errors. Reusable `pkg/gateway` tests cover normalized request/response types, fixed-length bearer token comparison, and safe JSON error envelopes.
 
 ### U4. Conversation Session Resolver
 
@@ -313,40 +315,7 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Verification:** Resolver tests prove deterministic session continuity and storage parity.
 
-### U5. Slack Socket Mode and HTTP Adapter
-
-**Goal:** Add Slack Socket Mode ingestion by default, optional Events API HTTP ingestion, event normalization, filtering, idempotency, reconnect handling, native stream delivery, and outbound replies.
-
-**Requirements:** R11, R12, R13, R14, R15, R16, R17, R18, R19.
-
-**Dependencies:** U3, U4.
-
-**Files:** `internal/gateway/slack.go`, `internal/gateway/slack_socket.go`, `internal/gateway/slack_http.go`, `internal/gateway/slack_send.go`, `internal/gateway/slack_stream.go`, `pkg/gateway/slack/auth.go`, `pkg/gateway/slack/events.go`, `pkg/gateway/slack/stream.go`, `pkg/gateway/slack/auth_test.go`, `pkg/gateway/slack/events_test.go`, `pkg/gateway/slack/stream_test.go`, `internal/gateway/slack_test.go`, `internal/gateway/slack_socket_test.go`, `internal/gateway/slack_http_test.go`, `internal/gateway/slack_send_test.go`, `internal/gateway/slack_stream_test.go`.
-
-**Approach:** Implement Slack socket mode as the default adapter using Slack bot and app tokens. The socket client should acknowledge envelopes, normalize supported message events, ignore bot/self events, and reconnect with backoff on transient disconnects. Also add optional HTTP mode at `POST /gateway/slack/events`: read and cap the raw request body, verify `X-Slack-Signature` and `X-Slack-Request-Timestamp`, handle `url_verification`, ignore retry duplicates and bot/self events, then normalize supported message events. For non-streaming responses, send through `chat.postMessage` with injectable HTTP transport, preserving thread replies where Slack provides `thread_ts`. For streaming responses, start a native Slack stream in the user request thread with `chat.startStream`, coalesce model deltas into markdown chunks sent through `chat.appendStream`, and finalize with `chat.stopStream`. Include `recipient_user_id` and `recipient_team_id` when Slack requires them for channel streaming, and fall back to `chat.postMessage` if stream start fails before any chunk is visible. Put raw-body signature verification, Events API payload parsing, and stream request/response shapes in `pkg/gateway/slack`; keep daemon adapter lifecycle and token loading in `internal/gateway`.
-
-**Patterns to follow:** Hermes `gateway/platforms/slack.py` uses Slack Socket Mode for local gateway operation. OpenClaw defaults Slack accounts to socket mode in `extensions/slack/src/monitor/provider.ts` and registers HTTP mode through `extensions/slack/src/http/registry.ts`. Follow that default shape, but keep the Go package boundaries explicit for Hand. Use Slack's official raw-body HMAC verification flow and Events API acknowledgment expectations only for HTTP mode. Use Slack's official stream APIs for streaming instead of `chat.update` loops; Slack reports `streaming_state_conflict` when trying to update a currently streaming message.
-
-**Test scenarios:**
-
-- Slack socket mode connects with bot/app tokens and registers message handling without requiring a public webhook URL.
-- Slack socket mode acknowledges inbound envelopes before or while dispatching work so Slack does not redeliver the same envelope.
-- Slack socket mode reconnects with backoff after a transient disconnect and stops cleanly on daemon cancellation.
-- Valid Slack HTTP signature over raw body is accepted.
-- Missing, malformed, stale timestamp, or mismatched HTTP signature returns unauthorized and does not parse JSON.
-- HTTP `url_verification` returns the challenge and does not call the agent.
-- Socket or HTTP message event with a supported message addressed to Hand resolves the expected session and sends a reply.
-- Bot/self messages and unsupported events return success without invoking the agent.
-- Retry duplicate event IDs do not create duplicate agent turns.
-- Slack sender posts to the configured Web API base URL with bearer bot token, channel, text, and thread timestamp.
-- Slack stream sender starts a stream with `channel`, `thread_ts`, and required recipient fields, appends coalesced markdown chunks, and stops the stream with the final text.
-- Slack stream sender handles `stopped_by_user`, `message_not_in_streaming_state`, `streaming_state_conflict`, rate limits, and transient HTTP failures without duplicating final replies.
-- If `chat.startStream` fails before any visible output, the adapter falls back to `chat.postMessage`; if append/stop fails after visible output, the adapter records a safe error and avoids posting a duplicate full response unless the stream was never visible.
-- Slack sender handles API `ok=false`, HTTP failures, and rate-limit responses as safe gateway errors.
-
-**Verification:** Slack tests cover socket ingress, socket reconnect/stop behavior, HTTP raw-body auth, event normalization, duplicate handling, native stream delivery, stream fallback behavior, and outbound HTTP without live Slack calls.
-
-### U6. Telegram Polling and Webhook Adapter
+### U5. Telegram Polling and Webhook Adapter
 
 **Goal:** Add Telegram long-polling ingress by default, optional webhook verification, update normalization, message filtering, native streaming outbound text where supported, chunked final delivery, and topic-aware replies.
 
@@ -378,6 +347,39 @@ This feature adds new external integration surfaces to a personal agent that can
 - Telegram sender handles API `ok=false`, HTTP failures, and invalid bot token responses as safe gateway errors.
 
 **Verification:** Telegram tests cover polling ingress, polling conflict handling, webhook auth, shared update normalization, topic routing, native draft streaming, simulated edit streaming, streaming fallback to final delivery, chunking, and outbound HTTP without live Telegram calls.
+
+### U6. Slack Socket Mode and HTTP Adapter
+
+**Goal:** Add Slack Socket Mode ingestion by default, optional Events API HTTP ingestion, event normalization, filtering, idempotency, reconnect handling, native stream delivery, and outbound replies.
+
+**Requirements:** R11, R12, R13, R14, R15, R16, R17, R18, R19.
+
+**Dependencies:** U3, U4.
+
+**Files:** `internal/gateway/slack.go`, `internal/gateway/slack_socket.go`, `internal/gateway/slack_http.go`, `internal/gateway/slack_send.go`, `internal/gateway/slack_stream.go`, `pkg/gateway/slack/auth.go`, `pkg/gateway/slack/events.go`, `pkg/gateway/slack/stream.go`, `pkg/gateway/slack/auth_test.go`, `pkg/gateway/slack/events_test.go`, `pkg/gateway/slack/stream_test.go`, `internal/gateway/slack_test.go`, `internal/gateway/slack_socket_test.go`, `internal/gateway/slack_http_test.go`, `internal/gateway/slack_send_test.go`, `internal/gateway/slack_stream_test.go`.
+
+**Approach:** Implement Slack socket mode as the default adapter using Slack bot and app tokens. The socket client should acknowledge envelopes, normalize supported message events, ignore bot/self events, and reconnect with backoff on transient disconnects. Also add optional HTTP mode at `POST /gateway/slack/events`: read and cap the raw request body, verify `X-Slack-Signature` and `X-Slack-Request-Timestamp`, handle `url_verification`, ignore retry duplicates and bot/self events, then normalize supported message events. For non-streaming responses, send through `chat.postMessage` with injectable HTTP transport, preserving thread replies where Slack provides `thread_ts`. For streaming responses, start a native Slack stream in the user request thread with `chat.startStream`, coalesce model deltas into markdown chunks sent through `chat.appendStream`, and finalize with `chat.stopStream`. Include `recipient_user_id` and `recipient_team_id` when Slack requires them for channel streaming, and fall back to `chat.postMessage` if stream start fails before any chunk is visible. Put raw-body signature verification, Events API payload parsing, and stream request/response shapes in `pkg/gateway/slack`; keep daemon adapter lifecycle and token loading in `internal/gateway`.
+
+**Patterns to follow:** Hermes `gateway/platforms/slack.py` uses Slack Socket Mode for local gateway operation. OpenClaw defaults Slack accounts to socket mode in `extensions/slack/src/monitor/provider.ts` and registers HTTP mode through `extensions/slack/src/http/registry.ts`. Follow that default shape, but keep the Go package boundaries explicit for Hand. Use Slack's official raw-body HMAC verification flow and Events API acknowledgment expectations only for HTTP mode. Use Slack's official stream APIs for streaming instead of `chat.update` loops; Slack reports `streaming_state_conflict` when trying to update a currently streaming message.
+
+**Test scenarios:**
+
+- Slack socket mode connects with bot/app tokens and registers message handling without requiring a public webhook URL.
+- Slack socket mode acknowledges inbound envelopes before or while dispatching work so Slack does not redeliver the same envelope.
+- Slack socket mode reconnects with backoff after a transient disconnect and stops cleanly on daemon cancellation.
+- Valid Slack HTTP signature over raw body is accepted.
+- Missing, malformed, stale timestamp, or mismatched HTTP signature returns unauthorized and does not parse JSON.
+- HTTP `url_verification` returns the challenge and does not call the agent.
+- Socket or HTTP message event with a supported message addressed to Hand resolves the expected session and sends a reply.
+- Bot/self messages and unsupported events return success without invoking the agent.
+- Retry duplicate event IDs do not create duplicate agent turns.
+- Slack sender posts to the configured Web API base URL with bearer bot token, channel, text, and thread timestamp.
+- Slack stream sender starts a stream with `channel`, `thread_ts`, and required recipient fields, appends coalesced markdown chunks, and stops the stream with the final text.
+- Slack stream sender handles `stopped_by_user`, `message_not_in_streaming_state`, `streaming_state_conflict`, rate limits, and transient HTTP failures without duplicating final replies.
+- If `chat.startStream` fails before any visible output, the adapter falls back to `chat.postMessage`; if append/stop fails after visible output, the adapter records a safe error and avoids posting a duplicate full response unless the stream was never visible.
+- Slack sender handles API `ok=false`, HTTP failures, and rate-limit responses as safe gateway errors.
+
+**Verification:** Slack tests cover socket ingress, socket reconnect/stop behavior, HTTP raw-body auth, event normalization, duplicate handling, native stream delivery, stream fallback behavior, and outbound HTTP without live Slack calls.
 
 ### U7. Shared Gateway Dispatch and Error Handling
 

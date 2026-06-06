@@ -12,7 +12,7 @@ import (
 )
 
 func TestGatewayHTTPServerHealth(t *testing.T) {
-	server := newHTTPServer(testGatewayConfig())
+	server := newHTTPServer(testGatewayConfig(), nil)
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer lis.Close()

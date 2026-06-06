@@ -23,6 +23,7 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
+	handgateway "github.com/wandxy/hand/internal/gateway"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	models "github.com/wandxy/hand/internal/model"
 	modelclient "github.com/wandxy/hand/internal/model/client"
@@ -41,14 +42,14 @@ func (s modelClientFactoryStub) NewClient(req modelclient.ClientRequest) (models
 }
 
 type gatewayManagerStub struct {
-	start func(context.Context, config.GatewayConfig) error
+	start func(context.Context, config.GatewayConfig, handgateway.Responder) error
 	stop  func(context.Context) error
 	wait  <-chan error
 }
 
-func (s gatewayManagerStub) Start(ctx context.Context, cfg config.GatewayConfig) error {
+func (s gatewayManagerStub) Start(ctx context.Context, cfg config.GatewayConfig, responder handgateway.Responder) error {
 	if s.start != nil {
-		return s.start(ctx, cfg)
+		return s.start(ctx, cfg, responder)
 	}
 
 	return nil
@@ -1457,11 +1458,13 @@ func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {
 	wait := make(chan error)
 	started := false
 	stopped := false
+	agent := &agentstub.AgentRunnerStub{}
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
 			wait: wait,
-			start: func(context.Context, config.GatewayConfig) error {
+			start: func(_ context.Context, _ config.GatewayConfig, responder handgateway.Responder) error {
 				started = true
+				require.Same(t, agent, responder)
 				return nil
 			},
 			stop: func(context.Context) error {
@@ -1476,7 +1479,7 @@ func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {
 	}
 
 	cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
-	err := serveDaemonServices(context.Background(), cfg, &agentstub.AgentRunnerStub{}, noopListener{})
+	err := serveDaemonServices(context.Background(), cfg, agent, noopListener{})
 
 	require.NoError(t, err)
 	require.True(t, started)
@@ -1494,7 +1497,7 @@ func TestServeDaemonServices_ReturnsGatewayStartError(t *testing.T) {
 	lis := &closeTrackingListener{}
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
-			start: func(context.Context, config.GatewayConfig) error {
+			start: func(context.Context, config.GatewayConfig, handgateway.Responder) error {
 				return errors.New("gateway start failed")
 			},
 		}
@@ -1524,7 +1527,7 @@ func TestServeDaemonServices_GatewayErrorStopsRPC(t *testing.T) {
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
 			wait: wait,
-			start: func(context.Context, config.GatewayConfig) error {
+			start: func(context.Context, config.GatewayConfig, handgateway.Responder) error {
 				wait <- errors.New("gateway failed")
 				return nil
 			},
@@ -1560,7 +1563,7 @@ func TestServeDaemonServices_CleanGatewayStopReturnsRPCResult(t *testing.T) {
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
 			wait: wait,
-			start: func(context.Context, config.GatewayConfig) error {
+			start: func(context.Context, config.GatewayConfig, handgateway.Responder) error {
 				wait <- nil
 				return nil
 			},

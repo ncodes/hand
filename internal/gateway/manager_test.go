@@ -16,7 +16,7 @@ import (
 func TestManager_StartDisabledKeepsDisabledState(t *testing.T) {
 	manager := NewManager(Options{})
 
-	require.NoError(t, manager.Start(context.Background(), config.GatewayConfig{}))
+	require.NoError(t, manager.Start(context.Background(), config.GatewayConfig{}, nil))
 
 	status := manager.Status()
 	require.Equal(t, StateDisabled, status.State)
@@ -47,7 +47,7 @@ func TestManager_StartsAndStopsHTTP(t *testing.T) {
 	manager := NewManager(Options{ShutdownTimeout: time.Second})
 	cfg := testGatewayConfig()
 
-	require.NoError(t, manager.Start(context.Background(), cfg))
+	require.NoError(t, manager.Start(context.Background(), cfg, nil))
 	require.Equal(t, StateRunning, manager.Status().State)
 
 	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -66,8 +66,8 @@ func TestManager_StartIsIdempotentWhileRunning(t *testing.T) {
 	})
 	cfg := testGatewayConfig()
 
-	require.NoError(t, manager.Start(context.Background(), cfg))
-	require.NoError(t, manager.Start(context.Background(), cfg))
+	require.NoError(t, manager.Start(context.Background(), cfg, nil))
+	require.NoError(t, manager.Start(context.Background(), cfg, nil))
 	require.Equal(t, 1, listenCount)
 
 	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -83,7 +83,7 @@ func TestManager_ReturnsListenError(t *testing.T) {
 	})
 	cfg := testGatewayConfig()
 
-	err := manager.Start(context.Background(), cfg)
+	err := manager.Start(context.Background(), cfg, nil)
 
 	require.EqualError(t, err, "listen failed")
 	status := manager.Status()
@@ -95,13 +95,13 @@ func TestManager_ReportsHTTPServeError(t *testing.T) {
 	serveErr := errors.New("serve failed")
 	server := &fakeHTTPServer{serveErr: serveErr}
 	manager := NewManager(Options{
-		NewHTTPServer: func(config.GatewayConfig) HTTPServer {
+		NewHTTPServer: func(config.GatewayConfig, Responder) HTTPServer {
 			return server
 		},
 	})
 	cfg := testGatewayConfig()
 
-	require.NoError(t, manager.Start(context.Background(), cfg))
+	require.NoError(t, manager.Start(context.Background(), cfg, nil))
 
 	select {
 	case err := <-manager.Wait():
@@ -115,13 +115,13 @@ func TestManager_ReportsHTTPServeError(t *testing.T) {
 
 func TestManager_ReportsUnexpectedHTTPServeStop(t *testing.T) {
 	manager := NewManager(Options{
-		NewHTTPServer: func(config.GatewayConfig) HTTPServer {
+		NewHTTPServer: func(config.GatewayConfig, Responder) HTTPServer {
 			return &fakeHTTPServer{serveErr: http.ErrServerClosed}
 		},
 	})
 	cfg := testGatewayConfig()
 
-	require.NoError(t, manager.Start(context.Background(), cfg))
+	require.NoError(t, manager.Start(context.Background(), cfg, nil))
 
 	select {
 	case err := <-manager.Wait():
@@ -153,7 +153,7 @@ func TestManager_StartsSlackSocketAndTelegramPolling(t *testing.T) {
 	cfg.Telegram.Enabled = true
 	cfg.Telegram.Mode = config.GatewayTelegramModePolling
 
-	require.NoError(t, manager.Start(context.Background(), cfg))
+	require.NoError(t, manager.Start(context.Background(), cfg, nil))
 	require.Eventually(t, func() bool {
 		select {
 		case <-slackStarted:
@@ -184,7 +184,7 @@ func TestManager_StopTreatsComponentContextCancellationAsCleanShutdown(t *testin
 	cfg.Slack.Enabled = true
 	cfg.Slack.Mode = config.GatewaySlackModeSocket
 
-	require.NoError(t, manager.Start(context.Background(), cfg))
+	require.NoError(t, manager.Start(context.Background(), cfg, nil))
 	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	require.NoError(t, manager.Stop(stopCtx))
@@ -201,7 +201,7 @@ func TestManager_StopTreatsComponentContextCancellationAsCleanShutdown(t *testin
 func TestManager_RestartStopsExistingRuntimeBeforeStartingReplacement(t *testing.T) {
 	stopCount := 0
 	manager := NewManager(Options{
-		NewHTTPServer: func(config.GatewayConfig) HTTPServer {
+		NewHTTPServer: func(config.GatewayConfig, Responder) HTTPServer {
 			return &fakeHTTPServer{onShutdown: func() {
 				stopCount++
 			}}
@@ -209,10 +209,10 @@ func TestManager_RestartStopsExistingRuntimeBeforeStartingReplacement(t *testing
 	})
 	cfg := testGatewayConfig()
 
-	require.NoError(t, manager.Start(context.Background(), cfg))
+	require.NoError(t, manager.Start(context.Background(), cfg, nil))
 	replacement := cfg
 	replacement.Port = 0
-	require.NoError(t, manager.Restart(context.Background(), replacement))
+	require.NoError(t, manager.Restart(context.Background(), replacement, nil))
 
 	require.Equal(t, 1, stopCount)
 	require.Equal(t, StateRunning, manager.Status().State)
@@ -233,10 +233,10 @@ func TestManager_RestartReturnsStopError(t *testing.T) {
 	cfg.Slack.Enabled = true
 	cfg.Slack.Mode = config.GatewaySlackModeSocket
 
-	require.NoError(t, manager.Start(context.Background(), cfg))
+	require.NoError(t, manager.Start(context.Background(), cfg, nil))
 	restartCtx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	require.ErrorIs(t, manager.Restart(restartCtx, cfg), context.DeadlineExceeded)
+	require.ErrorIs(t, manager.Restart(restartCtx, cfg, nil), context.DeadlineExceeded)
 
 	close(release)
 	select {
@@ -258,7 +258,7 @@ func TestManager_StopReturnsContextErrorWhenComponentDoesNotStop(t *testing.T) {
 	cfg.Slack.Enabled = true
 	cfg.Slack.Mode = config.GatewaySlackModeSocket
 
-	require.NoError(t, manager.Start(context.Background(), cfg))
+	require.NoError(t, manager.Start(context.Background(), cfg, nil))
 	stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 

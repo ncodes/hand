@@ -21,7 +21,7 @@ type HTTPServer interface {
 
 type Options struct {
 	Listen               func(network string, address string) (net.Listener, error)
-	NewHTTPServer        func(config.GatewayConfig) HTTPServer
+	NewHTTPServer        func(config.GatewayConfig, Responder) HTTPServer
 	StartSlackSocket     func(context.Context, config.GatewaySlackConfig) error
 	StartTelegramPolling func(context.Context, config.GatewayTelegramConfig) error
 	ShutdownTimeout      time.Duration
@@ -53,10 +53,10 @@ type component struct {
 	stop func(context.Context) error
 }
 
-func newComponents(cfg config.GatewayConfig, opts Options) ([]component, error) {
+func newComponents(cfg config.GatewayConfig, opts Options, responder Responder) ([]component, error) {
 	var components []component
 	if gatewayHTTPEnabled(cfg) {
-		server := opts.NewHTTPServer(cfg)
+		server := opts.NewHTTPServer(cfg, responder)
 		address := fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
 		lis, err := opts.Listen("tcp", address)
 		if err != nil {
@@ -67,7 +67,7 @@ func newComponents(cfg config.GatewayConfig, opts Options) ([]component, error) 
 		}
 		components = append(components, newHTTPComponent(cfg, server, lis, opts.ShutdownTimeout))
 	}
-    
+
 	if cfg.Slack.Enabled && cfg.Slack.Mode == config.GatewaySlackModeSocket {
 		components = append(components, component{
 			name: "slack socket",
@@ -76,7 +76,7 @@ func newComponents(cfg config.GatewayConfig, opts Options) ([]component, error) 
 			},
 		})
 	}
-    
+
 	if cfg.Telegram.Enabled && cfg.Telegram.Mode == config.GatewayTelegramModePolling {
 		components = append(components, component{
 			name: "telegram polling",
@@ -125,14 +125,8 @@ func newHTTPComponent(
 	}
 }
 
-func newHTTPServer(config.GatewayConfig) HTTPServer {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok\n"))
-	})
-
-	return &http.Server{Handler: mux}
+func newHTTPServer(cfg config.GatewayConfig, responder Responder) HTTPServer {
+	return &http.Server{Handler: newHTTPHandler(cfg, responder)}
 }
 
 func waitForComponentStop[T any](ctx context.Context, _ T) error {

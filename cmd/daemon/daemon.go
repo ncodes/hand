@@ -121,7 +121,7 @@ var writeRuntimeMetadata = handruntime.WriteActive
 var openRPCListener = openRPCListenerImpl
 
 type gatewayManager interface {
-	Start(context.Context, config.GatewayConfig) error
+	Start(context.Context, config.GatewayConfig, gateway.Responder) error
 	Stop(context.Context) error
 	Wait() <-chan error
 }
@@ -774,7 +774,7 @@ func serveDaemonServices(ctx context.Context, cfg *config.Config, agent agentRun
 	defer cancel()
 
 	manager := newGatewayManager()
-	if err := manager.Start(runCtx, cfg.Gateway); err != nil {
+	if err := manager.Start(runCtx, cfg.Gateway, agent); err != nil {
 		_ = lis.Close()
 		return err
 	}
