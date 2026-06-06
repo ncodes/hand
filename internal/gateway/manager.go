@@ -47,7 +47,7 @@ func NewManager(opts Options) *Manager {
 	}
 }
 
-func (m *Manager) Start(ctx context.Context, cfg config.GatewayConfig, responder Responder) error {
+func (m *Manager) Start(ctx context.Context, cfg config.GatewayConfig, service AgentService) error {
 	m.mu.Lock()
 	if m.running {
 		m.mu.Unlock()
@@ -65,7 +65,7 @@ func (m *Manager) Start(ctx context.Context, cfg config.GatewayConfig, responder
 		return nil
 	}
 
-	components, err := newComponents(cfg, m.opts, responder)
+	components, err := newComponents(cfg, m.opts, service)
 	if err != nil {
 		m.setFailed(cfg, err)
 		return err
@@ -112,12 +112,12 @@ func (m *Manager) Stop(ctx context.Context) error {
 	}
 }
 
-func (m *Manager) Restart(ctx context.Context, cfg config.GatewayConfig, responder Responder) error {
+func (m *Manager) Restart(ctx context.Context, cfg config.GatewayConfig, service AgentService) error {
 	if err := m.Stop(ctx); err != nil {
 		return err
 	}
 
-	return m.Start(ctx, cfg, responder)
+	return m.Start(ctx, cfg, service)
 }
 
 func (m *Manager) Wait() <-chan error {

@@ -296,6 +296,8 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Dependencies:** U3.
 
+**Status:** Completed.
+
 **Files:** `internal/gateway/session.go`, `internal/gateway/session_test.go`, `pkg/gateway/bindings/bindings.go`, `pkg/gateway/bindings/bindings_test.go`, `internal/agent/service.go`, `internal/agent/service_test.go`, `internal/state/core/session.go`, `internal/state/storesqlite/session_test.go`, `internal/state/storememory/session_test.go`.
 
 **Approach:** Add a dedicated persistence path for gateway conversation bindings if existing session metadata cannot safely carry the mapping. The resolver should derive a stable binding key from source and provider identifiers, create a Hand session when missing, and reuse it thereafter. It should avoid switching the daemon's current session as a side effect. Put binding-key construction and validation in `pkg/gateway/bindings`; keep storage and session creation in `internal/gateway`.

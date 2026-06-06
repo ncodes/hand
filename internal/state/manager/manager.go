@@ -402,6 +402,24 @@ func (m *Manager) GetSummary(ctx context.Context, sessionID string) (storage.Ses
 	return m.sessions().GetSummary(ctx, strings.TrimSpace(sessionID))
 }
 
+func (m *Manager) SaveGatewayBinding(ctx context.Context, binding storage.GatewayBinding) error {
+	if m == nil {
+		return errors.New("state manager is required")
+	}
+
+	binding.Key = strings.TrimSpace(binding.Key)
+	binding.SessionID = strings.TrimSpace(binding.SessionID)
+	return m.sessions().SaveGatewayBinding(ctx, binding)
+}
+
+func (m *Manager) GetGatewayBinding(ctx context.Context, key string) (storage.GatewayBinding, bool, error) {
+	if m == nil {
+		return storage.GatewayBinding{}, false, errors.New("state manager is required")
+	}
+
+	return m.sessions().GetGatewayBinding(ctx, strings.TrimSpace(key))
+}
+
 func (m *Manager) DeleteSummary(ctx context.Context, sessionID string) error {
 	if m == nil {
 		return errors.New("state manager is required")

@@ -121,7 +121,7 @@ var writeRuntimeMetadata = handruntime.WriteActive
 var openRPCListener = openRPCListenerImpl
 
 type gatewayManager interface {
-	Start(context.Context, config.GatewayConfig, gateway.Responder) error
+	Start(context.Context, config.GatewayConfig, gateway.AgentService) error
 	Stop(context.Context) error
 	Wait() <-chan error
 }

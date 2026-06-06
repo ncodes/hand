@@ -47,6 +47,10 @@ type stateStoreStub struct {
 	archive        storage.Session
 	archiveErr     error
 	unarchiveErr   error
+	gatewayBinding storage.GatewayBinding
+	gatewayFound   bool
+	gatewaySaveErr error
+	gatewayGetErr  error
 }
 
 func (s *stateStoreStub) Save(_ context.Context, session storage.Session) error {
@@ -218,6 +222,25 @@ func (s *stateStoreStub) GetSummary(
 }
 
 func (s *stateStoreStub) DeleteSummary(context.Context, string) error { return nil }
+
+func (s *stateStoreStub) SaveGatewayBinding(_ context.Context, binding storage.GatewayBinding) error {
+	if s.gatewaySaveErr != nil {
+		return s.gatewaySaveErr
+	}
+	s.gatewayBinding = binding
+	s.gatewayFound = true
+	return nil
+}
+
+func (s *stateStoreStub) GetGatewayBinding(_ context.Context, key string) (storage.GatewayBinding, bool, error) {
+	if s.gatewayGetErr != nil {
+		return storage.GatewayBinding{}, false, s.gatewayGetErr
+	}
+	if s.gatewayBinding.Key == key {
+		return s.gatewayBinding, s.gatewayFound, nil
+	}
+	return storage.GatewayBinding{}, false, nil
+}
 
 func (s *stateStoreStub) Session() storage.SessionStore { return s }
 

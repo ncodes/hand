@@ -668,6 +668,30 @@ func (a *Agent) CreateSession(ctx context.Context, id string) (storage.Session, 
 	return a.stateMgr.CreateSession(normalizeContext(ctx), id)
 }
 
+func (a *Agent) SaveGatewayBinding(ctx context.Context, binding storage.GatewayBinding) error {
+	if a == nil {
+		return errors.New("agent is required")
+	}
+
+	if !a.initialized || a.stateMgr == nil {
+		return errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.SaveGatewayBinding(normalizeContext(ctx), binding)
+}
+
+func (a *Agent) GetGatewayBinding(ctx context.Context, key string) (storage.GatewayBinding, bool, error) {
+	if a == nil {
+		return storage.GatewayBinding{}, false, errors.New("agent is required")
+	}
+
+	if !a.initialized || a.stateMgr == nil {
+		return storage.GatewayBinding{}, false, errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.GetGatewayBinding(normalizeContext(ctx), key)
+}
+
 // ListSessions returns known sessions.
 func (a *Agent) ListSessions(ctx context.Context, opts ...storage.SessionListOptions) ([]storage.Session, error) {
 	if a == nil {

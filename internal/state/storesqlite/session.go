@@ -120,6 +120,17 @@ type messageModel struct {
 	UpdatedAt  time.Time
 }
 
+type gatewayBindingModel struct {
+	Key       string `gorm:"primaryKey"`
+	SessionID string `gorm:"index;not null"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (gatewayBindingModel) TableName() string {
+	return "gateway_bindings"
+}
+
 // messageModels is a typed slice for active message conversion helpers.
 type messageModels []messageModel
 

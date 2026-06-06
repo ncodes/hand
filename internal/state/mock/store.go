@@ -18,8 +18,10 @@ type Store struct {
 	RenameFunc                func(context.Context, storage.SessionRenameRequest) (storage.Session, error)
 	SaveFunc                  func(context.Context, storage.Session) error
 	SaveSummaryFunc           func(context.Context, storage.SessionSummary) error
+	SaveGatewayBindingFunc    func(context.Context, storage.GatewayBinding) error
 	DeleteFunc                func(context.Context, string) error
 	DeleteSummaryFunc         func(context.Context, string) error
+	GetGatewayBindingFunc     func(context.Context, string) (storage.GatewayBinding, bool, error)
 	UpdateCheckpointsFunc     func(context.Context, string, storage.CheckpointPatch) error
 	SetCurrentFunc            func(context.Context, string) error
 	CurrentFunc               func(context.Context) (string, bool, error)
@@ -97,6 +99,22 @@ func (s *Store) GetSummary(ctx context.Context, sessionID string) (storage.Sessi
 	}
 
 	return storage.SessionSummary{}, false, nil
+}
+
+func (s *Store) SaveGatewayBinding(ctx context.Context, binding storage.GatewayBinding) error {
+	if s.SaveGatewayBindingFunc != nil {
+		return s.SaveGatewayBindingFunc(ctx, binding)
+	}
+
+	return nil
+}
+
+func (s *Store) GetGatewayBinding(ctx context.Context, key string) (storage.GatewayBinding, bool, error) {
+	if s.GetGatewayBindingFunc != nil {
+		return s.GetGatewayBindingFunc(ctx, key)
+	}
+
+	return storage.GatewayBinding{}, false, nil
 }
 
 func (s *Store) DeleteSummary(ctx context.Context, sessionID string) error {

@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
+	storage "github.com/wandxy/hand/internal/state/core"
 	agentcore "github.com/wandxy/hand/pkg/agent"
 	gatewaytypes "github.com/wandxy/hand/pkg/gateway/types"
 )
@@ -45,7 +45,10 @@ func TestGenericRespondRejectsMissingAndInvalidBearerToken(t *testing.T) {
 }
 
 func TestGenericRespondCallsResponderAndReturnsAssistantText(t *testing.T) {
-	responder := &genericResponderStub{reply: "hello back"}
+	responder := &genericResponderStub{
+		createdSession: storage.Session{ID: genericCreatedSessionID},
+		reply:          "hello back",
+	}
 	handler := newHTTPHandler(config.GatewayConfig{AuthToken: "secret-token"}, responder)
 	req := httptest.NewRequest(http.MethodPost, "/v1/respond", bytes.NewBufferString(`{
 		"conversation_id":"default",
@@ -61,12 +64,40 @@ func TestGenericRespondCallsResponderAndReturnsAssistantText(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "hello", responder.message)
-	require.Equal(t, agentcore.RespondOptions{SessionID: "default", Instruct: "be brief"}, responder.options)
+	require.Equal(t, agentcore.RespondOptions{SessionID: genericCreatedSessionID, Instruct: "be brief"}, responder.options)
+	require.Equal(t, storage.GatewayBinding{
+		Key:       "generic::default:",
+		SessionID: genericCreatedSessionID,
+		CreatedAt: responder.savedBinding.CreatedAt,
+		UpdatedAt: responder.savedBinding.UpdatedAt,
+	}, responder.savedBinding)
 	require.Equal(t, gatewaytypes.RespondResponse{
 		ConversationID: "default",
-		SessionID:      "default",
+		SessionID:      genericCreatedSessionID,
 		Text:           "hello back",
 	}, decodeGatewayResponse(t, recorder))
+}
+
+func TestGenericRespondReusesPersistedGatewayBinding(t *testing.T) {
+	responder := &genericResponderStub{
+		binding: storage.GatewayBinding{
+			Key:       "generic::default:",
+			SessionID: genericExistingSessionID,
+		},
+		bindingFound: true,
+		reply:        "hello back",
+	}
+	handler := newHTTPHandler(config.GatewayConfig{}, responder)
+	req := httptest.NewRequest(http.MethodPost, "/v1/respond",
+		bytes.NewBufferString(`{"conversation_id":"default","message":"hello"}`))
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.False(t, responder.created)
+	require.Equal(t, agentcore.RespondOptions{SessionID: genericExistingSessionID}, responder.options)
+	require.Equal(t, "hello back", decodeGatewayResponse(t, recorder).Text)
 }
 
 func TestGenericRespondRejectsInvalidRequestWithoutCallingResponder(t *testing.T) {
@@ -101,7 +132,10 @@ func TestGenericRespondRejectsInvalidRequestWithoutCallingResponder(t *testing.T
 }
 
 func TestGenericRespondReturnsSafeErrorWhenResponderFails(t *testing.T) {
-	responder := &genericResponderStub{err: errors.New("provider stack trace: secret")}
+	responder := &genericResponderStub{
+		createdSession: storage.Session{ID: genericCreatedSessionID},
+		err:            errors.New("provider stack trace: secret"),
+	}
 	handler := newHTTPHandler(config.GatewayConfig{}, responder)
 	req := httptest.NewRequest(http.MethodPost, "/v1/respond", bytes.NewBufferString(`{"conversation_id":"default","message":"hello"}`))
 	recorder := httptest.NewRecorder()
@@ -115,6 +149,43 @@ func TestGenericRespondReturnsSafeErrorWhenResponderFails(t *testing.T) {
 		Message: "gateway request failed",
 	}, response.Error)
 	require.NotContains(t, recorder.Body.String(), "secret")
+}
+
+func TestGenericRespondReturnsSafeErrorWhenBindingStoreFails(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		responder *genericResponderStub
+	}{
+		{
+			name:      "lookup",
+			responder: &genericResponderStub{getBindingErr: errors.New("sqlite: secret path")},
+		},
+		{
+			name: "save",
+			responder: &genericResponderStub{
+				createdSession: storage.Session{ID: genericCreatedSessionID},
+				saveBindingErr: errors.New("sqlite: secret path"),
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := newHTTPHandler(config.GatewayConfig{}, tt.responder)
+			req := httptest.NewRequest(http.MethodPost, "/v1/respond",
+				bytes.NewBufferString(`{"conversation_id":"default","message":"hello"}`))
+			recorder := httptest.NewRecorder()
+
+			handler.ServeHTTP(recorder, req)
+
+			require.Equal(t, http.StatusInternalServerError, recorder.Code)
+			require.False(t, tt.responder.called)
+			response := decodeGatewayResponse(t, recorder)
+			require.Equal(t, &gatewaytypes.ErrorResponse{
+				Code:    gatewaytypes.ErrorCodeInternalError,
+				Message: "gateway request failed",
+			}, response.Error)
+			require.NotContains(t, recorder.Body.String(), "secret")
+		})
+	}
 }
 
 func TestGenericRespondReturnsSafeErrorWhenResponderMissing(t *testing.T) {
@@ -146,25 +217,6 @@ func TestGenericRespondRejectsUnsupportedMethod(t *testing.T) {
 		Code:    gatewaytypes.ErrorCodeBadRequest,
 		Message: "method not allowed",
 	}, response.Error)
-}
-
-type genericResponderStub struct {
-	message string
-	options agentcore.RespondOptions
-	reply   string
-	err     error
-	called  bool
-}
-
-func (s *genericResponderStub) Respond(
-	_ context.Context,
-	message string,
-	opts agentcore.RespondOptions,
-) (string, error) {
-	s.called = true
-	s.message = message
-	s.options = opts
-	return s.reply, s.err
 }
 
 func decodeGatewayResponse(

@@ -247,6 +247,49 @@ func TestAgent_LifecycleHelpersValidateAndUseStateManager(t *testing.T) {
 	require.EqualError(t, err, "agent is required")
 }
 
+func TestAgent_GatewayBindingServiceOperations(t *testing.T) {
+	store := &stateStoreStub{}
+	manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
+	require.NoError(t, err)
+	core := &Agent{
+		initialized: true,
+		stateMgr:    manager,
+	}
+	binding := storage.GatewayBinding{Key: "generic::chat-1:", SessionID: storage.DefaultSessionID}
+
+	require.NoError(t, core.SaveGatewayBinding(context.Background(), binding))
+	require.Equal(t, binding, store.gatewayBinding)
+
+	found, ok, err := core.GetGatewayBinding(context.Background(), binding.Key)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, binding, found)
+
+	expected := errors.New("save failed")
+	store.gatewaySaveErr = expected
+	require.ErrorIs(t, core.SaveGatewayBinding(context.Background(), binding), expected)
+
+	expected = errors.New("get failed")
+	store.gatewayGetErr = expected
+	_, _, err = core.GetGatewayBinding(context.Background(), binding.Key)
+	require.ErrorIs(t, err, expected)
+
+	require.EqualError(t,
+		(*Agent)(nil).SaveGatewayBinding(context.Background(), binding),
+		"agent is required",
+	)
+	require.EqualError(t,
+		(&Agent{}).SaveGatewayBinding(context.Background(), binding),
+		"environment has not been initialized",
+	)
+
+	_, _, err = (*Agent)(nil).GetGatewayBinding(context.Background(), binding.Key)
+	require.EqualError(t, err, "agent is required")
+
+	_, _, err = (&Agent{}).GetGatewayBinding(context.Background(), binding.Key)
+	require.EqualError(t, err, "environment has not been initialized")
+}
+
 func TestAgent_LifecycleBranchesForCloseCreateUseAndStatus(t *testing.T) {
 	require.NoError(t, (*Agent)(nil).Close())
 	require.NoError(t, (&Agent{}).Close())

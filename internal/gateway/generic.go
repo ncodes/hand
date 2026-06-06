@@ -10,22 +10,27 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/wandxy/hand/internal/config"
+	storage "github.com/wandxy/hand/internal/state/core"
 	agentcore "github.com/wandxy/hand/pkg/agent"
 	gatewayauth "github.com/wandxy/hand/pkg/gateway/auth"
+	"github.com/wandxy/hand/pkg/gateway/bindings"
 	"github.com/wandxy/hand/pkg/gateway/httpjson"
 	gatewaytypes "github.com/wandxy/hand/pkg/gateway/types"
 )
 
 const maxGenericRespondBodyBytes = 1 << 20 // 1MB
 
-type Responder interface {
+type AgentService interface {
 	Respond(context.Context, string, agentcore.RespondOptions) (string, error)
+	CreateSession(context.Context, string) (storage.Session, error)
+	SaveGatewayBinding(context.Context, storage.GatewayBinding) error
+	GetGatewayBinding(context.Context, string) (storage.GatewayBinding, bool, error)
 }
 
-func newHTTPHandler(cfg config.GatewayConfig, responder Responder) http.Handler {
+func newHTTPHandler(cfg config.GatewayConfig, service AgentService) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/v1/respond", handleGenericRespond(cfg, responder))
+	mux.HandleFunc("/v1/respond", handleGenericRespond(cfg, service))
 
 	return mux
 }
@@ -35,7 +40,7 @@ func handleHealth(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("ok\n"))
 }
 
-func handleGenericRespond(cfg config.GatewayConfig, responder Responder) http.HandlerFunc {
+func handleGenericRespond(cfg config.GatewayConfig, service AgentService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
@@ -46,7 +51,7 @@ func handleGenericRespond(cfg config.GatewayConfig, responder Responder) http.Ha
 			httpjson.WriteError(w, http.StatusUnauthorized, gatewaytypes.ErrorCodeUnauthorized, "unauthorized")
 			return
 		}
-		if responder == nil {
+		if service == nil {
 			httpjson.WriteError(w, http.StatusInternalServerError, gatewaytypes.ErrorCodeInternalError,
 				"gateway request failed")
 			return
@@ -64,9 +69,18 @@ func handleGenericRespond(cfg config.GatewayConfig, responder Responder) http.Ha
 			return
 		}
 
-		sessionID := req.ConversationID
-		text, err := responder.Respond(r.Context(), req.Message, agentcore.RespondOptions{
-			SessionID: sessionID,
+		bindingKey, _ := bindings.Generic(req.ConversationID)
+
+		session, err := NewSessionResolver(service).Resolve(r.Context(), bindingKey)
+		if err != nil {
+			log.Warn().Err(err).Str("source", req.Source).Msg("Gateway generic HTTP session resolution failed")
+			httpjson.WriteError(w, http.StatusInternalServerError, gatewaytypes.ErrorCodeInternalError,
+				"gateway request failed")
+			return
+		}
+
+		text, err := service.Respond(r.Context(), req.Message, agentcore.RespondOptions{
+			SessionID: session.ID,
 			Instruct:  req.Instruct,
 		})
 		if err != nil {
@@ -78,7 +92,7 @@ func handleGenericRespond(cfg config.GatewayConfig, responder Responder) http.Ha
 
 		httpjson.Write(w, http.StatusOK, gatewaytypes.RespondResponse{
 			ConversationID: req.ConversationID,
-			SessionID:      sessionID,
+			SessionID:      session.ID,
 			Text:           text,
 		})
 	}

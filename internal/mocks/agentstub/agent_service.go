@@ -25,6 +25,9 @@ type AgentServiceStub struct {
 	Closed               bool
 	CreatedSession       storage.Session
 	CreatedSessionID     string
+	SavedGatewayBinding  storage.GatewayBinding
+	GatewayBinding       storage.GatewayBinding
+	GatewayBindingFound  bool
 	CreateSessionOptions rpcclient.CreateSessionOptions
 	Sessions             []storage.Session
 	ArchivedSessions     []storage.Session
@@ -138,6 +141,19 @@ func (s *AgentServiceStub) Create(ctx context.Context, id string) (storage.Sessi
 func (s *AgentServiceStub) CreateSession(_ context.Context, id string) (storage.Session, error) {
 	s.CreatedSessionID = id
 	return s.CreatedSession, s.Err
+}
+
+func (s *AgentServiceStub) SaveGatewayBinding(_ context.Context, binding storage.GatewayBinding) error {
+	s.SavedGatewayBinding = binding
+	return s.Err
+}
+
+func (s *AgentServiceStub) GetGatewayBinding(_ context.Context, key string) (storage.GatewayBinding, bool, error) {
+	if strings.TrimSpace(s.GatewayBinding.Key) == "" {
+		s.GatewayBinding.Key = key
+	}
+
+	return s.GatewayBinding, s.GatewayBindingFound, s.Err
 }
 
 func (s *AgentServiceStub) CreateWithOptions(

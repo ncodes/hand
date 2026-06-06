@@ -116,10 +116,16 @@ func (s *storageStoreStub) GetSummary(context.Context, string) (storage.SessionS
 	return storage.SessionSummary{}, false, nil
 }
 func (s *storageStoreStub) DeleteSummary(context.Context, string) error { return nil }
-func (s *storageStoreStub) Session() storage.SessionStore               { return s }
-func (s *storageStoreStub) Memory() (storage.MemoryStore, bool)         { return nil, false }
-func (s *storageStoreStub) Trace() (storage.TraceStore, bool)           { return nil, false }
-func (s *storageStoreStub) SupportsVectorSearch() bool                  { return false }
+func (s *storageStoreStub) SaveGatewayBinding(context.Context, storage.GatewayBinding) error {
+	return nil
+}
+func (s *storageStoreStub) GetGatewayBinding(context.Context, string) (storage.GatewayBinding, bool, error) {
+	return storage.GatewayBinding{}, false, nil
+}
+func (s *storageStoreStub) Session() storage.SessionStore       { return s }
+func (s *storageStoreStub) Memory() (storage.MemoryStore, bool) { return nil, false }
+func (s *storageStoreStub) Trace() (storage.TraceStore, bool)   { return nil, false }
+func (s *storageStoreStub) SupportsVectorSearch() bool          { return false }
 func (s *storageStoreStub) Archive(context.Context, string, storage.SessionArchiveRequest) (storage.Session, error) {
 	return storage.Session{}, nil
 }

@@ -114,6 +114,7 @@ func TestSQLiteStore_StorageInitializationErrors(t *testing.T) {
 			&stateModel{},
 			&summaryModel{},
 			&messageModel{},
+			&gatewayBindingModel{},
 		))
 
 		readonlyDB, err := gorm.Open(sqlite.Open("file:"+path+"?mode=ro"), &gorm.Config{})
@@ -133,6 +134,7 @@ func TestSQLiteStore_StorageInitializationErrors(t *testing.T) {
 			&stateModel{},
 			&summaryModel{},
 			&messageModel{},
+			&gatewayBindingModel{},
 		))
 		require.NoError(t, ensureMemoryStorage(writableDB))
 

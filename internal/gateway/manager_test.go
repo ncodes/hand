@@ -95,7 +95,7 @@ func TestManager_ReportsHTTPServeError(t *testing.T) {
 	serveErr := errors.New("serve failed")
 	server := &fakeHTTPServer{serveErr: serveErr}
 	manager := NewManager(Options{
-		NewHTTPServer: func(config.GatewayConfig, Responder) HTTPServer {
+		NewHTTPServer: func(config.GatewayConfig, AgentService) HTTPServer {
 			return server
 		},
 	})
@@ -115,7 +115,7 @@ func TestManager_ReportsHTTPServeError(t *testing.T) {
 
 func TestManager_ReportsUnexpectedHTTPServeStop(t *testing.T) {
 	manager := NewManager(Options{
-		NewHTTPServer: func(config.GatewayConfig, Responder) HTTPServer {
+		NewHTTPServer: func(config.GatewayConfig, AgentService) HTTPServer {
 			return &fakeHTTPServer{serveErr: http.ErrServerClosed}
 		},
 	})
@@ -198,10 +198,66 @@ func TestManager_StopTreatsComponentContextCancellationAsCleanShutdown(t *testin
 	}
 }
 
+func TestRunComponents_TreatsLateContextCancellationAsCleanShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	release := make(chan struct{})
+	componentStarted := make(chan struct{})
+
+	err := make(chan error, 1)
+	go func() {
+		err <- runComponents(ctx, []component{
+			{
+				name: "late cancel",
+				run: func(context.Context) error {
+					close(componentStarted)
+					<-release
+					return context.Canceled
+				},
+			},
+		})
+	}()
+
+	select {
+	case <-componentStarted:
+	case <-time.After(time.Second):
+		t.Fatal("component did not start")
+	}
+	cancel()
+	close(release)
+
+	select {
+	case err := <-err:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("runComponents did not stop")
+	}
+}
+
+func TestRunComponents_ReturnsStopErrorAfterContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	stopErr := errors.New("stop failed")
+	cancel()
+
+	err := runComponents(ctx, []component{
+		{
+			name: "stopped component",
+			run: func(ctx context.Context) error {
+				<-ctx.Done()
+				return nil
+			},
+			stop: func(context.Context) error {
+				return stopErr
+			},
+		},
+	})
+
+	require.ErrorIs(t, err, stopErr)
+}
+
 func TestManager_RestartStopsExistingRuntimeBeforeStartingReplacement(t *testing.T) {
 	stopCount := 0
 	manager := NewManager(Options{
-		NewHTTPServer: func(config.GatewayConfig, Responder) HTTPServer {
+		NewHTTPServer: func(config.GatewayConfig, AgentService) HTTPServer {
 			return &fakeHTTPServer{onShutdown: func() {
 				stopCount++
 			}}
@@ -275,60 +331,4 @@ func TestComponentErrorUnwrapsCause(t *testing.T) {
 	cause := errors.New("cause")
 
 	require.ErrorIs(t, componentError{name: "component", err: cause}, cause)
-}
-
-func testGatewayConfig() config.GatewayConfig {
-	return config.GatewayConfig{
-		Enabled:   true,
-		Address:   "127.0.0.1",
-		Port:      0,
-		AuthToken: "token",
-		Telegram: config.GatewayTelegramConfig{
-			Mode:     config.GatewayTelegramModePolling,
-			BotToken: "telegram-token",
-		},
-		Slack: config.GatewaySlackConfig{
-			Mode:     config.GatewaySlackModeSocket,
-			BotToken: "slack-token",
-			AppToken: "app-token",
-		},
-	}
-}
-
-type fakeHTTPServer struct {
-	serveErr   error
-	closed     bool
-	onShutdown func()
-	done       chan struct{}
-}
-
-func (s *fakeHTTPServer) Serve(net.Listener) error {
-	if s.serveErr != nil {
-		return s.serveErr
-	}
-	<-s.getDone()
-	return http.ErrServerClosed
-}
-
-func (s *fakeHTTPServer) Shutdown(context.Context) error {
-	if s.onShutdown != nil {
-		s.onShutdown()
-	}
-	return s.Close()
-}
-
-func (s *fakeHTTPServer) Close() error {
-	if !s.closed {
-		s.closed = true
-		close(s.getDone())
-	}
-	return nil
-}
-
-func (s *fakeHTTPServer) getDone() chan struct{} {
-	if s.done == nil {
-		s.done = make(chan struct{})
-	}
-
-	return s.done
 }

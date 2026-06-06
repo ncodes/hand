@@ -35,6 +35,8 @@ type ServiceAPI interface {
 	SelectModel(context.Context, string, ...ModelSelectOptions) (models.Option, error)
 	SetProviderAPIKey(context.Context, string, string) error
 	CreateSession(context.Context, string) (storage.Session, error)
+	SaveGatewayBinding(context.Context, storage.GatewayBinding) error
+	GetGatewayBinding(context.Context, string) (storage.GatewayBinding, bool, error)
 	ListSessions(context.Context, ...storage.SessionListOptions) ([]storage.Session, error)
 	UseSession(context.Context, string) error
 	ArchiveSession(context.Context, string) error

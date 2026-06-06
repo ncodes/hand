@@ -106,6 +106,13 @@ type SessionSummary struct {
 	NextActions        []string
 }
 
+type GatewayBinding struct {
+	Key       string
+	SessionID string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 // SessionMetadataStore defines persisted session metadata operations.
 type SessionMetadataStore interface {
 	Save(ctx context.Context, session Session) error
@@ -145,10 +152,16 @@ type SessionSummaryStore interface {
 	DeleteSummary(ctx context.Context, sessionID string) error
 }
 
+type GatewayBindingStore interface {
+	SaveGatewayBinding(ctx context.Context, binding GatewayBinding) error
+	GetGatewayBinding(ctx context.Context, key string) (GatewayBinding, bool, error)
+}
+
 // SessionStore defines the persistence operations for conversation sessions.
 type SessionStore interface {
 	SessionMetadataStore
 	CurrentSessionStore
 	SessionMessageStore
 	SessionSummaryStore
+	GatewayBindingStore
 }

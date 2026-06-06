@@ -21,7 +21,7 @@ type HTTPServer interface {
 
 type Options struct {
 	Listen               func(network string, address string) (net.Listener, error)
-	NewHTTPServer        func(config.GatewayConfig, Responder) HTTPServer
+	NewHTTPServer        func(config.GatewayConfig, AgentService) HTTPServer
 	StartSlackSocket     func(context.Context, config.GatewaySlackConfig) error
 	StartTelegramPolling func(context.Context, config.GatewayTelegramConfig) error
 	ShutdownTimeout      time.Duration
@@ -53,10 +53,10 @@ type component struct {
 	stop func(context.Context) error
 }
 
-func newComponents(cfg config.GatewayConfig, opts Options, responder Responder) ([]component, error) {
+func newComponents(cfg config.GatewayConfig, opts Options, service AgentService) ([]component, error) {
 	var components []component
 	if gatewayHTTPEnabled(cfg) {
-		server := opts.NewHTTPServer(cfg, responder)
+		server := opts.NewHTTPServer(cfg, service)
 		address := fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
 		lis, err := opts.Listen("tcp", address)
 		if err != nil {
@@ -125,8 +125,8 @@ func newHTTPComponent(
 	}
 }
 
-func newHTTPServer(cfg config.GatewayConfig, responder Responder) HTTPServer {
-	return &http.Server{Handler: newHTTPHandler(cfg, responder)}
+func newHTTPServer(cfg config.GatewayConfig, service AgentService) HTTPServer {
+	return &http.Server{Handler: newHTTPHandler(cfg, service)}
 }
 
 func waitForComponentStop[T any](ctx context.Context, _ T) error {

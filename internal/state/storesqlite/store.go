@@ -48,6 +48,7 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 		&stateModel{},
 		&summaryModel{},
 		&messageModel{},
+		&gatewayBindingModel{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate session db: %w", err)
 	}

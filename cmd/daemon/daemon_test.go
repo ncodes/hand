@@ -42,12 +42,12 @@ func (s modelClientFactoryStub) NewClient(req modelclient.ClientRequest) (models
 }
 
 type gatewayManagerStub struct {
-	start func(context.Context, config.GatewayConfig, handgateway.Responder) error
+	start func(context.Context, config.GatewayConfig, handgateway.AgentService) error
 	stop  func(context.Context) error
 	wait  <-chan error
 }
 
-func (s gatewayManagerStub) Start(ctx context.Context, cfg config.GatewayConfig, responder handgateway.Responder) error {
+func (s gatewayManagerStub) Start(ctx context.Context, cfg config.GatewayConfig, responder handgateway.AgentService) error {
 	if s.start != nil {
 		return s.start(ctx, cfg, responder)
 	}
@@ -1462,7 +1462,7 @@ func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
 			wait: wait,
-			start: func(_ context.Context, _ config.GatewayConfig, responder handgateway.Responder) error {
+			start: func(_ context.Context, _ config.GatewayConfig, responder handgateway.AgentService) error {
 				started = true
 				require.Same(t, agent, responder)
 				return nil
@@ -1497,7 +1497,7 @@ func TestServeDaemonServices_ReturnsGatewayStartError(t *testing.T) {
 	lis := &closeTrackingListener{}
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
-			start: func(context.Context, config.GatewayConfig, handgateway.Responder) error {
+			start: func(context.Context, config.GatewayConfig, handgateway.AgentService) error {
 				return errors.New("gateway start failed")
 			},
 		}
@@ -1527,7 +1527,7 @@ func TestServeDaemonServices_GatewayErrorStopsRPC(t *testing.T) {
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
 			wait: wait,
-			start: func(context.Context, config.GatewayConfig, handgateway.Responder) error {
+			start: func(context.Context, config.GatewayConfig, handgateway.AgentService) error {
 				wait <- errors.New("gateway failed")
 				return nil
 			},
@@ -1563,7 +1563,7 @@ func TestServeDaemonServices_CleanGatewayStopReturnsRPCResult(t *testing.T) {
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
 			wait: wait,
-			start: func(context.Context, config.GatewayConfig, handgateway.Responder) error {
+			start: func(context.Context, config.GatewayConfig, handgateway.AgentService) error {
 				wait <- nil
 				return nil
 			},
