@@ -528,10 +528,11 @@ func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
 	apiKey := strings.TrimSpace(m.setupProviderAPIKey)
 	if apiKey == "" {
 		if err := m.checkSetupModelAuth(option); err != nil {
-			if option.SupportsOAuth {
-				return m.startSetupOAuthLogin(getSetupModelProvider(m.setupModelProvider, option))
-			}
 			if isMissingModelCredentialError(err) {
+				if option.SupportsOAuth {
+					return m.startSetupOAuthLogin(getSetupModelProvider(m.setupModelProvider, option))
+				}
+
 				return m.showSetupProviderAPIKeyPrompt(option)
 			}
 
@@ -543,7 +544,7 @@ func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
 	if err == nil {
 		return m.completeSetupModelSelection(option)
 	}
-	if option.SupportsOAuth {
+	if option.SupportsOAuth && isMissingModelCredentialError(err) {
 		return m.startSetupOAuthLogin(getSetupModelProvider(m.setupModelProvider, option))
 	}
 	if isEmbeddingSetupError(err) {
@@ -861,7 +862,7 @@ func (m *model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey 
 			Value: apiKey,
 		})
 	}
-	if _, err := config.SetConfigValues(m.configEnvPath, m.configPath, updates); err != nil {
+	if _, err := config.SetConfigValuesRelaxed(m.configEnvPath, m.configPath, updates); err != nil {
 		return err
 	}
 

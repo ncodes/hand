@@ -115,6 +115,52 @@ func TestBuild_ReturnsModelAuthFailureWhenKeyIsMissing(t *testing.T) {
 	})
 }
 
+func TestBuildWithOptions_CanWarnForModelAuthFailure(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+
+	report := BuildWithOptions(".env", "config.yaml", &config.Config{
+		Name: "test-agent",
+		Models: config.ModelsConfig{
+			Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
+		},
+		Log: config.LogConfig{Level: "info"},
+	}, nil, BuildOptions{
+		Validate: func(*config.Config) error {
+			return nil
+		},
+		CheckModelAuth:    true,
+		ModelAuthWarnOnly: true,
+	})
+
+	require.False(t, report.HasFailures())
+	require.Contains(t, report.Checks, Check{
+		Name:    "model auth",
+		Status:  StatusWarn,
+		Message: `model API key is required for provider "openrouter"; set a provider API key, provider env var, role apiKey, or provider login`,
+	})
+}
+
+func TestBuildWithOptions_CanSkipModelAuthForDaemonReadiness(t *testing.T) {
+	report := BuildWithOptions(".env", "config.yaml", &config.Config{
+		Name: "test-agent",
+		Log:  config.LogConfig{Level: "info"},
+	}, nil, BuildOptions{
+		Validate:       (*config.Config).ValidateRelaxed,
+		CheckModelAuth: false,
+		ValidationPass: "daemon configuration is valid",
+	})
+
+	require.False(t, report.HasFailures())
+	require.Contains(t, report.Checks, Check{
+		Name:    "config validation",
+		Status:  StatusPass,
+		Message: "daemon configuration is valid",
+	})
+	for _, check := range report.Checks {
+		require.NotEqual(t, "model auth", check.Name)
+	}
+}
+
 func TestBuild_IncludesSummaryModelChecksWhenSummaryAuthDiffersFromMain(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
 		Name: "test-agent",

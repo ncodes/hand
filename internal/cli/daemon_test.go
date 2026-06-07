@@ -1,4 +1,4 @@
-package daemon
+package cli
 
 import (
 	"bytes"
@@ -17,10 +17,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
-	cli "github.com/urfave/cli/v3"
-	"google.golang.org/grpc"
-
-	handcli "github.com/wandxy/hand/internal/cli"
+	urfavecli "github.com/urfave/cli/v3"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	handgateway "github.com/wandxy/hand/internal/gateway"
@@ -31,6 +28,7 @@ import (
 	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
 	"github.com/wandxy/hand/internal/profile"
 	"github.com/wandxy/hand/pkg/logutils"
+	"google.golang.org/grpc"
 )
 
 type modelClientFactoryStub struct {
@@ -166,7 +164,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "\x1b[38;5;48m")
 	require.Contains(t, startupBuffer.String(), "\x1b[38;5;83m")
 	require.NotContains(t, startupBuffer.String(), "██   ██  █████  ███    ██ ██████")
-	require.NotContains(t, startupBuffer.String(), handcli.AppDescription)
+	require.NotContains(t, startupBuffer.String(), AppDescription)
 	require.Contains(t, startupBuffer.String(), "Version")
 	require.Contains(t, startupBuffer.String(), "Instance")
 	require.Contains(t, startupBuffer.String(), "flag-agent")
@@ -400,7 +398,7 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Instance: daemon$`), output)
 	require.Contains(t, output, "Summary model: gpt-4o-mini")
 	require.Contains(t, output, "RPC: 127.0.0.1:50051")
-	require.NotContains(t, output, handcli.AppDescription)
+	require.NotContains(t, output, AppDescription)
 	require.Contains(t, output, "Instance: daemon")
 	require.Contains(t, output, "Summary model: gpt-4o-mini")
 	require.Contains(t, output, "Summary provider: openrouter")
@@ -526,16 +524,16 @@ func TestRenderStartupPanel_IncludesEffectiveSummaryModelAndProvider(t *testing.
 }
 
 func TestSetOutput_SwitchesWriterAndRestoresPrevious(t *testing.T) {
-	stdout := SetOutput(nil)
+	stdout := SetDaemonOutput(nil)
 	require.Equal(t, io.Discard, startupOutput)
-	t.Cleanup(func() { SetOutput(stdout) })
+	t.Cleanup(func() { SetDaemonOutput(stdout) })
 
 	buf := &bytes.Buffer{}
-	prev := SetOutput(buf)
+	prev := SetDaemonOutput(buf)
 	require.Equal(t, io.Discard, prev)
 	require.Equal(t, buf, startupOutput)
 
-	restored := SetOutput(stdout)
+	restored := SetDaemonOutput(stdout)
 	require.Equal(t, buf, restored)
 	require.Equal(t, stdout, startupOutput)
 }
@@ -684,7 +682,7 @@ func TestRunDaemonWithConfigRestartsReturnsConfigFingerprintError(t *testing.T) 
 		return nil, errors.New("stat failed")
 	}
 
-	err := runParsedDaemonCommand(t, []string{"--config", configPath, "daemon", "start"}, func(ctx context.Context, cmd *cli.Command) error {
+	err := runParsedDaemonCommand(t, []string{"--config", configPath, "daemon", "start"}, func(ctx context.Context, cmd *urfavecli.Command) error {
 		return runDaemonWithConfigRestarts(ctx, cmd, 0)
 	})
 
@@ -707,7 +705,7 @@ func TestRunDaemonUntilConfigChangeReturnsWatcherSetupErrorBeforeStartingDaemon(
 
 	snapshot := daemonConfigSnapshot{
 		cfg:    newUpTestConfig("daemon"),
-		inputs: handcli.ConfigInputs{ConfigPath: filepath.Join(t.TempDir(), "config.yaml")},
+		inputs: ConfigInputs{ConfigPath: filepath.Join(t.TempDir(), "config.yaml")},
 	}
 	_, restart, err := runDaemonUntilConfigChange(context.Background(), nil, snapshot, 10*time.Millisecond)
 
@@ -727,7 +725,7 @@ func TestRunDaemonUntilConfigChangeReturnsDaemonError(t *testing.T) {
 
 	snapshot := daemonConfigSnapshot{
 		cfg:    newUpTestConfig("daemon"),
-		inputs: handcli.ConfigInputs{ConfigPath: filepath.Join(t.TempDir(), "config.yaml")},
+		inputs: ConfigInputs{ConfigPath: filepath.Join(t.TempDir(), "config.yaml")},
 	}
 	_, restart, err := runDaemonUntilConfigChange(context.Background(), nil, snapshot, 10*time.Millisecond)
 
@@ -753,7 +751,7 @@ func TestRunDaemonUntilConfigChangeReturnsStopErrorAfterContextCancel(t *testing
 	go func() {
 		snapshot := daemonConfigSnapshot{
 			cfg:    newUpTestConfig("daemon"),
-			inputs: handcli.ConfigInputs{ConfigPath: filepath.Join(t.TempDir(), "config.yaml")},
+			inputs: ConfigInputs{ConfigPath: filepath.Join(t.TempDir(), "config.yaml")},
 		}
 		_, _, err := runDaemonUntilConfigChange(ctx, nil, snapshot, 10*time.Millisecond)
 		done <- err
@@ -799,7 +797,7 @@ func TestRunDaemonUntilConfigChangeIgnoresConfigStatError(t *testing.T) {
 	go func() {
 		snapshot := daemonConfigSnapshot{
 			cfg:    newUpTestConfig("daemon"),
-			inputs: handcli.ConfigInputs{ConfigPath: configPath},
+			inputs: ConfigInputs{ConfigPath: configPath},
 		}
 		_, _, err := runDaemonUntilConfigChange(ctx, nil, snapshot, 10*time.Millisecond)
 		done <- err
@@ -845,7 +843,7 @@ func TestRunDaemonUntilConfigChangeHandlesWatcherNoise(t *testing.T) {
 	go func() {
 		snapshot := daemonConfigSnapshot{
 			cfg:         newUpTestConfig("daemon"),
-			inputs:      handcli.ConfigInputs{ConfigPath: configPath},
+			inputs:      ConfigInputs{ConfigPath: configPath},
 			fingerprint: fingerprint,
 		}
 		_, _, err := runDaemonUntilConfigChange(ctx, nil, snapshot, 10*time.Millisecond)
@@ -931,11 +929,11 @@ func TestRunDaemonUntilConfigChangeReturnsShutdownErrorOnRestart(t *testing.T) {
 	}
 
 	done := make(chan error, 1)
-	err = runParsedDaemonCommand(t, []string{"--config", configPath, "daemon", "start"}, func(ctx context.Context, cmd *cli.Command) error {
+	err = runParsedDaemonCommand(t, []string{"--config", configPath, "daemon", "start"}, func(ctx context.Context, cmd *urfavecli.Command) error {
 		go func() {
 			snapshot := daemonConfigSnapshot{
 				cfg:         newUpTestConfig("first"),
-				inputs:      handcli.ConfigInputs{ConfigPath: configPath},
+				inputs:      ConfigInputs{ConfigPath: configPath},
 				fingerprint: fingerprint,
 			}
 			_, _, err := runDaemonUntilConfigChange(ctx, cmd, snapshot, 10*time.Millisecond)
@@ -1202,7 +1200,7 @@ func TestRunDaemonOnceReturnsRerankerClientFactoryError(t *testing.T) {
 	require.Equal(t, 2, calls)
 }
 
-func TestRunDaemonOnceReturnsRerankerAuthError(t *testing.T) {
+func TestRunDaemonOnceStartsWhenRerankerAuthFails(t *testing.T) {
 	isolateCommandProfile(t)
 	originalFactory := modelClientFactory
 	originalResolve := resolveRerankerAuth
@@ -1223,8 +1221,9 @@ func TestRunDaemonOnceReturnsRerankerAuthError(t *testing.T) {
 	resolveRerankerAuth = func(*config.Config) (config.ModelAuth, error) {
 		return config.ModelAuth{}, errors.New("reranker auth failed")
 	}
+	served := false
 	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
-		t.Fatal("serveRPC should not run")
+		served = true
 		return nil
 	}
 	startupOutput = io.Discard
@@ -1236,7 +1235,8 @@ func TestRunDaemonOnceReturnsRerankerAuthError(t *testing.T) {
 
 	err := runDaemonOnce(context.Background(), cfg)
 
-	require.EqualError(t, err, "reranker auth failed")
+	require.NoError(t, err)
+	require.True(t, served)
 }
 
 func TestServeRPC_ReturnsWhenGRPCServeFails(t *testing.T) {
@@ -1484,6 +1484,36 @@ func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, started)
 	require.True(t, stopped)
+}
+
+func TestLogGatewayStartedIncludesConfiguredChannels(t *testing.T) {
+	var output bytes.Buffer
+	logutils.SetOutput(&output)
+	logutils.ConfigureLogger("hand", true)
+	t.Cleanup(func() {
+		logutils.SetOutput(io.Discard)
+		logutils.ConfigureLogger("hand", true)
+	})
+
+	logGatewayStarted(config.GatewayConfig{
+		Address: "127.0.0.1",
+		Port:    50052,
+		Telegram: config.GatewayTelegramConfig{
+			Enabled: true,
+			Mode:    config.GatewayTelegramModePolling,
+		},
+		Slack: config.GatewaySlackConfig{
+			Enabled: true,
+			Mode:    config.GatewaySlackModeSocket,
+		},
+	})
+
+	logOutput := output.String()
+	require.Contains(t, logOutput, "Gateway started")
+	require.Contains(t, logOutput, "gatewayAddress=127.0.0.1")
+	require.Contains(t, logOutput, "gatewayPort=50052")
+	require.Contains(t, logOutput, "telegramMode=polling")
+	require.Contains(t, logOutput, "slackMode=socket")
 }
 
 func TestServeDaemonServices_ReturnsGatewayStartError(t *testing.T) {
@@ -1808,7 +1838,7 @@ func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
 	require.EqualError(t, err, "model factory boom")
 }
 
-func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
+func TestNewCommand_StartsWhenSummaryAuthCannotResolve(t *testing.T) {
 	isolateCommandProfile(t)
 	stubOpenRPCListener(t)
 	origResolve := resolveSummaryAuth
@@ -1818,7 +1848,11 @@ func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 		serveRPC = origServe
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
+	served := false
+	serveRPC = func(_ context.Context, cfg *config.Config, _ agentRunner, _ net.Listener) error {
+		served = true
+		return nil
+	}
 	resolveSummaryAuth = func(*config.Config) (config.ModelAuth, error) {
 		return config.ModelAuth{}, errors.New("summary auth boom")
 	}
@@ -1837,7 +1871,8 @@ func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 		"--rpc.port", "50051",
 		"daemon", "start",
 	})
-	require.EqualError(t, err, "summary auth boom")
+	require.NoError(t, err)
+	require.True(t, served)
 }
 
 func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
@@ -2132,17 +2167,30 @@ func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 	require.True(t, serveCalled)
 }
 
-func TestNewCommand_ReturnsValidationError(t *testing.T) {
+func TestNewCommand_StartsWithoutConfiguredModel(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	originalServeGRPC := serveRPC
+	originalFactory := modelClientFactory
 
 	t.Cleanup(func() {
 		serveRPC = originalServeGRPC
+		modelClientFactory = originalFactory
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
-		t.Fatal("serveGRPC should not be called on validation failure")
+	served := false
+	serveRPC = func(_ context.Context, cfg *config.Config, _ agentRunner, _ net.Listener) error {
+		served = true
+		require.False(t, cfg.Gateway.Enabled)
+		require.False(t, cfg.Search.Vector.Enabled)
+		require.False(t, cfg.MemoryEnabled())
 		return nil
+	}
+	modelClientFactory = modelClientFactoryStub{
+		newClient: func(modelclient.ClientRequest) (models.Client, error) {
+			t.Fatal("model client should not be created without a configured model")
+			return nil, nil
+		},
 	}
 
 	configFile := ""
@@ -2153,33 +2201,56 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 		"--model", "",
 		"--model.provider", "openrouter",
 		"--model.api-key", "",
+		"--gateway.enabled",
+		"--gateway.telegram.enabled",
 		"daemon", "start",
 	})
 
-	require.ErrorContains(t, err, "model is required")
+	require.NoError(t, err)
+	require.True(t, served)
 }
 
-func newRootCommandForTest(configFile *string) *cli.Command {
-	return &cli.Command{
+func newRootCommandForTest(configFile *string) *urfavecli.Command {
+	return &urfavecli.Command{
 		Name:  "hand",
-		Flags: handcli.RootFlags(nil, configFile),
-		Commands: []*cli.Command{
-			NewCommand(),
+		Flags: RootFlags(nil, configFile),
+		Commands: []*urfavecli.Command{
+			newDaemonCommandForTest(),
 		},
 	}
 }
 
-func runParsedDaemonCommand(t *testing.T, args []string, action func(context.Context, *cli.Command) error) error {
+func newDaemonCommandForTest() *urfavecli.Command {
+	return &urfavecli.Command{
+		Name:  "daemon",
+		Usage: "Manage the Hand daemon",
+		Flags: []urfavecli.Flag{PersistentInstructFlag()},
+		Commands: []*urfavecli.Command{
+			{
+				Name:  "start",
+				Usage: "Start the Hand daemon",
+				Action: func(ctx context.Context, cmd *urfavecli.Command) error {
+					return runDaemonWithConfigRestarts(ctx, cmd, daemonConfigWatchDebounce)
+				},
+			},
+		},
+		Action: func(_ context.Context, cmd *urfavecli.Command) error {
+			return urfavecli.ShowSubcommandHelp(cmd)
+		},
+	}
+}
+
+func runParsedDaemonCommand(t *testing.T, args []string, action func(context.Context, *urfavecli.Command) error) error {
 	t.Helper()
 
 	configFile := ""
-	root := &cli.Command{
+	root := &urfavecli.Command{
 		Name:  "hand",
-		Flags: handcli.RootFlags(nil, &configFile),
-		Commands: []*cli.Command{
+		Flags: RootFlags(nil, &configFile),
+		Commands: []*urfavecli.Command{
 			{
 				Name: "daemon",
-				Commands: []*cli.Command{
+				Commands: []*urfavecli.Command{
 					{
 						Name:   "start",
 						Action: action,
@@ -2201,7 +2272,7 @@ func isolateCommandProfile(t *testing.T) {
 	})
 	profile.SetActive(profile.Profile{})
 	t.Setenv("HOME", t.TempDir())
-	clearEnv(
+	clearDaemonEnv(
 		t,
 		profile.EnvName,
 		"HAND_ENV_FILE",
@@ -2309,7 +2380,7 @@ func writeConfigFile(t *testing.T, path string, cfg *config.Config) {
 	require.NoError(t, os.WriteFile(path, data, 0o600))
 }
 
-func clearEnv(t *testing.T, keys ...string) {
+func clearDaemonEnv(t *testing.T, keys ...string) {
 	t.Helper()
 	keys = append(keys, "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN")
 

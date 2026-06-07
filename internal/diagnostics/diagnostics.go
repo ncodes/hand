@@ -37,8 +37,19 @@ type Report struct {
 	Checks []Check
 }
 
+type BuildOptions struct {
+	Validate          func(*config.Config) error
+	CheckModelAuth    bool
+	ValidationPass    string
+	ModelAuthWarnOnly bool
+}
+
 // Build runs diagnostics checks and returns a report.
 func Build(envPath, configPath string, cfg *config.Config, loadErr error) Report {
+	return BuildWithOptions(envPath, configPath, cfg, loadErr, BuildOptions{CheckModelAuth: true})
+}
+
+func BuildWithOptions(envPath, configPath string, cfg *config.Config, loadErr error, opts BuildOptions) Report {
 	report := Report{
 		Checks: []Check{
 			buildFileCheck("env file", envPath, true),
@@ -64,7 +75,15 @@ func Build(envPath, configPath string, cfg *config.Config, loadErr error) Report
 		return report
 	}
 
-	if err := cfg.Validate(); err != nil {
+	validate := opts.Validate
+	if validate == nil {
+		validate = (*config.Config).Validate
+	}
+	validationPass := strings.TrimSpace(opts.ValidationPass)
+	if validationPass == "" {
+		validationPass = "configuration is valid"
+	}
+	if err := validate(cfg); err != nil {
 		report.Checks = append(report.Checks, Check{
 			Name:    "config validation",
 			Status:  StatusFail,
@@ -74,15 +93,23 @@ func Build(envPath, configPath string, cfg *config.Config, loadErr error) Report
 		report.Checks = append(report.Checks, Check{
 			Name:    "config validation",
 			Status:  StatusPass,
-			Message: "configuration is valid",
+			Message: validationPass,
 		})
+	}
+
+	if !opts.CheckModelAuth {
+		return report
 	}
 
 	auth, err := cfg.ResolveModelAuth()
 	if err != nil {
+		status := StatusFail
+		if opts.ModelAuthWarnOnly {
+			status = StatusWarn
+		}
 		report.Checks = append(report.Checks, Check{
 			Name:    "model auth",
-			Status:  StatusFail,
+			Status:  status,
 			Message: err.Error(),
 		})
 	} else {

@@ -150,7 +150,7 @@ search:
 	require.False(t, cfg.Log.NoColor)
 }
 
-func TestNewCommand_RequiresProviderWhenEmpty(t *testing.T) {
+func TestNewCommand_DaemonStartsWhenProviderEmpty(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
@@ -177,7 +177,7 @@ search:
 		"--rpc.port", nextTestPort(t),
 		"daemon", "start",
 	})
-	require.ErrorContains(t, err, "model provider is required")
+	require.NoError(t, err)
 }
 
 func TestNewCommand_UsesMappedBaseURLWhenProviderSetAndBaseURLUnset(t *testing.T) {
@@ -633,7 +633,7 @@ func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestNewCommand_RejectsUnsupportedProvider(t *testing.T) {
+func TestNewCommand_DaemonStartsWhenProviderUnsupported(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
@@ -658,7 +658,7 @@ models:
 		"--rpc.port", nextTestPort(t),
 		"daemon", "start",
 	})
-	require.EqualError(t, err, "model provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
+	require.NoError(t, err)
 }
 
 func TestNewCommand_UsesDirectClientWhenProviderIsOpenai(t *testing.T) {

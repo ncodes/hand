@@ -822,8 +822,14 @@ func TestAgent_ListModelsReturnsCurrentProviderModels(t *testing.T) {
 	require.Equal(t, constants.ModelProviderOpenAI, list.Provider)
 	require.Equal(t, "api-key", list.AuthType)
 	require.NotEmpty(t, list.Models)
-	require.Equal(t, constants.DefaultModel, list.Models[0].ID)
-	require.True(t, list.Models[0].Current)
+	var current models.Option
+	for _, model := range list.Models {
+		if model.Current {
+			current = model
+			break
+		}
+	}
+	require.Equal(t, constants.DefaultModel, current.ID)
 
 	list, err = NewAgent(context.Background(), cfg, nil).ListModels(
 		context.Background(),

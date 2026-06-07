@@ -2,6 +2,8 @@ package tui
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -902,6 +904,85 @@ func TestModel_SetupOAuthFailureShowsRetryNotice(t *testing.T) {
 	require.True(t, runModel.setupOAuthPending)
 	require.Equal(t, "anthropic", runModel.setupOAuthProvider)
 	require.Contains(t, stripANSI(runModel.View().Content), "Opening browser to connect Anthropic.")
+}
+
+func TestModel_SetupOAuthModelAuthErrorShowsNoticeInsteadOfRestartingLogin(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	require.NoError(t, appcredential.NewFileStore("").Set(constants.ModelProviderOpenAICodex, appcredential.StoredCredential{
+		Type:  appcredential.TypeOAuth,
+		Token: "not-a-jwt",
+	}))
+	runModel.setupModelStep = setupModelStepModel
+	runModel.setupAuthMethod = setupAuthMethodSubscription
+	runModel.setupModelProvider = constants.ModelProviderOpenAICodex
+	runModel.setupModels = []rpcclient.ModelOption{{
+		ID:            "gpt-5.5",
+		Provider:      constants.ModelProviderOpenAICodex,
+		SupportsOAuth: true,
+	}}
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepNotice, runModel.setupModelStep)
+	require.False(t, runModel.setupOAuthPending)
+	require.Empty(t, runModel.setupOAuthProvider)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Model setup unavailable")
+	require.Contains(t, content, "OpenAI subscription token must be a JWT with")
+	require.Contains(t, content, "account metadata")
+	require.NotContains(t, content, "Opening browser to connect OpenAI Codex")
+}
+
+func TestModel_SetupOAuthModelSelectionIgnoresMissingGatewayToken(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+gateway:
+    enabled: true
+    telegram:
+        enabled: true
+        mode: polling
+        botToken: ""
+search:
+    vector:
+        enabled: false
+`)
+	require.NoError(t, appcredential.NewFileStore("").Set(constants.ModelProviderOpenAICodex, appcredential.StoredCredential{
+		Type:  appcredential.TypeOAuth,
+		Token: makeOpenAITestJWTForSetup(t),
+	}))
+	runModel := newModel()
+	runModel.nameInput.SetValue("Nedy")
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupAuthMethod(t, &runModel, setupAuthMethodSubscription)
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	selectSetupProvider(t, &runModel, constants.ModelProviderOpenAICodex)
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+	selectSetupModel(t, &runModel, "gpt-5.5")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderOpenAICodex, cfg.Models.Main.Provider)
+	require.Equal(t, "gpt-5.5", cfg.Models.Main.Name)
+	require.Equal(t, constants.ModelProviderOpenAICodex, cfg.Models.Summary.Provider)
+	require.Equal(t, "gpt-5.5", cfg.Models.Summary.Name)
+	require.NotContains(t, stripANSI(runModel.View().Content), "gateway telegram bot token")
 }
 
 func TestModel_SetupOAuthBackCancelsPendingLogin(t *testing.T) {
@@ -5395,6 +5476,21 @@ func runSetupOAuthBatch(t *testing.T, cmd tea.Cmd) (setupOAuthOutputMsg, setupOA
 		t.Fatal("timed out waiting for setup oauth output")
 		return setupOAuthOutputMsg{}, setupOAuthCompletedMsg{}
 	}
+}
+
+func makeOpenAITestJWTForSetup(t *testing.T) string {
+	t.Helper()
+
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
+	body, err := json.Marshal(map[string]any{
+		"https://api.openai.com/auth": map[string]any{
+			"chatgpt_account_id": "acct-test",
+		},
+	})
+	require.NoError(t, err)
+	payload := base64.RawURLEncoding.EncodeToString(body)
+
+	return strings.Join([]string{header, payload, "signature"}, ".")
 }
 
 func getTranscriptContentRow(t *testing.T, runModel model, needle string) int {

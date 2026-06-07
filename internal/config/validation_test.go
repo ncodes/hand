@@ -27,6 +27,45 @@ func TestConfig_ValidateNilConfig(t *testing.T) {
 	require.EqualError(t, cfg.Validate(), "config is required")
 }
 
+func TestConfig_ValidateRelaxedAllowsMissingModelSelection(t *testing.T) {
+	cfg := &Config{
+		Name: "test-agent",
+		Log:  LogConfig{Level: "info"},
+	}
+
+	require.NoError(t, cfg.ValidateRelaxed())
+	require.Empty(t, cfg.Models.Main.Name)
+	require.Empty(t, cfg.Models.Main.Provider)
+}
+
+func TestConfig_ValidateRelaxedAllowsMissingGatewayCredentials(t *testing.T) {
+	cfg := validGatewayConfig()
+	cfg.Gateway.Telegram.BotToken = ""
+	cfg.Gateway.Slack.BotToken = ""
+	cfg.Gateway.Slack.AppToken = ""
+
+	require.NoError(t, cfg.ValidateRelaxed())
+	require.EqualError(t, cfg.Validate(), "gateway telegram bot token is required when telegram gateway is enabled; "+
+		"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
+}
+
+func TestConfig_ValidateRelaxedAllowsUnsupportedModelProvider(t *testing.T) {
+	cfg := &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Main: MainModelConfig{
+				Name:     constants.DefaultModel,
+				Provider: "unsupported",
+				BaseURL:  "https://config.example/v1",
+			},
+		},
+		Log: LogConfig{Level: "info"},
+	}
+
+	require.NoError(t, cfg.ValidateRelaxed())
+	require.EqualError(t, cfg.Validate(), "model provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
+}
+
 func TestConfig_ValidateAllowsProviderSpecificAuthWithoutModelKey(t *testing.T) {
 	cfg := &Config{
 		Name: "test-agent",

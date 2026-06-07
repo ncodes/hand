@@ -4,6 +4,7 @@ import (
 	gctx "context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -38,8 +39,13 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
 	messages "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/logutils"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
+
+func init() {
+	logutils.SetOutput(io.Discard)
+}
 
 func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	baseCtx := gctx.WithValue(gctx.Background(), "requestID", "req-123")
@@ -194,7 +200,7 @@ func TestEnvironment_PrepareMemoryDisablesMaxOutputTokensForOpenAISubscription(t
 		newMemoryProvider = previousNewMemoryProvider
 	})
 	setProfileHome(t, t.TempDir())
-	require.NoError(t, appcredential.NewFileStore("").Set(constants.ModelProviderOpenAI, appcredential.StoredCredential{
+	require.NoError(t, appcredential.NewFileStore("").Set(constants.ModelProviderOpenAICodex, appcredential.StoredCredential{
 		Type:  appcredential.TypeOAuth,
 		Token: "subscription-token",
 	}))
@@ -207,8 +213,8 @@ func TestEnvironment_PrepareMemoryDisablesMaxOutputTokensForOpenAISubscription(t
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name: "Test Agent",
 		Models: config.ModelsConfig{Main: config.MainModelConfig{
-			Name:     "gpt-5.4-mini",
-			Provider: constants.ModelProviderOpenAI,
+			Name:     "gpt-5.4",
+			Provider: constants.ModelProviderOpenAICodex,
 		}},
 		Memory: config.MemoryConfig{Provider: memory.ProviderDefaultMemory},
 	}).(*environment)
@@ -251,6 +257,10 @@ func TestEnvironment_PrepareConfiguresMemoryBackgroundOptions(t *testing.T) {
 	cancel()
 	env := NewEnvironment(ctx, &config.Config{
 		Name: "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{
+			Name:     "gpt-5.4",
+			Provider: constants.ModelProviderOpenAICodex,
+		}},
 		Memory: config.MemoryConfig{
 			Enabled:  &enabled,
 			Provider: memory.ProviderDefaultMemory,

@@ -81,6 +81,19 @@ func SetConfigValue(envPath string, configPath string, path string, value string
 
 // SetConfigValues updates config values.
 func SetConfigValues(envPath string, configPath string, updates []ConfigUpdate) ([]string, error) {
+	return setConfigValues(envPath, configPath, updates, (*Config).Validate)
+}
+
+func SetConfigValuesRelaxed(envPath string, configPath string, updates []ConfigUpdate) ([]string, error) {
+	return setConfigValues(envPath, configPath, updates, (*Config).ValidateRelaxed)
+}
+
+func setConfigValues(
+	envPath string,
+	configPath string,
+	updates []ConfigUpdate,
+	validate func(*Config) error,
+) ([]string, error) {
 	configPath = strings.TrimSpace(configPath)
 	if configPath == "" {
 		return nil, fmt.Errorf("config path is required")
@@ -115,7 +128,7 @@ func SetConfigValues(envPath string, configPath string, updates []ConfigUpdate) 
 	if err != nil {
 		return nil, err
 	}
-	if err := validateConfigYAML(envPath, configPath, data); err != nil {
+	if err := validateConfigYAML(envPath, configPath, data, validate); err != nil {
 		return nil, err
 	}
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o700); err != nil {
@@ -153,7 +166,12 @@ func loadConfigYAMLNode(configPath string) (*yaml.Node, error) {
 	return &node, nil
 }
 
-func validateConfigYAML(envPath string, configPath string, data []byte) error {
+func validateConfigYAML(
+	envPath string,
+	configPath string,
+	data []byte,
+	validate func(*Config) error,
+) error {
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o700); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
@@ -177,7 +195,10 @@ func validateConfigYAML(envPath string, configPath string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	if err := cfg.Validate(); err != nil {
+	if validate == nil {
+		validate = (*Config).Validate
+	}
+	if err := validate(cfg); err != nil {
 		return err
 	}
 	return nil

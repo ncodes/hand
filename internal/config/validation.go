@@ -11,7 +11,22 @@ import (
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 )
 
+type validationOptions struct {
+	requireModels          bool
+	skipGatewayCredentials bool
+}
+
 func (c *Config) Validate() error {
+	return c.validate(validationOptions{requireModels: true})
+}
+
+func (c *Config) ValidateRelaxed() error {
+	return c.validate(validationOptions{
+		skipGatewayCredentials: true,
+	})
+}
+
+func (c *Config) validate(options validationOptions) error {
 	if c == nil {
 		return errors.New("config is required")
 	}
@@ -32,45 +47,47 @@ func (c *Config) Validate() error {
 		return errors.New("name is required; set HAND_NAME, provide it in config, or use --name")
 	}
 
-	if !isValidModelID(c.Models.Main.Name) {
-		return errors.New("model is required")
-	}
-
-	if c.Models.Summary.Name != "" && !isValidModelID(c.Models.Summary.Name) {
-		return errors.New("summary model is invalid")
-	}
-
-	if strings.TrimSpace(c.Models.Main.Provider) == "" {
-		return errors.New("model provider is required")
-	}
-	if !hasModelProvider(c.Models.Main.Provider) {
-		return fmt.Errorf("model provider must be one of: %s", getModelProviderList())
-	}
-
-	if c.Models.Summary.Provider != "" {
-		if !hasModelProvider(c.Models.Summary.Provider) {
-			return fmt.Errorf("summary model provider must be one of: %s", getModelProviderList())
+	if options.requireModels {
+		if !isValidModelID(c.Models.Main.Name) {
+			return errors.New("model is required")
 		}
-	}
 
-	if err := c.validateModelSettings(); err != nil {
-		return err
-	}
+		if c.Models.Summary.Name != "" && !isValidModelID(c.Models.Summary.Name) {
+			return errors.New("summary model is invalid")
+		}
 
-	if err := c.validateRerankerSettings(); err != nil {
-		return err
-	}
+		if strings.TrimSpace(c.Models.Main.Provider) == "" {
+			return errors.New("model provider is required")
+		}
+		if !hasModelProvider(c.Models.Main.Provider) {
+			return fmt.Errorf("model provider must be one of: %s", getModelProviderList())
+		}
 
-	if err := c.validateSearchVectorSettings(); err != nil {
-		return err
-	}
+		if c.Models.Summary.Provider != "" {
+			if !hasModelProvider(c.Models.Summary.Provider) {
+				return fmt.Errorf("summary model provider must be one of: %s", getModelProviderList())
+			}
+		}
 
-	if _, err := c.ResolveModelAuth(); err != nil {
-		return err
-	}
+		if err := c.validateModelSettings(); err != nil {
+			return err
+		}
 
-	if _, err := c.ResolveSummaryModelAuth(); err != nil {
-		return err
+		if err := c.validateRerankerSettings(); err != nil {
+			return err
+		}
+
+		if err := c.validateSearchVectorSettings(); err != nil {
+			return err
+		}
+
+		if _, err := c.ResolveModelAuth(); err != nil {
+			return err
+		}
+
+		if _, err := c.ResolveSummaryModelAuth(); err != nil {
+			return err
+		}
 	}
 
 	if strings.TrimSpace(c.RPC.Address) == "" {
@@ -81,7 +98,9 @@ func (c *Config) Validate() error {
 		return errors.New("rpc port must be non-negative; set HAND_RPC_PORT, provide it in config, or use --rpc.port")
 	}
 
-	if err := c.validateGatewaySettings(); err != nil {
+	if err := c.validateGatewaySettings(gatewayValidationOptions{
+		skipCredentials: options.skipGatewayCredentials,
+	}); err != nil {
 		return err
 	}
 
@@ -120,7 +139,16 @@ func (c *Config) Validate() error {
 	}
 }
 
-func (c *Config) validateGatewaySettings() error {
+type gatewayValidationOptions struct {
+	skipCredentials bool
+}
+
+func (c *Config) validateGatewaySettings(options ...gatewayValidationOptions) error {
+	var opts gatewayValidationOptions
+	if len(options) > 0 {
+		opts = options[0]
+	}
+
 	if strings.TrimSpace(c.Gateway.Address) == "" {
 		return errors.New("gateway address is required; set HAND_GATEWAY_ADDRESS, provide it in config, or use --gateway.address")
 	}
@@ -129,6 +157,9 @@ func (c *Config) validateGatewaySettings() error {
 	}
 	if !c.Gateway.Enabled {
 		return nil
+	}
+	if opts.skipCredentials {
+		return validateGatewayChannelModes(c.Gateway)
 	}
 	if !isLoopbackGatewayAddress(c.Gateway.Address) && strings.TrimSpace(c.Gateway.AuthToken) == "" {
 		return errors.New("gateway auth token is required for non-loopback binds; set HAND_GATEWAY_AUTH_TOKEN, " +
@@ -144,11 +175,29 @@ func (c *Config) validateGatewaySettings() error {
 	return nil
 }
 
-func validateGatewayTelegramSettings(cfg GatewayTelegramConfig) error {
-	switch cfg.Mode {
+func validateGatewayChannelModes(cfg GatewayConfig) error {
+	if err := validateGatewayTelegramMode(cfg.Telegram.Mode); err != nil {
+		return err
+	}
+	if err := validateGatewaySlackMode(cfg.Slack.Mode); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateGatewayTelegramMode(mode string) error {
+	switch mode {
 	case GatewayTelegramModePolling, GatewayTelegramModeWebhook:
+		return nil
 	default:
 		return errors.New("gateway telegram mode must be one of: polling, webhook")
+	}
+}
+
+func validateGatewayTelegramSettings(cfg GatewayTelegramConfig) error {
+	if err := validateGatewayTelegramMode(cfg.Mode); err != nil {
+		return err
 	}
 	if !cfg.Enabled {
 		return nil
@@ -195,11 +244,18 @@ func isValidTelegramWebhookSecret(secret string) bool {
 	return true
 }
 
-func validateGatewaySlackSettings(cfg GatewaySlackConfig) error {
-	switch cfg.Mode {
+func validateGatewaySlackMode(mode string) error {
+	switch mode {
 	case GatewaySlackModeSocket, GatewaySlackModeHTTP:
+		return nil
 	default:
 		return errors.New("gateway slack mode must be one of: socket, http")
+	}
+}
+
+func validateGatewaySlackSettings(cfg GatewaySlackConfig) error {
+	if err := validateGatewaySlackMode(cfg.Mode); err != nil {
+		return err
 	}
 	if !cfg.Enabled {
 		return nil

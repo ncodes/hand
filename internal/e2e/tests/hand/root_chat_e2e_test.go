@@ -247,12 +247,14 @@ models:
       apiKey: config-key
   main:
     name: openai/gpt-4o-mini
-    provider: unsupported
+    provider: openrouter
+log:
+  level: trace
 `), 0o600))
 
 	_, err := runRootChatCommand(t, "hand", "--config", configPath, "--rpc.port", nextTestPort(t), "daemon", "start")
 	require.Error(t, err)
-	require.ErrorContains(t, err, "model provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
+	require.ErrorContains(t, err, "log level must be one of debug, info, warn, or error")
 }
 
 func Test_E2E_HandRootChat_FileGuardrailFailureReturnsCoherentAnswer(t *testing.T) {

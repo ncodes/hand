@@ -45,6 +45,30 @@ func Load(envPath, configPath string) (*Config, error) {
 	return cfg, nil
 }
 
+func LoadStrict(envPath, configPath string) (*Config, error) {
+	cfg, err := Load(envPath, configPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+func LoadRelaxed(envPath, configPath string) (*Config, error) {
+	cfg, err := Load(envPath, configPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.ValidateRelaxed(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
 // Get returns a configuration value addressed by path.
 func Get() *Config {
 	configMu.RLock()

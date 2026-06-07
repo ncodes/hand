@@ -101,6 +101,44 @@ func TestSetConfigValues_UpdatesMultipleFieldsAtomically(t *testing.T) {
 	require.Equal(t, 2*time.Hour, cfg.Session.DefaultIdleExpiry)
 }
 
+func TestSetConfigValuesRelaxed_AllowsMissingGatewayCredentials(t *testing.T) {
+	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	resetSetConfigProfileState(t)
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: test-agent
+models:
+    providers:
+        openrouter:
+            apiKey: router-key
+    main:
+        provider: ""
+        name: ""
+gateway:
+    enabled: true
+    telegram:
+        enabled: true
+        mode: polling
+        botToken: ""
+search:
+    vector:
+        enabled: false
+`), 0o600))
+
+	updatedPaths, err := SetConfigValuesRelaxed("", configPath, []ConfigUpdate{
+		{Path: "models.main.provider", Value: "openrouter"},
+		{Path: "models.main.name", Value: "openai/gpt-4o-mini"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"models.main.provider", "models.main.name"}, updatedPaths)
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
+}
+
 func TestSetConfigValues_RewritesFlowMappingsAsBlockYAML(t *testing.T) {
 	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)

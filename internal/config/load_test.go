@@ -446,6 +446,31 @@ models:
 	require.Equal(t, modelprovider.APIOpenAIResponses, cfg.Models.Main.API)
 }
 
+func TestLoadStrictRejectsMissingGatewayCredentials(t *testing.T) {
+	clearEnvKeys(t, "OPENROUTER_API_KEY")
+
+	configPath := writeLoadGatewayConfig(t, "")
+
+	_, err := LoadStrict("", configPath)
+
+	require.EqualError(t, err, "gateway telegram bot token is required when telegram gateway is enabled; "+
+		"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
+}
+
+func TestLoadRelaxedSkipsMissingGatewayCredentials(t *testing.T) {
+	clearEnvKeys(t, "OPENROUTER_API_KEY")
+
+	configPath := writeLoadGatewayConfig(t, "")
+
+	cfg, err := LoadRelaxed("", configPath)
+
+	require.NoError(t, err)
+	require.True(t, cfg.Gateway.Telegram.Enabled)
+	require.Empty(t, cfg.Gateway.Telegram.BotToken)
+	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
+}
+
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
 		"OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_MODEL_MAX_RETRIES",
@@ -459,6 +484,33 @@ func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `failed to parse config file`)
+}
+
+func writeLoadGatewayConfig(t *testing.T, telegramBotToken string) string {
+	t.Helper()
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: test-agent
+models:
+  providers:
+    openrouter:
+      apiKey: router-key
+  main:
+    provider: openrouter
+    name: openai/gpt-4o-mini
+gateway:
+  enabled: true
+  telegram:
+    enabled: true
+    mode: polling
+    botToken: "`+telegramBotToken+`"
+search:
+  vector:
+    enabled: false
+`), 0o600))
+
+	return configPath
 }
 
 func TestLoadConfigFile_UsesDefaultPathWhenEmpty(t *testing.T) {
