@@ -10,6 +10,8 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/wandxy/hand/internal/config"
+	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
+	telegramprovider "github.com/wandxy/hand/internal/gateway/telegram"
 	storage "github.com/wandxy/hand/internal/state/core"
 	agentcore "github.com/wandxy/hand/pkg/agent"
 	gatewayauth "github.com/wandxy/hand/pkg/gateway/auth"
@@ -28,9 +30,18 @@ type AgentService interface {
 }
 
 func newHTTPHandler(cfg config.GatewayConfig, service AgentService) http.Handler {
+	return newHTTPHandlerWithDispatchContext(context.Background(), cfg, service)
+}
+
+func newHTTPHandlerWithDispatchContext(
+	dispatchCtx context.Context,
+	cfg config.GatewayConfig,
+	service AgentService,
+) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/v1/respond", handleGenericRespond(cfg, service))
+	mux.HandleFunc(telegramprovider.WebhookPath, telegramprovider.HandleWebhook(dispatchCtx, cfg.Telegram, service))
 
 	return mux
 }
@@ -71,7 +82,7 @@ func handleGenericRespond(cfg config.GatewayConfig, service AgentService) http.H
 
 		bindingKey, _ := bindings.Generic(req.ConversationID)
 
-		session, err := NewSessionResolver(service).Resolve(r.Context(), bindingKey)
+		session, err := gatewaysession.NewResolver(service).Resolve(r.Context(), bindingKey)
 		if err != nil {
 			log.Warn().Err(err).Str("source", req.Source).Msg("Gateway generic HTTP session resolution failed")
 			httpjson.WriteError(w, http.StatusInternalServerError, gatewaytypes.ErrorCodeInternalError,

@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/wandxy/hand/internal/config"
+	telegramprovider "github.com/wandxy/hand/internal/gateway/telegram"
 )
 
 type HTTPServer interface {
@@ -23,7 +24,7 @@ type Options struct {
 	Listen               func(network string, address string) (net.Listener, error)
 	NewHTTPServer        func(config.GatewayConfig, AgentService) HTTPServer
 	StartSlackSocket     func(context.Context, config.GatewaySlackConfig) error
-	StartTelegramPolling func(context.Context, config.GatewayTelegramConfig) error
+	StartTelegramPolling func(context.Context, config.GatewayTelegramConfig, AgentService) error
 	ShutdownTimeout      time.Duration
 }
 
@@ -38,7 +39,13 @@ func setDefaultOptions(opts Options) Options {
 		opts.StartSlackSocket = waitForComponentStop[config.GatewaySlackConfig]
 	}
 	if opts.StartTelegramPolling == nil {
-		opts.StartTelegramPolling = waitForComponentStop[config.GatewayTelegramConfig]
+		opts.StartTelegramPolling = func(
+			ctx context.Context,
+			cfg config.GatewayTelegramConfig,
+			service AgentService,
+		) error {
+			return telegramprovider.StartPolling(ctx, cfg, service)
+		}
 	}
 	if opts.ShutdownTimeout <= 0 {
 		opts.ShutdownTimeout = 5 * time.Second
@@ -81,7 +88,7 @@ func newComponents(cfg config.GatewayConfig, opts Options, service AgentService)
 		components = append(components, component{
 			name: "telegram polling",
 			run: func(ctx context.Context) error {
-				return opts.StartTelegramPolling(ctx, cfg.Telegram)
+				return opts.StartTelegramPolling(ctx, cfg.Telegram, service)
 			},
 		})
 	}
@@ -126,7 +133,10 @@ func newHTTPComponent(
 }
 
 func newHTTPServer(cfg config.GatewayConfig, service AgentService) HTTPServer {
-	return &http.Server{Handler: newHTTPHandler(cfg, service)}
+	dispatchCtx, cancel := context.WithCancel(context.Background())
+	server := &http.Server{Handler: newHTTPHandlerWithDispatchContext(dispatchCtx, cfg, service)}
+	server.RegisterOnShutdown(cancel)
+	return server
 }
 
 func waitForComponentStop[T any](ctx context.Context, _ T) error {

@@ -1,0 +1,79 @@
+package telegram
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/rs/zerolog/log"
+
+	"github.com/wandxy/hand/internal/config"
+	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
+)
+
+var telegramPollingRetryDelay = time.Second
+
+var newTelegramAPI = func(cfg config.GatewayTelegramConfig) telegramAPI {
+	return newTelegramHTTPClient(cfg.BotToken)
+}
+
+func StartPolling(ctx context.Context, cfg config.GatewayTelegramConfig, service gatewaysession.Service) error {
+	return startTelegramPolling(ctx, cfg, service, newTelegramAPI(cfg))
+}
+
+func startTelegramPolling(
+	ctx context.Context,
+	cfg config.GatewayTelegramConfig,
+	service gatewaysession.Service,
+	api telegramAPI,
+) error {
+	if !cfg.Enabled || cfg.Mode != config.GatewayTelegramModePolling {
+		<-ctx.Done()
+		return nil
+	}
+	if api == nil {
+		return errors.New("telegram api client is required")
+	}
+
+	adapter := newTelegramAdapter(service, api)
+	var offset int64
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+
+		updates, err := api.GetUpdates(ctx, offset)
+		if err != nil {
+			if _, ok := errors.AsType[telegramConflictError](err); ok {
+				return err
+			}
+			if !sleepTelegramPollingRetry(ctx) {
+				return nil
+			}
+			continue
+		}
+
+		for _, update := range updates {
+			if _, err := adapter.DispatchUpdate(ctx, update); err != nil {
+				log.Warn().Err(err).Int64("telegram_update_id", update.UpdateID).Msg("Telegram update failed")
+			}
+			if update.UpdateID >= offset {
+				offset = update.UpdateID + 1
+			}
+		}
+	}
+}
+
+func sleepTelegramPollingRetry(ctx context.Context) bool {
+	timer := time.NewTimer(telegramPollingRetryDelay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}

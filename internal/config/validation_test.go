@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -200,6 +201,33 @@ func TestConfig_ValidateAcceptsGatewayWebhookAndSlackHTTPSecrets(t *testing.T) {
 	cfg.Gateway.Slack.Mode = GatewaySlackModeHTTP
 
 	require.NoError(t, cfg.Validate())
+}
+
+func TestConfig_ValidateTelegramWebhookSecretFormat(t *testing.T) {
+	cfg := validGatewayConfig()
+	cfg.Gateway.Telegram.Mode = GatewayTelegramModeWebhook
+	cfg.Gateway.Telegram.WebhookSecret = "AZaz09_-"
+
+	require.NoError(t, cfg.Validate())
+
+	for _, tt := range []struct {
+		name   string
+		secret string
+	}{
+		{name: "too long", secret: strings.Repeat("a", 257)},
+		{name: "space", secret: "abc def"},
+		{name: "symbol", secret: "abc.def"},
+		{name: "unicode", secret: "abcé"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validGatewayConfig()
+			cfg.Gateway.Telegram.Mode = GatewayTelegramModeWebhook
+			cfg.Gateway.Telegram.WebhookSecret = tt.secret
+
+			require.EqualError(t, cfg.Validate(), "gateway telegram webhook secret must be 1-256 characters and contain only "+
+				"A-Z, a-z, 0-9, underscore, or hyphen")
+		})
+	}
 }
 
 func TestIsLoopbackGatewayAddress(t *testing.T) {

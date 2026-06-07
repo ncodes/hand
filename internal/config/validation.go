@@ -161,8 +161,38 @@ func validateGatewayTelegramSettings(cfg GatewayTelegramConfig) error {
 		return errors.New("gateway telegram webhook secret is required in webhook mode; " +
 			"set HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET, provide it in config, or use --gateway.telegram.webhook-secret")
 	}
+	if cfg.Mode == GatewayTelegramModeWebhook && !isValidTelegramWebhookSecret(cfg.WebhookSecret) {
+		return errors.New("gateway telegram webhook secret must be 1-256 characters and contain only " +
+			"A-Z, a-z, 0-9, underscore, or hyphen")
+	}
 
 	return nil
+}
+
+func isValidTelegramWebhookSecret(secret string) bool {
+	secret = strings.TrimSpace(secret)
+	if len(secret) == 0 || len(secret) > 256 {
+		return false
+	}
+
+	for _, r := range secret {
+		if r >= 'A' && r <= 'Z' {
+			continue
+		}
+		if r >= 'a' && r <= 'z' {
+			continue
+		}
+		if r >= '0' && r <= '9' {
+			continue
+		}
+		if r == '_' || r == '-' {
+			continue
+		}
+
+		return false
+	}
+
+	return true
 }
 
 func validateGatewaySlackSettings(cfg GatewaySlackConfig) error {

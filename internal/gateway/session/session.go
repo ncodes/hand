@@ -1,4 +1,4 @@
-package gateway
+package session
 
 import (
 	"context"
@@ -7,22 +7,30 @@ import (
 	"time"
 
 	storage "github.com/wandxy/hand/internal/state/core"
+	agentcore "github.com/wandxy/hand/pkg/agent"
 	"github.com/wandxy/hand/pkg/gateway/bindings"
 )
 
-type SessionResolver struct {
-	service AgentService
+type Service interface {
+	Respond(context.Context, string, agentcore.RespondOptions) (string, error)
+	CreateSession(context.Context, string) (storage.Session, error)
+	SaveGatewayBinding(context.Context, storage.GatewayBinding) error
+	GetGatewayBinding(context.Context, string) (storage.GatewayBinding, bool, error)
+}
+
+type Resolver struct {
+	service Service
 	now     func() time.Time
 }
 
-func NewSessionResolver(service AgentService) *SessionResolver {
-	return &SessionResolver{
+func NewResolver(service Service) *Resolver {
+	return &Resolver{
 		service: service,
 		now:     func() time.Time { return time.Now().UTC() },
 	}
 }
 
-func (r *SessionResolver) Resolve(ctx context.Context, key bindings.Key) (storage.Session, error) {
+func (r *Resolver) Resolve(ctx context.Context, key bindings.Key) (storage.Session, error) {
 	if r == nil || r.service == nil {
 		return storage.Session{}, errors.New("gateway session resolver service is required")
 	}
