@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/gateway/dispatch"
 	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
 	telegramprovider "github.com/wandxy/hand/internal/gateway/telegram"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -30,18 +31,18 @@ type AgentService interface {
 }
 
 func newHTTPHandler(cfg config.GatewayConfig, service AgentService) http.Handler {
-	return newHTTPHandlerWithDispatchContext(context.Background(), cfg, service)
+	return newHTTPHandlerWithDispatcher(cfg, service, nil)
 }
 
-func newHTTPHandlerWithDispatchContext(
-	dispatchCtx context.Context,
+func newHTTPHandlerWithDispatcher(
 	cfg config.GatewayConfig,
 	service AgentService,
+	dispatcher *dispatch.Dispatcher,
 ) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/v1/respond", handleGenericRespond(cfg, service))
-	mux.HandleFunc(telegramprovider.WebhookPath, telegramprovider.HandleWebhook(dispatchCtx, cfg.Telegram, service))
+	mux.HandleFunc(telegramprovider.WebhookPath, telegramprovider.HandleWebhook(cfg.Telegram, service, dispatcher))
 
 	return mux
 }

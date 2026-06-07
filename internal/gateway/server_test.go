@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/wandxy/hand/internal/gateway/dispatch"
 )
 
 func TestGatewayHTTPServerHealth(t *testing.T) {
@@ -31,6 +33,82 @@ func TestGatewayHTTPServerHealth(t *testing.T) {
 	defer cancel()
 	require.NoError(t, server.Shutdown(shutdownCtx))
 	require.ErrorIs(t, <-done, http.ErrServerClosed)
+}
+
+func TestGatewayHTTPServerCloseStopsServing(t *testing.T) {
+	server := newHTTPServer(testGatewayConfig(), nil)
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer lis.Close()
+	done := make(chan error, 1)
+	go func() {
+		done <- server.Serve(lis)
+	}()
+
+	require.NoError(t, server.Close())
+
+	require.ErrorIs(t, <-done, http.ErrServerClosed)
+}
+
+func TestGatewayHTTPServerShutdownReturnsDispatcherDrainError(t *testing.T) {
+	runCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	dispatcher := dispatch.New(dispatch.Options{Capacity: 1, Workers: 1})
+	dispatcher.Start(runCtx)
+	_, err := dispatcher.Enqueue(dispatch.Job{
+		ID: "blocked",
+		Run: func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	})
+	require.NoError(t, err)
+	ctx, stop := context.WithTimeout(context.Background(), time.Nanosecond)
+	defer stop()
+	server := &gatewayHTTPServer{
+		server:     &http.Server{},
+		cancel:     cancel,
+		dispatcher: dispatcher,
+	}
+
+	err = server.Shutdown(ctx)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestGatewayHTTPServerShutdownDrainsDispatcherBeforeCancelingRuntime(t *testing.T) {
+	runCtx, cancel := context.WithCancel(context.Background())
+	dispatcher := dispatch.New(dispatch.Options{Capacity: 1, Workers: 1})
+	dispatcher.Start(runCtx)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	jobErr := make(chan error, 1)
+	_, err := dispatcher.Enqueue(dispatch.Job{
+		ID: "drain",
+		Run: func(ctx context.Context) error {
+			close(started)
+			<-release
+			jobErr <- ctx.Err()
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	server := &gatewayHTTPServer{
+		server:     &http.Server{},
+		cancel:     cancel,
+		dispatcher: dispatcher,
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- server.Shutdown(context.Background())
+	}()
+
+	<-started
+	close(release)
+
+	require.NoError(t, <-done)
+	require.NoError(t, <-jobErr)
+	require.ErrorIs(t, runCtx.Err(), context.Canceled)
 }
 
 func TestHTTPComponentForcesCloseWhenShutdownTimesOut(t *testing.T) {

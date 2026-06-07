@@ -3,11 +3,14 @@ package telegram
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/rs/zerolog/log"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/gateway/dispatch"
 	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
 	"github.com/wandxy/hand/pkg/gateway/httpjson"
 	tg "github.com/wandxy/hand/pkg/gateway/telegram"
@@ -20,9 +23,9 @@ const (
 )
 
 func HandleWebhook(
-	dispatchCtx context.Context,
 	cfg config.GatewayTelegramConfig,
 	service gatewaysession.Service,
+	dispatcher *dispatch.Dispatcher,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -43,6 +46,11 @@ func HandleWebhook(
 				"gateway request failed")
 			return
 		}
+		if dispatcher == nil {
+			httpjson.WriteError(w, http.StatusInternalServerError, gatewaytypes.ErrorCodeInternalError,
+				"gateway request failed")
+			return
+		}
 
 		var update tg.Update
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxWebhookBodyBytes)).Decode(&update); err != nil {
@@ -50,14 +58,42 @@ func HandleWebhook(
 			return
 		}
 
-		go func() {
-			if _, err := newTelegramAdapter(service, newTelegramAPI(cfg)).
-				DispatchUpdate(dispatchCtx, update); err != nil {
-				log.Warn().Err(err).Msg("Telegram webhook dispatch failed")
+		_, err := dispatcher.Enqueue(dispatch.Job{
+			ID:          webhookUpdateID(update),
+			MaxAttempts: 1,
+			Run: func(ctx context.Context) error {
+				return dispatchWebhookUpdate(ctx, cfg, service, update)
+			},
+		})
+		if err != nil {
+			log.Warn().Err(err).Int64("telegram_update_id", update.UpdateID).Msg("Telegram webhook enqueue failed")
+			status := http.StatusInternalServerError
+			if errors.Is(err, dispatch.ErrQueueFull) || errors.Is(err, dispatch.ErrDispatcherClosed) {
+				status = http.StatusServiceUnavailable
 			}
-		}()
+			httpjson.WriteError(w, status, gatewaytypes.ErrorCodeInternalError, "gateway request failed")
+			return
+		}
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok\n"))
 	}
+}
+
+func dispatchWebhookUpdate(
+	ctx context.Context,
+	cfg config.GatewayTelegramConfig,
+	service gatewaysession.Service,
+	update tg.Update,
+) error {
+	if _, err := newTelegramAdapter(service, newTelegramAPI(cfg)).DispatchUpdate(ctx, update); err != nil {
+		log.Warn().Err(err).Int64("telegram_update_id", update.UpdateID).Msg("Telegram webhook dispatch failed")
+		return err
+	}
+
+	return nil
+}
+
+func webhookUpdateID(update tg.Update) string {
+	return "telegram:update:" + strconv.FormatInt(update.UpdateID, 10)
 }

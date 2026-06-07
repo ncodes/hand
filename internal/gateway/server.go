@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/gateway/dispatch"
 	telegramprovider "github.com/wandxy/hand/internal/gateway/telegram"
 )
 
@@ -134,12 +135,44 @@ func newHTTPComponent(
 
 func newHTTPServer(cfg config.GatewayConfig, service AgentService) HTTPServer {
 	dispatchCtx, cancel := context.WithCancel(context.Background())
-	server := &http.Server{Handler: newHTTPHandlerWithDispatchContext(dispatchCtx, cfg, service)}
-	server.RegisterOnShutdown(cancel)
-	return server
+	dispatcher := dispatch.New(dispatch.Options{})
+	dispatcher.Start(dispatchCtx)
+	server := &http.Server{Handler: newHTTPHandlerWithDispatcher(cfg, service, dispatcher)}
+	return &gatewayHTTPServer{
+		server:     server,
+		cancel:     cancel,
+		dispatcher: dispatcher,
+	}
 }
 
 func waitForComponentStop[T any](ctx context.Context, _ T) error {
 	<-ctx.Done()
 	return nil
+}
+
+type gatewayHTTPServer struct {
+	server     *http.Server
+	cancel     context.CancelFunc
+	dispatcher *dispatch.Dispatcher
+}
+
+func (s *gatewayHTTPServer) Serve(lis net.Listener) error {
+	return s.server.Serve(lis)
+}
+
+func (s *gatewayHTTPServer) Shutdown(ctx context.Context) error {
+	err := s.server.Shutdown(ctx)
+	if dispatchErr := s.dispatcher.Shutdown(ctx); dispatchErr != nil && err == nil {
+		err = dispatchErr
+	}
+	s.cancel()
+
+	return err
+}
+
+func (s *gatewayHTTPServer) Close() error {
+	err := s.server.Close()
+	s.cancel()
+	s.dispatcher.Close()
+	return err
 }

@@ -2,7 +2,6 @@ package telegram
 
 import (
 	"bytes"
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/gateway/dispatch"
+	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
 	storage "github.com/wandxy/hand/internal/state/core"
 	tg "github.com/wandxy/hand/pkg/gateway/telegram"
 	gatewaytypes "github.com/wandxy/hand/pkg/gateway/types"
@@ -96,6 +97,22 @@ func TestTelegramWebhookReturnsSafeErrorWhenServiceMissing(t *testing.T) {
 	}, decodeGatewayResponse(t, recorder).Error)
 }
 
+func TestTelegramWebhookReturnsSafeErrorWhenDispatcherMissing(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc(WebhookPath, HandleWebhook(telegramWebhookConfig().Telegram, &genericResponderStub{}, nil))
+	req := httptest.NewRequest(http.MethodPost, WebhookPath, bytes.NewBufferString(`{"update_id":1}`))
+	req.Header.Set(tg.WebhookSecretHeader, "secret")
+	recorder := httptest.NewRecorder()
+
+	mux.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+	require.Equal(t, &gatewaytypes.ErrorResponse{
+		Code:    gatewaytypes.ErrorCodeInternalError,
+		Message: "gateway request failed",
+	}, decodeGatewayResponse(t, recorder).Error)
+}
+
 func TestTelegramWebhookAcknowledgesAndDispatchesAsynchronously(t *testing.T) {
 	setTelegramDraftID(t, 77)
 	origNewTelegramAPI := newTelegramAPI
@@ -125,14 +142,82 @@ func TestTelegramWebhookAcknowledgesAndDispatchesAsynchronously(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "ok\n", recorder.Body.String())
 	require.Eventually(t, func() bool {
-		return responder.called
+		return responder.wasCalled()
 	}, time.Second, 10*time.Millisecond)
-	require.Equal(t, "hello", responder.message)
+	require.Equal(t, "hello", responder.receivedMessage())
+	require.Eventually(t, func() bool {
+		return len(api.allCalls()) == 3
+	}, time.Second, 10*time.Millisecond)
 	require.Equal(t, []telegramAPICall{
 		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, draftID: 77, text: "stream\n..."},
 		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, draftID: 77, text: "stream delta\n..."},
 		{method: "sendMessage", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, text: "reply"},
 	}, api.allCalls())
+}
+
+func TestTelegramWebhookDeduplicatesProviderRetries(t *testing.T) {
+	setTelegramDraftID(t, 77)
+	origNewTelegramAPI := newTelegramAPI
+	t.Cleanup(func() { newTelegramAPI = origNewTelegramAPI })
+	api := &fakeTelegramAPI{}
+	newTelegramAPI = func(config.GatewayTelegramConfig) telegramAPI {
+		return api
+	}
+	responder := &genericResponderStub{
+		createdSession: storage.Session{ID: genericCreatedSessionID},
+		reply:          "reply",
+	}
+	handler := newWebhookHandler(telegramWebhookConfig(), responder)
+	body := `{
+		"update_id": 15,
+		"message": {
+			"message_id": 5,
+			"text": "hello",
+			"chat": {"id": 123, "type": "private"}
+		}
+	}`
+
+	for range 2 {
+		req := httptest.NewRequest(http.MethodPost, WebhookPath, bytes.NewBufferString(body))
+		req.Header.Set(tg.WebhookSecretHeader, "secret")
+		recorder := httptest.NewRecorder()
+
+		handler.ServeHTTP(recorder, req)
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		require.Equal(t, "ok\n", recorder.Body.String())
+	}
+
+	require.Eventually(t, func() bool {
+		return len(api.allCalls()) == 3
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, []telegramAPICall{
+		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, draftID: 77, text: "stream\n..."},
+		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, draftID: 77, text: "stream delta\n..."},
+		{method: "sendMessage", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, text: "reply"},
+	}, api.allCalls())
+}
+
+func TestTelegramWebhookReturnsRetryableErrorWhenQueueIsFull(t *testing.T) {
+	dispatcher := dispatch.New(dispatch.Options{Capacity: 1})
+	handler := newWebhookHandlerWithDispatcher(telegramWebhookConfig(), &genericResponderStub{}, dispatcher)
+	first := httptest.NewRequest(http.MethodPost, WebhookPath, bytes.NewBufferString(`{"update_id":1}`))
+	first.Header.Set(tg.WebhookSecretHeader, "secret")
+	firstRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(firstRecorder, first)
+	require.Equal(t, http.StatusOK, firstRecorder.Code)
+
+	second := httptest.NewRequest(http.MethodPost, WebhookPath, bytes.NewBufferString(`{"update_id":2}`))
+	second.Header.Set(tg.WebhookSecretHeader, "secret")
+	secondRecorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(secondRecorder, second)
+
+	require.Equal(t, http.StatusServiceUnavailable, secondRecorder.Code)
+	require.Equal(t, &gatewaytypes.ErrorResponse{
+		Code:    gatewaytypes.ErrorCodeInternalError,
+		Message: "gateway request failed",
+	}, decodeGatewayResponse(t, secondRecorder).Error)
 }
 
 func TestTelegramWebhookAcknowledgesWhenBackgroundDispatchFails(t *testing.T) {
@@ -162,23 +247,19 @@ func TestTelegramWebhookAcknowledgesWhenBackgroundDispatchFails(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Eventually(t, func() bool {
-		return responder.called
+		return len(api.allCalls()) > 0
 	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, 1, responder.callCount())
 }
 
-func TestTelegramWebhookDispatchUsesGatewayContext(t *testing.T) {
-	origNewTelegramAPI := newTelegramAPI
-	t.Cleanup(func() { newTelegramAPI = origNewTelegramAPI })
-	newTelegramAPI = func(config.GatewayTelegramConfig) telegramAPI {
-		return &fakeTelegramAPI{}
-	}
-	dispatchCtx, cancel := context.WithCancel(context.Background())
-	cancel()
+func TestTelegramWebhookReturnsRetryableErrorWhenDispatcherIsClosed(t *testing.T) {
+	dispatcher := dispatch.New(dispatch.Options{})
+	dispatcher.Close()
 	responder := &genericResponderStub{
 		createdSession: storage.Session{ID: genericCreatedSessionID},
 		reply:          "reply",
 	}
-	handler := newWebhookHandlerWithDispatchContext(dispatchCtx, telegramWebhookConfig(), responder)
+	handler := newWebhookHandlerWithDispatcher(telegramWebhookConfig(), responder, dispatcher)
 	req := httptest.NewRequest(http.MethodPost, WebhookPath, bytes.NewBufferString(`{
 		"update_id": 15,
 		"message": {
@@ -192,11 +273,12 @@ func TestTelegramWebhookDispatchUsesGatewayContext(t *testing.T) {
 
 	handler.ServeHTTP(recorder, req)
 
-	require.Equal(t, http.StatusOK, recorder.Code)
-	require.Eventually(t, func() bool {
-		return responder.called
-	}, time.Second, 10*time.Millisecond)
-	require.ErrorIs(t, responder.contextErr, context.Canceled)
+	require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	require.False(t, responder.called)
+	require.Equal(t, &gatewaytypes.ErrorResponse{
+		Code:    gatewaytypes.ErrorCodeInternalError,
+		Message: "gateway request failed",
+	}, decodeGatewayResponse(t, recorder).Error)
 }
 
 func telegramWebhookConfig() config.GatewayConfig {
@@ -206,4 +288,14 @@ func telegramWebhookConfig() config.GatewayConfig {
 	cfg.Telegram.BotToken = "telegram-token"
 	cfg.Telegram.WebhookSecret = "secret"
 	return cfg
+}
+
+func newWebhookHandlerWithDispatcher(
+	cfg config.GatewayConfig,
+	service gatewaysession.Service,
+	dispatcher *dispatch.Dispatcher,
+) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc(WebhookPath, HandleWebhook(cfg.Telegram, service, dispatcher))
+	return mux
 }

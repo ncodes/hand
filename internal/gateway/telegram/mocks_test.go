@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/gateway/dispatch"
 	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
 	storage "github.com/wandxy/hand/internal/state/core"
 	agentcore "github.com/wandxy/hand/pkg/agent"
@@ -24,6 +25,7 @@ var genericCreatedSessionID = nanoid.MustFromSeed(
 )
 
 type genericResponderStub struct {
+	mu             sync.Mutex
 	message        string
 	options        agentcore.RespondOptions
 	binding        storage.GatewayBinding
@@ -37,6 +39,7 @@ type genericResponderStub struct {
 	createErr      error
 	bindingFound   bool
 	called         bool
+	calls          int
 	created        bool
 }
 
@@ -45,17 +48,22 @@ func (s *genericResponderStub) Respond(
 	message string,
 	opts agentcore.RespondOptions,
 ) (string, error) {
+	s.mu.Lock()
 	s.called = true
+	s.calls++
 	s.message = message
 	s.options = opts
 	s.contextErr = ctx.Err()
+	reply := s.reply
+	err := s.err
+	s.mu.Unlock()
 	if opts.OnEvent != nil {
 		opts.OnEvent(agentcore.Event{Kind: agentcore.EventKindTextDelta, Channel: "reasoning", Text: "ignored"})
 		opts.OnEvent(agentcore.Event{Kind: agentcore.EventKindTextDelta, Channel: "assistant", Text: "stream "})
 		opts.OnEvent(agentcore.Event{Kind: agentcore.EventKindTrace})
 		opts.OnEvent(agentcore.Event{Kind: agentcore.EventKindTextDelta, Channel: "assistant", Text: "delta"})
 	}
-	return s.reply, s.err
+	return reply, err
 }
 
 func (s *genericResponderStub) CreateSession(context.Context, string) (storage.Session, error) {
@@ -83,6 +91,24 @@ func (s *genericResponderStub) GetGatewayBinding(
 	string,
 ) (storage.GatewayBinding, bool, error) {
 	return s.binding, s.bindingFound, s.getBindingErr
+}
+
+func (s *genericResponderStub) wasCalled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.called
+}
+
+func (s *genericResponderStub) callCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
+}
+
+func (s *genericResponderStub) receivedMessage() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.message
 }
 
 type telegramAPICall struct {
@@ -258,7 +284,9 @@ func newWebhookHandlerWithDispatchContext(
 	service gatewaysession.Service,
 ) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc(WebhookPath, HandleWebhook(dispatchCtx, cfg.Telegram, service))
+	dispatcher := dispatch.New(dispatch.Options{})
+	dispatcher.Start(dispatchCtx)
+	mux.HandleFunc(WebhookPath, HandleWebhook(cfg.Telegram, service, dispatcher))
 	return mux
 }
 
