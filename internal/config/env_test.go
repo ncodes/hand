@@ -88,7 +88,7 @@ HAND_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS=70000
 HAND_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS=190000
 HAND_RULES_FILES=hand.md,custom.md
 HAND_SESSION_INSTRUCT=be terse
-HAND_PLATFORM=editor
+HAND_PLATFORM=cli
 HAND_CAP_FS=true
 HAND_CAP_NET=true
 HAND_CAP_EXEC=true
@@ -137,7 +137,7 @@ cap:
   exec: false
   mem: false
   browser: true
-platform: desktop
+platform: cli
 log:
   level: error
   noColor: true
@@ -186,7 +186,7 @@ rules:
 	require.Equal(t, 190000, cfg.Web.ExtractRefusalThresholdChars)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.Rules.Files)
 	require.Equal(t, "be terse", cfg.Session.Instruct)
-	require.Equal(t, "editor", cfg.Platform)
+	require.Equal(t, "cli", cfg.Platform)
 	require.True(t, getBoolValue(cfg.Cap.Filesystem))
 	require.True(t, getBoolValue(cfg.Cap.Network))
 	require.True(t, getBoolValue(cfg.Cap.Exec))

@@ -47,10 +47,26 @@ func (s harnessAgentStub) CurrentSession(context.Context) (storage.Session, erro
 }
 
 func (s *harnessAgentStub) CreateSession(context.Context, string) (storage.Session, error) {
+	return s.CreateSessionWithOrigin(context.Background(), "", storage.SessionOrigin{})
+}
+
+func (s *harnessAgentStub) CreateSessionWithOrigin(
+	context.Context,
+	string,
+	storage.SessionOrigin,
+) (storage.Session, error) {
 	if s.createErr != nil {
 		return storage.Session{}, s.createErr
 	}
 	return s.created, nil
+}
+
+func (s *harnessAgentStub) Get(
+	context.Context,
+	string,
+	storage.SessionGetOptions,
+) (storage.Session, bool, error) {
+	return storage.Session{}, false, nil
 }
 
 func (s *harnessAgentStub) UseSession(_ context.Context, id string) error {

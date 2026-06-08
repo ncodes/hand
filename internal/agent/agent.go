@@ -657,6 +657,14 @@ func toolResultMessage(toolCall models.ToolCall, result map[string]any) handmsg.
 
 // CreateSession creates or returns a named session through the state manager.
 func (a *Agent) CreateSession(ctx context.Context, id string) (storage.Session, error) {
+	return a.CreateSessionWithOrigin(ctx, id, storage.SessionOrigin{Source: a.sessionOriginSource()})
+}
+
+func (a *Agent) CreateSessionWithOrigin(
+	ctx context.Context,
+	id string,
+	origin storage.SessionOrigin,
+) (storage.Session, error) {
 	if a == nil {
 		return storage.Session{}, errors.New("agent is required")
 	}
@@ -665,7 +673,25 @@ func (a *Agent) CreateSession(ctx context.Context, id string) (storage.Session, 
 		return storage.Session{}, errors.New("environment has not been initialized")
 	}
 
-	return a.stateMgr.CreateSession(normalizeContext(ctx), id)
+	return a.stateMgr.CreateSessionWithOptions(normalizeContext(ctx), id, storage.SessionCreateOptions{
+		Origin: origin,
+	})
+}
+
+func (a *Agent) Get(
+	ctx context.Context,
+	id string,
+	opts storage.SessionGetOptions,
+) (storage.Session, bool, error) {
+	if a == nil {
+		return storage.Session{}, false, errors.New("agent is required")
+	}
+
+	if !a.initialized || a.stateMgr == nil {
+		return storage.Session{}, false, errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.Get(normalizeContext(ctx), id, opts)
 }
 
 func (a *Agent) SaveGatewayBinding(ctx context.Context, binding storage.GatewayBinding) error {
@@ -1025,6 +1051,19 @@ func (a *Agent) ensureStateManager() error {
 
 	a.stateMgr = manager
 	return nil
+}
+
+func (a *Agent) sessionOriginSource() string {
+	if a == nil || a.cfg == nil {
+		return ""
+	}
+
+	switch strings.ToLower(strings.TrimSpace(a.cfg.Platform)) {
+	case "", constants.DefaultPlatform:
+		return storage.SessionOriginSourceTerminal
+	default:
+		return ""
+	}
 }
 
 // cachedRecallSummary returns a cached recall summary only when it still covers the full session.

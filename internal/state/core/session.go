@@ -20,6 +20,16 @@ const SessionTitleSourceGenerated = "generated"
 // SessionTitleSourceManual is the package-level session title source manual constant.
 const SessionTitleSourceManual = "manual"
 
+const (
+	SessionOriginSourceTerminal = "terminal"
+	SessionOriginSourceCLI      = SessionOriginSourceTerminal
+	SessionOriginSourceGeneric  = "generic"
+	SessionOriginSourceGUI      = "gui"
+	SessionOriginSourceSlack    = "slack"
+	SessionOriginSourceTelegram = "telegram"
+	SessionOriginSourceTUI      = SessionOriginSourceTerminal
+)
+
 // NewSessionID returns a newly generated session ID.
 func NewSessionID() (string, error) {
 	return nanoid.Generate(SessionIDPrefix)
@@ -28,6 +38,7 @@ func NewSessionID() (string, error) {
 // Session describes an active conversation session.
 type Session struct {
 	Compaction                 SessionCompaction
+	Origin                     SessionOrigin
 	ID                         string
 	EpisodicCheckpointOffset   int
 	LastPromptTokens           int
@@ -39,6 +50,17 @@ type Session struct {
 	ExpiresAt                  time.Time
 	UpdatedAt                  time.Time
 	CreatedAt                  time.Time
+}
+
+type SessionOrigin struct {
+	Source         string
+	AccountID      string
+	ConversationID string
+	ThreadID       string
+}
+
+type SessionCreateOptions struct {
+	Origin SessionOrigin
 }
 
 // CheckpointPatch describes changes to apply to checkpoint state.

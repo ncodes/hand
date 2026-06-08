@@ -1043,6 +1043,37 @@ func TestMemoryStore_SavePersistsSessionTitle(t *testing.T) {
 	require.Equal(t, base.SessionTitleSourceGenerated, session.TitleSource)
 }
 
+func TestMemoryStore_SavePersistsSessionOrigin(t *testing.T) {
+	store := NewStore()
+	origin := base.SessionOrigin{
+		Source:         base.SessionOriginSourceSlack,
+		AccountID:      "T123",
+		ConversationID: "C456",
+		ThreadID:       "1717618842.000100",
+	}
+
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID:     testSessionA,
+		Origin: origin,
+	}))
+
+	session, ok, err := store.Get(context.Background(), testSessionA, base.SessionGetOptions{})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, origin, session.Origin)
+
+	sessions, err := store.List(context.Background(), base.SessionListOptions{})
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	require.Equal(t, origin, sessions[0].Origin)
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+	session, ok, err = store.Get(context.Background(), testSessionA, base.SessionGetOptions{})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, origin, session.Origin)
+}
+
 func TestMemoryStore_RenameUpdatesSessionTitle(t *testing.T) {
 	store := NewStore()
 	createdAt := time.Date(2026, 5, 31, 10, 0, 0, 0, time.UTC)

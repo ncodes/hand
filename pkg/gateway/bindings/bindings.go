@@ -73,6 +73,51 @@ func (k Key) String() string {
 	return string(k)
 }
 
+func ParseKey(key Key) (Parts, error) {
+	rawParts := strings.Split(key.String(), ":")
+	if len(rawParts) != 4 {
+		return Parts{}, errors.New("gateway binding key must have four parts")
+	}
+
+	source, err := unescape(rawParts[0])
+	if err != nil {
+		return Parts{}, err
+	}
+	accountID, err := unescape(rawParts[1])
+	if err != nil {
+		return Parts{}, err
+	}
+	conversationID, err := unescape(rawParts[2])
+	if err != nil {
+		return Parts{}, err
+	}
+	threadID, err := unescape(rawParts[3])
+	if err != nil {
+		return Parts{}, err
+	}
+
+	parts := Parts{
+		Source:         strings.ToLower(source),
+		AccountID:      accountID,
+		ConversationID: conversationID,
+		ThreadID:       threadID,
+	}
+	if _, err := NewKey(parts); err != nil {
+		return Parts{}, err
+	}
+
+	return parts, nil
+}
+
 func escape(value string) string {
 	return url.QueryEscape(value)
+}
+
+func unescape(value string) (string, error) {
+	unescaped, err := url.QueryUnescape(value)
+	if err != nil {
+		return "", errors.New("gateway binding key is invalid")
+	}
+
+	return strings.TrimSpace(unescaped), nil
 }

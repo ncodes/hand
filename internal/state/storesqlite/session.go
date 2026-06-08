@@ -52,6 +52,10 @@ type sessionModel struct {
 	ID                           string `gorm:"primaryKey"`
 	Title                        string `gorm:"type:text"`
 	TitleSource                  string
+	OriginSource                 string
+	OriginAccountID              string
+	OriginConversationID         string
+	OriginThreadID               string
 	CreatedAt                    time.Time
 	UpdatedAt                    time.Time
 	Archived                     bool
@@ -202,6 +206,14 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 			session.Title = existing.Title
 			session.TitleSource = existing.TitleSource
 		}
+		if session.Origin == (base.SessionOrigin{}) {
+			session.Origin = base.SessionOrigin{
+				Source:         existing.OriginSource,
+				AccountID:      existing.OriginAccountID,
+				ConversationID: existing.OriginConversationID,
+				ThreadID:       existing.OriginThreadID,
+			}
+		}
 
 		session.UpdatedAt = time.Now().UTC()
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -243,6 +255,10 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 		ExpiresAt:                    session.ExpiresAt,
 		ID:                           session.ID,
 		LastPromptTokens:             session.LastPromptTokens,
+		OriginAccountID:              strings.TrimSpace(session.Origin.AccountID),
+		OriginConversationID:         strings.TrimSpace(session.Origin.ConversationID),
+		OriginSource:                 strings.TrimSpace(session.Origin.Source),
+		OriginThreadID:               strings.TrimSpace(session.Origin.ThreadID),
 		ReflectionCheckpointOffset:   session.ReflectionCheckpointOffset,
 		Title:                        session.Title,
 		TitleSource:                  session.TitleSource,
@@ -1336,10 +1352,16 @@ func sessionModelToSession(record sessionModel) (Session, error) {
 			TargetMessageCount: record.CompactionTargetMessageCount,
 			TargetOffset:       record.CompactionTargetOffset,
 		},
-		EpisodicCheckpointOffset:   record.EpisodicCheckpointOffset,
-		ExpiresAt:                  record.ExpiresAt,
-		ID:                         id,
-		LastPromptTokens:           record.LastPromptTokens,
+		EpisodicCheckpointOffset: record.EpisodicCheckpointOffset,
+		ExpiresAt:                record.ExpiresAt,
+		ID:                       id,
+		LastPromptTokens:         record.LastPromptTokens,
+		Origin: base.SessionOrigin{
+			AccountID:      record.OriginAccountID,
+			ConversationID: record.OriginConversationID,
+			Source:         record.OriginSource,
+			ThreadID:       record.OriginThreadID,
+		},
 		ReflectionCheckpointOffset: record.ReflectionCheckpointOffset,
 		Title:                      title,
 		TitleSource:                titleSource,

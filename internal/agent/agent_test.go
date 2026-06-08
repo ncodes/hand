@@ -52,6 +52,7 @@ func TestAgent_StartRespondAndCloseLifecycle(t *testing.T) {
 	}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "hello"}}}
 	core := NewAgent(context.Background(), &config.Config{
+		Platform: storage.SessionOriginSourceCLI,
 		Models: config.ModelsConfig{
 			Main: config.MainModelConfig{Name: "model", API: models.APIOpenAIResponses, Stream: &stream},
 		},
@@ -178,7 +179,10 @@ func TestAgent_LifecycleHelpersValidateAndUseStateManager(t *testing.T) {
 	manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
 	require.NoError(t, err)
 	core = &Agent{
-		cfg:         &config.Config{Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 100}}},
+		cfg: &config.Config{
+			Platform: "cli",
+			Models:   config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 100}},
+		},
 		initialized: true,
 		stateMgr:    manager,
 	}
@@ -194,11 +198,17 @@ func TestAgent_LifecycleHelpersValidateAndUseStateManager(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, status.SessionID)
 
+	loaded, ok, err := core.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, storage.DefaultSessionID, loaded.ID)
+
 	sessionID, err := storage.NewSessionID()
 	require.NoError(t, err)
 	created, err := core.CreateSession(context.Background(), sessionID)
 	require.NoError(t, err)
 	require.Equal(t, sessionID, created.ID)
+	require.Equal(t, storage.SessionOrigin{Source: storage.SessionOriginSourceTerminal}, created.Origin)
 
 	current, err := core.CurrentSession(context.Background())
 	require.NoError(t, err)
@@ -245,6 +255,28 @@ func TestAgent_LifecycleHelpersValidateAndUseStateManager(t *testing.T) {
 	require.EqualError(t, err, "agent is required")
 	_, err = (*Agent)(nil).CurrentSession(context.Background())
 	require.EqualError(t, err, "agent is required")
+}
+
+func TestAgent_SessionOriginSourceUsesSupportedRuntimePlatform(t *testing.T) {
+	require.Empty(t, (*Agent)(nil).sessionOriginSource())
+	require.Empty(t, (&Agent{}).sessionOriginSource())
+
+	for _, tt := range []struct {
+		name     string
+		platform string
+		want     string
+	}{
+		{name: "cli", platform: "cli", want: storage.SessionOriginSourceTerminal},
+		{name: "empty", platform: "", want: storage.SessionOriginSourceTerminal},
+		{name: "spaced cli", platform: " CLI ", want: storage.SessionOriginSourceTerminal},
+		{name: "unsupported", platform: "desktop", want: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			core := &Agent{cfg: &config.Config{Platform: tt.platform}}
+
+			require.Equal(t, tt.want, core.sessionOriginSource())
+		})
+	}
 }
 
 func TestAgent_GatewayBindingServiceOperations(t *testing.T) {

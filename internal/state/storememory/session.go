@@ -59,9 +59,16 @@ func (s *Store) Save(_ context.Context, session Session) error {
 			session.Title = existing.Title
 			session.TitleSource = existing.TitleSource
 		}
+		if session.Origin == (base.SessionOrigin{}) {
+			session.Origin = existing.Origin
+		}
 		session.UpdatedAt = time.Now().UTC()
 	}
 	session.Title, session.TitleSource = base.NormalizeSessionTitleMetadata(session.Title, session.TitleSource)
+	session.Origin.Source = strings.TrimSpace(session.Origin.Source)
+	session.Origin.AccountID = strings.TrimSpace(session.Origin.AccountID)
+	session.Origin.ConversationID = strings.TrimSpace(session.Origin.ConversationID)
+	session.Origin.ThreadID = strings.TrimSpace(session.Origin.ThreadID)
 
 	if session.CreatedAt.IsZero() {
 		session.CreatedAt = time.Now().UTC()

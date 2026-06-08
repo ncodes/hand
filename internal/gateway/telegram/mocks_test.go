@@ -67,6 +67,14 @@ func (s *genericResponderStub) Respond(
 }
 
 func (s *genericResponderStub) CreateSession(context.Context, string) (storage.Session, error) {
+	return s.CreateSessionWithOrigin(context.Background(), "", storage.SessionOrigin{})
+}
+
+func (s *genericResponderStub) CreateSessionWithOrigin(
+	_ context.Context,
+	_ string,
+	origin storage.SessionOrigin,
+) (storage.Session, error) {
 	s.created = true
 	if s.createErr != nil {
 		return storage.Session{}, s.createErr
@@ -74,8 +82,21 @@ func (s *genericResponderStub) CreateSession(context.Context, string) (storage.S
 	if s.createdSession.ID == "" {
 		s.createdSession = storage.Session{ID: genericCreatedSessionID}
 	}
+	s.createdSession.Origin = origin
 
 	return s.createdSession, nil
+}
+
+func (s *genericResponderStub) Get(
+	context.Context,
+	string,
+	storage.SessionGetOptions,
+) (storage.Session, bool, error) {
+	if s.bindingFound {
+		return storage.Session{ID: s.binding.SessionID}, true, nil
+	}
+
+	return storage.Session{}, false, nil
 }
 
 func (s *genericResponderStub) SaveGatewayBinding(
@@ -117,6 +138,7 @@ type telegramAPICall struct {
 	messageID int64
 	draftID   int64
 	text      string
+	action    string
 	offset    int64
 }
 
@@ -132,6 +154,8 @@ type fakeTelegramAPI struct {
 	editErrs    []error
 	draftErr    error
 	draftErrs   []error
+	actionErr   error
+	actionErrs  []error
 	nextMessage int64
 	onGet       func(int64)
 	onCall      func(telegramAPICall)
@@ -165,7 +189,7 @@ func (a *fakeTelegramAPI) SendMessage(
 	target gatewaytelegram.Target,
 	text string,
 ) (int64, error) {
-	return a.recordMessageCall("sendMessage", target, 0, 0, text, a.nextError("sendMessage"))
+	return a.recordMessageCall("sendMessage", target, 0, 0, text, "", a.nextError("sendMessage"))
 }
 
 func (a *fakeTelegramAPI) EditMessageText(
@@ -174,7 +198,7 @@ func (a *fakeTelegramAPI) EditMessageText(
 	messageID int64,
 	text string,
 ) error {
-	_, err := a.recordMessageCall("editMessageText", target, messageID, 0, text, a.nextError("editMessageText"))
+	_, err := a.recordMessageCall("editMessageText", target, messageID, 0, text, "", a.nextError("editMessageText"))
 	return err
 }
 
@@ -184,7 +208,16 @@ func (a *fakeTelegramAPI) SendMessageDraft(
 	draftID int64,
 	text string,
 ) error {
-	_, err := a.recordMessageCall("sendMessageDraft", target, 0, draftID, text, a.nextError("sendMessageDraft"))
+	_, err := a.recordMessageCall("sendMessageDraft", target, 0, draftID, text, "", a.nextError("sendMessageDraft"))
+	return err
+}
+
+func (a *fakeTelegramAPI) SendChatAction(
+	_ context.Context,
+	target gatewaytelegram.Target,
+	action string,
+) error {
+	_, err := a.recordMessageCall("sendChatAction", target, 0, 0, "", action, a.nextError("sendChatAction"))
 	return err
 }
 
@@ -224,6 +257,13 @@ func (a *fakeTelegramAPI) nextErrorLocked(method string) error {
 			return err
 		}
 		return a.draftErr
+	case "sendChatAction":
+		if len(a.actionErrs) > 0 {
+			err := a.actionErrs[0]
+			a.actionErrs = a.actionErrs[1:]
+			return err
+		}
+		return a.actionErr
 	default:
 		return nil
 	}
@@ -235,11 +275,19 @@ func (a *fakeTelegramAPI) recordMessageCall(
 	messageID int64,
 	draftID int64,
 	text string,
+	action string,
 	err error,
 ) (int64, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	call := telegramAPICall{method: method, target: target, messageID: messageID, draftID: draftID, text: text}
+	call := telegramAPICall{
+		method:    method,
+		target:    target,
+		messageID: messageID,
+		draftID:   draftID,
+		text:      text,
+		action:    action,
+	}
 	a.calls = append(a.calls, call)
 	if a.onCall != nil {
 		a.onCall(call)

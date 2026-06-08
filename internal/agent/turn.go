@@ -62,7 +62,8 @@ type environmentToolRegistry interface {
 // Turn executes a single response turn against a resolved session.
 type Turn struct {
 	// Request context for session writes during the turn.
-	ctx context.Context
+	ctx           context.Context
+	sessionOrigin storage.SessionOrigin
 
 	// Model and execution settings for the turn.
 	cfg *config.Config
@@ -274,6 +275,7 @@ func (t *Turn) load(ctx context.Context, opts agentcore.RespondOptions) error {
 	t.summary = summary
 	t.sessionHistoryOffset = tailOffset
 	t.sessionID = session.ID
+	t.sessionOrigin = storageSessionOriginFromAgentSessionOrigin(session.Origin)
 
 	t.lastPromptTokens = session.LastPromptTokens
 	t.summaryRefreshAttemptedMessageCount = 0

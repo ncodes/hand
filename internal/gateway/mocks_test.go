@@ -51,12 +51,32 @@ func (s *genericResponderStub) Respond(
 }
 
 func (s *genericResponderStub) CreateSession(context.Context, string) (storage.Session, error) {
+	return s.CreateSessionWithOrigin(context.Background(), "", storage.SessionOrigin{})
+}
+
+func (s *genericResponderStub) CreateSessionWithOrigin(
+	context.Context,
+	string,
+	storage.SessionOrigin,
+) (storage.Session, error) {
 	s.created = true
 	if s.createdSession.ID == "" {
 		s.createdSession = storage.Session{ID: genericCreatedSessionID}
 	}
 
 	return s.createdSession, nil
+}
+
+func (s *genericResponderStub) Get(
+	context.Context,
+	string,
+	storage.SessionGetOptions,
+) (storage.Session, bool, error) {
+	if s.bindingFound {
+		return storage.Session{ID: s.binding.SessionID}, true, nil
+	}
+
+	return storage.Session{}, false, nil
 }
 
 func (s *genericResponderStub) SaveGatewayBinding(

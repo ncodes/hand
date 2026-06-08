@@ -52,6 +52,7 @@ func TestStartPolling_DispatchesUpdatesAndAdvancesOffset(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 	require.Equal(t, []telegramAPICall{
 		{method: "getUpdates", offset: 0},
+		{method: "sendChatAction", target: tg.Target{ChatID: "123", ReplyToMessageID: 1, ChatType: "private"}, action: "typing"},
 		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 1, ChatType: "private"}, draftID: 77, text: "stream\n..."},
 		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 1, ChatType: "private"}, draftID: 77, text: "stream delta\n..."},
 		{method: "sendMessage", target: tg.Target{ChatID: "123", ReplyToMessageID: 1, ChatType: "private"}, text: "reply"},

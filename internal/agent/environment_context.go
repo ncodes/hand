@@ -11,7 +11,9 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	models "github.com/wandxy/hand/internal/model"
+	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/tools"
+	agentsession "github.com/wandxy/hand/pkg/agent/session"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
 
@@ -79,8 +81,27 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 	}
 
 	ctx.ActiveTools = getActiveToolNames(activeToolDefinitions)
+	ctx.SessionOrigin = environmentSessionOriginFromStorage(t.sessionOrigin)
 
 	return instruct.BuildEnvironmentContext(ctx)
+}
+
+func environmentSessionOriginFromStorage(origin storage.SessionOrigin) instruct.EnvironmentSessionOrigin {
+	return instruct.EnvironmentSessionOrigin{
+		AccountID:      origin.AccountID,
+		ConversationID: origin.ConversationID,
+		Source:         origin.Source,
+		ThreadID:       origin.ThreadID,
+	}
+}
+
+func storageSessionOriginFromAgentSessionOrigin(origin agentsession.Origin) storage.SessionOrigin {
+	return storage.SessionOrigin{
+		AccountID:      origin.AccountID,
+		ConversationID: origin.ConversationID,
+		Source:         origin.Source,
+		ThreadID:       origin.ThreadID,
+	}
 }
 
 func (t *Turn) getActiveToolPolicy() (agenttool.Policy, bool) {

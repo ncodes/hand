@@ -251,6 +251,30 @@ func TestTelegramSender_PropagatesRunAndFinalErrors(t *testing.T) {
 	require.ErrorIs(t, err, errTelegramTest)
 }
 
+func TestTelegramSender_StartTypingSendsRepeatedChatActionsUntilStopped(t *testing.T) {
+	origTypingInterval := telegramTypingInterval
+	telegramTypingInterval = 10 * time.Millisecond
+	t.Cleanup(func() { telegramTypingInterval = origTypingInterval })
+	api := &fakeTelegramAPI{}
+	sender := newTelegramSender(api)
+	target := tg.Target{ChatID: "123", ThreadID: "42", ChatType: "private"}
+
+	stop := sender.StartTyping(context.Background(), target)
+
+	require.Eventually(t, func() bool {
+		return len(api.callsOfMethod("sendChatAction")) >= 2
+	}, time.Second, time.Millisecond)
+	stop()
+	actionCalls := api.callsOfMethod("sendChatAction")
+	require.NotEmpty(t, actionCalls)
+	for _, call := range actionCalls {
+		require.Equal(t, telegramAPICall{method: "sendChatAction", target: target, action: "typing"}, call)
+	}
+	countAfterStop := len(actionCalls)
+	time.Sleep(3 * telegramTypingInterval)
+	require.Len(t, api.callsOfMethod("sendChatAction"), countAfterStop)
+}
+
 func TestTelegramSender_RejectsMissingSender(t *testing.T) {
 	require.EqualError(t, (*telegramSender)(nil).SendFinal(context.Background(), tg.Target{}, "text"), "telegram sender is required")
 	require.EqualError(t, newTelegramSender(nil).SendFinal(context.Background(), tg.Target{}, "text"), "telegram sender is required")
@@ -259,6 +283,11 @@ func TestTelegramSender_RejectsMissingSender(t *testing.T) {
 		return "", nil
 	})
 	require.EqualError(t, err, "telegram sender is required")
+
+	require.NotPanics(t, func() {
+		(*telegramSender)(nil).StartTyping(context.Background(), tg.Target{})()
+		newTelegramSender(nil).StartTyping(context.Background(), tg.Target{})()
+	})
 }
 
 func TestTelegramHTTPClient_SendsRequestPayloadAndDecodesMessageID(t *testing.T) {
@@ -316,6 +345,30 @@ func TestTelegramHTTPClient_SendsDraftIDForNativeStreaming(t *testing.T) {
 		"text":              "partial",
 		"message_thread_id": float64(42),
 		"draft_id":          float64(77),
+	}, payload)
+}
+
+func TestTelegramHTTPClient_SendsChatAction(t *testing.T) {
+	var payload map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/bottoken/sendChatAction", r.URL.Path)
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
+		_, _ = w.Write([]byte(`{"ok":true,"result":true}`))
+	}))
+	defer server.Close()
+	client := newTelegramHTTPClient("token")
+	client.baseURL = server.URL
+
+	err := client.SendChatAction(context.Background(), tg.Target{
+		ChatID:   "-100",
+		ThreadID: "42",
+	}, "typing")
+
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{
+		"chat_id":           "-100",
+		"message_thread_id": float64(42),
+		"action":            "typing",
 	}, payload)
 }
 

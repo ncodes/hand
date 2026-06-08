@@ -41,6 +41,7 @@ func TestTelegramAdapter_DispatchUpdateResolvesSessionAndStreamsReply(t *testing
 		UpdatedAt: responder.savedBinding.UpdatedAt,
 	}, responder.savedBinding)
 	require.Equal(t, []telegramAPICall{
+		{method: "sendChatAction", target: tg.Target{ChatID: "123", ReplyToMessageID: 11, ChatType: "private"}, action: "typing"},
 		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 11, ChatType: "private"}, draftID: 77, text: "stream\n..."},
 		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 11, ChatType: "private"}, draftID: 77, text: "stream delta\n..."},
 		{method: "sendMessage", target: tg.Target{ChatID: "123", ReplyToMessageID: 11, ChatType: "private"}, text: "final reply"},

@@ -331,6 +331,12 @@ func TestBuildEnvironmentContext_ReturnsNamedInstructionWithRuntimeFacts(t *test
 		API:              "openai-responses",
 		WebProvider:      "tavily",
 		SessionID:        "ses_123",
+		SessionOrigin: EnvironmentSessionOrigin{
+			Source:         "telegram",
+			AccountID:      "u_123",
+			ConversationID: "-100",
+			ThreadID:       "42",
+		},
 	})
 
 	require.Equal(t, EnvironmentContextInstructionName, instruction.Name)
@@ -353,6 +359,7 @@ func TestBuildEnvironmentContext_ReturnsNamedInstructionWithRuntimeFacts(t *test
 	require.Contains(t, instruction.Value, "- API: openai-responses")
 	require.Contains(t, instruction.Value, "- Web provider: tavily")
 	require.Contains(t, instruction.Value, "- Session ID: ses_123")
+	require.Contains(t, instruction.Value, "- Session origin: source=telegram; account=u_123; conversation=-100; thread=42")
 }
 
 func TestBuildEnvironmentContext_ReturnsEmptyNamedInstructionWithoutFacts(t *testing.T) {
@@ -476,6 +483,12 @@ func TestBuildMemoryFlushGuidance_ReturnsDurableContextLossPrompt(t *testing.T) 
 	require.Contains(t, instruction.Value, "no durable memory to flush")
 }
 
+func TestBuildMemoryFlushGuidance_UsesDefaultTriggerWhenEmpty(t *testing.T) {
+	instruction := BuildMemoryFlushGuidance("   ")
+
+	require.Contains(t, instruction.Value, "planned context loss")
+}
+
 func TestBuildMemoryFlushRequest_ReturnsActionPrompt(t *testing.T) {
 	request := BuildMemoryFlushRequest("compression")
 
@@ -487,6 +500,12 @@ func TestBuildMemoryFlushRequest_ReturnsActionPrompt(t *testing.T) {
 	require.Contains(t, request, "memory_delete")
 	require.NotContains(t, request, "memory_extract")
 	require.Contains(t, request, "no durable memory to flush")
+}
+
+func TestBuildMemoryFlushRequest_UsesDefaultTriggerWhenEmpty(t *testing.T) {
+	request := BuildMemoryFlushRequest("   ")
+
+	require.Contains(t, request, "planned context loss flush is starting now")
 }
 
 func TestBuildEpisodicExtractionInstructions_ReturnsCuratedExtractionPrompt(t *testing.T) {
@@ -577,6 +596,17 @@ func TestBuildSessionSummary_ReturnsStructuredSummaryInstructions(t *testing.T) 
 	require.Contains(t, instructions[0].Value, `"session_summary": "required concise summary"`)
 	require.Contains(t, instructions[0].Value, `"next_actions": ["next action"]`)
 	require.Contains(t, instructions[0].Value, "Output rules: Do not include markdown fences or extra commentary.")
+}
+
+func TestBuildSessionTitle_ReturnsTitleInstructions(t *testing.T) {
+	instructions := BuildSessionTitle()
+
+	require.Len(t, instructions, 1)
+	require.Contains(t, instructions[0].Value, "# Session Title Task")
+	require.Contains(t, instructions[0].Value, "Create a short title")
+	require.Contains(t, instructions[0].Value, "Return plain text only")
+	require.Contains(t, instructions[0].Value, "Use 3-8 words")
+	require.Contains(t, instructions[0].Value, "Do not include the words chat, conversation, or session")
 }
 
 func TestBuildRecallSessionSummaryWindow_ReturnsRecallWindowInstructions(t *testing.T) {

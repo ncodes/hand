@@ -75,11 +75,11 @@ func TestApplyConfigOverrides_AppliesPlatformAndCapabilities(t *testing.T) {
 		return nil
 	}
 
-	err := cmd.Run(context.Background(), []string{"hand", "--platform", "desktop", "--cap.fs=false", "--cap.browser"})
+	err := cmd.Run(context.Background(), []string{"hand", "--platform", "cli", "--cap.fs=false", "--cap.browser"})
 
 	require.NoError(t, err)
 	cfg.Normalize()
-	require.Equal(t, "desktop", cfg.Platform)
+	require.Equal(t, "cli", cfg.Platform)
 	require.False(t, getBoolValue(cfg.Cap.Filesystem))
 	require.True(t, getBoolValue(cfg.Cap.Network))
 	require.True(t, getBoolValue(cfg.Cap.Exec))

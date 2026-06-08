@@ -831,6 +831,31 @@ func TestManager_CreateUseAndResolveErrors(t *testing.T) {
 	require.EqualError(t, manager.UseSession(context.Background(), testSessionA), "get failed")
 }
 
+func TestManager_CreateSessionWithOptionsPersistsOrigin(t *testing.T) {
+	store := storagememory.NewStore()
+	manager, err := NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	created, err := manager.CreateSessionWithOptions(context.Background(), testSessionA, storage.SessionCreateOptions{
+		Origin: storage.SessionOrigin{
+			Source:         " telegram ",
+			ConversationID: " -100 ",
+			ThreadID:       " 42 ",
+		},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, storage.SessionOrigin{
+		Source:         storage.SessionOriginSourceTelegram,
+		ConversationID: "-100",
+		ThreadID:       "42",
+	}, created.Origin)
+	loaded, ok, err := store.Get(context.Background(), testSessionA, storage.SessionGetOptions{})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, created.Origin, loaded.Origin)
+}
+
 func TestManager_RenameSessionValidatesInputAndStoreErrors(t *testing.T) {
 	manager, err := NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)

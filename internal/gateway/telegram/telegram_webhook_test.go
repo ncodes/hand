@@ -146,9 +146,10 @@ func TestTelegramWebhookAcknowledgesAndDispatchesAsynchronously(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 	require.Equal(t, "hello", responder.receivedMessage())
 	require.Eventually(t, func() bool {
-		return len(api.allCalls()) == 3
+		return len(api.allCalls()) == 4
 	}, time.Second, 10*time.Millisecond)
 	require.Equal(t, []telegramAPICall{
+		{method: "sendChatAction", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, action: "typing"},
 		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, draftID: 77, text: "stream\n..."},
 		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, draftID: 77, text: "stream delta\n..."},
 		{method: "sendMessage", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, text: "reply"},
@@ -189,9 +190,10 @@ func TestTelegramWebhookDeduplicatesProviderRetries(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
-		return len(api.allCalls()) == 3
+		return len(api.allCalls()) == 4
 	}, time.Second, 10*time.Millisecond)
 	require.Equal(t, []telegramAPICall{
+		{method: "sendChatAction", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, action: "typing"},
 		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, draftID: 77, text: "stream\n..."},
 		{method: "sendMessageDraft", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, draftID: 77, text: "stream delta\n..."},
 		{method: "sendMessage", target: tg.Target{ChatID: "123", ReplyToMessageID: 5, ChatType: "private"}, text: "reply"},

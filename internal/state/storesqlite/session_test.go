@@ -138,6 +138,37 @@ func TestSQLiteStore_SessionLifecycle(t *testing.T) {
 	require.Empty(t, current)
 }
 
+func TestSQLiteStore_SavePersistsSessionOrigin(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	origin := base.SessionOrigin{
+		Source:         base.SessionOriginSourceTelegram,
+		ConversationID: "-100",
+		ThreadID:       "42",
+	}
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID:     testSessionA,
+		Origin: origin,
+	}))
+
+	loaded, ok, err := store.Get(context.Background(), testSessionA, base.SessionGetOptions{})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, origin, loaded.Origin)
+
+	sessions, err := store.List(context.Background(), base.SessionListOptions{})
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	require.Equal(t, origin, sessions[0].Origin)
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+	loaded, ok, err = store.Get(context.Background(), testSessionA, base.SessionGetOptions{})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, origin, loaded.Origin)
+}
+
 func TestSQLiteStore_GetAndListFilterByArchiveState(t *testing.T) {
 	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)

@@ -455,6 +455,14 @@ func (m *Manager) UpdateLastPromptTokens(ctx context.Context, id string, promptT
 }
 
 func (m *Manager) CreateSession(ctx context.Context, id string) (storage.Session, error) {
+	return m.CreateSessionWithOptions(ctx, id, storage.SessionCreateOptions{})
+}
+
+func (m *Manager) CreateSessionWithOptions(
+	ctx context.Context,
+	id string,
+	opts storage.SessionCreateOptions,
+) (storage.Session, error) {
 	if m == nil {
 		return storage.Session{}, errors.New("state manager is required")
 	}
@@ -477,13 +485,27 @@ func (m *Manager) CreateSession(ctx context.Context, id string) (storage.Session
 	}
 
 	now := m.now().UTC()
-	session := storage.Session{CreatedAt: now, ID: id, UpdatedAt: now}
+	session := storage.Session{
+		CreatedAt: now,
+		ID:        id,
+		Origin:    normalizeSessionOrigin(opts.Origin),
+		UpdatedAt: now,
+	}
 
 	if err := m.sessions().Save(ctx, session); err != nil {
 		return storage.Session{}, err
 	}
 
 	return session, nil
+}
+
+func normalizeSessionOrigin(origin storage.SessionOrigin) storage.SessionOrigin {
+	return storage.SessionOrigin{
+		Source:         strings.TrimSpace(origin.Source),
+		AccountID:      strings.TrimSpace(origin.AccountID),
+		ConversationID: strings.TrimSpace(origin.ConversationID),
+		ThreadID:       strings.TrimSpace(origin.ThreadID),
+	}
 }
 
 func (m *Manager) ListSessions(ctx context.Context, opts ...storage.SessionListOptions) ([]storage.Session, error) {

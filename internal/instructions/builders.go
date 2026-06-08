@@ -55,6 +55,14 @@ type EnvironmentContext struct {
 	API              string
 	WebProvider      string
 	SessionID        string
+	SessionOrigin    EnvironmentSessionOrigin
+}
+
+type EnvironmentSessionOrigin struct {
+	Source         string
+	AccountID      string
+	ConversationID string
+	ThreadID       string
 }
 
 // EnvironmentCapabilities describes runtime capabilities exposed to prompts.
@@ -204,6 +212,9 @@ func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 	if sessionID := strings.TrimSpace(ctx.SessionID); sessionID != "" {
 		lines = append(lines, fmt.Sprintf("- Session ID: %s", sessionID))
 	}
+	if origin := renderEnvironmentSessionOrigin(ctx.SessionOrigin); origin != "" {
+		lines = append(lines, fmt.Sprintf("- Session origin: %s", origin))
+	}
 
 	if len(lines) == 2 {
 		return Instruction{Name: EnvironmentContextInstructionName}
@@ -236,6 +247,24 @@ func BuildMemoryContext(items []MemoryContextItem, maxChars int) Instruction {
 	}
 
 	return Instruction{Name: MemoryContextInstructionName, Value: value}
+}
+
+func renderEnvironmentSessionOrigin(origin EnvironmentSessionOrigin) string {
+	parts := make([]string, 0, 4)
+	if source := strings.TrimSpace(origin.Source); source != "" {
+		parts = append(parts, "source="+source)
+	}
+	if accountID := strings.TrimSpace(origin.AccountID); accountID != "" {
+		parts = append(parts, "account="+accountID)
+	}
+	if conversationID := strings.TrimSpace(origin.ConversationID); conversationID != "" {
+		parts = append(parts, "conversation="+conversationID)
+	}
+	if threadID := strings.TrimSpace(origin.ThreadID); threadID != "" {
+		parts = append(parts, "thread="+threadID)
+	}
+
+	return strings.Join(parts, "; ")
 }
 
 func renderMemoryContextItem(item MemoryContextItem) string {

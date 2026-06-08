@@ -85,7 +85,8 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 		Models: ModelsConfig{
 			Main: MainModelConfig{Name: "  openai/test-model  ", Provider: " OpenRouter ", APIKey: "  test-key  "},
 		},
-		Log: LogConfig{Level: " WARN "},
+		Log:      LogConfig{Level: " WARN "},
+		Platform: " CLI ",
 	}
 
 	require.NoError(t, cfg.Validate())
@@ -95,6 +96,13 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	require.Equal(t, "test-key", cfg.Models.Main.APIKey)
 	require.Equal(t, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
 	require.Equal(t, "warn", cfg.Log.Level)
+	require.Equal(t, "cli", cfg.Platform)
+}
+
+func TestConfig_ValidateRejectsUnsupportedPlatform(t *testing.T) {
+	cfg := &Config{Name: "test-agent", Platform: "desktop"}
+
+	require.EqualError(t, cfg.ValidateRelaxed(), "platform must be cli")
 }
 
 func TestConfig_ValidateAppliesGatewayDefaults(t *testing.T) {

@@ -46,6 +46,9 @@ func (c *Config) validate(options validationOptions) error {
 	if strings.TrimSpace(c.Name) == "" {
 		return errors.New("name is required; set HAND_NAME, provide it in config, or use --name")
 	}
+	if c.Platform != constants.DefaultPlatform {
+		return errors.New("platform must be cli")
+	}
 
 	if options.requireModels {
 		if !isValidModelID(c.Models.Main.Name) {

@@ -9,6 +9,7 @@ import (
 func agentSessionFromStorageSession(value storage.Session) agentsession.Session {
 	return agentsession.Session{
 		Compaction:                 agentCompactionFromStorageCompaction(value.Compaction),
+		Origin:                     agentOriginFromStorageOrigin(value.Origin),
 		ID:                         value.ID,
 		EpisodicCheckpointOffset:   value.EpisodicCheckpointOffset,
 		LastPromptTokens:           value.LastPromptTokens,
@@ -20,6 +21,15 @@ func agentSessionFromStorageSession(value storage.Session) agentsession.Session 
 		CreatedAt:                  value.CreatedAt,
 		UpdatedAt:                  value.UpdatedAt,
 		ExpiresAt:                  value.ExpiresAt,
+	}
+}
+
+func agentOriginFromStorageOrigin(value storage.SessionOrigin) agentsession.Origin {
+	return agentsession.Origin{
+		AccountID:      value.AccountID,
+		ConversationID: value.ConversationID,
+		Source:         value.Source,
+		ThreadID:       value.ThreadID,
 	}
 }
 

@@ -35,7 +35,7 @@ HAND_LOG_NO_COLOR=true
 HAND_DEBUG_REQUESTS=true
 HAND_RULES_FILES=hand.md,custom.md
 HAND_SESSION_INSTRUCT=be terse
-HAND_PLATFORM=desktop
+HAND_PLATFORM=cli
 HAND_CAP_FS=false
 HAND_CAP_NET=false
 HAND_CAP_EXEC=false
@@ -64,7 +64,7 @@ HAND_MEMORY_PINNED_MAX_ITEM_CHARS=500
 	require.Equal(t, "true", os.Getenv("HAND_DEBUG_REQUESTS"))
 	require.Equal(t, "hand.md,custom.md", os.Getenv("HAND_RULES_FILES"))
 	require.Equal(t, "be terse", os.Getenv("HAND_SESSION_INSTRUCT"))
-	require.Equal(t, "desktop", os.Getenv("HAND_PLATFORM"))
+	require.Equal(t, "cli", os.Getenv("HAND_PLATFORM"))
 	require.Equal(t, "false", os.Getenv("HAND_CAP_FS"))
 	require.Equal(t, "false", os.Getenv("HAND_CAP_NET"))
 	require.Equal(t, "false", os.Getenv("HAND_CAP_EXEC"))
@@ -218,7 +218,7 @@ cap:
   exec: false
   mem: false
   browser: true
-platform: desktop
+platform: cli
 memory:
   enabled: true
   provider: default-memory
@@ -319,7 +319,7 @@ rules:
 	require.Equal(t, 180000, cfg.Web.ExtractRefusalThresholdChars)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.Rules.Files)
 	require.Equal(t, "be terse", cfg.Session.Instruct)
-	require.Equal(t, "desktop", cfg.Platform)
+	require.Equal(t, "cli", cfg.Platform)
 	require.True(t, cfg.MemoryEnabled())
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 	require.Equal(t, "memory", cfg.Memory.Backend)

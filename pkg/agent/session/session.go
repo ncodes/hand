@@ -25,6 +25,7 @@ const (
 
 type Session struct {
 	Compaction                 Compaction
+	Origin                     Origin
 	ID                         string
 	EpisodicCheckpointOffset   int
 	LastPromptTokens           int
@@ -36,6 +37,13 @@ type Session struct {
 	CreatedAt                  time.Time
 	UpdatedAt                  time.Time
 	ExpiresAt                  time.Time
+}
+
+type Origin struct {
+	Source         string
+	AccountID      string
+	ConversationID string
+	ThreadID       string
 }
 
 type Compaction struct {

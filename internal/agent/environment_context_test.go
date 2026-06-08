@@ -12,6 +12,7 @@ import (
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/mocks"
 	models "github.com/wandxy/hand/internal/model"
+	storage "github.com/wandxy/hand/internal/state/core"
 	handtools "github.com/wandxy/hand/internal/tools"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
@@ -64,6 +65,11 @@ func TestTurn_BuildEnvironmentContextInstructionUsesConfigAndToolPolicy(t *testi
 			Web: config.WebConfig{Provider: "search"},
 		},
 		sessionID: "session-1",
+		sessionOrigin: storage.SessionOrigin{
+			Source:         storage.SessionOriginSourceTelegram,
+			ConversationID: "-100",
+			ThreadID:       "7",
+		},
 		env: &mocks.EnvironmentStub{
 			Policy: handtools.Policy{
 				Platform:     "linux",
@@ -100,7 +106,8 @@ func TestTurn_BuildEnvironmentContextInstructionUsesConfigAndToolPolicy(t *testi
 - Summary model provider: anthropic
 - API: openai-responses
 - Web provider: search
-- Session ID: session-1`, runtime.GOOS, runtime.GOARCH), instruction.Value)
+- Session ID: session-1
+- Session origin: source=telegram; conversation=-100; thread=7`, runtime.GOOS, runtime.GOARCH), instruction.Value)
 }
 
 func TestTurn_ActiveToolPolicyAndGroupsFallbackToCoreRegistry(t *testing.T) {

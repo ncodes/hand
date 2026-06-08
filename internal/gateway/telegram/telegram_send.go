@@ -20,11 +20,14 @@ var newTelegramDraftID = func() int64 {
 	return time.Now().UnixNano()
 }
 
+var telegramTypingInterval = 4 * time.Second
+
 type telegramAPI interface {
 	GetUpdates(context.Context, int64) ([]tg.Update, error)
 	SendMessage(context.Context, tg.Target, string) (int64, error)
 	EditMessageText(context.Context, tg.Target, int64, string) error
 	SendMessageDraft(context.Context, tg.Target, int64, string) error
+	SendChatAction(context.Context, tg.Target, string) error
 }
 
 type telegramHTTPClient struct {
@@ -81,6 +84,12 @@ func (c *telegramHTTPClient) SendMessageDraft(
 	req := telegramSendRequest(target, text)
 	req["draft_id"] = draftID
 	return c.call(ctx, "sendMessageDraft", req, nil)
+}
+
+func (c *telegramHTTPClient) SendChatAction(ctx context.Context, target tg.Target, action string) error {
+	req := telegramTargetRequest(target)
+	req["action"] = action
+	return c.call(ctx, "sendChatAction", req, nil)
 }
 
 func (c *telegramHTTPClient) call(ctx context.Context, method string, req any, out any) error {
@@ -199,6 +208,34 @@ func (s *telegramSender) StreamTurn(
 	return streamer.Finish(ctx, reply)
 }
 
+func (s *telegramSender) StartTyping(ctx context.Context, target tg.Target) func() {
+	if s == nil || s.api == nil {
+		return func() {}
+	}
+
+	typingCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	_ = s.api.SendChatAction(typingCtx, target, "typing")
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(telegramTypingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-typingCtx.Done():
+				return
+			case <-ticker.C:
+				_ = s.api.SendChatAction(typingCtx, target, "typing")
+			}
+		}
+	}()
+
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
 func (s *telegramSender) streamerForTarget(target tg.Target) telegramStreamer {
 	if tg.SupportsNativeDraft(target) {
 		return &nativeTelegramStreamer{sender: s, target: target}
@@ -304,15 +341,21 @@ func (s finalOnlyTelegramStreamer) Finish(ctx context.Context, reply string) err
 }
 
 func telegramSendRequest(target tg.Target, text string) map[string]any {
+	req := telegramTargetRequest(target)
+	req["text"] = text
+	if target.ReplyToMessageID != 0 {
+		req["reply_parameters"] = map[string]any{"message_id": target.ReplyToMessageID}
+	}
+
+	return req
+}
+
+func telegramTargetRequest(target tg.Target) map[string]any {
 	req := map[string]any{
 		"chat_id": target.ChatID,
-		"text":    text,
 	}
 	if target.ThreadID != "" {
 		req["message_thread_id"] = telegramThreadIDValue(target.ThreadID)
-	}
-	if target.ReplyToMessageID != 0 {
-		req["reply_parameters"] = map[string]any{"message_id": target.ReplyToMessageID}
 	}
 
 	return req

@@ -40,6 +40,9 @@ func (a *TelegramAdapter) DispatchUpdate(ctx context.Context, update tg.Update) 
 		return false, err
 	}
 
+	stopTyping := a.sender.StartTyping(ctx, inbound.Target)
+	defer stopTyping()
+
 	err = a.sender.StreamTurn(ctx, inbound.Target, func(onDelta func(string)) (string, error) {
 		return a.service.Respond(ctx, inbound.Text, agentcore.RespondOptions{
 			SessionID: session.ID,

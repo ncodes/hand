@@ -53,6 +53,43 @@ func TestNewKey_EscapesSeparators(t *testing.T) {
 	require.Equal(t, "generic:acct%3A1:space+room:thread%2F1", key.String())
 }
 
+func TestParseKey_ReturnsNormalizedParts(t *testing.T) {
+	key, err := NewKey(Parts{
+		Source:         " Generic ",
+		AccountID:      "acct:1",
+		ConversationID: "space room",
+		ThreadID:       "thread/1",
+	})
+	require.NoError(t, err)
+
+	parts, err := ParseKey(key)
+
+	require.NoError(t, err)
+	require.Equal(t, Parts{
+		Source:         SourceGeneric,
+		AccountID:      "acct:1",
+		ConversationID: "space room",
+		ThreadID:       "thread/1",
+	}, parts)
+}
+
+func TestParseKey_RejectsInvalidKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		key  Key
+		err  string
+	}{
+		{name: "part count", key: Key("generic::chat"), err: "gateway binding key must have four parts"},
+		{name: "escaping", key: Key("generic::bad%zz:"), err: "gateway binding key is invalid"},
+		{name: "required values", key: Key("generic:::"), err: "gateway binding conversation id is required"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseKey(tt.key)
+			require.EqualError(t, err, tt.err)
+		})
+	}
+}
+
 func TestNewKey_RejectsMissingRequiredParts(t *testing.T) {
 	for _, tt := range []struct {
 		name string
