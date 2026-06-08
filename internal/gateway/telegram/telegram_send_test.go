@@ -34,6 +34,122 @@ func TestTelegramSender_StreamsPrivateChatWithNativeDraftsThenFinalMessage(t *te
 	}, api.allCalls())
 }
 
+func TestTelegramSender_SendsMarkdownV2ParseModeForStreamingAndFinalText(t *testing.T) {
+	setTelegramDraftID(t, 77)
+	api := &fakeTelegramAPI{}
+	sender := newTelegramSender(api)
+	target := tg.Target{ChatID: "123", ChatType: "private"}
+
+	err := sender.StreamTurn(context.Background(), target, func(onDelta func(string)) (string, error) {
+		onDelta("**hello**")
+		return "final!", nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []telegramAPICall{
+		{
+			method:    "sendMessageDraft",
+			target:    target,
+			draftID:   77,
+			text:      "*hello*\n\\.\\.\\.",
+			parseMode: tg.ParseModeMarkdownV2,
+		},
+		{
+			method:    "sendMessage",
+			target:    target,
+			text:      "final\\!",
+			parseMode: tg.ParseModeMarkdownV2,
+		},
+	}, api.allCallsWithParseMode())
+}
+
+func TestTelegramSender_RetriesPlainTextWhenMarkdownV2ParsingFails(t *testing.T) {
+	parseErr := errors.New("Bad Request: can't parse entities: markdown")
+	api := &fakeTelegramAPI{sendErrs: []error{parseErr, nil}}
+	sender := newTelegramSender(api)
+
+	err := sender.SendFinal(context.Background(), tg.Target{ChatID: "123"}, "**final**")
+
+	require.NoError(t, err)
+	require.Equal(t, []telegramAPICall{
+		{
+			method:    "sendMessage",
+			target:    tg.Target{ChatID: "123"},
+			text:      "*final*",
+			parseMode: tg.ParseModeMarkdownV2,
+		},
+		{method: "sendMessage", target: tg.Target{ChatID: "123"}, text: "final"},
+	}, api.allCallsWithParseMode())
+}
+
+func TestTelegramSender_RetriesPlainTextWhenSimulatedEditMarkdownV2ParsingFails(t *testing.T) {
+	parseErr := errors.New("Bad Request: can't parse entities")
+	api := &fakeTelegramAPI{editErrs: []error{parseErr, nil}}
+	sender := newTelegramSender(api)
+	sender.minEditGap = 0
+	streamer := &simulatedTelegramStreamer{
+		sender:    sender,
+		target:    tg.Target{ChatID: "-100", ChatType: "group"},
+		messageID: 1,
+	}
+
+	err := streamer.Append(context.Background(), "**partial**")
+
+	require.NoError(t, err)
+	require.Equal(t, []telegramAPICall{
+		{
+			method:    "editMessageText",
+			target:    tg.Target{ChatID: "-100", ChatType: "group"},
+			messageID: 1,
+			text:      "*partial*\n\\.\\.\\.",
+			parseMode: tg.ParseModeMarkdownV2,
+		},
+		{
+			method:    "editMessageText",
+			target:    tg.Target{ChatID: "-100", ChatType: "group"},
+			messageID: 1,
+			text:      "partial\n...",
+		},
+	}, api.allCallsWithParseMode())
+}
+
+func TestTelegramSender_RetriesPlainTextWhenDraftMarkdownV2ParsingFails(t *testing.T) {
+	setTelegramDraftID(t, 77)
+	parseErr := errors.New("Bad Request: can't parse entities")
+	api := &fakeTelegramAPI{draftErrs: []error{parseErr, nil}}
+	sender := newTelegramSender(api)
+	target := tg.Target{ChatID: "123", ChatType: "private"}
+
+	err := sender.StreamTurn(context.Background(), target, func(onDelta func(string)) (string, error) {
+		onDelta("**partial**")
+		return "final", nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []telegramAPICall{
+		{
+			method:    "sendMessageDraft",
+			target:    target,
+			draftID:   77,
+			text:      "*partial*\n\\.\\.\\.",
+			parseMode: tg.ParseModeMarkdownV2,
+		},
+		{method: "sendMessageDraft", target: target, draftID: 77, text: "partial\n..."},
+		{
+			method:    "sendMessage",
+			target:    target,
+			text:      "final",
+			parseMode: tg.ParseModeMarkdownV2,
+		},
+	}, api.allCallsWithParseMode())
+}
+
+func TestTelegramSender_DetectsTelegramParseErrors(t *testing.T) {
+	require.False(t, isTelegramParseError(errTelegramTest))
+	require.True(t, isTelegramParseError(errors.New("Bad Request: can't parse entities")))
+	require.True(t, isTelegramParseError(errors.New("Bad Request: markdown parse failed")))
+}
+
 func TestTelegramSender_StreamsGroupTopicWithPlaceholderAndEdits(t *testing.T) {
 	api := &fakeTelegramAPI{}
 	sender := newTelegramSender(api)
@@ -53,8 +169,8 @@ func TestTelegramSender_StreamsGroupTopicWithPlaceholderAndEdits(t *testing.T) {
 		{method: "editMessageText", target: target, messageID: 1, text: "hello world\n..."},
 		{method: "editMessageText", target: target, messageID: 1, text: "final"},
 	}, api.allCalls())
-	require.Equal(t, int64(42), telegramSendRequest(target, "final")["message_thread_id"])
-	require.Equal(t, map[string]any{"message_id": int64(9)}, telegramSendRequest(target, "final")["reply_parameters"])
+	require.Equal(t, int64(42), telegramSendRequest(target, telegramText{Text: "final"})["message_thread_id"])
+	require.Equal(t, map[string]any{"message_id": int64(9)}, telegramSendRequest(target, telegramText{Text: "final"})["reply_parameters"])
 }
 
 func TestTelegramSender_CoalescesSimulatedStreamingEdits(t *testing.T) {
@@ -308,7 +424,7 @@ func TestTelegramHTTPClient_SendsRequestPayloadAndDecodesMessageID(t *testing.T)
 		ChatID:           "-100",
 		ThreadID:         "42",
 		ReplyToMessageID: 9,
-	}, "hello")
+	}, telegramText{Text: "hello", ParseMode: tg.ParseModeMarkdownV2})
 
 	require.NoError(t, err)
 	require.Equal(t, int64(44), messageID)
@@ -316,6 +432,7 @@ func TestTelegramHTTPClient_SendsRequestPayloadAndDecodesMessageID(t *testing.T)
 	require.Equal(t, map[string]any{
 		"chat_id":           "-100",
 		"text":              "hello",
+		"parse_mode":        tg.ParseModeMarkdownV2,
 		"message_thread_id": float64(42),
 		"reply_parameters": map[string]any{
 			"message_id": float64(9),
@@ -337,12 +454,13 @@ func TestTelegramHTTPClient_SendsDraftIDForNativeStreaming(t *testing.T) {
 	err := client.SendMessageDraft(context.Background(), tg.Target{
 		ChatID:   "123",
 		ThreadID: "42",
-	}, 77, "partial")
+	}, 77, telegramText{Text: "partial", ParseMode: tg.ParseModeMarkdownV2})
 
 	require.NoError(t, err)
 	require.Equal(t, map[string]any{
 		"chat_id":           "123",
 		"text":              "partial",
+		"parse_mode":        tg.ParseModeMarkdownV2,
 		"message_thread_id": float64(42),
 		"draft_id":          float64(77),
 	}, payload)
@@ -374,12 +492,14 @@ func TestTelegramHTTPClient_SendsChatAction(t *testing.T) {
 
 func TestTelegramHTTPClient_DecodesUpdatesAndSendsEdit(t *testing.T) {
 	var paths []string
+	var editPayload map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		paths = append(paths, r.URL.Path)
 		switch r.URL.Path {
 		case "/bottoken/getUpdates":
 			_, _ = w.Write([]byte(`{"ok":true,"result":[{"update_id":8,"message":{"message_id":2,"text":"hi","chat":{"id":123}}}]}`))
 		case "/bottoken/editMessageText":
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&editPayload))
 			_, _ = w.Write([]byte(`{"ok":true,"result":true}`))
 		default:
 			t.Fatalf("unexpected path %s", r.URL.Path)
@@ -400,9 +520,20 @@ func TestTelegramHTTPClient_DecodesUpdatesAndSendsEdit(t *testing.T) {
 		},
 	}}, updates)
 
-	err = client.EditMessageText(context.Background(), tg.Target{ChatID: "123"}, 2, "edited")
+	err = client.EditMessageText(
+		context.Background(),
+		tg.Target{ChatID: "123"},
+		2,
+		telegramText{Text: "edited", ParseMode: tg.ParseModeMarkdownV2},
+	)
 	require.NoError(t, err)
 	require.Equal(t, []string{"/bottoken/getUpdates", "/bottoken/editMessageText"}, paths)
+	require.Equal(t, map[string]any{
+		"chat_id":    "123",
+		"text":       "edited",
+		"parse_mode": tg.ParseModeMarkdownV2,
+		"message_id": float64(2),
+	}, editPayload)
 }
 
 func TestTelegramHTTPClient_ReturnsSendMessageErrors(t *testing.T) {
@@ -413,7 +544,11 @@ func TestTelegramHTTPClient_ReturnsSendMessageErrors(t *testing.T) {
 	client := newTelegramHTTPClient("token")
 	client.baseURL = server.URL
 
-	_, err := client.SendMessage(context.Background(), tg.Target{ChatID: "123"}, "hello")
+	_, err := client.SendMessage(
+		context.Background(),
+		tg.Target{ChatID: "123"},
+		telegramText{Text: "hello"},
+	)
 
 	require.EqualError(t, err, "send failed")
 }
@@ -465,7 +600,10 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestTelegramSendRequestKeepsNonnumericThreadID(t *testing.T) {
-	require.Equal(t, "topic", telegramSendRequest(tg.Target{ChatID: "123", ThreadID: "topic"}, "text")["message_thread_id"])
+	require.Equal(t, "topic", telegramSendRequest(
+		tg.Target{ChatID: "123", ThreadID: "topic"},
+		telegramText{Text: "text"},
+	)["message_thread_id"])
 }
 
 func TestTelegramConflictErrorWithoutDescription(t *testing.T) {

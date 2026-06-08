@@ -107,7 +107,8 @@ func TestTurn_BuildEnvironmentContextInstructionUsesConfigAndToolPolicy(t *testi
 - API: openai-responses
 - Web provider: search
 - Session ID: session-1
-- Session origin: source=telegram; conversation=-100; thread=7`, runtime.GOOS, runtime.GOARCH), instruction.Value)
+- Session origin: source=telegram; conversation=-100; thread=7
+- Channel response guidance: The user is reading this in Telegram. Keep replies chat-friendly, concise, and readable on mobile. Use Telegram MarkdownV2-compatible Markdown: prefer short paragraphs and bullets, avoid markdown tables, avoid raw unsupported HTML, and escape literal MarkdownV2 control characters when you intend them as text.`, runtime.GOOS, runtime.GOARCH), instruction.Value)
 }
 
 func TestTurn_ActiveToolPolicyAndGroupsFallbackToCoreRegistry(t *testing.T) {

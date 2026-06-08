@@ -38,7 +38,7 @@ Hand already has a long-lived daemon with a clean `agent.ServiceAPI` surface and
 - R7. Telegram supports long polling as the default ingress using the bot token, so local Hand daemons can receive Telegram updates without a public webhook URL.
 - R8. Telegram supports webhook mode when explicitly configured, verifying `X-Telegram-Bot-Api-Secret-Token` before dispatch.
 - R9. Telegram message updates are mapped to stable sessions using chat, topic/thread, and sender context, then replies are sent back through the Telegram Bot API.
-- R10. Telegram outbound text supports visible streaming progress only where the Bot API natively supports it, then persists the final answer with the appropriate chat/topic reply metadata and platform-safe chunking.
+- R10. Telegram outbound text supports visible streaming progress only where the Bot API natively supports it, then persists the final answer with the appropriate chat/topic reply metadata, platform-safe chunking, and Hermes-style MarkdownV2 formatting with plain-text fallback.
 
 **Slack**
 
@@ -78,6 +78,7 @@ Hand already has a long-lived daemon with a clean `agent.ServiceAPI` surface and
 - KTD10. **Keep channel outbound clients focused and injectable:** Slack and Telegram senders should have explicit interfaces with injectable transports, socket clients, polling clients, or stream clients so unit tests do not hit external APIs.
 - KTD11. **Expose gateway management through daemon control, not a top-level gateway process:** The CLI should provide `hand daemon gateway start|status|stop|restart` as short-lived management commands over the existing daemon RPC/control path. This keeps the daemon as the only long-lived owner while still letting operators recover a failed adapter, inspect state, restart adapters after secret/config changes, or temporarily stop external ingress.
 - KTD12. **Use Slack native streaming instead of edit-loop simulation:** Slack provides `chat.startStream`, `chat.appendStream`, and `chat.stopStream` for streaming message chunks. Hand should use those APIs for Slack streaming, and reserve `chat.postMessage` for non-streaming responses or fallback if native streaming is unavailable.
+- KTD13. **Use Telegram MarkdownV2 with plain-text fallback:** Hermes formats standard Markdown into Telegram MarkdownV2, sends and edits messages with `ParseMode.MARKDOWN_V2`, and retries as plain text when Telegram rejects formatting. Hand should follow that approach instead of using Telegram HTML.
 
 ---
 
@@ -199,6 +200,10 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Status:** Completed.
 
+**Progress:**
+
+- [x] Gateway config, defaults, env overrides, CLI flags, validation, startup display, and tests are implemented.
+
 **Goal:** Add gateway config types, defaults, CLI flag overrides, environment overrides, validation, and startup display fields.
 
 **Requirements:** R1, R2, R3, R5, R7, R8, R11, R12.
@@ -232,6 +237,10 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Status:** Completed.
 
+**Progress:**
+
+- [x] Daemon service group, gateway manager/server lifecycle, graceful shutdown, restart behavior, and tests are implemented.
+
 **Goal:** Start and stop gateway integrations inside the existing daemon runtime beside the gRPC server.
 
 **Requirements:** R1, R2, R3, R19, R21, R22, R23.
@@ -263,6 +272,10 @@ This feature adds new external integration surfaces to a personal agent that can
 ### U3. Gateway Core HTTP Contract
 
 **Status:** Completed.
+
+**Progress:**
+
+- [x] Generic HTTP health/respond routes, auth helpers, JSON envelopes, normalized request/response types, and tests are implemented.
 
 **Goal:** Implement generic HTTP routes, auth middleware, normalized request/response types, and safe error responses.
 
@@ -298,6 +311,10 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Status:** Completed.
 
+**Progress:**
+
+- [x] Gateway binding keys, stable session resolver, agent/state persistence hooks, SQLite/memory store coverage, and tests are implemented.
+
 **Files:** `internal/gateway/session.go`, `internal/gateway/session_test.go`, `pkg/gateway/bindings/bindings.go`, `pkg/gateway/bindings/bindings_test.go`, `internal/agent/service.go`, `internal/agent/service_test.go`, `internal/state/core/session.go`, `internal/state/storesqlite/session_test.go`, `internal/state/storememory/session_test.go`.
 
 **Approach:** Add a dedicated persistence path for gateway conversation bindings if existing session metadata cannot safely carry the mapping. The resolver should derive a stable binding key from source and provider identifiers, create a Hand session when missing, and reuse it thereafter. It should avoid switching the daemon's current session as a side effect. Put binding-key construction and validation in `pkg/gateway/bindings`; keep storage and session creation in `internal/gateway`.
@@ -319,17 +336,27 @@ This feature adds new external integration surfaces to a personal agent that can
 
 ### U5. Telegram Polling and Webhook Adapter
 
+**Status:** Completed.
+
+**Progress:**
+
+- [x] Telegram polling adapter, webhook auth, update normalization, topic-aware targets, sender transport, draft/edit simulated streaming, dispatch queue integration, and tests are implemented.
+- [x] Sender-layer MarkdownV2 parse-mode support is implemented for `sendMessage`, `editMessageText`, and `sendMessageDraft`.
+- [x] Telegram MarkdownV2 formatter is implemented in `pkg/gateway/telegram/format.go`.
+- [x] Formatter and sender tests assert MarkdownV2 parse mode, safe Markdown-to-MarkdownV2 conversion, plain-text fallback, and streaming-safe formatted partials.
+- [x] Focused validation passes with `CGO_ENABLED=1 go test -tags sqlite_fts5 ./pkg/gateway/telegram ./internal/gateway/telegram`.
+
 **Goal:** Add Telegram long-polling ingress by default, optional webhook verification, update normalization, message filtering, native streaming outbound text where supported, chunked final delivery, and topic-aware replies.
 
 **Requirements:** R7, R8, R9, R10, R17, R18, R19.
 
 **Dependencies:** U3, U4.
 
-**Files:** `internal/gateway/telegram.go`, `internal/gateway/telegram_polling.go`, `internal/gateway/telegram_webhook.go`, `internal/gateway/telegram_send.go`, `internal/gateway/telegram_stream.go`, `pkg/gateway/telegram/auth.go`, `pkg/gateway/telegram/updates.go`, `pkg/gateway/telegram/stream.go`, `pkg/gateway/telegram/auth_test.go`, `pkg/gateway/telegram/updates_test.go`, `pkg/gateway/telegram/stream_test.go`, `internal/gateway/telegram_test.go`, `internal/gateway/telegram_polling_test.go`, `internal/gateway/telegram_webhook_test.go`, `internal/gateway/telegram_send_test.go`, `internal/gateway/telegram_stream_test.go`.
+**Files:** `internal/gateway/telegram.go`, `internal/gateway/telegram_polling.go`, `internal/gateway/telegram_webhook.go`, `internal/gateway/telegram_send.go`, `internal/gateway/telegram_stream.go`, `pkg/gateway/telegram/auth.go`, `pkg/gateway/telegram/format.go`, `pkg/gateway/telegram/updates.go`, `pkg/gateway/telegram/stream.go`, `pkg/gateway/telegram/auth_test.go`, `pkg/gateway/telegram/format_test.go`, `pkg/gateway/telegram/updates_test.go`, `pkg/gateway/telegram/stream_test.go`, `internal/gateway/telegram_test.go`, `internal/gateway/telegram_polling_test.go`, `internal/gateway/telegram_webhook_test.go`, `internal/gateway/telegram_send_test.go`, `internal/gateway/telegram_stream_test.go`.
 
-**Approach:** Implement Telegram polling mode as the default adapter using `getUpdates` with a tracked offset and context-aware long-poll loop. The polling client should normalize supported `Update` message shapes, ignore unsupported updates, advance offsets only after accepted handling decisions, and treat Telegram 409 conflicts as a clear fatal or retryable state indicating another poller is using the same bot token. Also add optional webhook mode at `POST /gateway/telegram/webhook`: verify the configured secret-token header, decode the same supported update shapes, and reuse the same normalization and dispatch path. For streaming responses, prefer Telegram `sendMessageDraft` when the target is clearly supported by the Bot API; it gives users an ephemeral animated draft preview while the answer is generated. For chats, groups, topics, or threads where native draft streaming is unavailable, support Hermes-style simulated streaming by sending one placeholder message and applying throttled `editMessageText` updates to that same message. Final replies should remove any cursor/progress marker and persist the completed answer with `sendMessage` or a final edit, chunking text at Telegram's message limit with topic/thread metadata when present. Put secret-token verification, Update parsing, reply target extraction, and stream payload helpers in `pkg/gateway/telegram`; keep polling loops, outbound client ownership, and daemon lifecycle in `internal/gateway`.
+**Approach:** Implement Telegram polling mode as the default adapter using `getUpdates` with a tracked offset and context-aware long-poll loop. The polling client should normalize supported `Update` message shapes, ignore unsupported updates, advance offsets only after accepted handling decisions, and treat Telegram 409 conflicts as a clear fatal or retryable state indicating another poller is using the same bot token. Also add optional webhook mode at `POST /gateway/telegram/webhook`: verify the configured secret-token header, decode the same supported update shapes, and reuse the same normalization and dispatch path. For streaming responses, prefer Telegram `sendMessageDraft` when the target is clearly supported by the Bot API; it gives users an ephemeral animated draft preview while the answer is generated. For chats, groups, topics, or threads where native draft streaming is unavailable, support Hermes-style simulated streaming by sending one placeholder message and applying throttled `editMessageText` updates to that same message. Add Telegram formatting at the sender layer by extending `telegramSendRequest` with a parse-mode field and applying it consistently to `sendMessage`, `editMessageText`, and `sendMessageDraft`. Follow Hermes' MarkdownV2 approach: convert standard model Markdown into Telegram MarkdownV2, including headers, bold, italic, links, inline code, fenced code blocks, strikethrough, spoilers, blockquotes, and required MarkdownV2 escaping. For simulated edits and drafts, format each partial text before sending; if Telegram rejects MarkdownV2 parsing, retry the same delivery as plain text without duplicating visible final replies. Do not use Telegram HTML. Final replies should remove any cursor/progress marker and persist the completed answer with `sendMessage` or a final edit, chunking text at Telegram's message limit with topic/thread metadata when present. Put secret-token verification, MarkdownV2 formatting/plain fallback helpers, Update parsing, reply target extraction, and stream payload helpers in `pkg/gateway/telegram`; keep polling loops, outbound client ownership, and daemon lifecycle in `internal/gateway`.
 
-**Patterns to follow:** Hermes `gateway/platforms/telegram.py` uses polling as the local gateway path, registers handlers for supported message types, handles polling conflicts when another poller owns the token, and implements simulated streaming with `send_message` plus repeated `edit_message_text`. OpenClaw's Telegram extension is useful for its separation between message context, conversation routing, and outbound delivery. Hand's Telegram adapter should cover text messages, topic routing, conflict handling, optional webhook mode, and a Telegram-specific streaming abstraction that chooses native draft streaming when supported and simulated edit streaming otherwise.
+**Patterns to follow:** Hermes `gateway/platforms/telegram.py` uses polling as the local gateway path, registers handlers for supported message types, handles polling conflicts when another poller owns the token, formats outbound text as MarkdownV2 with plain-text fallback on parse failure, and implements simulated streaming with `send_message` plus repeated `edit_message_text`. OpenClaw's Telegram extension is useful for its separation between message context, conversation routing, and outbound delivery. Hand's Telegram adapter should cover text messages, topic routing, conflict handling, optional webhook mode, MarkdownV2-safe outbound delivery, and a Telegram-specific streaming abstraction that chooses native draft streaming when supported and simulated edit streaming otherwise.
 
 **Test scenarios:**
 
@@ -344,13 +371,25 @@ This feature adds new external integration surfaces to a personal agent that can
 - Group/topic targets that are not natively supported by `sendMessageDraft` use one placeholder message plus throttled `editMessageText` updates, preserving `message_thread_id` on the initial placeholder/final message.
 - Native draft and simulated edit streaming updates are throttled and coalesced so Telegram rate limits or repeated identical edit errors do not break the final response.
 - If either streaming path is rejected or rate-limited beyond the retry budget, the adapter disables streaming for that turn and sends the final response normally.
+- Telegram sender sets MarkdownV2 parse mode for `sendMessage`, `editMessageText`, and `sendMessageDraft` when sending formatted output.
+- Telegram sender converts regular Markdown into Telegram MarkdownV2, including headers, bold, italic, links, inline code, fenced code blocks, strikethrough, spoilers, blockquotes, and required MarkdownV2 escaping.
+- Telegram sender retries as plain text when Telegram rejects MarkdownV2 parsing, without duplicating visible final replies.
 - Outbound messages are chunked at the Telegram text limit and preserve chunk order.
 - `message_thread_id` is included when replying in a topic.
 - Telegram sender handles API `ok=false`, HTTP failures, and invalid bot token responses as safe gateway errors.
 
-**Verification:** Telegram tests cover polling ingress, polling conflict handling, webhook auth, shared update normalization, topic routing, native draft streaming, simulated edit streaming, streaming fallback to final delivery, chunking, and outbound HTTP without live Telegram calls.
+**Verification:** Telegram tests cover polling ingress, polling conflict handling, webhook auth, shared update normalization, topic routing, native draft streaming, simulated edit streaming, MarkdownV2 conversion, MarkdownV2 send/edit/draft requests, plain-text fallback on parse failure, streaming fallback to final delivery, chunking, and outbound HTTP without live Telegram calls. Focused validation runs with `CGO_ENABLED=1 go test -tags sqlite_fts5 ./pkg/gateway/telegram ./internal/gateway/telegram`.
 
 ### U6. Slack Socket Mode and HTTP Adapter
+
+**Status:** Planned.
+
+**Progress:**
+
+- [ ] Slack Socket Mode ingress is implemented.
+- [ ] Slack HTTP Events API ingress and request verification are implemented.
+- [ ] Slack outbound posting and native stream delivery are implemented.
+- [ ] Slack adapter tests pass without live Slack calls.
 
 **Goal:** Add Slack Socket Mode ingestion by default, optional Events API HTTP ingestion, event normalization, filtering, idempotency, reconnect handling, native stream delivery, and outbound replies.
 
@@ -385,6 +424,15 @@ This feature adds new external integration surfaces to a personal agent that can
 
 ### U7. Shared Gateway Dispatch and Error Handling
 
+**Status:** In progress.
+
+**Progress:**
+
+- [x] Initial daemon-owned dispatcher exists with bounded queueing, idempotency, shutdown, and tests.
+- [ ] Dispatcher status, retry/backoff, degraded-state reporting, and cross-channel integration are completed.
+- [ ] Reusable queue/dedupe/safe-error package boundaries are finalized.
+- [ ] Shared dispatch tests cover all channel adapters consistently.
+
 **Goal:** Make channel adapters share asynchronous dispatch, timeouts, duplicate suppression, backpressure, redaction, and safe logging behavior.
 
 **Requirements:** R3, R15, R17, R18, R19.
@@ -413,6 +461,14 @@ This feature adds new external integration surfaces to a personal agent that can
 
 ### U8. Documentation and Operator Readiness
 
+**Status:** Planned.
+
+**Progress:**
+
+- [ ] Gateway configuration documentation is updated.
+- [ ] Readiness checks cover generic HTTP, Telegram, and Slack gateway modes.
+- [ ] Operator guidance covers Telegram MarkdownV2 formatting behavior and provider secrets without leaking example secrets.
+
 **Goal:** Document gateway configuration and update readiness checks so a user can expose generic HTTP, Slack, or Telegram safely.
 
 **Requirements:** R2, R3, R5, R7, R8, R11, R12.
@@ -438,6 +494,15 @@ This feature adds new external integration surfaces to a personal agent that can
 **Verification:** Readiness tests cover safe operational feedback and docs give complete setup direction for first use.
 
 ### U9. Gateway Management Commands
+
+**Status:** Planned.
+
+**Progress:**
+
+- [ ] Daemon RPC exposes gateway status/start/stop/restart.
+- [ ] CLI management commands are implemented.
+- [ ] Gateway manager reports safe channel state and redacted errors.
+- [ ] Command, manager, and RPC tests pass.
 
 **Goal:** Add short-lived CLI management commands that inspect and control the daemon-owned gateway runtime.
 
@@ -498,7 +563,7 @@ This feature adds new external integration surfaces to a personal agent that can
 - **Security exposure:** Gateway makes Hand reachable over HTTP. Validation must fail unsafe non-loopback binds without auth, and logs must stay aggressively redacted.
 - **Session binding persistence:** If a new binding store is required, both SQLite and memory stores need contract coverage to avoid state drift.
 - **Provider API drift:** Slack and Telegram APIs change. Keep adapter payload parsing tolerant, and keep unsupported event/update types acknowledged but ignored.
-- **Message formatting:** First version should prefer plain text over rich Slack/Telegram formatting to avoid escaping bugs and injection-style surprises.
+- **Message formatting:** Telegram should use Hermes-style MarkdownV2 formatting with strict escaping, code-region protection, and plain-text fallback on parse failure. Slack can preserve normal markdown/mrkdwn semantics where supported by the API. Formatting failures must degrade to safe readable text rather than losing or duplicating a response.
 
 ---
 
@@ -512,6 +577,7 @@ This feature adds new external integration surfaces to a personal agent that can
 - Slack streaming setup should describe `chat.startStream`, `chat.appendStream`, `chat.stopStream`, required `chat:write` scope, thread requirements, and fallback behavior.
 - Telegram polling setup should describe the default local path, requiring only a bot token and warning that only one poller can use a bot token at a time.
 - Telegram webhook setup should name required pieces: bot token, webhook URL, and webhook secret token.
+- Telegram formatting docs should state that Hand sends Telegram MarkdownV2 where possible, falls back to plain text when Telegram rejects formatting, and does not use Telegram HTML.
 - Generic HTTP should be presented as an integration/testing surface, not the main user-facing chat-app experience.
 
 ---
@@ -527,4 +593,4 @@ This feature adds new external integration surfaces to a personal agent that can
 - Hermes Telegram polling prior art: `.plan/agentuniversity/hermes-agent/gateway/platforms/telegram.py`.
 - Claude Code bridge prior art: `.plan/agentuniversity/claude-code/bridge`.
 - Slack request verification, Events API, and streaming behavior: [Slack request signing docs](https://docs.slack.dev/authentication/verifying-requests-from-slack/), [Slack Events API docs](https://docs.slack.dev/apis/events-api/), [Slack `chat.startStream](https://docs.slack.dev/reference/methods/chat.startStream/)`, [Slack `chat.appendStream](https://docs.slack.dev/reference/methods/chat.appendStream/)`, [Slack `chat.stopStream](https://docs.slack.dev/reference/methods/chat.stopStream/)`.
-- Telegram polling, webhook auth, and message sending behavior: [Telegram Bot API getUpdates](https://core.telegram.org/bots/api#getupdates), [Telegram Bot API setWebhook](https://core.telegram.org/bots/api#setwebhook), [Telegram Bot API sendMessage](https://core.telegram.org/bots/api#sendmessage).
+- Telegram polling, webhook auth, message sending, and formatting behavior: [Telegram Bot API getUpdates](https://core.telegram.org/bots/api#getupdates), [Telegram Bot API setWebhook](https://core.telegram.org/bots/api#setwebhook), [Telegram Bot API sendMessage](https://core.telegram.org/bots/api#sendmessage), [Telegram Bot API formatting options](https://core.telegram.org/bots/api#formatting-options).

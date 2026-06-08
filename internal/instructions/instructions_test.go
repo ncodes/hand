@@ -360,10 +360,21 @@ func TestBuildEnvironmentContext_ReturnsNamedInstructionWithRuntimeFacts(t *test
 	require.Contains(t, instruction.Value, "- Web provider: tavily")
 	require.Contains(t, instruction.Value, "- Session ID: ses_123")
 	require.Contains(t, instruction.Value, "- Session origin: source=telegram; account=u_123; conversation=-100; thread=42")
+	require.Contains(t, instruction.Value, "- Channel response guidance: The user is reading this in Telegram")
+	require.Contains(t, instruction.Value, "Telegram MarkdownV2-compatible Markdown")
 }
 
 func TestBuildEnvironmentContext_ReturnsEmptyNamedInstructionWithoutFacts(t *testing.T) {
 	require.Equal(t, Instruction{Name: EnvironmentContextInstructionName}, BuildEnvironmentContext(EnvironmentContext{}))
+}
+
+func TestBuildEnvironmentContext_DoesNotAddChannelGuidanceForNonTelegramOrigin(t *testing.T) {
+	instruction := BuildEnvironmentContext(EnvironmentContext{
+		SessionOrigin: EnvironmentSessionOrigin{Source: "terminal"},
+	})
+
+	require.Contains(t, instruction.Value, "- Session origin: source=terminal")
+	require.NotContains(t, instruction.Value, "Channel response guidance")
 }
 
 func TestBuildMemoryContext_ReturnsEmptyNamedInstructionWithoutItems(t *testing.T) {

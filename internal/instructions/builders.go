@@ -215,6 +215,9 @@ func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 	if origin := renderEnvironmentSessionOrigin(ctx.SessionOrigin); origin != "" {
 		lines = append(lines, fmt.Sprintf("- Session origin: %s", origin))
 	}
+	if guidance := renderEnvironmentSessionResponseGuidance(ctx.SessionOrigin); guidance != "" {
+		lines = append(lines, fmt.Sprintf("- Channel response guidance: %s", guidance))
+	}
 
 	if len(lines) == 2 {
 		return Instruction{Name: EnvironmentContextInstructionName}
@@ -265,6 +268,17 @@ func renderEnvironmentSessionOrigin(origin EnvironmentSessionOrigin) string {
 	}
 
 	return strings.Join(parts, "; ")
+}
+
+func renderEnvironmentSessionResponseGuidance(origin EnvironmentSessionOrigin) string {
+	switch strings.ToLower(strings.TrimSpace(origin.Source)) {
+	case "telegram":
+		return "The user is reading this in Telegram. Keep replies chat-friendly, concise, and readable on mobile. " +
+			"Use Telegram MarkdownV2-compatible Markdown: prefer short paragraphs and bullets, avoid markdown tables, " +
+			"avoid raw unsupported HTML, and escape literal MarkdownV2 control characters when you intend them as text."
+	default:
+		return ""
+	}
 }
 
 func renderMemoryContextItem(item MemoryContextItem) string {

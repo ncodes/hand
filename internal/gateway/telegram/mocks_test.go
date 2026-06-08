@@ -138,6 +138,7 @@ type telegramAPICall struct {
 	messageID int64
 	draftID   int64
 	text      string
+	parseMode string
 	action    string
 	offset    int64
 }
@@ -187,18 +188,34 @@ func (a *fakeTelegramAPI) GetUpdates(
 func (a *fakeTelegramAPI) SendMessage(
 	_ context.Context,
 	target gatewaytelegram.Target,
-	text string,
+	message telegramText,
 ) (int64, error) {
-	return a.recordMessageCall("sendMessage", target, 0, 0, text, "", a.nextError("sendMessage"))
+	return a.recordMessageCall(
+		"sendMessage",
+		target,
+		0,
+		0,
+		message,
+		"",
+		a.nextError("sendMessage"),
+	)
 }
 
 func (a *fakeTelegramAPI) EditMessageText(
 	_ context.Context,
 	target gatewaytelegram.Target,
 	messageID int64,
-	text string,
+	message telegramText,
 ) error {
-	_, err := a.recordMessageCall("editMessageText", target, messageID, 0, text, "", a.nextError("editMessageText"))
+	_, err := a.recordMessageCall(
+		"editMessageText",
+		target,
+		messageID,
+		0,
+		message,
+		"",
+		a.nextError("editMessageText"),
+	)
 	return err
 }
 
@@ -206,9 +223,17 @@ func (a *fakeTelegramAPI) SendMessageDraft(
 	_ context.Context,
 	target gatewaytelegram.Target,
 	draftID int64,
-	text string,
+	message telegramText,
 ) error {
-	_, err := a.recordMessageCall("sendMessageDraft", target, 0, draftID, text, "", a.nextError("sendMessageDraft"))
+	_, err := a.recordMessageCall(
+		"sendMessageDraft",
+		target,
+		0,
+		draftID,
+		message,
+		"",
+		a.nextError("sendMessageDraft"),
+	)
 	return err
 }
 
@@ -217,7 +242,15 @@ func (a *fakeTelegramAPI) SendChatAction(
 	target gatewaytelegram.Target,
 	action string,
 ) error {
-	_, err := a.recordMessageCall("sendChatAction", target, 0, 0, "", action, a.nextError("sendChatAction"))
+	_, err := a.recordMessageCall(
+		"sendChatAction",
+		target,
+		0,
+		0,
+		telegramText{},
+		action,
+		a.nextError("sendChatAction"),
+	)
 	return err
 }
 
@@ -274,7 +307,7 @@ func (a *fakeTelegramAPI) recordMessageCall(
 	target gatewaytelegram.Target,
 	messageID int64,
 	draftID int64,
-	text string,
+	message telegramText,
 	action string,
 	err error,
 ) (int64, error) {
@@ -285,7 +318,8 @@ func (a *fakeTelegramAPI) recordMessageCall(
 		target:    target,
 		messageID: messageID,
 		draftID:   draftID,
-		text:      text,
+		text:      message.Text,
+		parseMode: message.ParseMode,
 		action:    action,
 	}
 	a.calls = append(a.calls, call)
@@ -302,7 +336,7 @@ func (a *fakeTelegramAPI) recordMessageCall(
 func (a *fakeTelegramAPI) callsOfMethod(method string) []telegramAPICall {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return append([]telegramAPICall(nil), a.callsOfMethodLocked(method)...)
+	return withoutTelegramParseMode(a.callsOfMethodLocked(method))
 }
 
 func (a *fakeTelegramAPI) callsOfMethodLocked(method string) []telegramAPICall {
@@ -319,7 +353,23 @@ func (a *fakeTelegramAPI) callsOfMethodLocked(method string) []telegramAPICall {
 func (a *fakeTelegramAPI) allCalls() []telegramAPICall {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return withoutTelegramParseMode(a.calls)
+}
+
+func (a *fakeTelegramAPI) allCallsWithParseMode() []telegramAPICall {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	return append([]telegramAPICall(nil), a.calls...)
+}
+
+func withoutTelegramParseMode(calls []telegramAPICall) []telegramAPICall {
+	cloned := append([]telegramAPICall(nil), calls...)
+	for i := range cloned {
+		cloned[i].parseMode = ""
+		cloned[i].text = gatewaytelegram.PlainTextFromMarkdownV2(cloned[i].text)
+	}
+
+	return cloned
 }
 
 func newWebhookHandler(cfg config.GatewayConfig, service gatewaysession.Service) http.Handler {

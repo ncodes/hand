@@ -24,10 +24,15 @@ var telegramTypingInterval = 4 * time.Second
 
 type telegramAPI interface {
 	GetUpdates(context.Context, int64) ([]tg.Update, error)
-	SendMessage(context.Context, tg.Target, string) (int64, error)
-	EditMessageText(context.Context, tg.Target, int64, string) error
-	SendMessageDraft(context.Context, tg.Target, int64, string) error
+	SendMessage(context.Context, tg.Target, telegramText) (int64, error)
+	EditMessageText(context.Context, tg.Target, int64, telegramText) error
+	SendMessageDraft(context.Context, tg.Target, int64, telegramText) error
 	SendChatAction(context.Context, tg.Target, string) error
+}
+
+type telegramText struct {
+	Text      string
+	ParseMode string
 }
 
 type telegramHTTPClient struct {
@@ -58,19 +63,28 @@ func (c *telegramHTTPClient) GetUpdates(ctx context.Context, offset int64) ([]tg
 	return updates, nil
 }
 
-func (c *telegramHTTPClient) SendMessage(ctx context.Context, target tg.Target, text string) (int64, error) {
+func (c *telegramHTTPClient) SendMessage(
+	ctx context.Context,
+	target tg.Target,
+	message telegramText,
+) (int64, error) {
 	var result struct {
 		MessageID int64 `json:"message_id"`
 	}
-	if err := c.call(ctx, "sendMessage", telegramSendRequest(target, text), &result); err != nil {
+	if err := c.call(ctx, "sendMessage", telegramSendRequest(target, message), &result); err != nil {
 		return 0, err
 	}
 
 	return result.MessageID, nil
 }
 
-func (c *telegramHTTPClient) EditMessageText(ctx context.Context, target tg.Target, messageID int64, text string) error {
-	req := telegramSendRequest(target, text)
+func (c *telegramHTTPClient) EditMessageText(
+	ctx context.Context,
+	target tg.Target,
+	messageID int64,
+	message telegramText,
+) error {
+	req := telegramSendRequest(target, message)
 	req["message_id"] = messageID
 	return c.call(ctx, "editMessageText", req, nil)
 }
@@ -79,9 +93,9 @@ func (c *telegramHTTPClient) SendMessageDraft(
 	ctx context.Context,
 	target tg.Target,
 	draftID int64,
-	text string,
+	message telegramText,
 ) error {
-	req := telegramSendRequest(target, text)
+	req := telegramSendRequest(target, message)
 	req["draft_id"] = draftID
 	return c.call(ctx, "sendMessageDraft", req, nil)
 }
@@ -167,7 +181,7 @@ func (s *telegramSender) SendFinal(ctx context.Context, target tg.Target, text s
 		return errors.New("telegram sender is required")
 	}
 	for _, chunk := range tg.ChunkText(text, tg.MessageTextLimit) {
-		if _, err := s.api.SendMessage(ctx, target, chunk); err != nil {
+		if _, err := s.sendMessage(ctx, target, chunk); err != nil {
 			return err
 		}
 	}
@@ -268,7 +282,7 @@ func (s *nativeTelegramStreamer) Start(context.Context) error {
 
 func (s *nativeTelegramStreamer) Append(ctx context.Context, delta string) error {
 	s.text += delta
-	return s.sender.api.SendMessageDraft(ctx, s.target, s.draftID, tg.WithCursor(s.text))
+	return s.sender.sendMessageDraft(ctx, s.target, s.draftID, tg.WithCursor(s.text))
 }
 
 func (s *nativeTelegramStreamer) Finish(ctx context.Context, reply string) error {
@@ -285,7 +299,7 @@ type simulatedTelegramStreamer struct {
 }
 
 func (s *simulatedTelegramStreamer) Start(ctx context.Context) error {
-	messageID, err := s.sender.api.SendMessage(ctx, s.target, tg.DraftCursor)
+	messageID, err := s.sender.sendMessage(ctx, s.target, tg.DraftCursor)
 	if err != nil {
 		return err
 	}
@@ -302,7 +316,7 @@ func (s *simulatedTelegramStreamer) Append(ctx context.Context, delta string) er
 	if !s.lastEditAt.IsZero() && time.Since(s.lastEditAt) < s.sender.minEditGap {
 		return nil
 	}
-	if err := s.sender.api.EditMessageText(ctx, s.target, s.messageID, next); err != nil {
+	if err := s.sender.editMessageText(ctx, s.target, s.messageID, next); err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "message is not modified") {
 			return nil
 		}
@@ -316,12 +330,12 @@ func (s *simulatedTelegramStreamer) Append(ctx context.Context, delta string) er
 func (s *simulatedTelegramStreamer) Finish(ctx context.Context, reply string) error {
 	for index, chunk := range tg.ChunkText(reply, tg.MessageTextLimit) {
 		if index == 0 && s.messageID != 0 {
-			if err := s.sender.api.EditMessageText(ctx, s.target, s.messageID, chunk); err != nil {
+			if err := s.sender.editMessageText(ctx, s.target, s.messageID, chunk); err != nil {
 				return err
 			}
 			continue
 		}
-		if _, err := s.sender.api.SendMessage(ctx, s.target, chunk); err != nil {
+		if _, err := s.sender.sendMessage(ctx, s.target, chunk); err != nil {
 			return err
 		}
 	}
@@ -340,9 +354,65 @@ func (s finalOnlyTelegramStreamer) Finish(ctx context.Context, reply string) err
 	return s.sender.SendFinal(ctx, s.target, reply)
 }
 
-func telegramSendRequest(target tg.Target, text string) map[string]any {
+func (s *telegramSender) sendMessage(ctx context.Context, target tg.Target, text string) (int64, error) {
+	message := telegramFormattedText(text)
+	messageID, err := s.api.SendMessage(ctx, target, message)
+	if err == nil || !isTelegramParseError(err) {
+		return messageID, err
+	}
+
+	return s.api.SendMessage(ctx, target, telegramPlainText(text))
+}
+
+func (s *telegramSender) editMessageText(
+	ctx context.Context,
+	target tg.Target,
+	messageID int64,
+	text string,
+) error {
+	message := telegramFormattedText(text)
+	err := s.api.EditMessageText(ctx, target, messageID, message)
+	if err == nil || !isTelegramParseError(err) {
+		return err
+	}
+
+	return s.api.EditMessageText(ctx, target, messageID, telegramPlainText(text))
+}
+
+func (s *telegramSender) sendMessageDraft(
+	ctx context.Context,
+	target tg.Target,
+	draftID int64,
+	text string,
+) error {
+	message := telegramFormattedText(text)
+	err := s.api.SendMessageDraft(ctx, target, draftID, message)
+	if err == nil || !isTelegramParseError(err) {
+		return err
+	}
+
+	return s.api.SendMessageDraft(ctx, target, draftID, telegramPlainText(text))
+}
+
+func telegramFormattedText(text string) telegramText {
+	return telegramText{Text: tg.FormatMarkdownV2(text), ParseMode: tg.ParseModeMarkdownV2}
+}
+
+func telegramPlainText(text string) telegramText {
+	return telegramText{Text: tg.PlainTextFromMarkdownV2(text)}
+}
+
+func isTelegramParseError(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "parse") || strings.Contains(message, "markdown")
+}
+
+func telegramSendRequest(target tg.Target, message telegramText) map[string]any {
 	req := telegramTargetRequest(target)
-	req["text"] = text
+	req["text"] = message.Text
+	if strings.TrimSpace(message.ParseMode) != "" {
+		req["parse_mode"] = strings.TrimSpace(message.ParseMode)
+	}
 	if target.ReplyToMessageID != 0 {
 		req["reply_parameters"] = map[string]any{"message_id": target.ReplyToMessageID}
 	}
