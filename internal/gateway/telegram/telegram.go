@@ -3,22 +3,32 @@ package telegram
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/wandxy/hand/internal/config"
 	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
 	agentcore "github.com/wandxy/hand/pkg/agent"
 	"github.com/wandxy/hand/pkg/gateway/bindings"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 	tg "github.com/wandxy/hand/pkg/gateway/telegram"
 )
 
 type TelegramAdapter struct {
-	service gatewaysession.Service
+	cfg     config.GatewayConfig
+	service Service
 	sender  *telegramSender
 }
 
-func newTelegramAdapter(service gatewaysession.Service, api telegramAPI) *TelegramAdapter {
+type Service interface {
+	gatewaysession.Service
+	pairing.Store
+}
+
+func newTelegramAdapter(cfg config.GatewayConfig, service Service, api telegramAPI) *TelegramAdapter {
 	return &TelegramAdapter{
+		cfg:     cfg,
 		service: service,
 		sender:  newTelegramSender(api),
 	}
@@ -32,6 +42,11 @@ func (a *TelegramAdapter) DispatchUpdate(ctx context.Context, update tg.Update) 
 	inbound, ok, err := tg.NormalizeUpdate(update)
 	if err != nil || !ok {
 		return ok, err
+	}
+
+	authorized, err := a.authorize(ctx, inbound)
+	if err != nil || !authorized {
+		return true, err
 	}
 
 	key, _ := bindings.Telegram(inbound.Target.ChatID, inbound.Target.ThreadID)
@@ -59,4 +74,70 @@ func (a *TelegramAdapter) DispatchUpdate(ctx context.Context, update tg.Update) 
 	}
 
 	return true, nil
+}
+
+func (a *TelegramAdapter) authorize(ctx context.Context, inbound tg.InboundMessage) (bool, error) {
+	senderID := strings.TrimSpace(inbound.SenderID)
+	if senderID == "" && inbound.Target.ChatType == "private" {
+		senderID = strings.TrimSpace(inbound.Target.ChatID)
+	}
+	if senderID == "" {
+		return false, nil
+	}
+
+	if hasAllowedSender(a.cfg.AllowedUsers, senderID) || hasAllowedSender(a.cfg.Telegram.AllowedUsers, senderID) {
+		return true, nil
+	}
+
+	manager := pairing.NewManager(pairing.Options{
+		Store:  a.service,
+		Secret: gatewayPairingSecret(a.cfg),
+	})
+	approved, err := manager.IsApproved(ctx, bindings.SourceTelegram, senderID)
+	if err != nil {
+		return false, err
+	}
+	if approved {
+		return true, nil
+	}
+
+	if inbound.Target.ChatType != "private" {
+		return false, nil
+	}
+
+	challenge, err := manager.Request(ctx, pairing.Identity{
+		Source:      bindings.SourceTelegram,
+		SenderID:    senderID,
+		DisplayName: inbound.SenderName,
+		Metadata: map[string]string{
+			"chat_id": inbound.Target.ChatID,
+		},
+	})
+	if err != nil {
+		return false, err
+	}
+	if err := a.sender.SendFinal(ctx, inbound.Target, pairing.ChallengeMessage(challenge)); err != nil {
+		return false, err
+	}
+
+	return false, nil
+}
+
+func hasAllowedSender(allowed []string, senderID string) bool {
+	senderID = strings.TrimSpace(senderID)
+	if senderID == "" {
+		return false
+	}
+
+	for _, allowedID := range allowed {
+		if strings.TrimSpace(allowedID) == senderID {
+			return true
+		}
+	}
+
+	return false
+}
+
+func gatewayPairingSecret(cfg config.GatewayConfig) string {
+	return strings.TrimSpace(cfg.PairingSecret)
 }

@@ -31,6 +31,13 @@ service ModelService {
   rpc SetProviderAPIKey(SetProviderAPIKeyRequest) returns (SetProviderAPIKeyResponse);
 }
 
+service GatewayService {
+  rpc ListPairings(ListGatewayPairingsRequest) returns (ListGatewayPairingsResponse);
+  rpc ApprovePairing(ApproveGatewayPairingRequest) returns (ApproveGatewayPairingResponse);
+  rpc RevokePairing(RevokeGatewayPairingRequest) returns (RevokeGatewayPairingResponse);
+  rpc ClearPendingPairings(ClearPendingGatewayPairingsRequest) returns (ClearPendingGatewayPairingsResponse);
+}
+
 message RespondRequest {
   string message = 1;
   string instruct = 2;
@@ -304,3 +311,52 @@ message SetProviderAPIKeyRequest {
 message SetProviderAPIKeyResponse {
   string provider = 1;
 }
+
+message GatewayPairingRequest {
+  string source = 1;
+  string sender_id = 2;
+  string display_name = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp last_seen_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}
+
+message GatewayPairedSender {
+  string source = 1;
+  string sender_id = 2;
+  string display_name = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message ListGatewayPairingsRequest {
+  string source = 1;
+}
+
+message ListGatewayPairingsResponse {
+  repeated GatewayPairingRequest pending = 1;
+  repeated GatewayPairedSender approved = 2;
+}
+
+message ApproveGatewayPairingRequest {
+  string source = 1;
+  string code = 2;
+}
+
+message ApproveGatewayPairingResponse {
+  bool approved = 1;
+  GatewayPairedSender sender = 2;
+}
+
+message RevokeGatewayPairingRequest {
+  string source = 1;
+  string sender_id = 2;
+}
+
+message RevokeGatewayPairingResponse {}
+
+message ClearPendingGatewayPairingsRequest {
+  string source = 1;
+}
+
+message ClearPendingGatewayPairingsResponse {}

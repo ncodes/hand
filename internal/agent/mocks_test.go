@@ -22,35 +22,39 @@ import (
 	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 )
 
 type stateStoreStub struct {
-	session        storage.Session
-	sessions       map[string]storage.Session
-	summaries      map[string]storage.SessionSummary
-	current        string
-	messages       []handmsg.Message
-	traceEvents    []storage.TraceEvent
-	traceErr       error
-	traceErrAt     int
-	traceCalls     int
-	traceAppendErr error
-	saveErr        error
-	getErr         error
-	listErr        error
-	listOptions    storage.SessionListOptions
-	currentErr     error
-	countErr       error
-	messagesErr    error
-	summaryErr     error
-	appendErr      error
-	archive        storage.Session
-	archiveErr     error
-	unarchiveErr   error
-	gatewayBinding storage.GatewayBinding
-	gatewayFound   bool
-	gatewaySaveErr error
-	gatewayGetErr  error
+	session         storage.Session
+	sessions        map[string]storage.Session
+	summaries       map[string]storage.SessionSummary
+	current         string
+	messages        []handmsg.Message
+	traceEvents     []storage.TraceEvent
+	traceErr        error
+	traceErrAt      int
+	traceCalls      int
+	traceAppendErr  error
+	saveErr         error
+	getErr          error
+	listErr         error
+	listOptions     storage.SessionListOptions
+	currentErr      error
+	countErr        error
+	messagesErr     error
+	summaryErr      error
+	appendErr       error
+	archive         storage.Session
+	archiveErr      error
+	unarchiveErr    error
+	gatewayBinding  storage.GatewayBinding
+	gatewayFound    bool
+	gatewaySaveErr  error
+	gatewayGetErr   error
+	pairingRequests []pairing.PendingRequest
+	pairedSenders   []pairing.ApprovedSender
+	pairingErr      error
 }
 
 func (s *stateStoreStub) Save(_ context.Context, session storage.Session) error {
@@ -240,6 +244,136 @@ func (s *stateStoreStub) GetGatewayBinding(_ context.Context, key string) (stora
 		return s.gatewayBinding, s.gatewayFound, nil
 	}
 	return storage.GatewayBinding{}, false, nil
+}
+
+func (s *stateStoreStub) SaveGatewayPairingRequest(_ context.Context, request pairing.PendingRequest) error {
+	if s.pairingErr != nil {
+		return s.pairingErr
+	}
+
+	s.pairingRequests = append(s.pairingRequests, request)
+	return nil
+}
+
+func (s *stateStoreStub) GetGatewayPairingRequest(
+	_ context.Context,
+	source string,
+	senderID string,
+) (pairing.PendingRequest, bool, error) {
+	if s.pairingErr != nil {
+		return pairing.PendingRequest{}, false, s.pairingErr
+	}
+
+	for _, request := range s.pairingRequests {
+		if request.Source == source && request.SenderID == senderID {
+			return request, true, nil
+		}
+	}
+
+	return pairing.PendingRequest{}, false, nil
+}
+
+func (s *stateStoreStub) ListGatewayPairingRequests(_ context.Context, source string) ([]pairing.PendingRequest, error) {
+	if s.pairingErr != nil {
+		return nil, s.pairingErr
+	}
+
+	var requests []pairing.PendingRequest
+	for _, request := range s.pairingRequests {
+		if source == "" || request.Source == source {
+			requests = append(requests, request)
+		}
+	}
+	return requests, nil
+}
+
+func (s *stateStoreStub) DeleteGatewayPairingRequest(_ context.Context, source string, senderID string) error {
+	if s.pairingErr != nil {
+		return s.pairingErr
+	}
+
+	var kept []pairing.PendingRequest
+	for _, request := range s.pairingRequests {
+		if request.Source == source && request.SenderID == senderID {
+			continue
+		}
+		kept = append(kept, request)
+	}
+	s.pairingRequests = kept
+	return nil
+}
+
+func (s *stateStoreStub) ClearGatewayPairingRequests(_ context.Context, source string) error {
+	if s.pairingErr != nil {
+		return s.pairingErr
+	}
+
+	var kept []pairing.PendingRequest
+	for _, request := range s.pairingRequests {
+		if source == "" || request.Source == source {
+			continue
+		}
+		kept = append(kept, request)
+	}
+	s.pairingRequests = kept
+	return nil
+}
+
+func (s *stateStoreStub) SaveGatewayPairedSender(_ context.Context, sender pairing.ApprovedSender) error {
+	if s.pairingErr != nil {
+		return s.pairingErr
+	}
+
+	s.pairedSenders = append(s.pairedSenders, sender)
+	return nil
+}
+
+func (s *stateStoreStub) GetGatewayPairedSender(
+	_ context.Context,
+	source string,
+	senderID string,
+) (pairing.ApprovedSender, bool, error) {
+	if s.pairingErr != nil {
+		return pairing.ApprovedSender{}, false, s.pairingErr
+	}
+
+	for _, sender := range s.pairedSenders {
+		if sender.Source == source && sender.SenderID == senderID {
+			return sender, true, nil
+		}
+	}
+
+	return pairing.ApprovedSender{}, false, nil
+}
+
+func (s *stateStoreStub) ListGatewayPairedSenders(_ context.Context, source string) ([]pairing.ApprovedSender, error) {
+	if s.pairingErr != nil {
+		return nil, s.pairingErr
+	}
+
+	var senders []pairing.ApprovedSender
+	for _, sender := range s.pairedSenders {
+		if source == "" || sender.Source == source {
+			senders = append(senders, sender)
+		}
+	}
+	return senders, nil
+}
+
+func (s *stateStoreStub) DeleteGatewayPairedSender(_ context.Context, source string, senderID string) error {
+	if s.pairingErr != nil {
+		return s.pairingErr
+	}
+
+	var kept []pairing.ApprovedSender
+	for _, sender := range s.pairedSenders {
+		if sender.Source == source && sender.SenderID == senderID {
+			continue
+		}
+		kept = append(kept, sender)
+	}
+	s.pairedSenders = kept
+	return nil
 }
 
 func (s *stateStoreStub) Session() storage.SessionStore { return s }

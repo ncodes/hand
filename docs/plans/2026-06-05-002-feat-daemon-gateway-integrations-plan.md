@@ -55,12 +55,19 @@ Hand already has a long-lived daemon with a clean `agent.ServiceAPI` surface and
 - R18. Channel adapters may choose which inbound events are actionable, ignoring bot/self messages and unsupported event types without surfacing noisy errors to the user.
 - R19. Tests cover auth, lifecycle, session routing, inbound normalization, outbound delivery, duplicate/retry behavior, polling conflict behavior, reconnect behavior, and shutdown.
 
+**DM pairing and sender authorization**
+
+- R20. Gateway DM providers can use a shared pairing flow where an unknown direct-message sender receives a short TOTP-derived approval code, the original message is not processed as an agent turn, and the operator approves the sender through daemon gateway management.
+- R21. Telegram uses the shared DM pairing flow for unknown private-chat senders, pairing by Telegram `from.id` rather than chat ID, and stores approval as a sender authorization independent of the conversation/session binding.
+- R22. Telegram groups never issue pairing challenges. Group messages are authorized through `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS`, `HAND_GATEWAY_ALLOWED_USERS`, and previously paired Telegram sender IDs; unauthorized group senders are ignored without invoking the agent.
+- R23. Pairing state is durable, redacted in logs/status output, bounded by TOTP validity windows, request expiry, and pending-request limits, and reusable by future DM providers such as Slack, Signal, WhatsApp, or Discord without provider-specific store logic.
+
 **Gateway management commands**
 
-- R20. `hand daemon gateway status` reports the current gateway runtime state from the running daemon, including enabled/running/stopped state, listener bind, configured channel modes, channel health, and last safe error without exposing secrets or message bodies.
-- R21. `hand daemon gateway start` asks the running daemon to start the gateway runtime from the current daemon config when it is stopped; it is idempotent when the gateway is already running and does not start a second daemon or standalone gateway process.
-- R22. `hand daemon gateway stop` asks the running daemon to stop gateway listeners, socket clients, and polling loops while leaving the daemon and gRPC server running.
-- R23. `hand daemon gateway restart` asks the running daemon to stop the active gateway runtime, reload gateway config from the daemon's current effective config, and start the gateway again without restarting the daemon or gRPC server.
+- R24. `hand gateway status` reports the current gateway runtime state from the running daemon, including enabled/running/stopped state, listener bind, configured channel modes, channel health, and last safe error without exposing secrets or message bodies.
+- R25. `hand gateway start` asks the running daemon to start the gateway runtime from the current daemon config when it is stopped; it is idempotent when the gateway is already running and does not start a second daemon or standalone gateway process.
+- R26. `hand gateway stop` asks the running daemon to stop gateway listeners, socket clients, and polling loops while leaving the daemon and gRPC server running.
+- R27. `hand gateway restart` asks the running daemon to stop the active gateway runtime, reload gateway config from the daemon's current effective config, and start the gateway again without restarting the daemon or gRPC server.
 
 ---
 
@@ -76,9 +83,11 @@ Hand already has a long-lived daemon with a clean `agent.ServiceAPI` surface and
 - KTD8. **Verify provider auth on raw request bodies when using HTTP webhooks:** Slack HTTP mode signature verification depends on the raw body and timestamp. Telegram webhook verification depends on the secret-token header. Both must run before parsing or dispatch.
 - KTD9. **Acknowledge provider webhooks quickly, dispatch asynchronously:** Slack HTTP mode and Telegram webhook mode should verify/authenticate, normalize, dedupe, persist delivery state, enqueue bounded work, and return the provider acknowledgment before any agent turn runs. Agent execution and outbound replies should happen asynchronously under the daemon's gateway dispatcher with idempotency keys, retry/backoff, cancellation on shutdown, and observable failed/degraded state. Provider retries must be safe to accept without duplicating agent turns.
 - KTD10. **Keep channel outbound clients focused and injectable:** Slack and Telegram senders should have explicit interfaces with injectable transports, socket clients, polling clients, or stream clients so unit tests do not hit external APIs.
-- KTD11. **Expose gateway management through daemon control, not a top-level gateway process:** The CLI should provide `hand daemon gateway start|status|stop|restart` as short-lived management commands over the existing daemon RPC/control path. This keeps the daemon as the only long-lived owner while still letting operators recover a failed adapter, inspect state, restart adapters after secret/config changes, or temporarily stop external ingress.
+- KTD11. **Expose gateway management through daemon control, not a top-level gateway process:** The CLI should provide `hand gateway start|status|stop|restart` as short-lived management commands over the existing daemon RPC/control path. This keeps the daemon as the only long-lived owner while still letting operators recover a failed adapter, inspect state, restart adapters after secret/config changes, or temporarily stop external ingress.
 - KTD12. **Use Slack native streaming instead of edit-loop simulation:** Slack provides `chat.startStream`, `chat.appendStream`, and `chat.stopStream` for streaming message chunks. Hand should use those APIs for Slack streaming, and reserve `chat.postMessage` for non-streaming responses or fallback if native streaming is unavailable.
 - KTD13. **Use Telegram MarkdownV2 with plain-text fallback:** Hermes formats standard Markdown into Telegram MarkdownV2, sends and edits messages with `ParseMode.MARKDOWN_V2`, and retries as plain text when Telegram rejects formatting. Hand should follow that approach instead of using Telegram HTML.
+- KTD14. **Treat DM pairing as shared sender authorization, not session binding:** OpenClaw's reusable channel pairing model and Hermes' private-DM-only challenge behavior are the right shape for Hand. Pairing should approve a provider sender identity, while conversation bindings continue to map chat/channel/thread identifiers to Hand sessions. This lets Telegram ship first without hardcoding pairing to Telegram, and keeps group chats quiet when unauthorized users send messages.
+- KTD15. **Use `github.com/pquerna/otp/totp` for TOTP-derived pairing codes:** Pairing approval codes should be generated and verified with `github.com/pquerna/otp/totp` using daemon-owned pairing secret material, source, sender ID, and a short time step. Pending request storage should hold sender metadata and timestamps, not generated code values or reusable approval secret material. This keeps codes short-lived, naturally expiring, and verifiable without storing code values that can be replayed after disclosure.
 
 ---
 
@@ -89,7 +98,7 @@ flowchart TB
   Daemon["hand daemon start"] --> Agent["agentRunner / ServiceAPI"]
   Daemon --> RPC["gRPC server"]
   Daemon --> Gateway["gateway runtime"]
-  CLI["hand daemon gateway start/status/stop/restart"] --> RPC
+  CLI["hand gateway start/status/stop/restart"] --> RPC
 
   Gateway --> Auth["auth middleware"]
   Auth --> Generic["generic HTTP adapter"]
@@ -104,7 +113,8 @@ flowchart TB
   TelegramPoll --> Normalize
   TelegramWebhook --> Normalize
 
-  Normalize --> Bindings["conversation session resolver"]
+  Normalize --> Pairing["DM pairing / sender authorization"]
+  Pairing --> Bindings["conversation session resolver"]
   Bindings --> Agent
   Agent --> Outbound["normalized gateway response"]
   Outbound --> SlackSend["Slack Web API sender"]
@@ -165,6 +175,7 @@ sequenceDiagram
 - Generic HTTP request/response API for direct integrations and test harnesses.
 - Slack Socket Mode ingestion, message filtering, reconnect handling, optional HTTP Events API ingestion, request verification, native stream delivery, and outbound message posting.
 - Telegram long-polling ingestion, optional webhook ingestion, secret-token verification for webhook mode, message filtering, polling conflict handling, and outbound message posting.
+- Shared DM pairing, sender allowlists, and Telegram sender authorization for private chats and groups.
 - Durable conversation-to-session binding for daemon restarts.
 - Unit and focused integration tests using fake transports and fake agent services.
 
@@ -174,7 +185,7 @@ sequenceDiagram
 - Slash commands, Slack interactivity, buttons, modals, and file uploads.
 - Telegram media download, voice transcription, inline buttons, callback queries, payments, and guest-mode-specific behavior.
 - WebSocket/SSE streaming for generic HTTP clients.
-- Operator approval workflows over Slack/Telegram.
+- Tool execution approval workflows over Slack/Telegram.
 - Multi-agent or daemon-to-daemon coordination over the gateway.
 - Public tunneling or TLS certificate automation.
 
@@ -243,7 +254,7 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Goal:** Start and stop gateway integrations inside the existing daemon runtime beside the gRPC server.
 
-**Requirements:** R1, R2, R3, R19, R21, R22, R23.
+**Requirements:** R1, R2, R3, R19, R25, R26, R27.
 
 **Dependencies:** U1.
 
@@ -380,7 +391,63 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Verification:** Telegram tests cover polling ingress, polling conflict handling, webhook auth, shared update normalization, topic routing, native draft streaming, simulated edit streaming, MarkdownV2 conversion, MarkdownV2 send/edit/draft requests, plain-text fallback on parse failure, streaming fallback to final delivery, chunking, and outbound HTTP without live Telegram calls. Focused validation runs with `CGO_ENABLED=1 go test -tags sqlite_fts5 ./pkg/gateway/telegram ./internal/gateway/telegram`.
 
-### U6. Slack Socket Mode and HTTP Adapter
+### U6. Shared DM Pairing and Sender Authorization
+
+**Status:** Completed.
+
+**Progress:**
+
+- [x] Reusable DM pairing package and tests are implemented.
+- [x] TOTP-derived pairing code generation/verification is implemented.
+- [x] Durable pairing request metadata and approved-sender storage is implemented for memory and SQLite stores.
+- [x] Telegram private-chat pairing and group sender authorization are implemented.
+- [x] Daemon gateway pairing management commands are implemented.
+- [x] Pairing, allowlist, Telegram authorization, and management command tests pass.
+
+**Goal:** Add a generalized DM pairing system for gateway providers, starting with Telegram, so unknown direct-message senders can request access without requiring operators to manually discover provider-specific numeric IDs first.
+
+**Requirements:** R20, R21, R22, R23.
+
+**Dependencies:** U3, U4, U5.
+
+**Files:** `go.mod`, `go.sum`, `pkg/gateway/pairing/pairing.go`, `pkg/gateway/pairing/pairing_test.go`, `pkg/gateway/pairing/messages.go`, `pkg/gateway/pairing/messages_test.go`, `internal/gateway/authz.go`, `internal/gateway/authz_test.go`, `internal/gateway/pairing.go`, `internal/gateway/pairing_test.go`, `internal/gateway/telegram/telegram.go`, `internal/gateway/telegram/telegram_polling.go`, `internal/gateway/telegram/telegram_webhook.go`, `internal/gateway/telegram/telegram_polling_test.go`, `internal/gateway/telegram/telegram_webhook_test.go`, `internal/state/core/gateway_pairing.go`, `internal/state/storememory/gateway_pairing.go`, `internal/state/storememory/gateway_pairing_test.go`, `internal/state/storesqlite/gateway_pairing.go`, `internal/state/storesqlite/gateway_pairing_test.go`, `internal/rpc/proto/hand.proto`, `internal/rpc/service.go`, `internal/rpc/client/client.go`, `cmd/daemon/daemon.go`, `cmd/daemon/daemon_test.go`.
+
+**Approach:** Add a provider-neutral pairing package that works on normalized sender identity rather than raw provider payloads. A pairing request should include source, sender ID, optional sender display name, created/last-seen/expiry timestamps, and optional provider metadata. Approved senders should be stored separately from pending requests and checked by the gateway authorization layer before session resolution. Add `github.com/pquerna/otp` and use `github.com/pquerna/otp/totp` for approval code generation and verification. Derive a per-request TOTP secret from daemon-owned pairing secret material plus source and sender ID, using a short period and a small validation window for clock drift. Store pending request metadata, not generated code values or derived TOTP secrets. Use 8-digit numeric TOTP codes for compatibility with the library and familiar authenticator semantics, a 1-hour pending-request expiry, a bounded pending-request limit per provider, and safe redaction in status/log output. Repeated direct messages from the same unknown sender while a pending request exists should refresh last-seen metadata and may show the current TOTP code only when a new challenge message is intentionally sent.
+
+For Telegram, normalize sender authorization from `message.from.id`; do not use `chat.id` as the authorization identity when `from.id` is present. Private chats should enforce Telegram DM policy before media handling, session resolution, or agent dispatch. When an unknown private-chat sender is not in `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS`, not in `HAND_GATEWAY_ALLOWED_USERS`, and not already paired, create or reuse a pairing request, send a MarkdownV2-safe challenge message to that private chat, and stop processing the original update. Groups and topics should never receive pairing challenge messages. Group senders should be authorized only when their Telegram `from.id` appears in `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS`, appears in `HAND_GATEWAY_ALLOWED_USERS`, or is already paired for Telegram; unauthorized group messages should be ignored without invoking the agent.
+
+Expose daemon-owned management commands for pairing state under the existing gateway control surface: `hand gateway pairing list`, `hand gateway pairing approve <source> <code>`, `hand gateway pairing revoke <source> <sender-id>`, and `hand gateway pairing clear-pending [source]`. Approval should verify the submitted code against pending requests for that source using the current TOTP window; when multiple pending requests could match, the command should fail clearly and ask the operator to use the request ID or sender ID variant rather than guessing. These commands should talk to the running daemon over RPC, mutate daemon-owned state, and render source, sender ID, display name, age, and status without exposing message bodies, TOTP secret material, or raw provider payloads. Keep the reusable pairing mechanics in `pkg/gateway/pairing`; keep storage, daemon RPC wiring, and Telegram integration in `internal`.
+
+**Patterns to follow:** OpenClaw `src/pairing/pairing-store.ts` and `src/pairing/pairing-challenge.ts` for the reusable channel-pairing shape, account/source-scoped approval store, create-if-missing challenge behavior, expiry, and pending caps. Hermes `gateway/pairing.py` and `gateway/run.py` for private-DM-only pairing challenges, CLI approval, and quiet handling of unauthorized group messages. Hand's existing `pkg/gateway/bindings` package is the model for keeping reusable gateway value objects out of daemon orchestration. For code semantics, rely on `github.com/pquerna/otp/totp` rather than hand-rolling RFC 6238 behavior.
+
+**Test scenarios:**
+
+- TOTP pairing code generation produces stable 8-digit numeric codes for the same source/sender/time window using `github.com/pquerna/otp/totp`.
+- TOTP verification accepts the current window and configured adjacent drift window, and rejects stale windows outside that allowance.
+- Pending pairing requests expire after the configured TTL and expired requests cannot be approved even when a fresh TOTP code is mathematically valid for the same sender.
+- Pending requests are capped per provider and excess unknown senders do not create unbounded state.
+- Repeated unknown DM messages from the same sender reuse the existing pending request and do not create duplicate requests.
+- Approving a valid TOTP code creates an approved sender, removes the pending request, and allows future authorization checks.
+- Approving an invalid, expired, blank, or wrong-source code returns a safe not-found result without creating approved senders.
+- Approving a TOTP code that matches more than one pending request fails as ambiguous and does not approve any sender.
+- Pairing code values, daemon pairing secret material, and derived TOTP secrets are never persisted in pending request storage or rendered by status/list commands after the challenge is sent.
+- Revoking an approved sender removes authorization without touching unrelated providers.
+- `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` authorizes matching Telegram sender IDs.
+- `HAND_GATEWAY_ALLOWED_USERS` authorizes matching sender IDs across gateway providers.
+- Telegram private-chat update from an unknown sender sends a pairing challenge and does not call the agent.
+- Telegram private-chat update from an approved sender reaches session resolution and agent dispatch.
+- Telegram group update from an unknown sender sends no pairing challenge and does not call the agent.
+- Telegram group update from a sender in `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` reaches session resolution and agent dispatch.
+- Telegram group update from a sender in `HAND_GATEWAY_ALLOWED_USERS` reaches session resolution and agent dispatch.
+- Telegram group update from an already paired Telegram sender reaches session resolution and agent dispatch.
+- Telegram authorization uses `from.id` rather than `chat.id` when both are present.
+- Pairing challenge text is safe for Telegram MarkdownV2 and does not expose provider secrets, tokens, or message bodies.
+- Daemon gateway pairing list/approve/revoke/clear-pending commands mutate daemon-owned state and redact output.
+- Pairing RPC and CLI calls fail clearly when the daemon is unreachable.
+
+**Verification:** Pairing package tests cover TOTP code generation and verification, expiry, pending caps, ambiguous-code handling, approval, revocation, and message rendering. Storage parity tests cover memory and SQLite stores without persisting code values. Telegram tests prove DM pairing, allowlist authorization, group silence for unknown senders, and paired-sender group access. RPC and command tests prove pairing management operates through the running daemon without a standalone long-lived process.
+
+### U7. Slack Socket Mode and HTTP Adapter
 
 **Status:** Planned.
 
@@ -395,7 +462,7 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Requirements:** R11, R12, R13, R14, R15, R16, R17, R18, R19.
 
-**Dependencies:** U3, U4.
+**Dependencies:** U3, U4, U6.
 
 **Files:** `internal/gateway/slack.go`, `internal/gateway/slack_socket.go`, `internal/gateway/slack_http.go`, `internal/gateway/slack_send.go`, `internal/gateway/slack_stream.go`, `pkg/gateway/slack/auth.go`, `pkg/gateway/slack/events.go`, `pkg/gateway/slack/stream.go`, `pkg/gateway/slack/auth_test.go`, `pkg/gateway/slack/events_test.go`, `pkg/gateway/slack/stream_test.go`, `internal/gateway/slack_test.go`, `internal/gateway/slack_socket_test.go`, `internal/gateway/slack_http_test.go`, `internal/gateway/slack_send_test.go`, `internal/gateway/slack_stream_test.go`.
 
@@ -422,7 +489,7 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Verification:** Slack tests cover socket ingress, socket reconnect/stop behavior, HTTP raw-body auth, event normalization, duplicate handling, native stream delivery, stream fallback behavior, and outbound HTTP without live Slack calls.
 
-### U7. Shared Gateway Dispatch and Error Handling
+### U8. Shared Gateway Dispatch and Error Handling
 
 **Status:** In progress.
 
@@ -437,7 +504,7 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Requirements:** R3, R15, R17, R18, R19.
 
-**Dependencies:** U3, U4, U5, U6.
+**Dependencies:** U3, U4, U5, U6, U7.
 
 **Files:** `internal/gateway/dispatch.go`, `internal/gateway/errors.go`, `internal/gateway/logging.go`, `pkg/gateway/queue/queue.go`, `pkg/gateway/queue/queue_test.go`, `pkg/gateway/dedupe/dedupe.go`, `pkg/gateway/dedupe/dedupe_test.go`, `pkg/gateway/errors/errors.go`, `pkg/gateway/errors/errors_test.go`, `internal/gateway/dispatch_test.go`, `internal/gateway/errors_test.go`.
 
@@ -459,7 +526,7 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Verification:** Shared tests prove consistent adapter behavior and reduce per-channel drift.
 
-### U8. Documentation and Operator Readiness
+### U9. Documentation and Operator Readiness
 
 **Status:** Planned.
 
@@ -467,17 +534,18 @@ This feature adds new external integration surfaces to a personal agent that can
 
 - [ ] Gateway configuration documentation is updated.
 - [ ] Readiness checks cover generic HTTP, Telegram, and Slack gateway modes.
+- [ ] Operator guidance covers Telegram DM pairing, sender IDs, and group allowlists.
 - [ ] Operator guidance covers Telegram MarkdownV2 formatting behavior and provider secrets without leaking example secrets.
 
 **Goal:** Document gateway configuration and update readiness checks so a user can expose generic HTTP, Slack, or Telegram safely.
 
-**Requirements:** R2, R3, R5, R7, R8, R11, R12.
+**Requirements:** R2, R3, R5, R7, R8, R11, R12, R20, R21, R22, R23.
 
-**Dependencies:** U1, U3, U5, U6.
+**Dependencies:** U1, U3, U5, U6, U7.
 
 **Files:** `README.md`, `example.yaml`, `internal/diagnostics/readiness/readiness.go`, `internal/diagnostics/readiness/readiness_test.go`, `cmd/doctor/doctor_test.go`.
 
-**Approach:** Add concise config examples for generic HTTP, Slack socket mode, Slack HTTP mode, Slack streaming, Telegram polling mode, and Telegram webhook mode. Extend doctor/readiness checks to report whether gateway is disabled, locally enabled, externally bound with auth, or missing required provider secrets. Keep guidance operational and avoid turning README into a channel manual.
+**Approach:** Add concise config examples for generic HTTP, Slack socket mode, Slack HTTP mode, Slack streaming, Telegram polling mode, Telegram webhook mode, Telegram DM pairing, and Telegram group allowlists. Extend doctor/readiness checks to report whether gateway is disabled, locally enabled, externally bound with auth, or missing required provider secrets. Include operator guidance for finding Telegram sender IDs, approving/revoking paired senders, and using `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` plus `HAND_GATEWAY_ALLOWED_USERS` for group authorization. Keep guidance operational and avoid turning README into a channel manual.
 
 **Patterns to follow:** Existing README config section, `example.yaml` commented defaults, readiness checks under `internal/diagnostics/readiness`.
 
@@ -489,11 +557,12 @@ This feature adds new external integration surfaces to a personal agent that can
 - Doctor warns when Slack HTTP mode is enabled without signing secret or bot token.
 - Doctor warns when Telegram polling mode is enabled without bot token.
 - Doctor warns when Telegram webhook mode is enabled without bot token or required webhook secret.
-- README and example config mention secrets by s, not sample real-looking tokens.
+- Doctor explains Telegram group authorization when Telegram is enabled and no sender allowlist or paired sender exists.
+- README and example config mention secrets by name, not sample real-looking tokens.
 
 **Verification:** Readiness tests cover safe operational feedback and docs give complete setup direction for first use.
 
-### U9. Gateway Management Commands
+### U10. Gateway Management Commands
 
 **Status:** Planned.
 
@@ -506,19 +575,19 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Goal:** Add short-lived CLI management commands that inspect and control the daemon-owned gateway runtime.
 
-**Requirements:** R3, R20, R21, R22, R23.
+**Requirements:** R3, R24, R25, R26, R27.
 
 **Dependencies:** U1, U2.
 
 **Files:** `cmd/daemon/daemon.go`, `cmd/daemon/daemon_test.go`, `internal/gateway/manager.go`, `internal/gateway/status.go`, `internal/gateway/manager_test.go`, `internal/rpc/proto/hand.proto`, `internal/rpc/service.go`, `internal/rpc/client/client.go`, `internal/rpc/service_test.go`, `internal/rpc/client/client_test.go`.
 
-**Approach:** Add `hand daemon gateway status`, `hand daemon gateway start`, `hand daemon gateway stop`, and `hand daemon gateway restart` under the existing daemon command. Each command should connect to the running daemon over the same configured RPC address and port used by other daemon clients. The daemon should own a gateway manager that can report safe state, start the configured runtime if it is stopped, restart a failed runtime, explicitly restart a running runtime, and stop listeners/socket/polling clients without stopping gRPC or the agent service. Commands should fail clearly when the daemon is unreachable, gateway config is disabled, or required provider secrets are missing.
+**Approach:** Add `hand gateway status`, `hand gateway start`, `hand gateway stop`, and `hand gateway restart` under the existing daemon command. Each command should connect to the running daemon over the same configured RPC address and port used by other daemon clients. The daemon should own a gateway manager that can report safe state, start the configured runtime if it is stopped, restart a failed runtime, explicitly restart a running runtime, and stop listeners/socket/polling clients without stopping gRPC or the agent service. Commands should fail clearly when the daemon is unreachable, gateway config is disabled, or required provider secrets are missing.
 
 **Patterns to follow:** Existing urfave/cli command layout in `cmd/session/session.go`, RPC client construction from session commands, daemon lifecycle test hooks in `cmd/daemon/daemon_test.go`, and protobuf service expansion patterns in `internal/rpc/proto/hand.proto`.
 
 **Test scenarios:**
 
-- `hand daemon gateway status` prints disabled, stopped, starting, running, degraded, or failed state with channel modes and safe last errors.
+- `hand gateway status` prints disabled, stopped, starting, running, degraded, or failed state with channel modes and safe last errors.
 - `status` fails with a clear message when no daemon is reachable.
 - `start` calls the daemon gateway manager and reports already-running as success.
 - `start` fails without starting partial listeners when gateway config is disabled or invalid.
@@ -545,11 +614,15 @@ This feature adds new external integration surfaces to a personal agent that can
 - AE9. Given Telegram webhook mode is enabled and a text update arrives with a valid webhook secret header, when the update includes a topic ID, then the gateway invokes Hand with the topic's mapped session and sends the reply back to that topic.
 - AE10. Given Telegram streaming is enabled for a supported private chat, when Hand generates a long response, then the user sees draft text update during generation and receives a persisted final message when generation completes.
 - AE11. Given Telegram streaming is enabled but the target is a group or topic without native draft-streaming support, when Hand generates a long response, then Hand sends one placeholder message in that target and updates that same message with throttled `editMessageText` calls until the final answer is persisted.
-- AE12. Given the daemon is running and gateway config is valid but currently stopped, when `hand daemon gateway start` runs, then the daemon starts the configured gateway runtime without starting another daemon process.
-- AE13. Given the daemon gateway is running, when `hand daemon gateway status` runs, then it prints safe listener/channel state and redacted adapter health.
-- AE14. Given the daemon gateway is running, when `hand daemon gateway stop` runs, then external ingress stops while normal daemon RPC commands still work.
-- AE15. Given the daemon gateway is running, when `hand daemon gateway restart` runs, then external ingress is replaced from effective daemon config while normal daemon RPC commands remain responsive.
-- AE16. Given any invalid Slack HTTP signature, Telegram webhook secret, or generic bearer token, when the gateway receives a request, then it rejects the request before invoking Hand and does not log the secret or raw message body.
+- AE12. Given Telegram DM pairing is enabled and an unknown private-chat sender messages Hand, when the sender is not allowlisted or paired, then Hand sends one pairing challenge to that DM and does not start an agent turn.
+- AE13. Given the operator approves the Telegram pairing code through `hand gateway pairing approve telegram <code>`, when that sender messages Hand again, then Hand processes the message normally using the sender's chat/session binding.
+- AE14. Given an unknown Telegram sender posts in a group or topic, when the sender is not allowlisted or paired, then Hand sends no pairing challenge and does not invoke the agent.
+- AE15. Given `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` or `HAND_GATEWAY_ALLOWED_USERS` includes a Telegram sender ID, when that sender posts in a group or topic, then Hand may process the message according to the normal Telegram actionable-message rules.
+- AE16. Given the daemon is running and gateway config is valid but currently stopped, when `hand gateway start` runs, then the daemon starts the configured gateway runtime without starting another daemon process.
+- AE17. Given the daemon gateway is running, when `hand gateway status` runs, then it prints safe listener/channel state and redacted adapter health.
+- AE18. Given the daemon gateway is running, when `hand gateway stop` runs, then external ingress stops while normal daemon RPC commands still work.
+- AE19. Given the daemon gateway is running, when `hand gateway restart` runs, then external ingress is replaced from effective daemon config while normal daemon RPC commands remain responsive.
+- AE20. Given any invalid Slack HTTP signature, Telegram webhook secret, generic bearer token, or pairing code, when the gateway receives a request or management command, then it rejects the action before invoking Hand and does not log the secret, raw message body, or pairing code.
 
 ---
 
@@ -559,6 +632,7 @@ This feature adds new external integration surfaces to a personal agent that can
 - **Outbound channel lifecycle:** Slack socket mode and Telegram polling avoid public webhooks but add reconnect, backoff, envelope acknowledgement, update offset, and one-poller-per-token conflict behavior that must be covered by tests.
 - **Slack streaming state:** Slack stream messages have their own lifecycle and cannot be treated like ordinary editable messages while streaming. The sender must track start/append/stop state, handle user-stopped streams, and avoid duplicate final posts after partial stream visibility.
 - **Telegram streaming limits:** `sendMessageDraft` is ephemeral and target-limited, while simulated edit streaming can hit Telegram edit/rate limits or duplicate-edit errors. The adapter should coalesce chunks, throttle updates, preserve a final-send path, and degrade to final-only delivery if streaming is rejected.
+- **Pairing state safety:** DM pairing reduces manual sender-ID setup, but it creates an authorization store that must be durable, bounded, revocable, and redacted. Pairing prompts must stay private to DMs so public groups do not leak access-control instructions or invite abuse.
 - **Imperative state versus config reload:** `daemon gateway stop` creates a runtime override that can diverge from enabled config. A daemon restart or config reload reapplies config and starts the gateway again unless a persisted disabled flag is explicitly introduced as a product decision.
 - **Security exposure:** Gateway makes Hand reachable over HTTP. Validation must fail unsafe non-loopback binds without auth, and logs must stay aggressively redacted.
 - **Session binding persistence:** If a new binding store is required, both SQLite and memory stores need contract coverage to avoid state drift.
@@ -570,13 +644,14 @@ This feature adds new external integration surfaces to a personal agent that can
 ## Documentation / Operational Notes
 
 - Gateway should be documented as part of daemon configuration, not as a separate command.
-- Gateway management should be documented as daemon control commands: `hand daemon gateway status`, `hand daemon gateway start`, `hand daemon gateway stop`, and `hand daemon gateway restart`.
+- Gateway management should be documented as daemon control commands: `hand gateway status`, `hand gateway start`, `hand gateway stop`, and `hand gateway restart`.
 - Reusable `pkg/gateway` libraries should document public contracts and explicitly state that daemon runtime ownership remains in `internal/gateway`.
 - Slack setup should describe Socket Mode as the default local path, requiring bot token, app token, event subscriptions, and message scopes.
 - Slack HTTP setup should name required app pieces: Events API request URL, signing secret, bot token, and message scopes.
 - Slack streaming setup should describe `chat.startStream`, `chat.appendStream`, `chat.stopStream`, required `chat:write` scope, thread requirements, and fallback behavior.
 - Telegram polling setup should describe the default local path, requiring only a bot token and warning that only one poller can use a bot token at a time.
 - Telegram webhook setup should name required pieces: bot token, webhook URL, and webhook secret token.
+- Telegram pairing setup should explain that unknown DMs get an approval code, groups never get pairing prompts, and group senders must be paired or present in `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` or `HAND_GATEWAY_ALLOWED_USERS`.
 - Telegram formatting docs should state that Hand sends Telegram MarkdownV2 where possible, falls back to plain text when Telegram rejects formatting, and does not use Telegram HTML.
 - Generic HTTP should be presented as an integration/testing surface, not the main user-facing chat-app experience.
 
@@ -589,8 +664,10 @@ This feature adds new external integration surfaces to a personal agent that can
 - Hand config patterns: `internal/config/runtime.go`, `internal/config/defaults.go`, `internal/config/env.go`, `internal/config/validation.go`.
 - Hand session model: `internal/state/core/session.go`.
 - OpenClaw channel/gateway prior art: `.plan/agentuniversity/openclaw/src/gateway`, `.plan/agentuniversity/openclaw/extensions/slack`, `.plan/agentuniversity/openclaw/extensions/discord`, `.plan/agentuniversity/openclaw/extensions/telegram`.
+- OpenClaw reusable channel pairing prior art: `.plan/agentuniversity/openclaw/src/pairing/pairing-store.ts`, `.plan/agentuniversity/openclaw/src/pairing/pairing-challenge.ts`, `.plan/agentuniversity/openclaw/extensions/telegram/src/dm-access.ts`.
 - Hermes Slack Socket Mode prior art: `.plan/agentuniversity/hermes-agent/gateway/platforms/slack.py`.
 - Hermes Telegram polling prior art: `.plan/agentuniversity/hermes-agent/gateway/platforms/telegram.py`.
+- Hermes DM pairing prior art: `.plan/agentuniversity/hermes-agent/gateway/pairing.py`, `.plan/agentuniversity/hermes-agent/gateway/run.py`.
 - Claude Code bridge prior art: `.plan/agentuniversity/claude-code/bridge`.
 - Slack request verification, Events API, and streaming behavior: [Slack request signing docs](https://docs.slack.dev/authentication/verifying-requests-from-slack/), [Slack Events API docs](https://docs.slack.dev/apis/events-api/), [Slack `chat.startStream](https://docs.slack.dev/reference/methods/chat.startStream/)`, [Slack `chat.appendStream](https://docs.slack.dev/reference/methods/chat.appendStream/)`, [Slack `chat.stopStream](https://docs.slack.dev/reference/methods/chat.stopStream/)`.
 - Telegram polling, webhook auth, message sending, and formatting behavior: [Telegram Bot API getUpdates](https://core.telegram.org/bots/api#getupdates), [Telegram Bot API setWebhook](https://core.telegram.org/bots/api#setwebhook), [Telegram Bot API sendMessage](https://core.telegram.org/bots/api#sendmessage), [Telegram Bot API formatting options](https://core.telegram.org/bots/api#formatting-options).

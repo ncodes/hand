@@ -11,7 +11,6 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/gateway/dispatch"
-	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
 	"github.com/wandxy/hand/pkg/gateway/httpjson"
 	tg "github.com/wandxy/hand/pkg/gateway/telegram"
 	gatewaytypes "github.com/wandxy/hand/pkg/gateway/types"
@@ -22,22 +21,18 @@ const (
 	maxWebhookBodyBytes = 1 << 20
 )
 
-func HandleWebhook(
-	cfg config.GatewayTelegramConfig,
-	service gatewaysession.Service,
-	dispatcher *dispatch.Dispatcher,
-) http.HandlerFunc {
+func HandleWebhook(cfg config.GatewayConfig, service Service, dispatcher *dispatch.Dispatcher) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
 			httpjson.WriteError(w, http.StatusMethodNotAllowed, gatewaytypes.ErrorCodeBadRequest, "method not allowed")
 			return
 		}
-		if !cfg.Enabled || cfg.Mode != config.GatewayTelegramModeWebhook {
+		if !cfg.Telegram.Enabled || cfg.Telegram.Mode != config.GatewayTelegramModeWebhook {
 			httpjson.WriteError(w, http.StatusNotFound, gatewaytypes.ErrorCodeBadRequest, "telegram webhook is disabled")
 			return
 		}
-		if err := tg.CheckWebhookSecret(r.Header.Get(tg.WebhookSecretHeader), cfg.WebhookSecret); err != nil {
+		if err := tg.CheckWebhookSecret(r.Header.Get(tg.WebhookSecretHeader), cfg.Telegram.WebhookSecret); err != nil {
 			httpjson.WriteError(w, http.StatusUnauthorized, gatewaytypes.ErrorCodeUnauthorized, "unauthorized")
 			return
 		}
@@ -82,11 +77,11 @@ func HandleWebhook(
 
 func dispatchWebhookUpdate(
 	ctx context.Context,
-	cfg config.GatewayTelegramConfig,
-	service gatewaysession.Service,
+	cfg config.GatewayConfig,
+	service Service,
 	update tg.Update,
 ) error {
-	if _, err := newTelegramAdapter(service, newTelegramAPI(cfg)).DispatchUpdate(ctx, update); err != nil {
+	if _, err := newTelegramAdapter(cfg, service, newTelegramAPI(cfg.Telegram)).DispatchUpdate(ctx, update); err != nil {
 		log.Warn().Err(err).Int64("telegram_update_id", update.UpdateID).Msg("Telegram webhook dispatch failed")
 		return err
 	}

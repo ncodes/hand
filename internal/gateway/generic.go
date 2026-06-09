@@ -42,7 +42,8 @@ func newHTTPHandlerWithDispatcher(
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/v1/respond", handleGenericRespond(cfg, service))
-	mux.HandleFunc(telegramprovider.WebhookPath, telegramprovider.HandleWebhook(cfg.Telegram, service, dispatcher))
+	telegramService, _ := service.(telegramprovider.Service)
+	mux.HandleFunc(telegramprovider.WebhookPath, telegramprovider.HandleWebhook(cfg, telegramService, dispatcher))
 
 	return mux
 }

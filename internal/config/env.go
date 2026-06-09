@@ -83,6 +83,12 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_AUTH_TOKEN")); value != "" {
 		cfg.Gateway.AuthToken = value
 	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_PAIRING_SECRET")); value != "" {
+		cfg.Gateway.PairingSecret = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_ALLOWED_USERS")); value != "" {
+		cfg.Gateway.AllowedUsers = splitAndTrimCSV(value)
+	}
 	if value, ok := parseOptionalBoolEnv("HAND_GATEWAY_TELEGRAM_ENABLED"); ok {
 		cfg.Gateway.Telegram.Enabled = value
 	}
@@ -94,6 +100,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET")); value != "" {
 		cfg.Gateway.Telegram.WebhookSecret = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_TELEGRAM_ALLOWED_USERS")); value != "" {
+		cfg.Gateway.Telegram.AllowedUsers = splitAndTrimCSV(value)
 	}
 	if value, ok := parseOptionalBoolEnv("HAND_GATEWAY_SLACK_ENABLED"); ok {
 		cfg.Gateway.Slack.Enabled = value

@@ -30,6 +30,7 @@ type Client struct {
 	client      handpb.HandServiceClient
 	Session     *SessionService
 	Model       *ModelService
+	Gateway     *GatewayService
 }
 
 type SessionService struct {
@@ -39,6 +40,11 @@ type SessionService struct {
 
 type ModelService struct {
 	client      handpb.ModelServiceClient
+	reconnector rpcReconnector
+}
+
+type GatewayService struct {
+	client      handpb.GatewayServiceClient
 	reconnector rpcReconnector
 }
 
@@ -90,6 +96,28 @@ type ModelOption = models.Option
 
 type ModelList = agentapi.ModelList
 
+type GatewayPairingRequest struct {
+	CreatedAt   time.Time
+	LastSeenAt  time.Time
+	ExpiresAt   time.Time
+	Source      string
+	SenderID    string
+	DisplayName string
+}
+
+type GatewayPairedSender struct {
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Source      string
+	SenderID    string
+	DisplayName string
+}
+
+type GatewayPairingList struct {
+	Pending  []GatewayPairingRequest
+	Approved []GatewayPairedSender
+}
+
 // ChatAPI is the chat surface exposed by local and RPC clients.
 type ChatAPI interface {
 	Respond(context.Context, string, RespondOptions) (string, error)
@@ -118,11 +146,19 @@ type ModelAPI interface {
 	SetProviderAPIKey(context.Context, string, string) error
 }
 
+type GatewayAPI interface {
+	ListPairings(context.Context, string) (GatewayPairingList, error)
+	ApprovePairing(context.Context, string, string) (GatewayPairedSender, bool, error)
+	RevokePairing(context.Context, string, string) error
+	ClearPendingPairings(context.Context, string) error
+}
+
 // ServiceAPI combines chat and session operations.
 type ServiceAPI interface {
 	ChatAPI
 	SessionAPI() SessionAPI
 	ModelAPI() ModelAPI
+	GatewayAPI() GatewayAPI
 }
 
 // ChatClient is a closable client that can run chat turns.
@@ -166,6 +202,7 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 		client:      handpb.NewHandServiceClient(conn),
 		Session:     newSessionService(handpb.NewSessionServiceClient(conn), conn),
 		Model:       newModelService(handpb.NewModelServiceClient(conn), conn),
+		Gateway:     newGatewayService(handpb.NewGatewayServiceClient(conn), conn),
 	}, nil
 }
 
@@ -177,12 +214,20 @@ func NewModelService(client handpb.ModelServiceClient) *ModelService {
 	return newModelService(client, nil)
 }
 
+func NewGatewayService(client handpb.GatewayServiceClient) *GatewayService {
+	return newGatewayService(client, nil)
+}
+
 func newSessionService(client handpb.SessionServiceClient, reconnector rpcReconnector) *SessionService {
 	return &SessionService{client: client, reconnector: reconnector}
 }
 
 func newModelService(client handpb.ModelServiceClient, reconnector rpcReconnector) *ModelService {
 	return &ModelService{client: client, reconnector: reconnector}
+}
+
+func newGatewayService(client handpb.GatewayServiceClient, reconnector rpcReconnector) *GatewayService {
+	return &GatewayService{client: client, reconnector: reconnector}
 }
 
 func prepareRPCConnection(reconnector rpcReconnector) {
@@ -302,6 +347,14 @@ func (c *Client) ModelAPI() ModelAPI {
 	}
 
 	return c.Model
+}
+
+func (c *Client) GatewayAPI() GatewayAPI {
+	if c == nil {
+		return nil
+	}
+
+	return c.Gateway
 }
 
 func (s *ModelService) ListProviders(ctx context.Context) (ProviderList, error) {
@@ -652,6 +705,80 @@ func (s *SessionService) Timeline(
 	return protoSessionTimelineToTimeline(resp)
 }
 
+func (s *GatewayService) ListPairings(ctx context.Context, source string) (GatewayPairingList, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return GatewayPairingList{}, err
+	}
+
+	prepareRPCConnection(s.reconnector)
+	resp, err := client.ListPairings(ctx, &handpb.ListGatewayPairingsRequest{Source: strings.TrimSpace(source)})
+	if err != nil {
+		return GatewayPairingList{}, err
+	}
+
+	result := GatewayPairingList{}
+	for _, pending := range resp.GetPending() {
+		result.Pending = append(result.Pending, protoGatewayPairingRequestToGatewayPairingRequest(pending))
+	}
+	for _, approved := range resp.GetApproved() {
+		result.Approved = append(result.Approved, protoGatewayPairedSenderToGatewayPairedSender(approved))
+	}
+
+	return result, nil
+}
+
+func (s *GatewayService) ApprovePairing(
+	ctx context.Context,
+	source string,
+	code string,
+) (GatewayPairedSender, bool, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return GatewayPairedSender{}, false, err
+	}
+
+	prepareRPCConnection(s.reconnector)
+	resp, err := client.ApprovePairing(ctx, &handpb.ApproveGatewayPairingRequest{
+		Source: strings.TrimSpace(source),
+		Code:   strings.TrimSpace(code),
+	})
+	if err != nil {
+		return GatewayPairedSender{}, false, err
+	}
+
+	return protoGatewayPairedSenderToGatewayPairedSender(resp.GetSender()), resp.GetApproved(), nil
+}
+
+func (s *GatewayService) RevokePairing(ctx context.Context, source string, senderID string) error {
+	client, err := s.getClient()
+	if err != nil {
+		return err
+	}
+
+	prepareRPCConnection(s.reconnector)
+	_, err = client.RevokePairing(ctx, &handpb.RevokeGatewayPairingRequest{
+		Source:   strings.TrimSpace(source),
+		SenderId: strings.TrimSpace(senderID),
+	})
+
+	return err
+}
+
+func (s *GatewayService) ClearPendingPairings(ctx context.Context, source string) error {
+	client, err := s.getClient()
+	if err != nil {
+		return err
+	}
+
+	prepareRPCConnection(s.reconnector)
+	_, err = client.ClearPendingPairings(ctx, &handpb.ClearPendingGatewayPairingsRequest{
+		Source: strings.TrimSpace(source),
+	})
+
+	return err
+}
+
 func (s *SessionService) getClient() (handpb.SessionServiceClient, error) {
 	if s != nil && s.client != nil {
 		return s.client, nil
@@ -666,6 +793,14 @@ func (s *ModelService) getClient() (handpb.ModelServiceClient, error) {
 	}
 
 	return nil, fmt.Errorf("hand: model service client is required")
+}
+
+func (s *GatewayService) getClient() (handpb.GatewayServiceClient, error) {
+	if s != nil && s.client != nil {
+		return s.client, nil
+	}
+
+	return nil, fmt.Errorf("hand: gateway service client is required")
 }
 
 func (c *Client) Close() error {
@@ -768,6 +903,37 @@ func protoSessionSummaryToSession(summary *handpb.SessionSummary) storage.Sessio
 		Title:       summary.GetTitle(),
 		TitleSource: summary.GetTitleSource(),
 		UpdatedAt:   time.Unix(summary.GetUpdatedAtUnix(), 0).UTC(),
+	}
+}
+
+func protoGatewayPairingRequestToGatewayPairingRequest(
+	request *handpb.GatewayPairingRequest,
+) GatewayPairingRequest {
+	if request == nil {
+		return GatewayPairingRequest{}
+	}
+
+	return GatewayPairingRequest{
+		Source:      strings.TrimSpace(request.GetSource()),
+		SenderID:    strings.TrimSpace(request.GetSenderId()),
+		DisplayName: strings.TrimSpace(request.GetDisplayName()),
+		CreatedAt:   protoTimestampToTime(request.GetCreatedAt()),
+		LastSeenAt:  protoTimestampToTime(request.GetLastSeenAt()),
+		ExpiresAt:   protoTimestampToTime(request.GetExpiresAt()),
+	}
+}
+
+func protoGatewayPairedSenderToGatewayPairedSender(sender *handpb.GatewayPairedSender) GatewayPairedSender {
+	if sender == nil {
+		return GatewayPairedSender{}
+	}
+
+	return GatewayPairedSender{
+		Source:      strings.TrimSpace(sender.GetSource()),
+		SenderID:    strings.TrimSpace(sender.GetSenderId()),
+		DisplayName: strings.TrimSpace(sender.GetDisplayName()),
+		CreatedAt:   protoTimestampToTime(sender.GetCreatedAt()),
+		UpdatedAt:   protoTimestampToTime(sender.GetUpdatedAt()),
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	base "github.com/wandxy/hand/internal/state/core"
@@ -94,15 +93,6 @@ func TestSQLiteStore_TraceValidation(t *testing.T) {
 
 	err = store.PruneTraceEvents(ctx, "invalid", 1)
 	require.Error(t, err)
-
-	require.Error(t, ensureTraceStorage(nil))
-
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "closed.db")), &gorm.Config{})
-	require.NoError(t, err)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	require.NoError(t, sqlDB.Close())
-	require.ErrorContains(t, ensureTraceStorage(db), "failed to migrate trace db")
 }
 
 func TestSQLiteStore_TraceListFiltersAndPagination(t *testing.T) {

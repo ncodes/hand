@@ -820,3 +820,219 @@ var ModelService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "internal/rpc/proto/hand.proto",
 }
+
+const (
+	GatewayService_ListPairings_FullMethodName         = "/hand.v1.GatewayService/ListPairings"
+	GatewayService_ApprovePairing_FullMethodName       = "/hand.v1.GatewayService/ApprovePairing"
+	GatewayService_RevokePairing_FullMethodName        = "/hand.v1.GatewayService/RevokePairing"
+	GatewayService_ClearPendingPairings_FullMethodName = "/hand.v1.GatewayService/ClearPendingPairings"
+)
+
+// GatewayServiceClient is the client API for GatewayService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type GatewayServiceClient interface {
+	ListPairings(ctx context.Context, in *ListGatewayPairingsRequest, opts ...grpc.CallOption) (*ListGatewayPairingsResponse, error)
+	ApprovePairing(ctx context.Context, in *ApproveGatewayPairingRequest, opts ...grpc.CallOption) (*ApproveGatewayPairingResponse, error)
+	RevokePairing(ctx context.Context, in *RevokeGatewayPairingRequest, opts ...grpc.CallOption) (*RevokeGatewayPairingResponse, error)
+	ClearPendingPairings(ctx context.Context, in *ClearPendingGatewayPairingsRequest, opts ...grpc.CallOption) (*ClearPendingGatewayPairingsResponse, error)
+}
+
+type gatewayServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewGatewayServiceClient(cc grpc.ClientConnInterface) GatewayServiceClient {
+	return &gatewayServiceClient{cc}
+}
+
+func (c *gatewayServiceClient) ListPairings(ctx context.Context, in *ListGatewayPairingsRequest, opts ...grpc.CallOption) (*ListGatewayPairingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGatewayPairingsResponse)
+	err := c.cc.Invoke(ctx, GatewayService_ListPairings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) ApprovePairing(ctx context.Context, in *ApproveGatewayPairingRequest, opts ...grpc.CallOption) (*ApproveGatewayPairingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApproveGatewayPairingResponse)
+	err := c.cc.Invoke(ctx, GatewayService_ApprovePairing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) RevokePairing(ctx context.Context, in *RevokeGatewayPairingRequest, opts ...grpc.CallOption) (*RevokeGatewayPairingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeGatewayPairingResponse)
+	err := c.cc.Invoke(ctx, GatewayService_RevokePairing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) ClearPendingPairings(ctx context.Context, in *ClearPendingGatewayPairingsRequest, opts ...grpc.CallOption) (*ClearPendingGatewayPairingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearPendingGatewayPairingsResponse)
+	err := c.cc.Invoke(ctx, GatewayService_ClearPendingPairings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GatewayServiceServer is the server API for GatewayService service.
+// All implementations must embed UnimplementedGatewayServiceServer
+// for forward compatibility.
+type GatewayServiceServer interface {
+	ListPairings(context.Context, *ListGatewayPairingsRequest) (*ListGatewayPairingsResponse, error)
+	ApprovePairing(context.Context, *ApproveGatewayPairingRequest) (*ApproveGatewayPairingResponse, error)
+	RevokePairing(context.Context, *RevokeGatewayPairingRequest) (*RevokeGatewayPairingResponse, error)
+	ClearPendingPairings(context.Context, *ClearPendingGatewayPairingsRequest) (*ClearPendingGatewayPairingsResponse, error)
+	mustEmbedUnimplementedGatewayServiceServer()
+}
+
+// UnimplementedGatewayServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedGatewayServiceServer struct{}
+
+func (UnimplementedGatewayServiceServer) ListPairings(context.Context, *ListGatewayPairingsRequest) (*ListGatewayPairingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPairings not implemented")
+}
+func (UnimplementedGatewayServiceServer) ApprovePairing(context.Context, *ApproveGatewayPairingRequest) (*ApproveGatewayPairingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApprovePairing not implemented")
+}
+func (UnimplementedGatewayServiceServer) RevokePairing(context.Context, *RevokeGatewayPairingRequest) (*RevokeGatewayPairingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokePairing not implemented")
+}
+func (UnimplementedGatewayServiceServer) ClearPendingPairings(context.Context, *ClearPendingGatewayPairingsRequest) (*ClearPendingGatewayPairingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearPendingPairings not implemented")
+}
+func (UnimplementedGatewayServiceServer) mustEmbedUnimplementedGatewayServiceServer() {}
+func (UnimplementedGatewayServiceServer) testEmbeddedByValue()                        {}
+
+// UnsafeGatewayServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to GatewayServiceServer will
+// result in compilation errors.
+type UnsafeGatewayServiceServer interface {
+	mustEmbedUnimplementedGatewayServiceServer()
+}
+
+func RegisterGatewayServiceServer(s grpc.ServiceRegistrar, srv GatewayServiceServer) {
+	// If the following call panics, it indicates UnimplementedGatewayServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&GatewayService_ServiceDesc, srv)
+}
+
+func _GatewayService_ListPairings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGatewayPairingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).ListPairings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_ListPairings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).ListPairings(ctx, req.(*ListGatewayPairingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_ApprovePairing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveGatewayPairingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).ApprovePairing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_ApprovePairing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).ApprovePairing(ctx, req.(*ApproveGatewayPairingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_RevokePairing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeGatewayPairingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).RevokePairing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_RevokePairing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).RevokePairing(ctx, req.(*RevokeGatewayPairingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_ClearPendingPairings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearPendingGatewayPairingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).ClearPendingPairings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_ClearPendingPairings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).ClearPendingPairings(ctx, req.(*ClearPendingGatewayPairingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// GatewayService_ServiceDesc is the grpc.ServiceDesc for GatewayService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var GatewayService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "hand.v1.GatewayService",
+	HandlerType: (*GatewayServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListPairings",
+			Handler:    _GatewayService_ListPairings_Handler,
+		},
+		{
+			MethodName: "ApprovePairing",
+			Handler:    _GatewayService_ApprovePairing_Handler,
+		},
+		{
+			MethodName: "RevokePairing",
+			Handler:    _GatewayService_RevokePairing_Handler,
+		},
+		{
+			MethodName: "ClearPendingPairings",
+			Handler:    _GatewayService_ClearPendingPairings_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "internal/rpc/proto/hand.proto",
+}

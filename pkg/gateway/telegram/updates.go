@@ -28,8 +28,11 @@ type Chat struct {
 }
 
 type User struct {
-	ID    int64 `json:"id"`
-	IsBot bool  `json:"is_bot,omitempty"`
+	ID        int64  `json:"id"`
+	IsBot     bool   `json:"is_bot,omitempty"`
+	FirstName string `json:"first_name,omitempty"`
+	LastName  string `json:"last_name,omitempty"`
+	Username  string `json:"username,omitempty"`
 }
 
 type Target struct {
@@ -40,10 +43,12 @@ type Target struct {
 }
 
 type InboundMessage struct {
-	UpdateID  int64
-	MessageID int64
-	Text      string
-	Target    Target
+	UpdateID   int64
+	MessageID  int64
+	Text       string
+	SenderID   string
+	SenderName string
+	Target     Target
 }
 
 var ErrTelegramChatRequired = errors.New("telegram chat id is required")
@@ -73,10 +78,25 @@ func NormalizeUpdate(update Update) (InboundMessage, bool, error) {
 		threadID = strconv.FormatInt(msg.MessageThreadID, 10)
 	}
 
+	senderID := ""
+	senderName := ""
+	if msg.From != nil && msg.From.ID != 0 {
+		senderID = strconv.FormatInt(msg.From.ID, 10)
+		senderName = strings.TrimSpace(strings.Join([]string{msg.From.FirstName, msg.From.LastName}, " "))
+		if username := strings.TrimSpace(msg.From.Username); username != "" {
+			if senderName != "" {
+				senderName += " "
+			}
+			senderName += "@" + username
+		}
+	}
+
 	return InboundMessage{
-		UpdateID:  update.UpdateID,
-		MessageID: msg.MessageID,
-		Text:      text,
+		UpdateID:   update.UpdateID,
+		MessageID:  msg.MessageID,
+		Text:       text,
+		SenderID:   senderID,
+		SenderName: senderName,
 		Target: Target{
 			ChatID:           chatID,
 			ThreadID:         threadID,

@@ -11,16 +11,20 @@ import (
 
 // Options configures the RPC server.
 type Options struct {
-	Health bool
+	Health               bool
+	GatewayPairingSecret string
 }
 
 // New returns a gRPC server registered with the Hand RPC services.
 func New(service handagent.ServiceAPI, opts Options) *grpc.Server {
 	server := grpc.NewServer()
-	rpcService := rpc.NewService(service)
+	rpcService := rpc.NewServiceWithOptions(service, rpc.ServiceOptions{
+		GatewayPairingSecret: opts.GatewayPairingSecret,
+	})
 	handpb.RegisterHandServiceServer(server, rpcService)
 	handpb.RegisterSessionServiceServer(server, rpcService)
 	handpb.RegisterModelServiceServer(server, rpcService)
+	handpb.RegisterGatewayServiceServer(server, rpcService)
 
 	if opts.Health {
 		healthcheck := health.NewServer()

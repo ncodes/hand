@@ -11,7 +11,6 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/gateway/dispatch"
-	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
 	storage "github.com/wandxy/hand/internal/state/core"
 	tg "github.com/wandxy/hand/pkg/gateway/telegram"
 	gatewaytypes "github.com/wandxy/hand/pkg/gateway/types"
@@ -99,7 +98,7 @@ func TestTelegramWebhookReturnsSafeErrorWhenServiceMissing(t *testing.T) {
 
 func TestTelegramWebhookReturnsSafeErrorWhenDispatcherMissing(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc(WebhookPath, HandleWebhook(telegramWebhookConfig().Telegram, &genericResponderStub{}, nil))
+	mux.HandleFunc(WebhookPath, HandleWebhook(telegramWebhookConfig(), &genericResponderStub{}, nil))
 	req := httptest.NewRequest(http.MethodPost, WebhookPath, bytes.NewBufferString(`{"update_id":1}`))
 	req.Header.Set(tg.WebhookSecretHeader, "secret")
 	recorder := httptest.NewRecorder()
@@ -236,11 +235,12 @@ func TestTelegramWebhookAcknowledgesWhenBackgroundDispatchFails(t *testing.T) {
 	handler := newWebhookHandler(telegramWebhookConfig(), responder)
 	req := httptest.NewRequest(http.MethodPost, WebhookPath, bytes.NewBufferString(`{
 		"update_id": 15,
-		"message": {
-			"message_id": 5,
-			"text": "hello",
-			"chat": {"id": -100, "type": "group"}
-		}
+			"message": {
+				"message_id": 5,
+				"text": "hello",
+				"chat": {"id": -100, "type": "group"},
+				"from": {"id": 123}
+			}
 	}`))
 	req.Header.Set(tg.WebhookSecretHeader, "secret")
 	recorder := httptest.NewRecorder()
@@ -285,19 +285,21 @@ func TestTelegramWebhookReturnsRetryableErrorWhenDispatcherIsClosed(t *testing.T
 
 func telegramWebhookConfig() config.GatewayConfig {
 	cfg := config.GatewayConfig{}
+	cfg.PairingSecret = "pair-secret"
 	cfg.Telegram.Enabled = true
 	cfg.Telegram.Mode = config.GatewayTelegramModeWebhook
 	cfg.Telegram.BotToken = "telegram-token"
 	cfg.Telegram.WebhookSecret = "secret"
+	cfg.Telegram.AllowedUsers = []string{"123"}
 	return cfg
 }
 
 func newWebhookHandlerWithDispatcher(
 	cfg config.GatewayConfig,
-	service gatewaysession.Service,
+	service Service,
 	dispatcher *dispatch.Dispatcher,
 ) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc(WebhookPath, HandleWebhook(cfg.Telegram, service, dispatcher))
+	mux.HandleFunc(WebhookPath, HandleWebhook(cfg, service, dispatcher))
 	return mux
 }

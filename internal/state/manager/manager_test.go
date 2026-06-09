@@ -14,6 +14,7 @@ import (
 	"github.com/wandxy/hand/internal/state/search"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -98,6 +99,99 @@ func TestManager_MemoryStore(t *testing.T) {
 	memoryStore, ok = manager.MemoryStore()
 	require.False(t, ok)
 	require.Nil(t, memoryStore)
+}
+
+func TestManager_GatewayBindingOperations(t *testing.T) {
+	manager, err := NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	_, err = manager.Resolve(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	binding := storage.GatewayBinding{
+		Key:       " telegram::123: ",
+		SessionID: " " + storage.DefaultSessionID + " ",
+	}
+
+	require.NoError(t, manager.SaveGatewayBinding(context.Background(), binding))
+	found, ok, err := manager.GetGatewayBinding(context.Background(), " telegram::123: ")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "telegram::123:", found.Key)
+	require.Equal(t, storage.DefaultSessionID, found.SessionID)
+
+	require.EqualError(t,
+		(*Manager)(nil).SaveGatewayBinding(context.Background(), binding),
+		"state manager is required",
+	)
+	_, _, err = (*Manager)(nil).GetGatewayBinding(context.Background(), "telegram::123:")
+	require.EqualError(t, err, "state manager is required")
+}
+
+func TestManager_GatewayPairingOperations(t *testing.T) {
+	manager, err := NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	request := pairing.PendingRequest{Source: "telegram", SenderID: "123"}
+	sender := pairing.ApprovedSender{Source: "telegram", SenderID: "123"}
+
+	require.NoError(t, manager.SaveGatewayPairingRequest(context.Background(), request))
+	foundRequest, ok, err := manager.GetGatewayPairingRequest(context.Background(), "telegram", "123")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, request, foundRequest)
+	requests, err := manager.ListGatewayPairingRequests(context.Background(), "telegram")
+	require.NoError(t, err)
+	require.Equal(t, []pairing.PendingRequest{request}, requests)
+	require.NoError(t, manager.DeleteGatewayPairingRequest(context.Background(), "telegram", "123"))
+	requests, err = manager.ListGatewayPairingRequests(context.Background(), "telegram")
+	require.NoError(t, err)
+	require.Empty(t, requests)
+
+	require.NoError(t, manager.SaveGatewayPairingRequest(context.Background(), request))
+	require.NoError(t, manager.ClearGatewayPairingRequests(context.Background(), "telegram"))
+	requests, err = manager.ListGatewayPairingRequests(context.Background(), "telegram")
+	require.NoError(t, err)
+	require.Empty(t, requests)
+
+	require.NoError(t, manager.SaveGatewayPairedSender(context.Background(), sender))
+	foundSender, ok, err := manager.GetGatewayPairedSender(context.Background(), "telegram", "123")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, sender, foundSender)
+	senders, err := manager.ListGatewayPairedSenders(context.Background(), "telegram")
+	require.NoError(t, err)
+	require.Equal(t, []pairing.ApprovedSender{sender}, senders)
+	require.NoError(t, manager.DeleteGatewayPairedSender(context.Background(), "telegram", "123"))
+	senders, err = manager.ListGatewayPairedSenders(context.Background(), "telegram")
+	require.NoError(t, err)
+	require.Empty(t, senders)
+
+	require.EqualError(t,
+		(*Manager)(nil).SaveGatewayPairingRequest(context.Background(), request),
+		"state manager is required",
+	)
+	_, _, err = (*Manager)(nil).GetGatewayPairingRequest(context.Background(), "telegram", "123")
+	require.EqualError(t, err, "state manager is required")
+	_, err = (*Manager)(nil).ListGatewayPairingRequests(context.Background(), "telegram")
+	require.EqualError(t, err, "state manager is required")
+	require.EqualError(t,
+		(*Manager)(nil).DeleteGatewayPairingRequest(context.Background(), "telegram", "123"),
+		"state manager is required",
+	)
+	require.EqualError(t,
+		(*Manager)(nil).ClearGatewayPairingRequests(context.Background(), "telegram"),
+		"state manager is required",
+	)
+	require.EqualError(t,
+		(*Manager)(nil).SaveGatewayPairedSender(context.Background(), sender),
+		"state manager is required",
+	)
+	_, _, err = (*Manager)(nil).GetGatewayPairedSender(context.Background(), "telegram", "123")
+	require.EqualError(t, err, "state manager is required")
+	_, err = (*Manager)(nil).ListGatewayPairedSenders(context.Background(), "telegram")
+	require.EqualError(t, err, "state manager is required")
+	require.EqualError(t,
+		(*Manager)(nil).DeleteGatewayPairedSender(context.Background(), "telegram", "123"),
+		"state manager is required",
+	)
 }
 
 func TestManager_UsesAggregateStoreCapabilities(t *testing.T) {

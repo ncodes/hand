@@ -6,6 +6,7 @@ import (
 
 	storage "github.com/wandxy/hand/internal/state/core"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 )
 
 // Store records state-store calls for tests.
@@ -115,6 +116,46 @@ func (s *Store) GetGatewayBinding(ctx context.Context, key string) (storage.Gate
 	}
 
 	return storage.GatewayBinding{}, false, nil
+}
+
+func (s *Store) SaveGatewayPairingRequest(context.Context, pairing.PendingRequest) error {
+	return nil
+}
+
+func (s *Store) GetGatewayPairingRequest(
+	context.Context,
+	string,
+	string,
+) (pairing.PendingRequest, bool, error) {
+	return pairing.PendingRequest{}, false, nil
+}
+
+func (s *Store) ListGatewayPairingRequests(context.Context, string) ([]pairing.PendingRequest, error) {
+	return nil, nil
+}
+
+func (s *Store) DeleteGatewayPairingRequest(context.Context, string, string) error {
+	return nil
+}
+
+func (s *Store) ClearGatewayPairingRequests(context.Context, string) error {
+	return nil
+}
+
+func (s *Store) SaveGatewayPairedSender(context.Context, pairing.ApprovedSender) error {
+	return nil
+}
+
+func (s *Store) GetGatewayPairedSender(context.Context, string, string) (pairing.ApprovedSender, bool, error) {
+	return pairing.ApprovedSender{}, false, nil
+}
+
+func (s *Store) ListGatewayPairedSenders(context.Context, string) ([]pairing.ApprovedSender, error) {
+	return nil, nil
+}
+
+func (s *Store) DeleteGatewayPairedSender(context.Context, string, string) error {
+	return nil
 }
 
 func (s *Store) DeleteSummary(ctx context.Context, sessionID string) error {

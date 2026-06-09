@@ -14,16 +14,18 @@ func TestNormalizeUpdate_AcceptsTextMessageWithTopic(t *testing.T) {
 			MessageThreadID: 42,
 			Text:            " hello ",
 			Chat:            Chat{ID: -100123, Type: "supergroup"},
-			From:            &User{ID: 1},
+			From:            &User{ID: 1, FirstName: "Ada", LastName: "Lovelace", Username: "ada"},
 		},
 	})
 
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, InboundMessage{
-		UpdateID:  7,
-		MessageID: 9,
-		Text:      "hello",
+		UpdateID:   7,
+		MessageID:  9,
+		Text:       "hello",
+		SenderID:   "1",
+		SenderName: "Ada Lovelace @ada",
 		Target: Target{
 			ChatID:           "-100123",
 			ThreadID:         "42",

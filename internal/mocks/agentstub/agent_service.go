@@ -10,6 +10,7 @@ import (
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	agent "github.com/wandxy/hand/pkg/agent"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 )
 
 // AgentServiceStub is a test stub for agent service.
@@ -28,6 +29,15 @@ type AgentServiceStub struct {
 	SavedGatewayBinding  storage.GatewayBinding
 	GatewayBinding       storage.GatewayBinding
 	GatewayBindingFound  bool
+	PairingRequests      []pairing.PendingRequest
+	PairedSenders        []pairing.ApprovedSender
+	ApprovedPairing      rpcclient.GatewayPairedSender
+	PairingApproved      bool
+	PairingSource        string
+	PairingCode          string
+	RevokedPairingSource string
+	RevokedPairingSender string
+	ClearedPairingSource string
 	CreateSessionOptions rpcclient.CreateSessionOptions
 	Sessions             []storage.Session
 	ArchivedSessions     []storage.Session
@@ -100,6 +110,10 @@ func (s *AgentServiceStub) ModelAPI() rpcclient.ModelAPI {
 	return s
 }
 
+func (s *AgentServiceStub) GatewayAPI() rpcclient.GatewayAPI {
+	return s
+}
+
 func (s *AgentServiceStub) ListProviders(context.Context) (agentapi.ProviderList, error) {
 	return s.ProviderList, s.Err
 }
@@ -154,6 +168,163 @@ func (s *AgentServiceStub) GetGatewayBinding(_ context.Context, key string) (sto
 	}
 
 	return s.GatewayBinding, s.GatewayBindingFound, s.Err
+}
+
+func (s *AgentServiceStub) SaveGatewayPairingRequest(_ context.Context, request pairing.PendingRequest) error {
+	s.PairingRequests = append(s.PairingRequests, request)
+	return s.Err
+}
+
+func (s *AgentServiceStub) GetGatewayPairingRequest(
+	_ context.Context,
+	source string,
+	senderID string,
+) (pairing.PendingRequest, bool, error) {
+	for _, request := range s.PairingRequests {
+		if request.Source == source && request.SenderID == senderID {
+			return request, true, s.Err
+		}
+	}
+
+	return pairing.PendingRequest{}, false, s.Err
+}
+
+func (s *AgentServiceStub) ListGatewayPairingRequests(
+	_ context.Context,
+	source string,
+) ([]pairing.PendingRequest, error) {
+	if strings.TrimSpace(source) == "" {
+		return s.PairingRequests, s.Err
+	}
+
+	var requests []pairing.PendingRequest
+	for _, request := range s.PairingRequests {
+		if request.Source == source {
+			requests = append(requests, request)
+		}
+	}
+
+	return requests, s.Err
+}
+
+func (s *AgentServiceStub) DeleteGatewayPairingRequest(_ context.Context, source string, senderID string) error {
+	var kept []pairing.PendingRequest
+	for _, request := range s.PairingRequests {
+		if request.Source == source && request.SenderID == senderID {
+			continue
+		}
+		kept = append(kept, request)
+	}
+	s.PairingRequests = kept
+	return s.Err
+}
+
+func (s *AgentServiceStub) ClearGatewayPairingRequests(_ context.Context, source string) error {
+	s.ClearedPairingSource = source
+	var kept []pairing.PendingRequest
+	for _, request := range s.PairingRequests {
+		if strings.TrimSpace(source) == "" || request.Source == source {
+			continue
+		}
+		kept = append(kept, request)
+	}
+	s.PairingRequests = kept
+	return s.Err
+}
+
+func (s *AgentServiceStub) SaveGatewayPairedSender(_ context.Context, sender pairing.ApprovedSender) error {
+	s.PairedSenders = append(s.PairedSenders, sender)
+	return s.Err
+}
+
+func (s *AgentServiceStub) GetGatewayPairedSender(
+	_ context.Context,
+	source string,
+	senderID string,
+) (pairing.ApprovedSender, bool, error) {
+	for _, sender := range s.PairedSenders {
+		if sender.Source == source && sender.SenderID == senderID {
+			return sender, true, s.Err
+		}
+	}
+
+	return pairing.ApprovedSender{}, false, s.Err
+}
+
+func (s *AgentServiceStub) ListGatewayPairedSenders(_ context.Context, source string) ([]pairing.ApprovedSender, error) {
+	if strings.TrimSpace(source) == "" {
+		return s.PairedSenders, s.Err
+	}
+
+	var senders []pairing.ApprovedSender
+	for _, sender := range s.PairedSenders {
+		if sender.Source == source {
+			senders = append(senders, sender)
+		}
+	}
+
+	return senders, s.Err
+}
+
+func (s *AgentServiceStub) DeleteGatewayPairedSender(_ context.Context, source string, senderID string) error {
+	s.RevokedPairingSource = source
+	s.RevokedPairingSender = senderID
+	var kept []pairing.ApprovedSender
+	for _, sender := range s.PairedSenders {
+		if sender.Source == source && sender.SenderID == senderID {
+			continue
+		}
+		kept = append(kept, sender)
+	}
+	s.PairedSenders = kept
+	return s.Err
+}
+
+func (s *AgentServiceStub) ListPairings(context.Context, string) (rpcclient.GatewayPairingList, error) {
+	pending := make([]rpcclient.GatewayPairingRequest, 0, len(s.PairingRequests))
+	for _, request := range s.PairingRequests {
+		pending = append(pending, rpcclient.GatewayPairingRequest{
+			Source:      request.Source,
+			SenderID:    request.SenderID,
+			DisplayName: request.DisplayName,
+			CreatedAt:   request.CreatedAt,
+			LastSeenAt:  request.LastSeenAt,
+			ExpiresAt:   request.ExpiresAt,
+		})
+	}
+	approved := make([]rpcclient.GatewayPairedSender, 0, len(s.PairedSenders))
+	for _, sender := range s.PairedSenders {
+		approved = append(approved, rpcclient.GatewayPairedSender{
+			Source:      sender.Source,
+			SenderID:    sender.SenderID,
+			DisplayName: sender.DisplayName,
+			CreatedAt:   sender.CreatedAt,
+			UpdatedAt:   sender.UpdatedAt,
+		})
+	}
+
+	return rpcclient.GatewayPairingList{Pending: pending, Approved: approved}, s.Err
+}
+
+func (s *AgentServiceStub) ApprovePairing(
+	_ context.Context,
+	source string,
+	code string,
+) (rpcclient.GatewayPairedSender, bool, error) {
+	s.PairingSource = source
+	s.PairingCode = code
+	return s.ApprovedPairing, s.PairingApproved, s.Err
+}
+
+func (s *AgentServiceStub) RevokePairing(_ context.Context, source string, senderID string) error {
+	s.RevokedPairingSource = source
+	s.RevokedPairingSender = senderID
+	return s.Err
+}
+
+func (s *AgentServiceStub) ClearPendingPairings(_ context.Context, source string) error {
+	s.ClearedPairingSource = source
+	return s.Err
 }
 
 func (s *AgentServiceStub) CreateWithOptions(

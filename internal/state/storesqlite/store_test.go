@@ -36,6 +36,8 @@ func TestSQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
 	require.True(t, store.db.Migrator().HasTable(&memoryItemModel{}))
 	require.True(t, store.db.Migrator().HasTable(&memoryItemTagModel{}))
 	require.True(t, store.db.Migrator().HasTable(&traceEventModel{}))
+	require.True(t, store.db.Migrator().HasTable(&gatewayPairingRequestModel{}))
+	require.True(t, store.db.Migrator().HasTable(&gatewayPairedSenderModel{}))
 	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "episodic_checkpoint_offset"))
 	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "reflection_checkpoint_offset"))
 	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "title"))
@@ -103,6 +105,19 @@ func TestSQLiteStore_ConstructorsValidateInputs(t *testing.T) {
 	require.EqualError(t, err, "session sqlite path is required")
 }
 
+func TestSQLiteStore_Close(t *testing.T) {
+	var nilStore *Store
+	require.NoError(t, nilStore.Close())
+	require.NoError(t, (&Store{}).Close())
+
+	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	require.NoError(t, store.Close())
+
+	err = (&Store{db: &gorm.DB{Config: &gorm.Config{}}}).Close()
+	require.ErrorIs(t, err, gorm.ErrInvalidDB)
+}
+
 func TestSQLiteStore_StorageInitializationErrors(t *testing.T) {
 	t.Run("memory storage", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "session.db")
@@ -115,6 +130,9 @@ func TestSQLiteStore_StorageInitializationErrors(t *testing.T) {
 			&summaryModel{},
 			&messageModel{},
 			&gatewayBindingModel{},
+			&traceEventModel{},
+			&gatewayPairingRequestModel{},
+			&gatewayPairedSenderModel{},
 		))
 
 		readonlyDB, err := gorm.Open(sqlite.Open("file:"+path+"?mode=ro"), &gorm.Config{})
@@ -135,6 +153,9 @@ func TestSQLiteStore_StorageInitializationErrors(t *testing.T) {
 			&summaryModel{},
 			&messageModel{},
 			&gatewayBindingModel{},
+			&traceEventModel{},
+			&gatewayPairingRequestModel{},
+			&gatewayPairedSenderModel{},
 		))
 		require.NoError(t, ensureMemoryStorage(writableDB))
 

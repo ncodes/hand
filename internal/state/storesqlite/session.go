@@ -135,6 +135,33 @@ func (gatewayBindingModel) TableName() string {
 	return "gateway_bindings"
 }
 
+type gatewayPairingRequestModel struct {
+	Source      string `gorm:"primaryKey"`
+	SenderID    string `gorm:"primaryKey"`
+	DisplayName string
+	Metadata    string    `gorm:"type:text"`
+	CreatedAt   time.Time `gorm:"autoCreateTime:false"`
+	LastSeenAt  time.Time `gorm:"autoUpdateTime:false"`
+	ExpiresAt   time.Time `gorm:"autoUpdateTime:false"`
+}
+
+func (gatewayPairingRequestModel) TableName() string {
+	return "gateway_pairing_requests"
+}
+
+type gatewayPairedSenderModel struct {
+	Source      string `gorm:"primaryKey"`
+	SenderID    string `gorm:"primaryKey"`
+	DisplayName string
+	Metadata    string    `gorm:"type:text"`
+	CreatedAt   time.Time `gorm:"autoCreateTime:false"`
+	UpdatedAt   time.Time `gorm:"autoUpdateTime:false"`
+}
+
+func (gatewayPairedSenderModel) TableName() string {
+	return "gateway_paired_senders"
+}
+
 // messageModels is a typed slice for active message conversion helpers.
 type messageModels []messageModel
 

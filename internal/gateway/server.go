@@ -25,7 +25,7 @@ type Options struct {
 	Listen               func(network string, address string) (net.Listener, error)
 	NewHTTPServer        func(config.GatewayConfig, AgentService) HTTPServer
 	StartSlackSocket     func(context.Context, config.GatewaySlackConfig) error
-	StartTelegramPolling func(context.Context, config.GatewayTelegramConfig, AgentService) error
+	StartTelegramPolling func(context.Context, config.GatewayConfig, AgentService) error
 	ShutdownTimeout      time.Duration
 }
 
@@ -40,12 +40,13 @@ func setDefaultOptions(opts Options) Options {
 		opts.StartSlackSocket = waitForComponentStop[config.GatewaySlackConfig]
 	}
 	if opts.StartTelegramPolling == nil {
-		opts.StartTelegramPolling = func(
-			ctx context.Context,
-			cfg config.GatewayTelegramConfig,
-			service AgentService,
-		) error {
-			return telegramprovider.StartPolling(ctx, cfg, service)
+		opts.StartTelegramPolling = func(ctx context.Context, cfg config.GatewayConfig, service AgentService) error {
+			telegramService, ok := service.(telegramprovider.Service)
+			if !ok {
+				return errors.New("telegram gateway service is required")
+			}
+
+			return telegramprovider.StartPolling(ctx, cfg, telegramService)
 		}
 	}
 	if opts.ShutdownTimeout <= 0 {
@@ -89,7 +90,7 @@ func newComponents(cfg config.GatewayConfig, opts Options, service AgentService)
 		components = append(components, component{
 			name: "telegram polling",
 			run: func(ctx context.Context) error {
-				return opts.StartTelegramPolling(ctx, cfg.Telegram, service)
+				return opts.StartTelegramPolling(ctx, cfg, service)
 			},
 		})
 	}

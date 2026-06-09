@@ -26,6 +26,7 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 	agentcore "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 )
 
 func TestAgent_StartRespondAndCloseLifecycle(t *testing.T) {
@@ -320,6 +321,123 @@ func TestAgent_GatewayBindingServiceOperations(t *testing.T) {
 
 	_, _, err = (&Agent{}).GetGatewayBinding(context.Background(), binding.Key)
 	require.EqualError(t, err, "environment has not been initialized")
+}
+
+func TestAgent_GatewayPairingServiceOperations(t *testing.T) {
+	store := &stateStoreStub{}
+	manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
+	require.NoError(t, err)
+	core := &Agent{
+		initialized: true,
+		stateMgr:    manager,
+	}
+	request := pairing.PendingRequest{Source: "telegram", SenderID: "123"}
+	sender := pairing.ApprovedSender{Source: "telegram", SenderID: "123"}
+
+	require.NoError(t, core.SaveGatewayPairingRequest(context.Background(), request))
+	foundRequest, ok, err := core.GetGatewayPairingRequest(context.Background(), "telegram", "123")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, request, foundRequest)
+	requests, err := core.ListGatewayPairingRequests(context.Background(), "telegram")
+	require.NoError(t, err)
+	require.Equal(t, []pairing.PendingRequest{request}, requests)
+	require.NoError(t, core.DeleteGatewayPairingRequest(context.Background(), "telegram", "123"))
+	requests, err = core.ListGatewayPairingRequests(context.Background(), "telegram")
+	require.NoError(t, err)
+	require.Empty(t, requests)
+
+	require.NoError(t, core.SaveGatewayPairingRequest(context.Background(), request))
+	require.NoError(t, core.ClearGatewayPairingRequests(context.Background(), "telegram"))
+	requests, err = core.ListGatewayPairingRequests(context.Background(), "telegram")
+	require.NoError(t, err)
+	require.Empty(t, requests)
+
+	require.NoError(t, core.SaveGatewayPairedSender(context.Background(), sender))
+	foundSender, ok, err := core.GetGatewayPairedSender(context.Background(), "telegram", "123")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, sender, foundSender)
+	senders, err := core.ListGatewayPairedSenders(context.Background(), "telegram")
+	require.NoError(t, err)
+	require.Equal(t, []pairing.ApprovedSender{sender}, senders)
+	require.NoError(t, core.DeleteGatewayPairedSender(context.Background(), "telegram", "123"))
+	senders, err = core.ListGatewayPairedSenders(context.Background(), "telegram")
+	require.NoError(t, err)
+	require.Empty(t, senders)
+
+	expected := errors.New("pairing failed")
+	store.pairingErr = expected
+	require.ErrorIs(t, core.SaveGatewayPairingRequest(context.Background(), request), expected)
+	_, _, err = core.GetGatewayPairingRequest(context.Background(), "telegram", "123")
+	require.ErrorIs(t, err, expected)
+	_, err = core.ListGatewayPairingRequests(context.Background(), "telegram")
+	require.ErrorIs(t, err, expected)
+	require.ErrorIs(t, core.DeleteGatewayPairingRequest(context.Background(), "telegram", "123"), expected)
+	require.ErrorIs(t, core.ClearGatewayPairingRequests(context.Background(), "telegram"), expected)
+	require.ErrorIs(t, core.SaveGatewayPairedSender(context.Background(), sender), expected)
+	_, _, err = core.GetGatewayPairedSender(context.Background(), "telegram", "123")
+	require.ErrorIs(t, err, expected)
+	_, err = core.ListGatewayPairedSenders(context.Background(), "telegram")
+	require.ErrorIs(t, err, expected)
+	require.ErrorIs(t, core.DeleteGatewayPairedSender(context.Background(), "telegram", "123"), expected)
+
+	require.EqualError(t,
+		(*Agent)(nil).SaveGatewayPairingRequest(context.Background(), request),
+		"agent is required",
+	)
+	require.EqualError(t,
+		(&Agent{}).SaveGatewayPairingRequest(context.Background(), request),
+		"environment has not been initialized",
+	)
+	_, _, err = (*Agent)(nil).GetGatewayPairingRequest(context.Background(), "telegram", "123")
+	require.EqualError(t, err, "agent is required")
+	_, _, err = (&Agent{}).GetGatewayPairingRequest(context.Background(), "telegram", "123")
+	require.EqualError(t, err, "environment has not been initialized")
+	_, err = (*Agent)(nil).ListGatewayPairingRequests(context.Background(), "telegram")
+	require.EqualError(t, err, "agent is required")
+	_, err = (&Agent{}).ListGatewayPairingRequests(context.Background(), "telegram")
+	require.EqualError(t, err, "environment has not been initialized")
+	require.EqualError(t,
+		(*Agent)(nil).DeleteGatewayPairingRequest(context.Background(), "telegram", "123"),
+		"agent is required",
+	)
+	require.EqualError(t,
+		(&Agent{}).DeleteGatewayPairingRequest(context.Background(), "telegram", "123"),
+		"environment has not been initialized",
+	)
+	require.EqualError(t,
+		(*Agent)(nil).ClearGatewayPairingRequests(context.Background(), "telegram"),
+		"agent is required",
+	)
+	require.EqualError(t,
+		(&Agent{}).ClearGatewayPairingRequests(context.Background(), "telegram"),
+		"environment has not been initialized",
+	)
+	require.EqualError(t,
+		(*Agent)(nil).SaveGatewayPairedSender(context.Background(), sender),
+		"agent is required",
+	)
+	require.EqualError(t,
+		(&Agent{}).SaveGatewayPairedSender(context.Background(), sender),
+		"environment has not been initialized",
+	)
+	_, _, err = (*Agent)(nil).GetGatewayPairedSender(context.Background(), "telegram", "123")
+	require.EqualError(t, err, "agent is required")
+	_, _, err = (&Agent{}).GetGatewayPairedSender(context.Background(), "telegram", "123")
+	require.EqualError(t, err, "environment has not been initialized")
+	_, err = (*Agent)(nil).ListGatewayPairedSenders(context.Background(), "telegram")
+	require.EqualError(t, err, "agent is required")
+	_, err = (&Agent{}).ListGatewayPairedSenders(context.Background(), "telegram")
+	require.EqualError(t, err, "environment has not been initialized")
+	require.EqualError(t,
+		(*Agent)(nil).DeleteGatewayPairedSender(context.Background(), "telegram", "123"),
+		"agent is required",
+	)
+	require.EqualError(t,
+		(&Agent{}).DeleteGatewayPairedSender(context.Background(), "telegram", "123"),
+		"environment has not been initialized",
+	)
 }
 
 func TestAgent_LifecycleBranchesForCloseCreateUseAndStatus(t *testing.T) {

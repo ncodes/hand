@@ -14,6 +14,7 @@ import (
 	authcmd "github.com/wandxy/hand/cmd/auth"
 	daemoncmd "github.com/wandxy/hand/cmd/daemon"
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
+	gatewaycmd "github.com/wandxy/hand/cmd/gateway"
 	configcmd "github.com/wandxy/hand/cmd/hand/configcmd"
 	profilecmd "github.com/wandxy/hand/cmd/profile"
 	sessioncmd "github.com/wandxy/hand/cmd/session"
@@ -124,6 +125,7 @@ func newCommand() *cli.Command {
 			newVersionCommand(rootOutput),
 			configcmd.NewCommand(rootOutput),
 			doctorcmd.NewCommand(),
+			gatewaycmd.NewCommand(),
 			profilecmd.NewCommand(),
 			sessioncmd.NewCommand(),
 			tracecmd.NewCommand(),

@@ -25,6 +25,7 @@ import (
 	agentcore "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	pkgcache "github.com/wandxy/hand/pkg/cache"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -716,6 +717,113 @@ func (a *Agent) GetGatewayBinding(ctx context.Context, key string) (storage.Gate
 	}
 
 	return a.stateMgr.GetGatewayBinding(normalizeContext(ctx), key)
+}
+
+func (a *Agent) SaveGatewayPairingRequest(ctx context.Context, request pairing.PendingRequest) error {
+	if a == nil {
+		return errors.New("agent is required")
+	}
+	if !a.initialized || a.stateMgr == nil {
+		return errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.SaveGatewayPairingRequest(normalizeContext(ctx), request)
+}
+
+func (a *Agent) GetGatewayPairingRequest(
+	ctx context.Context,
+	source string,
+	senderID string,
+) (pairing.PendingRequest, bool, error) {
+	if a == nil {
+		return pairing.PendingRequest{}, false, errors.New("agent is required")
+	}
+	if !a.initialized || a.stateMgr == nil {
+		return pairing.PendingRequest{}, false, errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.GetGatewayPairingRequest(normalizeContext(ctx), source, senderID)
+}
+
+func (a *Agent) ListGatewayPairingRequests(ctx context.Context, source string) ([]pairing.PendingRequest, error) {
+	if a == nil {
+		return nil, errors.New("agent is required")
+	}
+	if !a.initialized || a.stateMgr == nil {
+		return nil, errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.ListGatewayPairingRequests(normalizeContext(ctx), source)
+}
+
+func (a *Agent) DeleteGatewayPairingRequest(ctx context.Context, source string, senderID string) error {
+	if a == nil {
+		return errors.New("agent is required")
+	}
+	if !a.initialized || a.stateMgr == nil {
+		return errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.DeleteGatewayPairingRequest(normalizeContext(ctx), source, senderID)
+}
+
+func (a *Agent) ClearGatewayPairingRequests(ctx context.Context, source string) error {
+	if a == nil {
+		return errors.New("agent is required")
+	}
+	if !a.initialized || a.stateMgr == nil {
+		return errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.ClearGatewayPairingRequests(normalizeContext(ctx), source)
+}
+
+func (a *Agent) SaveGatewayPairedSender(ctx context.Context, sender pairing.ApprovedSender) error {
+	if a == nil {
+		return errors.New("agent is required")
+	}
+	if !a.initialized || a.stateMgr == nil {
+		return errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.SaveGatewayPairedSender(normalizeContext(ctx), sender)
+}
+
+func (a *Agent) GetGatewayPairedSender(
+	ctx context.Context,
+	source string,
+	senderID string,
+) (pairing.ApprovedSender, bool, error) {
+	if a == nil {
+		return pairing.ApprovedSender{}, false, errors.New("agent is required")
+	}
+	if !a.initialized || a.stateMgr == nil {
+		return pairing.ApprovedSender{}, false, errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.GetGatewayPairedSender(normalizeContext(ctx), source, senderID)
+}
+
+func (a *Agent) ListGatewayPairedSenders(ctx context.Context, source string) ([]pairing.ApprovedSender, error) {
+	if a == nil {
+		return nil, errors.New("agent is required")
+	}
+	if !a.initialized || a.stateMgr == nil {
+		return nil, errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.ListGatewayPairedSenders(normalizeContext(ctx), source)
+}
+
+func (a *Agent) DeleteGatewayPairedSender(ctx context.Context, source string, senderID string) error {
+	if a == nil {
+		return errors.New("agent is required")
+	}
+	if !a.initialized || a.stateMgr == nil {
+		return errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.DeleteGatewayPairedSender(normalizeContext(ctx), source, senderID)
 }
 
 // ListSessions returns known sessions.

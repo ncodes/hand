@@ -141,7 +141,7 @@ func TestManager_StartsSlackSocketAndTelegramPolling(t *testing.T) {
 			<-ctx.Done()
 			return nil
 		},
-		StartTelegramPolling: func(ctx context.Context, cfg config.GatewayTelegramConfig, service AgentService) error {
+		StartTelegramPolling: func(ctx context.Context, cfg config.GatewayConfig, service AgentService) error {
 			close(telegramStarted)
 			<-ctx.Done()
 			return nil

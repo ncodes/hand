@@ -747,6 +747,60 @@ func TestClient_GetSessionStatusRequiresResponseContext(t *testing.T) {
 	require.Empty(t, result.SessionID)
 }
 
+func TestClient_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
+	now := time.Date(2026, 6, 8, 12, 0, 0, 0, time.UTC)
+	stub := &protomock.HandServiceClientStub{
+		PairingsResp: &handpb.ListGatewayPairingsResponse{
+			Pending: []*handpb.GatewayPairingRequest{{
+				Source:      "telegram",
+				SenderId:    "123",
+				DisplayName: "Ada",
+				CreatedAt:   timestamppb.New(now),
+				LastSeenAt:  timestamppb.New(now),
+				ExpiresAt:   timestamppb.New(now.Add(time.Hour)),
+			}},
+			Approved: []*handpb.GatewayPairedSender{{
+				Source:      "telegram",
+				SenderId:    "456",
+				DisplayName: "Grace",
+				CreatedAt:   timestamppb.New(now),
+				UpdatedAt:   timestamppb.New(now),
+			}},
+		},
+		ApproveResp: &handpb.ApproveGatewayPairingResponse{
+			Approved: true,
+			Sender:   &handpb.GatewayPairedSender{Source: "telegram", SenderId: "123"},
+		},
+	}
+	client := NewGatewayService(stub)
+
+	list, err := client.ListPairings(context.Background(), " telegram ")
+	require.NoError(t, err)
+	require.Equal(t, "telegram", stub.PairingsReq.GetSource())
+	require.Equal(t, "123", list.Pending[0].SenderID)
+	require.Equal(t, "456", list.Approved[0].SenderID)
+
+	sender, approved, err := client.ApprovePairing(context.Background(), " telegram ", " 12345678 ")
+	require.NoError(t, err)
+	require.True(t, approved)
+	require.Equal(t, "telegram", stub.ApproveReq.GetSource())
+	require.Equal(t, "12345678", stub.ApproveReq.GetCode())
+	require.Equal(t, "123", sender.SenderID)
+
+	require.NoError(t, client.RevokePairing(context.Background(), " telegram ", " 123 "))
+	require.Equal(t, "telegram", stub.RevokeReq.GetSource())
+	require.Equal(t, "123", stub.RevokeReq.GetSenderId())
+
+	require.NoError(t, client.ClearPendingPairings(context.Background(), " telegram "))
+	require.Equal(t, "telegram", stub.ClearReq.GetSource())
+}
+
+func TestClient_GatewayPairingRequiresClient(t *testing.T) {
+	_, err := (*GatewayService)(nil).ListPairings(context.Background(), "")
+
+	require.EqualError(t, err, "hand: gateway service client is required")
+}
+
 func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 	messageAt := time.Date(2026, 5, 16, 10, 0, 0, 0, time.UTC)
 	traceAt := time.Date(2026, 5, 16, 11, 0, 0, 0, time.UTC)

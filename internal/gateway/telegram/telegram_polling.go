@@ -8,7 +8,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/wandxy/hand/internal/config"
-	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
 )
 
 var telegramPollingRetryDelay = time.Second
@@ -17,17 +16,17 @@ var newTelegramAPI = func(cfg config.GatewayTelegramConfig) telegramAPI {
 	return newTelegramHTTPClient(cfg.BotToken)
 }
 
-func StartPolling(ctx context.Context, cfg config.GatewayTelegramConfig, service gatewaysession.Service) error {
-	return startTelegramPolling(ctx, cfg, service, newTelegramAPI(cfg))
+func StartPolling(ctx context.Context, cfg config.GatewayConfig, service Service) error {
+	return startTelegramPolling(ctx, cfg, service, newTelegramAPI(cfg.Telegram))
 }
 
 func startTelegramPolling(
 	ctx context.Context,
-	cfg config.GatewayTelegramConfig,
-	service gatewaysession.Service,
+	cfg config.GatewayConfig,
+	service Service,
 	api telegramAPI,
 ) error {
-	if !cfg.Enabled || cfg.Mode != config.GatewayTelegramModePolling {
+	if !cfg.Telegram.Enabled || cfg.Telegram.Mode != config.GatewayTelegramModePolling {
 		<-ctx.Done()
 		return nil
 	}
@@ -35,7 +34,7 @@ func startTelegramPolling(
 		return errors.New("telegram api client is required")
 	}
 
-	adapter := newTelegramAdapter(service, api)
+	adapter := newTelegramAdapter(cfg, service, api)
 	var offset int64
 	for {
 		select {

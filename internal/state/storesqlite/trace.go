@@ -27,16 +27,6 @@ func (traceEventModel) TableName() string {
 	return "trace_events"
 }
 
-func ensureTraceStorage(db *gorm.DB) error {
-	if db == nil {
-		return errors.New("trace db is required")
-	}
-	if err := db.AutoMigrate(&traceEventModel{}); err != nil {
-		return fmt.Errorf("failed to migrate trace db: %w", err)
-	}
-	return nil
-}
-
 func (s *Store) AppendTraceEvent(ctx context.Context, event base.TraceEvent) (base.TraceEvent, error) {
 	if s == nil || s.db == nil {
 		return base.TraceEvent{}, errors.New("store is required")

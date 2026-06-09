@@ -6,6 +6,7 @@ import (
 	base "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 )
 
 // Store keeps sessions, messages, memory, and traces in process memory.
@@ -17,6 +18,8 @@ type Store struct {
 	messages        map[string][]handmsg.Message
 	summaries       map[string]SessionSummary
 	gatewayBindings map[string]base.GatewayBinding
+	pairingRequests map[string]pairing.PendingRequest
+	pairedSenders   map[string]pairing.ApprovedSender
 	memoryItems     map[string]base.MemoryItem
 	traceEvents     map[string][]base.TraceEvent
 	traceSequences  map[string]int
@@ -32,6 +35,8 @@ func NewStore() *Store {
 		messages:        make(map[string][]handmsg.Message),
 		summaries:       make(map[string]SessionSummary),
 		gatewayBindings: make(map[string]base.GatewayBinding),
+		pairingRequests: make(map[string]pairing.PendingRequest),
+		pairedSenders:   make(map[string]pairing.ApprovedSender),
 		memoryItems:     make(map[string]base.MemoryItem),
 		traceEvents:     make(map[string][]base.TraceEvent),
 		traceSequences:  make(map[string]int),

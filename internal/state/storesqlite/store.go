@@ -49,6 +49,9 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 		&summaryModel{},
 		&messageModel{},
 		&gatewayBindingModel{},
+		&traceEventModel{},
+		&gatewayPairingRequestModel{},
+		&gatewayPairedSenderModel{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate session db: %w", err)
 	}
@@ -58,10 +61,6 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 	}
 
 	if err := ensureSearchIndex(db); err != nil {
-		return nil, err
-	}
-
-	if err := ensureTraceStorage(db); err != nil {
 		return nil, err
 	}
 

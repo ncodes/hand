@@ -5,6 +5,7 @@ import (
 	"time"
 
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -179,6 +180,18 @@ type GatewayBindingStore interface {
 	GetGatewayBinding(ctx context.Context, key string) (GatewayBinding, bool, error)
 }
 
+type GatewayPairingStore interface {
+	SaveGatewayPairingRequest(context.Context, pairing.PendingRequest) error
+	GetGatewayPairingRequest(context.Context, string, string) (pairing.PendingRequest, bool, error)
+	ListGatewayPairingRequests(context.Context, string) ([]pairing.PendingRequest, error)
+	DeleteGatewayPairingRequest(context.Context, string, string) error
+	ClearGatewayPairingRequests(context.Context, string) error
+	SaveGatewayPairedSender(context.Context, pairing.ApprovedSender) error
+	GetGatewayPairedSender(context.Context, string, string) (pairing.ApprovedSender, bool, error)
+	ListGatewayPairedSenders(context.Context, string) ([]pairing.ApprovedSender, error)
+	DeleteGatewayPairedSender(context.Context, string, string) error
+}
+
 // SessionStore defines the persistence operations for conversation sessions.
 type SessionStore interface {
 	SessionMetadataStore
@@ -186,4 +199,5 @@ type SessionStore interface {
 	SessionMessageStore
 	SessionSummaryStore
 	GatewayBindingStore
+	GatewayPairingStore
 }

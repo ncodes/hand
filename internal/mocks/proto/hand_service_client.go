@@ -43,6 +43,12 @@ type HandServiceClientStub struct {
 	SelectResp    *handpb.SelectModelResponse
 	APIKeyReq     *handpb.SetProviderAPIKeyRequest
 	APIKeyResp    *handpb.SetProviderAPIKeyResponse
+	PairingsReq   *handpb.ListGatewayPairingsRequest
+	PairingsResp  *handpb.ListGatewayPairingsResponse
+	ApproveReq    *handpb.ApproveGatewayPairingRequest
+	ApproveResp   *handpb.ApproveGatewayPairingResponse
+	RevokeReq     *handpb.RevokeGatewayPairingRequest
+	ClearReq      *handpb.ClearPendingGatewayPairingsRequest
 	OnRespond     func()
 	OnListModels  func()
 }
@@ -133,6 +139,26 @@ func (s *HandServiceClientStub) SelectModel(_ context.Context, req *handpb.Selec
 func (s *HandServiceClientStub) SetProviderAPIKey(_ context.Context, req *handpb.SetProviderAPIKeyRequest, _ ...grpc.CallOption) (*handpb.SetProviderAPIKeyResponse, error) {
 	s.APIKeyReq = req
 	return s.APIKeyResp, s.Err
+}
+
+func (s *HandServiceClientStub) ListPairings(_ context.Context, req *handpb.ListGatewayPairingsRequest, _ ...grpc.CallOption) (*handpb.ListGatewayPairingsResponse, error) {
+	s.PairingsReq = req
+	return s.PairingsResp, s.Err
+}
+
+func (s *HandServiceClientStub) ApprovePairing(_ context.Context, req *handpb.ApproveGatewayPairingRequest, _ ...grpc.CallOption) (*handpb.ApproveGatewayPairingResponse, error) {
+	s.ApproveReq = req
+	return s.ApproveResp, s.Err
+}
+
+func (s *HandServiceClientStub) RevokePairing(_ context.Context, req *handpb.RevokeGatewayPairingRequest, _ ...grpc.CallOption) (*handpb.RevokeGatewayPairingResponse, error) {
+	s.RevokeReq = req
+	return &handpb.RevokeGatewayPairingResponse{}, s.Err
+}
+
+func (s *HandServiceClientStub) ClearPendingPairings(_ context.Context, req *handpb.ClearPendingGatewayPairingsRequest, _ ...grpc.CallOption) (*handpb.ClearPendingGatewayPairingsResponse, error) {
+	s.ClearReq = req
+	return &handpb.ClearPendingGatewayPairingsResponse{}, s.Err
 }
 
 type respondStreamStub struct {

@@ -41,10 +41,7 @@ func TestStartPolling_DispatchesUpdatesAndAdvancesOffset(t *testing.T) {
 		reply:          "reply",
 	}
 
-	err := startTelegramPolling(ctx, config.GatewayTelegramConfig{
-		Enabled: true,
-		Mode:    config.GatewayTelegramModePolling,
-	}, responder, api)
+	err := startTelegramPolling(ctx, telegramPollingConfig(), responder, api)
 
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
@@ -70,11 +67,9 @@ func TestStartPolling_UsesConfiguredAPIFactory(t *testing.T) {
 		return api
 	}
 
-	err := StartPolling(ctx, config.GatewayTelegramConfig{
-		Enabled:  true,
-		Mode:     config.GatewayTelegramModePolling,
-		BotToken: "token",
-	}, &genericResponderStub{})
+	cfg := telegramPollingConfig()
+	cfg.Telegram.BotToken = "token"
+	err := StartPolling(ctx, cfg, &genericResponderStub{})
 
 	require.NoError(t, err)
 	require.Equal(t, []telegramAPICall{{method: "getUpdates", offset: 0}}, api.allCalls())
@@ -91,10 +86,7 @@ func TestStartPolling_StopsImmediatelyWhenContextIsCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := startTelegramPolling(ctx, config.GatewayTelegramConfig{
-		Enabled: true,
-		Mode:    config.GatewayTelegramModePolling,
-	}, &genericResponderStub{}, &fakeTelegramAPI{})
+	err := startTelegramPolling(ctx, telegramPollingConfig(), &genericResponderStub{}, &fakeTelegramAPI{})
 
 	require.NoError(t, err)
 }
@@ -122,10 +114,7 @@ func TestStartPolling_AdvancesOffsetAfterDispatchError(t *testing.T) {
 		},
 	}
 
-	err := startTelegramPolling(ctx, config.GatewayTelegramConfig{
-		Enabled: true,
-		Mode:    config.GatewayTelegramModePolling,
-	}, &genericResponderStub{getBindingErr: errTelegramTest}, api)
+	err := startTelegramPolling(ctx, telegramPollingConfig(), &genericResponderStub{getBindingErr: errTelegramTest}, api)
 
 	require.NoError(t, err)
 	require.Equal(t, []telegramAPICall{
@@ -141,10 +130,7 @@ func TestStartPolling_StopsDuringRetryDelay(t *testing.T) {
 		onGet:  func(int64) { cancel() },
 	}
 
-	err := startTelegramPolling(ctx, config.GatewayTelegramConfig{
-		Enabled: true,
-		Mode:    config.GatewayTelegramModePolling,
-	}, &genericResponderStub{}, api)
+	err := startTelegramPolling(ctx, telegramPollingConfig(), &genericResponderStub{}, api)
 
 	require.NoError(t, err)
 }
@@ -165,10 +151,7 @@ func TestStartPolling_RetriesTransientErrors(t *testing.T) {
 		},
 	}
 
-	err := startTelegramPolling(ctx, config.GatewayTelegramConfig{
-		Enabled: true,
-		Mode:    config.GatewayTelegramModePolling,
-	}, &genericResponderStub{}, api)
+	err := startTelegramPolling(ctx, telegramPollingConfig(), &genericResponderStub{}, api)
 
 	require.NoError(t, err)
 	require.Len(t, api.callsOfMethod("getUpdates"), 2)
@@ -177,10 +160,7 @@ func TestStartPolling_RetriesTransientErrors(t *testing.T) {
 func TestStartPolling_ReturnsConflictError(t *testing.T) {
 	api := &fakeTelegramAPI{getErr: telegramConflictError{description: "other poller"}}
 
-	err := startTelegramPolling(context.Background(), config.GatewayTelegramConfig{
-		Enabled: true,
-		Mode:    config.GatewayTelegramModePolling,
-	}, &genericResponderStub{}, api)
+	err := startTelegramPolling(context.Background(), telegramPollingConfig(), &genericResponderStub{}, api)
 
 	var conflict telegramConflictError
 	require.ErrorAs(t, err, &conflict)
@@ -188,10 +168,7 @@ func TestStartPolling_ReturnsConflictError(t *testing.T) {
 }
 
 func TestStartPolling_RejectsMissingAPIClient(t *testing.T) {
-	err := startTelegramPolling(context.Background(), config.GatewayTelegramConfig{
-		Enabled: true,
-		Mode:    config.GatewayTelegramModePolling,
-	}, &genericResponderStub{}, nil)
+	err := startTelegramPolling(context.Background(), telegramPollingConfig(), &genericResponderStub{}, nil)
 
 	require.EqualError(t, err, "telegram api client is required")
 }
@@ -200,14 +177,27 @@ func TestStartPolling_WaitsWhenDisabledOrWebhookMode(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := startTelegramPolling(ctx, config.GatewayTelegramConfig{Enabled: false}, nil, &fakeTelegramAPI{})
+	err := startTelegramPolling(ctx, config.GatewayConfig{}, nil, &fakeTelegramAPI{})
 
 	require.NoError(t, err)
 
-	err = startTelegramPolling(ctx, config.GatewayTelegramConfig{
-		Enabled: true,
-		Mode:    config.GatewayTelegramModeWebhook,
+	err = startTelegramPolling(ctx, config.GatewayConfig{
+		Telegram: config.GatewayTelegramConfig{
+			Enabled: true,
+			Mode:    config.GatewayTelegramModeWebhook,
+		},
 	}, nil, &fakeTelegramAPI{})
 
 	require.NoError(t, err)
+}
+
+func telegramPollingConfig() config.GatewayConfig {
+	return config.GatewayConfig{
+		PairingSecret: "pair-secret",
+		Telegram: config.GatewayTelegramConfig{
+			Enabled:      true,
+			Mode:         config.GatewayTelegramModePolling,
+			AllowedUsers: []string{"123"},
+		},
+	}
 }

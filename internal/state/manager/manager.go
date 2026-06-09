@@ -10,6 +10,7 @@ import (
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 )
 
 // Manager manages manager.
@@ -418,6 +419,89 @@ func (m *Manager) GetGatewayBinding(ctx context.Context, key string) (storage.Ga
 	}
 
 	return m.sessions().GetGatewayBinding(ctx, strings.TrimSpace(key))
+}
+
+func (m *Manager) SaveGatewayPairingRequest(ctx context.Context, request pairing.PendingRequest) error {
+	if m == nil {
+		return errors.New("state manager is required")
+	}
+
+	return m.sessions().SaveGatewayPairingRequest(ctx, request)
+}
+
+func (m *Manager) GetGatewayPairingRequest(
+	ctx context.Context,
+	source string,
+	senderID string,
+) (pairing.PendingRequest, bool, error) {
+	if m == nil {
+		return pairing.PendingRequest{}, false, errors.New("state manager is required")
+	}
+
+	return m.sessions().GetGatewayPairingRequest(ctx, source, senderID)
+}
+
+func (m *Manager) ListGatewayPairingRequests(
+	ctx context.Context,
+	source string,
+) ([]pairing.PendingRequest, error) {
+	if m == nil {
+		return nil, errors.New("state manager is required")
+	}
+
+	return m.sessions().ListGatewayPairingRequests(ctx, source)
+}
+
+func (m *Manager) DeleteGatewayPairingRequest(ctx context.Context, source string, senderID string) error {
+	if m == nil {
+		return errors.New("state manager is required")
+	}
+
+	return m.sessions().DeleteGatewayPairingRequest(ctx, source, senderID)
+}
+
+func (m *Manager) ClearGatewayPairingRequests(ctx context.Context, source string) error {
+	if m == nil {
+		return errors.New("state manager is required")
+	}
+
+	return m.sessions().ClearGatewayPairingRequests(ctx, source)
+}
+
+func (m *Manager) SaveGatewayPairedSender(ctx context.Context, sender pairing.ApprovedSender) error {
+	if m == nil {
+		return errors.New("state manager is required")
+	}
+
+	return m.sessions().SaveGatewayPairedSender(ctx, sender)
+}
+
+func (m *Manager) GetGatewayPairedSender(
+	ctx context.Context,
+	source string,
+	senderID string,
+) (pairing.ApprovedSender, bool, error) {
+	if m == nil {
+		return pairing.ApprovedSender{}, false, errors.New("state manager is required")
+	}
+
+	return m.sessions().GetGatewayPairedSender(ctx, source, senderID)
+}
+
+func (m *Manager) ListGatewayPairedSenders(ctx context.Context, source string) ([]pairing.ApprovedSender, error) {
+	if m == nil {
+		return nil, errors.New("state manager is required")
+	}
+
+	return m.sessions().ListGatewayPairedSenders(ctx, source)
+}
+
+func (m *Manager) DeleteGatewayPairedSender(ctx context.Context, source string, senderID string) error {
+	if m == nil {
+		return errors.New("state manager is required")
+	}
+
+	return m.sessions().DeleteGatewayPairedSender(ctx, source, senderID)
 }
 
 func (m *Manager) DeleteSummary(ctx context.Context, sessionID string) error {

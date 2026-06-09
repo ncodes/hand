@@ -24,6 +24,7 @@ import (
 	agent "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 )
 
 type respondStreamServerStub struct {
@@ -1763,6 +1764,267 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 		requireStatusError(t, err, codes.NotFound, "session not found")
 		require.Nil(t, resp)
 	})
+}
+
+func TestService_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
+	now := time.Now().UTC()
+	stub := &agentstub.AgentServiceStub{
+		PairingRequests: []pairing.PendingRequest{{
+			Source:      "telegram",
+			SenderID:    "123",
+			DisplayName: "Ada",
+			CreatedAt:   now,
+			LastSeenAt:  now,
+			ExpiresAt:   now.Add(time.Hour),
+		}},
+		PairedSenders: []pairing.ApprovedSender{{
+			Source:      "telegram",
+			SenderID:    "456",
+			DisplayName: "Grace",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}},
+	}
+	svc := NewServiceWithOptions(stub, ServiceOptions{GatewayPairingSecret: "secret"})
+
+	list, err := svc.ListPairings(context.Background(), &handpb.ListGatewayPairingsRequest{Source: "telegram"})
+	require.NoError(t, err)
+	require.Len(t, list.GetPending(), 1)
+	require.Equal(t, "123", list.GetPending()[0].GetSenderId())
+	require.NotNil(t, list.GetPending()[0].GetCreatedAt())
+	require.Len(t, list.GetApproved(), 1)
+	require.Equal(t, "456", list.GetApproved()[0].GetSenderId())
+	require.NotNil(t, list.GetApproved()[0].GetCreatedAt())
+
+	code, err := pairing.NewManager(pairing.Options{Store: stub, Secret: "secret"}).Code("telegram", "123", time.Now().UTC())
+	require.NoError(t, err)
+	approved, err := svc.ApprovePairing(context.Background(), &handpb.ApproveGatewayPairingRequest{
+		Source: "telegram",
+		Code:   code,
+	})
+	require.NoError(t, err)
+	require.True(t, approved.GetApproved())
+	require.Equal(t, "123", approved.GetSender().GetSenderId())
+
+	_, err = svc.RevokePairing(context.Background(), &handpb.RevokeGatewayPairingRequest{
+		Source:   "telegram",
+		SenderId: "123",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "telegram", stub.RevokedPairingSource)
+	require.Equal(t, "123", stub.RevokedPairingSender)
+
+	_, err = svc.ClearPendingPairings(context.Background(), &handpb.ClearPendingGatewayPairingsRequest{Source: "telegram"})
+	require.NoError(t, err)
+	require.Equal(t, "telegram", stub.ClearedPairingSource)
+
+	emptyList, err := svc.ListPairings(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, emptyList.GetPending(), 0)
+	require.Len(t, emptyList.GetApproved(), 1)
+
+	_, err = svc.ClearPendingPairings(context.Background(), nil)
+	require.NoError(t, err)
+	require.Equal(t, "", stub.ClearedPairingSource)
+
+	require.Nil(t, timestampOrNil(time.Time{}))
+}
+
+func TestService_GatewayPairingRejectsMissingStore(t *testing.T) {
+	svc := NewServiceWithOptions(
+		serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}},
+		ServiceOptions{GatewayPairingSecret: "secret"},
+	)
+
+	resp, err := svc.ListPairings(context.Background(), &handpb.ListGatewayPairingsRequest{})
+
+	requireStatusError(t, err, codes.Internal, "gateway pairing store is required")
+	require.Nil(t, resp)
+}
+
+func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
+	expected := errors.New("gateway pairing failed")
+
+	t.Run("list nil service", func(t *testing.T) {
+		resp, err := (*Service)(nil).ListPairings(context.Background(), nil)
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("list nil api", func(t *testing.T) {
+		resp, err := (&Service{}).ListPairings(context.Background(), nil)
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("list approved store error", func(t *testing.T) {
+		svc := NewService(&gatewayPairingStoreStub{
+			AgentServiceStub: &agentstub.AgentServiceStub{},
+			listPairedErr:    expected,
+		})
+
+		resp, err := svc.ListPairings(context.Background(), &handpb.ListGatewayPairingsRequest{})
+
+		requireStatusError(t, err, codes.Internal, expected.Error())
+		require.Nil(t, resp)
+	})
+
+	t.Run("list pending store error", func(t *testing.T) {
+		svc := NewService(&gatewayPairingStoreStub{
+			AgentServiceStub: &agentstub.AgentServiceStub{},
+			listPendingErr:   expected,
+		})
+
+		resp, err := svc.ListPairings(context.Background(), &handpb.ListGatewayPairingsRequest{})
+
+		requireStatusError(t, err, codes.Internal, expected.Error())
+		require.Nil(t, resp)
+	})
+
+	t.Run("approve nil service", func(t *testing.T) {
+		resp, err := (*Service)(nil).ApprovePairing(context.Background(), &handpb.ApproveGatewayPairingRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("approve nil api", func(t *testing.T) {
+		resp, err := (&Service{}).ApprovePairing(context.Background(), &handpb.ApproveGatewayPairingRequest{})
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("approve nil request", func(t *testing.T) {
+		resp, err := NewService(&agentstub.AgentServiceStub{}).ApprovePairing(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "approve pairing request is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("approve missing store", func(t *testing.T) {
+		svc := NewService(serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}})
+
+		resp, err := svc.ApprovePairing(context.Background(), &handpb.ApproveGatewayPairingRequest{})
+
+		requireStatusError(t, err, codes.Internal, "gateway pairing store is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("approve missing pairing secret", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{})
+
+		resp, err := svc.ApprovePairing(context.Background(), &handpb.ApproveGatewayPairingRequest{
+			Source: "telegram",
+			Code:   "12345678",
+		})
+
+		requireStatusError(t, err, codes.InvalidArgument, "gateway pairing secret is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("revoke nil service", func(t *testing.T) {
+		resp, err := (*Service)(nil).RevokePairing(context.Background(), &handpb.RevokeGatewayPairingRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("revoke nil api", func(t *testing.T) {
+		resp, err := (&Service{}).RevokePairing(context.Background(), &handpb.RevokeGatewayPairingRequest{})
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("revoke nil request", func(t *testing.T) {
+		resp, err := NewService(&agentstub.AgentServiceStub{}).RevokePairing(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "revoke pairing request is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("revoke missing store", func(t *testing.T) {
+		svc := NewService(serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}})
+
+		resp, err := svc.RevokePairing(context.Background(), &handpb.RevokeGatewayPairingRequest{})
+
+		requireStatusError(t, err, codes.Internal, "gateway pairing store is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("revoke store error", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{Err: expected})
+
+		resp, err := svc.RevokePairing(context.Background(), &handpb.RevokeGatewayPairingRequest{
+			Source:   "telegram",
+			SenderId: "123",
+		})
+
+		requireStatusError(t, err, codes.Internal, expected.Error())
+		require.Nil(t, resp)
+	})
+
+	t.Run("clear nil service", func(t *testing.T) {
+		resp, err := (*Service)(nil).ClearPendingPairings(context.Background(), nil)
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("clear nil api", func(t *testing.T) {
+		resp, err := (&Service{}).ClearPendingPairings(context.Background(), nil)
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("clear missing store", func(t *testing.T) {
+		svc := NewService(serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}})
+
+		resp, err := svc.ClearPendingPairings(context.Background(), nil)
+
+		requireStatusError(t, err, codes.Internal, "gateway pairing store is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("clear store error", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{Err: expected})
+
+		resp, err := svc.ClearPendingPairings(
+			context.Background(),
+			&handpb.ClearPendingGatewayPairingsRequest{Source: "telegram"},
+		)
+
+		requireStatusError(t, err, codes.Internal, expected.Error())
+		require.Nil(t, resp)
+	})
+}
+
+type serviceAPIWithoutPairingStore struct {
+	agentapi.ServiceAPI
+}
+
+type gatewayPairingStoreStub struct {
+	*agentstub.AgentServiceStub
+	listPendingErr error
+	listPairedErr  error
+}
+
+func (s *gatewayPairingStoreStub) ListGatewayPairingRequests(
+	context.Context,
+	string,
+) ([]pairing.PendingRequest, error) {
+	return nil, s.listPendingErr
+}
+
+func (s *gatewayPairingStoreStub) ListGatewayPairedSenders(
+	context.Context,
+	string,
+) ([]pairing.ApprovedSender, error) {
+	return nil, s.listPairedErr
 }
 
 func TestService_CurrentSessionReturnsValue(t *testing.T) {

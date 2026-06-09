@@ -18,6 +18,7 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 	agent "github.com/wandxy/hand/pkg/agent"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -28,14 +29,27 @@ type Service struct {
 	handpb.UnimplementedHandServiceServer
 	handpb.UnimplementedSessionServiceServer
 	handpb.UnimplementedModelServiceServer
-	api handagent.ServiceAPI
+	handpb.UnimplementedGatewayServiceServer
+	api                  handagent.ServiceAPI
+	gatewayPairingSecret string
 }
 
 var marshalRPCJSON = json.Marshal
 
+type ServiceOptions struct {
+	GatewayPairingSecret string
+}
+
 // NewService creates a new RPC service that wraps the shared service interface.
 func NewService(api handagent.ServiceAPI) *Service {
-	return &Service{api: api}
+	return NewServiceWithOptions(api, ServiceOptions{})
+}
+
+func NewServiceWithOptions(api handagent.ServiceAPI, opts ServiceOptions) *Service {
+	return &Service{
+		api:                  api,
+		gatewayPairingSecret: strings.TrimSpace(opts.GatewayPairingSecret),
+	}
 }
 
 // Respond sends a chat request to the service and returns the completed response.
@@ -1168,6 +1182,156 @@ func (s *Service) Status(ctx context.Context, req *handpb.GetSessionStatusReques
 			RemainingPct: result.RemainingPct,
 		},
 	}, nil
+}
+
+func (s *Service) ListPairings(
+	ctx context.Context,
+	req *handpb.ListGatewayPairingsRequest,
+) (*handpb.ListGatewayPairingsResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	store, ok := s.api.(pairing.Store)
+	if !ok {
+		return nil, status.Error(codes.Internal, "gateway pairing store is required")
+	}
+
+	source := ""
+	if req != nil {
+		source = strings.TrimSpace(req.GetSource())
+	}
+	pending, err := store.ListGatewayPairingRequests(ctx, source)
+	if err != nil {
+		return nil, getGRPCError(err)
+	}
+	approved, err := store.ListGatewayPairedSenders(ctx, source)
+	if err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	resp := &handpb.ListGatewayPairingsResponse{}
+	for _, request := range pending {
+		resp.Pending = append(resp.Pending, gatewayPairingRequestToProto(request))
+	}
+	for _, sender := range approved {
+		resp.Approved = append(resp.Approved, gatewayPairedSenderToProto(sender))
+	}
+
+	return resp, nil
+}
+
+func (s *Service) ApprovePairing(
+	ctx context.Context,
+	req *handpb.ApproveGatewayPairingRequest,
+) (*handpb.ApproveGatewayPairingResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "approve pairing request is required")
+	}
+	store, ok := s.api.(pairing.Store)
+	if !ok {
+		return nil, status.Error(codes.Internal, "gateway pairing store is required")
+	}
+
+	sender, ok, err := pairing.NewManager(pairing.Options{
+		Store:  store,
+		Secret: s.gatewayPairingSecret,
+	}).Approve(ctx, req.GetSource(), req.GetCode())
+	if err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.ApproveGatewayPairingResponse{
+		Approved: ok,
+		Sender:   gatewayPairedSenderToProto(sender),
+	}, nil
+}
+
+func (s *Service) RevokePairing(
+	ctx context.Context,
+	req *handpb.RevokeGatewayPairingRequest,
+) (*handpb.RevokeGatewayPairingResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "revoke pairing request is required")
+	}
+	store, ok := s.api.(pairing.Store)
+	if !ok {
+		return nil, status.Error(codes.Internal, "gateway pairing store is required")
+	}
+	if err := store.DeleteGatewayPairedSender(ctx, req.GetSource(), req.GetSenderId()); err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.RevokeGatewayPairingResponse{}, nil
+}
+
+func (s *Service) ClearPendingPairings(
+	ctx context.Context,
+	req *handpb.ClearPendingGatewayPairingsRequest,
+) (*handpb.ClearPendingGatewayPairingsResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	store, ok := s.api.(pairing.Store)
+	if !ok {
+		return nil, status.Error(codes.Internal, "gateway pairing store is required")
+	}
+
+	source := ""
+	if req != nil {
+		source = req.GetSource()
+	}
+	if err := store.ClearGatewayPairingRequests(ctx, source); err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.ClearPendingGatewayPairingsResponse{}, nil
+}
+
+func gatewayPairingRequestToProto(request pairing.PendingRequest) *handpb.GatewayPairingRequest {
+	return &handpb.GatewayPairingRequest{
+		Source:      request.Source,
+		SenderId:    request.SenderID,
+		DisplayName: request.DisplayName,
+		CreatedAt:   timestampOrNil(request.CreatedAt),
+		LastSeenAt:  timestampOrNil(request.LastSeenAt),
+		ExpiresAt:   timestampOrNil(request.ExpiresAt),
+	}
+}
+
+func gatewayPairedSenderToProto(sender pairing.ApprovedSender) *handpb.GatewayPairedSender {
+	return &handpb.GatewayPairedSender{
+		Source:      sender.Source,
+		SenderId:    sender.SenderID,
+		DisplayName: sender.DisplayName,
+		CreatedAt:   timestampOrNil(sender.CreatedAt),
+		UpdatedAt:   timestampOrNil(sender.UpdatedAt),
+	}
+}
+
+func timestampOrNil(value time.Time) *timestamppb.Timestamp {
+	if value.IsZero() {
+		return nil
+	}
+
+	return timestamppb.New(value.UTC())
 }
 
 func (s *Service) Timeline(

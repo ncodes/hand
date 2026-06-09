@@ -17,6 +17,7 @@ config.yaml
 .DS_Store
 .plan/
 .hand/
+docs/plans
 
 example_projects/
 

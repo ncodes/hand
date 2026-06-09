@@ -10,9 +10,9 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/gateway/dispatch"
-	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
 	storage "github.com/wandxy/hand/internal/state/core"
 	agentcore "github.com/wandxy/hand/pkg/agent"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 	gatewaytelegram "github.com/wandxy/hand/pkg/gateway/telegram"
 	gatewaytypes "github.com/wandxy/hand/pkg/gateway/types"
 	"github.com/wandxy/hand/pkg/nanoid"
@@ -38,6 +38,9 @@ type genericResponderStub struct {
 	saveBindingErr error
 	createErr      error
 	bindingFound   bool
+	pending        map[string]pairing.PendingRequest
+	approved       map[string]pairing.ApprovedSender
+	pairingErr     error
 	called         bool
 	calls          int
 	created        bool
@@ -112,6 +115,137 @@ func (s *genericResponderStub) GetGatewayBinding(
 	string,
 ) (storage.GatewayBinding, bool, error) {
 	return s.binding, s.bindingFound, s.getBindingErr
+}
+
+func (s *genericResponderStub) SaveGatewayPairingRequest(
+	_ context.Context,
+	request pairing.PendingRequest,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pending == nil {
+		s.pending = make(map[string]pairing.PendingRequest)
+	}
+	s.pending[pairingStubKey(request.Source, request.SenderID)] = request
+	return nil
+}
+
+func (s *genericResponderStub) GetGatewayPairingRequest(
+	_ context.Context,
+	source string,
+	senderID string,
+) (pairing.PendingRequest, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pairingErr != nil {
+		return pairing.PendingRequest{}, false, s.pairingErr
+	}
+
+	request, ok := s.pending[pairingStubKey(source, senderID)]
+	return request, ok, nil
+}
+
+func (s *genericResponderStub) ListGatewayPairingRequests(
+	_ context.Context,
+	source string,
+) ([]pairing.PendingRequest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pairingErr != nil {
+		return nil, s.pairingErr
+	}
+
+	var requests []pairing.PendingRequest
+	for _, request := range s.pending {
+		if source == "" || request.Source == source {
+			requests = append(requests, request)
+		}
+	}
+	return requests, nil
+}
+
+func (s *genericResponderStub) DeleteGatewayPairingRequest(
+	_ context.Context,
+	source string,
+	senderID string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.pending, pairingStubKey(source, senderID))
+	return nil
+}
+
+func (s *genericResponderStub) ClearGatewayPairingRequests(_ context.Context, source string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for key, request := range s.pending {
+		if source == "" || request.Source == source {
+			delete(s.pending, key)
+		}
+	}
+	return nil
+}
+
+func (s *genericResponderStub) SaveGatewayPairedSender(
+	_ context.Context,
+	sender pairing.ApprovedSender,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.approved == nil {
+		s.approved = make(map[string]pairing.ApprovedSender)
+	}
+	s.approved[pairingStubKey(sender.Source, sender.SenderID)] = sender
+	return nil
+}
+
+func (s *genericResponderStub) GetGatewayPairedSender(
+	_ context.Context,
+	source string,
+	senderID string,
+) (pairing.ApprovedSender, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pairingErr != nil {
+		return pairing.ApprovedSender{}, false, s.pairingErr
+	}
+
+	sender, ok := s.approved[pairingStubKey(source, senderID)]
+	return sender, ok, nil
+}
+
+func (s *genericResponderStub) ListGatewayPairedSenders(
+	_ context.Context,
+	source string,
+) ([]pairing.ApprovedSender, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pairingErr != nil {
+		return nil, s.pairingErr
+	}
+
+	var senders []pairing.ApprovedSender
+	for _, sender := range s.approved {
+		if source == "" || sender.Source == source {
+			senders = append(senders, sender)
+		}
+	}
+	return senders, nil
+}
+
+func (s *genericResponderStub) DeleteGatewayPairedSender(
+	_ context.Context,
+	source string,
+	senderID string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.approved, pairingStubKey(source, senderID))
+	return nil
+}
+
+func pairingStubKey(source string, senderID string) string {
+	return source + "\x00" + senderID
 }
 
 func (s *genericResponderStub) wasCalled() bool {
@@ -372,19 +506,19 @@ func withoutTelegramParseMode(calls []telegramAPICall) []telegramAPICall {
 	return cloned
 }
 
-func newWebhookHandler(cfg config.GatewayConfig, service gatewaysession.Service) http.Handler {
+func newWebhookHandler(cfg config.GatewayConfig, service Service) http.Handler {
 	return newWebhookHandlerWithDispatchContext(context.Background(), cfg, service)
 }
 
 func newWebhookHandlerWithDispatchContext(
 	dispatchCtx context.Context,
 	cfg config.GatewayConfig,
-	service gatewaysession.Service,
+	service Service,
 ) http.Handler {
 	mux := http.NewServeMux()
 	dispatcher := dispatch.New(dispatch.Options{})
 	dispatcher.Start(dispatchCtx)
-	mux.HandleFunc(WebhookPath, HandleWebhook(cfg.Telegram, service, dispatcher))
+	mux.HandleFunc(WebhookPath, HandleWebhook(cfg, service, dispatcher))
 	return mux
 }
 

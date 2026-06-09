@@ -8,6 +8,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	storage "github.com/wandxy/hand/internal/state/core"
 	agentcore "github.com/wandxy/hand/pkg/agent"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -92,6 +93,50 @@ func (s *genericResponderStub) GetGatewayBinding(
 	string,
 ) (storage.GatewayBinding, bool, error) {
 	return s.binding, s.bindingFound, s.getBindingErr
+}
+
+func (s *genericResponderStub) SaveGatewayPairingRequest(context.Context, pairing.PendingRequest) error {
+	return nil
+}
+
+func (s *genericResponderStub) GetGatewayPairingRequest(
+	context.Context,
+	string,
+	string,
+) (pairing.PendingRequest, bool, error) {
+	return pairing.PendingRequest{}, false, nil
+}
+
+func (s *genericResponderStub) ListGatewayPairingRequests(context.Context, string) ([]pairing.PendingRequest, error) {
+	return nil, nil
+}
+
+func (s *genericResponderStub) DeleteGatewayPairingRequest(context.Context, string, string) error {
+	return nil
+}
+
+func (s *genericResponderStub) ClearGatewayPairingRequests(context.Context, string) error {
+	return nil
+}
+
+func (s *genericResponderStub) SaveGatewayPairedSender(context.Context, pairing.ApprovedSender) error {
+	return nil
+}
+
+func (s *genericResponderStub) GetGatewayPairedSender(
+	context.Context,
+	string,
+	string,
+) (pairing.ApprovedSender, bool, error) {
+	return pairing.ApprovedSender{}, false, nil
+}
+
+func (s *genericResponderStub) ListGatewayPairedSenders(context.Context, string) ([]pairing.ApprovedSender, error) {
+	return nil, nil
+}
+
+func (s *genericResponderStub) DeleteGatewayPairedSender(context.Context, string, string) error {
+	return nil
 }
 
 type fakeHTTPServer struct {

@@ -6,7 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/config"
 	storage "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 	tg "github.com/wandxy/hand/pkg/gateway/telegram"
 )
 
@@ -17,7 +19,7 @@ func TestTelegramAdapter_DispatchUpdateResolvesSessionAndStreamsReply(t *testing
 		createdSession: storage.Session{ID: genericCreatedSessionID},
 		reply:          "final reply",
 	}
-	adapter := newTelegramAdapter(responder, api)
+	adapter := newTelegramAdapter(telegramAdapterConfig(), responder, api)
 
 	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
 		UpdateID: 7,
@@ -50,7 +52,7 @@ func TestTelegramAdapter_DispatchUpdateResolvesSessionAndStreamsReply(t *testing
 
 func TestTelegramAdapter_IgnoresUnsupportedUpdateWithoutCallingAgent(t *testing.T) {
 	responder := &genericResponderStub{}
-	adapter := newTelegramAdapter(responder, &fakeTelegramAPI{})
+	adapter := newTelegramAdapter(telegramAdapterConfig(), responder, &fakeTelegramAPI{})
 
 	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
 		UpdateID:      8,
@@ -66,13 +68,13 @@ func TestTelegramAdapter_RejectsMissingDependencies(t *testing.T) {
 	_, err := (*TelegramAdapter)(nil).DispatchUpdate(context.Background(), tg.Update{})
 	require.EqualError(t, err, "telegram adapter is required")
 
-	_, err = newTelegramAdapter(nil, &fakeTelegramAPI{}).DispatchUpdate(context.Background(), tg.Update{})
+	_, err = newTelegramAdapter(telegramAdapterConfig(), nil, &fakeTelegramAPI{}).DispatchUpdate(context.Background(), tg.Update{})
 	require.EqualError(t, err, "telegram adapter is required")
 }
 
 func TestTelegramAdapter_ReturnsSessionResolutionError(t *testing.T) {
 	responder := &genericResponderStub{getBindingErr: errTelegramTest}
-	adapter := newTelegramAdapter(responder, &fakeTelegramAPI{})
+	adapter := newTelegramAdapter(telegramAdapterConfig(), responder, &fakeTelegramAPI{})
 
 	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
 		UpdateID: 7,
@@ -80,6 +82,7 @@ func TestTelegramAdapter_ReturnsSessionResolutionError(t *testing.T) {
 			MessageID: 11,
 			Text:      "hello",
 			Chat:      tg.Chat{ID: 123, Type: "private"},
+			From:      &tg.User{ID: 9},
 		},
 	})
 
@@ -89,7 +92,7 @@ func TestTelegramAdapter_ReturnsSessionResolutionError(t *testing.T) {
 }
 
 func TestTelegramAdapter_ReturnsNormalizationError(t *testing.T) {
-	handled, err := newTelegramAdapter(&genericResponderStub{}, &fakeTelegramAPI{}).
+	handled, err := newTelegramAdapter(telegramAdapterConfig(), &genericResponderStub{}, &fakeTelegramAPI{}).
 		DispatchUpdate(context.Background(), tg.Update{
 			UpdateID: 7,
 			Message:  &tg.Message{Text: "hello"},
@@ -105,7 +108,7 @@ func TestTelegramAdapter_ReturnsSafeErrorWhenSenderFails(t *testing.T) {
 		createdSession: storage.Session{ID: genericCreatedSessionID},
 		reply:          "final reply",
 	}
-	adapter := newTelegramAdapter(responder, api)
+	adapter := newTelegramAdapter(telegramAdapterConfig(), responder, api)
 
 	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
 		UpdateID: 7,
@@ -120,4 +123,198 @@ func TestTelegramAdapter_ReturnsSafeErrorWhenSenderFails(t *testing.T) {
 	require.ErrorIs(t, err, errTelegramTest)
 	require.True(t, handled)
 	require.True(t, responder.called)
+}
+
+func TestTelegramAdapter_UnknownPrivateSenderGetsPairingChallenge(t *testing.T) {
+	api := &fakeTelegramAPI{}
+	responder := &genericResponderStub{}
+	adapter := newTelegramAdapter(config.GatewayConfig{PairingSecret: "pair-secret"}, responder, api)
+
+	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
+		UpdateID: 7,
+		Message: &tg.Message{
+			MessageID: 11,
+			Text:      "hello",
+			Chat:      tg.Chat{ID: 123, Type: "private"},
+			From:      &tg.User{ID: 9, FirstName: "Ada"},
+		},
+	})
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.False(t, responder.called)
+	require.Len(t, api.callsOfMethod("sendMessage"), 1)
+	require.Contains(t, api.callsOfMethod("sendMessage")[0].text, "hand gateway pairing approve telegram")
+	requests, err := responder.ListGatewayPairingRequests(context.Background(), "telegram")
+	require.NoError(t, err)
+	require.Len(t, requests, 1)
+	require.Equal(t, "9", requests[0].SenderID)
+}
+
+func TestTelegramAdapter_UnknownPrivateSenderRequiresPairingSecret(t *testing.T) {
+	api := &fakeTelegramAPI{}
+	responder := &genericResponderStub{}
+	adapter := newTelegramAdapter(config.GatewayConfig{
+		AuthToken: "auth-token",
+		Telegram: config.GatewayTelegramConfig{
+			BotToken: "bot-token",
+		},
+	}, responder, api)
+
+	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
+		UpdateID: 7,
+		Message: &tg.Message{
+			MessageID: 11,
+			Text:      "hello",
+			Chat:      tg.Chat{ID: 123, Type: "private"},
+			From:      &tg.User{ID: 9},
+		},
+	})
+
+	require.ErrorIs(t, err, pairing.ErrSecretRequired)
+	require.True(t, handled)
+	require.False(t, responder.called)
+	require.Empty(t, api.allCalls())
+}
+
+func TestTelegramAdapter_UnknownPrivateSenderReturnsChallengeSendError(t *testing.T) {
+	api := &fakeTelegramAPI{sendErr: errTelegramTest}
+	responder := &genericResponderStub{}
+	adapter := newTelegramAdapter(config.GatewayConfig{PairingSecret: "pair-secret"}, responder, api)
+
+	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
+		UpdateID: 7,
+		Message: &tg.Message{
+			MessageID: 11,
+			Text:      "hello",
+			Chat:      tg.Chat{ID: 123, Type: "private"},
+			From:      &tg.User{ID: 9},
+		},
+	})
+
+	require.ErrorIs(t, err, errTelegramTest)
+	require.True(t, handled)
+	require.False(t, responder.called)
+}
+
+func TestTelegramAdapter_ReturnsPairingStoreError(t *testing.T) {
+	api := &fakeTelegramAPI{}
+	responder := &genericResponderStub{pairingErr: errTelegramTest}
+	adapter := newTelegramAdapter(config.GatewayConfig{PairingSecret: "pair-secret"}, responder, api)
+
+	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
+		UpdateID: 7,
+		Message: &tg.Message{
+			MessageID: 11,
+			Text:      "hello",
+			Chat:      tg.Chat{ID: 123, Type: "private"},
+			From:      &tg.User{ID: 9},
+		},
+	})
+
+	require.ErrorIs(t, err, errTelegramTest)
+	require.True(t, handled)
+	require.False(t, responder.called)
+	require.Empty(t, api.allCalls())
+}
+
+func TestTelegramAdapter_MissingSenderIDIsIgnored(t *testing.T) {
+	api := &fakeTelegramAPI{}
+	responder := &genericResponderStub{}
+	adapter := newTelegramAdapter(config.GatewayConfig{PairingSecret: "pair-secret"}, responder, api)
+
+	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
+		UpdateID: 7,
+		Message: &tg.Message{
+			MessageID: 11,
+			Text:      "hello",
+			Chat:      tg.Chat{ID: -100, Type: "supergroup"},
+		},
+	})
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.False(t, responder.called)
+	require.Empty(t, api.allCalls())
+}
+
+func TestTelegramAdapter_UnknownGroupSenderIsIgnoredWithoutChallenge(t *testing.T) {
+	api := &fakeTelegramAPI{}
+	responder := &genericResponderStub{}
+	adapter := newTelegramAdapter(config.GatewayConfig{PairingSecret: "pair-secret"}, responder, api)
+
+	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
+		UpdateID: 7,
+		Message: &tg.Message{
+			MessageID: 11,
+			Text:      "hello",
+			Chat:      tg.Chat{ID: -100, Type: "supergroup"},
+			From:      &tg.User{ID: 9},
+		},
+	})
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.False(t, responder.called)
+	require.Empty(t, api.allCalls())
+}
+
+func TestTelegramAdapter_GlobalAllowlistAuthorizesGroupSender(t *testing.T) {
+	setTelegramDraftID(t, 77)
+	api := &fakeTelegramAPI{}
+	responder := &genericResponderStub{reply: "final reply"}
+	adapter := newTelegramAdapter(config.GatewayConfig{
+		AllowedUsers: []string{"9"},
+	}, responder, api)
+
+	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
+		UpdateID: 7,
+		Message: &tg.Message{
+			MessageID: 11,
+			Text:      "hello",
+			Chat:      tg.Chat{ID: -100, Type: "supergroup"},
+			From:      &tg.User{ID: 9},
+		},
+	})
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.True(t, responder.called)
+}
+
+func TestTelegramAdapter_ApprovedSenderAuthorizesGroupSender(t *testing.T) {
+	api := &fakeTelegramAPI{}
+	responder := &genericResponderStub{reply: "final reply"}
+	require.NoError(t, responder.SaveGatewayPairedSender(context.Background(), pairing.ApprovedSender{
+		Source:   "telegram",
+		SenderID: "9",
+	}))
+	adapter := newTelegramAdapter(config.GatewayConfig{PairingSecret: "pair-secret"}, responder, api)
+
+	handled, err := adapter.DispatchUpdate(context.Background(), tg.Update{
+		UpdateID: 7,
+		Message: &tg.Message{
+			MessageID: 11,
+			Text:      "hello",
+			Chat:      tg.Chat{ID: -100, Type: "supergroup"},
+			From:      &tg.User{ID: 9},
+		},
+	})
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.True(t, responder.called)
+}
+
+func TestHasAllowedSenderRejectsBlankSender(t *testing.T) {
+	require.False(t, hasAllowedSender([]string{"9"}, " "))
+}
+
+func telegramAdapterConfig() config.GatewayConfig {
+	return config.GatewayConfig{
+		PairingSecret: "pair-secret",
+		Telegram: config.GatewayTelegramConfig{
+			AllowedUsers: []string{"9"},
+		},
+	}
 }

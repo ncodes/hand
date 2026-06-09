@@ -1013,7 +1013,10 @@ func openRPCListenerImpl(cfg *config.Config) (net.Listener, error) {
 var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner, lis net.Listener) error {
 	defer lis.Close()
 
-	grpcSrv := server.New(agent, server.Options{Health: true})
+	grpcSrv := server.New(agent, server.Options{
+		Health:               true,
+		GatewayPairingSecret: strings.TrimSpace(cfg.Gateway.PairingSecret),
+	})
 
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
