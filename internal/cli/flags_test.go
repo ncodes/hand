@@ -123,6 +123,7 @@ func TestApplyConfigOverrides_AppliesGatewaySettings(t *testing.T) {
 		"--gateway.telegram.webhook-secret", " HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET ",
 		"--gateway.slack.enabled",
 		"--gateway.slack.mode", " HTTP ",
+		"--gateway.slack.response-mode", " MESSAGE ",
 		"--gateway.slack.bot-token", " HAND_GATEWAY_SLACK_BOT_TOKEN ",
 		"--gateway.slack.app-token", " HAND_GATEWAY_SLACK_APP_TOKEN ",
 		"--gateway.slack.signing-secret", " HAND_GATEWAY_SLACK_SIGNING_SECRET ",
@@ -140,6 +141,7 @@ func TestApplyConfigOverrides_AppliesGatewaySettings(t *testing.T) {
 	require.Equal(t, "HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET", cfg.Gateway.Telegram.WebhookSecret)
 	require.True(t, cfg.Gateway.Slack.Enabled)
 	require.Equal(t, config.GatewaySlackModeHTTP, cfg.Gateway.Slack.Mode)
+	require.Equal(t, config.GatewaySlackResponseModeMessage, cfg.Gateway.Slack.ResponseMode)
 	require.Equal(t, "HAND_GATEWAY_SLACK_BOT_TOKEN", cfg.Gateway.Slack.BotToken)
 	require.Equal(t, "HAND_GATEWAY_SLACK_APP_TOKEN", cfg.Gateway.Slack.AppToken)
 	require.Equal(t, "HAND_GATEWAY_SLACK_SIGNING_SECRET", cfg.Gateway.Slack.SigningSecret)

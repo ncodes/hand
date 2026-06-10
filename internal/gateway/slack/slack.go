@@ -62,7 +62,8 @@ func (a *Adapter) DispatchInbound(ctx context.Context, inbound slack.InboundMess
 		return false, err
 	}
 
-	err = a.sender.StreamTurn(ctx, inbound.Target, func(onDelta func(string)) (string, error) {
+	responseTarget := getSlackResponseTarget(a.cfg.Slack.ResponseMode, inbound)
+	err = a.sender.StreamTurn(ctx, responseTarget, func(onDelta func(string)) (string, error) {
 		return a.service.Respond(ctx, inbound.Text, agentcore.RespondOptions{
 			SessionID: session.ID,
 			OnEvent: func(event agentcore.Event) {
@@ -119,7 +120,8 @@ func (a *Adapter) authorize(ctx context.Context, inbound slack.InboundMessage) (
 	if err != nil {
 		return false, err
 	}
-	if err := a.sender.SendFinal(ctx, inbound.Target, pairing.ChallengeMessage(challenge)); err != nil {
+	responseTarget := getSlackResponseTarget(a.cfg.Slack.ResponseMode, inbound)
+	if err := a.sender.SendFinal(ctx, responseTarget, pairing.ChallengeMessage(challenge)); err != nil {
 		return false, err
 	}
 	log.Debug().
@@ -127,6 +129,22 @@ func (a *Adapter) authorize(ctx context.Context, inbound slack.InboundMessage) (
 		Msg("Slack pairing challenge sent")
 
 	return false, nil
+}
+
+func getSlackResponseTarget(responseMode string, inbound slack.InboundMessage) slack.Target {
+	target := inbound.Target
+	if strings.TrimSpace(strings.ToLower(responseMode)) == config.GatewaySlackResponseModeMessage &&
+		!isSlackThreadReply(inbound) {
+		target.ThreadTS = ""
+	}
+
+	return target
+}
+
+func isSlackThreadReply(inbound slack.InboundMessage) bool {
+	threadTS := strings.TrimSpace(inbound.ThreadTS)
+	messageTS := strings.TrimSpace(inbound.MessageTS)
+	return threadTS != "" && messageTS != "" && threadTS != messageTS
 }
 
 func hasAllowedSender(allowed []string, senderID string) bool {

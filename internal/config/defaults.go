@@ -35,7 +35,8 @@ var DefaultConfig = Config{
 			Mode: GatewayTelegramModePolling,
 		},
 		Slack: GatewaySlackConfig{
-			Mode: GatewaySlackModeSocket,
+			Mode:         GatewaySlackModeSocket,
+			ResponseMode: GatewaySlackResponseModeThread,
 		},
 	},
 	FS: FSConfig{

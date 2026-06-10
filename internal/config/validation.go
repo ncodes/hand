@@ -185,6 +185,9 @@ func validateGatewayChannelModes(cfg GatewayConfig) error {
 	if err := validateGatewaySlackMode(cfg.Slack.Mode); err != nil {
 		return err
 	}
+	if err := validateGatewaySlackResponseMode(cfg.Slack.ResponseMode); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -256,8 +259,20 @@ func validateGatewaySlackMode(mode string) error {
 	}
 }
 
+func validateGatewaySlackResponseMode(mode string) error {
+	switch mode {
+	case GatewaySlackResponseModeThread, GatewaySlackResponseModeMessage:
+		return nil
+	default:
+		return errors.New("gateway slack response mode must be one of: thread, message")
+	}
+}
+
 func validateGatewaySlackSettings(cfg GatewaySlackConfig) error {
 	if err := validateGatewaySlackMode(cfg.Mode); err != nil {
+		return err
+	}
+	if err := validateGatewaySlackResponseMode(cfg.ResponseMode); err != nil {
 		return err
 	}
 	if !cfg.Enabled {

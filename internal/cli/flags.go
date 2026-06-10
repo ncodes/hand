@@ -150,6 +150,11 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value: config.Get().Gateway.Slack.Mode,
 		},
 		&cli.StringFlag{
+			Name:  "gateway.slack.response-mode",
+			Usage: "Slack response placement: thread or message",
+			Value: config.Get().Gateway.Slack.ResponseMode,
+		},
+		&cli.StringFlag{
 			Name:   "gateway.slack.bot-token",
 			Usage:  "Slack bot token",
 			Value:  config.Get().Gateway.Slack.BotToken,
@@ -581,6 +586,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("gateway.slack.mode") {
 		cfg.Gateway.Slack.Mode = strings.TrimSpace(cmd.String("gateway.slack.mode"))
+	}
+	if cmd.IsSet("gateway.slack.response-mode") {
+		cfg.Gateway.Slack.ResponseMode = strings.TrimSpace(cmd.String("gateway.slack.response-mode"))
 	}
 	if cmd.IsSet("gateway.slack.bot-token") {
 		cfg.Gateway.Slack.BotToken = strings.TrimSpace(cmd.String("gateway.slack.bot-token"))

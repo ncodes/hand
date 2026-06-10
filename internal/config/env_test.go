@@ -241,6 +241,7 @@ func TestLoad_UsesGatewayConfigFromConfigAndEnv(t *testing.T) {
 		"HAND_GATEWAY_TELEGRAM_ALLOWED_USERS",
 		"HAND_GATEWAY_SLACK_ENABLED",
 		"HAND_GATEWAY_SLACK_MODE",
+		"HAND_GATEWAY_SLACK_RESPONSE_MODE",
 		"HAND_GATEWAY_SLACK_BOT_TOKEN",
 		"HAND_GATEWAY_SLACK_APP_TOKEN",
 		"HAND_GATEWAY_SLACK_SIGNING_SECRET",
@@ -264,6 +265,7 @@ func TestLoad_UsesGatewayConfigFromConfigAndEnv(t *testing.T) {
 		"HAND_GATEWAY_TELEGRAM_ALLOWED_USERS=789, 987",
 		"HAND_GATEWAY_SLACK_ENABLED=true",
 		"HAND_GATEWAY_SLACK_MODE=http",
+		"HAND_GATEWAY_SLACK_RESPONSE_MODE=message",
 		"HAND_GATEWAY_SLACK_BOT_TOKEN=HAND_GATEWAY_SLACK_BOT_TOKEN",
 		"HAND_GATEWAY_SLACK_APP_TOKEN=HAND_GATEWAY_SLACK_APP_TOKEN",
 		"HAND_GATEWAY_SLACK_SIGNING_SECRET=HAND_GATEWAY_SLACK_SIGNING_SECRET",
@@ -310,6 +312,7 @@ gateway:
 	require.Equal(t, []string{"789", "987"}, cfg.Gateway.Telegram.AllowedUsers)
 	require.True(t, cfg.Gateway.Slack.Enabled)
 	require.Equal(t, GatewaySlackModeHTTP, cfg.Gateway.Slack.Mode)
+	require.Equal(t, GatewaySlackResponseModeMessage, cfg.Gateway.Slack.ResponseMode)
 	require.Equal(t, "HAND_GATEWAY_SLACK_BOT_TOKEN", cfg.Gateway.Slack.BotToken)
 	require.Equal(t, "HAND_GATEWAY_SLACK_APP_TOKEN", cfg.Gateway.Slack.AppToken)
 	require.Equal(t, "HAND_GATEWAY_SLACK_SIGNING_SECRET", cfg.Gateway.Slack.SigningSecret)
@@ -331,6 +334,7 @@ func TestLoad_UsesGatewayConfigFromConfigFile(t *testing.T) {
 		"HAND_GATEWAY_TELEGRAM_ALLOWED_USERS",
 		"HAND_GATEWAY_SLACK_ENABLED",
 		"HAND_GATEWAY_SLACK_MODE",
+		"HAND_GATEWAY_SLACK_RESPONSE_MODE",
 		"HAND_GATEWAY_SLACK_BOT_TOKEN",
 		"HAND_GATEWAY_SLACK_APP_TOKEN",
 		"HAND_GATEWAY_SLACK_SIGNING_SECRET",
@@ -361,6 +365,7 @@ gateway:
   slack:
     enabled: true
     mode: http
+    responseMode: message
     botToken: CONFIG_HAND_GATEWAY_SLACK_BOT_TOKEN
     appToken: CONFIG_HAND_GATEWAY_SLACK_APP_TOKEN
     signingSecret: CONFIG_HAND_GATEWAY_SLACK_SIGNING_SECRET
@@ -386,6 +391,7 @@ gateway:
 	require.Equal(t, []string{"789", "987"}, cfg.Gateway.Telegram.AllowedUsers)
 	require.True(t, cfg.Gateway.Slack.Enabled)
 	require.Equal(t, GatewaySlackModeHTTP, cfg.Gateway.Slack.Mode)
+	require.Equal(t, GatewaySlackResponseModeMessage, cfg.Gateway.Slack.ResponseMode)
 	require.Equal(t, "CONFIG_HAND_GATEWAY_SLACK_BOT_TOKEN", cfg.Gateway.Slack.BotToken)
 	require.Equal(t, "CONFIG_HAND_GATEWAY_SLACK_APP_TOKEN", cfg.Gateway.Slack.AppToken)
 	require.Equal(t, "CONFIG_HAND_GATEWAY_SLACK_SIGNING_SECRET", cfg.Gateway.Slack.SigningSecret)

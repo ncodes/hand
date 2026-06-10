@@ -49,6 +49,7 @@ func (c *Config) normalizeFields() {
 	c.Gateway.Telegram.WebhookSecret = strings.TrimSpace(c.Gateway.Telegram.WebhookSecret)
 	c.Gateway.Telegram.AllowedUsers = dedupeAndTrim(c.Gateway.Telegram.AllowedUsers)
 	c.Gateway.Slack.Mode = strings.TrimSpace(strings.ToLower(c.Gateway.Slack.Mode))
+	c.Gateway.Slack.ResponseMode = strings.TrimSpace(strings.ToLower(c.Gateway.Slack.ResponseMode))
 	c.Gateway.Slack.BotToken = strings.TrimSpace(c.Gateway.Slack.BotToken)
 	c.Gateway.Slack.AppToken = strings.TrimSpace(c.Gateway.Slack.AppToken)
 	c.Gateway.Slack.SigningSecret = strings.TrimSpace(c.Gateway.Slack.SigningSecret)
@@ -103,6 +104,9 @@ func (c *Config) normalizeFields() {
 	}
 	if c.Gateway.Slack.Mode == "" {
 		c.Gateway.Slack.Mode = GatewaySlackModeSocket
+	}
+	if c.Gateway.Slack.ResponseMode == "" {
+		c.Gateway.Slack.ResponseMode = GatewaySlackResponseModeThread
 	}
 	if c.Session.MaxIterations == 0 {
 		c.Session.MaxIterations = constants.DefaultMaxIterations

@@ -5,6 +5,9 @@ const (
 	GatewayTelegramModeWebhook = "webhook"
 	GatewaySlackModeSocket     = "socket"
 	GatewaySlackModeHTTP       = "http"
+
+	GatewaySlackResponseModeThread  = "thread"
+	GatewaySlackResponseModeMessage = "message"
 )
 
 type GatewayConfig struct {
@@ -29,6 +32,7 @@ type GatewayTelegramConfig struct {
 type GatewaySlackConfig struct {
 	Enabled       bool     `yaml:"enabled"`
 	Mode          string   `yaml:"mode"`
+	ResponseMode  string   `yaml:"responseMode"`
 	BotToken      string   `yaml:"botToken"`
 	AppToken      string   `yaml:"appToken"`
 	SigningSecret string   `yaml:"signingSecret"`

@@ -53,6 +53,7 @@
 #   slack:
 #     enabled: false
 #     mode: "socket"
+#     responseMode: "thread"
 #     botToken: ""
 #     appToken: ""
 #     signingSecret: ""

@@ -110,6 +110,9 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_SLACK_MODE")); value != "" {
 		cfg.Gateway.Slack.Mode = value
 	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_SLACK_RESPONSE_MODE")); value != "" {
+		cfg.Gateway.Slack.ResponseMode = value
+	}
 	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_SLACK_BOT_TOKEN")); value != "" {
 		cfg.Gateway.Slack.BotToken = value
 	}

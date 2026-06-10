@@ -49,6 +49,13 @@ func TestConfig_ValidateRelaxedAllowsMissingGatewayCredentials(t *testing.T) {
 		"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
 }
 
+func TestConfig_ValidateRelaxedRejectsInvalidGatewayResponseMode(t *testing.T) {
+	cfg := validGatewayConfig()
+	cfg.Gateway.Slack.ResponseMode = "ephemeral"
+
+	require.EqualError(t, cfg.ValidateRelaxed(), "gateway slack response mode must be one of: thread, message")
+}
+
 func TestConfig_ValidateRelaxedAllowsUnsupportedModelProvider(t *testing.T) {
 	cfg := &Config{
 		Name: "test-agent",
@@ -121,6 +128,7 @@ func TestConfig_ValidateAppliesGatewayDefaults(t *testing.T) {
 	require.Equal(t, constants.DefaultGatewayPort, cfg.Gateway.Port)
 	require.Equal(t, GatewayTelegramModePolling, cfg.Gateway.Telegram.Mode)
 	require.Equal(t, GatewaySlackModeSocket, cfg.Gateway.Slack.Mode)
+	require.Equal(t, GatewaySlackResponseModeThread, cfg.Gateway.Slack.ResponseMode)
 }
 
 func TestConfig_ValidateRejectsGatewayNonLoopbackWithoutAuthToken(t *testing.T) {
@@ -167,6 +175,11 @@ func TestConfig_ValidateRejectsInvalidGatewayModes(t *testing.T) {
 	cfg.Gateway.Slack.Mode = "events"
 
 	require.EqualError(t, cfg.Validate(), "gateway slack mode must be one of: socket, http")
+
+	cfg = validGatewayConfig()
+	cfg.Gateway.Slack.ResponseMode = "ephemeral"
+
+	require.EqualError(t, cfg.Validate(), "gateway slack response mode must be one of: thread, message")
 }
 
 func TestConfig_ValidateRejectsMissingGatewayChannelSecrets(t *testing.T) {
@@ -382,6 +395,7 @@ func validGatewayConfig() *Config {
 			Slack: GatewaySlackConfig{
 				Enabled:       true,
 				Mode:          GatewaySlackModeSocket,
+				ResponseMode:  GatewaySlackResponseModeThread,
 				BotToken:      "HAND_GATEWAY_SLACK_BOT_TOKEN",
 				AppToken:      "HAND_GATEWAY_SLACK_APP_TOKEN",
 				SigningSecret: "HAND_GATEWAY_SLACK_SIGNING_SECRET",

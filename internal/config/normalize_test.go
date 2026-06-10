@@ -205,6 +205,9 @@ func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 			},
 		},
 		Log: LogConfig{Level: " WARN "},
+		Gateway: GatewayConfig{
+			Slack: GatewaySlackConfig{ResponseMode: " MESSAGE "},
+		},
 	}
 	cfg.Normalize()
 	require.Equal(t, "Test Agent", cfg.Name)
@@ -213,6 +216,7 @@ func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 	require.Equal(t, "test-key", cfg.Models.Main.APIKey)
 	require.Equal(t, "https://example.com/v1", cfg.Models.Main.BaseURL)
 	require.Equal(t, "warn", cfg.Log.Level)
+	require.Equal(t, GatewaySlackResponseModeMessage, cfg.Gateway.Slack.ResponseMode)
 }
 
 func TestNormalizeFields_NilReceiver_NoPanic(t *testing.T) {

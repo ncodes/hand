@@ -61,6 +61,54 @@ func TestAdapter_DispatchesSlackAllowedSender(t *testing.T) {
 	require.Equal(t, 1, service.callCount())
 }
 
+func TestAdapter_DispatchesResponseAsNewMessageWhenConfigured(t *testing.T) {
+	service := newSlackServiceStub()
+	api := &fakeSlackAPI{}
+	cfg := slackGatewayConfig()
+	cfg.Slack.AllowedUsers = []string{"U1"}
+	cfg.Slack.ResponseMode = config.GatewaySlackResponseModeMessage
+	inbound := slackInboundMessage()
+	responseTarget := inbound.Target
+	responseTarget.ThreadTS = ""
+
+	handled, err := NewAdapter(cfg, service, api).DispatchInbound(context.Background(), inbound)
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	key, err := bindings.Slack("T1", "D1", "100.1")
+	require.NoError(t, err)
+	binding, ok := service.binding(key.String())
+	require.True(t, ok)
+	require.Equal(t, service.createdSession.ID, binding.SessionID)
+	require.Equal(t, []slackAPICall{
+		{method: "startStream", target: responseTarget},
+		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "D1", TS: "stream-ts"}, text: "stream delta"},
+		{method: "stopStream", stream: pkgslack.Stream{ChannelID: "D1", TS: "stream-ts"}},
+	}, api.allCalls())
+}
+
+func TestAdapter_DispatchesResponseInThreadWhenConfiguredForMessageAndInboundIsThreadReply(t *testing.T) {
+	service := newSlackServiceStub()
+	api := &fakeSlackAPI{}
+	cfg := slackGatewayConfig()
+	cfg.Slack.AllowedUsers = []string{"U1"}
+	cfg.Slack.ResponseMode = config.GatewaySlackResponseModeMessage
+	inbound := slackInboundMessage()
+	inbound.ThreadTS = "100.1"
+	inbound.MessageTS = "100.2"
+	inbound.Target.ThreadTS = "100.1"
+
+	handled, err := NewAdapter(cfg, service, api).DispatchInbound(context.Background(), inbound)
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.Equal(t, []slackAPICall{
+		{method: "startStream", target: inbound.Target},
+		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "D1", TS: "stream-ts"}, text: "stream delta"},
+		{method: "stopStream", stream: pkgslack.Stream{ChannelID: "D1", TS: "stream-ts"}},
+	}, api.allCalls())
+}
+
 func TestAdapter_DispatchesApprovedSender(t *testing.T) {
 	service := newSlackServiceStub()
 	service.approvedSenders[pairingKey(bindings.SourceSlack, "U1")] = approvedSlackSender("U1")
@@ -91,6 +139,49 @@ func TestAdapter_SendsPairingChallengeForUnknownDirectMessageSender(t *testing.T
 	require.Equal(t, "postMessage", call.method)
 	require.Equal(t, inbound.Target, call.target)
 	require.Contains(t, call.text, "pair")
+	require.Contains(t, call.text, "hand gateway pairing approve slack")
+}
+
+func TestAdapter_SendsPairingChallengeAsNewMessageWhenConfigured(t *testing.T) {
+	service := newSlackServiceStub()
+	api := &fakeSlackAPI{}
+	cfg := slackGatewayConfig()
+	cfg.Slack.ResponseMode = config.GatewaySlackResponseModeMessage
+	inbound := slackInboundMessage()
+	responseTarget := inbound.Target
+	responseTarget.ThreadTS = ""
+
+	handled, err := NewAdapter(cfg, service, api).DispatchInbound(context.Background(), inbound)
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.Zero(t, service.callCount())
+	require.Len(t, api.allCalls(), 1)
+	call := api.allCalls()[0]
+	require.Equal(t, "postMessage", call.method)
+	require.Equal(t, responseTarget, call.target)
+	require.Contains(t, call.text, "hand gateway pairing approve slack")
+}
+
+func TestAdapter_SendsPairingChallengeInThreadWhenConfiguredForMessageAndInboundIsThreadReply(t *testing.T) {
+	service := newSlackServiceStub()
+	api := &fakeSlackAPI{}
+	cfg := slackGatewayConfig()
+	cfg.Slack.ResponseMode = config.GatewaySlackResponseModeMessage
+	inbound := slackInboundMessage()
+	inbound.ThreadTS = "100.1"
+	inbound.MessageTS = "100.2"
+	inbound.Target.ThreadTS = "100.1"
+
+	handled, err := NewAdapter(cfg, service, api).DispatchInbound(context.Background(), inbound)
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.Zero(t, service.callCount())
+	require.Len(t, api.allCalls(), 1)
+	call := api.allCalls()[0]
+	require.Equal(t, "postMessage", call.method)
+	require.Equal(t, inbound.Target, call.target)
 	require.Contains(t, call.text, "hand gateway pairing approve slack")
 }
 
