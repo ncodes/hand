@@ -59,6 +59,9 @@ func (s *Sender) StreamTurn(
 		return err
 	}
 	if !state.visible && appendErr != nil {
+		if isSlackStreamTerminalError(appendErr) {
+			return nil
+		}
 		return s.SendFinal(ctx, target, reply)
 	}
 	stopText := reply
@@ -67,7 +70,13 @@ func (s *Sender) StreamTurn(
 	}
 	if stopErr := s.api.StopStream(ctx, stream, stopText); stopErr != nil {
 		if state.visible {
+			if isSlackStreamNonRetryableAfterVisible(stopErr) {
+				return nil
+			}
 			return stopErr
+		}
+		if isSlackStreamTerminalError(stopErr) {
+			return nil
 		}
 		return s.SendFinal(ctx, target, reply)
 	}
@@ -228,6 +237,39 @@ func getSlackStreamChunks(text string) []slack.Chunk {
 	}
 
 	return chunks
+}
+
+func isSlackStreamNonRetryableAfterVisible(err error) bool {
+	if err == nil {
+		return false
+	}
+	if isSlackStreamTerminalError(err) {
+		return true
+	}
+
+	code := getSlackAPIErrorCode(err)
+	return code == "rate_limited" || strings.HasPrefix(code, "http_status_")
+}
+
+func isSlackStreamTerminalError(err error) bool {
+	switch getSlackAPIErrorCode(err) {
+	case "stopped_by_user", "message_not_in_streaming_state", "streaming_state_conflict":
+		return true
+	default:
+		return false
+	}
+}
+
+func getSlackAPIErrorCode(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	if apiErr, ok := errors.AsType[slackAPIError](err); ok {
+		return strings.TrimSpace(apiErr.Code)
+	}
+
+	return strings.TrimSpace(err.Error())
 }
 
 type slackStreamFormatter struct {

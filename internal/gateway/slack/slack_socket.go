@@ -13,10 +13,17 @@ import (
 	"golang.org/x/net/websocket"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/gateway/dispatch"
 	slack "github.com/wandxy/hand/pkg/gateway/slack"
 )
 
-const defaultSocketReconnectDelay = time.Second
+const (
+	defaultSocketDispatcherShutdownTimeout = 5 * time.Second
+	defaultSocketReconnectBaseDelay        = time.Second
+	defaultSocketReconnectMaxDelay         = 30 * time.Second
+)
+
+var sleepSlackSocketReconnect = sleepSocketReconnect
 
 type SocketClient interface {
 	Run(context.Context, func(context.Context, slack.SocketEnvelope) error) error
@@ -45,6 +52,29 @@ func StartSocketWithClient(ctx context.Context, cfg config.GatewayConfig, servic
 		return errors.New("slack socket client is required")
 	}
 
+	dispatcher := dispatch.New(dispatch.Options{})
+	dispatcher.Start(ctx)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultSocketDispatcherShutdownTimeout)
+		defer cancel()
+		_ = dispatcher.Shutdown(shutdownCtx)
+	}()
+
+	return startSocketWithClient(ctx, cfg, service, client, dispatcher)
+}
+
+func startSocketWithClient(
+	ctx context.Context,
+	cfg config.GatewayConfig,
+	service Service,
+	client SocketClient,
+	dispatcher *dispatch.Dispatcher,
+) error {
+	if dispatcher == nil {
+		return errors.New("slack socket dispatcher is required")
+	}
+
+	reconnectAttempt := 0
 	for {
 		err := client.Run(ctx, func(ctx context.Context, envelope slack.SocketEnvelope) error {
 			inbound, ok, err := slack.NormalizeSocketEnvelope(envelope)
@@ -66,15 +96,19 @@ func StartSocketWithClient(ctx context.Context, cfg config.GatewayConfig, servic
 				Str("slack_channel_type", inbound.Target.ChannelType).
 				Msg("Slack socket inbound message normalized")
 
-			return dispatchInbound(ctx, cfg, service, inbound)
+			_, err = enqueueSlackInbound(cfg, service, dispatcher, inbound)
+			return err
 		})
 		if ctx.Err() != nil {
 			return nil
 		}
 		if err != nil {
 			log.Warn().Err(err).Msg("Slack socket disconnected")
+			reconnectAttempt++
+		} else {
+			reconnectAttempt = 0
 		}
-		if !sleepSocketReconnect(ctx, defaultSocketReconnectDelay) {
+		if !sleepSlackSocketReconnect(ctx, socketReconnectDelay(reconnectAttempt)) {
 			return nil
 		}
 	}
@@ -231,4 +265,20 @@ func sleepSocketReconnect(ctx context.Context, delay time.Duration) bool {
 	case <-timer.C:
 		return true
 	}
+}
+
+func socketReconnectDelay(attempt int) time.Duration {
+	if attempt <= 1 {
+		return defaultSocketReconnectBaseDelay
+	}
+
+	delay := defaultSocketReconnectBaseDelay
+	for range attempt - 1 {
+		delay *= 2
+		if delay >= defaultSocketReconnectMaxDelay {
+			return defaultSocketReconnectMaxDelay
+		}
+	}
+
+	return delay
 }

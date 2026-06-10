@@ -294,10 +294,11 @@ type fakeSlackAPI struct {
 	appendErr error
 	stopErr   error
 
-	appendErrAfter int
-	appendCount    int
-	appendDelay    time.Duration
-	stream         pkgslack.Stream
+	appendErrAfter    int
+	appendErrAfterErr error
+	appendCount       int
+	appendDelay       time.Duration
+	stream            pkgslack.Stream
 }
 
 func (a *fakeSlackAPI) PostMessage(ctx context.Context, target pkgslack.Target, text string) (string, error) {
@@ -347,6 +348,9 @@ func (a *fakeSlackAPI) AppendStream(ctx context.Context, stream pkgslack.Stream,
 	})
 	a.appendCount++
 	if a.appendErrAfter > 0 && a.appendCount > a.appendErrAfter {
+		if a.appendErrAfterErr != nil {
+			return a.appendErrAfterErr
+		}
 		return errSlackTest
 	}
 	return a.appendErr

@@ -28,6 +28,24 @@ type HTTPClient struct {
 	token   string
 }
 
+type slackAPIError struct {
+	Code string
+}
+
+func (e slackAPIError) Error() string {
+	if e.Code == "" {
+		return "slack api returned ok=false"
+	}
+	if e.Code == "rate_limited" {
+		return "slack api rate limited"
+	}
+	if status, ok := strings.CutPrefix(e.Code, "http_status_"); ok {
+		return "slack api http status " + status
+	}
+
+	return e.Code
+}
+
 func NewHTTPClient(token string) *HTTPClient {
 	return &HTTPClient{client: http.DefaultClient, baseURL: defaultSlackAPIBase, token: strings.TrimSpace(token)}
 }
@@ -131,16 +149,13 @@ func (c *HTTPClient) call(ctx context.Context, method string, req any, out any) 
 		return err
 	}
 	if httpResp.StatusCode == http.StatusTooManyRequests {
-		return errors.New("slack api rate limited")
+		return slackAPIError{Code: "rate_limited"}
 	}
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		return fmt.Errorf("slack api http status %d", httpResp.StatusCode)
+		return slackAPIError{Code: fmt.Sprintf("http_status_%d", httpResp.StatusCode)}
 	}
 	if !apiResp.OK {
-		if apiResp.Error == "" {
-			apiResp.Error = "slack api returned ok=false"
-		}
-		return errors.New(apiResp.Error)
+		return slackAPIError{Code: apiResp.Error}
 	}
 	if out != nil {
 		return json.Unmarshal(respBody, out)

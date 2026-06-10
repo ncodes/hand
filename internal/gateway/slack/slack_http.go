@@ -77,13 +77,7 @@ func HandleWebhook(cfg config.GatewayConfig, service Service, dispatcher *dispat
 			return
 		}
 
-		_, err = dispatcher.Enqueue(dispatch.Job{
-			ID:          getSlackJobID(inbound),
-			MaxAttempts: slackHTTPMaxJobAttempts,
-			Run: func(ctx context.Context) error {
-				return dispatchInbound(ctx, cfg, service, inbound)
-			},
-		})
+		_, err = enqueueSlackInbound(cfg, service, dispatcher, inbound)
 		if err != nil {
 			log.Warn().Err(err).Str("slack_event_id", inbound.EventID).Msg("Slack events enqueue failed")
 			status := http.StatusInternalServerError
@@ -97,6 +91,21 @@ func HandleWebhook(cfg config.GatewayConfig, service Service, dispatcher *dispat
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok\n"))
 	}
+}
+
+func enqueueSlackInbound(
+	cfg config.GatewayConfig,
+	service Service,
+	dispatcher *dispatch.Dispatcher,
+	inbound slack.InboundMessage,
+) (bool, error) {
+	return dispatcher.Enqueue(dispatch.Job{
+		ID:          getSlackJobID(inbound),
+		MaxAttempts: slackHTTPMaxJobAttempts,
+		Run: func(ctx context.Context) error {
+			return dispatchInbound(ctx, cfg, service, inbound)
+		},
+	})
 }
 
 func dispatchInbound(ctx context.Context, cfg config.GatewayConfig, service Service, inbound slack.InboundMessage) error {

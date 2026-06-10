@@ -10,12 +10,15 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/websocket"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/gateway/dispatch"
 	pkgslack "github.com/wandxy/hand/pkg/gateway/slack"
 )
 
 func TestStartSocketWithClient_DispatchesSocketEvents(t *testing.T) {
+	stubSocketReconnectSleep(t, nil)
 	origNewSlackAPI := newSlackAPI
 	t.Cleanup(func() { newSlackAPI = origNewSlackAPI })
 	api := &fakeSlackAPI{}
@@ -28,8 +31,42 @@ func TestStartSocketWithClient_DispatchesSocketEvents(t *testing.T) {
 	client := &fakeSocketClient{
 		run: func(ctx context.Context, handler func(context.Context, pkgslack.SocketEnvelope) error) error {
 			err := handler(ctx, slackSocketEnvelope(t))
+			require.Eventually(t, func() bool {
+				return service.callCount() == 1
+			}, time.Second, 10*time.Millisecond)
 			cancel()
 			return err
+		},
+	}
+
+	err := StartSocketWithClient(ctx, cfg, service, client)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, service.callCount())
+	require.Len(t, api.allCalls(), 3)
+}
+
+func TestStartSocketWithClient_DeduplicatesSocketEvents(t *testing.T) {
+	stubSocketReconnectSleep(t, nil)
+	origNewSlackAPI := newSlackAPI
+	t.Cleanup(func() { newSlackAPI = origNewSlackAPI })
+	api := &fakeSlackAPI{}
+	newSlackAPI = func(config.GatewaySlackConfig) API { return api }
+	service := newSlackServiceStub()
+	cfg := slackGatewayConfig()
+	cfg.Slack.Mode = config.GatewaySlackModeSocket
+	cfg.AllowedUsers = []string{"U1"}
+	ctx, cancel := context.WithCancel(context.Background())
+	client := &fakeSocketClient{
+		run: func(ctx context.Context, handler func(context.Context, pkgslack.SocketEnvelope) error) error {
+			envelope := slackSocketEnvelope(t)
+			require.NoError(t, handler(ctx, envelope))
+			require.NoError(t, handler(ctx, envelope))
+			require.Eventually(t, func() bool {
+				return service.callCount() == 1
+			}, time.Second, 10*time.Millisecond)
+			cancel()
+			return nil
 		},
 	}
 
@@ -83,6 +120,15 @@ func TestNewSocketClientSetsDefaults(t *testing.T) {
 	require.NotNil(t, client.dial)
 	_, err := client.dial("://bad")
 	require.Error(t, err)
+
+	server := httptest.NewServer(websocket.Handler(func(conn *websocket.Conn) {
+		_ = conn.Close()
+	}))
+	defer server.Close()
+
+	conn, err := client.dial("ws" + strings.TrimPrefix(server.URL, "http"))
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
 }
 
 func TestStartSocketWithClient_RequiresDependencies(t *testing.T) {
@@ -96,6 +142,7 @@ func TestStartSocketWithClient_RequiresDependencies(t *testing.T) {
 }
 
 func TestStartSocketWithClient_StopsWhenReconnectSleepIsCanceled(t *testing.T) {
+	stubSocketReconnectSleep(t, nil)
 	cfg := slackGatewayConfig()
 	cfg.Slack.Mode = config.GatewaySlackModeSocket
 	ctx, cancel := context.WithCancel(context.Background())
@@ -112,6 +159,8 @@ func TestStartSocketWithClient_StopsWhenReconnectSleepIsCanceled(t *testing.T) {
 }
 
 func TestStartSocketWithClient_ReconnectsAfterClientError(t *testing.T) {
+	var delays []time.Duration
+	stubSocketReconnectSleep(t, &delays)
 	cfg := slackGatewayConfig()
 	cfg.Slack.Mode = config.GatewaySlackModeSocket
 	ctx, cancel := context.WithCancel(context.Background())
@@ -131,16 +180,18 @@ func TestStartSocketWithClient_ReconnectsAfterClientError(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 2, runs)
+	require.Equal(t, []time.Duration{defaultSocketReconnectBaseDelay}, delays)
 }
 
 func TestStartSocketWithClient_TreatsNormalizeErrorAsReconnectable(t *testing.T) {
+	stubSocketReconnectSleep(t, nil)
 	cfg := slackGatewayConfig()
 	cfg.Slack.Mode = config.GatewaySlackModeSocket
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	client := &fakeSocketClient{
 		run: func(ctx context.Context, handler func(context.Context, pkgslack.SocketEnvelope) error) error {
-			err := handler(ctx, pkgslack.SocketEnvelope{Payload: []byte(`not json`)})
+			err := handler(ctx, pkgslack.SocketEnvelope{Type: "events_api", Payload: []byte(`not json`)})
 			cancel()
 			return err
 		},
@@ -152,6 +203,15 @@ func TestStartSocketWithClient_TreatsNormalizeErrorAsReconnectable(t *testing.T)
 }
 
 func TestStartSocketWithClient_SleepStopsWhenContextCancelsAfterRunError(t *testing.T) {
+	origSleep := sleepSlackSocketReconnect
+	sleepSlackSocketReconnect = func(ctx context.Context, delay time.Duration) bool {
+		<-ctx.Done()
+		return false
+	}
+	t.Cleanup(func() {
+		sleepSlackSocketReconnect = origSleep
+	})
+
 	cfg := slackGatewayConfig()
 	cfg.Slack.Mode = config.GatewaySlackModeSocket
 	ctx, cancel := context.WithCancel(context.Background())
@@ -168,6 +228,75 @@ func TestStartSocketWithClient_SleepStopsWhenContextCancelsAfterRunError(t *test
 	err := StartSocketWithClient(ctx, cfg, newSlackServiceStub(), client)
 
 	require.NoError(t, err)
+}
+
+func TestStartSocketWithClient_ReconnectsWithBackoff(t *testing.T) {
+	var delays []time.Duration
+	stubSocketReconnectSleep(t, &delays)
+	cfg := slackGatewayConfig()
+	cfg.Slack.Mode = config.GatewaySlackModeSocket
+	ctx, cancel := context.WithCancel(context.Background())
+	runs := 0
+	client := &fakeSocketClient{
+		run: func(ctx context.Context, handler func(context.Context, pkgslack.SocketEnvelope) error) error {
+			runs++
+			if runs <= 3 {
+				return errSlackTest
+			}
+			cancel()
+			return nil
+		},
+	}
+
+	err := StartSocketWithClient(ctx, cfg, newSlackServiceStub(), client)
+
+	require.NoError(t, err)
+	require.Equal(t, 4, runs)
+	require.Equal(t, []time.Duration{
+		defaultSocketReconnectBaseDelay,
+		2 * defaultSocketReconnectBaseDelay,
+		4 * defaultSocketReconnectBaseDelay,
+	}, delays)
+}
+
+func TestStartSocketWithClient_RequiresDispatcher(t *testing.T) {
+	err := startSocketWithClient(
+		context.Background(),
+		slackGatewayConfig(),
+		newSlackServiceStub(),
+		&fakeSocketClient{},
+		nil,
+	)
+
+	require.EqualError(t, err, "slack socket dispatcher is required")
+}
+
+func TestStartSocketWithClient_IgnoresNonEventEnvelopes(t *testing.T) {
+	origSleep := sleepSlackSocketReconnect
+	sleepSlackSocketReconnect = func(context.Context, time.Duration) bool {
+		return false
+	}
+	t.Cleanup(func() {
+		sleepSlackSocketReconnect = origSleep
+	})
+
+	service := newSlackServiceStub()
+	cfg := slackGatewayConfig()
+	cfg.Slack.Mode = config.GatewaySlackModeSocket
+	dispatcher := dispatch.New(dispatch.Options{})
+	dispatcher.Start(context.Background())
+	t.Cleanup(dispatcher.Close)
+	client := &fakeSocketClient{
+		run: func(ctx context.Context, handler func(context.Context, pkgslack.SocketEnvelope) error) error {
+			require.NoError(t, handler(ctx, pkgslack.SocketEnvelope{Type: "hello"}))
+			return nil
+		},
+	}
+
+	err := startSocketWithClient(context.Background(), cfg, service, client, dispatcher)
+
+	require.NoError(t, err)
+	require.Zero(t, service.callCount())
 }
 
 func TestSocketClient_RunReturnsInvalidEnvelopeAndHandlerErrors(t *testing.T) {
@@ -284,6 +413,43 @@ func TestSocketClient_RunReturnsAckWriteError(t *testing.T) {
 	require.ErrorIs(t, err, errSlackTest)
 }
 
+func TestWebsocketSocketConnSendsReceivesAndCloses(t *testing.T) {
+	server := httptest.NewServer(websocket.Handler(func(conn *websocket.Conn) {
+		var message string
+		require.NoError(t, websocket.Message.Receive(conn, &message))
+		require.Equal(t, "ping", message)
+		require.NoError(t, websocket.Message.Send(conn, "pong"))
+	}))
+	defer server.Close()
+
+	url := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, err := websocket.Dial(url, "", server.URL)
+	require.NoError(t, err)
+	socket := websocketSocketConn{conn: conn}
+
+	require.NoError(t, socket.Send([]byte("ping")))
+	message, err := socket.Receive()
+	require.NoError(t, err)
+	require.Equal(t, []byte("pong"), message)
+	require.NoError(t, socket.Close())
+}
+
+func TestWebsocketSocketConnReturnsReceiveError(t *testing.T) {
+	server := httptest.NewServer(websocket.Handler(func(conn *websocket.Conn) {
+		require.NoError(t, conn.Close())
+	}))
+	defer server.Close()
+
+	url := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, err := websocket.Dial(url, "", server.URL)
+	require.NoError(t, err)
+	socket := websocketSocketConn{conn: conn}
+
+	_, err = socket.Receive()
+
+	require.Error(t, err)
+}
+
 func socketClientWithConn(t *testing.T, conn socketConn) *socketClient {
 	t.Helper()
 
@@ -382,6 +548,32 @@ func TestSleepSocketReconnectReturnsFalseWhenContextCanceled(t *testing.T) {
 	cancel()
 
 	require.False(t, sleepSocketReconnect(ctx, time.Hour))
+}
+
+func TestSleepSocketReconnectReturnsTrueAfterDelay(t *testing.T) {
+	require.True(t, sleepSocketReconnect(context.Background(), time.Nanosecond))
+}
+
+func TestSocketReconnectDelayCapsAtMax(t *testing.T) {
+	require.Equal(t, defaultSocketReconnectBaseDelay, socketReconnectDelay(0))
+	require.Equal(t, defaultSocketReconnectBaseDelay, socketReconnectDelay(1))
+	require.Equal(t, 2*defaultSocketReconnectBaseDelay, socketReconnectDelay(2))
+	require.Equal(t, defaultSocketReconnectMaxDelay, socketReconnectDelay(99))
+}
+
+func stubSocketReconnectSleep(t *testing.T, delays *[]time.Duration) {
+	t.Helper()
+
+	orig := sleepSlackSocketReconnect
+	sleepSlackSocketReconnect = func(ctx context.Context, delay time.Duration) bool {
+		if delays != nil {
+			*delays = append(*delays, delay)
+		}
+		return ctx.Err() == nil
+	}
+	t.Cleanup(func() {
+		sleepSlackSocketReconnect = orig
+	})
 }
 
 type fakeSocketClient struct {

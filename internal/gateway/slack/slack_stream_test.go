@@ -237,8 +237,42 @@ func TestSender_StreamTurnFallsBackWhenAppendFailsBeforeVisibleOutput(t *testing
 	}, api.allCalls())
 }
 
+func TestSender_StreamTurnTreatsTerminalAppendErrorBeforeVisibleAsHandled(t *testing.T) {
+	api := &fakeSlackAPI{appendErr: slackAPIError{Code: "stopped_by_user"}}
+	sender := NewSender(api)
+	target := slackTestTarget()
+
+	err := sender.StreamTurn(context.Background(), target, func(onDelta func(string)) (string, error) {
+		onDelta("first")
+		return "final", nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []slackAPICall{
+		{method: "startStream", target: target},
+		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}, text: "first"},
+	}, api.allCalls())
+}
+
 func TestSender_StreamTurnDoesNotFallbackWhenAppendFailsAfterVisibleOutput(t *testing.T) {
 	api := &fakeSlackAPI{appendErrAfter: 1}
+	sender := NewSender(api)
+	delta := strings.Repeat("a", pkgslack.MarkdownTextLimit) + " b"
+
+	err := sender.StreamTurn(context.Background(), slackTestTarget(), func(onDelta func(string)) (string, error) {
+		onDelta(delta)
+		return "final", nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"startStream", "appendStream", "appendStream", "stopStream"}, api.callMethods())
+}
+
+func TestSender_StreamTurnSuppressesTerminalAppendErrorAfterVisibleOutput(t *testing.T) {
+	api := &fakeSlackAPI{
+		appendErrAfter:    1,
+		appendErrAfterErr: slackAPIError{Code: "message_not_in_streaming_state"},
+	}
 	sender := NewSender(api)
 	delta := strings.Repeat("a", pkgslack.MarkdownTextLimit) + " b"
 
@@ -263,6 +297,32 @@ func TestSender_StreamTurnReturnsStopErrorAfterVisibleOutput(t *testing.T) {
 	require.ErrorIs(t, err, errSlackTest)
 }
 
+func TestSender_StreamTurnTreatsTerminalStopErrorAfterVisibleAsHandled(t *testing.T) {
+	api := &fakeSlackAPI{stopErr: slackAPIError{Code: "streaming_state_conflict"}}
+	sender := NewSender(api)
+
+	err := sender.StreamTurn(context.Background(), slackTestTarget(), func(onDelta func(string)) (string, error) {
+		onDelta("visible")
+		return "final", nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"startStream", "appendStream", "stopStream"}, api.callMethods())
+}
+
+func TestSender_StreamTurnTreatsRateLimitStopErrorAfterVisibleAsHandled(t *testing.T) {
+	api := &fakeSlackAPI{stopErr: slackAPIError{Code: "rate_limited"}}
+	sender := NewSender(api)
+
+	err := sender.StreamTurn(context.Background(), slackTestTarget(), func(onDelta func(string)) (string, error) {
+		onDelta("visible")
+		return "final", nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"startStream", "appendStream", "stopStream"}, api.callMethods())
+}
+
 func TestSender_StreamTurnFallsBackWhenStopFailsBeforeVisibleOutput(t *testing.T) {
 	api := &fakeSlackAPI{stopErr: errSlackTest}
 	sender := NewSender(api)
@@ -274,6 +334,19 @@ func TestSender_StreamTurnFallsBackWhenStopFailsBeforeVisibleOutput(t *testing.T
 
 	require.NoError(t, err)
 	require.Equal(t, "postMessage", api.allCalls()[2].method)
+}
+
+func TestSender_StreamTurnTreatsTerminalStopErrorBeforeVisibleAsHandled(t *testing.T) {
+	api := &fakeSlackAPI{stopErr: slackAPIError{Code: "stopped_by_user"}}
+	sender := NewSender(api)
+
+	err := sender.StreamTurn(context.Background(), slackTestTarget(), func(onDelta func(string)) (string, error) {
+		onDelta(" ")
+		return "final", nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"startStream", "stopStream"}, api.callMethods())
 }
 
 func TestSender_StreamTurnReturnsRunError(t *testing.T) {
@@ -479,6 +552,38 @@ func TestGetSlackStreamChunksSkipsBlankText(t *testing.T) {
 	require.Nil(t, getSlackStreamChunks("   "))
 }
 
+func TestGetSlackStreamChunksSplitsLongText(t *testing.T) {
+	text := strings.Repeat("a", pkgslack.MarkdownTextLimit) + " b"
+
+	chunks := getSlackStreamChunks(text)
+
+	require.Equal(t, []pkgslack.Chunk{
+		pkgslack.MarkdownTextChunk(strings.Repeat("a", pkgslack.MarkdownTextLimit)),
+		pkgslack.MarkdownTextChunk(" b"),
+	}, chunks)
+}
+
+func TestSlackStreamAppender_AppendAfterErrorSkipsPendingChunks(t *testing.T) {
+	appender := newSlackStreamAppender(
+		context.Background(),
+		&fakeSlackAPI{},
+		pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+		time.Hour,
+	)
+	appender.err = errSlackTest
+
+	appender.appendChunks([]pkgslack.Chunk{pkgslack.MarkdownTextChunk("ignored")})
+
+	require.Empty(t, appender.pending)
+}
+
+func TestSlackStreamErrorClassification(t *testing.T) {
+	require.False(t, isSlackStreamNonRetryableAfterVisible(nil))
+	require.False(t, isSlackStreamNonRetryableAfterVisible(errSlackTest))
+	require.True(t, isSlackStreamNonRetryableAfterVisible(slackAPIError{Code: "http_status_503"}))
+	require.Empty(t, getSlackAPIErrorCode(nil))
+}
+
 func TestGetSlackStreamSafeFormatIndexWaitsForCompleteLinesAndFences(t *testing.T) {
 	require.Zero(t, getSlackStreamSafeFormatIndex("hello", false))
 	require.Zero(t, getSlackStreamSafeFormatIndex("hello\nnext", false))
@@ -487,6 +592,7 @@ func TestGetSlackStreamSafeFormatIndexWaitsForCompleteLinesAndFences(t *testing.
 
 	closedFence := "```go\nfmt.Println(1)\n```\n"
 	require.Zero(t, getSlackStreamSafeFormatIndex(closedFence, false))
+	require.Equal(t, len(closedFence), getSlackStreamSafeFormatIndex(closedFence+"next\n", false))
 	require.Equal(t, len(closedFence), getSlackStreamSafeFormatIndex(closedFence+"next", false))
 	require.Equal(t, len("hello"), getSlackStreamSafeFormatIndex("hello", true))
 }

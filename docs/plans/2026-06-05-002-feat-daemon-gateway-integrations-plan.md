@@ -449,7 +449,7 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 ### U7. Slack Socket Mode and HTTP Adapter
 
-**Status:** Planned.
+**Status:** Completed.
 
 **Progress:**
 
@@ -457,6 +457,9 @@ Expose daemon-owned management commands for pairing state under the existing gat
 - [x] Slack HTTP Events API ingress and request verification are implemented.
 - [x] Slack outbound posting and native stream delivery are implemented.
 - [x] Slack adapter tests pass without live Slack calls.
+- [x] Slack Socket Mode dispatch uses the shared dispatcher for idempotent event handling.
+- [x] Slack Socket Mode reconnects with exponential backoff.
+- [x] Slack stream terminal, rate-limit, and transient HTTP errors are classified to avoid duplicate replies after visible output.
 
 **Goal:** Add Slack Socket Mode ingestion by default, optional Events API HTTP ingestion, event normalization, filtering, idempotency, reconnect handling, native stream delivery, and outbound replies.
 
@@ -474,7 +477,7 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 - Slack socket mode connects with bot/app tokens and registers message handling without requiring a public webhook URL.
 - Slack socket mode acknowledges inbound envelopes before or while dispatching work so Slack does not redeliver the same envelope.
-- Slack socket mode reconnects with backoff after a transient disconnect and stops cleanly on daemon cancellation.
+- Slack socket mode reconnects with exponential backoff after a transient disconnect and stops cleanly on daemon cancellation.
 - Valid Slack HTTP signature over raw body is accepted.
 - Missing, malformed, stale timestamp, or mismatched HTTP signature returns unauthorized and does not parse JSON.
 - HTTP `url_verification` returns the challenge and does not call the agent.
@@ -483,7 +486,7 @@ Expose daemon-owned management commands for pairing state under the existing gat
 - Retry duplicate event IDs do not create duplicate agent turns.
 - Slack sender posts to the configured Web API base URL with bearer bot token, channel, text, and thread timestamp.
 - Slack stream sender starts a stream with `channel`, `thread_ts`, and required recipient fields, appends coalesced markdown chunks, and stops the stream with the final text.
-- Slack stream sender handles `stopped_by_user`, `message_not_in_streaming_state`, `streaming_state_conflict`, rate limits, and transient HTTP failures without duplicating final replies.
+- Slack stream sender handles `stopped_by_user`, `message_not_in_streaming_state`, `streaming_state_conflict`, rate limits, and transient HTTP failures without duplicating final replies after visible output.
 - If `chat.startStream` fails before any visible output, the adapter falls back to `chat.postMessage`; if append/stop fails after visible output, the adapter records a safe error and avoids posting a duplicate full response unless the stream was never visible.
 - Slack sender handles API `ok=false`, HTTP failures, and rate-limit responses as safe gateway errors.
 
