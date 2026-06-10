@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,16 @@ import (
 
 	appcredential "github.com/wandxy/hand/internal/credential"
 )
+
+func TestMain(m *testing.M) {
+	previous := runOpenURLCommand
+	runOpenURLCommand = func(string, ...string) error {
+		return errors.New("real OpenAI browser opener disabled in tests")
+	}
+	code := m.Run()
+	runOpenURLCommand = previous
+	os.Exit(code)
+}
 
 func TestOpenAISubscriptionProvider_AuthHeadersUsesJWTAccountMetadata(t *testing.T) {
 	token := makeOpenAITestJWT(t, "acct-test")

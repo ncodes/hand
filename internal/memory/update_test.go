@@ -63,7 +63,7 @@ func TestMemoryProvider_UpdateSupersedesActiveMemoryAndPromotesReplacement(t *te
 	require.NoError(t, err)
 	require.Len(t, superseded.Hits, 1)
 
-	defaultSearch, err := provider.Search(context.Background(), SearchQuery{Text: "old project codename"})
+	defaultSearch, err := provider.Search(context.Background(), SearchQuery{IDs: []string{old.ID}})
 	require.NoError(t, err)
 	require.Empty(t, defaultSearch.Hits)
 }

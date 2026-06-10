@@ -244,6 +244,7 @@ func TestLoad_UsesGatewayConfigFromConfigAndEnv(t *testing.T) {
 		"HAND_GATEWAY_SLACK_BOT_TOKEN",
 		"HAND_GATEWAY_SLACK_APP_TOKEN",
 		"HAND_GATEWAY_SLACK_SIGNING_SECRET",
+		"HAND_GATEWAY_SLACK_ALLOWED_USERS",
 	)
 
 	dir := t.TempDir()
@@ -266,6 +267,7 @@ func TestLoad_UsesGatewayConfigFromConfigAndEnv(t *testing.T) {
 		"HAND_GATEWAY_SLACK_BOT_TOKEN=HAND_GATEWAY_SLACK_BOT_TOKEN",
 		"HAND_GATEWAY_SLACK_APP_TOKEN=HAND_GATEWAY_SLACK_APP_TOKEN",
 		"HAND_GATEWAY_SLACK_SIGNING_SECRET=HAND_GATEWAY_SLACK_SIGNING_SECRET",
+		"HAND_GATEWAY_SLACK_ALLOWED_USERS=U1, U2,U1",
 		"",
 	}, "\n")), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
@@ -288,6 +290,8 @@ gateway:
     mode: socket
     botToken: CONFIG_HAND_GATEWAY_SLACK_BOT_TOKEN
     appToken: CONFIG_HAND_GATEWAY_SLACK_APP_TOKEN
+    allowedUsers:
+      - config-slack-user
 `), 0o600))
 
 	cfg, err := Load(envPath, configPath)
@@ -309,6 +313,7 @@ gateway:
 	require.Equal(t, "HAND_GATEWAY_SLACK_BOT_TOKEN", cfg.Gateway.Slack.BotToken)
 	require.Equal(t, "HAND_GATEWAY_SLACK_APP_TOKEN", cfg.Gateway.Slack.AppToken)
 	require.Equal(t, "HAND_GATEWAY_SLACK_SIGNING_SECRET", cfg.Gateway.Slack.SigningSecret)
+	require.Equal(t, []string{"U1", "U2"}, cfg.Gateway.Slack.AllowedUsers)
 }
 
 func TestLoad_UsesGatewayConfigFromConfigFile(t *testing.T) {
@@ -329,6 +334,7 @@ func TestLoad_UsesGatewayConfigFromConfigFile(t *testing.T) {
 		"HAND_GATEWAY_SLACK_BOT_TOKEN",
 		"HAND_GATEWAY_SLACK_APP_TOKEN",
 		"HAND_GATEWAY_SLACK_SIGNING_SECRET",
+		"HAND_GATEWAY_SLACK_ALLOWED_USERS",
 	)
 
 	dir := t.TempDir()
@@ -358,6 +364,10 @@ gateway:
     botToken: CONFIG_HAND_GATEWAY_SLACK_BOT_TOKEN
     appToken: CONFIG_HAND_GATEWAY_SLACK_APP_TOKEN
     signingSecret: CONFIG_HAND_GATEWAY_SLACK_SIGNING_SECRET
+    allowedUsers:
+      - " U1 "
+      - "U1"
+      - "U2"
 `), 0o600))
 
 	cfg, err := Load("", configPath)
@@ -379,6 +389,7 @@ gateway:
 	require.Equal(t, "CONFIG_HAND_GATEWAY_SLACK_BOT_TOKEN", cfg.Gateway.Slack.BotToken)
 	require.Equal(t, "CONFIG_HAND_GATEWAY_SLACK_APP_TOKEN", cfg.Gateway.Slack.AppToken)
 	require.Equal(t, "CONFIG_HAND_GATEWAY_SLACK_SIGNING_SECRET", cfg.Gateway.Slack.SigningSecret)
+	require.Equal(t, []string{"U1", "U2"}, cfg.Gateway.Slack.AllowedUsers)
 }
 
 func TestLoad_UsesGatewayCredentialEnvVars(t *testing.T) {
@@ -392,6 +403,7 @@ func TestLoad_UsesGatewayCredentialEnvVars(t *testing.T) {
 		"HAND_GATEWAY_SLACK_BOT_TOKEN",
 		"HAND_GATEWAY_SLACK_APP_TOKEN",
 		"HAND_GATEWAY_SLACK_SIGNING_SECRET",
+		"HAND_GATEWAY_SLACK_ALLOWED_USERS",
 	)
 
 	dir := t.TempDir()
@@ -406,6 +418,7 @@ func TestLoad_UsesGatewayCredentialEnvVars(t *testing.T) {
 		"HAND_GATEWAY_SLACK_BOT_TOKEN=slack-bot-token",
 		"HAND_GATEWAY_SLACK_APP_TOKEN=slack-app-token",
 		"HAND_GATEWAY_SLACK_SIGNING_SECRET=slack-signing-secret",
+		"HAND_GATEWAY_SLACK_ALLOWED_USERS=U1,U2",
 		"",
 	}, "\n")), 0o600))
 
@@ -421,6 +434,7 @@ func TestLoad_UsesGatewayCredentialEnvVars(t *testing.T) {
 	require.Equal(t, "slack-bot-token", cfg.Gateway.Slack.BotToken)
 	require.Equal(t, "slack-app-token", cfg.Gateway.Slack.AppToken)
 	require.Equal(t, "slack-signing-secret", cfg.Gateway.Slack.SigningSecret)
+	require.Equal(t, []string{"U1", "U2"}, cfg.Gateway.Slack.AllowedUsers)
 }
 
 func TestLoad_UsesSafetyConfigFromConfigAndEnv(t *testing.T) {

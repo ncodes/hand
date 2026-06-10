@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,16 @@ import (
 
 	appcredential "github.com/wandxy/hand/internal/credential"
 )
+
+func TestMain(m *testing.M) {
+	previous := runGitHubCopilotOpenURL
+	runGitHubCopilotOpenURL = func(string, ...string) error {
+		return errors.New("real GitHub Copilot browser opener disabled in tests")
+	}
+	code := m.Run()
+	runGitHubCopilotOpenURL = previous
+	os.Exit(code)
+}
 
 func TestGitHubCopilotSubscriptionProvider_AuthHeadersUsesBearerToken(t *testing.T) {
 	headers, err := GitHubCopilotSubscriptionProvider{}.AuthHeaders(

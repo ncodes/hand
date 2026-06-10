@@ -27,9 +27,10 @@ type GatewayTelegramConfig struct {
 }
 
 type GatewaySlackConfig struct {
-	Enabled       bool   `yaml:"enabled"`
-	Mode          string `yaml:"mode"`
-	BotToken      string `yaml:"botToken"`
-	AppToken      string `yaml:"appToken"`
-	SigningSecret string `yaml:"signingSecret"`
+	Enabled       bool     `yaml:"enabled"`
+	Mode          string   `yaml:"mode"`
+	BotToken      string   `yaml:"botToken"`
+	AppToken      string   `yaml:"appToken"`
+	SigningSecret string   `yaml:"signingSecret"`
+	AllowedUsers  []string `yaml:"allowedUsers"`
 }

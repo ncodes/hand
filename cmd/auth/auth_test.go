@@ -17,7 +17,19 @@ import (
 	"github.com/wandxy/hand/internal/profile"
 )
 
+func setAuthTestSubscriptionProviderLookup(t *testing.T) {
+	t.Helper()
+
+	previousProvider := getSubscriptionProvider
+	getSubscriptionProvider = func(string) (appcredential.SubscriptionProvider, bool) {
+		return nil, false
+	}
+	t.Cleanup(func() { getSubscriptionProvider = previousProvider })
+}
+
 func TestCommand_LoginStoresAPIKeyWithoutPrintingSecret(t *testing.T) {
+	setAuthTestSubscriptionProviderLookup(t)
+
 	home := setAuthTestProfile(t)
 	var output bytes.Buffer
 	restore := SetOutput(&output)
@@ -36,6 +48,7 @@ func TestCommand_LoginStoresAPIKeyWithoutPrintingSecret(t *testing.T) {
 }
 
 func TestCommand_LoginStoresOAuthTokenWithExpiry(t *testing.T) {
+	setAuthTestSubscriptionProviderLookup(t)
 	home := setAuthTestProfile(t)
 	expiresAt := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
 
@@ -60,6 +73,7 @@ func TestCommand_LoginStoresOAuthTokenWithExpiry(t *testing.T) {
 }
 
 func TestCommand_LoginValidatesCredentialFlags(t *testing.T) {
+	setAuthTestSubscriptionProviderLookup(t)
 	setAuthTestProfile(t)
 
 	err := NewCommand().Run(context.Background(), []string{"auth", "login", "openai"})
@@ -110,6 +124,7 @@ func TestCommand_LoginUsesSubscriptionProviderWhenNoCredentialFlags(t *testing.T
 }
 
 func TestCommand_LoginReturnsOutputError(t *testing.T) {
+	setAuthTestSubscriptionProviderLookup(t)
 	setAuthTestProfile(t)
 	restore := SetOutput(errorWriter{})
 	t.Cleanup(func() { SetOutput(restore) })

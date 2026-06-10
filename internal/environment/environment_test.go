@@ -183,7 +183,10 @@ func TestEnvironment_PrepareNormalizesConfig(t *testing.T) {
 func TestEnvironment_PrepareConfiguresMemoryProviderWhenEnabled(t *testing.T) {
 	enabled := true
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name:   "Test Agent",
+		Name: "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{
+			Name: "gpt-5.4",
+		}},
 		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
 		Trace:  config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 	})

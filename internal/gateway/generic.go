@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/gateway/dispatch"
 	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
+	slackprovider "github.com/wandxy/hand/internal/gateway/slack"
 	telegramprovider "github.com/wandxy/hand/internal/gateway/telegram"
 	storage "github.com/wandxy/hand/internal/state/core"
 	agentcore "github.com/wandxy/hand/pkg/agent"
@@ -42,8 +43,12 @@ func newHTTPHandlerWithDispatcher(
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/v1/respond", handleGenericRespond(cfg, service))
+
 	telegramService, _ := service.(telegramprovider.Service)
 	mux.HandleFunc(telegramprovider.WebhookPath, telegramprovider.HandleWebhook(cfg, telegramService, dispatcher))
+
+	slackService, _ := service.(slackprovider.Service)
+	mux.HandleFunc(slackprovider.WebhookPath, slackprovider.HandleWebhook(cfg, slackService, dispatcher))
 
 	return mux
 }

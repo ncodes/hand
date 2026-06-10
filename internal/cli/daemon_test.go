@@ -1202,6 +1202,7 @@ func TestRunDaemonOnceReturnsRerankerClientFactoryError(t *testing.T) {
 
 func TestRunDaemonOnceStartsWhenRerankerAuthFails(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	originalFactory := modelClientFactory
 	originalResolve := resolveRerankerAuth
 	originalServe := serveRPC

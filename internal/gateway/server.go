@@ -12,6 +12,7 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/gateway/dispatch"
+	slackprovider "github.com/wandxy/hand/internal/gateway/slack"
 	telegramprovider "github.com/wandxy/hand/internal/gateway/telegram"
 )
 
@@ -24,7 +25,7 @@ type HTTPServer interface {
 type Options struct {
 	Listen               func(network string, address string) (net.Listener, error)
 	NewHTTPServer        func(config.GatewayConfig, AgentService) HTTPServer
-	StartSlackSocket     func(context.Context, config.GatewaySlackConfig) error
+	StartSlackSocket     func(context.Context, config.GatewayConfig, AgentService) error
 	StartTelegramPolling func(context.Context, config.GatewayConfig, AgentService) error
 	ShutdownTimeout      time.Duration
 }
@@ -33,12 +34,22 @@ func setDefaultOptions(opts Options) Options {
 	if opts.Listen == nil {
 		opts.Listen = net.Listen
 	}
+
 	if opts.NewHTTPServer == nil {
 		opts.NewHTTPServer = newHTTPServer
 	}
+
 	if opts.StartSlackSocket == nil {
-		opts.StartSlackSocket = waitForComponentStop[config.GatewaySlackConfig]
+		opts.StartSlackSocket = func(ctx context.Context, cfg config.GatewayConfig, service AgentService) error {
+			slackService, ok := service.(slackprovider.Service)
+			if !ok {
+				return errors.New("slack gateway service is required")
+			}
+
+			return slackprovider.StartSocket(ctx, cfg, slackService)
+		}
 	}
+
 	if opts.StartTelegramPolling == nil {
 		opts.StartTelegramPolling = func(ctx context.Context, cfg config.GatewayConfig, service AgentService) error {
 			telegramService, ok := service.(telegramprovider.Service)
@@ -49,6 +60,7 @@ func setDefaultOptions(opts Options) Options {
 			return telegramprovider.StartPolling(ctx, cfg, telegramService)
 		}
 	}
+
 	if opts.ShutdownTimeout <= 0 {
 		opts.ShutdownTimeout = 5 * time.Second
 	}
@@ -81,7 +93,7 @@ func newComponents(cfg config.GatewayConfig, opts Options, service AgentService)
 		components = append(components, component{
 			name: "slack socket",
 			run: func(ctx context.Context) error {
-				return opts.StartSlackSocket(ctx, cfg.Slack)
+				return opts.StartSlackSocket(ctx, cfg, service)
 			},
 		})
 	}

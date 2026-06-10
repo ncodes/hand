@@ -136,7 +136,9 @@ func TestManager_StartsSlackSocketAndTelegramPolling(t *testing.T) {
 	slackStarted := make(chan struct{})
 	telegramStarted := make(chan struct{})
 	manager := NewManager(Options{
-		StartSlackSocket: func(ctx context.Context, cfg config.GatewaySlackConfig) error {
+		StartSlackSocket: func(ctx context.Context, cfg config.GatewayConfig, service AgentService) error {
+			require.True(t, cfg.Slack.Enabled)
+			require.Equal(t, config.GatewaySlackModeSocket, cfg.Slack.Mode)
 			close(slackStarted)
 			<-ctx.Done()
 			return nil
@@ -175,7 +177,7 @@ func TestManager_StartsSlackSocketAndTelegramPolling(t *testing.T) {
 
 func TestManager_StopTreatsComponentContextCancellationAsCleanShutdown(t *testing.T) {
 	manager := NewManager(Options{
-		StartSlackSocket: func(ctx context.Context, cfg config.GatewaySlackConfig) error {
+		StartSlackSocket: func(ctx context.Context, cfg config.GatewayConfig, service AgentService) error {
 			<-ctx.Done()
 			return ctx.Err()
 		},
@@ -280,7 +282,7 @@ func TestManager_RestartStopsExistingRuntimeBeforeStartingReplacement(t *testing
 func TestManager_RestartReturnsStopError(t *testing.T) {
 	release := make(chan struct{})
 	manager := NewManager(Options{
-		StartSlackSocket: func(context.Context, config.GatewaySlackConfig) error {
+		StartSlackSocket: func(context.Context, config.GatewayConfig, AgentService) error {
 			<-release
 			return nil
 		},
@@ -305,7 +307,7 @@ func TestManager_RestartReturnsStopError(t *testing.T) {
 func TestManager_StopReturnsContextErrorWhenComponentDoesNotStop(t *testing.T) {
 	release := make(chan struct{})
 	manager := NewManager(Options{
-		StartSlackSocket: func(context.Context, config.GatewaySlackConfig) error {
+		StartSlackSocket: func(context.Context, config.GatewayConfig, AgentService) error {
 			<-release
 			return nil
 		},

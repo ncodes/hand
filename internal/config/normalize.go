@@ -52,6 +52,7 @@ func (c *Config) normalizeFields() {
 	c.Gateway.Slack.BotToken = strings.TrimSpace(c.Gateway.Slack.BotToken)
 	c.Gateway.Slack.AppToken = strings.TrimSpace(c.Gateway.Slack.AppToken)
 	c.Gateway.Slack.SigningSecret = strings.TrimSpace(c.Gateway.Slack.SigningSecret)
+	c.Gateway.Slack.AllowedUsers = dedupeAndTrim(c.Gateway.Slack.AllowedUsers)
 	c.Rules.Files = normalizeRulePaths(c.Rules.Files)
 	c.Session.Instruct = strings.TrimSpace(c.Session.Instruct)
 	c.Platform = strings.TrimSpace(strings.ToLower(c.Platform))

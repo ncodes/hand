@@ -453,10 +453,10 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 **Progress:**
 
-- [ ] Slack Socket Mode ingress is implemented.
-- [ ] Slack HTTP Events API ingress and request verification are implemented.
-- [ ] Slack outbound posting and native stream delivery are implemented.
-- [ ] Slack adapter tests pass without live Slack calls.
+- [x] Slack Socket Mode ingress is implemented.
+- [x] Slack HTTP Events API ingress and request verification are implemented.
+- [x] Slack outbound posting and native stream delivery are implemented.
+- [x] Slack adapter tests pass without live Slack calls.
 
 **Goal:** Add Slack Socket Mode ingestion by default, optional Events API HTTP ingestion, event normalization, filtering, idempotency, reconnect handling, native stream delivery, and outbound replies.
 

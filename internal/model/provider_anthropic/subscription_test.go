@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -17,6 +18,16 @@ import (
 
 	appcredential "github.com/wandxy/hand/internal/credential"
 )
+
+func TestMain(m *testing.M) {
+	previous := runAnthropicOpenURL
+	runAnthropicOpenURL = func(string, ...string) error {
+		return errors.New("real Anthropic browser opener disabled in tests")
+	}
+	code := m.Run()
+	runAnthropicOpenURL = previous
+	os.Exit(code)
+}
 
 func TestAnthropicSubscriptionProvider_AuthHeadersUsesBearerToken(t *testing.T) {
 	headers, err := AnthropicSubscriptionProvider{}.AuthHeaders(context.Background(), appcredential.StoredCredential{

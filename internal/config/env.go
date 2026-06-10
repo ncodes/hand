@@ -119,6 +119,9 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_SLACK_SIGNING_SECRET")); value != "" {
 		cfg.Gateway.Slack.SigningSecret = value
 	}
+	if value := strings.TrimSpace(os.Getenv("HAND_GATEWAY_SLACK_ALLOWED_USERS")); value != "" {
+		cfg.Gateway.Slack.AllowedUsers = splitAndTrimCSV(value)
+	}
 	if value := strings.TrimSpace(os.Getenv("HAND_SESSION_MAX_ITERATIONS")); value != "" {
 		if maxIterations, err := strconv.Atoi(value); err == nil {
 			cfg.Session.MaxIterations = maxIterations

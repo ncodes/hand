@@ -10,6 +10,7 @@ import (
 	storage "github.com/wandxy/hand/internal/state/core"
 	agent "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/gateway/pairing"
 )
 
 type harnessAgentStub struct {
@@ -137,6 +138,41 @@ func (s *storageStoreStub) SaveGatewayBinding(context.Context, storage.GatewayBi
 }
 func (s *storageStoreStub) GetGatewayBinding(context.Context, string) (storage.GatewayBinding, bool, error) {
 	return storage.GatewayBinding{}, false, nil
+}
+func (s *storageStoreStub) SaveGatewayPairingRequest(context.Context, pairing.PendingRequest) error {
+	return nil
+}
+func (s *storageStoreStub) GetGatewayPairingRequest(
+	context.Context,
+	string,
+	string,
+) (pairing.PendingRequest, bool, error) {
+	return pairing.PendingRequest{}, false, nil
+}
+func (s *storageStoreStub) ListGatewayPairingRequests(context.Context, string) ([]pairing.PendingRequest, error) {
+	return nil, nil
+}
+func (s *storageStoreStub) DeleteGatewayPairingRequest(context.Context, string, string) error {
+	return nil
+}
+func (s *storageStoreStub) ClearGatewayPairingRequests(context.Context, string) error {
+	return nil
+}
+func (s *storageStoreStub) SaveGatewayPairedSender(context.Context, pairing.ApprovedSender) error {
+	return nil
+}
+func (s *storageStoreStub) GetGatewayPairedSender(
+	context.Context,
+	string,
+	string,
+) (pairing.ApprovedSender, bool, error) {
+	return pairing.ApprovedSender{}, false, nil
+}
+func (s *storageStoreStub) ListGatewayPairedSenders(context.Context, string) ([]pairing.ApprovedSender, error) {
+	return nil, nil
+}
+func (s *storageStoreStub) DeleteGatewayPairedSender(context.Context, string, string) error {
+	return nil
 }
 func (s *storageStoreStub) Session() storage.SessionStore       { return s }
 func (s *storageStoreStub) Memory() (storage.MemoryStore, bool) { return nil, false }

@@ -442,7 +442,7 @@ func TestMemoryProvider_PinnedPromotionRequiresStrictApproval(t *testing.T) {
 func TestMemoryProvider_RunPromotionBackgroundPromotesCandidatesIndependently(t *testing.T) {
 	provider := defaultMemoryTestProvider(t, Options{})
 	eligible := lifecycleCandidate("mem_eligible", KindSemantic, "Use focused tests.")
-	weak := lifecycleCandidate("mem_weak", KindSemantic, "Weak candidate.")
+	weak := lifecycleCandidate("mem_weak", KindSemantic, "Store launch rituals in the handbook.")
 	weak.Confidence = 0.1
 	evaluated := lifecycleCandidate("mem_evaluated", KindSemantic, "Already reviewed.")
 	evaluated.PromotionEvaluatedAt = lifecycleEvaluationTime()
