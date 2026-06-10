@@ -62,15 +62,19 @@ Config file values:
 - `gateway.address`
 - `gateway.port`
 - `gateway.authToken`
+- `gateway.allowedUsers`
 - `gateway.telegram.enabled`
 - `gateway.telegram.mode`
 - `gateway.telegram.botToken`
 - `gateway.telegram.webhookSecret`
+- `gateway.telegram.allowedUsers`
 - `gateway.slack.enabled`
 - `gateway.slack.mode`
+- `gateway.slack.responseMode`
 - `gateway.slack.botToken`
 - `gateway.slack.appToken`
 - `gateway.slack.signingSecret`
+- `gateway.slack.allowedUsers`
 - `log.level`
 - `log.noColor`
 - `debug.requests`
@@ -98,15 +102,19 @@ Env equivalents:
 - `HAND_GATEWAY_ADDRESS`
 - `HAND_GATEWAY_PORT`
 - `HAND_GATEWAY_AUTH_TOKEN`
+- `HAND_GATEWAY_ALLOWED_USERS`
 - `HAND_GATEWAY_TELEGRAM_ENABLED`
 - `HAND_GATEWAY_TELEGRAM_MODE`
 - `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`
 - `HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET`
+- `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS`
 - `HAND_GATEWAY_SLACK_ENABLED`
 - `HAND_GATEWAY_SLACK_MODE`
+- `HAND_GATEWAY_SLACK_RESPONSE_MODE`
 - `HAND_GATEWAY_SLACK_BOT_TOKEN`
 - `HAND_GATEWAY_SLACK_APP_TOKEN`
 - `HAND_GATEWAY_SLACK_SIGNING_SECRET`
+- `HAND_GATEWAY_SLACK_ALLOWED_USERS`
 - `HAND_LOG_LEVEL`
 - `HAND_LOG_NO_COLOR`
 - `HAND_DEBUG_REQUESTS`
@@ -146,10 +154,31 @@ Typical model settings:
 - `gateway.port`: port the gateway binds to
 - `gateway.telegram.mode`: `polling` or `webhook`; defaults to `polling`
 - `gateway.slack.mode`: `socket` or `http`; defaults to `socket`
+- `gateway.slack.responseMode`: `thread` or `message`; `message` still replies in-thread when the inbound Slack message is already in a thread
 - Gateway credentials can be set directly in config or `HAND_`-prefixed environment variables:
   `HAND_GATEWAY_AUTH_TOKEN`, `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`, `HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET`, `HAND_GATEWAY_SLACK_BOT_TOKEN`,
   `HAND_GATEWAY_SLACK_APP_TOKEN`, and `HAND_GATEWAY_SLACK_SIGNING_SECRET`.
 - `debug.requests`: emits model request metadata at debug level without request bodies
+
+### Gateway Setup
+
+Generic HTTP gateway:
+- Keep `gateway.address` on loopback for local use.
+- If binding to a non-loopback address, set `HAND_GATEWAY_AUTH_TOKEN` or `gateway.authToken`.
+- Use `hand doctor` before exposing the listener.
+
+Telegram:
+- Polling mode is the local default and needs `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`.
+- Webhook mode needs `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`, `HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET`, and a public HTTPS URL routed to `/gateway/telegram/webhook`.
+- Unknown Telegram DMs receive a pairing code; approve with `hand gateway pairing approve telegram <code>`.
+- Telegram groups never receive pairing prompts. Group senders must be paired or listed in `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` or `HAND_GATEWAY_ALLOWED_USERS`.
+- Get your Telegram numeric sender ID by messaging a user-info bot or by checking the pending pairing entry with `hand gateway pairing list telegram`.
+- Telegram replies use MarkdownV2 where possible and fall back to plain text if Telegram rejects formatting. Hand does not use Telegram HTML.
+
+Slack:
+- Socket mode is the local default and needs `HAND_GATEWAY_SLACK_BOT_TOKEN` plus `HAND_GATEWAY_SLACK_APP_TOKEN`.
+- HTTP Events API mode needs `HAND_GATEWAY_SLACK_BOT_TOKEN`, `HAND_GATEWAY_SLACK_SIGNING_SECRET`, and a public HTTPS URL routed to `/gateway/slack/events`.
+- `gateway.slack.responseMode: message` makes Hand respond as a top-level message unless the inbound Slack message is already in a thread.
 
 ## Commands
 

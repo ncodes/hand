@@ -223,6 +223,24 @@ func TestBuild_CoversModelAndCapabilityBranches(t *testing.T) {
 	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "tools", "web tools").Status)
 }
 
+func TestBuild_ReportsUnconfiguredDisabledVectorEmbedding(t *testing.T) {
+	cfg := readyConfig()
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAICodex
+	cfg.Models.Embedding.Name = ""
+	cfg.Search.Vector.Enabled = false
+	cfg.Search.Vector.Required = true
+
+	report := Build(context.Background(), Options{
+		Config:  cfg,
+		Profile: profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()}),
+	})
+
+	vector := findReadinessCheck(t, report, "search", "vector")
+	require.Equal(t, StatusWarn, vector.Status)
+	require.Contains(t, vector.Message, "embedding=not configured")
+	require.NotContains(t, vector.Message, `"openai-codex"/""`)
+}
+
 func TestBuild_CoversWebCredentialBranches(t *testing.T) {
 	original := resolveWebAPIKeySource
 	t.Cleanup(func() {
@@ -256,6 +274,147 @@ func TestBuild_CoversWebCredentialBranches(t *testing.T) {
 	require.Equal(t, "native web extraction is configured; web search requires a configured web provider", nativeWeb.Message)
 
 	require.Equal(t, "hand config set web.provider exa && hand config set web.apiKey <api-key>", webAuthAction("").Command)
+}
+
+func TestBuild_ReportsDisabledGatewayAsInformational(t *testing.T) {
+	cfg := readyConfig()
+
+	report := Build(context.Background(), Options{Config: cfg})
+
+	listener := findReadinessCheck(t, report, "gateway", "listener")
+	require.Equal(t, StatusPass, listener.Status)
+	require.Equal(t, "disabled", listener.Message)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "gateway", "telegram").Status)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "gateway", "slack").Status)
+}
+
+func TestBuild_WarnsWhenGatewayExternalBindMissingAuth(t *testing.T) {
+	cfg := readyConfig()
+	cfg.Gateway.Enabled = true
+	cfg.Gateway.Address = "0.0.0.0"
+	cfg.Gateway.AuthToken = ""
+
+	report := Build(context.Background(), Options{Config: cfg})
+
+	listener := findReadinessCheck(t, report, "gateway", "listener")
+	require.Equal(t, StatusWarn, listener.Status)
+	require.Contains(t, listener.Message, "without gateway auth token")
+	require.Equal(t, "hand config set gateway.authToken <token>", listener.Actions[0].Command)
+}
+
+func TestBuild_PassesGatewayExternalBindWithAuth(t *testing.T) {
+	cfg := readyConfig()
+	cfg.Gateway.Enabled = true
+	cfg.Gateway.Address = "0.0.0.0"
+	cfg.Gateway.AuthToken = "secret-token"
+
+	report := Build(context.Background(), Options{Config: cfg})
+
+	listener := findReadinessCheck(t, report, "gateway", "listener")
+	require.Equal(t, StatusPass, listener.Status)
+	require.Contains(t, listener.Message, "auth=configured")
+	require.NotContains(t, listener.Message, "secret-token")
+}
+
+func TestBuild_WarnsWhenTelegramPollingMissingBotToken(t *testing.T) {
+	cfg := readyConfig()
+	cfg.Gateway.Telegram.Enabled = true
+	cfg.Gateway.Telegram.Mode = config.GatewayTelegramModePolling
+	cfg.Gateway.Telegram.BotToken = ""
+
+	report := Build(context.Background(), Options{Config: cfg})
+
+	telegram := findReadinessCheck(t, report, "gateway", "telegram")
+	require.Equal(t, StatusWarn, telegram.Status)
+	require.Equal(t, "enabled in polling mode without bot token", telegram.Message)
+	require.Equal(t, "hand config set gateway.telegram.botToken <bot-token>", telegram.Actions[0].Command)
+}
+
+func TestBuild_WarnsWhenTelegramWebhookMissingSecrets(t *testing.T) {
+	cfg := readyConfig()
+	cfg.Gateway.Telegram.Enabled = true
+	cfg.Gateway.Telegram.Mode = config.GatewayTelegramModeWebhook
+	cfg.Gateway.Telegram.BotToken = ""
+
+	report := Build(context.Background(), Options{Config: cfg})
+
+	telegram := findReadinessCheck(t, report, "gateway", "telegram")
+	require.Equal(t, StatusWarn, telegram.Status)
+	require.Contains(t, telegram.Message, "without bot token")
+
+	cfg.Gateway.Telegram.BotToken = "telegram-token"
+	cfg.Gateway.Telegram.WebhookSecret = ""
+	report = Build(context.Background(), Options{Config: cfg})
+
+	telegram = findReadinessCheck(t, report, "gateway", "telegram")
+	require.Equal(t, StatusWarn, telegram.Status)
+	require.Equal(t, "enabled in webhook mode without webhook secret", telegram.Message)
+	require.Equal(t, "hand config set gateway.telegram.webhookSecret <secret-token>", telegram.Actions[0].Command)
+	require.NotContains(t, telegram.Message, "telegram-token")
+}
+
+func TestBuild_WarnsWhenSlackSocketMissingTokens(t *testing.T) {
+	cfg := readyConfig()
+	cfg.Gateway.Slack.Enabled = true
+	cfg.Gateway.Slack.Mode = config.GatewaySlackModeSocket
+	cfg.Gateway.Slack.BotToken = ""
+
+	report := Build(context.Background(), Options{Config: cfg})
+
+	slack := findReadinessCheck(t, report, "gateway", "slack")
+	require.Equal(t, StatusWarn, slack.Status)
+	require.Equal(t, "enabled in socket mode without bot token", slack.Message)
+	require.Equal(t, "hand config set gateway.slack.botToken <bot-token>", slack.Actions[0].Command)
+
+	cfg.Gateway.Slack.BotToken = "slack-bot-token"
+	cfg.Gateway.Slack.AppToken = ""
+	report = Build(context.Background(), Options{Config: cfg})
+
+	slack = findReadinessCheck(t, report, "gateway", "slack")
+	require.Equal(t, StatusWarn, slack.Status)
+	require.Equal(t, "enabled in socket mode without app token", slack.Message)
+	require.Equal(t, "hand config set gateway.slack.appToken <app-token>", slack.Actions[0].Command)
+	require.NotContains(t, slack.Message, "slack-bot-token")
+}
+
+func TestBuild_WarnsWhenSlackHTTPMissingSigningSecret(t *testing.T) {
+	cfg := readyConfig()
+	cfg.Gateway.Slack.Enabled = true
+	cfg.Gateway.Slack.Mode = config.GatewaySlackModeHTTP
+	cfg.Gateway.Slack.BotToken = "slack-bot-token"
+	cfg.Gateway.Slack.SigningSecret = ""
+
+	report := Build(context.Background(), Options{Config: cfg})
+
+	slack := findReadinessCheck(t, report, "gateway", "slack")
+	require.Equal(t, StatusWarn, slack.Status)
+	require.Equal(t, "enabled in http mode without signing secret", slack.Message)
+	require.Equal(t, "hand config set gateway.slack.signingSecret <signing-secret>", slack.Actions[0].Command)
+	require.NotContains(t, slack.Message, "slack-bot-token")
+}
+
+func TestBuild_PassesConfiguredSlackAndTelegramModes(t *testing.T) {
+	cfg := readyConfig()
+	cfg.Gateway.Telegram.Enabled = true
+	cfg.Gateway.Telegram.Mode = config.GatewayTelegramModeWebhook
+	cfg.Gateway.Telegram.BotToken = "telegram-token"
+	cfg.Gateway.Telegram.WebhookSecret = "webhook-secret"
+	cfg.Gateway.Telegram.AllowedUsers = []string{"123"}
+	cfg.Gateway.Slack.Enabled = true
+	cfg.Gateway.Slack.Mode = config.GatewaySlackModeHTTP
+	cfg.Gateway.Slack.BotToken = "slack-bot-token"
+	cfg.Gateway.Slack.SigningSecret = "slack-signing-secret"
+
+	report := Build(context.Background(), Options{Config: cfg})
+
+	telegram := findReadinessCheck(t, report, "gateway", "telegram")
+	require.Equal(t, StatusPass, telegram.Status)
+	require.Equal(t, "enabled in webhook mode, bot token configured", telegram.Message)
+	slack := findReadinessCheck(t, report, "gateway", "slack")
+	require.Equal(t, StatusPass, slack.Status)
+	require.Equal(t, "enabled in http mode, bot token configured", slack.Message)
+	require.NotContains(t, telegram.Message+slack.Message, "webhook-secret")
+	require.NotContains(t, telegram.Message+slack.Message, "slack-signing-secret")
 }
 
 func TestBuild_CoversProfilePathBranches(t *testing.T) {
@@ -331,6 +490,7 @@ func TestBuild_CoversNilConfig(t *testing.T) {
 	require.Equal(t, StatusFail, findReadinessCheck(t, report, "memory", "config").Status)
 	require.Equal(t, StatusFail, findReadinessCheck(t, report, "search", "config").Status)
 	require.Equal(t, StatusFail, findReadinessCheck(t, report, "tools", "config").Status)
+	require.Equal(t, StatusFail, findReadinessCheck(t, report, "gateway", "config").Status)
 }
 
 func TestBuild_CoversRerankDisabledBySearch(t *testing.T) {

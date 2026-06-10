@@ -20,12 +20,11 @@ func buildSearchGroup(cfg *config.Config) Group {
 
 func buildVectorSearchCheck(cfg *config.Config) Check {
 	message := fmt.Sprintf(
-		"status=%s, required=%t, rebuildBatchSize=%d, embedding=%q/%q",
+		"status=%s, required=%t, rebuildBatchSize=%d, embedding=%s",
 		formatEnabled(cfg.Search.Vector.Enabled),
 		cfg.Search.Vector.Required,
 		cfg.Search.Vector.RebuildBatchSize,
-		cfg.ModelEmbeddingProviderEffective(),
-		cfg.Models.Embedding.Name,
+		formatSearchEmbedding(cfg),
 	)
 	if !cfg.Search.Vector.Enabled {
 		return check("vector", StatusWarn, message)
@@ -50,6 +49,14 @@ func buildVectorSearchCheck(cfg *config.Config) Check {
 	}
 
 	return check("vector", status, message, actions...)
+}
+
+func formatSearchEmbedding(cfg *config.Config) string {
+	if cfg == nil || cfg.Models.Embedding.Name == "" {
+		return "not configured"
+	}
+
+	return fmt.Sprintf("%q/%q", cfg.ModelEmbeddingProviderEffective(), cfg.Models.Embedding.Name)
 }
 
 func buildSearchRerankCheck(cfg *config.Config) Check {

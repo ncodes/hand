@@ -60,6 +60,7 @@ func Build(ctx context.Context, opts Options) Report {
 		buildMemoryGroup(cfg),
 		buildSearchGroup(cfg),
 		buildSafetyGroup(cfg),
+		buildGatewayGroup(cfg),
 		buildCapabilityGroup(cfg),
 	}}
 }

@@ -45,11 +45,14 @@
 #   address: "127.0.0.1"
 #   port: 50052
 #   authToken: ""
+#   pairingSecret: ""
+#   allowedUsers: []
 #   telegram:
 #     enabled: false
 #     mode: "polling"
 #     botToken: ""
 #     webhookSecret: ""
+#     allowedUsers: []
 #   slack:
 #     enabled: false
 #     mode: "socket"
@@ -57,6 +60,7 @@
 #     botToken: ""
 #     appToken: ""
 #     signingSecret: ""
+#     allowedUsers: []
 
 # fs:
 #   roots:

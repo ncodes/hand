@@ -531,14 +531,14 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 ### U9. Documentation and Operator Readiness
 
-**Status:** Planned.
+**Status:** Completed.
 
 **Progress:**
 
-- [ ] Gateway configuration documentation is updated.
-- [ ] Readiness checks cover generic HTTP, Telegram, and Slack gateway modes.
-- [ ] Operator guidance covers Telegram DM pairing, sender IDs, and group allowlists.
-- [ ] Operator guidance covers Telegram MarkdownV2 formatting behavior and provider secrets without leaking example secrets.
+- [x] Gateway configuration documentation is updated.
+- [x] Readiness checks cover generic HTTP, Telegram, and Slack gateway modes.
+- [x] Operator guidance covers Telegram DM pairing, sender IDs, and group allowlists.
+- [x] Operator guidance covers Telegram MarkdownV2 formatting behavior and provider secrets without leaking example secrets.
 
 **Goal:** Document gateway configuration and update readiness checks so a user can expose generic HTTP, Slack, or Telegram safely.
 
@@ -546,7 +546,7 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 **Dependencies:** U1, U3, U5, U6, U7.
 
-**Files:** `README.md`, `example.yaml`, `internal/diagnostics/readiness/readiness.go`, `internal/diagnostics/readiness/readiness_test.go`, `cmd/doctor/doctor_test.go`.
+**Files:** `README.md`, `example.yaml`, `internal/diagnostics/readiness/gateway.go`, `internal/diagnostics/readiness/readiness.go`, `internal/diagnostics/readiness/readiness_test.go`, `cmd/doctor/doctor_test.go`.
 
 **Approach:** Add concise config examples for generic HTTP, Slack socket mode, Slack HTTP mode, Slack streaming, Telegram polling mode, Telegram webhook mode, Telegram DM pairing, and Telegram group allowlists. Extend doctor/readiness checks to report whether gateway is disabled, locally enabled, externally bound with auth, or missing required provider secrets. Include operator guidance for finding Telegram sender IDs, approving/revoking paired senders, and using `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` plus `HAND_GATEWAY_ALLOWED_USERS` for group authorization. Keep guidance operational and avoid turning README into a channel manual.
 
