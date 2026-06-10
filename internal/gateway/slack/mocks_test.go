@@ -280,6 +280,7 @@ type slackAPICall struct {
 	method string
 	target pkgslack.Target
 	stream pkgslack.Stream
+	chunks []pkgslack.Chunk
 	text   string
 }
 
@@ -328,7 +329,7 @@ func (a *fakeSlackAPI) StartStream(ctx context.Context, target pkgslack.Target, 
 	return a.stream, nil
 }
 
-func (a *fakeSlackAPI) AppendStream(ctx context.Context, stream pkgslack.Stream, text string) error {
+func (a *fakeSlackAPI) AppendStream(ctx context.Context, stream pkgslack.Stream, chunks []pkgslack.Chunk) error {
 	_ = ctx
 
 	if a.appendDelay > 0 {
@@ -338,12 +339,45 @@ func (a *fakeSlackAPI) AppendStream(ctx context.Context, stream pkgslack.Stream,
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	a.calls = append(a.calls, slackAPICall{method: "appendStream", stream: stream, text: text})
+	a.calls = append(a.calls, slackAPICall{
+		method: "appendStream",
+		stream: stream,
+		chunks: getSlackRecordedChunks(chunks),
+		text:   getSlackChunkText(chunks),
+	})
 	a.appendCount++
 	if a.appendErrAfter > 0 && a.appendCount > a.appendErrAfter {
 		return errSlackTest
 	}
 	return a.appendErr
+}
+
+func getSlackRecordedChunks(chunks []pkgslack.Chunk) []pkgslack.Chunk {
+	if len(chunks) == 1 && chunks[0].Type == "markdown_text" {
+		return nil
+	}
+
+	return append([]pkgslack.Chunk(nil), chunks...)
+}
+
+func getSlackChunkText(chunks []pkgslack.Chunk) string {
+	if len(chunks) != 1 {
+		return ""
+	}
+	if chunks[0].Text != "" {
+		return chunks[0].Text
+	}
+	if len(chunks[0].Blocks) == 1 {
+		block := chunks[0].Blocks[0]
+		if block.Text != "" {
+			return block.Text
+		}
+		if len(block.Elements) == 1 && len(block.Elements[0].Elements) == 1 {
+			return block.Elements[0].Elements[0].Text
+		}
+	}
+
+	return ""
 }
 
 func (a *fakeSlackAPI) StopStream(ctx context.Context, stream pkgslack.Stream, text string) error {

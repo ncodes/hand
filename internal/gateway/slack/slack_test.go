@@ -43,8 +43,7 @@ func TestAdapter_DispatchesAllowedSenderAndCreatesSessionBinding(t *testing.T) {
 	}, session.Origin)
 	require.Equal(t, []slackAPICall{
 		{method: "startStream", target: inbound.Target},
-		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "D1", TS: "stream-ts"}, text: "stream "},
-		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "D1", TS: "stream-ts"}, text: "delta"},
+		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "D1", TS: "stream-ts"}, text: "stream delta"},
 		{method: "stopStream", stream: pkgslack.Stream{ChannelID: "D1", TS: "stream-ts"}},
 	}, api.allCalls())
 }

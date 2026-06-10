@@ -377,6 +377,17 @@ func TestBuildEnvironmentContext_DoesNotAddChannelGuidanceForNonTelegramOrigin(t
 	require.NotContains(t, instruction.Value, "Channel response guidance")
 }
 
+func TestBuildEnvironmentContext_AddsSlackChannelGuidance(t *testing.T) {
+	instruction := BuildEnvironmentContext(EnvironmentContext{
+		SessionOrigin: EnvironmentSessionOrigin{Source: "slack", AccountID: "T1", ConversationID: "C1"},
+	})
+
+	require.Contains(t, instruction.Value, "- Session origin: source=slack; account=T1; conversation=C1")
+	require.Contains(t, instruction.Value, "- Channel response guidance: The user is reading this in Slack")
+	require.Contains(t, instruction.Value, "~~strikethrough~~")
+	require.Contains(t, instruction.Value, "plain fenced code blocks without language labels")
+}
+
 func TestBuildMemoryContext_ReturnsEmptyNamedInstructionWithoutItems(t *testing.T) {
 	require.Equal(t, Instruction{Name: MemoryContextInstructionName}, BuildMemoryContext(nil, 10))
 }

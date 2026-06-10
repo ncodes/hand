@@ -39,8 +39,12 @@ func TestHTTPClient_PostMessageSendsSlackRequest(t *testing.T) {
 
 func TestHTTPClient_StartAppendAndStopStream(t *testing.T) {
 	var paths []string
+	var bodies []map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		paths = append(paths, r.URL.Path)
+		var body map[string]any
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		bodies = append(bodies, body)
 		switch r.URL.Path {
 		case "/chat.startStream":
 			_, _ = w.Write([]byte(`{"ok":true,"channel":"C2","ts":"123.4"}`))
@@ -56,9 +60,34 @@ func TestHTTPClient_StartAppendAndStopStream(t *testing.T) {
 	stream, err := client.StartStream(context.Background(), target, "start")
 	require.NoError(t, err)
 	require.Equal(t, pkgslack.Stream{ChannelID: "C2", TS: "123.4"}, stream)
-	require.NoError(t, client.AppendStream(context.Background(), stream, "delta"))
+	require.NoError(t, client.AppendStream(context.Background(), stream, []pkgslack.Chunk{
+		pkgslack.MarkdownTextChunk("delta"),
+	}))
 	require.NoError(t, client.StopStream(context.Background(), stream, "final"))
 	require.Equal(t, []string{"/chat.startStream", "/chat.appendStream", "/chat.stopStream"}, paths)
+	require.Equal(t, []map[string]any{
+		{
+			"channel":   "C1",
+			"thread_ts": "100.1",
+			"chunks": []any{
+				map[string]any{"type": "markdown_text", "text": "start"},
+			},
+		},
+		{
+			"channel": "C2",
+			"ts":      "123.4",
+			"chunks": []any{
+				map[string]any{"type": "markdown_text", "text": "delta"},
+			},
+		},
+		{
+			"channel": "C2",
+			"ts":      "123.4",
+			"chunks": []any{
+				map[string]any{"type": "markdown_text", "text": "final"},
+			},
+		},
+	}, bodies)
 }
 
 func TestHTTPClient_StartStreamOmitsRecipientFieldsForMultiPersonDirectMessage(t *testing.T) {
@@ -84,9 +113,11 @@ func TestHTTPClient_StartStreamOmitsRecipientFieldsForMultiPersonDirectMessage(t
 	require.NoError(t, err)
 	require.Equal(t, pkgslack.Stream{ChannelID: "G1", TS: "123.4"}, stream)
 	require.Equal(t, map[string]any{
-		"channel":       "G1",
-		"thread_ts":     "100.1",
-		"markdown_text": "start",
+		"channel":   "G1",
+		"thread_ts": "100.1",
+		"chunks": []any{
+			map[string]any{"type": "markdown_text", "text": "start"},
+		},
 	}, gotBody)
 }
 
@@ -225,7 +256,9 @@ func TestHTTPClient_DefaultsClientAndBaseURL(t *testing.T) {
 }
 
 func TestHTTPClient_RequiresClient(t *testing.T) {
-	err := (*HTTPClient)(nil).AppendStream(context.Background(), pkgslack.Stream{}, "hello")
+	err := (*HTTPClient)(nil).AppendStream(context.Background(), pkgslack.Stream{}, []pkgslack.Chunk{
+		pkgslack.MarkdownTextChunk("hello"),
+	})
 
 	require.EqualError(t, err, "slack client is required")
 }

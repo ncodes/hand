@@ -24,7 +24,7 @@ func (s *Sender) SendFinal(ctx context.Context, target slack.Target, text string
 	if s == nil || s.api == nil {
 		return errors.New("slack sender is required")
 	}
-	for _, chunk := range slack.ChunkMarkdown(text, slack.MarkdownTextLimit) {
+	for _, chunk := range slack.ChunkMarkdown(slack.FormatMrkdwn(text), slack.MarkdownTextLimit) {
 		if _, err := s.api.PostMessage(ctx, target, chunk); err != nil {
 			return err
 		}
@@ -54,19 +54,19 @@ func (s *Sender) StreamTurn(
 	appender := newSlackStreamAppender(ctx, s.api, stream, defaultSlackStreamFlushInterval)
 	appender.Start()
 	reply, err := run(appender.Append)
-	appendErr, visible := appender.Stop()
+	appendErr, state := appender.Stop()
 	if err != nil {
 		return err
 	}
-	if !visible && appendErr != nil {
+	if !state.visible && appendErr != nil {
 		return s.SendFinal(ctx, target, reply)
 	}
 	stopText := reply
-	if visible {
+	if state.visible {
 		stopText = ""
 	}
 	if stopErr := s.api.StopStream(ctx, stream, stopText); stopErr != nil {
-		if visible {
+		if state.visible {
 			return stopErr
 		}
 		return s.SendFinal(ctx, target, reply)
@@ -84,9 +84,14 @@ type slackStreamAppender struct {
 	stopped  chan struct{}
 
 	mu      sync.Mutex
-	pending []string
+	pending []slack.Chunk
+	format  *slackStreamFormatter
 	visible bool
 	err     error
+}
+
+type slackStreamState struct {
+	visible bool
 }
 
 func newSlackStreamAppender(
@@ -106,6 +111,7 @@ func newSlackStreamAppender(
 		interval: interval,
 		done:     make(chan struct{}),
 		stopped:  make(chan struct{}),
+		format:   &slackStreamFormatter{},
 	}
 }
 
@@ -118,6 +124,7 @@ func (a *slackStreamAppender) Start() {
 		for {
 			select {
 			case <-a.ctx.Done():
+				a.appendChunks(a.format.Flush())
 				a.flush()
 				return
 			case <-a.done:
@@ -131,11 +138,39 @@ func (a *slackStreamAppender) Start() {
 }
 
 func (a *slackStreamAppender) Append(delta string) {
-	if strings.TrimSpace(delta) == "" {
+	if delta == "" {
 		return
 	}
 
-	chunks := getSlackStreamChunks(delta)
+	chunks := a.format.Append(delta)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.err != nil {
+		return
+	}
+	if len(chunks) == 0 {
+		return
+	}
+	a.pending = append(a.pending, chunks...)
+}
+
+func (a *slackStreamAppender) Stop() (error, slackStreamState) {
+	a.appendChunks(a.format.Flush())
+	close(a.done)
+	<-a.stopped
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return a.err, slackStreamState{visible: a.visible}
+}
+
+func (a *slackStreamAppender) appendChunks(chunks []slack.Chunk) {
+	if len(chunks) == 0 {
+		return
+	}
+
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -145,16 +180,6 @@ func (a *slackStreamAppender) Append(delta string) {
 	a.pending = append(a.pending, chunks...)
 }
 
-func (a *slackStreamAppender) Stop() (error, bool) {
-	close(a.done)
-	<-a.stopped
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	return a.err, a.visible
-}
-
 func (a *slackStreamAppender) flush() {
 	for {
 		chunk, ok := a.nextChunk()
@@ -162,7 +187,7 @@ func (a *slackStreamAppender) flush() {
 			return
 		}
 
-		if err := a.api.AppendStream(a.ctx, a.stream, chunk); err != nil {
+		if err := a.api.AppendStream(a.ctx, a.stream, []slack.Chunk{chunk}); err != nil {
 			a.mu.Lock()
 			a.err = err
 			a.pending = nil
@@ -176,12 +201,12 @@ func (a *slackStreamAppender) flush() {
 	}
 }
 
-func (a *slackStreamAppender) nextChunk() (string, bool) {
+func (a *slackStreamAppender) nextChunk() (slack.Chunk, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.err != nil || len(a.pending) == 0 {
-		return "", false
+		return slack.Chunk{}, false
 	}
 
 	chunk := a.pending[0]
@@ -189,18 +214,85 @@ func (a *slackStreamAppender) nextChunk() (string, bool) {
 	return chunk, true
 }
 
-func getSlackStreamChunks(text string) []string {
+func getSlackStreamChunks(text string) []slack.Chunk {
 	if strings.TrimSpace(text) == "" {
 		return nil
 	}
 
 	runes := []rune(text)
-	chunks := make([]string, 0, len(runes)/slack.MarkdownTextLimit+1)
+	chunks := make([]slack.Chunk, 0, len(runes)/slack.MarkdownTextLimit+1)
 	for len(runes) > 0 {
 		n := min(len(runes), slack.MarkdownTextLimit)
-		chunks = append(chunks, string(runes[:n]))
+		chunks = append(chunks, slack.MarkdownTextChunk(string(runes[:n])))
 		runes = runes[n:]
 	}
 
 	return chunks
+}
+
+type slackStreamFormatter struct {
+	buffer string
+}
+
+func (f *slackStreamFormatter) Append(delta string) []slack.Chunk {
+	f.buffer += delta
+	return f.drain(false)
+}
+
+func (f *slackStreamFormatter) Flush() []slack.Chunk {
+	return f.drain(true)
+}
+
+func (f *slackStreamFormatter) drain(final bool) []slack.Chunk {
+	if f.buffer == "" {
+		return nil
+	}
+
+	safeIndex := getSlackStreamSafeFormatIndex(f.buffer, final)
+	if safeIndex == 0 {
+		return nil
+	}
+
+	text := f.buffer[:safeIndex]
+	f.buffer = f.buffer[safeIndex:]
+	return slack.FormatStreamChunks(text)
+}
+
+func getSlackStreamSafeFormatIndex(text string, final bool) int {
+	if final {
+		return len(text)
+	}
+
+	safeIndex := 0
+	inFence := false
+	lineStart := 0
+	closedFenceEnd := 0
+	for lineStart < len(text) {
+		newline := strings.IndexByte(text[lineStart:], '\n')
+		if newline < 0 {
+			break
+		}
+
+		lineEnd := lineStart + newline + 1
+		line := strings.TrimSpace(text[lineStart : lineEnd-1])
+		if strings.HasPrefix(line, "```") {
+			inFence = !inFence
+			if !inFence {
+				closedFenceEnd = lineEnd
+			}
+		}
+
+		if !inFence && line == "" {
+			safeIndex = lineEnd
+		} else if !inFence && closedFenceEnd > 0 && lineEnd > closedFenceEnd {
+			safeIndex = closedFenceEnd
+			closedFenceEnd = 0
+		}
+		lineStart = lineEnd
+	}
+	if !inFence && closedFenceEnd > 0 && len(text) > closedFenceEnd {
+		safeIndex = closedFenceEnd
+	}
+
+	return safeIndex
 }

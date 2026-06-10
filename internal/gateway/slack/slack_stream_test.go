@@ -25,8 +25,181 @@ func TestSender_StreamTurnUsesNativeSlackStream(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []slackAPICall{
 		{method: "startStream", target: target},
-		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}, text: "hello "},
-		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}, text: "world"},
+		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}, text: "hello world"},
+		{method: "stopStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}},
+	}, api.allCalls())
+}
+
+func TestSender_StreamTurnNormalizesSlackStreamingStrikethrough(t *testing.T) {
+	api := &fakeSlackAPI{}
+	sender := NewSender(api)
+	target := slackTestTarget()
+
+	err := sender.StreamTurn(context.Background(), target, func(onDelta func(string)) (string, error) {
+		onDelta("**bold** and ~gone~ and ~~already gone~~ and [Hand](https://example.com)")
+		return "final", nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []slackAPICall{
+		{method: "startStream", target: target},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "**bold** and ~~gone~~ and ~~already gone~~ and [Hand](https://example.com)",
+		},
+		{method: "stopStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}},
+	}, api.allCalls())
+}
+
+func TestSender_StreamTurnPreservesMentionLineBreaks(t *testing.T) {
+	api := &fakeSlackAPI{}
+	sender := NewSender(api)
+	target := slackTestTarget()
+
+	err := sender.StreamTurn(context.Background(), target, func(onDelta func(string)) (string, error) {
+		onDelta("Mention-style examples:\n<@U12345678> user mention\n<!here> here mention\n")
+		return "final", nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []slackAPICall{
+		{method: "startStream", target: target},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "Mention-style examples:\n<@U12345678> user mention\n<!here> here mention\n",
+		},
+		{method: "stopStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}},
+	}, api.allCalls())
+}
+
+func TestSender_StreamTurnStreamsFencedCodeAsMarkdownText(t *testing.T) {
+	api := &fakeSlackAPI{}
+	sender := NewSender(api)
+	target := slackTestTarget()
+
+	err := sender.StreamTurn(context.Background(), target, func(onDelta func(string)) (string, error) {
+		reply := "Code block\n\n```go\nif a < b {\n}\n```\n\nNext"
+		for _, delta := range []string{
+			"Code block\n\n",
+			"```go\n",
+			"if a < b {\n",
+			"}\n",
+			"```\n",
+			"\nNext",
+		} {
+			onDelta(delta)
+		}
+		return reply, nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []slackAPICall{
+		{method: "startStream", target: target},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "Code block\n\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "```\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "if a < b {\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "}\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "```",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "\nNext",
+		},
+		{method: "stopStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}},
+	}, api.allCalls())
+}
+
+func TestSender_StreamTurnKeepsFencedCodePackageAndImportLines(t *testing.T) {
+	api := &fakeSlackAPI{}
+	sender := NewSender(api)
+	target := slackTestTarget()
+
+	err := sender.StreamTurn(context.Background(), target, func(onDelta func(string)) (string, error) {
+		reply := "```go\npackage main\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Hello, world!\")\n}\n```"
+		for _, delta := range []string{
+			"```go\n",
+			"package main\n",
+			"import \"fmt\"\n\n",
+			"func main() {\n",
+			"\tfmt.Println(\"Hello, world!\")\n",
+			"}\n",
+			"```",
+		} {
+			onDelta(delta)
+		}
+		return reply, nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []slackAPICall{
+		{method: "startStream", target: target},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "```\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "package main\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "import \"fmt\"\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "func main() {\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "\tfmt.Println(\"Hello, world!\")\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "}\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "```",
+		},
 		{method: "stopStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}},
 	}, api.allCalls())
 }
@@ -46,7 +219,7 @@ func TestSender_StreamTurnDoesNotBlockRunOnAppendLatency(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Less(t, runElapsed, 50*time.Millisecond)
-	require.Equal(t, []string{"startStream", "appendStream", "appendStream", "stopStream"}, api.callMethods())
+	require.Equal(t, []string{"startStream", "appendStream", "stopStream"}, api.callMethods())
 }
 
 func TestSender_StreamTurnFallsBackWhenStartFails(t *testing.T) {
@@ -109,7 +282,7 @@ func TestSender_StreamTurnFallsBackWhenAppendFailsBeforeVisibleOutput(t *testing
 	require.NoError(t, err)
 	require.Equal(t, []slackAPICall{
 		{method: "startStream", target: target},
-		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}, text: "first"},
+		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}, text: "firstignored"},
 		{method: "postMessage", target: target, text: "final"},
 	}, api.allCalls())
 }
@@ -180,6 +353,19 @@ func TestSender_SendFinalChunksLongText(t *testing.T) {
 	require.Equal(t, 1, len(calls[1].text))
 }
 
+func TestSender_SendFinalFormatsSlackMrkdwn(t *testing.T) {
+	api := &fakeSlackAPI{}
+	sender := NewSender(api)
+	target := slackTestTarget()
+
+	err := sender.SendFinal(context.Background(), target, "**bold** and [Hand](https://example.com)")
+
+	require.NoError(t, err)
+	require.Equal(t, []slackAPICall{
+		{method: "postMessage", target: target, text: "*bold* and <https://example.com|Hand>"},
+	}, api.allCalls())
+}
+
 func TestSender_SendFinalReturnsPostError(t *testing.T) {
 	api := &fakeSlackAPI{postErr: errSlackTest}
 
@@ -222,17 +408,17 @@ func TestSlackStreamAppender_FlushesOnTicker(t *testing.T) {
 		time.Millisecond,
 	)
 	appender.Start()
-	appender.Append("hello")
+	appender.Append("hello\n\n")
 
 	require.Eventually(t, func() bool {
 		return len(api.allCalls()) == 1
 	}, time.Second, 10*time.Millisecond)
 
-	err, visible := appender.Stop()
+	err, state := appender.Stop()
 	require.NoError(t, err)
-	require.True(t, visible)
+	require.True(t, state.visible)
 	require.Equal(t, []slackAPICall{
-		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}, text: "hello"},
+		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}, text: "hello\n\n"},
 	}, api.allCalls())
 }
 
@@ -246,16 +432,16 @@ func TestSlackStreamAppender_FlushesOnContextCancellation(t *testing.T) {
 		time.Hour,
 	)
 	appender.Start()
-	appender.Append("hello")
+	appender.Append("hello\n")
 	cancel()
 
 	require.Eventually(t, func() bool {
 		return len(api.allCalls()) == 1
 	}, time.Second, 10*time.Millisecond)
 
-	err, visible := appender.Stop()
+	err, state := appender.Stop()
 	require.NoError(t, err)
-	require.True(t, visible)
+	require.True(t, state.visible)
 }
 
 func TestSlackStreamAppender_SkipsBlankAndAfterError(t *testing.T) {
@@ -267,22 +453,117 @@ func TestSlackStreamAppender_SkipsBlankAndAfterError(t *testing.T) {
 		time.Hour,
 	)
 	appender.Start()
-	appender.Append(" ")
+	appender.Append("")
 	appender.Append("first")
 	appender.Append("ignored")
 
-	err, visible := appender.Stop()
+	err, state := appender.Stop()
 
 	require.ErrorIs(t, err, errSlackTest)
-	require.False(t, visible)
+	require.False(t, state.visible)
 	appender.Append("ignored")
 	require.Equal(t, []slackAPICall{
-		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}, text: "first"},
+		{method: "appendStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}, text: "firstignored"},
+	}, api.allCalls())
+}
+
+func TestSlackStreamAppender_StreamsFencedCodeAsMarkdownText(t *testing.T) {
+	api := &fakeSlackAPI{}
+	appender := newSlackStreamAppender(
+		context.Background(),
+		api,
+		pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+		time.Hour,
+	)
+	appender.Start()
+	appender.Append("```go\n")
+	appender.Append("fmt.Println(1)\n")
+	appender.Append("```\n")
+
+	err, state := appender.Stop()
+
+	require.NoError(t, err)
+	require.True(t, state.visible)
+	require.Equal(t, []slackAPICall{
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "```\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "fmt.Println(1)\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "```",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "\n",
+		},
+	}, api.allCalls())
+}
+
+func TestSlackStreamAppender_PreservesWhitespaceOnlyDeltasInFencedCode(t *testing.T) {
+	api := &fakeSlackAPI{}
+	appender := newSlackStreamAppender(
+		context.Background(),
+		api,
+		pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+		time.Hour,
+	)
+	appender.Start()
+	appender.Append("```go\npackage main")
+	appender.Append("\n")
+	appender.Append("import \"fmt\"\n")
+	appender.Append("```")
+
+	err, state := appender.Stop()
+
+	require.NoError(t, err)
+	require.True(t, state.visible)
+	require.Equal(t, []slackAPICall{
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "```\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "package main\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "import \"fmt\"\n",
+		},
+		{
+			method: "appendStream",
+			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
+			text:   "```",
+		},
 	}, api.allCalls())
 }
 
 func TestGetSlackStreamChunksSkipsBlankText(t *testing.T) {
 	require.Nil(t, getSlackStreamChunks("   "))
+}
+
+func TestGetSlackStreamSafeFormatIndexWaitsForCompleteLinesAndFences(t *testing.T) {
+	require.Zero(t, getSlackStreamSafeFormatIndex("hello", false))
+	require.Zero(t, getSlackStreamSafeFormatIndex("hello\nnext", false))
+	require.Equal(t, len("hello\n\n"), getSlackStreamSafeFormatIndex("hello\n\nnext", false))
+	require.Zero(t, getSlackStreamSafeFormatIndex("```go\nfmt.Println(1)\n", false))
+
+	closedFence := "```go\nfmt.Println(1)\n```\n"
+	require.Zero(t, getSlackStreamSafeFormatIndex(closedFence, false))
+	require.Equal(t, len(closedFence), getSlackStreamSafeFormatIndex(closedFence+"next", false))
+	require.Equal(t, len("hello"), getSlackStreamSafeFormatIndex("hello", true))
 }
 
 func slackTestTarget() pkgslack.Target {

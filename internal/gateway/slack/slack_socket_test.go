@@ -37,7 +37,7 @@ func TestStartSocketWithClient_DispatchesSocketEvents(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 1, service.callCount())
-	require.Len(t, api.allCalls(), 4)
+	require.Len(t, api.allCalls(), 3)
 }
 
 func TestStartSocket_WaitsWhenDisabled(t *testing.T) {

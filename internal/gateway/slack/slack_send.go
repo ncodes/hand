@@ -18,7 +18,7 @@ const defaultSlackAPIBase = "https://slack.com/api"
 type API interface {
 	PostMessage(context.Context, slack.Target, string) (string, error)
 	StartStream(context.Context, slack.Target, string) (slack.Stream, error)
-	AppendStream(context.Context, slack.Stream, string) error
+	AppendStream(context.Context, slack.Stream, []slack.Chunk) error
 	StopStream(context.Context, slack.Stream, string) error
 }
 
@@ -53,9 +53,11 @@ func (c *HTTPClient) StartStream(ctx context.Context, target slack.Target, text 
 		TS      string `json:"ts"`
 	}
 	req := slack.StartStreamRequest{
-		Channel:      target.ChannelID,
-		ThreadTS:     target.ThreadTS,
-		MarkdownText: text,
+		Channel:  target.ChannelID,
+		ThreadTS: target.ThreadTS,
+	}
+	if strings.TrimSpace(text) != "" {
+		req.Chunks = []slack.Chunk{slack.MarkdownTextChunk(text)}
 	}
 	if strings.TrimSpace(target.ChannelType) == "im" {
 		req.RecipientUserID = target.RecipientUserID
@@ -72,20 +74,21 @@ func (c *HTTPClient) StartStream(ctx context.Context, target slack.Target, text 
 	return slack.Stream{ChannelID: result.Channel, TS: result.TS}, nil
 }
 
-func (c *HTTPClient) AppendStream(ctx context.Context, stream slack.Stream, text string) error {
+func (c *HTTPClient) AppendStream(ctx context.Context, stream slack.Stream, chunks []slack.Chunk) error {
 	return c.call(ctx, "chat.appendStream", slack.AppendStreamRequest{
-		Channel:      stream.ChannelID,
-		TS:           stream.TS,
-		MarkdownText: text,
+		Channel: stream.ChannelID,
+		TS:      stream.TS,
+		Chunks:  chunks,
 	}, nil)
 }
 
 func (c *HTTPClient) StopStream(ctx context.Context, stream slack.Stream, text string) error {
-	return c.call(ctx, "chat.stopStream", slack.StopStreamRequest{
-		Channel:      stream.ChannelID,
-		TS:           stream.TS,
-		MarkdownText: text,
-	}, nil)
+	req := slack.StopStreamRequest{Channel: stream.ChannelID, TS: stream.TS}
+	if strings.TrimSpace(text) != "" {
+		req.Chunks = []slack.Chunk{slack.MarkdownTextChunk(text)}
+	}
+
+	return c.call(ctx, "chat.stopStream", req, nil)
 }
 
 func (c *HTTPClient) call(ctx context.Context, method string, req any, out any) error {

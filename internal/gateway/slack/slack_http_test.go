@@ -90,7 +90,7 @@ func TestHandleEvents_EnqueuesAndDeduplicatesEvents(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return service.callCount() == 1 && dispatcher.Status().Duplicates == 1
 	}, time.Second, 10*time.Millisecond)
-	require.Len(t, api.allCalls(), 4)
+	require.Len(t, api.allCalls(), 3)
 }
 
 func TestHandleEvents_IgnoresUnsupportedEvents(t *testing.T) {
