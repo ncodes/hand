@@ -364,20 +364,8 @@ func getSlackChunkText(chunks []pkgslack.Chunk) string {
 	if len(chunks) != 1 {
 		return ""
 	}
-	if chunks[0].Text != "" {
-		return chunks[0].Text
-	}
-	if len(chunks[0].Blocks) == 1 {
-		block := chunks[0].Blocks[0]
-		if block.Text != "" {
-			return block.Text
-		}
-		if len(block.Elements) == 1 && len(block.Elements[0].Elements) == 1 {
-			return block.Elements[0].Elements[0].Text
-		}
-	}
 
-	return ""
+	return chunks[0].Text
 }
 
 func (a *fakeSlackAPI) StopStream(ctx context.Context, stream pkgslack.Stream, text string) error {

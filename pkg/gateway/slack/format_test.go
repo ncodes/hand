@@ -98,31 +98,23 @@ func TestFormatStreamChunks_StreamsFencedCodeAsMarkdownText(t *testing.T) {
 
 	require.Equal(t, []Chunk{
 		MarkdownTextChunk("Before\n\n"),
-		MarkdownTextChunk("```\n"),
-		MarkdownTextChunk("package main\n"),
-		MarkdownTextChunk("import \"fmt\"\n"),
-		MarkdownTextChunk("```"),
+		FencedCodeChunk("package main\nimport \"fmt\"\n"),
 		MarkdownTextChunk("\n\nAfter"),
 	}, FormatStreamChunks(input))
 }
 
-func TestFencedCodeChunks_SplitsLinesForSlackStreaming(t *testing.T) {
-	require.Equal(t, []Chunk{
-		MarkdownTextChunk("```\n"),
-		MarkdownTextChunk("package main\n"),
-		MarkdownTextChunk("import \"fmt\"\n"),
-		MarkdownTextChunk("```"),
-	}, FencedCodeChunks("package main\nimport \"fmt\""))
+func TestFencedCodeChunk_WrapsCodeInUnlabeledFence(t *testing.T) {
+	require.Equal(t,
+		MarkdownTextChunk("```\npackage main\nimport \"fmt\"\n```"),
+		FencedCodeChunk("package main\nimport \"fmt\""),
+	)
 }
 
 func TestFormatStreamChunks_StripsGenericFenceInfoString(t *testing.T) {
 	input := "```mermaid\ngraph TD\nA-->B\n```"
 
 	require.Equal(t, []Chunk{
-		MarkdownTextChunk("```\n"),
-		MarkdownTextChunk("graph TD\n"),
-		MarkdownTextChunk("A-->B\n"),
-		MarkdownTextChunk("```"),
+		FencedCodeChunk("graph TD\nA-->B\n"),
 	}, FormatStreamChunks(input))
 }
 
@@ -130,18 +122,13 @@ func TestFormatStreamChunks_PreservesUnlabeledCodeFirstLine(t *testing.T) {
 	input := "```\npackage main\nfunc main() {}\n```"
 
 	require.Equal(t, []Chunk{
-		MarkdownTextChunk("```\n"),
-		MarkdownTextChunk("package main\n"),
-		MarkdownTextChunk("func main() {}\n"),
-		MarkdownTextChunk("```"),
+		FencedCodeChunk("package main\nfunc main() {}\n"),
 	}, FormatStreamChunks(input))
 }
 
 func TestFormatStreamChunks_KeepsNewlineAfterClosingFence(t *testing.T) {
 	require.Equal(t, []Chunk{
-		MarkdownTextChunk("```\n"),
-		MarkdownTextChunk("graph TD\n"),
-		MarkdownTextChunk("```"),
+		FencedCodeChunk("graph TD\n"),
 		MarkdownTextChunk("\n"),
 	}, FormatStreamChunks("```mermaid\ngraph TD\n```\n"))
 }
@@ -150,12 +137,7 @@ func TestFormatStreamChunks_KeepsCodeLinesAfterFenceInfoString(t *testing.T) {
 	input := "```go\npackage main\nimport \"fmt\"\n\nfunc main() {}\n```"
 
 	require.Equal(t, []Chunk{
-		MarkdownTextChunk("```\n"),
-		MarkdownTextChunk("package main\n"),
-		MarkdownTextChunk("import \"fmt\"\n"),
-		MarkdownTextChunk("\n"),
-		MarkdownTextChunk("func main() {}\n"),
-		MarkdownTextChunk("```"),
+		FencedCodeChunk("package main\nimport \"fmt\"\n\nfunc main() {}\n"),
 	}, FormatStreamChunks(input))
 }
 

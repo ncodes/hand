@@ -114,7 +114,7 @@ func FormatStreamChunks(text string) []Chunk {
 	codeBlock := regexp.MustCompile("```[\\s\\S]*?```")
 	for _, match := range codeBlock.FindAllStringIndex(text, -1) {
 		chunks = appendMarkdownTextChunks(chunks, FormatStreamMarkdown(text[lastIndex:match[0]]))
-		chunks = append(chunks, FencedCodeChunks(getFencedCodeBody(text[match[0]:match[1]]))...)
+		chunks = append(chunks, FencedCodeChunk(getFencedCodeBody(text[match[0]:match[1]])))
 		lastIndex = match[1]
 	}
 	chunks = appendMarkdownTextChunks(chunks, FormatStreamMarkdown(text[lastIndex:]))

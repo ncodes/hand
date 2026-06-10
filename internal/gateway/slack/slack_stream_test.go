@@ -105,22 +105,7 @@ func TestSender_StreamTurnStreamsFencedCodeAsMarkdownText(t *testing.T) {
 		{
 			method: "appendStream",
 			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "```\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "if a < b {\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "}\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "```",
+			text:   "```\nif a < b {\n}\n```",
 		},
 		{
 			method: "appendStream",
@@ -163,42 +148,7 @@ func TestSender_StreamTurnKeepsFencedCodePackageAndImportLines(t *testing.T) {
 		{
 			method: "appendStream",
 			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "```\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "package main\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "import \"fmt\"\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "func main() {\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "\tfmt.Println(\"Hello, world!\")\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "}\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "```",
+			text:   "```\npackage main\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Hello, world!\")\n}\n```",
 		},
 		{method: "stopStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}},
 	}, api.allCalls())
@@ -488,17 +438,7 @@ func TestSlackStreamAppender_StreamsFencedCodeAsMarkdownText(t *testing.T) {
 		{
 			method: "appendStream",
 			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "```\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "fmt.Println(1)\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "```",
+			text:   "```\nfmt.Println(1)\n```",
 		},
 		{
 			method: "appendStream",
@@ -530,22 +470,7 @@ func TestSlackStreamAppender_PreservesWhitespaceOnlyDeltasInFencedCode(t *testin
 		{
 			method: "appendStream",
 			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "```\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "package main\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "import \"fmt\"\n",
-		},
-		{
-			method: "appendStream",
-			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "```",
+			text:   "```\npackage main\nimport \"fmt\"\n```",
 		},
 	}, api.allCalls())
 }

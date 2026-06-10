@@ -206,7 +206,7 @@ func (s *telegramSender) StreamTurn(
 
 	streamFailed := false
 	reply, err := run(func(delta string) {
-		if streamFailed || strings.TrimSpace(delta) == "" {
+		if streamFailed || delta == "" {
 			return
 		}
 		if err := streamer.Append(ctx, delta); err != nil {
