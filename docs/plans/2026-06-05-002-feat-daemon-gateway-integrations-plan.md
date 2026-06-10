@@ -567,14 +567,14 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 ### U10. Gateway Management Commands
 
-**Status:** Planned.
+**Status:** Completed.
 
 **Progress:**
 
-- [ ] Daemon RPC exposes gateway status/start/stop/restart.
-- [ ] CLI management commands are implemented.
-- [ ] Gateway manager reports safe channel state and redacted errors.
-- [ ] Command, manager, and RPC tests pass.
+- [x] Daemon RPC exposes gateway status/start/stop/restart.
+- [x] CLI management commands are implemented.
+- [x] Gateway manager reports safe channel state and redacted errors.
+- [x] Command, manager, and RPC tests pass.
 
 **Goal:** Add short-lived CLI management commands that inspect and control the daemon-owned gateway runtime.
 
@@ -582,7 +582,7 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 **Dependencies:** U1, U2.
 
-**Files:** `cmd/daemon/daemon.go`, `cmd/daemon/daemon_test.go`, `internal/gateway/manager.go`, `internal/gateway/status.go`, `internal/gateway/manager_test.go`, `internal/rpc/proto/hand.proto`, `internal/rpc/service.go`, `internal/rpc/client/client.go`, `internal/rpc/service_test.go`, `internal/rpc/client/client_test.go`.
+**Files:** `cmd/gateway/gateway.go`, `cmd/gateway/gateway_test.go`, `internal/cli/daemon.go`, `internal/cli/daemon_test.go`, `internal/gateway/manager.go`, `internal/gateway/manager_test.go`, `internal/rpc/proto/hand.proto`, `internal/rpc/service.go`, `internal/rpc/client/client.go`, `internal/rpc/server/server.go`, `internal/rpc/service_test.go`, `internal/rpc/client/client_test.go`.
 
 **Approach:** Add `hand gateway status`, `hand gateway start`, `hand gateway stop`, and `hand gateway restart` under the existing daemon command. Each command should connect to the running daemon over the same configured RPC address and port used by other daemon clients. The daemon should own a gateway manager that can report safe state, start the configured runtime if it is stopped, restart a failed runtime, explicitly restart a running runtime, and stop listeners/socket/polling clients without stopping gRPC or the agent service. Commands should fail clearly when the daemon is unreachable, gateway config is disabled, or required provider secrets are missing.
 

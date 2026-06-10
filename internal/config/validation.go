@@ -26,6 +26,15 @@ func (c *Config) ValidateRelaxed() error {
 	})
 }
 
+func (c *Config) ValidateGateway() error {
+	if c == nil {
+		return errors.New("config is required")
+	}
+
+	c.Normalize()
+	return c.validateGatewaySettings()
+}
+
 func (c *Config) validate(options validationOptions) error {
 	if c == nil {
 		return errors.New("config is required")

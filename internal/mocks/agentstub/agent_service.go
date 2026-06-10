@@ -38,6 +38,11 @@ type AgentServiceStub struct {
 	RevokedPairingSource string
 	RevokedPairingSender string
 	ClearedPairingSource string
+	GatewayStatusResult  rpcclient.GatewayStatus
+	GatewayStatusErr     error
+	GatewayStarted       bool
+	GatewayStopped       bool
+	GatewayRestarted     bool
 	CreateSessionOptions rpcclient.CreateSessionOptions
 	Sessions             []storage.Session
 	ArchivedSessions     []storage.Session
@@ -304,6 +309,41 @@ func (s *AgentServiceStub) ListPairings(context.Context, string) (rpcclient.Gate
 	}
 
 	return rpcclient.GatewayPairingList{Pending: pending, Approved: approved}, s.Err
+}
+
+func (s *AgentServiceStub) GatewayStatus(context.Context) (rpcclient.GatewayStatus, error) {
+	if s.GatewayStatusErr != nil {
+		return rpcclient.GatewayStatus{}, s.GatewayStatusErr
+	}
+
+	return s.GatewayStatusResult, s.Err
+}
+
+func (s *AgentServiceStub) Start(context.Context) (rpcclient.GatewayStatus, error) {
+	s.GatewayStarted = true
+	if s.GatewayStatusErr != nil {
+		return rpcclient.GatewayStatus{}, s.GatewayStatusErr
+	}
+
+	return s.GatewayStatusResult, s.Err
+}
+
+func (s *AgentServiceStub) Stop(context.Context) (rpcclient.GatewayStatus, error) {
+	s.GatewayStopped = true
+	if s.GatewayStatusErr != nil {
+		return rpcclient.GatewayStatus{}, s.GatewayStatusErr
+	}
+
+	return s.GatewayStatusResult, s.Err
+}
+
+func (s *AgentServiceStub) Restart(context.Context) (rpcclient.GatewayStatus, error) {
+	s.GatewayRestarted = true
+	if s.GatewayStatusErr != nil {
+		return rpcclient.GatewayStatus{}, s.GatewayStatusErr
+	}
+
+	return s.GatewayStatusResult, s.Err
 }
 
 func (s *AgentServiceStub) ApprovePairing(

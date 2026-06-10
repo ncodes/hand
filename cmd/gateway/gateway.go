@@ -47,6 +47,10 @@ func NewCommand() *cli.Command {
 		Name:  "gateway",
 		Usage: "Manage external gateway integrations",
 		Commands: []*cli.Command{
+			newStatusCommand(),
+			newStartCommand(),
+			newStopCommand(),
+			newRestartCommand(),
 			{
 				Name:  "pairing",
 				Usage: "Manage gateway sender pairings",
@@ -62,6 +66,104 @@ func NewCommand() *cli.Command {
 			return cli.ShowSubcommandHelp(cmd)
 		},
 	}
+}
+
+func newStatusCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "status",
+		Usage: "Show daemon gateway runtime status",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			client, err := getGatewayClient(ctx, cmd)
+			if err != nil {
+				return err
+			}
+			defer client.Close()
+
+			status, err := client.GatewayAPI().GatewayStatus(ctx)
+			if err != nil {
+				return err
+			}
+
+			return writeGatewayStatus(gatewayOutput, status)
+		},
+	}
+}
+
+func newStartCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "start",
+		Usage: "Start the daemon gateway runtime",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return runGatewayRuntimeCommand(ctx, cmd, func(api rpcclient.GatewayAPI) (rpcclient.GatewayStatus, error) {
+				return api.Start(ctx)
+			})
+		},
+	}
+}
+
+func newStopCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "stop",
+		Usage: "Stop the daemon gateway runtime",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return runGatewayRuntimeCommand(ctx, cmd, func(api rpcclient.GatewayAPI) (rpcclient.GatewayStatus, error) {
+				return api.Stop(ctx)
+			})
+		},
+	}
+}
+
+func newRestartCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "restart",
+		Usage: "Restart the daemon gateway runtime",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return runGatewayRuntimeCommand(ctx, cmd, func(api rpcclient.GatewayAPI) (rpcclient.GatewayStatus, error) {
+				return api.Restart(ctx)
+			})
+		},
+	}
+}
+
+func runGatewayRuntimeCommand(
+	ctx context.Context,
+	cmd *cli.Command,
+	run func(rpcclient.GatewayAPI) (rpcclient.GatewayStatus, error),
+) error {
+	client, err := getGatewayClient(ctx, cmd)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	status, err := run(client.GatewayAPI())
+	if err != nil {
+		return err
+	}
+
+	return writeGatewayStatus(gatewayOutput, status)
+}
+
+func writeGatewayStatus(out io.Writer, status rpcclient.GatewayStatus) error {
+	_, err := fmt.Fprintf(
+		out,
+		"state=%s address=%s port=%d telegram=%s slack=%s",
+		status.State,
+		status.Address,
+		status.Port,
+		status.TelegramMode,
+		status.SlackMode,
+	)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(status.LastError) != "" {
+		if _, err := fmt.Fprintf(out, " last_error=%q", status.LastError); err != nil {
+			return err
+		}
+	}
+	_, err = fmt.Fprintln(out)
+	return err
 }
 
 func newPairingListCommand() *cli.Command {

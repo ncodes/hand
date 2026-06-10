@@ -49,6 +49,24 @@ func TestConfig_ValidateRelaxedAllowsMissingGatewayCredentials(t *testing.T) {
 		"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
 }
 
+func TestConfig_ValidateGatewayChecksOnlyGatewaySettings(t *testing.T) {
+	cfg := validGatewayConfig()
+	cfg.Models.Main.Name = ""
+	cfg.Models.Main.Provider = ""
+
+	require.NoError(t, cfg.ValidateGateway())
+
+	cfg.Gateway.Telegram.BotToken = ""
+	require.EqualError(t, cfg.ValidateGateway(), "gateway telegram bot token is required when telegram gateway is enabled; "+
+		"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
+}
+
+func TestConfig_ValidateGatewayRejectsNilConfig(t *testing.T) {
+	var cfg *Config
+
+	require.EqualError(t, cfg.ValidateGateway(), "config is required")
+}
+
 func TestConfig_ValidateRelaxedRejectsInvalidGatewayResponseMode(t *testing.T) {
 	cfg := validGatewayConfig()
 	cfg.Gateway.Slack.ResponseMode = "ephemeral"

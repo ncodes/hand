@@ -10,6 +10,8 @@ import (
 	"time"
 
 	handagent "github.com/wandxy/hand/internal/agent"
+	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/gateway"
 	"github.com/wandxy/hand/internal/guardrails"
 	models "github.com/wandxy/hand/internal/model"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
@@ -32,12 +34,22 @@ type Service struct {
 	handpb.UnimplementedGatewayServiceServer
 	api                  handagent.ServiceAPI
 	gatewayPairingSecret string
+	gatewayConfig        config.GatewayConfig
+	gatewayRuntime       GatewayRuntime
 }
 
 var marshalRPCJSON = json.Marshal
 
 type ServiceOptions struct {
 	GatewayPairingSecret string
+	GatewayConfig        config.GatewayConfig
+	GatewayRuntime       GatewayRuntime
+}
+
+type GatewayRuntime interface {
+	Start(context.Context, config.GatewayConfig, gateway.AgentService) error
+	Stop(context.Context) error
+	Status() gateway.Status
 }
 
 // NewService creates a new RPC service that wraps the shared service interface.
@@ -49,6 +61,8 @@ func NewServiceWithOptions(api handagent.ServiceAPI, opts ServiceOptions) *Servi
 	return &Service{
 		api:                  api,
 		gatewayPairingSecret: strings.TrimSpace(opts.GatewayPairingSecret),
+		gatewayConfig:        opts.GatewayConfig,
+		gatewayRuntime:       opts.GatewayRuntime,
 	}
 }
 
@@ -1223,6 +1237,112 @@ func (s *Service) ListPairings(
 	return resp, nil
 }
 
+func (s *Service) GatewayStatus(
+	context.Context,
+	*handpb.GetGatewayStatusRequest,
+) (*handpb.GetGatewayStatusResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+
+	status := gateway.Status{
+		State:        gateway.StateDisabled,
+		Address:      s.gatewayConfig.Address,
+		Port:         s.gatewayConfig.Port,
+		SlackMode:    s.gatewayConfig.Slack.Mode,
+		TelegramMode: s.gatewayConfig.Telegram.Mode,
+	}
+	if s.gatewayConfig.Enabled {
+		status.State = gateway.StateStopped
+	}
+	if s.gatewayRuntime != nil {
+		status = s.gatewayRuntime.Status()
+	}
+
+	return &handpb.GetGatewayStatusResponse{Status: gatewayStatusToProto(status)}, nil
+}
+
+func (s *Service) Start(
+	ctx context.Context,
+	_ *handpb.StartGatewayRequest,
+) (*handpb.StartGatewayResponse, error) {
+	if err := s.checkGatewayRuntimeReady(); err != nil {
+		return nil, err
+	}
+	cfg, err := normalizeGatewayRuntimeConfig(s.gatewayConfig)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.gatewayRuntime.Start(context.Background(), cfg, s.api); err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.StartGatewayResponse{Status: gatewayStatusToProto(s.gatewayRuntime.Status())}, nil
+}
+
+func (s *Service) Stop(
+	ctx context.Context,
+	_ *handpb.StopGatewayRequest,
+) (*handpb.StopGatewayResponse, error) {
+	if err := s.checkGatewayRuntimeReady(); err != nil {
+		return nil, err
+	}
+	if err := s.gatewayRuntime.Stop(ctx); err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.StopGatewayResponse{Status: gatewayStatusToProto(s.gatewayRuntime.Status())}, nil
+}
+
+func (s *Service) Restart(
+	ctx context.Context,
+	_ *handpb.RestartGatewayRequest,
+) (*handpb.RestartGatewayResponse, error) {
+	if err := s.checkGatewayRuntimeReady(); err != nil {
+		return nil, err
+	}
+	cfg, err := normalizeGatewayRuntimeConfig(s.gatewayConfig)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.gatewayRuntime.Stop(ctx); err != nil {
+		return nil, getGRPCError(err)
+	}
+	if err := s.gatewayRuntime.Start(context.Background(), cfg, s.api); err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.RestartGatewayResponse{Status: gatewayStatusToProto(s.gatewayRuntime.Status())}, nil
+}
+
+func (s *Service) checkGatewayRuntimeReady() error {
+	if s == nil {
+		return status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return status.Error(codes.Internal, "agent handler is required")
+	}
+	if s.gatewayRuntime == nil {
+		return status.Error(codes.Internal, "gateway runtime is required")
+	}
+
+	return nil
+}
+
+func normalizeGatewayRuntimeConfig(cfg config.GatewayConfig) (config.GatewayConfig, error) {
+	if !cfg.Enabled {
+		return config.GatewayConfig{}, status.Error(codes.FailedPrecondition, "gateway is disabled")
+	}
+
+	full := config.NewDefaultConfig()
+	full.Gateway = cfg
+	if err := full.ValidateGateway(); err != nil {
+		return config.GatewayConfig{}, getGRPCError(err)
+	}
+
+	return full.Gateway, nil
+}
+
 func (s *Service) ApprovePairing(
 	ctx context.Context,
 	req *handpb.ApproveGatewayPairingRequest,
@@ -1326,6 +1446,17 @@ func gatewayPairedSenderToProto(sender pairing.ApprovedSender) *handpb.GatewayPa
 	}
 }
 
+func gatewayStatusToProto(status gateway.Status) *handpb.GatewayStatus {
+	return &handpb.GatewayStatus{
+		State:        string(status.State),
+		Address:      strings.TrimSpace(status.Address),
+		Port:         int32(status.Port),
+		SlackMode:    strings.TrimSpace(status.SlackMode),
+		TelegramMode: strings.TrimSpace(status.TelegramMode),
+		LastError:    strings.TrimSpace(status.LastError),
+	}
+}
+
 func timestampOrNil(value time.Time) *timestamppb.Timestamp {
 	if value.IsZero() {
 		return nil
@@ -1378,6 +1509,7 @@ func getGRPCError(err error) error {
 	case errors.Is(err, context.DeadlineExceeded):
 		return status.Error(codes.DeadlineExceeded, message)
 	case strings.HasSuffix(message, "is required"),
+		strings.Contains(message, "is required when"),
 		strings.Contains(message, "API key is required"),
 		strings.Contains(message, "must be a valid"),
 		strings.Contains(message, "must be greater than or equal to"),

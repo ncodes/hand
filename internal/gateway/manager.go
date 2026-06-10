@@ -3,9 +3,11 @@ package gateway
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/guardrails"
 )
 
 type State string
@@ -112,14 +114,6 @@ func (m *Manager) Stop(ctx context.Context) error {
 	}
 }
 
-func (m *Manager) Restart(ctx context.Context, cfg config.GatewayConfig, service AgentService) error {
-	if err := m.Stop(ctx); err != nil {
-		return err
-	}
-
-	return m.Start(ctx, cfg, service)
-}
-
 func (m *Manager) Wait() <-chan error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -175,10 +169,39 @@ func statusFromConfig(cfg config.GatewayConfig, state State, err error) Status {
 		TelegramMode: cfg.Telegram.Mode,
 	}
 	if err != nil {
-		status.LastError = err.Error()
+		status.LastError = sanitizeStatusError(cfg, err)
 	}
 
 	return status
+}
+
+func sanitizeStatusError(cfg config.GatewayConfig, err error) string {
+	if err == nil {
+		return ""
+	}
+
+	message := err.Error()
+	for _, secret := range []string{
+		cfg.AuthToken,
+		cfg.PairingSecret,
+		cfg.Telegram.BotToken,
+		cfg.Telegram.WebhookSecret,
+		cfg.Slack.BotToken,
+		cfg.Slack.AppToken,
+		cfg.Slack.SigningSecret,
+	} {
+		secret = strings.TrimSpace(secret)
+		if secret != "" {
+			message = strings.ReplaceAll(message, secret, "[REDACTED]")
+		}
+	}
+
+	sanitized, ok := guardrails.NewRedactor().Sanitize(message).(string)
+	if ok {
+		return sanitized
+	}
+
+	return message
 }
 
 type componentError struct {

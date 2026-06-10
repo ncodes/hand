@@ -12,45 +12,53 @@ import (
 
 // HandServiceClientStub is a test stub for hand service client.
 type HandServiceClientStub struct {
-	Req           *handpb.RespondRequest
-	Events        []*handpb.RespondEvent
-	Err           error
-	RecvErr       error
-	CreateResp    *handpb.CreateSessionResponse
-	CreateReq     *handpb.CreateSessionRequest
-	ListResp      *handpb.ListSessionsResponse
-	ListReq       *handpb.ListSessionsRequest
-	UseReq        *handpb.UseSessionRequest
-	ArchiveReq    *handpb.ArchiveSessionRequest
-	UnarchiveReq  *handpb.UnarchiveSessionRequest
-	UnarchiveResp *handpb.UnarchiveSessionResponse
-	RenameReq     *handpb.RenameSessionRequest
-	RenameResp    *handpb.RenameSessionResponse
-	CurrentResp   *handpb.CurrentSessionResponse
-	CompactResp   *handpb.CompactSessionResponse
-	CompactReq    *handpb.CompactSessionRequest
-	RepairResp    *handpb.RepairSessionResponse
-	RepairReq     *handpb.RepairSessionRequest
-	StatusResp    *handpb.GetSessionStatusResponse
-	StatusReq     *handpb.GetSessionStatusRequest
-	TimelineResp  *handpb.GetSessionTimelineResponse
-	TimelineReq   *handpb.GetSessionTimelineRequest
-	ProvidersResp *handpb.ListProvidersResponse
-	ProvidersReq  *handpb.ListProvidersRequest
-	ModelsResp    *handpb.ListModelsResponse
-	ModelsReq     *handpb.ListModelsRequest
-	SelectReq     *handpb.SelectModelRequest
-	SelectResp    *handpb.SelectModelResponse
-	APIKeyReq     *handpb.SetProviderAPIKeyRequest
-	APIKeyResp    *handpb.SetProviderAPIKeyResponse
-	PairingsReq   *handpb.ListGatewayPairingsRequest
-	PairingsResp  *handpb.ListGatewayPairingsResponse
-	ApproveReq    *handpb.ApproveGatewayPairingRequest
-	ApproveResp   *handpb.ApproveGatewayPairingResponse
-	RevokeReq     *handpb.RevokeGatewayPairingRequest
-	ClearReq      *handpb.ClearPendingGatewayPairingsRequest
-	OnRespond     func()
-	OnListModels  func()
+	Req                *handpb.RespondRequest
+	Events             []*handpb.RespondEvent
+	Err                error
+	RecvErr            error
+	CreateResp         *handpb.CreateSessionResponse
+	CreateReq          *handpb.CreateSessionRequest
+	ListResp           *handpb.ListSessionsResponse
+	ListReq            *handpb.ListSessionsRequest
+	UseReq             *handpb.UseSessionRequest
+	ArchiveReq         *handpb.ArchiveSessionRequest
+	UnarchiveReq       *handpb.UnarchiveSessionRequest
+	UnarchiveResp      *handpb.UnarchiveSessionResponse
+	RenameReq          *handpb.RenameSessionRequest
+	RenameResp         *handpb.RenameSessionResponse
+	CurrentResp        *handpb.CurrentSessionResponse
+	CompactResp        *handpb.CompactSessionResponse
+	CompactReq         *handpb.CompactSessionRequest
+	RepairResp         *handpb.RepairSessionResponse
+	RepairReq          *handpb.RepairSessionRequest
+	StatusResp         *handpb.GetSessionStatusResponse
+	StatusReq          *handpb.GetSessionStatusRequest
+	TimelineResp       *handpb.GetSessionTimelineResponse
+	TimelineReq        *handpb.GetSessionTimelineRequest
+	ProvidersResp      *handpb.ListProvidersResponse
+	ProvidersReq       *handpb.ListProvidersRequest
+	ModelsResp         *handpb.ListModelsResponse
+	ModelsReq          *handpb.ListModelsRequest
+	SelectReq          *handpb.SelectModelRequest
+	SelectResp         *handpb.SelectModelResponse
+	APIKeyReq          *handpb.SetProviderAPIKeyRequest
+	APIKeyResp         *handpb.SetProviderAPIKeyResponse
+	GatewayStatusReq   *handpb.GetGatewayStatusRequest
+	GatewayStatusResp  *handpb.GetGatewayStatusResponse
+	GatewayStartReq    *handpb.StartGatewayRequest
+	GatewayStartResp   *handpb.StartGatewayResponse
+	GatewayStopReq     *handpb.StopGatewayRequest
+	GatewayStopResp    *handpb.StopGatewayResponse
+	GatewayRestartReq  *handpb.RestartGatewayRequest
+	GatewayRestartResp *handpb.RestartGatewayResponse
+	PairingsReq        *handpb.ListGatewayPairingsRequest
+	PairingsResp       *handpb.ListGatewayPairingsResponse
+	ApproveReq         *handpb.ApproveGatewayPairingRequest
+	ApproveResp        *handpb.ApproveGatewayPairingResponse
+	RevokeReq          *handpb.RevokeGatewayPairingRequest
+	ClearReq           *handpb.ClearPendingGatewayPairingsRequest
+	OnRespond          func()
+	OnListModels       func()
 }
 
 func (s *HandServiceClientStub) Respond(_ context.Context, req *handpb.RespondRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[handpb.RespondEvent], error) {
@@ -139,6 +147,26 @@ func (s *HandServiceClientStub) SelectModel(_ context.Context, req *handpb.Selec
 func (s *HandServiceClientStub) SetProviderAPIKey(_ context.Context, req *handpb.SetProviderAPIKeyRequest, _ ...grpc.CallOption) (*handpb.SetProviderAPIKeyResponse, error) {
 	s.APIKeyReq = req
 	return s.APIKeyResp, s.Err
+}
+
+func (s *HandServiceClientStub) GatewayStatus(_ context.Context, req *handpb.GetGatewayStatusRequest, _ ...grpc.CallOption) (*handpb.GetGatewayStatusResponse, error) {
+	s.GatewayStatusReq = req
+	return s.GatewayStatusResp, s.Err
+}
+
+func (s *HandServiceClientStub) Start(_ context.Context, req *handpb.StartGatewayRequest, _ ...grpc.CallOption) (*handpb.StartGatewayResponse, error) {
+	s.GatewayStartReq = req
+	return s.GatewayStartResp, s.Err
+}
+
+func (s *HandServiceClientStub) Stop(_ context.Context, req *handpb.StopGatewayRequest, _ ...grpc.CallOption) (*handpb.StopGatewayResponse, error) {
+	s.GatewayStopReq = req
+	return s.GatewayStopResp, s.Err
+}
+
+func (s *HandServiceClientStub) Restart(_ context.Context, req *handpb.RestartGatewayRequest, _ ...grpc.CallOption) (*handpb.RestartGatewayResponse, error) {
+	s.GatewayRestartReq = req
+	return s.GatewayRestartResp, s.Err
 }
 
 func (s *HandServiceClientStub) ListPairings(_ context.Context, req *handpb.ListGatewayPairingsRequest, _ ...grpc.CallOption) (*handpb.ListGatewayPairingsResponse, error) {

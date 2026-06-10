@@ -91,6 +91,29 @@ func TestManager_ReturnsListenError(t *testing.T) {
 	require.Equal(t, "listen failed", status.LastError)
 }
 
+func TestManager_RedactsConfiguredSecretsFromStatusErrors(t *testing.T) {
+	cfg := testGatewayConfig()
+	cfg.AuthToken = "gateway-token"
+	cfg.Telegram.BotToken = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"
+	cfg.Slack.AppToken = "xapp-secret-token"
+	manager := NewManager(Options{
+		Listen: func(string, string) (net.Listener, error) {
+			return nil, errors.New("failed with gateway-token and xapp-secret-token and 123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ123456")
+		},
+	})
+
+	err := manager.Start(context.Background(), cfg, nil)
+
+	require.Error(t, err)
+	status := manager.Status()
+	require.Equal(t, StateFailed, status.State)
+	require.Contains(t, status.LastError, "[REDACTED]")
+	require.NotContains(t, status.LastError, "gateway-token")
+	require.NotContains(t, status.LastError, "xapp-secret-token")
+	require.NotContains(t, status.LastError, "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456")
+	require.Empty(t, sanitizeStatusError(cfg, nil))
+}
+
 func TestManager_ReportsHTTPServeError(t *testing.T) {
 	serveErr := errors.New("serve failed")
 	server := &fakeHTTPServer{serveErr: serveErr}
@@ -254,54 +277,6 @@ func TestRunComponents_ReturnsStopErrorAfterContextCancellation(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, stopErr)
-}
-
-func TestManager_RestartStopsExistingRuntimeBeforeStartingReplacement(t *testing.T) {
-	stopCount := 0
-	manager := NewManager(Options{
-		NewHTTPServer: func(config.GatewayConfig, AgentService) HTTPServer {
-			return &fakeHTTPServer{onShutdown: func() {
-				stopCount++
-			}}
-		},
-	})
-	cfg := testGatewayConfig()
-
-	require.NoError(t, manager.Start(context.Background(), cfg, nil))
-	replacement := cfg
-	replacement.Port = 0
-	require.NoError(t, manager.Restart(context.Background(), replacement, nil))
-
-	require.Equal(t, 1, stopCount)
-	require.Equal(t, StateRunning, manager.Status().State)
-	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	require.NoError(t, manager.Stop(stopCtx))
-}
-
-func TestManager_RestartReturnsStopError(t *testing.T) {
-	release := make(chan struct{})
-	manager := NewManager(Options{
-		StartSlackSocket: func(context.Context, config.GatewayConfig, AgentService) error {
-			<-release
-			return nil
-		},
-	})
-	cfg := testGatewayConfig()
-	cfg.Slack.Enabled = true
-	cfg.Slack.Mode = config.GatewaySlackModeSocket
-
-	require.NoError(t, manager.Start(context.Background(), cfg, nil))
-	restartCtx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-	defer cancel()
-	require.ErrorIs(t, manager.Restart(restartCtx, cfg, nil), context.DeadlineExceeded)
-
-	close(release)
-	select {
-	case <-manager.Wait():
-	case <-time.After(time.Second):
-		t.Fatal("gateway did not stop after stuck component was released")
-	}
 }
 
 func TestManager_StopReturnsContextErrorWhenComponentDoesNotStop(t *testing.T) {

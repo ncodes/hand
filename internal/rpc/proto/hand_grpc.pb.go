@@ -822,6 +822,10 @@ var ModelService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	GatewayService_GatewayStatus_FullMethodName        = "/hand.v1.GatewayService/GatewayStatus"
+	GatewayService_Start_FullMethodName                = "/hand.v1.GatewayService/Start"
+	GatewayService_Stop_FullMethodName                 = "/hand.v1.GatewayService/Stop"
+	GatewayService_Restart_FullMethodName              = "/hand.v1.GatewayService/Restart"
 	GatewayService_ListPairings_FullMethodName         = "/hand.v1.GatewayService/ListPairings"
 	GatewayService_ApprovePairing_FullMethodName       = "/hand.v1.GatewayService/ApprovePairing"
 	GatewayService_RevokePairing_FullMethodName        = "/hand.v1.GatewayService/RevokePairing"
@@ -832,6 +836,10 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type GatewayServiceClient interface {
+	GatewayStatus(ctx context.Context, in *GetGatewayStatusRequest, opts ...grpc.CallOption) (*GetGatewayStatusResponse, error)
+	Start(ctx context.Context, in *StartGatewayRequest, opts ...grpc.CallOption) (*StartGatewayResponse, error)
+	Stop(ctx context.Context, in *StopGatewayRequest, opts ...grpc.CallOption) (*StopGatewayResponse, error)
+	Restart(ctx context.Context, in *RestartGatewayRequest, opts ...grpc.CallOption) (*RestartGatewayResponse, error)
 	ListPairings(ctx context.Context, in *ListGatewayPairingsRequest, opts ...grpc.CallOption) (*ListGatewayPairingsResponse, error)
 	ApprovePairing(ctx context.Context, in *ApproveGatewayPairingRequest, opts ...grpc.CallOption) (*ApproveGatewayPairingResponse, error)
 	RevokePairing(ctx context.Context, in *RevokeGatewayPairingRequest, opts ...grpc.CallOption) (*RevokeGatewayPairingResponse, error)
@@ -844,6 +852,46 @@ type gatewayServiceClient struct {
 
 func NewGatewayServiceClient(cc grpc.ClientConnInterface) GatewayServiceClient {
 	return &gatewayServiceClient{cc}
+}
+
+func (c *gatewayServiceClient) GatewayStatus(ctx context.Context, in *GetGatewayStatusRequest, opts ...grpc.CallOption) (*GetGatewayStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGatewayStatusResponse)
+	err := c.cc.Invoke(ctx, GatewayService_GatewayStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) Start(ctx context.Context, in *StartGatewayRequest, opts ...grpc.CallOption) (*StartGatewayResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartGatewayResponse)
+	err := c.cc.Invoke(ctx, GatewayService_Start_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) Stop(ctx context.Context, in *StopGatewayRequest, opts ...grpc.CallOption) (*StopGatewayResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StopGatewayResponse)
+	err := c.cc.Invoke(ctx, GatewayService_Stop_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) Restart(ctx context.Context, in *RestartGatewayRequest, opts ...grpc.CallOption) (*RestartGatewayResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RestartGatewayResponse)
+	err := c.cc.Invoke(ctx, GatewayService_Restart_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *gatewayServiceClient) ListPairings(ctx context.Context, in *ListGatewayPairingsRequest, opts ...grpc.CallOption) (*ListGatewayPairingsResponse, error) {
@@ -890,6 +938,10 @@ func (c *gatewayServiceClient) ClearPendingPairings(ctx context.Context, in *Cle
 // All implementations must embed UnimplementedGatewayServiceServer
 // for forward compatibility.
 type GatewayServiceServer interface {
+	GatewayStatus(context.Context, *GetGatewayStatusRequest) (*GetGatewayStatusResponse, error)
+	Start(context.Context, *StartGatewayRequest) (*StartGatewayResponse, error)
+	Stop(context.Context, *StopGatewayRequest) (*StopGatewayResponse, error)
+	Restart(context.Context, *RestartGatewayRequest) (*RestartGatewayResponse, error)
 	ListPairings(context.Context, *ListGatewayPairingsRequest) (*ListGatewayPairingsResponse, error)
 	ApprovePairing(context.Context, *ApproveGatewayPairingRequest) (*ApproveGatewayPairingResponse, error)
 	RevokePairing(context.Context, *RevokeGatewayPairingRequest) (*RevokeGatewayPairingResponse, error)
@@ -904,6 +956,18 @@ type GatewayServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedGatewayServiceServer struct{}
 
+func (UnimplementedGatewayServiceServer) GatewayStatus(context.Context, *GetGatewayStatusRequest) (*GetGatewayStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GatewayStatus not implemented")
+}
+func (UnimplementedGatewayServiceServer) Start(context.Context, *StartGatewayRequest) (*StartGatewayResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Start not implemented")
+}
+func (UnimplementedGatewayServiceServer) Stop(context.Context, *StopGatewayRequest) (*StopGatewayResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
+}
+func (UnimplementedGatewayServiceServer) Restart(context.Context, *RestartGatewayRequest) (*RestartGatewayResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Restart not implemented")
+}
 func (UnimplementedGatewayServiceServer) ListPairings(context.Context, *ListGatewayPairingsRequest) (*ListGatewayPairingsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListPairings not implemented")
 }
@@ -935,6 +999,78 @@ func RegisterGatewayServiceServer(s grpc.ServiceRegistrar, srv GatewayServiceSer
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&GatewayService_ServiceDesc, srv)
+}
+
+func _GatewayService_GatewayStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGatewayStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).GatewayStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_GatewayStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).GatewayStatus(ctx, req.(*GetGatewayStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_Start_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartGatewayRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).Start(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_Start_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).Start(ctx, req.(*StartGatewayRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopGatewayRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).Stop(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_Stop_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).Stop(ctx, req.(*StopGatewayRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_Restart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RestartGatewayRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).Restart(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_Restart_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).Restart(ctx, req.(*RestartGatewayRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _GatewayService_ListPairings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -1016,6 +1152,22 @@ var GatewayService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "hand.v1.GatewayService",
 	HandlerType: (*GatewayServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GatewayStatus",
+			Handler:    _GatewayService_GatewayStatus_Handler,
+		},
+		{
+			MethodName: "Start",
+			Handler:    _GatewayService_Start_Handler,
+		},
+		{
+			MethodName: "Stop",
+			Handler:    _GatewayService_Stop_Handler,
+		},
+		{
+			MethodName: "Restart",
+			Handler:    _GatewayService_Restart_Handler,
+		},
 		{
 			MethodName: "ListPairings",
 			Handler:    _GatewayService_ListPairings_Handler,

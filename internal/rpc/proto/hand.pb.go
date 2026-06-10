@@ -2641,6 +2641,410 @@ func (x *SetProviderAPIKeyResponse) GetProvider() string {
 	return ""
 }
 
+type GatewayStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	State         string                 `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
+	Address       string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	Port          int32                  `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
+	SlackMode     string                 `protobuf:"bytes,4,opt,name=slack_mode,json=slackMode,proto3" json:"slack_mode,omitempty"`
+	TelegramMode  string                 `protobuf:"bytes,5,opt,name=telegram_mode,json=telegramMode,proto3" json:"telegram_mode,omitempty"`
+	LastError     string                 `protobuf:"bytes,6,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GatewayStatus) Reset() {
+	*x = GatewayStatus{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GatewayStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GatewayStatus) ProtoMessage() {}
+
+func (x *GatewayStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GatewayStatus.ProtoReflect.Descriptor instead.
+func (*GatewayStatus) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *GatewayStatus) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *GatewayStatus) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *GatewayStatus) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *GatewayStatus) GetSlackMode() string {
+	if x != nil {
+		return x.SlackMode
+	}
+	return ""
+}
+
+func (x *GatewayStatus) GetTelegramMode() string {
+	if x != nil {
+		return x.TelegramMode
+	}
+	return ""
+}
+
+func (x *GatewayStatus) GetLastError() string {
+	if x != nil {
+		return x.LastError
+	}
+	return ""
+}
+
+type GetGatewayStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGatewayStatusRequest) Reset() {
+	*x = GetGatewayStatusRequest{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGatewayStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGatewayStatusRequest) ProtoMessage() {}
+
+func (x *GetGatewayStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGatewayStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetGatewayStatusRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{42}
+}
+
+type GetGatewayStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        *GatewayStatus         `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGatewayStatusResponse) Reset() {
+	*x = GetGatewayStatusResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGatewayStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGatewayStatusResponse) ProtoMessage() {}
+
+func (x *GetGatewayStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGatewayStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetGatewayStatusResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *GetGatewayStatusResponse) GetStatus() *GatewayStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+type StartGatewayRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartGatewayRequest) Reset() {
+	*x = StartGatewayRequest{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartGatewayRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartGatewayRequest) ProtoMessage() {}
+
+func (x *StartGatewayRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartGatewayRequest.ProtoReflect.Descriptor instead.
+func (*StartGatewayRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{44}
+}
+
+type StartGatewayResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        *GatewayStatus         `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartGatewayResponse) Reset() {
+	*x = StartGatewayResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartGatewayResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartGatewayResponse) ProtoMessage() {}
+
+func (x *StartGatewayResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartGatewayResponse.ProtoReflect.Descriptor instead.
+func (*StartGatewayResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *StartGatewayResponse) GetStatus() *GatewayStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+type StopGatewayRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StopGatewayRequest) Reset() {
+	*x = StopGatewayRequest{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StopGatewayRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StopGatewayRequest) ProtoMessage() {}
+
+func (x *StopGatewayRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StopGatewayRequest.ProtoReflect.Descriptor instead.
+func (*StopGatewayRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{46}
+}
+
+type StopGatewayResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        *GatewayStatus         `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StopGatewayResponse) Reset() {
+	*x = StopGatewayResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StopGatewayResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StopGatewayResponse) ProtoMessage() {}
+
+func (x *StopGatewayResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StopGatewayResponse.ProtoReflect.Descriptor instead.
+func (*StopGatewayResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *StopGatewayResponse) GetStatus() *GatewayStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+type RestartGatewayRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestartGatewayRequest) Reset() {
+	*x = RestartGatewayRequest{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestartGatewayRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestartGatewayRequest) ProtoMessage() {}
+
+func (x *RestartGatewayRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestartGatewayRequest.ProtoReflect.Descriptor instead.
+func (*RestartGatewayRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{48}
+}
+
+type RestartGatewayResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        *GatewayStatus         `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestartGatewayResponse) Reset() {
+	*x = RestartGatewayResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestartGatewayResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestartGatewayResponse) ProtoMessage() {}
+
+func (x *RestartGatewayResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestartGatewayResponse.ProtoReflect.Descriptor instead.
+func (*RestartGatewayResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *RestartGatewayResponse) GetStatus() *GatewayStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
 type GatewayPairingRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Source        string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
@@ -2655,7 +3059,7 @@ type GatewayPairingRequest struct {
 
 func (x *GatewayPairingRequest) Reset() {
 	*x = GatewayPairingRequest{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[41]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2667,7 +3071,7 @@ func (x *GatewayPairingRequest) String() string {
 func (*GatewayPairingRequest) ProtoMessage() {}
 
 func (x *GatewayPairingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[41]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2680,7 +3084,7 @@ func (x *GatewayPairingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayPairingRequest.ProtoReflect.Descriptor instead.
 func (*GatewayPairingRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{41}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *GatewayPairingRequest) GetSource() string {
@@ -2738,7 +3142,7 @@ type GatewayPairedSender struct {
 
 func (x *GatewayPairedSender) Reset() {
 	*x = GatewayPairedSender{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[42]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2750,7 +3154,7 @@ func (x *GatewayPairedSender) String() string {
 func (*GatewayPairedSender) ProtoMessage() {}
 
 func (x *GatewayPairedSender) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[42]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2763,7 +3167,7 @@ func (x *GatewayPairedSender) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayPairedSender.ProtoReflect.Descriptor instead.
 func (*GatewayPairedSender) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{42}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *GatewayPairedSender) GetSource() string {
@@ -2810,7 +3214,7 @@ type ListGatewayPairingsRequest struct {
 
 func (x *ListGatewayPairingsRequest) Reset() {
 	*x = ListGatewayPairingsRequest{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[43]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2822,7 +3226,7 @@ func (x *ListGatewayPairingsRequest) String() string {
 func (*ListGatewayPairingsRequest) ProtoMessage() {}
 
 func (x *ListGatewayPairingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[43]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2835,7 +3239,7 @@ func (x *ListGatewayPairingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGatewayPairingsRequest.ProtoReflect.Descriptor instead.
 func (*ListGatewayPairingsRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{43}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ListGatewayPairingsRequest) GetSource() string {
@@ -2855,7 +3259,7 @@ type ListGatewayPairingsResponse struct {
 
 func (x *ListGatewayPairingsResponse) Reset() {
 	*x = ListGatewayPairingsResponse{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[44]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2867,7 +3271,7 @@ func (x *ListGatewayPairingsResponse) String() string {
 func (*ListGatewayPairingsResponse) ProtoMessage() {}
 
 func (x *ListGatewayPairingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[44]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2880,7 +3284,7 @@ func (x *ListGatewayPairingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGatewayPairingsResponse.ProtoReflect.Descriptor instead.
 func (*ListGatewayPairingsResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{44}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *ListGatewayPairingsResponse) GetPending() []*GatewayPairingRequest {
@@ -2907,7 +3311,7 @@ type ApproveGatewayPairingRequest struct {
 
 func (x *ApproveGatewayPairingRequest) Reset() {
 	*x = ApproveGatewayPairingRequest{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[45]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2919,7 +3323,7 @@ func (x *ApproveGatewayPairingRequest) String() string {
 func (*ApproveGatewayPairingRequest) ProtoMessage() {}
 
 func (x *ApproveGatewayPairingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[45]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2932,7 +3336,7 @@ func (x *ApproveGatewayPairingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveGatewayPairingRequest.ProtoReflect.Descriptor instead.
 func (*ApproveGatewayPairingRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{45}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *ApproveGatewayPairingRequest) GetSource() string {
@@ -2959,7 +3363,7 @@ type ApproveGatewayPairingResponse struct {
 
 func (x *ApproveGatewayPairingResponse) Reset() {
 	*x = ApproveGatewayPairingResponse{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[46]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2971,7 +3375,7 @@ func (x *ApproveGatewayPairingResponse) String() string {
 func (*ApproveGatewayPairingResponse) ProtoMessage() {}
 
 func (x *ApproveGatewayPairingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[46]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2984,7 +3388,7 @@ func (x *ApproveGatewayPairingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveGatewayPairingResponse.ProtoReflect.Descriptor instead.
 func (*ApproveGatewayPairingResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{46}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *ApproveGatewayPairingResponse) GetApproved() bool {
@@ -3011,7 +3415,7 @@ type RevokeGatewayPairingRequest struct {
 
 func (x *RevokeGatewayPairingRequest) Reset() {
 	*x = RevokeGatewayPairingRequest{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[47]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3023,7 +3427,7 @@ func (x *RevokeGatewayPairingRequest) String() string {
 func (*RevokeGatewayPairingRequest) ProtoMessage() {}
 
 func (x *RevokeGatewayPairingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[47]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3036,7 +3440,7 @@ func (x *RevokeGatewayPairingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeGatewayPairingRequest.ProtoReflect.Descriptor instead.
 func (*RevokeGatewayPairingRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{47}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *RevokeGatewayPairingRequest) GetSource() string {
@@ -3061,7 +3465,7 @@ type RevokeGatewayPairingResponse struct {
 
 func (x *RevokeGatewayPairingResponse) Reset() {
 	*x = RevokeGatewayPairingResponse{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[48]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3073,7 +3477,7 @@ func (x *RevokeGatewayPairingResponse) String() string {
 func (*RevokeGatewayPairingResponse) ProtoMessage() {}
 
 func (x *RevokeGatewayPairingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[48]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3086,7 +3490,7 @@ func (x *RevokeGatewayPairingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeGatewayPairingResponse.ProtoReflect.Descriptor instead.
 func (*RevokeGatewayPairingResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{48}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{57}
 }
 
 type ClearPendingGatewayPairingsRequest struct {
@@ -3098,7 +3502,7 @@ type ClearPendingGatewayPairingsRequest struct {
 
 func (x *ClearPendingGatewayPairingsRequest) Reset() {
 	*x = ClearPendingGatewayPairingsRequest{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[49]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3110,7 +3514,7 @@ func (x *ClearPendingGatewayPairingsRequest) String() string {
 func (*ClearPendingGatewayPairingsRequest) ProtoMessage() {}
 
 func (x *ClearPendingGatewayPairingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[49]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3123,7 +3527,7 @@ func (x *ClearPendingGatewayPairingsRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use ClearPendingGatewayPairingsRequest.ProtoReflect.Descriptor instead.
 func (*ClearPendingGatewayPairingsRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{49}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *ClearPendingGatewayPairingsRequest) GetSource() string {
@@ -3141,7 +3545,7 @@ type ClearPendingGatewayPairingsResponse struct {
 
 func (x *ClearPendingGatewayPairingsResponse) Reset() {
 	*x = ClearPendingGatewayPairingsResponse{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[50]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3153,7 +3557,7 @@ func (x *ClearPendingGatewayPairingsResponse) String() string {
 func (*ClearPendingGatewayPairingsResponse) ProtoMessage() {}
 
 func (x *ClearPendingGatewayPairingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[50]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3166,7 +3570,7 @@ func (x *ClearPendingGatewayPairingsResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use ClearPendingGatewayPairingsResponse.ProtoReflect.Descriptor instead.
 func (*ClearPendingGatewayPairingsResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{50}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{59}
 }
 
 type GetSessionStatusResponse_Context struct {
@@ -3183,7 +3587,7 @@ type GetSessionStatusResponse_Context struct {
 
 func (x *GetSessionStatusResponse_Context) Reset() {
 	*x = GetSessionStatusResponse_Context{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[51]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3195,7 +3599,7 @@ func (x *GetSessionStatusResponse_Context) String() string {
 func (*GetSessionStatusResponse_Context) ProtoMessage() {}
 
 func (x *GetSessionStatusResponse_Context) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[51]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3461,7 +3865,28 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x17\n" +
 	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\"7\n" +
 	"\x19SetProviderAPIKeyResponse\x12\x1a\n" +
-	"\bprovider\x18\x01 \x01(\tR\bprovider\"\xa3\x02\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\"\xb6\x01\n" +
+	"\rGatewayStatus\x12\x14\n" +
+	"\x05state\x18\x01 \x01(\tR\x05state\x12\x18\n" +
+	"\aaddress\x18\x02 \x01(\tR\aaddress\x12\x12\n" +
+	"\x04port\x18\x03 \x01(\x05R\x04port\x12\x1d\n" +
+	"\n" +
+	"slack_mode\x18\x04 \x01(\tR\tslackMode\x12#\n" +
+	"\rtelegram_mode\x18\x05 \x01(\tR\ftelegramMode\x12\x1d\n" +
+	"\n" +
+	"last_error\x18\x06 \x01(\tR\tlastError\"\x19\n" +
+	"\x17GetGatewayStatusRequest\"J\n" +
+	"\x18GetGatewayStatusResponse\x12.\n" +
+	"\x06status\x18\x01 \x01(\v2\x16.hand.v1.GatewayStatusR\x06status\"\x15\n" +
+	"\x13StartGatewayRequest\"F\n" +
+	"\x14StartGatewayResponse\x12.\n" +
+	"\x06status\x18\x01 \x01(\v2\x16.hand.v1.GatewayStatusR\x06status\"\x14\n" +
+	"\x12StopGatewayRequest\"E\n" +
+	"\x13StopGatewayResponse\x12.\n" +
+	"\x06status\x18\x01 \x01(\v2\x16.hand.v1.GatewayStatusR\x06status\"\x17\n" +
+	"\x15RestartGatewayRequest\"H\n" +
+	"\x16RestartGatewayResponse\x12.\n" +
+	"\x06status\x18\x01 \x01(\v2\x16.hand.v1.GatewayStatusR\x06status\"\xa3\x02\n" +
 	"\x15GatewayPairingRequest\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1b\n" +
 	"\tsender_id\x18\x02 \x01(\tR\bsenderId\x12!\n" +
@@ -3517,8 +3942,12 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\n" +
 	"ListModels\x12\x1a.hand.v1.ListModelsRequest\x1a\x1b.hand.v1.ListModelsResponse\x12H\n" +
 	"\vSelectModel\x12\x1b.hand.v1.SelectModelRequest\x1a\x1c.hand.v1.SelectModelResponse\x12Z\n" +
-	"\x11SetProviderAPIKey\x12!.hand.v1.SetProviderAPIKeyRequest\x1a\".hand.v1.SetProviderAPIKeyResponse2\x9d\x03\n" +
-	"\x0eGatewayService\x12Y\n" +
+	"\x11SetProviderAPIKey\x12!.hand.v1.SetProviderAPIKeyRequest\x1a\".hand.v1.SetProviderAPIKeyResponse2\xc8\x05\n" +
+	"\x0eGatewayService\x12T\n" +
+	"\rGatewayStatus\x12 .hand.v1.GetGatewayStatusRequest\x1a!.hand.v1.GetGatewayStatusResponse\x12D\n" +
+	"\x05Start\x12\x1c.hand.v1.StartGatewayRequest\x1a\x1d.hand.v1.StartGatewayResponse\x12A\n" +
+	"\x04Stop\x12\x1b.hand.v1.StopGatewayRequest\x1a\x1c.hand.v1.StopGatewayResponse\x12J\n" +
+	"\aRestart\x12\x1e.hand.v1.RestartGatewayRequest\x1a\x1f.hand.v1.RestartGatewayResponse\x12Y\n" +
 	"\fListPairings\x12#.hand.v1.ListGatewayPairingsRequest\x1a$.hand.v1.ListGatewayPairingsResponse\x12_\n" +
 	"\x0eApprovePairing\x12%.hand.v1.ApproveGatewayPairingRequest\x1a&.hand.v1.ApproveGatewayPairingResponse\x12\\\n" +
 	"\rRevokePairing\x12$.hand.v1.RevokeGatewayPairingRequest\x1a%.hand.v1.RevokeGatewayPairingResponse\x12q\n" +
@@ -3537,7 +3966,7 @@ func file_internal_rpc_proto_hand_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_rpc_proto_hand_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_internal_rpc_proto_hand_proto_msgTypes = make([]protoimpl.MessageInfo, 52)
+var file_internal_rpc_proto_hand_proto_msgTypes = make([]protoimpl.MessageInfo, 61)
 var file_internal_rpc_proto_hand_proto_goTypes = []any{
 	(RespondEvent_Type)(0),                      // 0: hand.v1.RespondEvent.Type
 	(RespondEvent_Channel)(0),                   // 1: hand.v1.RespondEvent.Channel
@@ -3583,97 +4012,118 @@ var file_internal_rpc_proto_hand_proto_goTypes = []any{
 	(*SelectModelResponse)(nil),                 // 41: hand.v1.SelectModelResponse
 	(*SetProviderAPIKeyRequest)(nil),            // 42: hand.v1.SetProviderAPIKeyRequest
 	(*SetProviderAPIKeyResponse)(nil),           // 43: hand.v1.SetProviderAPIKeyResponse
-	(*GatewayPairingRequest)(nil),               // 44: hand.v1.GatewayPairingRequest
-	(*GatewayPairedSender)(nil),                 // 45: hand.v1.GatewayPairedSender
-	(*ListGatewayPairingsRequest)(nil),          // 46: hand.v1.ListGatewayPairingsRequest
-	(*ListGatewayPairingsResponse)(nil),         // 47: hand.v1.ListGatewayPairingsResponse
-	(*ApproveGatewayPairingRequest)(nil),        // 48: hand.v1.ApproveGatewayPairingRequest
-	(*ApproveGatewayPairingResponse)(nil),       // 49: hand.v1.ApproveGatewayPairingResponse
-	(*RevokeGatewayPairingRequest)(nil),         // 50: hand.v1.RevokeGatewayPairingRequest
-	(*RevokeGatewayPairingResponse)(nil),        // 51: hand.v1.RevokeGatewayPairingResponse
-	(*ClearPendingGatewayPairingsRequest)(nil),  // 52: hand.v1.ClearPendingGatewayPairingsRequest
-	(*ClearPendingGatewayPairingsResponse)(nil), // 53: hand.v1.ClearPendingGatewayPairingsResponse
-	(*GetSessionStatusResponse_Context)(nil),    // 54: hand.v1.GetSessionStatusResponse.Context
-	(*timestamppb.Timestamp)(nil),               // 55: google.protobuf.Timestamp
+	(*GatewayStatus)(nil),                       // 44: hand.v1.GatewayStatus
+	(*GetGatewayStatusRequest)(nil),             // 45: hand.v1.GetGatewayStatusRequest
+	(*GetGatewayStatusResponse)(nil),            // 46: hand.v1.GetGatewayStatusResponse
+	(*StartGatewayRequest)(nil),                 // 47: hand.v1.StartGatewayRequest
+	(*StartGatewayResponse)(nil),                // 48: hand.v1.StartGatewayResponse
+	(*StopGatewayRequest)(nil),                  // 49: hand.v1.StopGatewayRequest
+	(*StopGatewayResponse)(nil),                 // 50: hand.v1.StopGatewayResponse
+	(*RestartGatewayRequest)(nil),               // 51: hand.v1.RestartGatewayRequest
+	(*RestartGatewayResponse)(nil),              // 52: hand.v1.RestartGatewayResponse
+	(*GatewayPairingRequest)(nil),               // 53: hand.v1.GatewayPairingRequest
+	(*GatewayPairedSender)(nil),                 // 54: hand.v1.GatewayPairedSender
+	(*ListGatewayPairingsRequest)(nil),          // 55: hand.v1.ListGatewayPairingsRequest
+	(*ListGatewayPairingsResponse)(nil),         // 56: hand.v1.ListGatewayPairingsResponse
+	(*ApproveGatewayPairingRequest)(nil),        // 57: hand.v1.ApproveGatewayPairingRequest
+	(*ApproveGatewayPairingResponse)(nil),       // 58: hand.v1.ApproveGatewayPairingResponse
+	(*RevokeGatewayPairingRequest)(nil),         // 59: hand.v1.RevokeGatewayPairingRequest
+	(*RevokeGatewayPairingResponse)(nil),        // 60: hand.v1.RevokeGatewayPairingResponse
+	(*ClearPendingGatewayPairingsRequest)(nil),  // 61: hand.v1.ClearPendingGatewayPairingsRequest
+	(*ClearPendingGatewayPairingsResponse)(nil), // 62: hand.v1.ClearPendingGatewayPairingsResponse
+	(*GetSessionStatusResponse_Context)(nil),    // 63: hand.v1.GetSessionStatusResponse.Context
+	(*timestamppb.Timestamp)(nil),               // 64: google.protobuf.Timestamp
 }
 var file_internal_rpc_proto_hand_proto_depIdxs = []int32{
 	0,  // 0: hand.v1.RespondEvent.type:type_name -> hand.v1.RespondEvent.Type
 	1,  // 1: hand.v1.RespondEvent.channel:type_name -> hand.v1.RespondEvent.Channel
-	55, // 2: hand.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
+	64, // 2: hand.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
 	5,  // 3: hand.v1.CreateSessionResponse.session:type_name -> hand.v1.SessionSummary
 	5,  // 4: hand.v1.ListSessionsResponse.sessions:type_name -> hand.v1.SessionSummary
 	5,  // 5: hand.v1.UnarchiveSessionResponse.session:type_name -> hand.v1.SessionSummary
 	5,  // 6: hand.v1.RenameSessionResponse.session:type_name -> hand.v1.SessionSummary
-	55, // 7: hand.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	64, // 7: hand.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 8: hand.v1.RepairSessionRequest.type:type_name -> hand.v1.RepairSessionRequest.Type
 	24, // 9: hand.v1.RepairSessionRequest.vector:type_name -> hand.v1.VectorRepairOption
 	2,  // 10: hand.v1.RepairSessionResponse.type:type_name -> hand.v1.RepairSessionRequest.Type
 	25, // 11: hand.v1.RepairSessionResponse.vector:type_name -> hand.v1.VectorRepairResponse
 	26, // 12: hand.v1.GetSessionStatusRequest.context:type_name -> hand.v1.GetSessionStatusRequestContext
-	54, // 13: hand.v1.GetSessionStatusResponse.context:type_name -> hand.v1.GetSessionStatusResponse.Context
-	55, // 14: hand.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
-	55, // 15: hand.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
-	55, // 16: hand.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
+	63, // 13: hand.v1.GetSessionStatusResponse.context:type_name -> hand.v1.GetSessionStatusResponse.Context
+	64, // 14: hand.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
+	64, // 15: hand.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
+	64, // 16: hand.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
 	30, // 17: hand.v1.SessionTimelineMessage.tool_calls:type_name -> hand.v1.SessionTimelineToolCall
-	55, // 18: hand.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
+	64, // 18: hand.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
 	31, // 19: hand.v1.GetSessionTimelineResponse.messages:type_name -> hand.v1.SessionTimelineMessage
 	32, // 20: hand.v1.GetSessionTimelineResponse.trace_events:type_name -> hand.v1.SessionTimelineTraceEvent
 	35, // 21: hand.v1.ListProvidersResponse.providers:type_name -> hand.v1.ProviderOption
 	38, // 22: hand.v1.ListModelsResponse.models:type_name -> hand.v1.ModelOption
 	38, // 23: hand.v1.SelectModelResponse.model:type_name -> hand.v1.ModelOption
-	55, // 24: hand.v1.GatewayPairingRequest.created_at:type_name -> google.protobuf.Timestamp
-	55, // 25: hand.v1.GatewayPairingRequest.last_seen_at:type_name -> google.protobuf.Timestamp
-	55, // 26: hand.v1.GatewayPairingRequest.expires_at:type_name -> google.protobuf.Timestamp
-	55, // 27: hand.v1.GatewayPairedSender.created_at:type_name -> google.protobuf.Timestamp
-	55, // 28: hand.v1.GatewayPairedSender.updated_at:type_name -> google.protobuf.Timestamp
-	44, // 29: hand.v1.ListGatewayPairingsResponse.pending:type_name -> hand.v1.GatewayPairingRequest
-	45, // 30: hand.v1.ListGatewayPairingsResponse.approved:type_name -> hand.v1.GatewayPairedSender
-	45, // 31: hand.v1.ApproveGatewayPairingResponse.sender:type_name -> hand.v1.GatewayPairedSender
-	3,  // 32: hand.v1.HandService.Respond:input_type -> hand.v1.RespondRequest
-	6,  // 33: hand.v1.SessionService.Create:input_type -> hand.v1.CreateSessionRequest
-	8,  // 34: hand.v1.SessionService.List:input_type -> hand.v1.ListSessionsRequest
-	10, // 35: hand.v1.SessionService.Use:input_type -> hand.v1.UseSessionRequest
-	12, // 36: hand.v1.SessionService.Archive:input_type -> hand.v1.ArchiveSessionRequest
-	14, // 37: hand.v1.SessionService.Unarchive:input_type -> hand.v1.UnarchiveSessionRequest
-	16, // 38: hand.v1.SessionService.Rename:input_type -> hand.v1.RenameSessionRequest
-	18, // 39: hand.v1.SessionService.Current:input_type -> hand.v1.CurrentSessionRequest
-	20, // 40: hand.v1.SessionService.Compact:input_type -> hand.v1.CompactSessionRequest
-	22, // 41: hand.v1.SessionService.Repair:input_type -> hand.v1.RepairSessionRequest
-	27, // 42: hand.v1.SessionService.Status:input_type -> hand.v1.GetSessionStatusRequest
-	29, // 43: hand.v1.SessionService.Timeline:input_type -> hand.v1.GetSessionTimelineRequest
-	34, // 44: hand.v1.ModelService.ListProviders:input_type -> hand.v1.ListProvidersRequest
-	37, // 45: hand.v1.ModelService.ListModels:input_type -> hand.v1.ListModelsRequest
-	40, // 46: hand.v1.ModelService.SelectModel:input_type -> hand.v1.SelectModelRequest
-	42, // 47: hand.v1.ModelService.SetProviderAPIKey:input_type -> hand.v1.SetProviderAPIKeyRequest
-	46, // 48: hand.v1.GatewayService.ListPairings:input_type -> hand.v1.ListGatewayPairingsRequest
-	48, // 49: hand.v1.GatewayService.ApprovePairing:input_type -> hand.v1.ApproveGatewayPairingRequest
-	50, // 50: hand.v1.GatewayService.RevokePairing:input_type -> hand.v1.RevokeGatewayPairingRequest
-	52, // 51: hand.v1.GatewayService.ClearPendingPairings:input_type -> hand.v1.ClearPendingGatewayPairingsRequest
-	4,  // 52: hand.v1.HandService.Respond:output_type -> hand.v1.RespondEvent
-	7,  // 53: hand.v1.SessionService.Create:output_type -> hand.v1.CreateSessionResponse
-	9,  // 54: hand.v1.SessionService.List:output_type -> hand.v1.ListSessionsResponse
-	11, // 55: hand.v1.SessionService.Use:output_type -> hand.v1.UseSessionResponse
-	13, // 56: hand.v1.SessionService.Archive:output_type -> hand.v1.ArchiveSessionResponse
-	15, // 57: hand.v1.SessionService.Unarchive:output_type -> hand.v1.UnarchiveSessionResponse
-	17, // 58: hand.v1.SessionService.Rename:output_type -> hand.v1.RenameSessionResponse
-	19, // 59: hand.v1.SessionService.Current:output_type -> hand.v1.CurrentSessionResponse
-	21, // 60: hand.v1.SessionService.Compact:output_type -> hand.v1.CompactSessionResponse
-	23, // 61: hand.v1.SessionService.Repair:output_type -> hand.v1.RepairSessionResponse
-	28, // 62: hand.v1.SessionService.Status:output_type -> hand.v1.GetSessionStatusResponse
-	33, // 63: hand.v1.SessionService.Timeline:output_type -> hand.v1.GetSessionTimelineResponse
-	36, // 64: hand.v1.ModelService.ListProviders:output_type -> hand.v1.ListProvidersResponse
-	39, // 65: hand.v1.ModelService.ListModels:output_type -> hand.v1.ListModelsResponse
-	41, // 66: hand.v1.ModelService.SelectModel:output_type -> hand.v1.SelectModelResponse
-	43, // 67: hand.v1.ModelService.SetProviderAPIKey:output_type -> hand.v1.SetProviderAPIKeyResponse
-	47, // 68: hand.v1.GatewayService.ListPairings:output_type -> hand.v1.ListGatewayPairingsResponse
-	49, // 69: hand.v1.GatewayService.ApprovePairing:output_type -> hand.v1.ApproveGatewayPairingResponse
-	51, // 70: hand.v1.GatewayService.RevokePairing:output_type -> hand.v1.RevokeGatewayPairingResponse
-	53, // 71: hand.v1.GatewayService.ClearPendingPairings:output_type -> hand.v1.ClearPendingGatewayPairingsResponse
-	52, // [52:72] is the sub-list for method output_type
-	32, // [32:52] is the sub-list for method input_type
-	32, // [32:32] is the sub-list for extension type_name
-	32, // [32:32] is the sub-list for extension extendee
-	0,  // [0:32] is the sub-list for field type_name
+	44, // 24: hand.v1.GetGatewayStatusResponse.status:type_name -> hand.v1.GatewayStatus
+	44, // 25: hand.v1.StartGatewayResponse.status:type_name -> hand.v1.GatewayStatus
+	44, // 26: hand.v1.StopGatewayResponse.status:type_name -> hand.v1.GatewayStatus
+	44, // 27: hand.v1.RestartGatewayResponse.status:type_name -> hand.v1.GatewayStatus
+	64, // 28: hand.v1.GatewayPairingRequest.created_at:type_name -> google.protobuf.Timestamp
+	64, // 29: hand.v1.GatewayPairingRequest.last_seen_at:type_name -> google.protobuf.Timestamp
+	64, // 30: hand.v1.GatewayPairingRequest.expires_at:type_name -> google.protobuf.Timestamp
+	64, // 31: hand.v1.GatewayPairedSender.created_at:type_name -> google.protobuf.Timestamp
+	64, // 32: hand.v1.GatewayPairedSender.updated_at:type_name -> google.protobuf.Timestamp
+	53, // 33: hand.v1.ListGatewayPairingsResponse.pending:type_name -> hand.v1.GatewayPairingRequest
+	54, // 34: hand.v1.ListGatewayPairingsResponse.approved:type_name -> hand.v1.GatewayPairedSender
+	54, // 35: hand.v1.ApproveGatewayPairingResponse.sender:type_name -> hand.v1.GatewayPairedSender
+	3,  // 36: hand.v1.HandService.Respond:input_type -> hand.v1.RespondRequest
+	6,  // 37: hand.v1.SessionService.Create:input_type -> hand.v1.CreateSessionRequest
+	8,  // 38: hand.v1.SessionService.List:input_type -> hand.v1.ListSessionsRequest
+	10, // 39: hand.v1.SessionService.Use:input_type -> hand.v1.UseSessionRequest
+	12, // 40: hand.v1.SessionService.Archive:input_type -> hand.v1.ArchiveSessionRequest
+	14, // 41: hand.v1.SessionService.Unarchive:input_type -> hand.v1.UnarchiveSessionRequest
+	16, // 42: hand.v1.SessionService.Rename:input_type -> hand.v1.RenameSessionRequest
+	18, // 43: hand.v1.SessionService.Current:input_type -> hand.v1.CurrentSessionRequest
+	20, // 44: hand.v1.SessionService.Compact:input_type -> hand.v1.CompactSessionRequest
+	22, // 45: hand.v1.SessionService.Repair:input_type -> hand.v1.RepairSessionRequest
+	27, // 46: hand.v1.SessionService.Status:input_type -> hand.v1.GetSessionStatusRequest
+	29, // 47: hand.v1.SessionService.Timeline:input_type -> hand.v1.GetSessionTimelineRequest
+	34, // 48: hand.v1.ModelService.ListProviders:input_type -> hand.v1.ListProvidersRequest
+	37, // 49: hand.v1.ModelService.ListModels:input_type -> hand.v1.ListModelsRequest
+	40, // 50: hand.v1.ModelService.SelectModel:input_type -> hand.v1.SelectModelRequest
+	42, // 51: hand.v1.ModelService.SetProviderAPIKey:input_type -> hand.v1.SetProviderAPIKeyRequest
+	45, // 52: hand.v1.GatewayService.GatewayStatus:input_type -> hand.v1.GetGatewayStatusRequest
+	47, // 53: hand.v1.GatewayService.Start:input_type -> hand.v1.StartGatewayRequest
+	49, // 54: hand.v1.GatewayService.Stop:input_type -> hand.v1.StopGatewayRequest
+	51, // 55: hand.v1.GatewayService.Restart:input_type -> hand.v1.RestartGatewayRequest
+	55, // 56: hand.v1.GatewayService.ListPairings:input_type -> hand.v1.ListGatewayPairingsRequest
+	57, // 57: hand.v1.GatewayService.ApprovePairing:input_type -> hand.v1.ApproveGatewayPairingRequest
+	59, // 58: hand.v1.GatewayService.RevokePairing:input_type -> hand.v1.RevokeGatewayPairingRequest
+	61, // 59: hand.v1.GatewayService.ClearPendingPairings:input_type -> hand.v1.ClearPendingGatewayPairingsRequest
+	4,  // 60: hand.v1.HandService.Respond:output_type -> hand.v1.RespondEvent
+	7,  // 61: hand.v1.SessionService.Create:output_type -> hand.v1.CreateSessionResponse
+	9,  // 62: hand.v1.SessionService.List:output_type -> hand.v1.ListSessionsResponse
+	11, // 63: hand.v1.SessionService.Use:output_type -> hand.v1.UseSessionResponse
+	13, // 64: hand.v1.SessionService.Archive:output_type -> hand.v1.ArchiveSessionResponse
+	15, // 65: hand.v1.SessionService.Unarchive:output_type -> hand.v1.UnarchiveSessionResponse
+	17, // 66: hand.v1.SessionService.Rename:output_type -> hand.v1.RenameSessionResponse
+	19, // 67: hand.v1.SessionService.Current:output_type -> hand.v1.CurrentSessionResponse
+	21, // 68: hand.v1.SessionService.Compact:output_type -> hand.v1.CompactSessionResponse
+	23, // 69: hand.v1.SessionService.Repair:output_type -> hand.v1.RepairSessionResponse
+	28, // 70: hand.v1.SessionService.Status:output_type -> hand.v1.GetSessionStatusResponse
+	33, // 71: hand.v1.SessionService.Timeline:output_type -> hand.v1.GetSessionTimelineResponse
+	36, // 72: hand.v1.ModelService.ListProviders:output_type -> hand.v1.ListProvidersResponse
+	39, // 73: hand.v1.ModelService.ListModels:output_type -> hand.v1.ListModelsResponse
+	41, // 74: hand.v1.ModelService.SelectModel:output_type -> hand.v1.SelectModelResponse
+	43, // 75: hand.v1.ModelService.SetProviderAPIKey:output_type -> hand.v1.SetProviderAPIKeyResponse
+	46, // 76: hand.v1.GatewayService.GatewayStatus:output_type -> hand.v1.GetGatewayStatusResponse
+	48, // 77: hand.v1.GatewayService.Start:output_type -> hand.v1.StartGatewayResponse
+	50, // 78: hand.v1.GatewayService.Stop:output_type -> hand.v1.StopGatewayResponse
+	52, // 79: hand.v1.GatewayService.Restart:output_type -> hand.v1.RestartGatewayResponse
+	56, // 80: hand.v1.GatewayService.ListPairings:output_type -> hand.v1.ListGatewayPairingsResponse
+	58, // 81: hand.v1.GatewayService.ApprovePairing:output_type -> hand.v1.ApproveGatewayPairingResponse
+	60, // 82: hand.v1.GatewayService.RevokePairing:output_type -> hand.v1.RevokeGatewayPairingResponse
+	62, // 83: hand.v1.GatewayService.ClearPendingPairings:output_type -> hand.v1.ClearPendingGatewayPairingsResponse
+	60, // [60:84] is the sub-list for method output_type
+	36, // [36:60] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_internal_rpc_proto_hand_proto_init() }
@@ -3690,7 +4140,7 @@ func file_internal_rpc_proto_hand_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_rpc_proto_hand_proto_rawDesc), len(file_internal_rpc_proto_hand_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   52,
+			NumMessages:   61,
 			NumExtensions: 0,
 			NumServices:   4,
 		},

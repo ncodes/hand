@@ -2,6 +2,7 @@ package server
 
 import (
 	handagent "github.com/wandxy/hand/internal/agent"
+	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/rpc"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	"google.golang.org/grpc"
@@ -13,6 +14,8 @@ import (
 type Options struct {
 	Health               bool
 	GatewayPairingSecret string
+	GatewayConfig        config.GatewayConfig
+	GatewayRuntime       rpc.GatewayRuntime
 }
 
 // New returns a gRPC server registered with the Hand RPC services.
@@ -20,6 +23,8 @@ func New(service handagent.ServiceAPI, opts Options) *grpc.Server {
 	server := grpc.NewServer()
 	rpcService := rpc.NewServiceWithOptions(service, rpc.ServiceOptions{
 		GatewayPairingSecret: opts.GatewayPairingSecret,
+		GatewayConfig:        opts.GatewayConfig,
+		GatewayRuntime:       opts.GatewayRuntime,
 	})
 	handpb.RegisterHandServiceServer(server, rpcService)
 	handpb.RegisterSessionServiceServer(server, rpcService)

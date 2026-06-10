@@ -32,6 +32,10 @@ service ModelService {
 }
 
 service GatewayService {
+  rpc GatewayStatus(GetGatewayStatusRequest) returns (GetGatewayStatusResponse);
+  rpc Start(StartGatewayRequest) returns (StartGatewayResponse);
+  rpc Stop(StopGatewayRequest) returns (StopGatewayResponse);
+  rpc Restart(RestartGatewayRequest) returns (RestartGatewayResponse);
   rpc ListPairings(ListGatewayPairingsRequest) returns (ListGatewayPairingsResponse);
   rpc ApprovePairing(ApproveGatewayPairingRequest) returns (ApproveGatewayPairingResponse);
   rpc RevokePairing(RevokeGatewayPairingRequest) returns (RevokeGatewayPairingResponse);
@@ -310,6 +314,39 @@ message SetProviderAPIKeyRequest {
 
 message SetProviderAPIKeyResponse {
   string provider = 1;
+}
+
+message GatewayStatus {
+  string state = 1;
+  string address = 2;
+  int32 port = 3;
+  string slack_mode = 4;
+  string telegram_mode = 5;
+  string last_error = 6;
+}
+
+message GetGatewayStatusRequest {}
+
+message GetGatewayStatusResponse {
+  GatewayStatus status = 1;
+}
+
+message StartGatewayRequest {}
+
+message StartGatewayResponse {
+  GatewayStatus status = 1;
+}
+
+message StopGatewayRequest {}
+
+message StopGatewayResponse {
+  GatewayStatus status = 1;
+}
+
+message RestartGatewayRequest {}
+
+message RestartGatewayResponse {
+  GatewayStatus status = 1;
 }
 
 message GatewayPairingRequest {

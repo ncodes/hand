@@ -24,6 +24,19 @@ func (errWriter) Write([]byte) (int, error) {
 	return 0, errGatewayTestWrite
 }
 
+type failAfterWrite struct {
+	writes int
+}
+
+func (w *failAfterWrite) Write(p []byte) (int, error) {
+	w.writes++
+	if w.writes > 1 {
+		return 0, errGatewayTestWrite
+	}
+
+	return len(p), nil
+}
+
 func TestSetOutputReturnsPreviousAndDiscardsNil(t *testing.T) {
 	originalOutput := gatewayOutput
 	t.Cleanup(func() { gatewayOutput = originalOutput })
@@ -48,6 +61,140 @@ func TestGatewayCommandShowsHelpWithoutSubcommand(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "Manage external gateway integrations")
+}
+
+func TestRuntimeCommandsCallRPCAndPrintStatus(t *testing.T) {
+	setGatewayTestProfile(t)
+	originalNewClient := newClient
+	originalOutput := gatewayOutput
+	t.Cleanup(func() {
+		newClient = originalNewClient
+		gatewayOutput = originalOutput
+	})
+
+	var output bytes.Buffer
+	gatewayOutput = &output
+	stub := &agentstub.AgentServiceStub{
+		GatewayStatusResult: rpcclient.GatewayStatus{
+			State:        "running",
+			Address:      "127.0.0.1",
+			Port:         50052,
+			TelegramMode: "polling",
+			SlackMode:    "socket",
+		},
+	}
+	newClient = func(context.Context, *config.Config) (gatewayClient, error) {
+		return stub, nil
+	}
+
+	require.NoError(t, NewCommand().Run(context.Background(), []string{"gateway", "status"}))
+	require.Equal(t, "state=running address=127.0.0.1 port=50052 telegram=polling slack=socket\n", output.String())
+
+	output.Reset()
+	require.NoError(t, NewCommand().Run(context.Background(), []string{"gateway", "start"}))
+	require.True(t, stub.GatewayStarted)
+	require.Equal(t, "state=running address=127.0.0.1 port=50052 telegram=polling slack=socket\n", output.String())
+
+	output.Reset()
+	require.NoError(t, NewCommand().Run(context.Background(), []string{"gateway", "stop"}))
+	require.True(t, stub.GatewayStopped)
+	require.Equal(t, "state=running address=127.0.0.1 port=50052 telegram=polling slack=socket\n", output.String())
+
+	output.Reset()
+	require.NoError(t, NewCommand().Run(context.Background(), []string{"gateway", "restart"}))
+	require.True(t, stub.GatewayRestarted)
+	require.Equal(t, "state=running address=127.0.0.1 port=50052 telegram=polling slack=socket\n", output.String())
+}
+
+func TestRuntimeCommandPrintsSafeLastError(t *testing.T) {
+	setGatewayTestProfile(t)
+	originalNewClient := newClient
+	originalOutput := gatewayOutput
+	t.Cleanup(func() {
+		newClient = originalNewClient
+		gatewayOutput = originalOutput
+	})
+
+	var output bytes.Buffer
+	gatewayOutput = &output
+	newClient = func(context.Context, *config.Config) (gatewayClient, error) {
+		return &agentstub.AgentServiceStub{
+			GatewayStatusResult: rpcclient.GatewayStatus{
+				State:        "failed",
+				Address:      "127.0.0.1",
+				Port:         50052,
+				TelegramMode: "polling",
+				SlackMode:    "socket",
+				LastError:    "slack socket: [REDACTED]",
+			},
+		}, nil
+	}
+
+	require.NoError(t, NewCommand().Run(context.Background(), []string{"gateway", "status"}))
+	require.Contains(t, output.String(), `last_error="slack socket: [REDACTED]"`)
+}
+
+func TestRuntimeCommandReturnsWriteError(t *testing.T) {
+	setGatewayTestProfile(t)
+	originalNewClient := newClient
+	originalOutput := gatewayOutput
+	t.Cleanup(func() {
+		newClient = originalNewClient
+		gatewayOutput = originalOutput
+	})
+	gatewayOutput = errWriter{}
+	newClient = func(context.Context, *config.Config) (gatewayClient, error) {
+		return &agentstub.AgentServiceStub{
+			GatewayStatusResult: rpcclient.GatewayStatus{State: "running"},
+		}, nil
+	}
+
+	err := NewCommand().Run(context.Background(), []string{"gateway", "status"})
+	require.ErrorIs(t, err, errGatewayTestWrite)
+
+	gatewayOutput = &failAfterWrite{}
+	newClient = func(context.Context, *config.Config) (gatewayClient, error) {
+		return &agentstub.AgentServiceStub{
+			GatewayStatusResult: rpcclient.GatewayStatus{
+				State:     "failed",
+				LastError: "safe error",
+			},
+		}, nil
+	}
+
+	err = NewCommand().Run(context.Background(), []string{"gateway", "status"})
+	require.ErrorIs(t, err, errGatewayTestWrite)
+}
+
+func TestRuntimeCommandsReturnClientAndRPCErrors(t *testing.T) {
+	setGatewayTestProfile(t)
+	originalNewClient := newClient
+	t.Cleanup(func() { newClient = originalNewClient })
+	clientErr := errors.New("client unavailable")
+	newClient = func(context.Context, *config.Config) (gatewayClient, error) {
+		return nil, clientErr
+	}
+
+	err := NewCommand().Run(context.Background(), []string{"gateway", "status"})
+	require.ErrorIs(t, err, clientErr)
+
+	rpcErr := errors.New("gateway rpc failed")
+	newClient = func(context.Context, *config.Config) (gatewayClient, error) {
+		return &agentstub.AgentServiceStub{GatewayStatusErr: rpcErr}, nil
+	}
+
+	err = NewCommand().Run(context.Background(), []string{"gateway", "status"})
+	require.ErrorIs(t, err, rpcErr)
+
+	err = NewCommand().Run(context.Background(), []string{"gateway", "start"})
+	require.ErrorIs(t, err, rpcErr)
+
+	newClient = func(context.Context, *config.Config) (gatewayClient, error) {
+		return nil, clientErr
+	}
+
+	err = NewCommand().Run(context.Background(), []string{"gateway", "start"})
+	require.ErrorIs(t, err, clientErr)
 }
 
 func TestPairingListCommandCallsRPC(t *testing.T) {

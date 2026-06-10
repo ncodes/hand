@@ -126,7 +126,7 @@ var openRPCListener = openRPCListenerImpl
 type gatewayManager interface {
 	Start(context.Context, config.GatewayConfig, gateway.AgentService) error
 	Stop(context.Context) error
-	Wait() <-chan error
+	Status() gateway.Status
 }
 
 var newGatewayManager = func() gatewayManager {
@@ -923,14 +923,14 @@ func buildDaemonRerankerModelClient(
 }
 
 func serveDaemonServices(ctx context.Context, cfg *config.Config, agent agentRunner, lis net.Listener) error {
-	if cfg == nil || !cfg.Gateway.Enabled {
-		return serveRPC(ctx, cfg, agent, lis)
-	}
-
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	manager := newGatewayManager()
+	if cfg == nil || !cfg.Gateway.Enabled {
+		return serveRPC(runCtx, cfg, agent, lis, manager)
+	}
+
 	if err := manager.Start(runCtx, cfg.Gateway, agent); err != nil {
 		_ = lis.Close()
 		return err
@@ -939,7 +939,7 @@ func serveDaemonServices(ctx context.Context, cfg *config.Config, agent agentRun
 
 	rpcDone := make(chan error, 1)
 	go func() {
-		rpcDone <- serveRPC(runCtx, cfg, agent, lis)
+		rpcDone <- serveRPC(runCtx, cfg, agent, lis, manager)
 	}()
 
 	var err error
@@ -948,14 +948,6 @@ func serveDaemonServices(ctx context.Context, cfg *config.Config, agent agentRun
 		cancel()
 		stopGatewayWithTimeout(manager)
 		return err
-	case err = <-manager.Wait():
-		cancel()
-		rpcErr := <-rpcDone
-		if err != nil {
-			return err
-		}
-
-		return rpcErr
 	case <-ctx.Done():
 		cancel()
 		stopGatewayWithTimeout(manager)
@@ -1010,12 +1002,27 @@ func openRPCListenerImpl(cfg *config.Config) (net.Listener, error) {
 	return lis, nil
 }
 
-var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner, lis net.Listener) error {
+var serveRPC = func(
+	ctx context.Context,
+	cfg *config.Config,
+	agent agentRunner,
+	lis net.Listener,
+	manager gatewayManager,
+) error {
 	defer lis.Close()
+
+	var gatewayCfg config.GatewayConfig
+	var pairingSecret string
+	if cfg != nil {
+		gatewayCfg = cfg.Gateway
+		pairingSecret = strings.TrimSpace(cfg.Gateway.PairingSecret)
+	}
 
 	grpcSrv := server.New(agent, server.Options{
 		Health:               true,
-		GatewayPairingSecret: strings.TrimSpace(cfg.Gateway.PairingSecret),
+		GatewayPairingSecret: pairingSecret,
+		GatewayConfig:        gatewayCfg,
+		GatewayRuntime:       manager,
 	})
 
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)

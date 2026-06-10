@@ -40,9 +40,9 @@ func (s modelClientFactoryStub) NewClient(req modelclient.ClientRequest) (models
 }
 
 type gatewayManagerStub struct {
-	start func(context.Context, config.GatewayConfig, handgateway.AgentService) error
-	stop  func(context.Context) error
-	wait  <-chan error
+	start  func(context.Context, config.GatewayConfig, handgateway.AgentService) error
+	stop   func(context.Context) error
+	status handgateway.Status
 }
 
 func (s gatewayManagerStub) Start(ctx context.Context, cfg config.GatewayConfig, responder handgateway.AgentService) error {
@@ -53,21 +53,16 @@ func (s gatewayManagerStub) Start(ctx context.Context, cfg config.GatewayConfig,
 	return nil
 }
 
+func (s gatewayManagerStub) Status() handgateway.Status {
+	return s.status
+}
+
 func (s gatewayManagerStub) Stop(ctx context.Context) error {
 	if s.stop != nil {
 		return s.stop(ctx)
 	}
 
 	return nil
-}
-
-func (s gatewayManagerStub) Wait() <-chan error {
-	if s.wait != nil {
-		return s.wait
-	}
-
-	wait := make(chan error)
-	return wait
 }
 
 func init() {
@@ -110,7 +105,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 		}
 	}
 
-	serveRPC = func(ctx context.Context, cfg *config.Config, app agentRunner, _ net.Listener) error {
+	serveRPC = func(ctx context.Context, cfg *config.Config, app agentRunner, _ net.Listener, _ gatewayManager) error {
 		serveCalled = true
 		require.Equal(t, "0.0.0.0", cfg.RPC.Address)
 		require.Equal(t, 6000, cfg.RPC.Port)
@@ -250,7 +245,7 @@ func TestNewCommand_RestartsDaemonWhenConfigFileChanges(t *testing.T) {
 
 	servedNames := make(chan string, 2)
 	firstServeStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, cfg *config.Config, _ agentRunner, _ net.Listener) error {
+	serveRPC = func(ctx context.Context, cfg *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		servedNames <- cfg.Name
 		if cfg.Name == "first" {
 			close(firstServeStarted)
@@ -327,7 +322,7 @@ func TestNewCommand_KeepsRunningWhenChangedConfigIsInvalid(t *testing.T) {
 	serveStarted := make(chan struct{})
 	serveDone := make(chan struct{})
 	serveCalls := make(chan string, 2)
-	serveRPC = func(ctx context.Context, cfg *config.Config, _ agentRunner, _ net.Listener) error {
+	serveRPC = func(ctx context.Context, cfg *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		serveCalls <- cfg.Name
 		close(serveStarted)
 		<-ctx.Done()
@@ -698,7 +693,7 @@ func TestRunDaemonUntilConfigChangeReturnsWatcherSetupErrorBeforeStartingDaemon(
 	newConfigWatcher = func(string) (configWatcher, error) {
 		return configWatcher{}, errors.New("watcher failed")
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		t.Fatal("serveRPC should not run when config watcher setup fails")
 		return nil
 	}
@@ -719,7 +714,7 @@ func TestRunDaemonUntilConfigChangeReturnsDaemonError(t *testing.T) {
 	_, _, restoreWatcher := stubConfigWatcher()
 	defer restoreWatcher()
 
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		return errors.New("serve failed")
 	}
 
@@ -740,7 +735,7 @@ func TestRunDaemonUntilConfigChangeReturnsStopErrorAfterContextCancel(t *testing
 	defer restoreWatcher()
 
 	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		close(serveStarted)
 		<-ctx.Done()
 		return errors.New("stop failed")
@@ -785,7 +780,7 @@ func TestRunDaemonUntilConfigChangeIgnoresConfigStatError(t *testing.T) {
 	}
 
 	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		close(serveStarted)
 		<-ctx.Done()
 		return nil
@@ -832,7 +827,7 @@ func TestRunDaemonUntilConfigChangeHandlesWatcherNoise(t *testing.T) {
 	require.NoError(t, err)
 
 	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		close(serveStarted)
 		<-ctx.Done()
 		return nil
@@ -922,7 +917,7 @@ func TestRunDaemonUntilConfigChangeReturnsShutdownErrorOnRestart(t *testing.T) {
 	require.NoError(t, err)
 
 	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		close(serveStarted)
 		<-ctx.Done()
 		return errors.New("shutdown failed")
@@ -987,7 +982,7 @@ func TestRunDaemonOnceClosesAgentAndReturnsCloseError(t *testing.T) {
 	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
 		return runner
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		return nil
 	}
 
@@ -1031,7 +1026,7 @@ func TestRunDaemonOnceIgnoresMissingCredentialLockCloseError(t *testing.T) {
 	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
 		return runner
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		return nil
 	}
 
@@ -1070,7 +1065,7 @@ func TestRunDaemonOnceReturnsRPCListenerErrorBeforeStartingAgent(t *testing.T) {
 		t.Fatal("agent runner should not be created when RPC listener setup fails")
 		return nil
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		t.Fatal("serveRPC should not run when RPC listener setup fails")
 		return nil
 	}
@@ -1107,7 +1102,7 @@ func TestRunDaemonOnceKeepsServeErrorWhenCloseAlsoFails(t *testing.T) {
 	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
 		return runner
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		return errors.New("serve failed")
 	}
 
@@ -1140,7 +1135,7 @@ func TestRunDaemonOnceReturnsSummaryClientFactoryError(t *testing.T) {
 			return &provider_openai.OpenAIClient{}, nil
 		},
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		t.Fatal("serveRPC should not run")
 		return nil
 	}
@@ -1183,7 +1178,7 @@ func TestRunDaemonOnceReturnsRerankerClientFactoryError(t *testing.T) {
 	resolveRerankerAuth = func(*config.Config) (config.ModelAuth, error) {
 		return config.ModelAuth{Provider: "anthropic", API: modelprovider.APIAnthropicMessages, APIKey: "reranker-key"}, nil
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		t.Fatal("serveRPC should not run")
 		return nil
 	}
@@ -1223,7 +1218,7 @@ func TestRunDaemonOnceStartsWhenRerankerAuthFails(t *testing.T) {
 		return config.ModelAuth{}, errors.New("reranker auth failed")
 	}
 	served := false
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		served = true
 		return nil
 	}
@@ -1254,7 +1249,7 @@ func TestServeRPC_ReturnsWhenGRPCServeFails(t *testing.T) {
 	}
 
 	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
-	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg))
+	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
 
 	require.EqualError(t, err, "serve boom")
 }
@@ -1273,7 +1268,7 @@ func TestServeRPC_ReturnsNilWhenGRPCServeReturnsServerStopped(t *testing.T) {
 	}
 
 	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
-	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg))
+	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
 
 	require.NoError(t, err)
 }
@@ -1298,7 +1293,7 @@ func TestServeRPC_WritesRuntimeMetadataWithActualPort(t *testing.T) {
 
 	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
 	lis := openTestRPCListener(t, cfg)
-	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, lis)
+	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, lis, nil)
 
 	require.NoError(t, err)
 	require.Greater(t, cfg.RPC.Port, 0)
@@ -1333,7 +1328,7 @@ func TestServeRPC_StopsWhenContextCancelled(t *testing.T) {
 	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
 	done := make(chan error, 1)
 	go func() {
-		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg))
+		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
 	}()
 
 	time.Sleep(150 * time.Millisecond)
@@ -1369,7 +1364,7 @@ func TestServeRPC_ReturnsPostShutdownServeError(t *testing.T) {
 	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
 	done := make(chan error, 1)
 	go func() {
-		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg))
+		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
 	}()
 
 	time.Sleep(150 * time.Millisecond)
@@ -1409,7 +1404,7 @@ func TestServeRPC_ForcesStopWhenGracefulShutdownSlow(t *testing.T) {
 	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
 	done := make(chan error, 1)
 	go func() {
-		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg))
+		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
 	}()
 
 	time.Sleep(150 * time.Millisecond)
@@ -1432,13 +1427,21 @@ func TestServeDaemonServices_DisabledGatewayRunsOnlyRPC(t *testing.T) {
 	})
 
 	serveCalled := false
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, manager gatewayManager) error {
 		serveCalled = true
+		require.NotNil(t, manager)
 		return nil
 	}
+	created := false
+	started := false
 	newGatewayManager = func() gatewayManager {
-		t.Fatal("gateway manager should not be created when gateway is disabled")
-		return nil
+		created = true
+		return gatewayManagerStub{
+			start: func(context.Context, config.GatewayConfig, handgateway.AgentService) error {
+				started = true
+				return nil
+			},
+		}
 	}
 
 	cfg := &config.Config{}
@@ -1446,6 +1449,8 @@ func TestServeDaemonServices_DisabledGatewayRunsOnlyRPC(t *testing.T) {
 
 	require.NoError(t, err)
 	require.True(t, serveCalled)
+	require.True(t, created)
+	require.False(t, started)
 }
 
 func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {
@@ -1456,13 +1461,11 @@ func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {
 		newGatewayManager = origGateway
 	})
 
-	wait := make(chan error)
 	started := false
 	stopped := false
 	agent := &agentstub.AgentRunnerStub{}
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
-			wait: wait,
 			start: func(_ context.Context, _ config.GatewayConfig, responder handgateway.AgentService) error {
 				started = true
 				require.Same(t, agent, responder)
@@ -1470,12 +1473,11 @@ func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {
 			},
 			stop: func(context.Context) error {
 				stopped = true
-				close(wait)
 				return nil
 			},
 		}
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		return nil
 	}
 
@@ -1533,7 +1535,7 @@ func TestServeDaemonServices_ReturnsGatewayStartError(t *testing.T) {
 			},
 		}
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		t.Fatal("serveRPC should not run when gateway startup fails")
 		return nil
 	}
@@ -1545,7 +1547,7 @@ func TestServeDaemonServices_ReturnsGatewayStartError(t *testing.T) {
 	require.True(t, lis.closed)
 }
 
-func TestServeDaemonServices_GatewayErrorStopsRPC(t *testing.T) {
+func TestServeDaemonServices_GatewayStopDoesNotStopRPC(t *testing.T) {
 	origServe := serveRPC
 	origGateway := newGatewayManager
 	t.Cleanup(func() {
@@ -1553,68 +1555,54 @@ func TestServeDaemonServices_GatewayErrorStopsRPC(t *testing.T) {
 		newGatewayManager = origGateway
 	})
 
-	wait := make(chan error, 1)
-	rpcStopped := make(chan struct{})
+	rpcStarted := make(chan struct{})
+	gatewayStopped := make(chan struct{})
+	rpcStopped := make(chan error, 1)
+	var stopOnce sync.Once
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
-			wait: wait,
-			start: func(context.Context, config.GatewayConfig, handgateway.AgentService) error {
-				wait <- errors.New("gateway failed")
+			stop: func(context.Context) error {
+				stopOnce.Do(func() { close(gatewayStopped) })
 				return nil
 			},
 		}
 	}
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, manager gatewayManager) error {
+		close(rpcStarted)
+		require.NoError(t, manager.Stop(context.Background()))
 		<-ctx.Done()
-		close(rpcStopped)
+		rpcStopped <- nil
 		return nil
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
 	cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
-	err := serveDaemonServices(context.Background(), cfg, &agentstub.AgentRunnerStub{}, noopListener{})
+	go func() {
+		done <- serveDaemonServices(ctx, cfg, &agentstub.AgentRunnerStub{}, noopListener{})
+	}()
 
-	require.EqualError(t, err, "gateway failed")
 	select {
-	case <-rpcStopped:
+	case <-rpcStarted:
 	case <-time.After(time.Second):
-		t.Fatal("RPC was not stopped after gateway failure")
+		t.Fatal("RPC did not start")
 	}
-}
-
-func TestServeDaemonServices_CleanGatewayStopReturnsRPCResult(t *testing.T) {
-	origServe := serveRPC
-	origGateway := newGatewayManager
-	t.Cleanup(func() {
-		serveRPC = origServe
-		newGatewayManager = origGateway
-	})
-
-	wait := make(chan error, 1)
-	rpcStopped := make(chan struct{})
-	newGatewayManager = func() gatewayManager {
-		return gatewayManagerStub{
-			wait: wait,
-			start: func(context.Context, config.GatewayConfig, handgateway.AgentService) error {
-				wait <- nil
-				return nil
-			},
-		}
-	}
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
-		<-ctx.Done()
-		close(rpcStopped)
-		return errors.New("rpc stopped")
-	}
-
-	cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
-	err := serveDaemonServices(context.Background(), cfg, &agentstub.AgentRunnerStub{}, noopListener{})
-
-	require.EqualError(t, err, "rpc stopped")
 	select {
-	case <-rpcStopped:
+	case <-gatewayStopped:
 	case <-time.After(time.Second):
-		t.Fatal("RPC was not stopped after gateway stopped")
+		t.Fatal("gateway stop was not called")
 	}
+
+	select {
+	case err := <-done:
+		t.Fatalf("daemon stopped after gateway stop: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	cancel()
+	require.NoError(t, <-done)
+	require.NoError(t, <-rpcStopped)
 }
 
 func TestServeDaemonServices_ContextCancelStopsGatewayAndRPC(t *testing.T) {
@@ -1625,20 +1613,17 @@ func TestServeDaemonServices_ContextCancelStopsGatewayAndRPC(t *testing.T) {
 		newGatewayManager = origGateway
 	})
 
-	wait := make(chan error)
 	gatewayStopped := make(chan struct{})
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
-			wait: wait,
 			stop: func(context.Context) error {
 				close(gatewayStopped)
-				close(wait)
 				return nil
 			},
 		}
 	}
 	rpcStopped := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		<-ctx.Done()
 		close(rpcStopped)
 		return nil
@@ -1686,7 +1671,7 @@ func TestNewCommand_ReturnsConfigLoadError(t *testing.T) {
 	isolateCommandProfile(t)
 	origServe := serveRPC
 	t.Cleanup(func() { serveRPC = origServe })
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		t.Fatal("serveRPC should not run")
 		return nil
 	}
@@ -1781,7 +1766,9 @@ func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
 		serveRPC = origServe
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
+		return nil
+	}
 
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
@@ -1815,7 +1802,9 @@ func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
 		serveRPC = origServe
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
+		return nil
+	}
 	modelClientFactory = modelClientFactoryStub{
 		newClient: func(modelclient.ClientRequest) (models.Client, error) {
 			return nil, errors.New("model factory boom")
@@ -1850,7 +1839,7 @@ func TestNewCommand_StartsWhenSummaryAuthCannotResolve(t *testing.T) {
 	})
 
 	served := false
-	serveRPC = func(_ context.Context, cfg *config.Config, _ agentRunner, _ net.Listener) error {
+	serveRPC = func(_ context.Context, cfg *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		served = true
 		return nil
 	}
@@ -1887,7 +1876,9 @@ func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 		serveRPC = origServe
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
+		return nil
+	}
 
 	var n int
 	modelClientFactory = modelClientFactoryStub{
@@ -1944,7 +1935,9 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
 		return &agentstub.AgentRunnerStub{}
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
+		return nil
+	}
 	startupOutput = io.Discard
 
 	configFile := ""
@@ -2028,7 +2021,9 @@ func TestNewCommand_PassesSeparateRerankerClientWhenAuthDiffers(t *testing.T) {
 		require.NotSame(t, modelClient, rerankerClient)
 		return &agentstub.AgentRunnerStub{}
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
+		return nil
+	}
 	startupOutput = io.Discard
 
 	configFile := ""
@@ -2079,7 +2074,7 @@ func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 		serveRPC = origServe
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		t.Fatal("serveRPC should not run when Start fails")
 		return nil
 	}
@@ -2144,7 +2139,7 @@ func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 		}
 	}
 
-	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		serveCalled = true
 		return nil
 	}
@@ -2180,7 +2175,7 @@ func TestNewCommand_StartsWithoutConfiguredModel(t *testing.T) {
 	})
 
 	served := false
-	serveRPC = func(_ context.Context, cfg *config.Config, _ agentRunner, _ net.Listener) error {
+	serveRPC = func(_ context.Context, cfg *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
 		served = true
 		require.False(t, cfg.Gateway.Enabled)
 		require.False(t, cfg.Search.Vector.Enabled)

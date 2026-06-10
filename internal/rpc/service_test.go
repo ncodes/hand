@@ -15,6 +15,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentapi "github.com/wandxy/hand/internal/agent"
+	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/gateway"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	models "github.com/wandxy/hand/internal/model"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
@@ -52,6 +54,52 @@ func (s *respondStreamServerStub) Context() context.Context {
 }
 func (s *respondStreamServerStub) SendMsg(any) error { return nil }
 func (s *respondStreamServerStub) RecvMsg(any) error { return io.EOF }
+
+type gatewayRuntimeStub struct {
+	status   gateway.Status
+	startCfg config.GatewayConfig
+	startCtx context.Context
+	stopCtx  context.Context
+	started  bool
+	stopped  bool
+	startErr error
+	stopErr  error
+}
+
+func (s *gatewayRuntimeStub) Start(
+	ctx context.Context,
+	cfg config.GatewayConfig,
+	_ gateway.AgentService,
+) error {
+	s.started = true
+	s.startCtx = ctx
+	s.startCfg = cfg
+	if s.startErr != nil {
+		return s.startErr
+	}
+	s.status = gateway.Status{
+		State:        gateway.StateRunning,
+		Address:      cfg.Address,
+		Port:         cfg.Port,
+		SlackMode:    cfg.Slack.Mode,
+		TelegramMode: cfg.Telegram.Mode,
+	}
+	return nil
+}
+
+func (s *gatewayRuntimeStub) Stop(ctx context.Context) error {
+	s.stopped = true
+	s.stopCtx = ctx
+	if s.stopErr != nil {
+		return s.stopErr
+	}
+	s.status.State = gateway.StateStopped
+	return nil
+}
+
+func (s *gatewayRuntimeStub) Status() gateway.Status {
+	return s.status
+}
 
 func requireRespondEvent(
 	t *testing.T,
@@ -1828,6 +1876,218 @@ func TestService_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
 	require.Equal(t, "", stub.ClearedPairingSource)
 
 	require.Nil(t, timestampOrNil(time.Time{}))
+}
+
+func TestService_GatewayRuntimeStatusStartStopAndRestart(t *testing.T) {
+	cfg := config.NewDefaultConfig().Gateway
+	cfg.Enabled = true
+	cfg.AuthToken = " gateway-auth-token "
+	cfg.Address = " 127.0.0.1 "
+	cfg.Port = 50052
+	runtime := &gatewayRuntimeStub{
+		status: gateway.Status{
+			State:        gateway.StateStopped,
+			Address:      cfg.Address,
+			Port:         cfg.Port,
+			SlackMode:    cfg.Slack.Mode,
+			TelegramMode: cfg.Telegram.Mode,
+		},
+	}
+	svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
+		GatewayConfig:  cfg,
+		GatewayRuntime: runtime,
+	})
+
+	statusResp, err := svc.GatewayStatus(context.Background(), &handpb.GetGatewayStatusRequest{})
+	require.NoError(t, err)
+	require.Equal(t, "stopped", statusResp.GetStatus().GetState())
+	require.Equal(t, int32(50052), statusResp.GetStatus().GetPort())
+
+	startCtx, cancelStart := context.WithCancel(context.Background())
+	startResp, err := svc.Start(startCtx, &handpb.StartGatewayRequest{})
+	require.NoError(t, err)
+	require.True(t, runtime.started)
+	require.Equal(t, "127.0.0.1", runtime.startCfg.Address)
+	require.Equal(t, "gateway-auth-token", runtime.startCfg.AuthToken)
+	require.Equal(t, "running", startResp.GetStatus().GetState())
+	cancelStart()
+	requireRuntimeContextActive(t, runtime.startCtx)
+
+	stopResp, err := svc.Stop(context.Background(), &handpb.StopGatewayRequest{})
+	require.NoError(t, err)
+	require.True(t, runtime.stopped)
+	require.Equal(t, "stopped", stopResp.GetStatus().GetState())
+
+	runtime.started = false
+	runtime.stopped = false
+	restartCtx, cancelRestart := context.WithCancel(context.Background())
+	restartResp, err := svc.Restart(restartCtx, &handpb.RestartGatewayRequest{})
+	require.NoError(t, err)
+	require.True(t, runtime.started)
+	require.True(t, runtime.stopped)
+	require.Equal(t, "running", restartResp.GetStatus().GetState())
+	require.Same(t, restartCtx, runtime.stopCtx)
+	cancelRestart()
+	requireRuntimeContextActive(t, runtime.startCtx)
+}
+
+func requireRuntimeContextActive(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	select {
+	case <-ctx.Done():
+		t.Fatal("runtime context should not be canceled with the RPC request")
+	default:
+	}
+}
+
+func TestService_GatewayStatusUsesConfigWhenRuntimeMissing(t *testing.T) {
+	cfg := config.NewDefaultConfig().Gateway
+	cfg.Address = "127.0.0.1"
+	cfg.Port = 50052
+
+	svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{GatewayConfig: cfg})
+	resp, err := svc.GatewayStatus(context.Background(), nil)
+
+	require.NoError(t, err)
+	require.Equal(t, "disabled", resp.GetStatus().GetState())
+	require.Equal(t, "127.0.0.1", resp.GetStatus().GetAddress())
+	require.Equal(t, int32(50052), resp.GetStatus().GetPort())
+
+	cfg.Enabled = true
+	svc = NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{GatewayConfig: cfg})
+	resp, err = svc.GatewayStatus(context.Background(), nil)
+
+	require.NoError(t, err)
+	require.Equal(t, "stopped", resp.GetStatus().GetState())
+}
+
+func TestService_GatewayRuntimeRejectsInvalidState(t *testing.T) {
+	cfg := config.NewDefaultConfig().Gateway
+	cfg.Enabled = true
+	cfg.Telegram.Enabled = true
+	cfg.Telegram.BotToken = ""
+	runtime := &gatewayRuntimeStub{}
+	svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
+		GatewayConfig:  cfg,
+		GatewayRuntime: runtime,
+	})
+
+	resp, err := svc.Start(context.Background(), &handpb.StartGatewayRequest{})
+
+	requireStatusError(
+		t,
+		err,
+		codes.InvalidArgument,
+		"gateway telegram bot token is required when telegram gateway is enabled; set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token",
+	)
+	require.Nil(t, resp)
+	require.False(t, runtime.started)
+
+	cfg.Telegram.Enabled = false
+	cfg.Enabled = false
+	svc = NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
+		GatewayConfig:  cfg,
+		GatewayRuntime: runtime,
+	})
+	resp, err = svc.Start(context.Background(), &handpb.StartGatewayRequest{})
+
+	requireStatusError(t, err, codes.FailedPrecondition, "gateway is disabled")
+	require.Nil(t, resp)
+
+	restartResp, err := svc.Restart(context.Background(), &handpb.RestartGatewayRequest{})
+	requireStatusError(t, err, codes.FailedPrecondition, "gateway is disabled")
+	require.Nil(t, restartResp)
+}
+
+func TestService_GatewayRuntimeRejectsMissingRuntime(t *testing.T) {
+	resp, err := NewService(&agentstub.AgentServiceStub{}).Start(context.Background(), &handpb.StartGatewayRequest{})
+
+	requireStatusError(t, err, codes.Internal, "gateway runtime is required")
+	require.Nil(t, resp)
+
+	stopResp, err := NewService(&agentstub.AgentServiceStub{}).Stop(context.Background(), &handpb.StopGatewayRequest{})
+	requireStatusError(t, err, codes.Internal, "gateway runtime is required")
+	require.Nil(t, stopResp)
+
+	restartResp, err := NewService(&agentstub.AgentServiceStub{}).Restart(context.Background(), &handpb.RestartGatewayRequest{})
+	requireStatusError(t, err, codes.Internal, "gateway runtime is required")
+	require.Nil(t, restartResp)
+
+	svc := NewServiceWithOptions(nil, ServiceOptions{GatewayRuntime: &gatewayRuntimeStub{}})
+	resp, err = svc.Start(context.Background(), &handpb.StartGatewayRequest{})
+	requireStatusError(t, err, codes.Internal, "agent handler is required")
+	require.Nil(t, resp)
+
+	resp, err = (*Service)(nil).Start(context.Background(), &handpb.StartGatewayRequest{})
+	requireStatusError(t, err, codes.Internal, "service is required")
+	require.Nil(t, resp)
+
+	stopResp, err = (*Service)(nil).Stop(context.Background(), &handpb.StopGatewayRequest{})
+	requireStatusError(t, err, codes.Internal, "service is required")
+	require.Nil(t, stopResp)
+
+	restartResp, err = (*Service)(nil).Restart(context.Background(), &handpb.RestartGatewayRequest{})
+	requireStatusError(t, err, codes.Internal, "service is required")
+	require.Nil(t, restartResp)
+
+	statusResp, err := (*Service)(nil).GatewayStatus(context.Background(), nil)
+	requireStatusError(t, err, codes.Internal, "service is required")
+	require.Nil(t, statusResp)
+}
+
+func TestService_GatewayRuntimePropagatesRuntimeErrors(t *testing.T) {
+	cfg := config.NewDefaultConfig().Gateway
+	cfg.Enabled = true
+	cfg.AuthToken = "gateway-auth-token"
+	tests := []struct {
+		name    string
+		runtime *gatewayRuntimeStub
+		run     func(*Service) (any, error)
+	}{
+		{
+			name:    "start",
+			runtime: &gatewayRuntimeStub{startErr: errors.New("runtime failed")},
+			run: func(svc *Service) (any, error) {
+				return svc.Start(context.Background(), &handpb.StartGatewayRequest{})
+			},
+		},
+		{
+			name:    "stop",
+			runtime: &gatewayRuntimeStub{stopErr: errors.New("runtime failed")},
+			run: func(svc *Service) (any, error) {
+				return svc.Stop(context.Background(), &handpb.StopGatewayRequest{})
+			},
+		},
+		{
+			name:    "restart stop",
+			runtime: &gatewayRuntimeStub{stopErr: errors.New("runtime failed")},
+			run: func(svc *Service) (any, error) {
+				return svc.Restart(context.Background(), &handpb.RestartGatewayRequest{})
+			},
+		},
+		{
+			name:    "restart start",
+			runtime: &gatewayRuntimeStub{startErr: errors.New("runtime failed")},
+			run: func(svc *Service) (any, error) {
+				return svc.Restart(context.Background(), &handpb.RestartGatewayRequest{})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
+				GatewayConfig:  cfg,
+				GatewayRuntime: tt.runtime,
+			})
+
+			resp, err := tt.run(svc)
+
+			requireStatusError(t, err, codes.Internal, "runtime failed")
+			require.Nil(t, resp)
+		})
+	}
 }
 
 func TestService_GatewayPairingRejectsMissingStore(t *testing.T) {

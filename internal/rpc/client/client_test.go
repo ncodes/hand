@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -795,10 +796,119 @@ func TestClient_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
 	require.Equal(t, "telegram", stub.ClearReq.GetSource())
 }
 
-func TestClient_GatewayPairingRequiresClient(t *testing.T) {
-	_, err := (*GatewayService)(nil).ListPairings(context.Background(), "")
+func TestClient_GatewayRuntimeStatusStartStopAndRestart(t *testing.T) {
+	status := &handpb.GatewayStatus{
+		State:        " running ",
+		Address:      " 127.0.0.1 ",
+		Port:         50052,
+		SlackMode:    " socket ",
+		TelegramMode: " polling ",
+		LastError:    " safe error ",
+	}
+	stub := &protomock.HandServiceClientStub{
+		GatewayStatusResp:  &handpb.GetGatewayStatusResponse{Status: status},
+		GatewayStartResp:   &handpb.StartGatewayResponse{Status: status},
+		GatewayStopResp:    &handpb.StopGatewayResponse{Status: status},
+		GatewayRestartResp: &handpb.RestartGatewayResponse{Status: status},
+	}
+	client := NewGatewayService(stub)
 
-	require.EqualError(t, err, "hand: gateway service client is required")
+	got, err := client.GatewayStatus(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, stub.GatewayStatusReq)
+	require.Equal(t, "running", got.State)
+	require.Equal(t, "127.0.0.1", got.Address)
+	require.Equal(t, 50052, got.Port)
+	require.Equal(t, "socket", got.SlackMode)
+	require.Equal(t, "polling", got.TelegramMode)
+	require.Equal(t, "safe error", got.LastError)
+
+	got, err = client.Start(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, stub.GatewayStartReq)
+	require.Equal(t, "running", got.State)
+
+	got, err = client.Stop(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, stub.GatewayStopReq)
+	require.Equal(t, "running", got.State)
+
+	got, err = client.Restart(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, stub.GatewayRestartReq)
+	require.Equal(t, "running", got.State)
+}
+
+func TestClient_GatewayRuntimeReturnsRPCErrors(t *testing.T) {
+	rpcErr := errors.New("rpc failed")
+	client := NewGatewayService(&protomock.HandServiceClientStub{Err: rpcErr})
+	tests := []struct {
+		name string
+		run  func(context.Context) (GatewayStatus, error)
+	}{
+		{name: "status", run: client.GatewayStatus},
+		{name: "start", run: client.Start},
+		{name: "stop", run: client.Stop},
+		{name: "restart", run: client.Restart},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := tt.run(context.Background())
+
+			require.ErrorIs(t, err, rpcErr)
+			require.Empty(t, result)
+		})
+	}
+}
+
+func TestClient_GatewayPairingRequiresClient(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(*GatewayService) error
+	}{
+		{
+			name: "list pairings",
+			run: func(service *GatewayService) error {
+				_, err := service.ListPairings(context.Background(), "")
+				return err
+			},
+		},
+		{
+			name: "status",
+			run: func(service *GatewayService) error {
+				_, err := service.GatewayStatus(context.Background())
+				return err
+			},
+		},
+		{
+			name: "start",
+			run: func(service *GatewayService) error {
+				_, err := service.Start(context.Background())
+				return err
+			},
+		},
+		{
+			name: "stop",
+			run: func(service *GatewayService) error {
+				_, err := service.Stop(context.Background())
+				return err
+			},
+		},
+		{
+			name: "restart",
+			run: func(service *GatewayService) error {
+				_, err := service.Restart(context.Background())
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.EqualError(t, tt.run(nil), "hand: gateway service client is required")
+		})
+	}
 }
 
 func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {

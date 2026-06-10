@@ -118,6 +118,15 @@ type GatewayPairingList struct {
 	Approved []GatewayPairedSender
 }
 
+type GatewayStatus struct {
+	State        string
+	Address      string
+	Port         int
+	SlackMode    string
+	TelegramMode string
+	LastError    string
+}
+
 // ChatAPI is the chat surface exposed by local and RPC clients.
 type ChatAPI interface {
 	Respond(context.Context, string, RespondOptions) (string, error)
@@ -147,6 +156,10 @@ type ModelAPI interface {
 }
 
 type GatewayAPI interface {
+	GatewayStatus(context.Context) (GatewayStatus, error)
+	Start(context.Context) (GatewayStatus, error)
+	Stop(context.Context) (GatewayStatus, error)
+	Restart(context.Context) (GatewayStatus, error)
 	ListPairings(context.Context, string) (GatewayPairingList, error)
 	ApprovePairing(context.Context, string, string) (GatewayPairedSender, bool, error)
 	RevokePairing(context.Context, string, string) error
@@ -728,6 +741,66 @@ func (s *GatewayService) ListPairings(ctx context.Context, source string) (Gatew
 	return result, nil
 }
 
+func (s *GatewayService) GatewayStatus(ctx context.Context) (GatewayStatus, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return GatewayStatus{}, err
+	}
+
+	prepareRPCConnection(s.reconnector)
+	resp, err := client.GatewayStatus(ctx, &handpb.GetGatewayStatusRequest{})
+	if err != nil {
+		return GatewayStatus{}, err
+	}
+
+	return gatewayStatusFromProto(resp.GetStatus()), nil
+}
+
+func (s *GatewayService) Start(ctx context.Context) (GatewayStatus, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return GatewayStatus{}, err
+	}
+
+	prepareRPCConnection(s.reconnector)
+	resp, err := client.Start(ctx, &handpb.StartGatewayRequest{})
+	if err != nil {
+		return GatewayStatus{}, err
+	}
+
+	return gatewayStatusFromProto(resp.GetStatus()), nil
+}
+
+func (s *GatewayService) Stop(ctx context.Context) (GatewayStatus, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return GatewayStatus{}, err
+	}
+
+	prepareRPCConnection(s.reconnector)
+	resp, err := client.Stop(ctx, &handpb.StopGatewayRequest{})
+	if err != nil {
+		return GatewayStatus{}, err
+	}
+
+	return gatewayStatusFromProto(resp.GetStatus()), nil
+}
+
+func (s *GatewayService) Restart(ctx context.Context) (GatewayStatus, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return GatewayStatus{}, err
+	}
+
+	prepareRPCConnection(s.reconnector)
+	resp, err := client.Restart(ctx, &handpb.RestartGatewayRequest{})
+	if err != nil {
+		return GatewayStatus{}, err
+	}
+
+	return gatewayStatusFromProto(resp.GetStatus()), nil
+}
+
 func (s *GatewayService) ApprovePairing(
 	ctx context.Context,
 	source string,
@@ -903,6 +976,21 @@ func protoSessionSummaryToSession(summary *handpb.SessionSummary) storage.Sessio
 		Title:       summary.GetTitle(),
 		TitleSource: summary.GetTitleSource(),
 		UpdatedAt:   time.Unix(summary.GetUpdatedAtUnix(), 0).UTC(),
+	}
+}
+
+func gatewayStatusFromProto(status *handpb.GatewayStatus) GatewayStatus {
+	if status == nil {
+		return GatewayStatus{}
+	}
+
+	return GatewayStatus{
+		State:        strings.TrimSpace(status.GetState()),
+		Address:      strings.TrimSpace(status.GetAddress()),
+		Port:         int(status.GetPort()),
+		SlackMode:    strings.TrimSpace(status.GetSlackMode()),
+		TelegramMode: strings.TrimSpace(status.GetTelegramMode()),
+		LastError:    strings.TrimSpace(status.GetLastError()),
 	}
 }
 
