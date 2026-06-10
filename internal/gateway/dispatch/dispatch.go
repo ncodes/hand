@@ -19,6 +19,7 @@ var (
 type Job struct {
 	ID          string
 	MaxAttempts int
+	Timeout     time.Duration
 	Run         func(context.Context) error
 }
 
@@ -26,6 +27,7 @@ type Options struct {
 	Capacity         int
 	Workers          int
 	MaxAttempts      int
+	Timeout          time.Duration
 	IdempotencyLimit int
 	RetryBaseDelay   time.Duration
 	RetryMaxDelay    time.Duration
@@ -60,6 +62,7 @@ type Dispatcher struct {
 type queuedJob struct {
 	id          string
 	maxAttempts int
+	timeout     time.Duration
 	run         func(context.Context) error
 }
 
@@ -123,7 +126,7 @@ func (d *Dispatcher) Enqueue(job Job) (bool, error) {
 	d.statusMu.Unlock()
 
 	select {
-	case d.queue <- queuedJob{id: id, maxAttempts: job.MaxAttempts, run: job.Run}:
+	case d.queue <- queuedJob{id: id, maxAttempts: job.MaxAttempts, timeout: job.Timeout, run: job.Run}:
 		d.rememberJobID(id)
 		d.closeMu.Unlock()
 		return true, nil
@@ -211,7 +214,7 @@ func (d *Dispatcher) runWithRetry(ctx context.Context, job queuedJob) error {
 			return ctx.Err()
 		}
 
-		err := job.run(ctx)
+		err := d.runJobAttempt(ctx, job)
 		if err == nil {
 			return nil
 		}
@@ -222,6 +225,21 @@ func (d *Dispatcher) runWithRetry(ctx context.Context, job queuedJob) error {
 			return ctx.Err()
 		}
 	}
+}
+
+func (d *Dispatcher) runJobAttempt(ctx context.Context, job queuedJob) error {
+	timeout := job.timeout
+	if timeout <= 0 {
+		timeout = d.opts.Timeout
+	}
+	if timeout <= 0 {
+		return job.run(ctx)
+	}
+
+	attemptCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	return job.run(attemptCtx)
 }
 
 func (d *Dispatcher) setInFlight(delta int) {

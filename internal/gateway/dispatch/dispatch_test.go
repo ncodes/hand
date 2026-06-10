@@ -191,6 +191,88 @@ func TestDispatcher_UsesJobAttemptOverride(t *testing.T) {
 	require.Equal(t, int64(1), calls.Load())
 }
 
+func TestDispatcher_AppliesJobTimeout(t *testing.T) {
+	ctx := t.Context()
+	dispatcher := New(Options{Capacity: 1, Workers: 1})
+	dispatcher.Start(ctx)
+	t.Cleanup(func() {
+		require.NoError(t, dispatcher.Shutdown(context.Background()))
+	})
+	errCh := make(chan error, 1)
+
+	_, err := dispatcher.Enqueue(Job{
+		ID:          "timeout",
+		MaxAttempts: 1,
+		Timeout:     time.Nanosecond,
+		Run: func(ctx context.Context) error {
+			<-ctx.Done()
+			errCh <- ctx.Err()
+			return ctx.Err()
+		},
+	})
+
+	require.NoError(t, err)
+	select {
+	case err := <-errCh:
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	case <-time.After(time.Second):
+		t.Fatal("job did not observe timeout")
+	}
+	require.Eventually(t, func() bool {
+		return dispatcher.Status().Failed == 1
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, context.DeadlineExceeded.Error(), dispatcher.Status().LastError)
+}
+
+func TestDispatcher_UsesDefaultTimeout(t *testing.T) {
+	ctx := t.Context()
+	dispatcher := New(Options{Capacity: 1, Workers: 1, Timeout: time.Nanosecond})
+	dispatcher.Start(ctx)
+	t.Cleanup(func() {
+		require.NoError(t, dispatcher.Shutdown(context.Background()))
+	})
+
+	_, err := dispatcher.Enqueue(Job{
+		ID:          "default-timeout",
+		MaxAttempts: 1,
+		Run: func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	})
+
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return dispatcher.Status().Failed == 1
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, context.DeadlineExceeded.Error(), dispatcher.Status().LastError)
+}
+
+func TestDispatcher_JobTimeoutOverridesDefaultTimeout(t *testing.T) {
+	ctx := t.Context()
+	dispatcher := New(Options{Capacity: 1, Workers: 1, Timeout: time.Hour})
+	dispatcher.Start(ctx)
+	t.Cleanup(func() {
+		require.NoError(t, dispatcher.Shutdown(context.Background()))
+	})
+
+	_, err := dispatcher.Enqueue(Job{
+		ID:          "override-timeout",
+		MaxAttempts: 1,
+		Timeout:     time.Nanosecond,
+		Run: func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	})
+
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return dispatcher.Status().Failed == 1
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, context.DeadlineExceeded.Error(), dispatcher.Status().LastError)
+}
+
 func TestDispatcher_RunWithRetryReturnsContextErrorBeforeRun(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

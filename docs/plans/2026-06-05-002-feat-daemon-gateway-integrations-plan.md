@@ -494,14 +494,14 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 ### U8. Shared Gateway Dispatch and Error Handling
 
-**Status:** In progress.
+**Status:** Completed.
 
 **Progress:**
 
 - [x] Initial daemon-owned dispatcher exists with bounded queueing, idempotency, shutdown, and tests.
-- [ ] Dispatcher status, retry/backoff, degraded-state reporting, and cross-channel integration are completed.
-- [ ] Reusable queue/dedupe/safe-error package boundaries are finalized.
-- [ ] Shared dispatch tests cover all channel adapters consistently.
+- [x] Dispatcher status, retry/backoff, degraded-state reporting, per-job timeout, and cross-channel integration are completed.
+- [x] Queue, dedupe, and safe status behavior remain in `internal/gateway/dispatch` until reuse outside the daemon requires public package boundaries.
+- [x] Dispatch tests and channel adapter tests cover Telegram webhook, Slack HTTP, and Slack socket behavior consistently.
 
 **Goal:** Make channel adapters share asynchronous dispatch, timeouts, duplicate suppression, backpressure, redaction, and safe logging behavior.
 
@@ -509,9 +509,9 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 **Dependencies:** U3, U4, U5, U6, U7.
 
-**Files:** `internal/gateway/dispatch.go`, `internal/gateway/errors.go`, `internal/gateway/logging.go`, `pkg/gateway/queue/queue.go`, `pkg/gateway/queue/queue_test.go`, `pkg/gateway/dedupe/dedupe.go`, `pkg/gateway/dedupe/dedupe_test.go`, `pkg/gateway/errors/errors.go`, `pkg/gateway/errors/errors_test.go`, `internal/gateway/dispatch_test.go`, `internal/gateway/errors_test.go`.
+**Files:** `internal/gateway/dispatch/dispatch.go`, `internal/gateway/dispatch/dispatch_test.go`, `internal/gateway/server.go`, `internal/gateway/server_test.go`, `internal/gateway/telegram/telegram_webhook.go`, `internal/gateway/telegram/telegram_webhook_test.go`, `internal/gateway/slack/slack_http.go`, `internal/gateway/slack/slack_http_test.go`, `internal/gateway/slack/slack_socket.go`, `internal/gateway/slack/slack_socket_test.go`.
 
-**Approach:** Centralize the flow from normalized inbound request to session resolution, agent call, and outbound delivery. HTTP webhook adapters should enqueue a verified normalized job and return provider ACK immediately; socket/polling adapters may either dispatch directly or use the same queue when they need retry/backpressure behavior. The dispatcher should maintain bounded per-channel queues, idempotency records for provider event IDs or socket envelope IDs, worker concurrency limits, retry/backoff for transient outbound failures, cancellation on daemon shutdown, and safe status for failed/degraded work. Put reusable queue, dedupe, and safe error primitives under `pkg/gateway`; keep daemon worker lifecycle, session resolution, and agent invocation under `internal/gateway`. Redact configured secrets, authorization headers, app tokens, bot tokens, signing secrets, and message payloads from logs.
+**Approach:** Centralize the flow from normalized inbound request to session resolution, agent call, and outbound delivery where asynchronous dispatch is needed. HTTP webhook adapters enqueue a verified normalized job and return provider ACK immediately; Slack socket mode uses the same queue for idempotency and reconnect-safe dispatch. The daemon-owned dispatcher maintains a bounded queue, idempotency records for provider event IDs or socket envelope IDs, worker concurrency limits, per-job/default timeouts, retry/backoff for transient outbound failures, cancellation on daemon shutdown, and safe status for failed/degraded work. Queue, dedupe, and safe status behavior stay under `internal/gateway/dispatch` for now; public `pkg/gateway` package boundaries are deferred until another caller needs them. Logs include only source and coarse routing metadata, not message bodies or tokens.
 
 **Patterns to follow:** Existing safe logging posture in daemon tests, guardrail redaction tests under `internal/guardrails`, OpenClaw's explicit webhook auth/body-order guardrails as a principle rather than a dependency.
 
