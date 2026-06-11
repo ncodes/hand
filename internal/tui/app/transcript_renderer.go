@@ -27,7 +27,7 @@ func (lipglossTranscriptRenderer) RenderCell(cell transcriptCell, ctx transcript
 	case userTranscriptCell:
 		return renderUserTranscriptCell(value.text, ctx.Width)
 	case assistantTranscriptCell:
-		return renderMarkdownForTranscript(value.text, ctx.Width)
+		return renderAssistantTranscriptCell(value.text, ctx.Width)
 	case reasoningTranscriptCell:
 		return renderReasoningTranscriptCell(value.text, ctx.Width)
 	case thoughtTranscriptCell:
@@ -289,6 +289,34 @@ func renderUserTranscriptVerticalPadding(width int, glyph string) string {
 	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color(defaultTUITheme.UserTranscriptBackground)).
 		Render(strings.Repeat(glyph, max(width, 0)))
+}
+
+func renderAssistantTranscriptCell(body string, width int) string {
+	rendered := strings.TrimSpace(renderMarkdownForTranscript(body, width))
+	if rendered == "" {
+		return ""
+	}
+
+	lines := strings.Split(rendered, "\n")
+	for index, line := range lines {
+		if index == 0 {
+			lines[index] = renderAssistantTranscriptIndicator() + line
+			continue
+		}
+		lines[index] = renderAssistantTranscriptContinuationPrefix() + line
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func renderAssistantTranscriptIndicator() string {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Render("● ")
+}
+
+func renderAssistantTranscriptContinuationPrefix() string {
+	return strings.Repeat(" ", lipgloss.Width("● "))
 }
 
 func renderReasoningTranscriptCell(body string, width int) string {

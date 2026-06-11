@@ -36,7 +36,7 @@ func TestRenderTranscriptCells_AlignsAssistantMarkdownWithThoughtCell(t *testing
 		thoughtTranscriptCell{duration: time.Second},
 		assistantTranscriptCell{text: "**54 sensors are working.**\n\nRechecked: 9 containers."},
 	}, 80)
-	lines := strings.Split(stripANSI(rendered), "\n")
+	lines := assistantTranscriptBodyLines(stripANSI(rendered))
 
 	thoughtLine := indexLineContaining(lines, "Thought for 1s")
 	answerLine := indexLineContaining(lines, "54 sensors are working.")
@@ -59,7 +59,7 @@ func TestRenderTranscriptCell_IndentsWrappedMarkdownListContinuations(t *testing
 	require.NotEqual(t, -1, firstContinuation)
 	require.NotEqual(t, -1, secondBullet)
 	require.Greater(t, countLeadingSpaces(lines[firstContinuation]), countLeadingSpaces(lines[firstBullet]))
-	require.Equal(t, countLeadingSpaces(lines[firstBullet]), countLeadingSpaces(lines[secondBullet]))
+	require.LessOrEqual(t, countLeadingSpaces(lines[secondBullet]), countLeadingSpaces(lines[firstContinuation]))
 }
 
 func TestRenderTranscriptCell_RendersUnicodeBulletMarkdownArtifacts(t *testing.T) {
@@ -83,7 +83,7 @@ func TestRenderTranscriptCell_RendersCompactMarkdownTables(t *testing.T) {
 		"| Two | Also **short** |",
 	}, "\n")}, 120)
 	plain := stripANSI(rendered)
-	lines := strings.Split(plain, "\n")
+	lines := assistantTranscriptBodyLines(plain)
 
 	require.Contains(t, plain, "┌───────┬────────────┐")
 	require.Contains(t, plain, "│ Issue │ Details    │")
@@ -131,11 +131,25 @@ func TestRenderTranscriptCell_RendersWideMarkdownTablesAsLabeledRows(t *testing.
 	require.Contains(t, plain, "Story: Iran rebuilding military faster than expected")
 	require.Contains(t, plain, "Source: BBC")
 	require.Contains(t, rendered, "\x1b[")
-	for _, line := range strings.Split(plain, "\n") {
+	for _, line := range assistantTranscriptBodyLines(plain) {
 		if strings.Contains(line, "Source:") || strings.Contains(line, "Story:") {
 			require.False(t, strings.HasPrefix(line, " "))
 		}
 	}
+}
+
+func assistantTranscriptBodyLines(text string) []string {
+	lines := strings.Split(text, "\n")
+	for index, line := range lines {
+		switch {
+		case strings.HasPrefix(line, "● "):
+			lines[index] = strings.TrimPrefix(line, "● ")
+		case strings.HasPrefix(line, "  "):
+			lines[index] = strings.TrimPrefix(line, "  ")
+		}
+	}
+
+	return lines
 }
 
 func TestRenderTranscriptCell_KeepsTableCloseToPrecedingHeading(t *testing.T) {

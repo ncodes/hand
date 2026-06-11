@@ -3144,7 +3144,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("second"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("● second"),
 		Y:      secondRow,
 	}))
 	require.Nil(t, cmd)
@@ -3154,7 +3154,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("second"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("● second"),
 		Y:      secondRow,
 	}))
 
@@ -3167,7 +3167,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	require.Equal(t, strings.Join([]string{
 		"❯ first",
 		"",
-		"second",
+		"● second",
 	}, "\n"), trimTrailingLineSpaces(copied))
 	require.Equal(t, defaultStatus, runModel.status.Text())
 }
@@ -3193,7 +3193,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width),
+		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width("● "),
 		Y:      row,
 	}))
 	require.Nil(t, cmd)
@@ -3201,7 +3201,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("sec"),
+		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width("● ") + len("sec"),
 		Y:      row,
 	}))
 	require.Nil(t, cmd)
@@ -3209,7 +3209,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("sec"),
+		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width("● ") + len("sec"),
 		Y:      row,
 	}))
 
@@ -3309,7 +3309,7 @@ func TestModel_UpdateKeepsSelectionDragDuringResponseUpdate(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("second"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("● second"),
 		Y:      secondRow,
 	}))
 	require.Nil(t, cmd)
@@ -3355,7 +3355,7 @@ func TestModel_UpdateKeepsSelectionDragDuringToolUpdate(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("second"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("● second"),
 		Y:      secondRow,
 	}))
 	require.Nil(t, cmd)
@@ -3649,7 +3649,7 @@ func TestGetTranscriptLineOffsetReturnsEndOffsetForPastEndIndex(t *testing.T) {
 func TestGetByteOffsetForDisplayColumnSkipsANSISequences(t *testing.T) {
 	line := renderTranscriptTestCell(assistantTranscriptCell{text: "hello"})
 
-	offset := getByteOffsetForDisplayColumn(line, len("hel"))
+	offset := getByteOffsetForDisplayColumn(line, lipgloss.Width("● ")+len("hel"))
 
 	require.Equal(t, strings.Index(line, "lo"), offset)
 }

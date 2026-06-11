@@ -1420,6 +1420,25 @@ func TestRenderTranscriptCell_RendersMultilineUserMessageWithSinglePrompt(t *tes
 	require.Contains(t, rendered, "\x1b[")
 }
 
+func TestRenderTranscriptCell_RendersAssistantMessageWithDotColumn(t *testing.T) {
+	rendered := renderTranscriptTestCellWithWidth(assistantTranscriptCell{text: strings.Join([]string{
+		"Morning spills across the sky,",
+		"Soft gold where the shadows lie.",
+		"A quiet breeze begins to sing,",
+		"And wakes the world to everything.",
+	}, "\n")}, 80)
+	plain := stripANSI(rendered)
+	lines := strings.Split(plain, "\n")
+
+	require.Equal(t, []string{
+		"● Morning spills across the sky,",
+		"  Soft gold where the shadows lie.",
+		"  A quiet breeze begins to sing,",
+		"  And wakes the world to everything.",
+	}, lines)
+	require.Equal(t, 1, strings.Count(plain, "●"))
+}
+
 func TestSessionTimelineToTranscriptCells_SkipsMessageBackedTraceDuplicates(t *testing.T) {
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
