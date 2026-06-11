@@ -1,0 +1,76 @@
+.heroBanner {
+  background:
+    radial-gradient(circle at 72% 34%, rgba(76, 157, 255, 0.16), transparent 28rem),
+    linear-gradient(180deg, #05090d 0%, #070b10 100%);
+  border-bottom: 1px solid var(--hand-border);
+  overflow: hidden;
+  padding: 6.5rem 0 5rem;
+  position: relative;
+  text-align: left;
+}
+
+.eyebrow {
+  color: var(--ifm-color-primary);
+  font-size: 0.84rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  margin-bottom: 1rem;
+}
+
+.title {
+  color: #f7f9fc;
+  font-size: clamp(3.2rem, 8vw, 5.8rem);
+  letter-spacing: 0;
+  line-height: 0.95;
+  margin-bottom: 1.2rem;
+}
+
+.subtitle {
+  color: #aeb8c7;
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  line-height: 1.7;
+  max-width: 760px;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 3rem 1rem;
+  }
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 2rem;
+}
+
+.sections {
+  background: var(--hand-bg);
+  padding: 4rem 0;
+}
+
+.card {
+  background: #101720;
+  border: 1px solid var(--hand-border);
+  border-radius: 10px;
+  height: 100%;
+  padding: 1.35rem;
+}
+
+.card h2 {
+  font-size: 1.2rem;
+  letter-spacing: 0;
+  margin-bottom: 0.8rem;
+}
+
+.card p {
+  color: #aeb8c7;
+  line-height: 1.65;
+}
+
+.card a {
+  font-weight: 700;
+}
