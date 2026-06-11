@@ -46,10 +46,10 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Hand',
       logo: {
         alt: 'Hand',
-        src: 'img/logo.svg',
+        src: 'img/logo-black.svg',
+        srcDark: 'img/logo-white2.svg',
       },
       items: [
         {
@@ -69,7 +69,43 @@ const config: Config = {
           position: 'left',
         },
         {
+          type: 'dropdown',
+          label: 'Community',
+          position: 'right',
+          items: [
+            {
+              label: 'Forum',
+              href: 'https://github.com/wandxy/hand/discussions',
+            },
+            {
+              label: 'Twitter',
+              href: 'https://x.com/wandxy',
+            },
+            {
+              label: 'Discord',
+              href: 'https://discord.com/invite/wandxy',
+            },
+          ],
+        },
+        {
+          type: 'custom-socialIcon',
+          className: 'navbar-social-link-start',
+          href: 'https://x.com/wandxy',
+          icon: 'twitter',
+          label: 'Twitter',
+          position: 'right',
+        },
+        {
+          type: 'custom-socialIcon',
+          href: 'https://discord.com/invite/wandxy',
+          icon: 'discord',
+          label: 'Discord',
+          position: 'right',
+        },
+        {
+          type: 'custom-socialIcon',
           href: 'https://github.com/wandxy/hand',
+          icon: 'github',
           label: 'GitHub',
           position: 'right',
         },
