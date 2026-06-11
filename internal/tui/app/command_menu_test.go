@@ -25,7 +25,8 @@ func TestCommandMenu_RendersAboveComposerForSlashInput(t *testing.T) {
 	require.Contains(t, content, "Clear the transcript")
 	require.Contains(t, content, "Compact the current session")
 	require.Contains(t, content, "Copy the transcript")
-	require.Contains(t, content, "Show supported commands")
+	require.Contains(t, content, "Show supported models")
+	require.NotContains(t, content, "/help")
 }
 
 func TestCommandMenu_OpeningKeepsHeaderVisible(t *testing.T) {

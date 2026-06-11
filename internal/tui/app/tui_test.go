@@ -2644,35 +2644,17 @@ func TestModel_UpdateHandlesClearCommand(t *testing.T) {
 	require.Equal(t, defaultStatus, updated.(model).status.Text())
 }
 
-func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
+func TestModel_UpdateTreatsHelpCommandAsUnknown(t *testing.T) {
 	runModel := newModel()
 	runModel.input.SetValue("/help")
-	expectedHelp := strings.Join([]string{
-		"Commands:",
-		"/changelog",
-		"/chats",
-		"/clear",
-		"/compact",
-		"/copy",
-		"/help",
-		"/models",
-		"/new-chat",
-		"/archive",
-		"/providers",
-		"/setup",
-	}, "\n")
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
-	require.Nil(t, cmd)
+	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{expectedHelp}, transcriptCellPlainTexts(runModel.messages))
+	require.Empty(t, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
-	transcript := stripANSI(runModel.transcript.View())
-	require.Contains(t, transcript, "Commands:")
-	require.Contains(t, transcript, "/archive")
-	require.Contains(t, transcript, "/setup")
-	require.NotContains(t, transcript, "/archi\nve")
+	require.Equal(t, "unknown command: /help", runModel.status.Text())
 }
 
 func TestModel_UpdateHandlesSetupCommand(t *testing.T) {
@@ -4685,29 +4667,17 @@ func TestModel_UpdatePreventsOverlappingPromptSubmission(t *testing.T) {
 func TestModel_UpdateKeepsCommandsLocalDuringActiveResponse(t *testing.T) {
 	runModel := newModelWithClient(&fakeTUIChatClient{})
 	runModel.responding = true
-	runModel.input.SetValue("/help")
-	expectedHelp := strings.Join([]string{
-		"Commands:",
-		"/changelog",
-		"/chats",
-		"/clear",
-		"/compact",
-		"/copy",
-		"/help",
-		"/models",
-		"/new-chat",
-		"/archive",
-		"/providers",
-		"/setup",
-	}, "\n")
+	runModel.input.SetValue("/clear")
+	runModel.messages = []transcriptCell{assistantTranscriptCell{text: "old"}}
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
-	require.Nil(t, cmd)
+	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.responding)
-	require.Equal(t, []string{expectedHelp}, transcriptCellPlainTexts(runModel.messages))
+	require.Empty(t, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
+	require.Equal(t, "transcript cleared", runModel.status.Text())
 }
 
 func TestModel_UpdatePastesLargeMultilineContent(t *testing.T) {

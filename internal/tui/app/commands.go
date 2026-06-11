@@ -1,10 +1,6 @@
 package tui
 
-import (
-	"strings"
-
-	tea "charm.land/bubbletea/v2"
-)
+import tea "charm.land/bubbletea/v2"
 
 type slashCommandDefinition struct {
 	Name        string
@@ -17,7 +13,6 @@ var slashCommandDefinitions = []slashCommandDefinition{
 	{Name: "clear", Description: "Clear the transcript"},
 	{Name: "compact", Description: "Compact the current session"},
 	{Name: "copy", Description: "Copy the transcript"},
-	{Name: "help", Description: "Show supported commands"},
 	{Name: "models", Description: "Show supported models"},
 	{Name: "new-chat", Description: "Start a new chat session"},
 	{Name: "archive", Description: "Show archived chat sessions"},
@@ -39,8 +34,6 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 		cmd = m.setStatus("transcript cleared")
 	case "compact":
 		cmd = m.startCompactSession()
-	case "help":
-		m.applyAction(appendTranscriptCellAction{Cell: systemTranscriptCell{text: getSlashCommandHelpText()}})
 	case "models":
 		cmd = m.startModelsCommand()
 	case "providers":
@@ -63,13 +56,4 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 		m.setTranscriptContent()
 	}
 	return cmd
-}
-
-func getSlashCommandHelpText() string {
-	commands := make([]string, 0, len(slashCommandDefinitions))
-	for _, command := range slashCommandDefinitions {
-		commands = append(commands, "/"+command.Name)
-	}
-
-	return "Commands:\n" + strings.Join(commands, "\n")
 }
