@@ -45,6 +45,7 @@ type tuiState struct {
 	responseTranscriptFollow   bool
 	responseTranscriptScrolled bool
 	responseStartMessageIndex  int
+	responseStartedAt          time.Time
 	responseRunningToolCount   int
 	toolAnimationFrame         int
 	toolAnimationActive        bool

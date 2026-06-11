@@ -245,12 +245,22 @@ func isMessageBackedTimelineEvent(msg any) bool {
 func sessionTimelineToTranscriptCells(timeline rpcclient.SessionTimeline) []transcriptCell {
 	entries := make([]transcriptTimelineEntry, 0, len(timeline.Messages)+len(timeline.TraceEvents))
 	toolCalls := getTimelineToolCallDetails(timeline.Messages)
+	responseStartedAt := time.Time{}
 	for index, message := range timeline.Messages {
-		if cell := timelineMessageToTranscriptCell(message.Message, toolCalls); cell != nil && !cell.IsEmpty() {
+		messageCell := timelineMessageToTranscriptCell(message.Message, toolCalls)
+		if message.Message.Role == handmsg.RoleUser {
+			responseStartedAt = message.Message.CreatedAt
+		}
+		if cell, ok := messageCell.(assistantTranscriptCell); ok && !responseStartedAt.IsZero() {
+			cell.duration = normalizeResponseDuration(message.Message.CreatedAt.Sub(responseStartedAt))
+			messageCell = cell
+			responseStartedAt = time.Time{}
+		}
+		if messageCell != nil && !messageCell.IsEmpty() {
 			entries = append(entries, transcriptTimelineEntry{
 				at:    message.Message.CreatedAt,
 				order: index * 2,
-				cell:  cell,
+				cell:  messageCell,
 			})
 		}
 	}

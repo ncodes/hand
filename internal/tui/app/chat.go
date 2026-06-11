@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -78,6 +79,7 @@ func (m *model) startResponse(prompt string, followTranscript bool) tea.Cmd {
 	m.responseCancel = cancel
 	m.applyAction(setRespondingAction{Responding: true, ResponseID: m.responseID})
 	m.responseStartMessageIndex = len(m.messages)
+	m.responseStartedAt = currentTime()
 	m.responseTranscriptFollow = followTranscript
 	m.responseTranscriptScrolled = false
 	m.responseRunningToolCount = 0
@@ -106,17 +108,19 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 		m.responseTranscriptFollow = false
 		m.responseTranscriptScrolled = false
 		m.responseRunningToolCount = 0
+		m.responseStartedAt = time.Time{}
 		m.thinkingComposerActive = false
 		m.events = nil
 		m.responseCancel = nil
 		return m.setStatus("response failed")
 	}
 
-	m.completeAssistantResponse(msg.Text)
+	m.completeAssistantResponse(msg.Text, m.getCompletedResponseDuration())
 	m.applyAction(setRespondingAction{Responding: false, ResponseID: m.responseID})
 	m.responseTranscriptFollow = false
 	m.responseTranscriptScrolled = false
 	m.responseRunningToolCount = 0
+	m.responseStartedAt = time.Time{}
 	m.thinkingComposerActive = false
 	m.events = nil
 	m.responseCancel = nil
@@ -142,12 +146,21 @@ func (m *model) cancelActiveResponse() tea.Cmd {
 	m.responseTranscriptFollow = false
 	m.responseTranscriptScrolled = false
 	m.responseRunningToolCount = 0
+	m.responseStartedAt = time.Time{}
 	m.thinkingComposerActive = false
 	m.toolAnimationActive = false
 	m.responseCancel = nil
 	m.events = nil
 
 	return m.setStatus("response cancelled")
+}
+
+func (m model) getCompletedResponseDuration() time.Duration {
+	if m.responseStartedAt.IsZero() {
+		return 0
+	}
+
+	return currentTime().Sub(m.responseStartedAt).Round(time.Second)
 }
 
 func (m model) isActiveResponse(responseID int) bool {

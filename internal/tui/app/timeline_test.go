@@ -1431,12 +1431,28 @@ func TestRenderTranscriptCell_RendersAssistantMessageWithDotColumn(t *testing.T)
 	lines := strings.Split(plain, "\n")
 
 	require.Equal(t, []string{
-		"● Morning spills across the sky,",
+		assistantTranscriptIndicatorGlyph + "Morning spills across the sky,",
 		"  Soft gold where the shadows lie.",
 		"  A quiet breeze begins to sing,",
 		"  And wakes the world to everything.",
 	}, lines)
-	require.Equal(t, 1, strings.Count(plain, "●"))
+	require.Equal(t, 1, strings.Count(plain, strings.TrimSpace(assistantTranscriptIndicatorGlyph)))
+}
+
+func TestRenderTranscriptCell_RendersAssistantWorkedDuration(t *testing.T) {
+	rendered := renderTranscriptTestCellWithWidth(assistantTranscriptCell{
+		text:     "Here's one for you.",
+		duration: 6 * time.Second,
+	}, 80)
+	plain := stripANSI(rendered)
+	lines := strings.Split(plain, "\n")
+
+	require.Equal(t, []string{
+		assistantTranscriptIndicatorGlyph + "Here's one for you.",
+		"",
+		assistantTranscriptWorkGlyph + "Worked for 6s",
+	}, lines)
+	require.Contains(t, rendered, "\x1b[")
 }
 
 func TestSessionTimelineToTranscriptCells_SkipsMessageBackedTraceDuplicates(t *testing.T) {
@@ -1462,7 +1478,7 @@ func TestSessionTimelineToTranscriptCells_SkipsMessageBackedTraceDuplicates(t *t
 
 	require.Equal(t, []string{
 		"You: hello there",
-		"Hand: hello back",
+		"Hand: hello back\nWorked for 1s",
 		transcriptCellPlainText(toolTranscriptTestCellWithTiming("", "read_file", "", now.Add(2*time.Second), time.Time{}, false)),
 	}, transcriptCellPlainTexts(cells))
 }
@@ -1493,12 +1509,41 @@ func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTim
 
 	require.Equal(t, []string{
 		"You: older prompt",
-		"Hand: older answer",
+		"Hand: older answer\nWorked for 1s",
 		transcriptCellPlainText(toolTranscriptTestCellWithTiming("", "web_search", "", now.Add(2*time.Second), time.Time{}, false)),
 		transcriptCellPlainText(toolTranscriptTestCellWithTiming("", "web_search", "", time.Time{}, now.Add(3*time.Second), true)),
 		"You: Hi",
-		"Hand: Hi there",
+		"Hand: Hi there\nWorked for 1s",
 	}, transcriptCellPlainTexts(cells))
+}
+
+func TestSessionTimelineToTranscriptCells_HydratesAssistantWorkedDurationAcrossTools(t *testing.T) {
+	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
+
+	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		Messages: []agentapi.SessionTimelineMessage{
+			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "search then answer", CreatedAt: now}},
+			{Message: handmsg.Message{
+				Role:      handmsg.RoleAssistant,
+				CreatedAt: now.Add(time.Second),
+				ToolCalls: []handmsg.ToolCall{{
+					ID:   "call_1",
+					Name: "web_search",
+				}},
+			}},
+			{Message: handmsg.Message{
+				Role:       handmsg.RoleTool,
+				Name:       "web_search",
+				ToolCallID: "call_1",
+				Content:    "results",
+				CreatedAt:  now.Add(3 * time.Second),
+			}},
+			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "final answer", CreatedAt: now.Add(6 * time.Second)}},
+		},
+	})
+
+	require.Contains(t, transcriptCellPlainTexts(cells), "Hand: final answer\nWorked for 6s")
+	require.Contains(t, stripANSI(renderTranscriptCells(cells)), assistantTranscriptWorkGlyph+"Worked for 6s")
 }
 
 func TestSessionTimelineToTranscriptCells_SkipsUserStoppedSessionErrors(t *testing.T) {
@@ -1520,7 +1565,7 @@ func TestSessionTimelineToTranscriptCells_SkipsUserStoppedSessionErrors(t *testi
 
 	require.Equal(t, []string{
 		"You: hi",
-		"Hand: hello",
+		"Hand: hello\nWorked for 2s",
 	}, transcriptCellPlainTexts(cells))
 }
 
@@ -1544,7 +1589,7 @@ func TestSessionTimelineToTranscriptCells_RendersPersistedThoughtSummary(t *test
 	require.Equal(t, []string{
 		"You: think",
 		"Thought: 2s",
-		"Hand: done",
+		"Hand: done\nWorked for 2s",
 	}, transcriptCellPlainTexts(cells))
 }
 

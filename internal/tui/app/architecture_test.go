@@ -156,7 +156,7 @@ func TestTranscriptRenderer_VisualSnapshot(t *testing.T) {
 		"",
 		"Thought for 2s",
 		"",
-		"● Done",
+		assistantTranscriptIndicatorGlyph + "Done",
 		"",
 		"● Read (3s)",
 		"  └ read_file notes.txt (3s)",

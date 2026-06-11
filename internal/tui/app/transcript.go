@@ -200,7 +200,7 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 			m.appendAssistantDelta(value.Text)
 		}
 	case assistantResponseCompletedMsg:
-		m.completeAssistantResponse(value.Text)
+		m.completeAssistantResponse(value.Text, 0)
 	case reasoningCompletedMsg:
 		m.completeReasoningTranscript(value.Duration)
 	case sessionErrorMsg:
@@ -347,7 +347,7 @@ func (m *model) appendAssistantDelta(delta string) {
 	m.resize()
 }
 
-func (m *model) completeAssistantResponse(text string) {
+func (m *model) completeAssistantResponse(text string, duration time.Duration) {
 	reply := text
 	if strings.TrimSpace(reply) == "" {
 		reply = m.stream.Finalize()
@@ -363,10 +363,18 @@ func (m *model) completeAssistantResponse(text string) {
 	}
 
 	m.collapseCurrentReasoningTranscript()
-	m.applyAction(appendTranscriptCellAction{Cell: assistantTranscriptCell{text: reply}})
+	m.applyAction(appendTranscriptCellAction{Cell: assistantTranscriptCell{text: reply, duration: normalizeResponseDuration(duration)}})
 	m.applyAction(setLiveTranscriptCellAction{})
 	m.setTranscriptContentAfterResponseCompletion()
 	m.resize()
+}
+
+func normalizeResponseDuration(duration time.Duration) time.Duration {
+	if duration <= 0 {
+		return 0
+	}
+
+	return duration.Round(time.Second)
 }
 
 func (m *model) setTranscriptContentAfterResponseCompletion() {

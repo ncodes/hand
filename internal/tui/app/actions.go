@@ -232,6 +232,7 @@ func (resetResponseStateAction) apply(state *tuiState) {
 	state.responding = false
 	state.responseTranscriptFollow = false
 	state.responseTranscriptScrolled = false
+	state.responseStartedAt = time.Time{}
 	state.responseRunningToolCount = 0
 	state.thinkingComposerActive = false
 	state.toolAnimationActive = false

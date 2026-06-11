@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/wordwrap"
@@ -16,6 +17,11 @@ type transcriptRenderer interface {
 
 type lipglossTranscriptRenderer struct{}
 
+const (
+	assistantTranscriptIndicatorGlyph = "◉ "
+	assistantTranscriptWorkGlyph      = "◷ "
+)
+
 var defaultTranscriptRenderer transcriptRenderer = lipglossTranscriptRenderer{}
 
 func (lipglossTranscriptRenderer) RenderCell(cell transcriptCell, ctx transcriptRenderContext) string {
@@ -27,7 +33,7 @@ func (lipglossTranscriptRenderer) RenderCell(cell transcriptCell, ctx transcript
 	case userTranscriptCell:
 		return renderUserTranscriptCell(value.text, ctx.Width)
 	case assistantTranscriptCell:
-		return renderAssistantTranscriptCell(value.text, ctx.Width)
+		return renderAssistantTranscriptCell(value, ctx.Width)
 	case reasoningTranscriptCell:
 		return renderReasoningTranscriptCell(value.text, ctx.Width)
 	case thoughtTranscriptCell:
@@ -291,8 +297,8 @@ func renderUserTranscriptVerticalPadding(width int, glyph string) string {
 		Render(strings.Repeat(glyph, max(width, 0)))
 }
 
-func renderAssistantTranscriptCell(body string, width int) string {
-	rendered := strings.TrimSpace(renderMarkdownForTranscript(body, width))
+func renderAssistantTranscriptCell(cell assistantTranscriptCell, width int) string {
+	rendered := strings.TrimSpace(renderMarkdownForTranscript(cell.text, width))
 	if rendered == "" {
 		return ""
 	}
@@ -306,17 +312,27 @@ func renderAssistantTranscriptCell(body string, width int) string {
 		lines[index] = renderAssistantTranscriptContinuationPrefix() + line
 	}
 
+	if cell.duration > 0 {
+		lines = append(lines, "", renderAssistantTranscriptWorkLabel(cell.duration))
+	}
+
 	return strings.Join(lines, "\n")
 }
 
 func renderAssistantTranscriptIndicator() string {
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
-		Render("● ")
+		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground)).
+		Render(assistantTranscriptIndicatorGlyph)
 }
 
 func renderAssistantTranscriptContinuationPrefix() string {
-	return strings.Repeat(" ", lipgloss.Width("● "))
+	return strings.Repeat(" ", lipgloss.Width(assistantTranscriptIndicatorGlyph))
+}
+
+func renderAssistantTranscriptWorkLabel(duration time.Duration) string {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Render(assistantTranscriptWorkGlyph + "Worked for " + formatToolTranscriptDuration(duration))
 }
 
 func renderReasoningTranscriptCell(body string, width int) string {

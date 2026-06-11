@@ -3144,7 +3144,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("● second"),
+		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width(assistantTranscriptIndicatorGlyph) + len("second"),
 		Y:      secondRow,
 	}))
 	require.Nil(t, cmd)
@@ -3154,7 +3154,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("● second"),
+		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width(assistantTranscriptIndicatorGlyph) + len("second"),
 		Y:      secondRow,
 	}))
 
@@ -3167,7 +3167,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	require.Equal(t, strings.Join([]string{
 		"❯ first",
 		"",
-		"● second",
+		assistantTranscriptIndicatorGlyph + "second",
 	}, "\n"), trimTrailingLineSpaces(copied))
 	require.Equal(t, defaultStatus, runModel.status.Text())
 }
@@ -3193,7 +3193,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width("● "),
+		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width(assistantTranscriptIndicatorGlyph),
 		Y:      row,
 	}))
 	require.Nil(t, cmd)
@@ -3201,7 +3201,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width("● ") + len("sec"),
+		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width(assistantTranscriptIndicatorGlyph) + len("sec"),
 		Y:      row,
 	}))
 	require.Nil(t, cmd)
@@ -3209,7 +3209,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width("● ") + len("sec"),
+		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width(assistantTranscriptIndicatorGlyph) + len("sec"),
 		Y:      row,
 	}))
 
@@ -3309,7 +3309,7 @@ func TestModel_UpdateKeepsSelectionDragDuringResponseUpdate(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("● second"),
+		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width(assistantTranscriptIndicatorGlyph) + len("second"),
 		Y:      secondRow,
 	}))
 	require.Nil(t, cmd)
@@ -3355,7 +3355,7 @@ func TestModel_UpdateKeepsSelectionDragDuringToolUpdate(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("● second"),
+		X:      getPanelHorizontalPadding(runModel.width) + lipgloss.Width(assistantTranscriptIndicatorGlyph) + len("second"),
 		Y:      secondRow,
 	}))
 	require.Nil(t, cmd)
@@ -3649,7 +3649,7 @@ func TestGetTranscriptLineOffsetReturnsEndOffsetForPastEndIndex(t *testing.T) {
 func TestGetByteOffsetForDisplayColumnSkipsANSISequences(t *testing.T) {
 	line := renderTranscriptTestCell(assistantTranscriptCell{text: "hello"})
 
-	offset := getByteOffsetForDisplayColumn(line, lipgloss.Width("● ")+len("hel"))
+	offset := getByteOffsetForDisplayColumn(line, lipgloss.Width(assistantTranscriptIndicatorGlyph)+len("hel"))
 
 	require.Equal(t, strings.Index(line, "lo"), offset)
 }
@@ -4020,6 +4020,26 @@ func TestModel_UpdateAppliesResponseEventsAndCompletion(t *testing.T) {
 	require.Nil(t, runModel.events)
 	require.Empty(t, runModel.live)
 	require.Equal(t, []string{"Hand: hello final"}, transcriptCellPlainTexts(runModel.messages))
+}
+
+func TestModel_UpdateRendersCompletedResponseDuration(t *testing.T) {
+	startedAt := time.Date(2026, 6, 11, 1, 30, 0, 0, time.UTC)
+	originalCurrentTime := currentTime
+	t.Cleanup(func() { currentTime = originalCurrentTime })
+	currentTime = func() time.Time { return startedAt.Add(6 * time.Second) }
+	runModel := newModel()
+	runModel.responding = true
+	runModel.responseID = 4
+	runModel.responseStartedAt = startedAt
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(responseCompletedMsg{ResponseID: 4, Text: "Here's one for you."})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, []string{"Hand: Here's one for you.\nWorked for 6s"}, transcriptCellPlainTexts(runModel.messages))
+	require.Contains(t, stripANSI(runModel.transcript.GetContent()), assistantTranscriptWorkGlyph+"Worked for 6s")
+	require.True(t, runModel.responseStartedAt.IsZero())
 }
 
 func TestModel_UpdatePreservesTranscriptScrollDuringActiveResponse(t *testing.T) {

@@ -41,7 +41,8 @@ type userTranscriptCell struct {
 }
 
 type assistantTranscriptCell struct {
-	text string
+	text     string
+	duration time.Duration
 }
 
 type reasoningTranscriptCell struct {
@@ -95,7 +96,12 @@ func (cell assistantTranscriptCell) PlainText() string {
 		return ""
 	}
 
-	return "Hand: " + cell.text
+	text := "Hand: " + cell.text
+	if cell.duration > 0 {
+		text += "\nWorked for " + formatToolTranscriptDuration(cell.duration)
+	}
+
+	return text
 }
 
 func (cell assistantTranscriptCell) IsEmpty() bool {
