@@ -142,6 +142,20 @@ body {
   right: 0.75rem;
 }
 
+.navbar__items:has(.navbar__link[href='/docs/guides/gateway'].navbar__link--active)
+  .navbar__link[href='/docs/'],
+.navbar__items:has(.navbar__link[href='/docs/reference/cli'].navbar__link--active)
+  .navbar__link[href='/docs/'] {
+  color: var(--hand-navbar-text);
+}
+
+.navbar__items:has(.navbar__link[href='/docs/guides/gateway'].navbar__link--active)
+  .navbar__link[href='/docs/']::after,
+.navbar__items:has(.navbar__link[href='/docs/reference/cli'].navbar__link--active)
+  .navbar__link[href='/docs/']::after {
+  content: none;
+}
+
 .navbar__search-input {
   background: var(--hand-search-bg);
   border: 1px solid var(--hand-border-strong);
@@ -198,43 +212,146 @@ body {
 }
 
 .theme-doc-sidebar-menu {
-  padding: 1rem 0.75rem;
+  padding: 1.25rem 0.85rem 2rem;
 }
 
 .menu {
-  font-size: 0.86rem;
-  font-weight: 650;
+  font-size: 0.92rem;
+  font-weight: 500;
 }
 
-.menu__list-item {
-  margin: 0.15rem 0;
+.theme-doc-sidebar-item-link-level-1 {
+  display: none;
+}
+
+.theme-doc-sidebar-item-category-level-1 {
+  margin: 0 0 1.85rem;
+}
+
+.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible {
+  margin-bottom: 0.75rem;
+}
+
+.theme-doc-sidebar-item-category-level-1
+  > .menu__list-item-collapsible
+  > .menu__link {
+  color: var(--hand-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  line-height: 1.1;
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.theme-doc-sidebar-item-category-level-1
+  > .menu__list-item-collapsible
+  > .menu__link:hover {
+  background: transparent;
+  color: var(--hand-muted);
+}
+
+.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible:hover {
+  background: transparent;
+}
+
+.theme-doc-sidebar-item-category-level-1 > .menu__list {
+  border-left: 1px solid var(--hand-border) !important;
+  margin: 0;
+  padding-left: 1rem;
 }
 
 .menu__list .menu__list {
   border-left: 0;
-  margin-top: 0.2rem;
-  padding-left: 0.35rem;
+  margin-top: 0.35rem;
+  padding-left: 1rem;
 }
 
-.menu__caret::before,
-.menu__link--sublist-caret::after {
-  filter: invert(68%);
+.theme-doc-sidebar-container .menu__caret,
+.theme-doc-sidebar-container .menu__link--sublist-caret::after {
+  display: none;
 }
 
 .menu__link {
-  border-radius: 6px;
+  border-radius: 0;
   color: var(--ifm-menu-color);
   line-height: 1.25rem;
+  padding: 0.34rem 0;
+  position: relative;
 }
 
 .menu__link:hover {
-  background: var(--hand-menu-hover-bg);
+  background: transparent;
   color: var(--hand-menu-hover-text);
 }
 
 .menu__link--active {
-  background: var(--hand-menu-active-bg);
-  color: var(--ifm-color-primary);
+  background: transparent;
+  color: var(--hand-text-strong);
+  font-weight: 650;
+  position: relative;
+}
+
+.theme-doc-sidebar-item-link > .menu__link::before {
+  background: transparent;
+  content: '';
+  left: -1.05rem;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.theme-doc-sidebar-item-link > .menu__link:hover::before,
+.theme-doc-sidebar-item-link > .menu__link--active::before {
+  background: var(--hand-text-strong);
+}
+
+.theme-doc-sidebar-item-link-level-3 > .menu__link::before {
+  left: -2.05rem;
+}
+
+.theme-doc-sidebar-item-category-level-2 > .menu__list-item-collapsible,
+.theme-doc-sidebar-item-category-level-2 > .menu__list-item-collapsible:hover {
+  background: transparent;
+}
+
+.theme-doc-sidebar-item-category-level-2
+  > .menu__list-item-collapsible
+  > .menu__link {
+  background: transparent;
+  position: relative;
+}
+
+.theme-doc-sidebar-item-category-level-2
+  > .menu__list-item-collapsible
+  > .menu__link:hover,
+.theme-doc-sidebar-item-category-level-2
+  > .menu__list-item-collapsible
+  > .menu__link--active {
+  background: transparent;
+  color: var(--hand-text-strong);
+}
+
+.theme-doc-sidebar-item-category-level-2
+  > .menu__list-item-collapsible
+  > .menu__link::before {
+  background: transparent;
+  content: '';
+  left: -1.05rem;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.theme-doc-sidebar-item-category-level-2
+  > .menu__list-item-collapsible
+  > .menu__link:hover::before,
+.theme-doc-sidebar-item-category-level-2
+  > .menu__list-item-collapsible
+  > .menu__link--active::before {
+  background: var(--hand-text-strong);
 }
 
 .theme-doc-markdown {

@@ -48,7 +48,7 @@ const config: Config = {
     navbar: {
       logo: {
         alt: 'Hand',
-        src: 'img/logo-black.svg',
+        src: 'img/logo-black2.svg',
         srcDark: 'img/logo-white2.svg',
       },
       items: [
@@ -57,14 +57,17 @@ const config: Config = {
           sidebarId: 'docs',
           position: 'left',
           label: 'Guide',
+          activeBaseRegex: '^/docs/(?!guides/gateway(?:/|$)|reference(?:/|$)).*',
         },
         {
           to: '/docs/guides/gateway',
+          activeBaseRegex: '^/docs/guides/gateway(?:/|$)',
           label: 'Gateway',
           position: 'left',
         },
         {
           to: '/docs/reference/cli',
+          activeBaseRegex: '^/docs/reference(?:/|$)',
           label: 'Reference',
           position: 'left',
         },
