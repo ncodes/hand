@@ -88,6 +88,11 @@ const config: Config = {
           ],
         },
         {
+          to: '/docs/contributing',
+          label: 'Contribute',
+          position: 'right',
+        },
+        {
           type: 'custom-socialIcon',
           className: 'navbar-social-link-start',
           href: 'https://x.com/wandxy',

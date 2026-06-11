@@ -80,6 +80,7 @@ const sidebars: SidebarsConfig = {
         'development/gateway-internals',
         'development/tui',
         'development/testing',
+        'contributing',
       ],
     },
     {
