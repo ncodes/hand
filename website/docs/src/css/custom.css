@@ -12,6 +12,8 @@
   --ifm-footer-background-color: #ffffff;
   --ifm-font-color-base: #202936;
   --ifm-font-color-secondary: #526071;
+  --ifm-font-family-base: 'Lato', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ifm-heading-font-family: 'Lato', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --ifm-heading-color: #111827;
   --ifm-link-color: #4c9dff;
   --ifm-code-font-size: 92%;
@@ -163,6 +165,38 @@ body {
   color: var(--hand-search-text);
 }
 
+.DocSearch {
+  --docsearch-primary-color: var(--ifm-color-primary);
+  --docsearch-text-color: var(--ifm-font-color-base);
+  --docsearch-muted-color: var(--hand-muted);
+  --docsearch-searchbox-background: var(--hand-panel-soft);
+  --docsearch-searchbox-focus-background: var(--hand-panel);
+  --docsearch-hit-background: var(--hand-panel);
+  --docsearch-hit-color: var(--ifm-font-color-base);
+  --docsearch-hit-active-color: #ffffff;
+  --docsearch-footer-background: var(--hand-panel);
+  --docsearch-modal-background: var(--hand-bg);
+}
+
+.DocSearch-Button {
+  background: var(--hand-search-bg);
+  border: 1px solid var(--hand-border-strong);
+  border-radius: 8px;
+  color: var(--hand-search-text);
+  height: 34px;
+  margin-left: 0.75rem;
+}
+
+.DocSearch-Button:hover {
+  background: var(--hand-panel-soft);
+  border-color: var(--ifm-color-primary);
+  color: var(--hand-search-text);
+}
+
+.DocSearch-Button-Keys {
+  min-width: auto;
+}
+
 .navbar-social-link {
   align-items: center;
   display: inline-flex;
@@ -236,9 +270,10 @@ body {
   > .menu__list-item-collapsible
   > .menu__link {
   color: var(--hand-muted);
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.16em;
+  font-family: 'Silkscreen', monospace;
+  font-size: 0.82rem;
+  font-weight: 400;
+  letter-spacing: 0.13em;
   line-height: 1.1;
   padding: 0;
   text-transform: uppercase;

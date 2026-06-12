@@ -1,10 +1,27 @@
 .heroBanner {
-  background: linear-gradient(180deg, #f7f9fc 0%, #ffffff 100%);
+  background:
+    radial-gradient(circle at 82% 22%, rgba(76, 157, 255, 0.14), transparent 25rem),
+    linear-gradient(135deg, rgba(0, 255, 178, 0.08), transparent 22rem),
+    linear-gradient(
+      90deg,
+      #f7f9fc 0%,
+      #ffffff 54%,
+      #eef5ff 100%
+    );
   border-bottom: 1px solid var(--hand-border);
   overflow: hidden;
-  padding: 6.5rem 0 5rem;
+  min-height: calc(100vh - 56px);
+  padding: 7rem 0;
   position: relative;
-  text-align: left;
+  text-align: center;
+}
+
+.heroBanner :global(.container) {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100vh - 56px - 14rem);
 }
 
 .eyebrow {
@@ -34,49 +51,29 @@
   .heroBanner {
     padding: 3rem 1rem;
   }
+
+  .heroBanner :global(.container) {
+    min-height: calc(100vh - 56px - 6rem);
+  }
 }
 
 .buttons {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 1rem;
   flex-wrap: wrap;
   margin-top: 2rem;
 }
 
-.sections {
-  background: var(--hand-bg);
-  padding: 4rem 0;
-}
-
-.card {
-  background: var(--hand-panel);
-  border: 1px solid var(--hand-border);
-  border-radius: 8px;
-  height: 100%;
-  padding: 1.35rem;
-}
-
-.card h2 {
-  font-size: 1.2rem;
-  letter-spacing: 0;
-  margin-bottom: 0.8rem;
-}
-
-.card p {
-  color: var(--hand-text-muted);
-  line-height: 1.65;
-}
-
-.card a {
-  font-weight: 700;
-}
-
 :global([data-theme='dark']) .heroBanner {
-  background: linear-gradient(180deg, #05090d 0%, #070b10 100%);
-}
-
-:global([data-theme='dark']) .card {
-  background: #101720;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(5, 9, 13, 0.96) 0%,
+      rgba(5, 9, 13, 0.9) 42%,
+      rgba(5, 9, 13, 0.62) 72%,
+      rgba(5, 9, 13, 0.42) 100%
+    ),
+    url('/img/hero-terminal-agent.png') center right / cover no-repeat;
 }

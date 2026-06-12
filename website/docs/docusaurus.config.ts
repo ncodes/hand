@@ -2,6 +2,44 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
+function getAlgoliaConfig(): Preset.ThemeConfig['algolia'] | undefined {
+  const appId = process.env.DOCUSAURUS_ALGOLIA_APP_ID?.trim();
+  const apiKey = process.env.DOCUSAURUS_ALGOLIA_API_KEY?.trim();
+  const indexName = process.env.DOCUSAURUS_ALGOLIA_INDEX_NAME?.trim();
+  const hasPartialConfig = Boolean(appId || apiKey || indexName);
+
+  if (!hasPartialConfig) {
+    return undefined;
+  }
+
+  const missing = [
+    ['DOCUSAURUS_ALGOLIA_APP_ID', appId],
+    ['DOCUSAURUS_ALGOLIA_API_KEY', apiKey],
+    ['DOCUSAURUS_ALGOLIA_INDEX_NAME', indexName],
+  ]
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+
+  if (missing.length > 0) {
+    throw new Error(`Missing Algolia search config: ${missing.join(', ')}`);
+  }
+
+  const configuredAppId = appId as string;
+  const configuredApiKey = apiKey as string;
+  const configuredIndexName = indexName as string;
+
+  return {
+    appId: configuredAppId,
+    apiKey: configuredApiKey,
+    indexName: configuredIndexName,
+    contextualSearch: true,
+    searchPagePath: 'search',
+    insights: false,
+  };
+}
+
+const algolia = getAlgoliaConfig();
+
 const config: Config = {
   title: 'Hand',
   tagline: 'A terminal-first personal agent',
@@ -13,6 +51,38 @@ const config: Config = {
 
   url: 'https://hand.local',
   baseUrl: '/',
+
+  headTags: [
+    {
+      tagName: 'link',
+      attributes: {
+        rel: 'preconnect',
+        href: 'https://fonts.googleapis.com',
+      },
+    },
+    {
+      tagName: 'link',
+      attributes: {
+        rel: 'preconnect',
+        href: 'https://fonts.gstatic.com',
+        crossorigin: 'anonymous',
+      },
+    },
+    {
+      tagName: 'link',
+      attributes: {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap',
+      },
+    },
+    {
+      tagName: 'link',
+      attributes: {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap',
+      },
+    },
+  ],
 
   organizationName: 'wandxy',
   projectName: 'hand',
@@ -71,6 +141,14 @@ const config: Config = {
           label: 'Reference',
           position: 'left',
         },
+        ...(algolia
+          ? [
+              {
+                type: 'search' as const,
+                position: 'right' as const,
+              },
+            ]
+          : []),
         {
           type: 'dropdown',
           label: 'Community',
@@ -122,7 +200,9 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
+      additionalLanguages: ['bash', 'shell-session'],
     },
+    ...(algolia ? {algolia} : {}),
   } satisfies Preset.ThemeConfig,
 };
 
