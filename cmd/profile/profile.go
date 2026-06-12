@@ -123,6 +123,10 @@ func newInitCommand() *cli.Command {
 				Name:  "bare",
 				Usage: "Create only the profile directory without config.yaml",
 			},
+			&cli.BoolFlag{
+				Name:  "use",
+				Usage: "Set the new profile as the machine-local current profile",
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			name := strings.TrimSpace(cmd.Args().First())
@@ -138,6 +142,11 @@ func newInitCommand() *cli.Command {
 				cfg := config.NewProfileConfig()
 				cfg.Name = resolved.Name
 				if err := config.SaveYAML(resolved.ConfigPath, cfg); err != nil {
+					return getProfileInitConfigError(resolved, err)
+				}
+			}
+			if cmd.Bool("use") {
+				if _, err := profile.StoreCurrentName(resolved.Name, ""); err != nil {
 					return err
 				}
 			}
@@ -146,6 +155,22 @@ func newInitCommand() *cli.Command {
 			return err
 		},
 	}
+}
+
+func getProfileInitConfigError(resolved profile.Profile, err error) error {
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(err.Error(), "config file already exists") {
+		return fmt.Errorf(
+			"profile %q already exists at %s; run `hand profile use %s` to select it, or choose a different profile name",
+			resolved.Name,
+			resolved.HomeDir,
+			resolved.Name,
+		)
+	}
+
+	return err
 }
 
 func newPathCommand() *cli.Command {

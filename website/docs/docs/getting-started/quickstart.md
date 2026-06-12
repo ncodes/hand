@@ -5,20 +5,25 @@ description: Get Hand running and start your first conversation.
 
 # Quickstart
 
-This guide takes you from installation to a working Hand conversation. It keeps the setup local: one profile, one model provider credential, the daemon, and either the TUI or a one-shot prompt.
+This guide gets Hand installed, configured, and ready for your first chat.
 
 ## Requirements
 
-Before you start, make sure you have:
+You need:
 
-- A model provider credential.
+- A model provider account or API key.
 - A terminal on the machine where you want Hand to run.
 
-Hand can use several model providers. For a first run, OpenRouter or OpenAI is usually the shortest path because both work with the OpenAI-compatible request flow.
+Hand can store subscription accounts or API keys. If you already pay for ChatGPT, Claude, or GitHub Copilot,
+subscription login is often fastest. Hand stores OAuth credentials for supported providers.
+
+API keys are also supported. They are often better for OpenRouter, servers, service accounts, and automation.
+
+See [Model Auth](../guides/model-auth) for provider notes and API key links.
 
 ## Install Hand
 
-The preferred installation path is the hosted installer:
+Install Hand with the hosted installer:
 
 ```bash
 curl -fsSL https://handagent.ai/install.sh | bash
@@ -30,99 +35,133 @@ After installation, verify the CLI is available:
 hand version
 ```
 
-If your shell cannot find `hand`, restart the shell or make sure the install directory printed by the installer is on your `PATH`.
+If your shell cannot find `hand`, restart the shell or check that the install directory is on your `PATH`.
+For source builds, platform notes, and update or uninstall guidance, see [Installation](./installation).
 
-Once `hand version` works, you can start the terminal UI and follow the setup prompts:
+Once `hand version` works, start the terminal UI:
 
 ```bash
 hand
 ```
 
-The sections below show the same setup steps explicitly for source builds, scripted setup, or users who prefer to configure Hand from commands.
+You can finish setup there and start chatting. See the [TUI Guide](../guides/tui) to learn more about Hand's TUI.
 
-## Build From Source
-
-Use this path when you are contributing to Hand, testing local changes, or prefer to build your tools from source.
-
-Before running the Makefile targets, install:
-
-- Go `1.26.1`.
-- `make`.
-- A C compiler toolchain with CGO support for the SQLite-backed runtime.
-
-From the repository root:
-
-```bash
-make build
-```
-
-The compiled binary is written to `build/hand`.
-
-You can also install the local source build into your Go binary directory:
-
-```bash
-make install
-```
-
-If you did not run `make install`, replace `hand` in the examples below with `./build/hand`.
+The rest of this page shows the same setup with commands.
 
 ## Create A Profile
 
-Profiles keep config, credentials, runtime metadata, sessions, search state, and memory separate from other Hand setups.
+Profiles keep config, credentials, sessions, search state, and memory separate.
 
-Create a profile named `default`:
+The first run of `hand` usually creates and selects `default`. To do it yourself:
 
 ```bash
-hand profile init default
-hand profile use default
+hand profile init default --use
 ```
 
-Check the active profile:
+Check it:
 
 ```bash
 hand profile current
 ```
 
-By default, the profile lives under:
+Print the exact profile path:
 
-```text
-~/.hand/profiles/default
+```bash
+hand profile path
 ```
 
-The important files are:
+Common profile files:
 
 - `config.yaml`: profile-local configuration.
 - `.env`: optional environment overrides.
 - `auth.json`: credentials stored by `hand auth login`.
 - `runtime.json`: daemon runtime metadata.
 
-## Choose A Model
+## Choose A Provider
 
-Set the main model provider and model in the profile config. This example uses OpenRouter:
+Pick one provider path, then set the model name for that provider. Replace `<model-name>` with a model supported by
+your provider. Subscription login is usually quickest if you already pay for ChatGPT, Claude, or GitHub
+Copilot. Providers like OpenRouter require an API key. API keys also fit servers, automation, and team-managed credentials.
+
+### Subscription Login
+
+Use these when you want Hand to store OAuth credentials after a browser login.
+
+Use OpenAI Codex if you want to sign in with an OpenAI subscription:
+
+```bash
+hand config set models.main.provider openai-codex
+hand config set models.main.name <model-name>
+hand config set models.main.api openai-responses
+```
+
+Anthropic for Claude models:
+
+```bash
+hand config set models.main.provider anthropic
+hand config set models.main.name <model-name>
+hand config set models.main.api anthropic-messages
+```
+
+GitHub Copilot uses your Copilot subscription:
+
+```bash
+hand config set models.main.provider github-copilot
+hand config set models.main.name <model-name>
+hand config set models.main.api openai-completions
+```
+
+### API Key
+
+Use these when you want explicit provider keys instead of browser login.
+
+OpenRouter gives one API key to access many hosted models:
 
 ```bash
 hand config set models.main.provider openrouter
-hand config set models.main.name openai/gpt-4o-mini
+hand config set models.main.name <model-name>
 hand config set models.main.api openai-responses
 ```
 
-For OpenAI directly:
+For OpenAI, you'll need to provide an OpenAI API key:
 
 ```bash
 hand config set models.main.provider openai
-hand config set models.main.name gpt-4o-mini
+hand config set models.main.name <model-name>
 hand config set models.main.api openai-responses
 ```
 
-You can inspect the current values at any time:
+To use Anthropic's models, you'll need an Anthropic API key:
+
+```bash
+hand config set models.main.provider anthropic
+hand config set models.main.name <model-name>
+hand config set models.main.api anthropic-messages
+```
+
+Check your provider and model:
 
 ```bash
 hand config get models.main.provider models.main.name models.main.api
 ```
 
+To learn about credentials and available models for each provider, see the [Model Auth](../guides/model-auth) guide.
+
 ## Store Credentials
 
-Store your model credential in the active profile. Do not paste real credentials into docs, tickets, or shared config.
+Store credentials in the active profile. Do not put real keys in shared docs, tickets, or config.
+
+For subscription login, omit `--api-key`:
+
+```bash
+hand auth login openai-codex
+hand auth login anthropic
+hand auth login github-copilot
+```
+
+Run only the command for your selected provider.
+
+For API key auth:
 
 For OpenRouter:
 
@@ -136,116 +175,89 @@ For OpenAI:
 hand auth login openai --api-key "<openai-api-key>"
 ```
 
-Verify what Hand can see:
+For Anthropic:
 
 ```bash
-hand auth status openrouter
+hand auth login anthropic --api-key "<anthropic-api-key>"
+```
+
+Verify:
+
+```bash
+hand auth status
 hand doctor
 ```
 
-If you configured OpenAI instead, run:
-
-```bash
-hand auth status openai
-hand doctor
-```
-
-## Start The Daemon
-
-Hand's long-lived runtime runs in the daemon. The TUI, one-shot chat requests, session commands, and gateway management commands talk to it over local RPC.
-
-Start it in one terminal:
-
-```bash
-hand daemon start
-```
-
-You should see logs showing that configuration loaded, the agent started, and the RPC server is listening.
-
-Keep this process running while you use Hand. In another terminal, confirm readiness:
-
-```bash
-hand doctor
-```
+If credentials are missing, check that `models.main.provider` matches the provider you logged into.
 
 ## Start Your First Chat
 
-For the terminal UI, run:
+Open the TUI:
 
 ```bash
 hand
 ```
 
+If the daemon is not running at the expected address, `hand` starts one in the background.
+
 Type a message and press Enter.
 
-For a one-shot request, run:
+Or send one message:
 
 ```bash
 hand --chat "Say hello in one sentence."
 ```
 
-You can also select the profile explicitly:
+Select a profile explicitly:
 
 ```bash
 hand --profile default --chat "Summarize what you can do."
 ```
 
-## Check Sessions
+## Check The Daemon
 
-Hand persists conversation state. After your first chat:
-
-```bash
-hand session current
-hand session list
-```
-
-To continue in a specific session:
+For manual daemon control or readiness checks:
 
 ```bash
-hand --chat --session "<session-id>" "Continue from there."
+hand doctor
+hand gateway status
 ```
 
-## First-Run Troubleshooting
-
-### `hand` Cannot Find A Model Credential
-
-Run:
-
-```bash
-hand auth status
-hand config get models.main.provider models.main.name
-```
-
-Make sure the provider in config matches the provider you logged into with `hand auth login`.
-
-### The Daemon Is Not Reachable
-
-Start the daemon in a separate terminal:
+If you want to run the daemon in the foreground or don't want a TUI-managed daemon, you can run:
 
 ```bash
 hand daemon start
 ```
 
-Then retry:
+then start the TUI:
 
 ```bash
-hand doctor
-hand --chat "hello"
+hand
 ```
 
-### SQLite Or Search Tests Fail With `fts5`
+## Check Sessions
 
-For development and validation, use the Makefile targets. They set the SQLite FTS5 build tag:
+Hand saves chats as sessions. Use them to find recent conversations or continue work later.
+
+Show the active session:
 
 ```bash
-make test
+hand session current
 ```
 
-For a focused package test, mirror the same flags:
+List recent sessions:
 
 ```bash
-CGO_ENABLED=1 go test -tags sqlite_fts5 ./cmd/hand
+hand session list
 ```
+
+Continue a specific session from a one-shot prompt:
+
+```bash
+hand --chat --session "<session-id>" "Continue from there."
+```
+
+For daily use, the TUI can continue from the current session automatically.
 
 ## Where To Go Next
 

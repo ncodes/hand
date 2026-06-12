@@ -139,6 +139,23 @@ func TestCommandInitCreatesStarterConfig(t *testing.T) {
 	require.Equal(t, profileHome+"\n", output.String())
 }
 
+func TestCommandInitUseStoresCurrentProfile(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	var output bytes.Buffer
+	SetOutput(&output)
+	err := NewCommand().Run(context.Background(), []string{"profile", "init", "Alpha", "--use"})
+	require.NoError(t, err)
+
+	name, ok, err := profile.LoadCurrentName(home)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "alpha", name)
+	require.Equal(t, filepath.Join(home, ".hand", "profiles", "alpha")+"\n", output.String())
+}
+
 func TestCommandInitRefusesConfigOverwrite(t *testing.T) {
 	resetProfileCommand(t)
 	home := t.TempDir()
@@ -149,7 +166,13 @@ func TestCommandInitRefusesConfigOverwrite(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte("name: existing\n"), 0o600))
 
 	err := NewCommand().Run(context.Background(), []string{"profile", "init", "Alpha"})
-	require.EqualError(t, err, "config file already exists: "+configPath)
+	require.EqualError(
+		t,
+		err,
+		`profile "alpha" already exists at `+profileHome+
+			`; run `+"`hand profile use alpha`"+
+			` to select it, or choose a different profile name`,
+	)
 	data, readErr := os.ReadFile(configPath)
 	require.NoError(t, readErr)
 	require.Equal(t, "name: existing\n", string(data))
