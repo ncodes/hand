@@ -88,13 +88,11 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Name:   "rpc.address",
 			Usage:  "Bind address for the RPC service",
 			Value:  config.Get().RPC.Address,
-			Hidden: true,
 		},
 		&cli.IntFlag{
 			Name:   "rpc.port",
 			Usage:  "Bind port for the RPC service",
 			Value:  config.Get().RPC.Port,
-			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:  "gateway.enabled",

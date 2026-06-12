@@ -79,13 +79,18 @@ Common profile files:
 
 ## Choose A Provider
 
-Pick one provider path, then set the model name for that provider. Replace `<model-name>` with a model supported by
-your provider. Subscription login is usually quickest if you already pay for ChatGPT, Claude, or GitHub
-Copilot. Providers like OpenRouter require an API key. API keys also fit servers, automation, and team-managed credentials.
+First choose how Hand should route model requests. These commands set the provider, model name, and API shape in the
+active profile; they do not authenticate the provider yet.
+
+Replace `<model-name>` with a [model supported by the provider you choose](../guides/model-auth). After this section,
+continue to [Store Credentials](#store-credentials) and authenticate the same provider.
+
+Subscription login is usually quickest if you already pay for ChatGPT, Claude, or GitHub Copilot. Providers like
+OpenRouter require an API key. API keys also fit servers, automation, and team-managed credentials.
 
 ### Subscription Login
 
-Use these when you want Hand to store OAuth credentials after a browser login.
+Use one of these when you want to authenticate later with OAuth.
 
 Use OpenAI Codex if you want to sign in with an OpenAI subscription:
 
@@ -113,7 +118,7 @@ hand config set models.main.api openai-completions
 
 ### API Key
 
-Use these when you want explicit provider keys instead of browser login.
+Use one of these when you want to authenticate later with an API key.
 
 OpenRouter gives one API key to access many hosted models:
 
@@ -139,7 +144,7 @@ hand config set models.main.name <model-name>
 hand config set models.main.api anthropic-messages
 ```
 
-Check your provider and model:
+Check the routing config before adding credentials:
 
 ```bash
 hand config get models.main.provider models.main.name models.main.api
@@ -149,33 +154,44 @@ To learn about credentials and available models for each provider, see the [Mode
 
 ## Store Credentials
 
+Now authenticate the provider you selected in [Choose A Provider](#choose-a-provider). Hand cannot work until the active
+profile has credentials for `models.main.provider`.
+
 Store credentials in the active profile. Do not put real keys in shared docs, tickets, or config.
 
-For subscription login, omit `--api-key`:
+For subscription login, run only the command for your configured provider and omit `--api-key`:
 
 ```bash
 hand auth login openai-codex
+```
+
+For Claude subscription login:
+
+```bash
 hand auth login anthropic
+```
+
+For GitHub Copilot:
+
+```bash
 hand auth login github-copilot
 ```
 
-Run only the command for your selected provider.
+For API key auth, run only the command for your configured provider:
 
-For API key auth:
-
-For OpenRouter:
+OpenRouter:
 
 ```bash
 hand auth login openrouter --api-key "<openrouter-api-key>"
 ```
 
-For OpenAI:
+OpenAI:
 
 ```bash
 hand auth login openai --api-key "<openai-api-key>"
 ```
 
-For Anthropic:
+Anthropic:
 
 ```bash
 hand auth login anthropic --api-key "<anthropic-api-key>"
