@@ -927,14 +927,17 @@ func serveDaemonServices(ctx context.Context, cfg *config.Config, agent agentRun
 	defer cancel()
 
 	manager := newGatewayManager()
-	if cfg == nil || !cfg.Gateway.Enabled {
+	if cfg == nil {
 		return serveRPC(runCtx, cfg, agent, lis, manager)
 	}
-
 	if err := manager.Start(runCtx, cfg.Gateway, agent); err != nil {
 		_ = lis.Close()
 		return err
 	}
+	if !cfg.Gateway.Enabled {
+		return serveRPC(runCtx, cfg, agent, lis, manager)
+	}
+
 	logGatewayStarted(cfg.Gateway)
 
 	rpcDone := make(chan error, 1)

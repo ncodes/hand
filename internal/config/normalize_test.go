@@ -45,7 +45,7 @@ func TestConfig_NormalizeIgnoresNilReceiver(t *testing.T) {
 func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
-	require.Empty(t, cfg.Name)
+	require.Equal(t, constants.DefaultName, cfg.Name)
 	require.Empty(t, cfg.Models.Main.Name)
 	require.Empty(t, cfg.Models.Main.Provider)
 	require.Equal(t, "cli", cfg.Platform)

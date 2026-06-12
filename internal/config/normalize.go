@@ -14,6 +14,9 @@ func (c *Config) normalizeFields() {
 	}
 
 	c.Name = strings.TrimSpace(c.Name)
+	if c.Name == "" {
+		c.Name = constants.DefaultName
+	}
 	c.Models.Main.Name = strings.TrimSpace(c.Models.Main.Name)
 	c.Models.Summary.Name = strings.TrimSpace(c.Models.Summary.Name)
 	c.Models.Main.Provider = strings.TrimSpace(strings.ToLower(c.Models.Main.Provider))

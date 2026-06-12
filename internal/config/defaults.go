@@ -8,6 +8,7 @@ import (
 )
 
 var DefaultConfig = Config{
+	Name: constants.DefaultName,
 	Models: ModelsConfig{
 		Main: MainModelConfig{
 			Stream:        new(constants.DefaultProfileModelStream),

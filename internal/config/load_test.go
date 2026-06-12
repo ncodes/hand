@@ -535,7 +535,7 @@ func TestGet_ReturnsDefaultsWhenConfigIsUnset(t *testing.T) {
 	})
 
 	cfg := Get()
-	require.Empty(t, cfg.Name)
+	require.Equal(t, constants.DefaultName, cfg.Name)
 	require.Equal(t, DefaultConfig.Models.Main.Name, cfg.Models.Main.Name)
 	require.Equal(t, DefaultConfig.Log.Level, cfg.Log.Level)
 	require.False(t, cfg.Log.NoColor)

@@ -316,12 +316,14 @@ func TestIsLoopbackGatewayAddress(t *testing.T) {
 	require.False(t, isLoopbackGatewayAddress("gateway.example"))
 }
 
-func TestConfig_ValidateRequiresName(t *testing.T) {
-	err := (&Config{
+func TestConfig_ValidateDefaultsName(t *testing.T) {
+	cfg := &Config{
 		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel}},
 		Log:    LogConfig{Level: "info"},
-	}).Validate()
-	require.EqualError(t, err, "name is required; set HAND_NAME, provide it in config, or use --name")
+	}
+
+	require.NoError(t, cfg.ValidateRelaxed())
+	require.Equal(t, constants.DefaultName, cfg.Name)
 }
 
 func TestConfig_ValidateAcceptsProviderNativeSummaryModelID(t *testing.T) {

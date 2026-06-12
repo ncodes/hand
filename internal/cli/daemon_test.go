@@ -1418,39 +1418,28 @@ func TestServeRPC_ForcesStopWhenGracefulShutdownSlow(t *testing.T) {
 	}
 }
 
-func TestServeDaemonServices_DisabledGatewayRunsOnlyRPC(t *testing.T) {
+func TestServeDaemonServices_DisabledGatewayInitializesStatusAndRunsOnlyRPC(t *testing.T) {
 	origServe := serveRPC
-	origGateway := newGatewayManager
 	t.Cleanup(func() {
 		serveRPC = origServe
-		newGatewayManager = origGateway
 	})
 
 	serveCalled := false
 	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, manager gatewayManager) error {
 		serveCalled = true
 		require.NotNil(t, manager)
+		status := manager.Status()
+		require.Equal(t, handgateway.StateDisabled, status.State)
+		require.Equal(t, "127.0.0.1", status.Address)
+		require.Equal(t, 50052, status.Port)
 		return nil
 	}
-	created := false
-	started := false
-	newGatewayManager = func() gatewayManager {
-		created = true
-		return gatewayManagerStub{
-			start: func(context.Context, config.GatewayConfig, handgateway.AgentService) error {
-				started = true
-				return nil
-			},
-		}
-	}
 
-	cfg := &config.Config{}
+	cfg := &config.Config{Gateway: config.GatewayConfig{Address: "127.0.0.1", Port: 50052}}
 	err := serveDaemonServices(context.Background(), cfg, &agentstub.AgentRunnerStub{}, noopListener{})
 
 	require.NoError(t, err)
 	require.True(t, serveCalled)
-	require.True(t, created)
-	require.False(t, started)
 }
 
 func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {

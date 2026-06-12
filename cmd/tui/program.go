@@ -52,6 +52,9 @@ func loadTUICommandModel(ctx context.Context, cmd *cli.Command) (tea.Model, func
 		return nil, nil, err
 	}
 	cfg.RPC = endpoint
+	if err := ensureTUIDaemonRunning(ctx, cmd, cfg, inputs); err != nil {
+		return nil, nil, err
+	}
 
 	config.Set(cfg)
 	_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
