@@ -6,2398 +6,489 @@ import (
 	"errors"
 	"io"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"regexp"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
 	urfavecli "github.com/urfave/cli/v3"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	handgateway "github.com/wandxy/hand/internal/gateway"
-	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
-	models "github.com/wandxy/hand/internal/model"
-	modelclient "github.com/wandxy/hand/internal/model/client"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
-	"github.com/wandxy/hand/internal/profile"
-	"github.com/wandxy/hand/pkg/logutils"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	clidaemon "github.com/wandxy/hand/internal/cli/daemon"
+	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/pkg/logutils"
 )
 
-type modelClientFactoryStub struct {
-	newClient func(modelclient.ClientRequest) (models.Client, error)
+func TestEnsureDaemonRunning_ReturnsConfigError(t *testing.T) {
+	_, err := EnsureDaemonRunning(context.Background(), nil)
+
+	require.EqualError(t, err, "config is required")
 }
 
-func (s modelClientFactoryStub) NewClient(req modelclient.ClientRequest) (models.Client, error) {
-	return s.newClient(req)
-}
-
-type gatewayManagerStub struct {
-	start  func(context.Context, config.GatewayConfig, handgateway.AgentService) error
-	stop   func(context.Context) error
-	status handgateway.Status
-}
-
-func (s gatewayManagerStub) Start(ctx context.Context, cfg config.GatewayConfig, responder handgateway.AgentService) error {
-	if s.start != nil {
-		return s.start(ctx, cfg, responder)
-	}
-
-	return nil
-}
-
-func (s gatewayManagerStub) Status() handgateway.Status {
-	return s.status
-}
-
-func (s gatewayManagerStub) Stop(ctx context.Context) error {
-	if s.stop != nil {
-		return s.stop(ctx)
-	}
-
-	return nil
-}
-
-func init() {
-	logutils.SetOutput(io.Discard)
-}
-
-func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
-	isolateCommandProfile(t)
-	original := config.Get()
-	originalNewAgentRunner := newAgentRunner
-	originalServeGRPC := serveRPC
-	originalOpenRPCListener := openRPCListener
-	originalStartupOutput := startupOutput
-
+func TestDaemonWrappersDelegateToDaemonPackage(t *testing.T) {
+	originalSetOutput := setDaemonOutput
+	originalRunWithConfigRestarts := runDaemonWithConfigRestarts
+	originalRunOnce := runDaemonOnce
 	t.Cleanup(func() {
-		config.Set(original)
-		newAgentRunner = originalNewAgentRunner
-		serveRPC = originalServeGRPC
-		openRPCListener = originalOpenRPCListener
-		startupOutput = originalStartupOutput
-		logutils.SetOutput(io.Discard)
+		setDaemonOutput = originalSetOutput
+		runDaemonWithConfigRestarts = originalRunWithConfigRestarts
+		runDaemonOnce = originalRunOnce
 	})
 
-	config.Set(nil)
+	output := &bytes.Buffer{}
+	setDaemonOutput = func(w io.Writer) io.Writer {
+		require.Same(t, output, w)
+		return io.Discard
+	}
+	require.Equal(t, io.Discard, SetDaemonOutput(output))
+
+	expectedRunErr := errors.New("run failed")
+	runWithCalled := false
+	runDaemonWithConfigRestarts = func(
+		ctx context.Context,
+		cmd *urfavecli.Command,
+		deps clidaemon.Dependencies,
+	) error {
+		runWithCalled = true
+		require.NotNil(t, ctx)
+		require.NotNil(t, cmd)
+		require.Equal(t, "input=enabled, output=enabled, pii=disabled", deps.SafetySummary(config.NewDefaultConfig()))
+		return expectedRunErr
+	}
+	require.ErrorIs(t, RunDaemonWithConfigRestarts(context.Background(), &urfavecli.Command{}), expectedRunErr)
+	require.True(t, runWithCalled)
+
+	expectedOnceErr := errors.New("run once failed")
+	runOnceCalled := false
+	cfg := &config.Config{}
+	runDaemonOnce = func(ctx context.Context, got *config.Config) error {
+		runOnceCalled = true
+		require.NotNil(t, ctx)
+		require.Same(t, cfg, got)
+		return expectedOnceErr
+	}
+	require.ErrorIs(t, RunDaemonOnce(context.Background(), cfg), expectedOnceErr)
+	require.True(t, runOnceCalled)
+}
+
+func TestDaemonDependenciesAdaptCLIConfigInputs(t *testing.T) {
+	resetMainActionState(t)
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("name: base\n"), 0o600))
 	configFile := ""
-	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
-	runCalled := false
-	serveCalled := false
-	startupBuffer := &bytes.Buffer{}
-	logBuffer := &bytes.Buffer{}
-	startupOutput = startupBuffer
-	logutils.SetOutput(logBuffer)
-
-	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient, summaryClient, rerankerClient models.Client) agentRunner {
-		return &agentstub.AgentRunnerStub{
-			StartFunc: func(context.Context) error {
-				runCalled = true
-				return nil
-			},
-		}
-	}
-
-	serveRPC = func(ctx context.Context, cfg *config.Config, app agentRunner, _ net.Listener, _ gatewayManager) error {
-		serveCalled = true
-		require.Equal(t, "0.0.0.0", cfg.RPC.Address)
-		require.Equal(t, 6000, cfg.RPC.Port)
-		require.NotNil(t, app)
-		return nil
-	}
-	openRPCListener = func(*config.Config) (net.Listener, error) {
-		return noopListener{}, nil
-	}
-
-	cmd := newRootCommandForTest(&configFile)
-	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
-		"--name", "flag-agent",
-		"--model", "gpt-4o-mini",
-		"--model.provider", "openrouter",
-		"--model.api-key", "flag-key",
-		"--model.base-url", serverURL,
-		"--rpc.address", "0.0.0.0",
-		"--rpc.port", "6000",
-		"--trace.enabled",
-		"--trace.disk.dir", "/tmp/hand-traces",
-		"--log.level", "debug",
-		"daemon", "start",
-	}))
-
-	cfg := config.Get()
-	require.Equal(t, "flag-agent", cfg.Name)
-	require.Equal(t, "gpt-4o-mini", cfg.Models.Main.Name)
-	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "flag-key", cfg.Models.Providers["openrouter"].APIKey)
-	require.Equal(t, serverURL, cfg.Models.Main.BaseURL)
-	require.Equal(t, "0.0.0.0", cfg.RPC.Address)
-	require.Equal(t, 6000, cfg.RPC.Port)
-	require.True(t, cfg.Trace.Enabled)
-	require.Equal(t, "/tmp/hand-traces", cfg.Trace.Disk.Dir)
-	require.Equal(t, "debug", cfg.Log.Level)
-	require.False(t, cfg.Log.NoColor)
-	require.True(t, runCalled)
-	require.True(t, serveCalled)
-
-	startupOutput := stripANSI(startupBuffer.String())
-	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Version: dev \(commit unknown\)$`), startupOutput)
-	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Instance: flag-agent$`), startupOutput)
-	require.Contains(t, startupOutput, "Summary provider: openrouter")
-	require.Contains(t, startupOutput, "Gateway: disabled")
-	require.Contains(t, startupOutput, "Logs: debug (color)")
-	require.Contains(t, startupBuffer.String(), "\x1b[38;5;38m")
-	require.Contains(t, startupBuffer.String(), "\x1b[38;5;44m")
-	require.Contains(t, startupBuffer.String(), "\x1b[38;5;49m")
-	require.Contains(t, startupBuffer.String(), "\x1b[38;5;48m")
-	require.Contains(t, startupBuffer.String(), "\x1b[38;5;83m")
-	require.NotContains(t, startupBuffer.String(), "██   ██  █████  ███    ██ ██████")
-	require.NotContains(t, startupBuffer.String(), AppDescription)
-	require.Contains(t, startupBuffer.String(), "Version")
-	require.Contains(t, startupBuffer.String(), "Instance")
-	require.Contains(t, startupBuffer.String(), "flag-agent")
-	require.Contains(t, startupBuffer.String(), "Summary model")
-	require.Contains(t, startupBuffer.String(), "gpt-4o-mini")
-	require.Contains(t, startupBuffer.String(), "Summary provider")
-	require.Contains(t, startupBuffer.String(), "Storage")
-	require.Contains(t, startupBuffer.String(), "sqlite")
-	require.Contains(t, startupBuffer.String(), "RPC")
-	require.Contains(t, startupBuffer.String(), "0.0.0.0:6000")
-	require.Contains(t, startupBuffer.String(), "Streaming")
-	require.Contains(t, startupBuffer.String(), "true")
-	require.Contains(t, startupBuffer.String(), "Debug requests")
-	require.Contains(t, startupBuffer.String(), "enabled")
-	require.Contains(t, startupBuffer.String(), "Traces")
-	require.Contains(t, startupBuffer.String(), "enabled (/tmp/hand-traces)")
-	require.Contains(t, startupBuffer.String(), "Safety")
-	require.Contains(t, startupBuffer.String(), "input=enabled, output=enabled, pii=disabled")
-	require.Contains(t, startupBuffer.String(), "Reranker")
-
-	logOutput := stripANSI(logBuffer.String())
-	require.Contains(t, logOutput, "Configuration loaded")
-	require.Contains(t, logOutput, "Vector retrieval configured")
-	require.Contains(t, logOutput, "Starting Hand services")
-	require.NotContains(t, logOutput, "name=flag-agent")
-	require.NotContains(t, logOutput, "model=gpt-4o-mini")
-	require.NotContains(t, logOutput, "provider=openrouter")
-	require.NotContains(t, logOutput, "summaryModel=gpt-4o-mini")
-	require.NotContains(t, logOutput, "summaryProvider=openrouter")
-	require.NotContains(t, logOutput, "storage=sqlite")
-	require.NotContains(t, logOutput, "inputSafety=true")
-	require.NotContains(t, logOutput, "outputSafety=true")
-	require.NotContains(t, logOutput, "piiSafety=false")
-	require.NotContains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
-	require.NotContains(t, logOutput, "streaming=true")
-	require.NotContains(t, logOutput, "traceEnabled=true")
-	require.NotContains(t, logOutput, "traceDir=/tmp/hand-traces")
-	require.NotContains(t, logOutput, "embeddingModel=")
-	require.NotContains(t, logOutput, "embeddingProvider=")
-	require.NotContains(t, logOutput, "reranker=")
-	require.NotContains(t, logOutput, "service=hand")
-	require.NotContains(t, logOutput, "rpcAddress=0.0.0.0 rpcEndpoint=0.0.0.0:6000 rpcPort=6000")
-}
-
-func TestNewCommand_RestartsDaemonWhenConfigFileChanges(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	originalFactory := modelClientFactory
-	originalRunner := newAgentRunner
-	originalServe := serveRPC
-	originalOutput := startupOutput
-	originalDebounce := daemonConfigWatchDebounce
-	events, _, restoreWatcher := stubConfigWatcher()
-	t.Cleanup(func() {
-		modelClientFactory = originalFactory
-		newAgentRunner = originalRunner
-		serveRPC = originalServe
-		startupOutput = originalOutput
-		daemonConfigWatchDebounce = originalDebounce
-		restoreWatcher()
-	})
-
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	writeUpTestConfig(t, configPath, "first")
-
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			return &provider_openai.OpenAIClient{}, nil
-		},
-	}
-	startupOutput = io.Discard
-	daemonConfigWatchDebounce = 10 * time.Millisecond
-
-	var runnersMu sync.Mutex
-	runners := make([]*agentstub.AgentRunnerStub, 0, 2)
-	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
-		runner := &agentstub.AgentRunnerStub{}
-		runnersMu.Lock()
-		runners = append(runners, runner)
-		runnersMu.Unlock()
-		return runner
-	}
-
-	servedNames := make(chan string, 2)
-	firstServeStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, cfg *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		servedNames <- cfg.Name
-		if cfg.Name == "first" {
-			close(firstServeStarted)
-			<-ctx.Done()
-		}
-
-		return nil
-	}
-
-	configFile := ""
-	cmd := newRootCommandForTest(&configFile)
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Run(context.Background(), []string{"hand", "--config", configPath, "daemon", "start"})
-	}()
-
-	select {
-	case <-firstServeStarted:
-	case <-time.After(time.Second):
-		t.Fatal("first daemon run did not start")
-	}
-
-	writeUpTestConfig(t, configPath, "second")
-	events <- fsnotify.Event{Name: configPath, Op: fsnotify.Write}
-
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(3 * time.Second):
-		t.Fatal("daemon did not restart after config change")
-	}
-
-	require.Equal(t, "first", <-servedNames)
-	require.Equal(t, "second", <-servedNames)
-	runnersMu.Lock()
-	defer runnersMu.Unlock()
-	require.Len(t, runners, 2)
-	require.True(t, runners[0].Closed)
-	require.True(t, runners[1].Closed)
-}
-
-func TestNewCommand_KeepsRunningWhenChangedConfigIsInvalid(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	originalFactory := modelClientFactory
-	originalRunner := newAgentRunner
-	originalServe := serveRPC
-	originalOutput := startupOutput
-	originalDebounce := daemonConfigWatchDebounce
-	events, _, restoreWatcher := stubConfigWatcher()
-	t.Cleanup(func() {
-		modelClientFactory = originalFactory
-		newAgentRunner = originalRunner
-		serveRPC = originalServe
-		startupOutput = originalOutput
-		daemonConfigWatchDebounce = originalDebounce
-		restoreWatcher()
-	})
-
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	writeUpTestConfig(t, configPath, "stable")
-
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			return &provider_openai.OpenAIClient{}, nil
-		},
-	}
-	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
-		return &agentstub.AgentRunnerStub{}
-	}
-	startupOutput = io.Discard
-	daemonConfigWatchDebounce = 10 * time.Millisecond
-
-	serveStarted := make(chan struct{})
-	serveDone := make(chan struct{})
-	serveCalls := make(chan string, 2)
-	serveRPC = func(ctx context.Context, cfg *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		serveCalls <- cfg.Name
-		close(serveStarted)
-		<-ctx.Done()
-		close(serveDone)
-		return nil
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	configFile := ""
-	cmd := newRootCommandForTest(&configFile)
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Run(ctx, []string{"hand", "--config", configPath, "daemon", "start"})
-	}()
-
-	select {
-	case <-serveStarted:
-	case <-time.After(time.Second):
-		t.Fatal("daemon did not start")
-	}
-	select {
-	case name := <-serveCalls:
-		require.Equal(t, "stable", name)
-	default:
-		t.Fatal("initial daemon run was not recorded")
-	}
-
-	require.NoError(t, os.WriteFile(configPath, []byte("name: ["), 0o600))
-	events <- fsnotify.Event{Name: configPath, Op: fsnotify.Write}
-	require.Never(t, func() bool {
-		select {
-		case <-serveCalls:
-			return true
-		default:
-			return false
-		}
-	}, 100*time.Millisecond, 10*time.Millisecond, "invalid config restarted daemon")
-
-	cancel()
-	select {
-	case <-serveDone:
-	case <-time.After(time.Second):
-		t.Fatal("daemon did not stop after context cancellation")
-	}
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(time.Second):
-		t.Fatal("command did not return after context cancellation")
-	}
-}
-
-func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
-	output := renderStartupPanel(&config.Config{
-		Name:   "daemon",
-		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter", Stream: new(false)}},
-		RPC:    config.RPCConfig{Address: "127.0.0.1", Port: 50051},
-		Log:    config.LogConfig{Level: "info", NoColor: true},
-		Debug:  config.DebugConfig{Requests: true},
-		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: "/tmp/hand-traces"}},
-	})
-
-	require.NotContains(t, output, "\x1b[90m")
-	require.NotContains(t, output, "\x1b[38;5;")
-	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Version: dev \(commit unknown\)$`), output)
-	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Instance: daemon$`), output)
-	require.Contains(t, output, "Summary model: gpt-4o-mini")
-	require.Contains(t, output, "RPC: 127.0.0.1:50051")
-	require.NotContains(t, output, AppDescription)
-	require.Contains(t, output, "Instance: daemon")
-	require.Contains(t, output, "Summary model: gpt-4o-mini")
-	require.Contains(t, output, "Summary provider: openrouter")
-	require.Contains(t, output, "Storage: sqlite")
-	require.Contains(t, output, "Streaming: false")
-	require.Contains(t, output, "Gateway: disabled")
-	require.Contains(t, output, "Debug requests: enabled")
-	require.Contains(t, output, "Traces: enabled (/tmp/hand-traces)")
-	require.Contains(t, output, "Safety: input=enabled, output=enabled, pii=disabled")
-	require.NotContains(t, output, "Ready to accept RPC connections.")
-}
-
-func TestRenderStartupPanel_IncludesGatewaySummaryWithoutSecrets(t *testing.T) {
-	output := renderStartupPanel(&config.Config{
-		Name:   "daemon",
-		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"}},
-		RPC:    config.RPCConfig{Address: "127.0.0.1", Port: 50051},
-		Gateway: config.GatewayConfig{
-			Enabled:   true,
-			Address:   "127.0.0.1",
-			Port:      50052,
-			AuthToken: "HAND_GATEWAY_AUTH_TOKEN",
-			Telegram: config.GatewayTelegramConfig{
-				Enabled:  true,
-				Mode:     config.GatewayTelegramModePolling,
-				BotToken: "HAND_GATEWAY_TELEGRAM_BOT_TOKEN",
-			},
-			Slack: config.GatewaySlackConfig{
-				Enabled:  true,
-				Mode:     config.GatewaySlackModeSocket,
-				BotToken: "HAND_GATEWAY_SLACK_BOT_TOKEN",
-				AppToken: "HAND_GATEWAY_SLACK_APP_TOKEN",
-			},
-		},
-		Log: config.LogConfig{Level: "info", NoColor: true},
-	})
-
-	require.Contains(t, output, "Gateway: 127.0.0.1:50052 telegram=polling slack=socket")
-	require.NotContains(t, output, "HAND_GATEWAY_AUTH_TOKEN")
-	require.NotContains(t, output, "HAND_GATEWAY_TELEGRAM_BOT_TOKEN")
-	require.NotContains(t, output, "HAND_GATEWAY_SLACK_BOT_TOKEN")
-	require.NotContains(t, output, "HAND_GATEWAY_SLACK_APP_TOKEN")
-}
-
-func TestRenderStartupPanel_IncludesSafetyMode(t *testing.T) {
-	inputSafety := false
-	outputSafety := true
-	piiSafety := true
-	output := renderStartupPanel(&config.Config{
-		Name:   "daemon",
-		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"}},
-		RPC:    config.RPCConfig{Address: "127.0.0.1", Port: 50051},
-		Log:    config.LogConfig{Level: "info", NoColor: true},
-		Safety: config.SafetyConfig{
-			Input:  &inputSafety,
-			Output: &outputSafety,
-			PII:    &piiSafety,
-		},
-	})
-
-	require.Contains(t, output, "Safety: input=disabled, output=enabled, pii=enabled")
-}
-
-func TestRenderStartupPanel_IncludesEmbeddingModelWhenVectorEnabled(t *testing.T) {
-	rerankDisabled := false
-	output := renderStartupPanel(&config.Config{
-		Name: "daemon",
-		Models: config.ModelsConfig{
-			Main:      config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
-			Embedding: config.EmbeddingModelConfig{Name: "text-embedding-3-small", Provider: "openai"},
-		},
-		Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
-		RPC:      config.RPCConfig{Address: "127.0.0.1", Port: 50051},
-		Log:      config.LogConfig{Level: "info", NoColor: true},
-		Reranker: config.RerankerConfig{Enabled: &rerankDisabled},
-	})
-
-	require.Contains(t, output, "Embedding model: text-embedding-3-small")
-	require.Contains(t, output, "Embedding provider: openai")
-	require.Contains(t, output, "Reranker: deterministic")
-}
-
-func TestRenderStartupPanel_HidesEmbeddingModelWhenVectorDisabled(t *testing.T) {
-	output := renderStartupPanel(&config.Config{
-		Name: "daemon",
-		Models: config.ModelsConfig{
-			Main:      config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
-			Embedding: config.EmbeddingModelConfig{Name: "text-embedding-3-small"},
-		},
-		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
-		Log: config.LogConfig{Level: "info", NoColor: true},
-	})
-
-	require.NotContains(t, output, "Embedding model")
-	require.NotContains(t, output, "Embedding provider")
-}
-
-func TestRenderStartupPanel_IncludesStorageBackend(t *testing.T) {
-	output := renderStartupPanel(&config.Config{
-		Name:    "daemon",
-		Models:  config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"}},
-		Storage: config.StorageConfig{Backend: "memory"},
-		RPC:     config.RPCConfig{Address: "127.0.0.1", Port: 50051},
-		Log:     config.LogConfig{Level: "info", NoColor: true},
-	})
-
-	require.Contains(t, output, "Storage: memory")
-}
-
-func TestRenderStartupPanel_IncludesEffectiveSummaryModelAndProvider(t *testing.T) {
-	output := renderStartupPanel(&config.Config{
-		Name: "daemon",
-		Models: config.ModelsConfig{
-			Main:    config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
-			Summary: config.SummaryModelConfig{Name: "gpt-4o-mini", Provider: "openai"},
-		},
-		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
-		Log: config.LogConfig{Level: "info", NoColor: true},
-	})
-
-	require.Contains(t, output, "Summary model: gpt-4o-mini")
-	require.Contains(t, output, "Summary provider: openai")
-}
-
-func TestSetOutput_SwitchesWriterAndRestoresPrevious(t *testing.T) {
-	stdout := SetDaemonOutput(nil)
-	require.Equal(t, io.Discard, startupOutput)
-	t.Cleanup(func() { SetDaemonOutput(stdout) })
-
-	buf := &bytes.Buffer{}
-	prev := SetDaemonOutput(buf)
-	require.Equal(t, io.Discard, prev)
-	require.Equal(t, buf, startupOutput)
-
-	restored := SetDaemonOutput(stdout)
-	require.Equal(t, buf, restored)
-	require.Equal(t, stdout, startupOutput)
-}
-
-func TestRenderStartupPanel_NilConfigReturnsBadgeOnly(t *testing.T) {
-	out := renderStartupPanel(nil)
-	require.Equal(t, handBadge, out)
-}
-
-func TestRenderStartupPanel_IncludesSummaryProviderAndAPIWhenDistinct(t *testing.T) {
-	cfg := &config.Config{
-		Name: "daemon",
-		Models: config.ModelsConfig{
-			Main:    config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter", API: modelprovider.APIOpenAICompletions},
-			Summary: config.SummaryModelConfig{Provider: "openai", API: modelprovider.APIOpenAIResponses},
-		},
-		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
-		Log: config.LogConfig{Level: "info", NoColor: true},
-	}
-	cfg.Normalize()
-
-	out := renderStartupPanel(cfg)
-	require.Contains(t, out, "Summary provider: openai")
-	require.Contains(t, out, "Summary API: openai-responses")
-}
-
-func TestOpenRPCListener_ReturnsListenError(t *testing.T) {
-	orig := listenFunc
-	t.Cleanup(func() { listenFunc = orig })
-
-	listenFunc = func(string, string) (net.Listener, error) {
-		return nil, errors.New("listen boom")
-	}
-
-	_, err := openRPCListener(&config.Config{
-		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
-	})
-
-	require.EqualError(t, err, "listen boom")
-}
-
-func TestConfigFileFingerprintHandlesMissingAndChangedFiles(t *testing.T) {
-	originalStat := osStat
-	t.Cleanup(func() { osStat = originalStat })
-
-	_, err := getConfigFileFingerprint(" ")
-	require.EqualError(t, err, "config path is required")
-
-	missingPath := filepath.Join(t.TempDir(), "missing.yaml")
-	fingerprint, err := getConfigFileFingerprint(missingPath)
-	require.NoError(t, err)
-	require.Equal(t, configFileFingerprint{}, fingerprint)
-
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	writeUpTestConfig(t, configPath, "first")
-
-	fingerprint, err = getConfigFileFingerprint(configPath)
-	require.NoError(t, err)
-	require.NotEqual(t, configFileFingerprint{}, fingerprint)
-
-	current, changed, err := hasConfigFileChanged(configPath, fingerprint)
-	require.NoError(t, err)
-	require.False(t, changed)
-	require.Equal(t, fingerprint, current)
-
-	writeUpTestConfig(t, configPath, "second")
-
-	current, changed, err = hasConfigFileChanged(configPath, fingerprint)
-	require.NoError(t, err)
-	require.True(t, changed)
-	require.NotEqual(t, fingerprint, current)
-
-	osStat = func(string) (os.FileInfo, error) {
-		return nil, errors.New("stat failed")
-	}
-	_, err = getConfigFileFingerprint(configPath)
-	require.EqualError(t, err, "stat failed")
-	_, _, err = hasConfigFileChanged(configPath, fingerprint)
-	require.EqualError(t, err, "stat failed")
-}
-
-func TestNewFSNotifyConfigWatcherWatchesConfigDirectory(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	watcher, err := newFSNotifyConfigWatcher(configPath)
-	require.NoError(t, err)
-	require.NotNil(t, watcher.events)
-	require.NotNil(t, watcher.errors)
-	require.NoError(t, watcher.close())
-
-	_, err = newFSNotifyConfigWatcher(" ")
-	require.EqualError(t, err, "config path is required")
-}
-
-func TestNewFSNotifyConfigWatcherReturnsSetupErrors(t *testing.T) {
-	originalCreate := createFSNotifyWatcher
-	originalMkdir := mkdirAllConfigWatchDir
-	originalAdd := addConfigWatchDir
-	t.Cleanup(func() {
-		createFSNotifyWatcher = originalCreate
-		mkdirAllConfigWatchDir = originalMkdir
-		addConfigWatchDir = originalAdd
-	})
-
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	createFSNotifyWatcher = func() (*fsnotify.Watcher, error) {
-		return nil, errors.New("create watcher failed")
-	}
-	_, err := newFSNotifyConfigWatcher(configPath)
-	require.EqualError(t, err, "create watcher failed")
-
-	createFSNotifyWatcher = originalCreate
-	mkdirAllConfigWatchDir = func(string, os.FileMode) error {
-		return errors.New("mkdir failed")
-	}
-	_, err = newFSNotifyConfigWatcher(configPath)
-	require.EqualError(t, err, "mkdir failed")
-
-	mkdirAllConfigWatchDir = originalMkdir
-	addConfigWatchDir = func(*fsnotify.Watcher, string) error {
-		return errors.New("add watch failed")
-	}
-	_, err = newFSNotifyConfigWatcher(configPath)
-	require.EqualError(t, err, "add watch failed")
-}
-
-func TestIsConfigFileWatchEventFiltersPathAndOperation(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-
-	require.True(t, isConfigFileWatchEvent(fsnotify.Event{Name: configPath, Op: fsnotify.Write}, configPath))
-	require.True(t, isConfigFileWatchEvent(fsnotify.Event{Name: configPath, Op: fsnotify.Create}, configPath))
-	require.True(t, isConfigFileWatchEvent(fsnotify.Event{Name: configPath, Op: fsnotify.Rename}, configPath))
-	require.True(t, isConfigFileWatchEvent(fsnotify.Event{Name: configPath, Op: fsnotify.Remove}, configPath))
-	require.False(t, isConfigFileWatchEvent(fsnotify.Event{Name: "", Op: fsnotify.Write}, configPath))
-	require.False(t, isConfigFileWatchEvent(fsnotify.Event{Name: filepath.Join(filepath.Dir(configPath), "other.yaml"), Op: fsnotify.Write}, configPath))
-	require.False(t, isConfigFileWatchEvent(fsnotify.Event{Name: configPath, Op: fsnotify.Chmod}, configPath))
-}
-
-func TestRunDaemonWithConfigRestartsReturnsConfigFingerprintError(t *testing.T) {
-	isolateCommandProfile(t)
-	originalStat := osStat
-	t.Cleanup(func() { osStat = originalStat })
-
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	writeUpTestConfig(t, configPath, "daemon")
-	osStat = func(string) (os.FileInfo, error) {
-		return nil, errors.New("stat failed")
-	}
-
-	err := runParsedDaemonCommand(t, []string{"--config", configPath, "daemon", "start"}, func(ctx context.Context, cmd *urfavecli.Command) error {
-		return runDaemonWithConfigRestarts(ctx, cmd, 0)
-	})
-
-	require.EqualError(t, err, "stat failed")
-}
-
-func TestRunDaemonUntilConfigChangeReturnsWatcherSetupErrorBeforeStartingDaemon(t *testing.T) {
-	restore := stubDaemonStartup(t)
-	defer restore()
-	originalWatcher := newConfigWatcher
-	t.Cleanup(func() { newConfigWatcher = originalWatcher })
-
-	newConfigWatcher = func(string) (configWatcher, error) {
-		return configWatcher{}, errors.New("watcher failed")
-	}
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		t.Fatal("serveRPC should not run when config watcher setup fails")
-		return nil
-	}
-
-	snapshot := daemonConfigSnapshot{
-		cfg:    newUpTestConfig("daemon"),
-		inputs: ConfigInputs{ConfigPath: filepath.Join(t.TempDir(), "config.yaml")},
-	}
-	_, restart, err := runDaemonUntilConfigChange(context.Background(), nil, snapshot, 10*time.Millisecond)
-
-	require.False(t, restart)
-	require.EqualError(t, err, "watcher failed")
-}
-
-func TestRunDaemonUntilConfigChangeReturnsDaemonError(t *testing.T) {
-	restore := stubDaemonStartup(t)
-	defer restore()
-	_, _, restoreWatcher := stubConfigWatcher()
-	defer restoreWatcher()
-
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		return errors.New("serve failed")
-	}
-
-	snapshot := daemonConfigSnapshot{
-		cfg:    newUpTestConfig("daemon"),
-		inputs: ConfigInputs{ConfigPath: filepath.Join(t.TempDir(), "config.yaml")},
-	}
-	_, restart, err := runDaemonUntilConfigChange(context.Background(), nil, snapshot, 10*time.Millisecond)
-
-	require.False(t, restart)
-	require.EqualError(t, err, "serve failed")
-}
-
-func TestRunDaemonUntilConfigChangeReturnsStopErrorAfterContextCancel(t *testing.T) {
-	restore := stubDaemonStartup(t)
-	defer restore()
-	_, _, restoreWatcher := stubConfigWatcher()
-	defer restoreWatcher()
-
-	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		close(serveStarted)
-		<-ctx.Done()
-		return errors.New("stop failed")
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		snapshot := daemonConfigSnapshot{
-			cfg:    newUpTestConfig("daemon"),
-			inputs: ConfigInputs{ConfigPath: filepath.Join(t.TempDir(), "config.yaml")},
-		}
-		_, _, err := runDaemonUntilConfigChange(ctx, nil, snapshot, 10*time.Millisecond)
-		done <- err
-	}()
-
-	select {
-	case <-serveStarted:
-	case <-time.After(time.Second):
-		t.Fatal("daemon run did not start")
-	}
-	cancel()
-
-	select {
-	case err := <-done:
-		require.EqualError(t, err, "stop failed")
-	case <-time.After(time.Second):
-		t.Fatal("daemon run did not stop")
-	}
-}
-
-func TestRunDaemonUntilConfigChangeIgnoresConfigStatError(t *testing.T) {
-	restore := stubDaemonStartup(t)
-	defer restore()
-	events, _, restoreWatcher := stubConfigWatcher()
-	defer restoreWatcher()
-
-	originalStat := osStat
-	t.Cleanup(func() { osStat = originalStat })
-	osStat = func(string) (os.FileInfo, error) {
-		return nil, errors.New("stat failed")
-	}
-
-	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		close(serveStarted)
-		<-ctx.Done()
-		return nil
-	}
-
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		snapshot := daemonConfigSnapshot{
-			cfg:    newUpTestConfig("daemon"),
-			inputs: ConfigInputs{ConfigPath: configPath},
-		}
-		_, _, err := runDaemonUntilConfigChange(ctx, nil, snapshot, 10*time.Millisecond)
-		done <- err
-	}()
-
-	select {
-	case <-serveStarted:
-	case <-time.After(time.Second):
-		t.Fatal("daemon run did not start")
-	}
-	events <- fsnotify.Event{Name: configPath, Op: fsnotify.Write}
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(time.Second):
-		t.Fatal("daemon run did not stop")
-	}
-}
-
-func TestRunDaemonUntilConfigChangeHandlesWatcherNoise(t *testing.T) {
-	restore := stubDaemonStartup(t)
-	defer restore()
-	events, errorsCh, restoreWatcher := stubConfigWatcher()
-	defer restoreWatcher()
-
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	writeUpTestConfig(t, configPath, "daemon")
-	fingerprint, err := getConfigFileFingerprint(configPath)
-	require.NoError(t, err)
-
-	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		close(serveStarted)
-		<-ctx.Done()
-		return nil
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		snapshot := daemonConfigSnapshot{
-			cfg:         newUpTestConfig("daemon"),
-			inputs:      ConfigInputs{ConfigPath: configPath},
-			fingerprint: fingerprint,
-		}
-		_, _, err := runDaemonUntilConfigChange(ctx, nil, snapshot, 10*time.Millisecond)
-		done <- err
-	}()
-
-	select {
-	case <-serveStarted:
-	case <-time.After(time.Second):
-		t.Fatal("daemon run did not start")
-	}
-
-	errorsCh <- errors.New("watch failed")
-	events <- fsnotify.Event{Name: filepath.Join(filepath.Dir(configPath), "other.yaml"), Op: fsnotify.Write}
-	events <- fsnotify.Event{Name: configPath, Op: fsnotify.Write}
-	close(errorsCh)
-	close(events)
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(time.Second):
-		t.Fatal("daemon run did not stop")
-	}
-}
-
-func TestConfigReloadTimerResetAndStop(t *testing.T) {
-	timer, reload := resetConfigReloadTimer(nil, 0)
-	require.NotNil(t, timer)
-	require.NotNil(t, reload)
-
-	timer, reload = resetConfigReloadTimer(timer, time.Hour)
-	require.NotNil(t, timer)
-	require.NotNil(t, reload)
-
-	timer.Reset(0)
-	select {
-	case <-timer.C:
-	case <-time.After(time.Second):
-		t.Fatal("timer did not fire")
-	}
-
-	timer, reload = resetConfigReloadTimer(timer, time.Hour)
-	require.NotNil(t, timer)
-	require.NotNil(t, reload)
-	stopConfigReloadTimer(timer)
-
-	expiredForReset := time.NewTimer(0)
-	time.Sleep(10 * time.Millisecond)
-	timer, reload = resetConfigReloadTimer(expiredForReset, time.Hour)
-	require.NotNil(t, timer)
-	require.NotNil(t, reload)
-	stopConfigReloadTimer(timer)
-
-	expiredForStop := time.NewTimer(0)
-	time.Sleep(10 * time.Millisecond)
-	stopConfigReloadTimer(expiredForStop)
-
-	stoppedForStop := time.NewTimer(time.Hour)
-	require.True(t, stoppedForStop.Stop())
-	stopConfigReloadTimer(stoppedForStop)
-	stopConfigReloadTimer(nil)
-}
-
-func TestRunDaemonUntilConfigChangeReturnsShutdownErrorOnRestart(t *testing.T) {
-	restore := stubDaemonStartup(t)
-	defer restore()
-	events, _, restoreWatcher := stubConfigWatcher()
-	defer restoreWatcher()
-
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	writeUpTestConfig(t, configPath, "first")
-	fingerprint, err := getConfigFileFingerprint(configPath)
-	require.NoError(t, err)
-
-	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		close(serveStarted)
-		<-ctx.Done()
-		return errors.New("shutdown failed")
-	}
-
-	done := make(chan error, 1)
-	err = runParsedDaemonCommand(t, []string{"--config", configPath, "daemon", "start"}, func(ctx context.Context, cmd *urfavecli.Command) error {
-		go func() {
-			snapshot := daemonConfigSnapshot{
-				cfg:         newUpTestConfig("first"),
-				inputs:      ConfigInputs{ConfigPath: configPath},
-				fingerprint: fingerprint,
-			}
-			_, _, err := runDaemonUntilConfigChange(ctx, cmd, snapshot, 10*time.Millisecond)
-			done <- err
-		}()
-
-		select {
-		case <-serveStarted:
-		case <-time.After(time.Second):
-			t.Fatal("daemon run did not start")
-		}
-		writeUpTestConfig(t, configPath, "second")
-		events <- fsnotify.Event{Name: configPath, Op: fsnotify.Write}
-
-		select {
-		case err := <-done:
-			return err
-		case <-time.After(time.Second):
-			t.Fatal("daemon run did not stop")
+	deps := daemonDependencies()
+	var gotConfigPath string
+	var gotSummary string
+
+	cmd := &urfavecli.Command{
+		Name:  "hand",
+		Flags: RootFlags(nil, &configFile),
+		Action: func(_ context.Context, cmd *urfavecli.Command) error {
+			cfg, inputs, err := deps.LoadConfig(cmd)
+			require.NoError(t, err)
+			gotConfigPath = inputs.ConfigPath
+			deps.ApplyConfigOverrides(cmd, cfg)
+			deps.AddStartupFilesystemRoots(cfg, inputs)
+			gotSummary = deps.SafetySummary(cfg)
+
+			require.Equal(t, "flag-agent", cfg.Name)
+			require.NotEmpty(t, cfg.FS.Roots)
 			return nil
-		}
-	})
-
-	require.EqualError(t, err, "shutdown failed")
-}
-
-func TestRunDaemonOnceClosesAgentAndReturnsCloseError(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	originalFactory := modelClientFactory
-	originalRunner := newAgentRunner
-	originalServe := serveRPC
-	originalOutput := startupOutput
-	t.Cleanup(func() {
-		modelClientFactory = originalFactory
-		newAgentRunner = originalRunner
-		serveRPC = originalServe
-		startupOutput = originalOutput
-	})
-
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			return &provider_openai.OpenAIClient{}, nil
 		},
 	}
-	startupOutput = io.Discard
 
-	runner := &agentstub.AgentRunnerStub{
-		AgentServiceStub: agentstub.AgentServiceStub{CloseErr: errors.New("close failed")},
-	}
-	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
-		return runner
-	}
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		return nil
-	}
-
-	cfg := newUpTestConfig("daemon")
-	err := runDaemonOnce(context.Background(), cfg)
-
-	require.EqualError(t, err, "close failed")
-	require.True(t, runner.Closed)
-}
-
-func TestRunDaemonOnceIgnoresMissingCredentialLockCloseError(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	originalFactory := modelClientFactory
-	originalRunner := newAgentRunner
-	originalServe := serveRPC
-	originalOutput := startupOutput
-	t.Cleanup(func() {
-		modelClientFactory = originalFactory
-		newAgentRunner = originalRunner
-		serveRPC = originalServe
-		startupOutput = originalOutput
-	})
-
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			return &provider_openai.OpenAIClient{}, nil
-		},
-	}
-	startupOutput = io.Discard
-
-	runner := &agentstub.AgentRunnerStub{
-		AgentServiceStub: agentstub.AgentServiceStub{
-			CloseErr: &os.PathError{
-				Op:   "lstat",
-				Path: filepath.Join(t.TempDir(), "auth.json.lock"),
-				Err:  os.ErrNotExist,
-			},
-		},
-	}
-	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
-		return runner
-	}
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		return nil
-	}
-
-	err := runDaemonOnce(context.Background(), newUpTestConfig("daemon"))
+	err := cmd.Run(context.Background(), []string{"hand", "--config", configPath, "--name", "flag-agent"})
 
 	require.NoError(t, err)
-	require.True(t, runner.Closed)
+	require.Equal(t, configPath, gotConfigPath)
+	require.Equal(t, "input=enabled, output=enabled, pii=disabled", gotSummary)
 }
 
-func TestRunDaemonOnceReturnsRPCListenerErrorBeforeStartingAgent(t *testing.T) {
-	isolateCommandProfile(t)
-	originalFactory := modelClientFactory
-	originalRunner := newAgentRunner
-	originalOpenRPCListener := openRPCListener
-	originalServe := serveRPC
-	originalOutput := startupOutput
-	t.Cleanup(func() {
-		modelClientFactory = originalFactory
-		newAgentRunner = originalRunner
-		openRPCListener = originalOpenRPCListener
-		serveRPC = originalServe
-		startupOutput = originalOutput
-	})
+func TestCheckDaemonRPCImpl_CallsHealthService(t *testing.T) {
+	rpcAddress, stop := startHealthRPCServer(t, healthpb.HealthCheckResponse_SERVING)
+	defer stop()
 
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			return &provider_openai.OpenAIClient{}, nil
-		},
-	}
-	openRPCListener = func(*config.Config) (net.Listener, error) {
-		return nil, errors.New("listen failed")
-	}
-	startupOutput = io.Discard
-
-	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
-		t.Fatal("agent runner should not be created when RPC listener setup fails")
-		return nil
-	}
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		t.Fatal("serveRPC should not run when RPC listener setup fails")
-		return nil
-	}
-
-	err := runDaemonOnce(context.Background(), newUpTestConfig("daemon"))
-
-	require.EqualError(t, err, "listen failed")
-}
-
-func TestRunDaemonOnceKeepsServeErrorWhenCloseAlsoFails(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	originalFactory := modelClientFactory
-	originalRunner := newAgentRunner
-	originalServe := serveRPC
-	originalOutput := startupOutput
-	t.Cleanup(func() {
-		modelClientFactory = originalFactory
-		newAgentRunner = originalRunner
-		serveRPC = originalServe
-		startupOutput = originalOutput
-	})
-
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			return &provider_openai.OpenAIClient{}, nil
-		},
-	}
-	startupOutput = io.Discard
-
-	runner := &agentstub.AgentRunnerStub{
-		AgentServiceStub: agentstub.AgentServiceStub{CloseErr: errors.New("close failed")},
-	}
-	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
-		return runner
-	}
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		return errors.New("serve failed")
-	}
-
-	cfg := newUpTestConfig("daemon")
-	err := runDaemonOnce(context.Background(), cfg)
-
-	require.EqualError(t, err, "serve failed")
-	require.True(t, runner.Closed)
-}
-
-func TestRunDaemonOnceReturnsSummaryClientFactoryError(t *testing.T) {
-	isolateCommandProfile(t)
-	t.Setenv("OPENAI_API_KEY", "openai-key")
-	originalFactory := modelClientFactory
-	originalServe := serveRPC
-	originalOutput := startupOutput
-	t.Cleanup(func() {
-		modelClientFactory = originalFactory
-		serveRPC = originalServe
-		startupOutput = originalOutput
-	})
-
-	var calls int
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			calls++
-			if calls == 2 {
-				return nil, errors.New("summary client failed")
-			}
-			return &provider_openai.OpenAIClient{}, nil
-		},
-	}
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		t.Fatal("serveRPC should not run")
-		return nil
-	}
-	startupOutput = io.Discard
-
-	cfg := newUpTestConfig("daemon")
-	cfg.Models.Summary.Provider = "openai"
-	cfg.Models.Summary.BaseURL = "https://openai.example/v1"
-	cfg.Normalize()
-
-	err := runDaemonOnce(context.Background(), cfg)
-
-	require.EqualError(t, err, "summary client failed")
-	require.Equal(t, 2, calls)
-}
-
-func TestRunDaemonOnceReturnsRerankerClientFactoryError(t *testing.T) {
-	isolateCommandProfile(t)
-	originalFactory := modelClientFactory
-	originalResolve := resolveRerankerAuth
-	originalServe := serveRPC
-	originalOutput := startupOutput
-	t.Cleanup(func() {
-		modelClientFactory = originalFactory
-		resolveRerankerAuth = originalResolve
-		serveRPC = originalServe
-		startupOutput = originalOutput
-	})
-
-	var calls int
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			calls++
-			if calls == 2 {
-				return nil, errors.New("reranker client failed")
-			}
-			return &provider_openai.OpenAIClient{}, nil
-		},
-	}
-	resolveRerankerAuth = func(*config.Config) (config.ModelAuth, error) {
-		return config.ModelAuth{Provider: "anthropic", API: modelprovider.APIAnthropicMessages, APIKey: "reranker-key"}, nil
-	}
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		t.Fatal("serveRPC should not run")
-		return nil
-	}
-	startupOutput = io.Discard
-
-	cfg := newUpTestConfig("daemon")
-	cfg.Search.Vector.Enabled = true
-	cfg.Reranker.Type = constants.RerankerLLM
-	cfg.Normalize()
-
-	err := runDaemonOnce(context.Background(), cfg)
-
-	require.EqualError(t, err, "reranker client failed")
-	require.Equal(t, 2, calls)
-}
-
-func TestRunDaemonOnceStartsWhenRerankerAuthFails(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	originalFactory := modelClientFactory
-	originalResolve := resolveRerankerAuth
-	originalServe := serveRPC
-	originalOutput := startupOutput
-	t.Cleanup(func() {
-		modelClientFactory = originalFactory
-		resolveRerankerAuth = originalResolve
-		serveRPC = originalServe
-		startupOutput = originalOutput
-	})
-
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			return &provider_openai.OpenAIClient{}, nil
-		},
-	}
-	resolveRerankerAuth = func(*config.Config) (config.ModelAuth, error) {
-		return config.ModelAuth{}, errors.New("reranker auth failed")
-	}
-	served := false
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		served = true
-		return nil
-	}
-	startupOutput = io.Discard
-
-	cfg := newUpTestConfig("daemon")
-	cfg.Search.Vector.Enabled = true
-	cfg.Reranker.Type = constants.RerankerLLM
-	cfg.Normalize()
-
-	err := runDaemonOnce(context.Background(), cfg)
-
-	require.NoError(t, err)
-	require.True(t, served)
-}
-
-func TestServeRPC_ReturnsWhenGRPCServeFails(t *testing.T) {
-	origListen := listenFunc
-	origServe := grpcServerServe
-	t.Cleanup(func() {
-		listenFunc = origListen
-		grpcServerServe = origServe
-	})
-
-	listenFunc = net.Listen
-	grpcServerServe = func(*grpc.Server, net.Listener) error {
-		return errors.New("serve boom")
-	}
-
-	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
-	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
-
-	require.EqualError(t, err, "serve boom")
-}
-
-func TestServeRPC_ReturnsNilWhenGRPCServeReturnsServerStopped(t *testing.T) {
-	origListen := listenFunc
-	origServe := grpcServerServe
-	t.Cleanup(func() {
-		listenFunc = origListen
-		grpcServerServe = origServe
-	})
-
-	listenFunc = net.Listen
-	grpcServerServe = func(*grpc.Server, net.Listener) error {
-		return grpc.ErrServerStopped
-	}
-
-	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
-	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
+	err := checkDaemonRPCImpl(
+		context.Background(),
+		&config.Config{RPC: config.RPCConfig{Address: rpcAddress.address, Port: rpcAddress.port}},
+	)
 
 	require.NoError(t, err)
 }
 
-func TestServeRPC_WritesRuntimeMetadataWithActualPort(t *testing.T) {
-	origListen := listenFunc
-	origServe := grpcServerServe
-	originalProfile := profile.Active()
-	t.Cleanup(func() {
-		listenFunc = origListen
-		grpcServerServe = origServe
-		profile.SetActive(originalProfile)
+func TestCheckDaemonRPCImpl_ReturnsConfigError(t *testing.T) {
+	err := checkDaemonRPCImpl(context.Background(), nil)
+
+	require.EqualError(t, err, "config is required")
+}
+
+func TestCheckDaemonRPCImpl_ReturnsMissingAddressError(t *testing.T) {
+	err := checkDaemonRPCImpl(context.Background(), &config.Config{
+		RPC: config.RPCConfig{Port: 50051},
 	})
 
-	home := t.TempDir()
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
-	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: profileHome}))
-	listenFunc = net.Listen
-	grpcServerServe = func(*grpc.Server, net.Listener) error {
-		return grpc.ErrServerStopped
-	}
-
-	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
-	lis := openTestRPCListener(t, cfg)
-	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, lis, nil)
-
-	require.NoError(t, err)
-	require.Greater(t, cfg.RPC.Port, 0)
-	data, err := os.ReadFile(filepath.Join(profileHome, "runtime.json"))
-	require.NoError(t, err)
-	require.Contains(t, string(data), `"profile": "work"`)
-	require.Contains(t, string(data), `"address": "127.0.0.1"`)
-	require.Contains(t, string(data), `"port": `)
+	require.EqualError(t, err, "rpc address is required")
 }
 
-func TestNewAgentRunnerImpl_ReturnsAgent(t *testing.T) {
-	cfg := &config.Config{
-		Name:   "t",
-		Models: config.ModelsConfig{Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "k"}}, Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"}},
-	}
-	cfg.Normalize()
-
-	mc, err := provider_openai.NewOpenAIClient("k", models.APIOpenAIResponses)
-	require.NoError(t, err)
-	sc, err := provider_openai.NewOpenAIClient("k", models.APIOpenAIResponses)
-	require.NoError(t, err)
-
-	r := newAgentRunnerImpl(context.Background(), cfg, mc, sc, sc)
-	require.NotNil(t, r)
-}
-
-func TestServeRPC_StopsWhenContextCancelled(t *testing.T) {
-	orig := listenFunc
-	t.Cleanup(func() { listenFunc = orig })
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
-	done := make(chan error, 1)
-	go func() {
-		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
-	}()
-
-	time.Sleep(150 * time.Millisecond)
-	cancel()
-
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(10 * time.Second):
-		t.Fatal("serveRPC did not return after context cancel")
-	}
-}
-
-func TestServeRPC_ReturnsPostShutdownServeError(t *testing.T) {
-	origListen := listenFunc
-	origServe := grpcServerServe
-	origPost := postShutdownServeErrHook
-	t.Cleanup(func() {
-		listenFunc = origListen
-		grpcServerServe = origServe
-		postShutdownServeErrHook = origPost
+func TestCheckDaemonRPCImpl_ReturnsMissingPortError(t *testing.T) {
+	err := checkDaemonRPCImpl(context.Background(), &config.Config{
+		RPC: config.RPCConfig{Address: "127.0.0.1"},
 	})
 
-	listenFunc = net.Listen
-	grpcServerServe = func(srv *grpc.Server, lis net.Listener) error {
-		return srv.Serve(lis)
-	}
-	postShutdownServeErrHook = func(error) error {
-		return errors.New("post shutdown")
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
-	done := make(chan error, 1)
-	go func() {
-		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
-	}()
-
-	time.Sleep(150 * time.Millisecond)
-	cancel()
-
-	select {
-	case err := <-done:
-		require.EqualError(t, err, "post shutdown")
-	case <-time.After(15 * time.Second):
-		t.Fatal("serveRPC did not return")
-	}
+	require.EqualError(t, err, "rpc port must be greater than zero")
 }
 
-func TestServeRPC_ForcesStopWhenGracefulShutdownSlow(t *testing.T) {
-	origListen := listenFunc
-	origServe := grpcServerServe
-	origTimeout := serveRPCShutdownTimeout
-	origGraceful := grpcGracefulStop
-	t.Cleanup(func() {
-		listenFunc = origListen
-		grpcServerServe = origServe
-		serveRPCShutdownTimeout = origTimeout
-		grpcGracefulStop = origGraceful
+func TestCheckDaemonRPCImpl_ReturnsClientConstructionError(t *testing.T) {
+	err := checkDaemonRPCImpl(context.Background(), &config.Config{
+		RPC: config.RPCConfig{Address: "%", Port: 50051},
 	})
 
-	listenFunc = net.Listen
-	grpcServerServe = func(srv *grpc.Server, lis net.Listener) error {
-		return srv.Serve(lis)
-	}
-	serveRPCShutdownTimeout = 10 * time.Millisecond
-	grpcGracefulStop = func(srv *grpc.Server) {
-		time.Sleep(200 * time.Millisecond)
-		srv.GracefulStop()
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
-	done := make(chan error, 1)
-	go func() {
-		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
-	}()
-
-	time.Sleep(150 * time.Millisecond)
-	cancel()
-
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(15 * time.Second):
-		t.Fatal("serveRPC did not return")
-	}
+	require.ErrorContains(t, err, "invalid URL escape")
 }
 
-func TestServeDaemonServices_DisabledGatewayInitializesStatusAndRunsOnlyRPC(t *testing.T) {
-	origServe := serveRPC
-	t.Cleanup(func() {
-		serveRPC = origServe
-	})
+func TestCheckDaemonRPCImpl_ReturnsNonServingHealthError(t *testing.T) {
+	rpcAddress, stop := startHealthRPCServer(t, healthpb.HealthCheckResponse_NOT_SERVING)
+	defer stop()
 
-	serveCalled := false
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, manager gatewayManager) error {
-		serveCalled = true
-		require.NotNil(t, manager)
-		status := manager.Status()
-		require.Equal(t, handgateway.StateDisabled, status.State)
-		require.Equal(t, "127.0.0.1", status.Address)
-		require.Equal(t, 50052, status.Port)
+	err := checkDaemonRPCImpl(
+		context.Background(),
+		&config.Config{RPC: config.RPCConfig{Address: rpcAddress.address, Port: rpcAddress.port}},
+	)
+
+	require.EqualError(t, err, "daemon health status is NOT_SERVING")
+}
+
+func TestCheckDaemonRPCImpl_ReturnsHealthCheckTransportError(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+	require.NoError(t, listener.Close())
+
+	checkCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	err = checkDaemonRPCImpl(
+		checkCtx,
+		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: tcpAddr.Port}},
+	)
+
+	require.Error(t, err)
+}
+
+func TestEnsureDaemonRunning_UsesExistingRPC(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
+
+	checks := 0
+	checkDaemonRPC = func(context.Context, *config.Config) error {
+		checks++
 		return nil
 	}
+	startDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
+		t.Fatal("daemon should not start when RPC is already reachable")
+		return nil, nil
+	}
 
-	cfg := &config.Config{Gateway: config.GatewayConfig{Address: "127.0.0.1", Port: 50052}}
-	err := serveDaemonServices(context.Background(), cfg, &agentstub.AgentRunnerStub{}, noopListener{})
+	cleanup, err := EnsureDaemonRunning(context.Background(), &config.Config{})
 
 	require.NoError(t, err)
-	require.True(t, serveCalled)
+	require.Nil(t, cleanup)
+	require.Equal(t, 1, checks)
 }
 
-func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {
-	origServe := serveRPC
-	origGateway := newGatewayManager
-	t.Cleanup(func() {
-		serveRPC = origServe
-		newGatewayManager = origGateway
-	})
+func TestEnsureDaemonRunning_StartsRuntimeAndWaitsForRPC(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
 
 	started := false
-	stopped := false
-	agent := &agentstub.AgentRunnerStub{}
-	newGatewayManager = func() gatewayManager {
-		return gatewayManagerStub{
-			start: func(_ context.Context, _ config.GatewayConfig, responder handgateway.AgentService) error {
-				started = true
-				require.Same(t, agent, responder)
-				return nil
-			},
-			stop: func(context.Context) error {
-				stopped = true
-				return nil
-			},
-		}
+	cleaned := false
+	startDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
+		started = true
+		return func() error {
+			cleaned = true
+			return nil
+		}, nil
 	}
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
+	checks := 0
+	checkDaemonRPC = func(context.Context, *config.Config) error {
+		checks++
+		if checks < 3 {
+			return errors.New("connection refused")
+		}
+
 		return nil
 	}
 
-	cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
-	err := serveDaemonServices(context.Background(), cfg, agent, noopListener{})
+	cleanup, err := EnsureDaemonRunning(
+		context.Background(),
+		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
+	)
 
 	require.NoError(t, err)
 	require.True(t, started)
-	require.True(t, stopped)
+	require.Equal(t, 3, checks)
+	require.NoError(t, cleanup())
+	require.True(t, cleaned)
 }
 
-func TestLogGatewayStartedIncludesConfiguredChannels(t *testing.T) {
-	var output bytes.Buffer
-	logutils.SetOutput(&output)
-	logutils.ConfigureLogger("hand", true)
-	t.Cleanup(func() {
-		logutils.SetOutput(io.Discard)
-		logutils.ConfigureLogger("hand", true)
-	})
+func TestEnsureDaemonRunning_ReturnsRuntimeStartError(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
 
-	logGatewayStarted(config.GatewayConfig{
-		Address: "127.0.0.1",
-		Port:    50052,
-		Telegram: config.GatewayTelegramConfig{
-			Enabled: true,
-			Mode:    config.GatewayTelegramModePolling,
-		},
-		Slack: config.GatewaySlackConfig{
-			Enabled: true,
-			Mode:    config.GatewaySlackModeSocket,
-		},
-	})
+	expectedErr := errors.New("runtime failed")
+	checkDaemonRPC = func(context.Context, *config.Config) error {
+		return errors.New("connection refused")
+	}
+	startDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
+		return nil, expectedErr
+	}
 
-	logOutput := output.String()
-	require.Contains(t, logOutput, "Gateway started")
-	require.Contains(t, logOutput, "gatewayAddress=127.0.0.1")
-	require.Contains(t, logOutput, "gatewayPort=50052")
-	require.Contains(t, logOutput, "telegramMode=polling")
-	require.Contains(t, logOutput, "slackMode=socket")
+	_, err := EnsureDaemonRunning(context.Background(), &config.Config{})
+
+	require.ErrorIs(t, err, expectedErr)
 }
 
-func TestServeDaemonServices_ReturnsGatewayStartError(t *testing.T) {
-	origServe := serveRPC
-	origGateway := newGatewayManager
-	t.Cleanup(func() {
-		serveRPC = origServe
-		newGatewayManager = origGateway
-	})
+func TestEnsureDaemonRunning_ReturnsReadinessError(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
 
-	lis := &closeTrackingListener{}
-	newGatewayManager = func() gatewayManager {
-		return gatewayManagerStub{
-			start: func(context.Context, config.GatewayConfig, handgateway.AgentService) error {
-				return errors.New("gateway start failed")
-			},
-		}
+	cleaned := false
+	checkDaemonRPC = func(context.Context, *config.Config) error {
+		return errors.New("connection refused")
 	}
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		t.Fatal("serveRPC should not run when gateway startup fails")
-		return nil
-	}
-
-	cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
-	err := serveDaemonServices(context.Background(), cfg, &agentstub.AgentRunnerStub{}, lis)
-
-	require.EqualError(t, err, "gateway start failed")
-	require.True(t, lis.closed)
-}
-
-func TestServeDaemonServices_GatewayStopDoesNotStopRPC(t *testing.T) {
-	origServe := serveRPC
-	origGateway := newGatewayManager
-	t.Cleanup(func() {
-		serveRPC = origServe
-		newGatewayManager = origGateway
-	})
-
-	rpcStarted := make(chan struct{})
-	gatewayStopped := make(chan struct{})
-	rpcStopped := make(chan error, 1)
-	var stopOnce sync.Once
-	newGatewayManager = func() gatewayManager {
-		return gatewayManagerStub{
-			stop: func(context.Context) error {
-				stopOnce.Do(func() { close(gatewayStopped) })
-				return nil
-			},
-		}
-	}
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, manager gatewayManager) error {
-		close(rpcStarted)
-		require.NoError(t, manager.Stop(context.Background()))
-		<-ctx.Done()
-		rpcStopped <- nil
-		return nil
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	done := make(chan error, 1)
-	cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
-	go func() {
-		done <- serveDaemonServices(ctx, cfg, &agentstub.AgentRunnerStub{}, noopListener{})
-	}()
-
-	select {
-	case <-rpcStarted:
-	case <-time.After(time.Second):
-		t.Fatal("RPC did not start")
-	}
-	select {
-	case <-gatewayStopped:
-	case <-time.After(time.Second):
-		t.Fatal("gateway stop was not called")
-	}
-
-	select {
-	case err := <-done:
-		t.Fatalf("daemon stopped after gateway stop: %v", err)
-	case <-time.After(50 * time.Millisecond):
-	}
-
-	cancel()
-	require.NoError(t, <-done)
-	require.NoError(t, <-rpcStopped)
-}
-
-func TestServeDaemonServices_ContextCancelStopsGatewayAndRPC(t *testing.T) {
-	origServe := serveRPC
-	origGateway := newGatewayManager
-	t.Cleanup(func() {
-		serveRPC = origServe
-		newGatewayManager = origGateway
-	})
-
-	gatewayStopped := make(chan struct{})
-	newGatewayManager = func() gatewayManager {
-		return gatewayManagerStub{
-			stop: func(context.Context) error {
-				close(gatewayStopped)
-				return nil
-			},
-		}
-	}
-	rpcStopped := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		<-ctx.Done()
-		close(rpcStopped)
-		return nil
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		cfg := &config.Config{Gateway: config.GatewayConfig{Enabled: true}}
-		done <- serveDaemonServices(ctx, cfg, &agentstub.AgentRunnerStub{}, noopListener{})
-	}()
-
-	cancel()
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(time.Second):
-		t.Fatal("daemon services did not stop after context cancellation")
-	}
-	select {
-	case <-gatewayStopped:
-	default:
-		t.Fatal("gateway was not stopped")
-	}
-	select {
-	case <-rpcStopped:
-	default:
-		t.Fatal("RPC was not stopped")
-	}
-}
-
-func TestStopGatewayWithTimeoutAttemptsStopWhenManagerReturnsError(t *testing.T) {
-	stopped := false
-	stopGatewayWithTimeout(gatewayManagerStub{
-		stop: func(context.Context) error {
-			stopped = true
-			return errors.New("stop failed")
-		},
-	})
-
-	require.True(t, stopped)
-}
-
-func TestNewCommand_ReturnsConfigLoadError(t *testing.T) {
-	isolateCommandProfile(t)
-	origServe := serveRPC
-	t.Cleanup(func() { serveRPC = origServe })
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		t.Fatal("serveRPC should not run")
-		return nil
-	}
-
-	badPath := filepath.Join(t.TempDir(), "bad.yaml")
-	require.NoError(t, os.WriteFile(badPath, []byte(":\ninvalid"), 0o600))
-
-	configFile := ""
-	cmd := newRootCommandForTest(&configFile)
-	err := cmd.Run(context.Background(), []string{"hand", "--config", badPath, "daemon", "start"})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to parse config file")
-}
-
-func openTestRPCListener(t *testing.T, cfg *config.Config) net.Listener {
-	t.Helper()
-
-	lis, err := openRPCListener(cfg)
-	require.NoError(t, err)
-
-	return lis
-}
-
-func stubOpenRPCListener(t *testing.T) {
-	t.Helper()
-
-	original := openRPCListener
-	openRPCListener = func(*config.Config) (net.Listener, error) {
-		return noopListener{}, nil
-	}
-	t.Cleanup(func() {
-		openRPCListener = original
-	})
-}
-
-type noopListener struct{}
-
-func (noopListener) Accept() (net.Conn, error) {
-	return nil, errors.New("listener closed")
-}
-
-func (noopListener) Close() error {
-	return nil
-}
-
-func (noopListener) Addr() net.Addr {
-	return &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0}
-}
-
-type closeTrackingListener struct {
-	closed bool
-}
-
-func (l *closeTrackingListener) Accept() (net.Conn, error) {
-	return nil, errors.New("listener closed")
-}
-
-func (l *closeTrackingListener) Close() error {
-	l.closed = true
-	return nil
-}
-
-func (l *closeTrackingListener) Addr() net.Addr {
-	return &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0}
-}
-
-type startupWriteFailAlways struct{}
-
-func (startupWriteFailAlways) Write([]byte) (int, error) {
-	return 0, errors.New("write failed")
-}
-
-type startupWriteFailAfterFirst struct {
-	n int
-}
-
-func (w *startupWriteFailAfterFirst) Write(p []byte) (int, error) {
-	w.n++
-	if w.n == 1 {
-		return len(p), nil
-	}
-	return 0, errors.New("write failed")
-}
-
-func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	origOut := startupOutput
-	origServe := serveRPC
-	t.Cleanup(func() {
-		startupOutput = origOut
-		serveRPC = origServe
-	})
-
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		return nil
-	}
-
-	configFile := ""
-	cmd := newRootCommandForTest(&configFile)
-	args := []string{
-		"hand",
-		"--name", "x",
-		"--model", "gpt-4o-mini",
-		"--model.provider", "openrouter",
-		"--model.api-key", "k",
-		"--rpc.address", "127.0.0.1",
-		"--rpc.port", "50051",
-		"daemon", "start",
-	}
-
-	startupOutput = startupWriteFailAlways{}
-	err := cmd.Run(context.Background(), args)
-	require.Error(t, err)
-
-	startupOutput = &startupWriteFailAfterFirst{}
-	err = cmd.Run(context.Background(), args)
-	require.Error(t, err)
-}
-
-func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	origFactory := modelClientFactory
-	origServe := serveRPC
-	t.Cleanup(func() {
-		modelClientFactory = origFactory
-		serveRPC = origServe
-	})
-
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		return nil
-	}
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			return nil, errors.New("model factory boom")
-		},
-	}
-
-	configFile := ""
-	cmd := newRootCommandForTest(&configFile)
-	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
-	err := cmd.Run(context.Background(), []string{
-		"hand",
-		"--name", "flag-agent",
-		"--model", "gpt-4o-mini",
-		"--model.provider", "openrouter",
-		"--model.api-key", "flag-key",
-		"--model.base-url", serverURL,
-		"--rpc.address", "127.0.0.1",
-		"--rpc.port", "50051",
-		"daemon", "start",
-	})
-	require.EqualError(t, err, "model factory boom")
-}
-
-func TestNewCommand_StartsWhenSummaryAuthCannotResolve(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	origResolve := resolveSummaryAuth
-	origServe := serveRPC
-	t.Cleanup(func() {
-		resolveSummaryAuth = origResolve
-		serveRPC = origServe
-	})
-
-	served := false
-	serveRPC = func(_ context.Context, cfg *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		served = true
-		return nil
-	}
-	resolveSummaryAuth = func(*config.Config) (config.ModelAuth, error) {
-		return config.ModelAuth{}, errors.New("summary auth boom")
-	}
-
-	configFile := ""
-	cmd := newRootCommandForTest(&configFile)
-	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
-	err := cmd.Run(context.Background(), []string{
-		"hand",
-		"--name", "flag-agent",
-		"--model", "gpt-4o-mini",
-		"--model.provider", "openrouter",
-		"--model.api-key", "flag-key",
-		"--model.base-url", serverURL,
-		"--rpc.address", "127.0.0.1",
-		"--rpc.port", "50051",
-		"daemon", "start",
-	})
-	require.NoError(t, err)
-	require.True(t, served)
-}
-
-func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	t.Setenv("OPENAI_API_KEY", "openai-key")
-	origFactory := modelClientFactory
-	origServe := serveRPC
-	t.Cleanup(func() {
-		modelClientFactory = origFactory
-		serveRPC = origServe
-	})
-
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		return nil
-	}
-
-	var n int
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			n++
-			if n == 1 {
-				return &provider_openai.OpenAIClient{}, nil
-			}
-			return nil, errors.New("summary client boom")
-		},
-	}
-
-	configFile := ""
-	cmd := newRootCommandForTest(&configFile)
-	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
-	err := cmd.Run(context.Background(), []string{
-		"hand",
-		"--name", "flag-agent",
-		"--model", "gpt-4o-mini",
-		"--model.provider", "openrouter",
-		"--model.api-key", "flag-key",
-		"--model.base-url", serverURL,
-		"--model.summary-provider", "openai",
-		"--model.summary-base-url", "https://api.openai.com/v1",
-		"--rpc.address", "127.0.0.1",
-		"--rpc.port", "50051",
-		"daemon", "start",
-	})
-	require.EqualError(t, err, "summary client boom")
-}
-
-func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	t.Setenv("OPENAI_API_KEY", "openai-key")
-	origFactory := modelClientFactory
-	origRunner := newAgentRunner
-	origServe := serveRPC
-	origStartupOutput := startupOutput
-	t.Cleanup(func() {
-		modelClientFactory = origFactory
-		newAgentRunner = origRunner
-		serveRPC = origServe
-		startupOutput = origStartupOutput
-	})
-
-	var calls []modelclient.ClientRequest
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(req modelclient.ClientRequest) (models.Client, error) {
-			calls = append(calls, req)
-			return &provider_openai.OpenAIClient{}, nil
-		},
-	}
-	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
-		return &agentstub.AgentRunnerStub{}
-	}
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		return nil
-	}
-	startupOutput = io.Discard
-
-	configFile := ""
-	cmd := newRootCommandForTest(&configFile)
-	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
-	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
-		"--name", "flag-agent",
-		"--model", "gpt-4o-mini",
-		"--model.provider", "openrouter",
-		"--model.api-key", "router-key",
-		"--model.base-url", serverURL,
-		"--model.summary-provider", "openai",
-		"--model.summary-base-url", "https://openai.example/v1",
-		"--rpc.address", "127.0.0.1",
-		"--rpc.port", "50051",
-		"daemon", "start",
-	}))
-
-	require.Equal(t, []modelclient.ClientRequest{
-		{
-			Role:       modelclient.ModelRoleMain,
-			Model:      "gpt-4o-mini",
-			Provider:   "openrouter",
-			API:        modelprovider.APIOpenAIResponses,
-			APIKey:     "router-key",
-			BaseURL:    serverURL,
-			MaxRetries: constants.DefaultModelMaxRetries,
-		},
-		{
-			Role:       modelclient.ModelRoleSummary,
-			Model:      "gpt-4o-mini",
-			Provider:   "openai",
-			API:        modelprovider.APIOpenAIResponses,
-			APIKey:     "openai-key",
-			BaseURL:    "https://openai.example/v1",
-			MaxRetries: constants.DefaultModelMaxRetries,
-		},
-	}, calls)
-}
-
-func TestNewCommand_PassesSeparateRerankerClientWhenAuthDiffers(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	t.Setenv("HAND_RERANKER_TYPE", constants.RerankerLLM)
-	origFactory := modelClientFactory
-	origRunner := newAgentRunner
-	origServe := serveRPC
-	origStartupOutput := startupOutput
-	origResolveRerankerAuth := resolveRerankerAuth
-	t.Cleanup(func() {
-		modelClientFactory = origFactory
-		newAgentRunner = origRunner
-		serveRPC = origServe
-		startupOutput = origStartupOutput
-		resolveRerankerAuth = origResolveRerankerAuth
-	})
-
-	rerankerAuth := config.ModelAuth{
-		Provider: "anthropic",
-		API:      modelprovider.APIAnthropicMessages,
-		APIKey:   "reranker-key",
-		BaseURL:  "https://anthropic.example",
-	}
-	resolveRerankerAuth = func(*config.Config) (config.ModelAuth, error) {
-		return rerankerAuth, nil
-	}
-
-	var calls []modelclient.ClientRequest
-	clients := make([]models.Client, 0, 2)
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(req modelclient.ClientRequest) (models.Client, error) {
-			calls = append(calls, req)
-			client := &provider_openai.OpenAIClient{}
-			clients = append(clients, client)
-			return client, nil
-		},
-	}
-	newAgentRunner = func(_ context.Context, _ *config.Config, modelClient, summaryClient, rerankerClient models.Client) agentRunner {
-		require.Same(t, modelClient, summaryClient)
-		require.NotSame(t, modelClient, rerankerClient)
-		return &agentstub.AgentRunnerStub{}
-	}
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		return nil
-	}
-	startupOutput = io.Discard
-
-	configFile := ""
-	cmd := newRootCommandForTest(&configFile)
-	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
-	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
-		"--name", "flag-agent",
-		"--model", "gpt-4o-mini",
-		"--model.provider", "openrouter",
-		"--model.api-key", "router-key",
-		"--model.base-url", serverURL,
-		"--rpc.address", "127.0.0.1",
-		"--rpc.port", "50051",
-		"daemon", "start",
-	}))
-
-	require.Len(t, clients, 2)
-	require.Equal(t, []modelclient.ClientRequest{
-		{
-			Role:       modelclient.ModelRoleMain,
-			Model:      "gpt-4o-mini",
-			Provider:   "openrouter",
-			API:        modelprovider.APIOpenAIResponses,
-			APIKey:     "router-key",
-			BaseURL:    serverURL,
-			MaxRetries: constants.DefaultModelMaxRetries,
-		},
-		{
-			Role:       modelclient.ModelRoleReranker,
-			Model:      "gpt-4o-mini",
-			Provider:   "anthropic",
-			API:        modelprovider.APIAnthropicMessages,
-			APIKey:     "reranker-key",
-			BaseURL:    "https://anthropic.example",
-			MaxRetries: constants.DefaultModelMaxRetries,
-		},
-	}, calls)
-}
-
-func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	origRunner := newAgentRunner
-	origServe := serveRPC
-	t.Cleanup(func() {
-		newAgentRunner = origRunner
-		serveRPC = origServe
-	})
-
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		t.Fatal("serveRPC should not run when Start fails")
-		return nil
-	}
-
-	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
-		return &agentstub.AgentRunnerStub{
-			StartFunc: func(context.Context) error {
-				return errors.New("start failed")
-			},
-		}
-	}
-
-	configFile := ""
-	cmd := newRootCommandForTest(&configFile)
-	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
-	err := cmd.Run(context.Background(), []string{
-		"hand",
-		"--name", "flag-agent",
-		"--model", "gpt-4o-mini",
-		"--model.provider", "openrouter",
-		"--model.api-key", "flag-key",
-		"--model.base-url", serverURL,
-		"--rpc.address", "127.0.0.1",
-		"--rpc.port", "50051",
-		"daemon", "start",
-	})
-	require.EqualError(t, err, "start failed")
-}
-
-func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	t.Setenv("OPENAI_API_KEY", "openai-key")
-	original := config.Get()
-	originalNewAgentRunner := newAgentRunner
-	originalServeGRPC := serveRPC
-	originalStartupOutput := startupOutput
-
-	t.Cleanup(func() {
-		config.Set(original)
-		newAgentRunner = originalNewAgentRunner
-		serveRPC = originalServeGRPC
-		startupOutput = originalStartupOutput
-		logutils.SetOutput(io.Discard)
-	})
-
-	config.Set(nil)
-	configFile := ""
-	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
-	runCalled := false
-	serveCalled := false
-	startupOutput = io.Discard
-	logutils.SetOutput(io.Discard)
-
-	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient, summaryClient, rerankerClient models.Client) agentRunner {
-		require.NotSame(t, modelClient, summaryClient)
-		return &agentstub.AgentRunnerStub{
-			StartFunc: func(context.Context) error {
-				runCalled = true
-				return nil
-			},
-		}
-	}
-
-	serveRPC = func(_ context.Context, _ *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		serveCalled = true
-		return nil
-	}
-
-	cmd := newRootCommandForTest(&configFile)
-	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
-		"--name", "flag-agent",
-		"--model", "gpt-4o-mini",
-		"--model.provider", "openrouter",
-		"--model.api-key", "flag-key",
-		"--model.base-url", serverURL,
-		"--model.summary-provider", "openai",
-		"--model.summary-base-url", "https://api.openai.com/v1",
-		"--rpc.address", "127.0.0.1",
-		"--rpc.port", "50051",
-		"daemon", "start",
-	}))
-
-	require.True(t, runCalled)
-	require.True(t, serveCalled)
-}
-
-func TestNewCommand_StartsWithoutConfiguredModel(t *testing.T) {
-	isolateCommandProfile(t)
-	stubOpenRPCListener(t)
-	originalServeGRPC := serveRPC
-	originalFactory := modelClientFactory
-
-	t.Cleanup(func() {
-		serveRPC = originalServeGRPC
-		modelClientFactory = originalFactory
-	})
-
-	served := false
-	serveRPC = func(_ context.Context, cfg *config.Config, _ agentRunner, _ net.Listener, _ gatewayManager) error {
-		served = true
-		require.False(t, cfg.Gateway.Enabled)
-		require.False(t, cfg.Search.Vector.Enabled)
-		require.False(t, cfg.MemoryEnabled())
-		return nil
-	}
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			t.Fatal("model client should not be created without a configured model")
-			return nil, nil
-		},
-	}
-
-	configFile := ""
-	cmd := newRootCommandForTest(&configFile)
-	err := cmd.Run(context.Background(), []string{
-		"hand",
-		"--name", "flag-agent",
-		"--model", "",
-		"--model.provider", "openrouter",
-		"--model.api-key", "",
-		"--gateway.enabled",
-		"--gateway.telegram.enabled",
-		"daemon", "start",
-	})
-
-	require.NoError(t, err)
-	require.True(t, served)
-}
-
-func newRootCommandForTest(configFile *string) *urfavecli.Command {
-	return &urfavecli.Command{
-		Name:  "hand",
-		Flags: RootFlags(nil, configFile),
-		Commands: []*urfavecli.Command{
-			newDaemonCommandForTest(),
-		},
-	}
-}
-
-func newDaemonCommandForTest() *urfavecli.Command {
-	return &urfavecli.Command{
-		Name:  "daemon",
-		Usage: "Manage the Hand daemon",
-		Flags: []urfavecli.Flag{PersistentInstructFlag()},
-		Commands: []*urfavecli.Command{
-			{
-				Name:  "start",
-				Usage: "Start the Hand daemon",
-				Action: func(ctx context.Context, cmd *urfavecli.Command) error {
-					return runDaemonWithConfigRestarts(ctx, cmd, daemonConfigWatchDebounce)
-				},
-			},
-		},
-		Action: func(_ context.Context, cmd *urfavecli.Command) error {
-			return urfavecli.ShowSubcommandHelp(cmd)
-		},
-	}
-}
-
-func runParsedDaemonCommand(t *testing.T, args []string, action func(context.Context, *urfavecli.Command) error) error {
-	t.Helper()
-
-	configFile := ""
-	root := &urfavecli.Command{
-		Name:  "hand",
-		Flags: RootFlags(nil, &configFile),
-		Commands: []*urfavecli.Command{
-			{
-				Name: "daemon",
-				Commands: []*urfavecli.Command{
-					{
-						Name:   "start",
-						Action: action,
-					},
-				},
-			},
-		},
-	}
-
-	return root.Run(context.Background(), append([]string{"hand"}, args...))
-}
-
-func isolateCommandProfile(t *testing.T) {
-	t.Helper()
-
-	originalProfile := profile.Active()
-	t.Cleanup(func() {
-		profile.SetActive(originalProfile)
-	})
-	profile.SetActive(profile.Profile{})
-	t.Setenv("HOME", t.TempDir())
-	clearDaemonEnv(
-		t,
-		profile.EnvName,
-		"HAND_ENV_FILE",
-		"HAND_CONFIG",
-		"HAND_NAME",
-		"HAND_MODEL",
-		"HAND_MODEL_PROVIDER",
-		"HAND_MODEL_API",
-		"HAND_MODEL_API_KEY",
-		"HAND_MODEL_BASE_URL",
-		"HAND_MODEL_MAX_RETRIES",
-		"HAND_MODEL_SUMMARY",
-		"HAND_MODEL_SUMMARY_PROVIDER",
-		"HAND_MODEL_SUMMARY_API",
-		"HAND_MODEL_SUMMARY_API_KEY",
-		"HAND_MODEL_SUMMARY_BASE_URL",
-		"HAND_RPC_ADDRESS",
-		"HAND_RPC_PORT",
-		"HAND_LOG_LEVEL",
-		"HAND_LOG_NO_COLOR",
-		"HAND_DEBUG_REQUESTS",
-		"HAND_SAFETY_INPUT",
-		"HAND_SAFETY_OUTPUT",
-		"HAND_SAFETY_PII",
-	)
-}
-
-func stubDaemonStartup(t *testing.T) func() {
-	t.Helper()
-
-	isolateCommandProfile(t)
-	originalFactory := modelClientFactory
-	originalRunner := newAgentRunner
-	originalServe := serveRPC
-	originalOpenRPCListener := openRPCListener
-	originalOutput := startupOutput
-
-	modelClientFactory = modelClientFactoryStub{
-		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			return &provider_openai.OpenAIClient{}, nil
-		},
-	}
-	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
-		return &agentstub.AgentRunnerStub{}
-	}
-	openRPCListener = func(*config.Config) (net.Listener, error) {
-		return noopListener{}, nil
-	}
-	startupOutput = io.Discard
-
-	return func() {
-		modelClientFactory = originalFactory
-		newAgentRunner = originalRunner
-		serveRPC = originalServe
-		openRPCListener = originalOpenRPCListener
-		startupOutput = originalOutput
-	}
-}
-
-func stubConfigWatcher() (chan fsnotify.Event, chan error, func()) {
-	originalWatcher := newConfigWatcher
-	events := make(chan fsnotify.Event, 16)
-	errors := make(chan error, 16)
-	newConfigWatcher = func(string) (configWatcher, error) {
-		return configWatcher{
-			events: events,
-			errors: errors,
-			close:  func() error { return nil },
+	startDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
+		return func() error {
+			cleaned = true
+			return nil
 		}, nil
 	}
 
-	return events, errors, func() {
-		newConfigWatcher = originalWatcher
+	_, err := EnsureDaemonRunning(
+		context.Background(),
+		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
+	)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "RPC did not become ready at 127.0.0.1:50051")
+	require.Contains(t, err.Error(), "connection refused")
+	require.True(t, cleaned)
+}
+
+func TestEnsureDaemonRunning_ReturnsCleanupErrorAfterReadinessFailure(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
+
+	expectedErr := errors.New("cleanup failed")
+	checkDaemonRPC = func(context.Context, *config.Config) error {
+		return errors.New("connection refused")
 	}
-}
-
-func newUpTestConfig(name string) *config.Config {
-	cfg := config.NewDefaultConfig()
-	cfg.Name = name
-	cfg.Models.Main.Name = "gpt-4o-mini"
-	cfg.Models.Main.Provider = "openrouter"
-	cfg.Models.Providers = map[string]config.ProviderModelConfig{
-		"openrouter": {APIKey: "test-key"},
+	startDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
+		return func() error {
+			return expectedErr
+		}, nil
 	}
-	cfg.RPC.Address = "127.0.0.1"
-	cfg.RPC.Port = 0
-	cfg.Log.NoColor = true
-	cfg.Normalize()
 
-	return cfg
+	_, err := EnsureDaemonRunning(
+		context.Background(),
+		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
+	)
+
+	require.ErrorIs(t, err, expectedErr)
+	require.ErrorContains(t, err, "cleanup after readiness failure")
 }
 
-func writeUpTestConfig(t *testing.T, path string, name string) {
-	t.Helper()
+func TestWaitForDaemonRPC_UsesSingleCheckWhenTimeoutIsNotPositive(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
 
-	writeConfigFile(t, path, newUpTestConfig(name))
+	expectedErr := errors.New("connection refused")
+	checks := 0
+	checkDaemonRPC = func(context.Context, *config.Config) error {
+		checks++
+		return expectedErr
+	}
+
+	err := waitForDaemonRPC(context.Background(), &config.Config{}, 0)
+
+	require.ErrorIs(t, err, expectedErr)
+	require.Equal(t, 1, checks)
 }
 
-func writeConfigFile(t *testing.T, path string, cfg *config.Config) {
-	t.Helper()
+func TestWaitForDaemonRPC_ReturnsContextCancellation(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
 
-	data, err := cfg.ToYAML()
+	ctx, cancel := context.WithCancel(context.Background())
+	checkDaemonRPC = func(context.Context, *config.Config) error {
+		cancel()
+		return errors.New("connection refused")
+	}
+
+	err := waitForDaemonRPC(ctx, &config.Config{}, time.Second)
+
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestStartDaemonRuntimeImpl_CancelsRunAndRestoresOutput(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
+
+	initialOutput := &bytes.Buffer{}
+	originalOutput := SetDaemonOutput(initialOutput)
+	t.Cleanup(func() {
+		SetDaemonOutput(originalOutput)
+	})
+
+	started := make(chan struct{})
+	done := make(chan struct{})
+	gotAddress := make(chan string, 1)
+	runDaemonRuntimeOnce = func(ctx context.Context, cfg *config.Config) error {
+		gotAddress <- cfg.RPC.Address
+		close(started)
+		<-ctx.Done()
+		close(done)
+		return nil
+	}
+
+	cleanup, err := startDaemonRuntimeImpl(
+		context.Background(),
+		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
+	)
 	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
-	require.NoError(t, os.WriteFile(path, data, 0o600))
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("daemon run did not start")
+	}
+	require.Equal(t, "127.0.0.1", <-gotAddress)
+
+	require.NoError(t, cleanup())
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("daemon run did not stop")
+	}
+	require.NoError(t, cleanup())
+
+	previousOutput := SetDaemonOutput(io.Discard)
+	require.Same(t, initialOutput, previousOutput)
+	SetDaemonOutput(previousOutput)
 }
 
-func clearDaemonEnv(t *testing.T, keys ...string) {
-	t.Helper()
-	keys = append(keys, "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN")
+func TestStartDaemonRuntimeImpl_DisablesConsoleLoggingAndKeepsFileLogging(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
 
-	for _, key := range keys {
-		original, ok := os.LookupEnv(key)
-		if ok {
-			t.Cleanup(func() {
-				require.NoError(t, os.Setenv(key, original))
-			})
-		} else {
-			t.Cleanup(func() {
-				require.NoError(t, os.Unsetenv(key))
-			})
-		}
-		require.NoError(t, os.Unsetenv(key))
+	consoleOutput := &bytes.Buffer{}
+	fileOutput := &bytes.Buffer{}
+	previousOutput := SetDaemonOutput(io.Discard)
+	t.Cleanup(func() {
+		SetDaemonOutput(previousOutput)
+		logutils.SetOutput(nil)
+		logutils.SetFileOutput(nil)
+		logutils.SetConsoleEnabled(true)
+	})
+	logutils.SetOutput(consoleOutput)
+	logutils.SetFileOutput(fileOutput)
+	logutils.SetConsoleEnabled(true)
+	_ = logutils.ConfigureLogger("hand", true)
+
+	started := make(chan struct{})
+	done := make(chan struct{})
+	daemonLog := logutils.Module("daemon")
+	runDaemonRuntimeOnce = func(ctx context.Context, _ *config.Config) error {
+		daemonLog.Info().Msg("temporary daemon started")
+		close(started)
+		<-ctx.Done()
+		close(done)
+		return nil
+	}
+
+	cleanup, err := startDaemonRuntimeImpl(context.Background(), &config.Config{})
+	require.NoError(t, err)
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("daemon run did not start")
+	}
+	require.Empty(t, consoleOutput.String())
+	require.Contains(t, fileOutput.String(), `"message":"temporary daemon started"`)
+	require.Contains(t, fileOutput.String(), `"module":"daemon"`)
+
+	require.NoError(t, cleanup())
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("daemon run did not stop")
+	}
+
+	logutils.Module("hand").Info().Msg("console restored")
+	require.Contains(t, consoleOutput.String(), "console restored")
+}
+
+func replaceDaemonBootstrapHooks(t *testing.T) func() {
+	t.Helper()
+
+	originalCheckDaemonRPC := checkDaemonRPC
+	originalStartDaemonRuntime := startDaemonRuntime
+	originalRunDaemonRuntimeOnce := runDaemonRuntimeOnce
+	originalRunDaemonOnce := runDaemonOnce
+	originalInitialTimeout := daemonBootstrapInitialTimeout
+	originalReadyTimeout := daemonBootstrapReadyTimeout
+	originalPollInterval := daemonBootstrapPollInterval
+	daemonBootstrapInitialTimeout = time.Millisecond
+	daemonBootstrapReadyTimeout = 5 * time.Millisecond
+	daemonBootstrapPollInterval = time.Millisecond
+
+	return func() {
+		checkDaemonRPC = originalCheckDaemonRPC
+		startDaemonRuntime = originalStartDaemonRuntime
+		runDaemonRuntimeOnce = originalRunDaemonRuntimeOnce
+		runDaemonOnce = originalRunDaemonOnce
+		daemonBootstrapInitialTimeout = originalInitialTimeout
+		daemonBootstrapReadyTimeout = originalReadyTimeout
+		daemonBootstrapPollInterval = originalPollInterval
 	}
 }
 
-var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-
-func stripANSI(value string) string {
-	return ansiPattern.ReplaceAllString(value, "")
+type healthRPCAddress struct {
+	address string
+	port    int
 }
 
-func newOpenRouterModelsServer(t *testing.T, model string) string {
+func startHealthRPCServer(
+	t *testing.T,
+	status healthpb.HealthCheckResponse_ServingStatus,
+) (healthRPCAddress, func()) {
 	t.Helper()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/models", r.URL.Path)
-		_, _ = w.Write([]byte(`{"data":[{"id":"` + model + `","context_length":128000}]}`))
-	}))
-	t.Cleanup(server.Close)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
 
-	return server.URL
+	grpcServer := grpc.NewServer()
+	healthServer := health.NewServer()
+	healthpb.RegisterHealthServer(grpcServer, healthServer)
+	healthServer.SetServingStatus("", status)
+
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- grpcServer.Serve(listener)
+	}()
+
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+
+	stop := func() {
+		grpcServer.Stop()
+		serveErr := <-serverErr
+		require.True(t, serveErr == nil || errors.Is(serveErr, grpc.ErrServerStopped))
+	}
+
+	return healthRPCAddress{address: "127.0.0.1", port: tcpAddr.Port}, stop
 }
