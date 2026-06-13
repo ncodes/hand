@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
@@ -18,6 +18,7 @@ import (
 )
 
 var (
+	log       = logutils.Module("tool.patch")
 	mkdirAll  = common.MkdirAll
 	writeFile = common.WriteFile
 )

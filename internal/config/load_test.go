@@ -14,6 +14,7 @@ import (
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL",
+		"HAND_LOG_FILE", "HAND_LOG_MAX_SIZE_MB", "HAND_LOG_MAX_BACKUPS", "HAND_LOG_MAX_AGE_DAYS", "HAND_LOG_COMPRESS",
 		"HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS", "HAND_CAP_NET",
 		"HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER", "HAND_MEMORY_BACKEND",
 		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS")
@@ -31,6 +32,11 @@ HAND_RPC_ADDRESS=0.0.0.0
 HAND_RPC_PORT=6000
 HAND_SESSION_MAX_ITERATIONS=45
 HAND_LOG_LEVEL=warn
+HAND_LOG_FILE=/tmp/hand.log
+HAND_LOG_MAX_SIZE_MB=25
+HAND_LOG_MAX_BACKUPS=9
+HAND_LOG_MAX_AGE_DAYS=30
+HAND_LOG_COMPRESS=false
 HAND_LOG_NO_COLOR=true
 HAND_DEBUG_REQUESTS=true
 HAND_RULES_FILES=hand.md,custom.md
@@ -60,6 +66,11 @@ HAND_MEMORY_PINNED_MAX_ITEM_CHARS=500
 	require.Equal(t, "6000", os.Getenv("HAND_RPC_PORT"))
 	require.Equal(t, "45", os.Getenv("HAND_SESSION_MAX_ITERATIONS"))
 	require.Equal(t, "warn", os.Getenv("HAND_LOG_LEVEL"))
+	require.Equal(t, "/tmp/hand.log", os.Getenv("HAND_LOG_FILE"))
+	require.Equal(t, "25", os.Getenv("HAND_LOG_MAX_SIZE_MB"))
+	require.Equal(t, "9", os.Getenv("HAND_LOG_MAX_BACKUPS"))
+	require.Equal(t, "30", os.Getenv("HAND_LOG_MAX_AGE_DAYS"))
+	require.Equal(t, "false", os.Getenv("HAND_LOG_COMPRESS"))
 	require.Equal(t, "true", os.Getenv("HAND_LOG_NO_COLOR"))
 	require.Equal(t, "true", os.Getenv("HAND_DEBUG_REQUESTS"))
 	require.Equal(t, "hand.md,custom.md", os.Getenv("HAND_RULES_FILES"))
@@ -248,6 +259,7 @@ memory:
     limit: 7
 log:
   level: error
+  file: /tmp/config-hand.log
   noColor: true
 debug:
   requests: true
@@ -297,6 +309,7 @@ rules:
 	require.Equal(t, 6000, cfg.RPC.Port)
 	require.Equal(t, 45, cfg.Session.MaxIterations)
 	require.Equal(t, "error", cfg.Log.Level)
+	require.Equal(t, "/tmp/config-hand.log", cfg.Log.File)
 	require.True(t, cfg.Log.NoColor)
 	require.True(t, cfg.Debug.Requests)
 	require.Equal(t, "exa", cfg.Web.Provider)

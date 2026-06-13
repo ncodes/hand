@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -21,8 +23,11 @@ import (
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	tui "github.com/wandxy/hand/internal/tui/app"
+	"github.com/wandxy/hand/pkg/logutils"
 	"google.golang.org/grpc"
 )
+
+var daemonLog = logutils.Module("daemon")
 
 type fakeProgram struct {
 	model tea.Model
@@ -128,6 +133,9 @@ func TestLoadTUICommandModel_UsesConfiguredRPCClientAndCleanup(t *testing.T) {
 	t.Cleanup(func() {
 		newTUIChatClient = originalNewTUIChatClient
 		ensureTUIDaemonRunning = originalEnsureTUIDaemonRunning
+		logutils.SetOutput(nil)
+		logutils.SetConsoleEnabled(true)
+		logutils.SetFileOutput(nil)
 	})
 
 	home := t.TempDir()
@@ -148,21 +156,27 @@ tui:
 	client := &fakeTUIChatClient{}
 	var gotRPC config.RPCConfig
 	var gotEnsureRPC config.RPCConfig
-	var gotEnsureProfile string
+	daemonCleaned := false
 	ensureTUIDaemonRunning = func(
 		_ context.Context,
-		_ *cli.Command,
 		cfg *config.Config,
-		inputs handcli.ConfigInputs,
-	) error {
+	) (func() error, error) {
 		gotEnsureRPC = cfg.RPC
-		gotEnsureProfile = inputs.Profile.Name
-		return nil
+		daemonLog.Info().Msg("daemon bootstrap log should not reach console")
+		return func() error {
+			daemonCleaned = true
+			return nil
+		}, nil
 	}
 	newTUIChatClient = func(_ context.Context, cfg *config.Config) (tuiClient, error) {
 		gotRPC = cfg.RPC
 		return client, nil
 	}
+
+	logOutput := &bytes.Buffer{}
+	fileLogOutput := &bytes.Buffer{}
+	logutils.SetOutput(logOutput)
+	logutils.SetFileOutput(fileLogOutput)
 
 	var cleanup func()
 	cmd := newTUITestRootCommand(func(ctx context.Context, cmd *cli.Command) error {
@@ -175,11 +189,15 @@ tui:
 
 	require.NoError(t, err)
 	require.Equal(t, config.RPCConfig{Address: "127.0.0.2", Port: 45678}, gotEnsureRPC)
-	require.Equal(t, "work", gotEnsureProfile)
 	require.Equal(t, config.RPCConfig{Address: "127.0.0.2", Port: 45678}, gotRPC)
 	require.NotNil(t, cleanup)
 	cleanup()
 	require.True(t, client.closed)
+	require.True(t, daemonCleaned)
+
+	require.Empty(t, logOutput.String())
+	require.Contains(t, fileLogOutput.String(), `"message":"daemon bootstrap log should not reach console"`)
+	require.Contains(t, fileLogOutput.String(), `"module":"daemon"`)
 }
 
 func TestLoadTUICommandModel_ReturnsConfigLoadError(t *testing.T) {
@@ -199,7 +217,14 @@ func TestLoadTUICommandModel_ReturnsConfigLoadError(t *testing.T) {
 	require.ErrorContains(t, err, "yaml")
 }
 
-func TestLoadTUICommandModel_ReturnsRPCResolutionError(t *testing.T) {
+func TestLoadTUICommandModel_IgnoresStaleRuntimeMetadata(t *testing.T) {
+	originalNewTUIChatClient := newTUIChatClient
+	originalEnsureTUIDaemonRunning := ensureTUIDaemonRunning
+	t.Cleanup(func() {
+		newTUIChatClient = originalNewTUIChatClient
+		ensureTUIDaemonRunning = originalEnsureTUIDaemonRunning
+	})
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	profileHome := filepath.Join(home, ".hand", "profiles", "work")
@@ -211,15 +236,24 @@ name: tui-agent
 models:
 `), 0o600))
 
+	ensureTUIDaemonRunning = func(context.Context, *config.Config) (func() error, error) {
+		return func() error { return nil }, nil
+	}
+	newTUIChatClient = func(context.Context, *config.Config) (tuiClient, error) {
+		return &fakeTUIChatClient{}, nil
+	}
+
 	cmd := newTUITestRootCommand(func(ctx context.Context, cmd *cli.Command) error {
-		_, _, err := loadTUICommandModel(ctx, cmd)
+		_, cleanup, err := loadTUICommandModel(ctx, cmd)
+		if cleanup != nil {
+			cleanup()
+		}
 		return err
 	})
 
 	err := cmd.Run(context.Background(), []string{"hand", "--profile", "work"})
 
-	require.Error(t, err)
-	require.ErrorContains(t, err, "parse runtime metadata")
+	require.NoError(t, err)
 }
 
 func TestLoadTUICommandModel_ReturnsClientCreationError(t *testing.T) {
@@ -244,8 +278,12 @@ models:
 `), 0o600))
 
 	expectedErr := errors.New("client unavailable")
-	ensureTUIDaemonRunning = func(context.Context, *cli.Command, *config.Config, handcli.ConfigInputs) error {
-		return nil
+	daemonCleaned := false
+	ensureTUIDaemonRunning = func(context.Context, *config.Config) (func() error, error) {
+		return func() error {
+			daemonCleaned = true
+			return nil
+		}, nil
 	}
 	newTUIChatClient = func(context.Context, *config.Config) (tuiClient, error) {
 		return nil, expectedErr
@@ -259,6 +297,7 @@ models:
 	err := cmd.Run(context.Background(), []string{"hand", "--profile", "work"})
 
 	require.ErrorIs(t, err, expectedErr)
+	require.True(t, daemonCleaned)
 }
 
 func TestLoadTUICommandModel_ReturnsDaemonBootstrapError(t *testing.T) {
@@ -283,8 +322,8 @@ models:
 `), 0o600))
 
 	expectedErr := errors.New("daemon unavailable")
-	ensureTUIDaemonRunning = func(context.Context, *cli.Command, *config.Config, handcli.ConfigInputs) error {
-		return expectedErr
+	ensureTUIDaemonRunning = func(context.Context, *config.Config) (func() error, error) {
+		return nil, expectedErr
 	}
 	newTUIChatClient = func(context.Context, *config.Config) (tuiClient, error) {
 		t.Fatal("client should not be created when daemon bootstrap fails")
@@ -301,41 +340,25 @@ models:
 	require.ErrorIs(t, err, expectedErr)
 }
 
-func TestEnsureTUIDaemonRunning_ReturnsWhenRPCIsAlreadyReady(t *testing.T) {
-	restore := replaceTUIDaemonBootstrapHooks(t)
-	defer restore()
-
-	checks := 0
-	checkTUIDaemonRPC = func(context.Context, *config.Config) error {
-		checks++
-		return nil
-	}
-	startTUIDaemonProcess = func([]string) error {
-		t.Fatal("daemon should not start when RPC is already ready")
-		return nil
-	}
-
-	err := ensureTUIDaemonRunningImpl(
-		context.Background(),
-		nil,
-		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
-		handcli.ConfigInputs{},
-	)
-
-	require.NoError(t, err)
-	require.Equal(t, 1, checks)
-}
-
 func TestEnsureTUIDaemonRunning_ReturnsConfigError(t *testing.T) {
-	err := ensureTUIDaemonRunningImpl(context.Background(), nil, nil, handcli.ConfigInputs{})
+	_, err := ensureTUIDaemonRunningImpl(context.Background(), nil)
 
 	require.EqualError(t, err, "config is required")
 }
 
-func TestEnsureTUIDaemonRunning_StartsDaemonAndWaitsForRPC(t *testing.T) {
+func TestEnsureTUIDaemonRunning_StartsRuntimeAndWaitsForRPC(t *testing.T) {
 	restore := replaceTUIDaemonBootstrapHooks(t)
 	defer restore()
 
+	started := false
+	cleaned := false
+	startTUIDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
+		started = true
+		return func() error {
+			cleaned = true
+			return nil
+		}, nil
+	}
 	unavailableErr := errors.New("connection refused")
 	checks := 0
 	checkTUIDaemonRPC = func(context.Context, *config.Config) error {
@@ -345,107 +368,31 @@ func TestEnsureTUIDaemonRunning_StartsDaemonAndWaitsForRPC(t *testing.T) {
 		}
 		return nil
 	}
-	var gotArgs []string
-	startTUIDaemonProcess = func(args []string) error {
-		gotArgs = append([]string(nil), args...)
-		return nil
-	}
 
-	inputs := handcli.ConfigInputs{
-		Profile:    testProfile("work"),
-		EnvPath:    "/tmp/work.env",
-		ConfigPath: "/tmp/work.yaml",
-	}
-	err := ensureTUIDaemonRunningImpl(
+	cleanup, err := ensureTUIDaemonRunningImpl(
 		context.Background(),
-		nil,
 		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
-		inputs,
 	)
 
 	require.NoError(t, err)
-	require.Equal(t, []string{
-		"--profile", "work",
-		"--env-file", "/tmp/work.env",
-		"--config", "/tmp/work.yaml",
-		"daemon", "start",
-	}, gotArgs)
+	require.True(t, started)
 	require.Equal(t, 3, checks)
+	require.NoError(t, cleanup())
+	require.True(t, cleaned)
 }
 
-func TestEnsureTUIDaemonRunning_ForwardsExplicitConfigOverrides(t *testing.T) {
+func TestEnsureTUIDaemonRunning_ReturnsRuntimeStartError(t *testing.T) {
 	restore := replaceTUIDaemonBootstrapHooks(t)
 	defer restore()
 
-	checks := 0
-	checkTUIDaemonRPC = func(context.Context, *config.Config) error {
-		checks++
-		if checks == 1 {
-			return errors.New("connection refused")
-		}
-		return nil
-	}
-	var gotArgs []string
-	startTUIDaemonProcess = func(args []string) error {
-		gotArgs = append([]string(nil), args...)
-		return nil
+	expectedErr := errors.New("runtime failed")
+	startTUIDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
+		return nil, expectedErr
 	}
 
-	cmd := newTUITestRootCommand(func(ctx context.Context, cmd *cli.Command) error {
-		return ensureTUIDaemonRunningImpl(
-			ctx,
-			cmd,
-			&config.Config{RPC: config.RPCConfig{Address: "127.0.0.9", Port: 50099}},
-			handcli.ConfigInputs{
-				Profile:    testProfile("work"),
-				EnvPath:    "/tmp/work.env",
-				ConfigPath: "/tmp/work.yaml",
-			},
-		)
-	})
-	err := cmd.Run(context.Background(), []string{
-		"hand",
-		"--profile", "work",
-		"--model", "gpt-5.5",
-		"--model.stream=false",
-		"--rpc.address", "127.0.0.9",
-		"--rpc.port", "50099",
-		"--web.cache-ttl", "2s",
-		"--gateway.enabled",
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, []string{
-		"--profile", "work",
-		"--env-file", "/tmp/work.env",
-		"--config", "/tmp/work.yaml",
-		"--model=gpt-5.5",
-		"--model.stream=false",
-		"--rpc.address=127.0.0.9",
-		"--rpc.port=50099",
-		"--gateway.enabled=true",
-		"--web.cache-ttl=2s",
-		"daemon", "start",
-	}, gotArgs)
-}
-
-func TestEnsureTUIDaemonRunning_ReturnsStartError(t *testing.T) {
-	restore := replaceTUIDaemonBootstrapHooks(t)
-	defer restore()
-
-	checkTUIDaemonRPC = func(context.Context, *config.Config) error {
-		return errors.New("connection refused")
-	}
-	expectedErr := errors.New("spawn failed")
-	startTUIDaemonProcess = func([]string) error {
-		return expectedErr
-	}
-
-	err := ensureTUIDaemonRunningImpl(
+	_, err := ensureTUIDaemonRunningImpl(
 		context.Background(),
-		nil,
 		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
-		handcli.ConfigInputs{},
 	)
 
 	require.ErrorIs(t, err, expectedErr)
@@ -455,23 +402,49 @@ func TestEnsureTUIDaemonRunning_ReturnsReadinessError(t *testing.T) {
 	restore := replaceTUIDaemonBootstrapHooks(t)
 	defer restore()
 
+	cleaned := false
+	startTUIDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
+		return func() error {
+			cleaned = true
+			return nil
+		}, nil
+	}
 	checkTUIDaemonRPC = func(context.Context, *config.Config) error {
 		return errors.New("connection refused")
 	}
-	startTUIDaemonProcess = func([]string) error {
-		return nil
-	}
 
-	err := ensureTUIDaemonRunningImpl(
+	_, err := ensureTUIDaemonRunningImpl(
 		context.Background(),
-		nil,
 		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
-		handcli.ConfigInputs{},
 	)
 
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "RPC did not become ready at 127.0.0.1:50051"))
 	require.True(t, strings.Contains(err.Error(), "connection refused"))
+	require.True(t, cleaned)
+}
+
+func TestEnsureTUIDaemonRunning_ReturnsCleanupErrorAfterReadinessFailure(t *testing.T) {
+	restore := replaceTUIDaemonBootstrapHooks(t)
+	defer restore()
+
+	expectedErr := errors.New("cleanup failed")
+	startTUIDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
+		return func() error {
+			return expectedErr
+		}, nil
+	}
+	checkTUIDaemonRPC = func(context.Context, *config.Config) error {
+		return errors.New("connection refused")
+	}
+
+	_, err := ensureTUIDaemonRunningImpl(
+		context.Background(),
+		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
+	)
+
+	require.ErrorIs(t, err, expectedErr)
+	require.ErrorContains(t, err, "cleanup after readiness failure")
 }
 
 func TestWaitForTUIDaemonRPC_UsesSingleCheckWhenTimeoutIsNotPositive(t *testing.T) {
@@ -547,74 +520,51 @@ func TestCheckTUIDaemonRPCImpl_CallsGatewayStatus(t *testing.T) {
 	require.Equal(t, 1, stub.calls)
 }
 
-func TestStartTUIDaemonProcessImpl_ReturnsExecutableError(t *testing.T) {
-	originalGetTUIDaemonExecutable := getTUIDaemonExecutable
-	t.Cleanup(func() { getTUIDaemonExecutable = originalGetTUIDaemonExecutable })
+func TestStartTUIDaemonRuntimeImpl_CancelsRunAndRestoresOutput(t *testing.T) {
+	restore := replaceTUIDaemonBootstrapHooks(t)
+	defer restore()
 
-	expectedErr := errors.New("not found")
-	getTUIDaemonExecutable = func() (string, error) {
-		return "", expectedErr
-	}
-
-	err := startTUIDaemonProcessImpl(nil)
-
-	require.ErrorIs(t, err, expectedErr)
-	require.ErrorContains(t, err, "resolve hand executable")
-}
-
-func TestStartTUIDaemonProcessImpl_ReturnsStartError(t *testing.T) {
-	originalGetTUIDaemonExecutable := getTUIDaemonExecutable
-	t.Cleanup(func() { getTUIDaemonExecutable = originalGetTUIDaemonExecutable })
-
-	getTUIDaemonExecutable = func() (string, error) {
-		return filepath.Join(t.TempDir(), "missing-hand"), nil
-	}
-
-	err := startTUIDaemonProcessImpl(nil)
-
-	require.Error(t, err)
-	require.ErrorContains(t, err, "start Hand daemon")
-}
-
-func TestStartTUIDaemonProcessImpl_StartsAndReleasesProcess(t *testing.T) {
-	originalGetTUIDaemonExecutable := getTUIDaemonExecutable
-	t.Cleanup(func() { getTUIDaemonExecutable = originalGetTUIDaemonExecutable })
-
-	scriptPath := filepath.Join(t.TempDir(), "hand-test-daemon")
-	require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o700))
-	getTUIDaemonExecutable = func() (string, error) {
-		return scriptPath, nil
-	}
-
-	err := startTUIDaemonProcessImpl([]string{"daemon", "start"})
-
-	require.NoError(t, err)
-}
-
-func TestStartTUIDaemonProcessImpl_ReturnsReleaseError(t *testing.T) {
-	originalGetTUIDaemonExecutable := getTUIDaemonExecutable
-	originalReleaseTUIDaemonProcess := releaseTUIDaemonProcess
+	initialOutput := &bytes.Buffer{}
+	originalOutput := handcli.SetDaemonOutput(initialOutput)
 	t.Cleanup(func() {
-		getTUIDaemonExecutable = originalGetTUIDaemonExecutable
-		releaseTUIDaemonProcess = originalReleaseTUIDaemonProcess
+		handcli.SetDaemonOutput(originalOutput)
 	})
 
-	scriptPath := filepath.Join(t.TempDir(), "hand-test-daemon")
-	require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/sh\nsleep 1\n"), 0o700))
-	getTUIDaemonExecutable = func() (string, error) {
-		return scriptPath, nil
-	}
-	expectedErr := errors.New("release failed")
-	releaseTUIDaemonProcess = func(process *os.Process) error {
-		_ = process.Kill()
-		_, _ = process.Wait()
-		return expectedErr
+	started := make(chan struct{})
+	done := make(chan struct{})
+	gotAddress := make(chan string, 1)
+	runTUIDaemonOnce = func(ctx context.Context, cfg *config.Config) error {
+		gotAddress <- cfg.RPC.Address
+		close(started)
+		<-ctx.Done()
+		close(done)
+		return nil
 	}
 
-	err := startTUIDaemonProcessImpl([]string{"daemon", "start"})
+	cleanup, err := startTUIDaemonRuntimeImpl(
+		context.Background(),
+		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
+	)
+	require.NoError(t, err)
 
-	require.ErrorIs(t, err, expectedErr)
-	require.ErrorContains(t, err, "release Hand daemon process")
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("daemon run did not start")
+	}
+	require.Equal(t, "127.0.0.1", <-gotAddress)
+
+	require.NoError(t, cleanup())
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("daemon run did not stop")
+	}
+	require.NoError(t, cleanup())
+
+	previousOutput := handcli.SetDaemonOutput(io.Discard)
+	require.Same(t, initialOutput, previousOutput)
+	handcli.SetDaemonOutput(previousOutput)
 }
 
 func newTUITestRootCommand(action func(context.Context, *cli.Command) error) *cli.Command {
@@ -633,8 +583,8 @@ func replaceTUIDaemonBootstrapHooks(t *testing.T) func() {
 	t.Helper()
 
 	originalCheckTUIDaemonRPC := checkTUIDaemonRPC
-	originalStartTUIDaemonProcess := startTUIDaemonProcess
-	originalReleaseTUIDaemonProcess := releaseTUIDaemonProcess
+	originalStartTUIDaemonRuntime := startTUIDaemonRuntime
+	originalRunTUIDaemonOnce := runTUIDaemonOnce
 	originalInitialTimeout := daemonBootstrapInitialTimeout
 	originalReadyTimeout := daemonBootstrapReadyTimeout
 	originalPollInterval := daemonBootstrapPollInterval
@@ -644,8 +594,8 @@ func replaceTUIDaemonBootstrapHooks(t *testing.T) func() {
 
 	return func() {
 		checkTUIDaemonRPC = originalCheckTUIDaemonRPC
-		startTUIDaemonProcess = originalStartTUIDaemonProcess
-		releaseTUIDaemonProcess = originalReleaseTUIDaemonProcess
+		startTUIDaemonRuntime = originalStartTUIDaemonRuntime
+		runTUIDaemonOnce = originalRunTUIDaemonOnce
 		daemonBootstrapInitialTimeout = originalInitialTimeout
 		daemonBootstrapReadyTimeout = originalReadyTimeout
 		daemonBootstrapPollInterval = originalPollInterval

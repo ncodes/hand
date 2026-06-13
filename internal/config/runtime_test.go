@@ -21,6 +21,45 @@ func TestConfig_ValidateRejectsInvalidLogLevel(t *testing.T) {
 	require.EqualError(t, err, "log level must be one of debug, info, warn, or error; use --log.level")
 }
 
+func TestConfig_ValidateRejectsInvalidLogRotationSettings(t *testing.T) {
+	tests := []struct {
+		name    string
+		log     LogConfig
+		message string
+	}{
+		{
+			name:    "max size",
+			log:     LogConfig{Level: "info", MaxSizeMB: -1},
+			message: "log max size must be non-negative; use --log.max-size-mb",
+		},
+		{
+			name:    "max backups",
+			log:     LogConfig{Level: "info", MaxBackups: -1},
+			message: "log max backups must be non-negative; use --log.max-backups",
+		},
+		{
+			name:    "max age",
+			log:     LogConfig{Level: "info", MaxAgeDays: -1},
+			message: "log max age days must be non-negative; use --log.max-age-days",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := (&Config{
+				Name: "test-agent",
+				Models: ModelsConfig{
+					Providers: map[string]ProviderModelConfig{"openai": {APIKey: "test-key"}},
+					Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
+				},
+				Log: tt.log,
+			}).Validate()
+
+			require.EqualError(t, err, tt.message)
+		})
+	}
+}
+
 func TestConfig_ValidateRejectsEmptyProvider(t *testing.T) {
 	err := (&Config{
 		Name:   "test-agent",

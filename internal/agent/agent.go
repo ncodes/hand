@@ -38,7 +38,7 @@ const (
 	EventKindTrace     = agentcore.EventKindTrace
 )
 
-var agentLog = logutils.InitLogger("agent")
+var agentLog = logutils.Module("agent")
 
 var runRecallSessionSummary = func(
 	service *agentsummary.Service,

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/guardrails"
@@ -15,6 +15,8 @@ import (
 )
 
 const maxURLs = constants.WebExtractToolMaxURLs
+
+var log = logutils.Module("tool.webextract")
 
 // Options configures this package operation.
 type Options struct {

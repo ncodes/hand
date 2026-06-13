@@ -5,8 +5,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 )
+
+var log = logutils.Module("guardrails")
 
 // SafetyScanResult contains findings from a safety scan.
 type SafetyScanResult struct {

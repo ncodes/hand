@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/guardrails"
@@ -17,6 +17,8 @@ const (
 	defaultCount = constants.WebSearchToolDefaultCount
 	maxCount     = constants.WebSearchToolMaxCount
 )
+
+var log = logutils.Module("tool.websearch")
 
 // Options configures this package operation.
 type Options struct {

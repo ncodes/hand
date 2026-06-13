@@ -2,8 +2,11 @@ package logutils
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,29 +15,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/profile"
 )
 
-func TestSetOutput_SetsCustomWriterAndDefaultsToStderr(t *testing.T) {
-	original := loggerOutput
-	t.Cleanup(func() {
-		loggerOutput = original
-	})
+func TestSetOutput_SetsCustomConsoleWriterAndDefaultsToStderr(t *testing.T) {
+	restoreLogger(t)
 
 	buf := &bytes.Buffer{}
 	SetOutput(buf)
-	require.Same(t, buf, loggerOutput)
+	require.Same(t, buf, consoleOutput)
 
 	SetOutput(nil)
-	require.Same(t, os.Stderr, loggerOutput)
+	require.Same(t, os.Stderr, consoleOutput)
 }
 
-func TestConfigureLogger_DefaultsProgramNameAndWritesLog(t *testing.T) {
-	originalOutput := loggerOutput
-	originalLogger := log.Logger
-	t.Cleanup(func() {
-		loggerOutput = originalOutput
-		log.Logger = originalLogger
-	})
+func TestConfigureLogger_WritesConsoleLog(t *testing.T) {
+	restoreLogger(t)
 
 	buf := &bytes.Buffer{}
 	SetOutput(buf)
@@ -46,19 +42,300 @@ func TestConfigureLogger_DefaultsProgramNameAndWritesLog(t *testing.T) {
 
 	output := buf.String()
 	require.Contains(t, output, "Hello")
-	require.Contains(t, output, "program=agent")
+	require.Contains(t, output, "[agent]")
+	require.NotContains(t, output, "program=")
 	require.NotContains(t, output, "\x1b[")
 }
 
-func TestInitLogger_UsesCurrentNoColorSetting(t *testing.T) {
-	originalOutput := loggerOutput
-	originalLogger := log.Logger
-	originalConfig := config.Get()
+func TestConfigureLogger_WritesConsoleAndFileSinks(t *testing.T) {
+	restoreLogger(t)
+
+	console := &bytes.Buffer{}
+	file := &bytes.Buffer{}
+	SetOutput(console)
+	SetFileOutput(file)
+
+	ConfigureLogger("svc", true)
+	log.Info().Msg("Dual sink")
+
+	require.Contains(t, console.String(), "Dual sink")
+	require.Contains(t, console.String(), "[svc]")
+	require.Contains(t, file.String(), `"message":"Dual sink"`)
+	require.Contains(t, file.String(), `"module":"svc"`)
+	require.NotContains(t, file.String(), `"program"`)
+}
+
+func TestConfigureLogger_RendersConsoleModuleAsColumn(t *testing.T) {
+	restoreLogger(t)
+
+	console := &bytes.Buffer{}
+	SetOutput(console)
+	ConfigureLogger("svc", true)
+
+	Module("daemon").Info().Str("attr", "value").Msg("Configuration loaded")
+
+	output := console.String()
+	require.Contains(t, output, "INF [daemon] Configuration loaded")
+	require.Contains(t, output, "attr=value")
+	require.NotContains(t, output, "module=daemon")
+	require.NotContains(t, output, "\x1b[")
+}
+
+func TestConfigureLogger_DisablesConsoleWithoutDisablingFile(t *testing.T) {
+	restoreLogger(t)
+
+	console := &bytes.Buffer{}
+	file := &bytes.Buffer{}
+	SetOutput(console)
+	SetFileOutput(file)
+	SetConsoleEnabled(false)
+
+	ConfigureLogger("svc", true)
+	log.Info().Msg("File only")
+
+	require.Empty(t, console.String())
+	require.Contains(t, file.String(), `"message":"File only"`)
+	require.Contains(t, file.String(), `"module":"svc"`)
+	require.NotContains(t, file.String(), `"program"`)
+}
+
+func TestModule_AddsModuleField(t *testing.T) {
+	restoreLogger(t)
+
+	file := &bytes.Buffer{}
+	SetFileOutput(file)
+	SetConsoleEnabled(false)
+	ConfigureLogger("svc", true)
+
+	Module("daemon").Info().Msg("Module log")
+
+	output := file.String()
+	require.Contains(t, output, `"message":"Module log"`)
+	require.Contains(t, output, `"module":"daemon"`)
+	require.NotContains(t, output, `"program"`)
+}
+
+func TestModuleLogger_AddsModuleField(t *testing.T) {
+	restoreLogger(t)
+
+	file := &bytes.Buffer{}
+	SetFileOutput(file)
+	SetConsoleEnabled(false)
+	ConfigureLogger("svc", true)
+
+	Module("environment").Logger().Info().Msg("Logger module")
+
+	output := file.String()
+	require.Contains(t, output, `"message":"Logger module"`)
+	require.Contains(t, output, `"module":"environment"`)
+}
+
+func TestModule_EmptyModuleUsesBaseLogger(t *testing.T) {
+	restoreLogger(t)
+
+	file := &bytes.Buffer{}
+	SetFileOutput(file)
+	SetConsoleEnabled(false)
+	ConfigureLogger("svc", true)
+
+	Module(" ").Info().Msg("Base logger")
+
+	output := file.String()
+	require.Contains(t, output, `"message":"Base logger"`)
+	require.Contains(t, output, `"module":"svc"`)
+	require.NotContains(t, output, `"program"`)
+}
+
+func TestModule_LevelMethodsAddModuleField(t *testing.T) {
+	restoreLogger(t)
+
+	originalLevel := zerolog.GlobalLevel()
 	t.Cleanup(func() {
-		loggerOutput = originalOutput
-		log.Logger = originalLogger
-		config.Set(originalConfig)
+		zerolog.SetGlobalLevel(originalLevel)
 	})
+
+	file := &bytes.Buffer{}
+	SetFileOutput(file)
+	SetConsoleEnabled(false)
+	ConfigureLogger("svc", true)
+	zerolog.SetGlobalLevel(zerolog.TraceLevel)
+
+	logger := Module("levels")
+	logger.Trace().Msg("trace message")
+	logger.Debug().Msg("debug message")
+	logger.Info().Msg("info message")
+	logger.Warn().Msg("warn message")
+	logger.Error().Msg("error message")
+	require.NotNil(t, logger.Fatal())
+	require.NotNil(t, logger.Panic())
+
+	output := file.String()
+	require.Contains(t, output, `"level":"trace"`)
+	require.Contains(t, output, `"message":"trace message"`)
+	require.Contains(t, output, `"level":"debug"`)
+	require.Contains(t, output, `"message":"debug message"`)
+	require.Contains(t, output, `"level":"info"`)
+	require.Contains(t, output, `"message":"info message"`)
+	require.Contains(t, output, `"level":"warn"`)
+	require.Contains(t, output, `"message":"warn message"`)
+	require.Contains(t, output, `"level":"error"`)
+	require.Contains(t, output, `"message":"error message"`)
+	require.Contains(t, output, `"module":"levels"`)
+}
+
+func TestConfigureLogger_UsesConfiguredLogFile(t *testing.T) {
+	restoreLogger(t)
+
+	path := filepath.Join(t.TempDir(), "hand-test.log")
+	config.Set(&config.Config{Log: config.LogConfig{File: path}})
+	defaultFileEnabled = func() bool { return true }
+
+	ConfigureLogger("svc", true)
+	log.Info().Msg("File path")
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"message":"File path"`)
+	require.Contains(t, string(data), `"module":"svc"`)
+	require.NotContains(t, string(data), `"program"`)
+}
+
+func TestConfigureLogger_DefaultsLogFileToActiveProfileHome(t *testing.T) {
+	restoreLogger(t)
+
+	home := t.TempDir()
+	profile.SetActive(profile.Profile{Name: "work", HomeDir: home})
+	defaultFileEnabled = func() bool { return true }
+
+	ConfigureLogger("svc", true)
+	log.Info().Msg("Default file path")
+
+	data, err := os.ReadFile(filepath.Join(home, defaultLogFilename))
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"message":"Default file path"`)
+	require.Contains(t, string(data), `"module":"svc"`)
+}
+
+func TestConfigureLogger_ReopensWhenConfiguredLogFileChanges(t *testing.T) {
+	restoreLogger(t)
+
+	dir := t.TempDir()
+	firstPath := filepath.Join(dir, "first.log")
+	secondPath := filepath.Join(dir, "second.log")
+	config.Set(&config.Config{Log: config.LogConfig{File: firstPath}})
+	defaultFileEnabled = func() bool { return true }
+
+	ConfigureLogger("svc", true)
+	log.Info().Msg("First file")
+
+	config.Set(&config.Config{Log: config.LogConfig{File: secondPath}})
+	ConfigureLogger("svc", true)
+	log.Info().Msg("Second file")
+
+	firstData, err := os.ReadFile(firstPath)
+	require.NoError(t, err)
+	secondData, err := os.ReadFile(secondPath)
+	require.NoError(t, err)
+	require.Contains(t, string(firstData), `"message":"First file"`)
+	require.Contains(t, string(firstData), `"module":"svc"`)
+	require.NotContains(t, string(firstData), `"message":"Second file"`)
+	require.Contains(t, string(secondData), `"message":"Second file"`)
+	require.Contains(t, string(secondData), `"module":"svc"`)
+}
+
+func TestConfigureLogger_ReopensWhenLogRotationSettingsChange(t *testing.T) {
+	restoreLogger(t)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hand.log")
+	config.Set(&config.Config{Log: config.LogConfig{
+		File:       path,
+		MaxSizeMB:  11,
+		MaxBackups: 7,
+		MaxAgeDays: 21,
+		Compress:   true,
+	}})
+	defaultFileEnabled = func() bool { return true }
+
+	var created []logFileSettings
+	newLogFileWriter = func(settings logFileSettings) (io.WriteCloser, error) {
+		created = append(created, settings)
+		return nopWriteCloser{Writer: &bytes.Buffer{}}, nil
+	}
+
+	ConfigureLogger("svc", true)
+	config.Set(&config.Config{Log: config.LogConfig{
+		File:       path,
+		MaxSizeMB:  12,
+		MaxBackups: 7,
+		MaxAgeDays: 21,
+		Compress:   true,
+	}})
+	ConfigureLogger("svc", true)
+
+	require.Len(t, created, 2)
+	require.Equal(t, logFileSettings{
+		path:       path,
+		maxSizeMB:  11,
+		maxBackups: 7,
+		maxAgeDays: 21,
+		compress:   true,
+	}, created[0])
+	require.Equal(t, logFileSettings{
+		path:       path,
+		maxSizeMB:  12,
+		maxBackups: 7,
+		maxAgeDays: 21,
+		compress:   true,
+	}, created[1])
+}
+
+func TestConfigureLogger_FallsBackWhenLogDirectoryCannotBeCreated(t *testing.T) {
+	restoreLogger(t)
+
+	console := &bytes.Buffer{}
+	SetOutput(console)
+	config.Set(&config.Config{Log: config.LogConfig{File: filepath.Join(t.TempDir(), "hand.log")}})
+	defaultFileEnabled = func() bool { return true }
+	mkdirAll = func(string, os.FileMode) error {
+		return errors.New("mkdir failed")
+	}
+
+	ConfigureLogger("svc", true)
+	log.Info().Msg("Console fallback")
+
+	require.Contains(t, console.String(), "Console fallback")
+}
+
+func TestConfigureLogger_FallsBackWhenLogFileCannotBeOpened(t *testing.T) {
+	restoreLogger(t)
+
+	console := &bytes.Buffer{}
+	SetOutput(console)
+	config.Set(&config.Config{Log: config.LogConfig{File: filepath.Join(t.TempDir(), "hand.log")}})
+	defaultFileEnabled = func() bool { return true }
+	newLogFileWriter = func(logFileSettings) (io.WriteCloser, error) {
+		return nil, errors.New("open failed")
+	}
+
+	ConfigureLogger("svc", true)
+	log.Info().Msg("Open fallback")
+
+	require.Contains(t, console.String(), "Open fallback")
+}
+
+func TestConfigureLogger_UsesDiscardWhenConsoleAndFileAreDisabled(t *testing.T) {
+	restoreLogger(t)
+
+	SetConsoleEnabled(false)
+	defaultFileEnabled = func() bool { return false }
+
+	ConfigureLogger("svc", true)
+	log.Info().Msg("Discarded")
+}
+
+func TestInitLogger_UsesCurrentNoColorSetting(t *testing.T) {
+	restoreLogger(t)
 
 	config.Set(&config.Config{Log: config.LogConfig{NoColor: true}})
 	buf := &bytes.Buffer{}
@@ -69,19 +346,11 @@ func TestInitLogger_UsesCurrentNoColorSetting(t *testing.T) {
 
 	log.Info().Msg("Hello")
 	output := buf.String()
-	require.Contains(t, output, "program=svc")
 	require.NotContains(t, output, "\x1b[")
 }
 
 func TestGetLogger_UsesCurrentNoColorSetting(t *testing.T) {
-	originalOutput := loggerOutput
-	originalLogger := log.Logger
-	originalConfig := config.Get()
-	t.Cleanup(func() {
-		loggerOutput = originalOutput
-		log.Logger = originalLogger
-		config.Set(originalConfig)
-	})
+	restoreLogger(t)
 
 	config.Set(&config.Config{Log: config.LogConfig{NoColor: false}})
 	buf := &bytes.Buffer{}
@@ -92,7 +361,6 @@ func TestGetLogger_UsesCurrentNoColorSetting(t *testing.T) {
 
 	log.Info().Msg("Hello")
 	output := buf.String()
-	require.Contains(t, output, "program=svc")
 	require.NotContains(t, output, "\x1b[")
 }
 
@@ -129,13 +397,36 @@ func TestNewConsoleWriter_ConfiguresFields(t *testing.T) {
 	require.Same(t, out, writer.Out)
 	require.Equal(t, time.RFC3339, writer.TimeFormat)
 	require.True(t, writer.NoColor)
+	require.Equal(t, []string{"time", "level", "module", "message"}, writer.PartsOrder)
+	require.Equal(t, []string{"module"}, writer.FieldsExclude)
+}
+
+func TestFormatConsoleModule_UsesDeterministicColorAndHonorsNoColor(t *testing.T) {
+	first := formatConsoleModule("daemon", false)
+	second := formatConsoleModule("daemon", false)
+
+	require.Equal(t, first, second)
+	require.Contains(t, first, "\x1b[")
+	require.Contains(t, first, "[daemon]")
+	require.Equal(t, "[daemon]", formatConsoleModule("daemon", true))
+	require.Empty(t, formatConsoleModule(" ", false))
+	require.Empty(t, formatConsoleModule(nil, false))
+}
+
+func TestEnsureLogModule_AddsFallbackModuleOnlyWhenMissing(t *testing.T) {
+	withModule := ensureLogModule([]byte(`{"level":"info","module":"daemon","message":"hello"}`+"\n"), "hand")
+	require.JSONEq(t, `{"level":"info","module":"daemon","message":"hello"}`, strings.TrimSpace(string(withModule)))
+	require.True(t, bytes.HasSuffix(withModule, []byte("\n")))
+
+	withoutModule := ensureLogModule([]byte(`{"level":"info","message":"hello"}`), "hand")
+	require.JSONEq(t, `{"level":"info","module":"hand","message":"hello"}`, string(withoutModule))
+
+	invalid := []byte("not-json\n")
+	require.Equal(t, invalid, ensureLogModule(invalid, "hand"))
 }
 
 func TestCurrentNoColorSetting_UsesConfig(t *testing.T) {
-	original := config.Get()
-	t.Cleanup(func() {
-		config.Set(original)
-	})
+	restoreLogger(t)
 
 	config.Set(nil)
 	require.True(t, getCurrentNoColorSetting())
@@ -148,12 +439,7 @@ func TestCurrentNoColorSetting_UsesConfig(t *testing.T) {
 }
 
 func TestConfigureLogger_UsesConfiguredOutputWriter(t *testing.T) {
-	originalOutput := loggerOutput
-	originalLogger := log.Logger
-	t.Cleanup(func() {
-		loggerOutput = originalOutput
-		log.Logger = originalLogger
-	})
+	restoreLogger(t)
 
 	reader, writer := io.Pipe()
 	t.Cleanup(func() {
@@ -176,5 +462,54 @@ func TestConfigureLogger_UsesConfiguredOutputWriter(t *testing.T) {
 
 	output := <-done
 	require.Contains(t, output, "Pipe-test")
-	require.Contains(t, output, "program=svc")
+	require.Contains(t, output, "[svc]")
+}
+
+func restoreLogger(t *testing.T) {
+	t.Helper()
+
+	originalConsoleOutput := consoleOutput
+	originalConsoleEnabled := consoleEnabled
+	originalFileOutput := fileOutput
+	originalFileSettings := fileSettings
+	originalFileCloser := fileCloser
+	originalLogger := log.Logger
+	originalConfig := config.Get()
+	originalProfile := profile.Active()
+	originalDefaultFileEnabled := defaultFileEnabled
+	originalMkdirAll := mkdirAll
+	originalNewLogFileWriter := newLogFileWriter
+	t.Cleanup(func() {
+		closeFileLocked()
+		consoleOutput = originalConsoleOutput
+		consoleEnabled = originalConsoleEnabled
+		fileOutput = originalFileOutput
+		fileSettings = originalFileSettings
+		fileCloser = originalFileCloser
+		log.Logger = originalLogger
+		config.Set(originalConfig)
+		profile.SetActive(originalProfile)
+		defaultFileEnabled = originalDefaultFileEnabled
+		mkdirAll = originalMkdirAll
+		newLogFileWriter = originalNewLogFileWriter
+	})
+
+	defaultFileEnabled = func() bool { return false }
+	consoleOutput = os.Stderr
+	consoleEnabled = true
+	fileOutput = nil
+	fileSettings = logFileSettings{}
+	fileCloser = nil
+	config.Set(nil)
+	profile.SetActive(profile.Profile{})
+	mkdirAll = os.MkdirAll
+	newLogFileWriter = newLumberjackFileWriter
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (writer nopWriteCloser) Close() error {
+	return nil
 }

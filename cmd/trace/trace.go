@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	cli "github.com/urfave/cli/v3"
 
 	handcli "github.com/wandxy/hand/internal/cli"
@@ -17,6 +16,8 @@ import (
 	"github.com/wandxy/hand/internal/trace/inspect"
 	"github.com/wandxy/hand/pkg/logutils"
 )
+
+var log = logutils.Module("trace")
 
 func NewCommand() *cli.Command {
 	return &cli.Command{

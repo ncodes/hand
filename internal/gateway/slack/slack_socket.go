@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"golang.org/x/net/websocket"
 
 	"github.com/wandxy/hand/internal/config"

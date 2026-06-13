@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rs/zerolog/log"
-
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/gateway/dispatch"
 	slackprovider "github.com/wandxy/hand/internal/gateway/slack"

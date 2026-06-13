@@ -576,7 +576,6 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 			recordModelRequest(traceSession, request)
 
 			agentLog.Info().
-				Str("event", "model request dispatch started").
 				Str("provider", t.cfg.Models.Main.Provider).
 				Str("api", t.cfg.MainModelAPIEffective()).
 				Str("model", t.cfg.Models.Main.Name).
@@ -618,7 +617,6 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 			// Model request failed or provided no response.
 			if err != nil {
 				agentLog.Warn().
-					Str("event", "model request dispatch failed").
 					Str("provider", t.cfg.Models.Main.Provider).
 					Str("api", t.cfg.MainModelAPIEffective()).
 					Str("model", t.cfg.Models.Main.Name).
@@ -632,7 +630,6 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 			if resp == nil {
 				err = errors.New("model response is required")
 				agentLog.Warn().
-					Str("event", "model request dispatch failed").
 					Str("provider", t.cfg.Models.Main.Provider).
 					Str("api", t.cfg.MainModelAPIEffective()).
 					Str("model", t.cfg.Models.Main.Name).
@@ -648,8 +645,6 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 			recordModelResponse(traceSession, resp)
 
 			agentLog.Info().
-				Str("event", "model response received").
-				Str("relationship", "response_to_current_turn_model_request").
 				Str("provider", t.cfg.Models.Main.Provider).
 				Str("api", t.cfg.MainModelAPIEffective()).
 				Str("model", t.cfg.Models.Main.Name).
@@ -849,7 +844,6 @@ func (t *Turn) recordModelReasoningCompleted(startedAt time.Time, endedAt time.T
 		if !errors.Is(err, storage.ErrTraceStoreUnsupported) {
 			agentLog.Warn().
 				Err(err).
-				Str("event", trace.EvtModelReasoningCompleted).
 				Str("session_id", t.sessionID).
 				Msg("failed to persist reasoning completion trace")
 		}
@@ -857,7 +851,6 @@ func (t *Turn) recordModelReasoningCompleted(startedAt time.Time, endedAt time.T
 	}
 
 	agentLog.Debug().
-		Str("event", trace.EvtModelReasoningCompleted).
 		Str("session_id", t.sessionID).
 		Int64("duration_ms", duration.Milliseconds()).
 		Msg("model reasoning completed")
@@ -1051,8 +1044,6 @@ func (t *Turn) executeToolCall(
 	}
 
 	agentLog.Info().
-		Str("event", "tool invocation started").
-		Str("relationship", "tool_call_from_current_model_response").
 		Str("tool", toolCall.Name).
 		Str("tool_call_id", toolCall.ID).
 		Msg("tool invocation started")
@@ -1077,8 +1068,6 @@ func (t *Turn) executeToolCall(
 	})
 
 	agentLog.Info().
-		Str("event", "tool invocation completed").
-		Str("relationship", "tool_result_for_current_model_response").
 		Str("tool", toolCall.Name).
 		Str("tool_call_id", toolCall.ID).
 		Int("output_chars", len([]rune(toolMessage.Content))).
@@ -1206,7 +1195,6 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	recordModelRequest(traceSession, request)
 
 	agentLog.Info().
-		Str("event", "summary fallback model request started").
 		Str("provider", t.cfg.Models.Main.Provider).
 		Str("api", t.cfg.MainModelAPIEffective()).
 		Str("model", t.cfg.Models.Main.Name).
@@ -1218,7 +1206,6 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	if err != nil {
 		agentLog.Error().
 			Err(err).
-			Str("event", "summary fallback model request failed").
 			Str("session_id", t.sessionID).
 			Str("provider", t.cfg.Models.Main.Provider).
 			Str("api", t.cfg.MainModelAPIEffective()).
@@ -1233,7 +1220,6 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	if resp == nil {
 		err = errors.New("model response is required")
 		agentLog.Error().
-			Str("event", "summary fallback model request failed").
 			Str("session_id", t.sessionID).
 			Str("provider", t.cfg.Models.Main.Provider).
 			Str("api", t.cfg.MainModelAPIEffective()).
@@ -1246,7 +1232,6 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 
 	recordModelResponse(traceSession, resp)
 	agentLog.Info().
-		Str("event", "summary fallback model response received").
 		Str("provider", t.cfg.Models.Main.Provider).
 		Str("api", t.cfg.MainModelAPIEffective()).
 		Str("model", t.cfg.Models.Main.Name).

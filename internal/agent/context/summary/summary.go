@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
 	"github.com/wandxy/hand/internal/agent/context/compaction"
@@ -20,6 +20,8 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
+
+var log = logutils.Module("summary")
 
 // SessionSummaryPlanner selects how forced persisted summaries choose the
 // message range to compact.
@@ -1548,7 +1550,6 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 	}
 
 	summaryLog.Info().
-		Str("event", "compaction summary model request started").
 		Str("provider", s.summaryProvider).
 		Str("api", request.API).
 		Str("model", request.Model).
@@ -1560,7 +1561,6 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 	resp, err := s.summaryClient.Complete(ctx, request)
 	if err == nil {
 		event := summaryLog.Info().
-			Str("event", "compaction summary model request completed").
 			Str("provider", s.summaryProvider).
 			Str("api", request.API).
 			Str("model", request.Model).
@@ -1581,7 +1581,6 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 	if request.StructuredOutput == nil {
 		summaryLog.Warn().
 			Err(err).
-			Str("event", "compaction summary model request failed").
 			Str("provider", s.summaryProvider).
 			Str("api", request.API).
 			Str("model", request.Model).
@@ -1593,7 +1592,6 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 
 	log.Warn().
 		Err(err).
-		Str("event", "compaction summary structured retry").
 		Str("provider", s.summaryProvider).
 		Str("api", request.API).
 		Str("model", request.Model).
@@ -1603,7 +1601,6 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 	fallback := request
 	fallback.StructuredOutput = nil
 	summaryLog.Info().
-		Str("event", "compaction summary model retry started").
 		Str("provider", s.summaryProvider).
 		Str("api", fallback.API).
 		Str("model", fallback.Model).
@@ -1616,7 +1613,6 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 	if err != nil {
 		summaryLog.Warn().
 			Err(err).
-			Str("event", "compaction summary model retry failed").
 			Str("provider", s.summaryProvider).
 			Str("api", fallback.API).
 			Str("model", fallback.Model).
@@ -1627,7 +1623,6 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 	}
 
 	event := summaryLog.Info().
-		Str("event", "compaction summary model request completed").
 		Str("provider", s.summaryProvider).
 		Str("api", fallback.API).
 		Str("model", fallback.Model).

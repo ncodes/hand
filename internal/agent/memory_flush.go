@@ -144,7 +144,6 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 		Content: instruct.BuildMemoryFlushRequest(trigger),
 	})
 	agentLog.Debug().
-		Str("event", trace.EvtMemoryFlushStarted).
 		Str("trigger", trigger).
 		Str("session_id", t.sessionID).
 		Int("max_calls", cfg.Memory.Flush.MaxCalls).
@@ -174,7 +173,6 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 		}
 
 		agentLog.Debug().
-			Str("event", trace.EvtMemoryFlushModelRequested).
 			Str("trigger", trigger).
 			Str("session_id", t.sessionID).
 			Str("model", request.Model).
@@ -201,7 +199,6 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 		}
 		if !resp.RequiresToolCalls {
 			agentLog.Debug().
-				Str("event", trace.EvtMemoryFlushCompleted).
 				Str("trigger", trigger).
 				Str("session_id", t.sessionID).
 				Str("status", "no_op").
@@ -234,7 +231,6 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 				continue
 			}
 			agentLog.Debug().
-				Str("event", trace.EvtMemoryFlushWriteRequested).
 				Str("trigger", trigger).
 				Str("session_id", t.sessionID).
 				Str("tool", toolCall.Name).
@@ -378,7 +374,6 @@ func recordMemoryFlushFailure(traceSession trace.Session, trigger string, err er
 
 	agentLog.Warn().
 		Err(err).
-		Str("event", event).
 		Str("trigger", trigger).
 		Msg("memory flush failed before context loss")
 	traceSession.Record(event, trace.MemoryEventPayload{
@@ -396,7 +391,6 @@ func recordMemoryFlushCompleted(
 	toolCalls int,
 ) {
 	agentLog.Debug().
-		Str("event", trace.EvtMemoryFlushCompleted).
 		Str("trigger", trigger).
 		Str("session_id", sessionID).
 		Str("status", status).
@@ -413,7 +407,6 @@ func recordMemoryFlushCompleted(
 func recordMemoryFlushSkipped(traceSession trace.Session, trigger string, reason string) {
 	reason = strings.TrimSpace(reason)
 	agentLog.Debug().
-		Str("event", trace.EvtMemoryFlushSkipped).
 		Str("trigger", trigger).
 		Str("reason", reason).
 		Msg("memory flush skipped before context loss")

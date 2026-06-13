@@ -5,8 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/rs/zerolog/log"
-
 	"github.com/wandxy/hand/internal/config"
 )
 

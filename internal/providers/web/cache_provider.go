@@ -10,7 +10,7 @@ import (
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
-var webLog = logutils.InitLogger("providers.web")
+var webLog = logutils.Module("providers.web")
 
 // CacheOptions configures the provider name, TTL, and clock used for web cache entries.
 type CacheOptions struct {

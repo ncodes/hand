@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	"github.com/wandxy/hand/internal/config"
 	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
@@ -14,6 +14,8 @@ import (
 	"github.com/wandxy/hand/pkg/gateway/pairing"
 	tg "github.com/wandxy/hand/pkg/gateway/telegram"
 )
+
+var log = logutils.Module("gateway.telegram")
 
 type TelegramAdapter struct {
 	cfg     config.GatewayConfig

@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/gateway/dispatch"
@@ -23,6 +23,8 @@ import (
 )
 
 const maxGenericRespondBodyBytes = 1 << 20 // 1MB
+
+var log = logutils.Module("gateway")
 
 type AgentService interface {
 	Respond(context.Context, string, agentcore.RespondOptions) (string, error)

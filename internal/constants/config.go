@@ -49,7 +49,11 @@ const (
 	// DefaultGatewayPort is the fallback external gateway bind port.
 	DefaultGatewayPort = 50052
 	// DefaultLogLevel is the fallback application log level.
-	DefaultLogLevel = "info"
+	DefaultLogLevel      = "info"
+	DefaultLogMaxSizeMB  = 10
+	DefaultLogMaxBackups = 5
+	DefaultLogMaxAgeDays = 14
+	DefaultLogCompress   = true
 	// DefaultTraceMaxEventsPerSession is the fallback maximum stored trace events per session.
 	DefaultTraceMaxEventsPerSession = 10000
 	// DefaultPlatform is the fallback runtime platform identifier.

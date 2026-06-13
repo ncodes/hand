@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/rs/zerolog/log"
 	urfavecli "github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
 
@@ -58,6 +57,8 @@ var startupLogoColors = []string{
 
 var handBadge = joinStartupBanner(brand.Mark, brand.Wordmark)
 
+var daemonLog = logutils.Module("daemon")
+
 var startupOutput io.Writer = os.Stdout
 
 var osStat = os.Stat
@@ -86,6 +87,10 @@ func SetDaemonOutput(w io.Writer) io.Writer {
 
 func RunDaemonWithConfigRestarts(ctx context.Context, cmd *urfavecli.Command) error {
 	return runDaemonWithConfigRestarts(ctx, cmd, daemonConfigWatchDebounce)
+}
+
+func RunDaemonOnce(ctx context.Context, cfg *config.Config) error {
+	return runDaemonOnce(ctx, cfg)
 }
 
 func newAgentRunnerImpl(
@@ -611,7 +616,7 @@ func runDaemonUntilConfigChange(
 				watcher.errors = nil
 				continue
 			}
-			log.Error().Err(err).Msg("Config file watcher failed")
+			daemonLog.Error().Err(err).Msg("Config file watcher failed")
 		case event, ok := <-watcher.events:
 			if !ok {
 				watcher.events = nil
@@ -626,7 +631,7 @@ func runDaemonUntilConfigChange(
 			fingerprint, changed, err := hasConfigFileChanged(snapshot.inputs.ConfigPath, lastFingerprint)
 			if err != nil {
 				if fingerprint != lastInvalidFingerprint {
-					log.Error().Err(err).Msg("Config reload check failed")
+					daemonLog.Error().Err(err).Msg("Config reload check failed")
 					lastInvalidFingerprint = fingerprint
 				}
 				continue
@@ -638,14 +643,14 @@ func runDaemonUntilConfigChange(
 			next, err := loadDaemonConfig(cmd)
 			if err != nil {
 				if fingerprint != lastInvalidFingerprint {
-					log.Error().Err(err).Msg("Config reload validation failed")
+					daemonLog.Error().Err(err).Msg("Config reload validation failed")
 					lastInvalidFingerprint = fingerprint
 				}
 				lastFingerprint = fingerprint
 				continue
 			}
 
-			log.Info().Msg("Configuration changed; restarting Hand services")
+			daemonLog.Info().Msg("Configuration changed; restarting Hand services")
 			cancel()
 			if err := <-done; err != nil {
 				return daemonConfigSnapshot{}, false, err
@@ -696,6 +701,7 @@ func stopConfigReloadTimer(timer *time.Timer) {
 }
 
 func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
+	config.Set(cfg)
 	_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
 	logutils.SetLogLevel(cfg.Log.Level)
 
@@ -709,12 +715,12 @@ func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	log.Info().Msg("Configuration loaded")
+	daemonLog.Info().Msg("Configuration loaded")
 	if runtimeCfg.Search.Vector.Enabled {
-		log.Info().Msg("Vector retrieval configured")
+		daemonLog.Info().Msg("Vector retrieval configured")
 	}
 
-	log.Info().Msg("Starting Hand services")
+	daemonLog.Info().Msg("Starting Hand services")
 
 	modelClient, summaryClient, rerankerClient, err := buildDaemonModelClients(runtimeCfg)
 	if err != nil {
@@ -737,7 +743,7 @@ func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
 	if closer, ok := agent.(closeableAgentRunner); ok {
 		if closeErr := closer.Close(); err == nil {
 			if isMissingCredentialLockError(closeErr) {
-				log.Debug().Err(closeErr).Msg("Ignoring missing credential lock during shutdown")
+				daemonLog.Debug().Err(closeErr).Msg("Ignoring missing credential lock during shutdown")
 			} else {
 				err = closeErr
 			}
@@ -758,7 +764,7 @@ func prepareDaemonRuntimeConfig(cfg *config.Config) *config.Config {
 	if !hasDaemonModelSelection(cfg) && cfg.Gateway.Enabled {
 		runtimeCfg.Gateway.Enabled = false
 		needsRuntimeConfig = true
-		log.Warn().Msg("Starting daemon with gateway disabled until model config is available")
+		daemonLog.Warn().Msg("Starting daemon with gateway disabled until model config is available")
 	}
 
 	if cfg.Search.Vector.Enabled {
@@ -770,7 +776,7 @@ func prepareDaemonRuntimeConfig(cfg *config.Config) *config.Config {
 				return &runtimeCfg
 			}
 		} else {
-			log.Warn().Err(err).Msg("Starting daemon with vector retrieval disabled until embedding config is available")
+			daemonLog.Warn().Err(err).Msg("Starting daemon with vector retrieval disabled until embedding config is available")
 		}
 
 		runtimeCfg.Search.Vector.Enabled = false
@@ -780,7 +786,7 @@ func prepareDaemonRuntimeConfig(cfg *config.Config) *config.Config {
 		disabled := false
 		runtimeCfg.Memory.Enabled = &disabled
 		needsRuntimeConfig = true
-		log.Warn().Msg("Starting daemon with memory disabled until model config is available")
+		daemonLog.Warn().Msg("Starting daemon with memory disabled until model config is available")
 	}
 
 	if needsRuntimeConfig {
@@ -827,18 +833,18 @@ func buildDaemonModelClients(cfg *config.Config) (models.Client, models.Client, 
 func buildDaemonMainModelClient(cfg *config.Config) (models.Client, config.ModelAuth, error) {
 	if strings.TrimSpace(cfg.Models.Main.Name) == "" {
 		err := errors.New("model is required")
-		log.Warn().Err(err).Msg("Starting daemon without a configured model")
+		daemonLog.Warn().Err(err).Msg("Starting daemon without a configured model")
 		return unavailableModelClient{err: err}, config.ModelAuth{}, nil
 	}
 	if strings.TrimSpace(cfg.Models.Main.Provider) == "" {
 		err := errors.New("model provider is required")
-		log.Warn().Err(err).Msg("Starting daemon without a configured model provider")
+		daemonLog.Warn().Err(err).Msg("Starting daemon without a configured model provider")
 		return unavailableModelClient{err: err}, config.ModelAuth{}, nil
 	}
 
 	auth, err := cfg.ResolveModelAuth()
 	if err != nil {
-		log.Warn().Err(err).Msg("Starting daemon without model credentials")
+		daemonLog.Warn().Err(err).Msg("Starting daemon without model credentials")
 		return unavailableModelClient{err: err}, config.ModelAuth{}, nil
 	}
 
@@ -864,7 +870,7 @@ func buildDaemonSummaryModelClient(
 ) (models.Client, config.ModelAuth, error) {
 	summaryAuth, err := resolveSummaryAuth(cfg)
 	if err != nil {
-		log.Warn().Err(err).Msg("Starting daemon without summary model credentials")
+		daemonLog.Warn().Err(err).Msg("Starting daemon without summary model credentials")
 		return unavailableModelClient{err: err}, config.ModelAuth{}, nil
 	}
 
@@ -896,7 +902,7 @@ func buildDaemonRerankerModelClient(
 ) (models.Client, error) {
 	rerankerAuth, err := resolveRerankerAuth(cfg)
 	if err != nil {
-		log.Warn().Err(err).Msg("Starting daemon without reranker model credentials")
+		daemonLog.Warn().Err(err).Msg("Starting daemon without reranker model credentials")
 		return unavailableModelClient{err: err}, nil
 	}
 
@@ -959,7 +965,7 @@ func serveDaemonServices(ctx context.Context, cfg *config.Config, agent agentRun
 }
 
 func logGatewayStarted(cfg config.GatewayConfig) {
-	event := log.Info().Str("gatewayAddress", cfg.Address).Int("gatewayPort", cfg.Port)
+	event := daemonLog.Info().Str("gatewayAddress", cfg.Address).Int("gatewayPort", cfg.Port)
 	if cfg.Telegram.Enabled {
 		event = event.Str("telegramMode", cfg.Telegram.Mode)
 	}
@@ -974,7 +980,7 @@ func stopGatewayWithTimeout(manager gatewayManager) {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), stopGatewayTimeout)
 	defer cancel()
 	if err := manager.Stop(shutdownCtx); err != nil {
-		log.Warn().Err(err).Msg("Gateway shutdown failed")
+		daemonLog.Warn().Err(err).Msg("Gateway shutdown failed")
 	}
 }
 
@@ -1036,7 +1042,7 @@ var serveRPC = func(
 		serverErr <- grpcServerServe(grpcSrv, lis)
 	}()
 
-	log.Info().
+	daemonLog.Info().
 		Str("rpcAddress", cfg.RPC.Address).
 		Int("rpcPort", cfg.RPC.Port).
 		Msg("RPC server listening for daemon requests")
@@ -1049,7 +1055,7 @@ var serveRPC = func(
 
 		return err
 	case <-sigCtx.Done():
-		log.Info().
+		daemonLog.Info().
 			Msg("received shutdown signal")
 	}
 
@@ -1065,7 +1071,7 @@ var serveRPC = func(
 	select {
 	case <-stopped:
 	case <-shutdownCtx.Done():
-		log.Warn().
+		daemonLog.Warn().
 			Msg("RPC graceful shutdown timed out, forcing stop")
 		grpcSrv.Stop()
 		<-stopped
@@ -1075,7 +1081,7 @@ var serveRPC = func(
 		return err
 	}
 
-	log.Info().
+	daemonLog.Info().
 		Msg("RPC server stopped")
 	return nil
 }

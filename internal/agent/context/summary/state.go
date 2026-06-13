@@ -8,7 +8,7 @@ import (
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
-var summaryLog = logutils.InitLogger("agent.summary")
+var summaryLog = logutils.Module("agent.summary")
 
 // State holds the active persisted summary used to replace older session
 // messages in model context.

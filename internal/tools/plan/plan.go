@@ -4,13 +4,15 @@ import (
 	"context"
 	"strings"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
 	"github.com/wandxy/hand/internal/trace"
 )
+
+var log = logutils.Module("tool.plan")
 
 // Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {

@@ -102,6 +102,30 @@ func TestApplyConfigOverrides_AppliesModelMaxRetries(t *testing.T) {
 	require.Equal(t, 0, cfg.ModelMaxRetriesEffective())
 }
 
+func TestApplyConfigOverrides_AppliesLogRotationSettings(t *testing.T) {
+	cfg := &config.Config{}
+	var cmd *cli.Command
+	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd.Action = func(context.Context, *cli.Command) error {
+		ApplyConfigOverrides(cmd, cfg)
+		return nil
+	}
+
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--log.max-size-mb", "25",
+		"--log.max-backups", "9",
+		"--log.max-age-days", "30",
+		"--log.compress=false",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 25, cfg.Log.MaxSizeMB)
+	require.Equal(t, 9, cfg.Log.MaxBackups)
+	require.Equal(t, 30, cfg.Log.MaxAgeDays)
+	require.False(t, cfg.Log.Compress)
+}
+
 func TestApplyConfigOverrides_AppliesGatewaySettings(t *testing.T) {
 	cfg := &config.Config{}
 	var cmd *cli.Command

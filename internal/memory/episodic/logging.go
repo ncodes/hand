@@ -10,7 +10,7 @@ import (
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
-var extractionLog = logutils.InitLogger("memory.extraction")
+var extractionLog = logutils.Module("memory.extraction")
 
 // recordFailure keeps extraction failure logging and tracing consistent across
 // normalization, window loading, model calls, and persistence errors.
@@ -49,7 +49,6 @@ func getTracePayload(req normalizedRequest, fields map[string]any) map[string]an
 // event timeline; the log gives operators a readable live stream.
 func logExtraction(event string, req normalizedRequest, fields map[string]any) {
 	entry := extractionLog.Debug().
-		Str("event", "memory extraction "+event).
 		Str("session_id", strings.TrimSpace(req.SessionID)).
 		Str("trigger", strings.TrimSpace(req.Trigger)).
 		Int("offset_start", req.OffsetStart).
@@ -115,15 +114,13 @@ func getBackgroundPayload(
 
 func logBackground(
 	event string,
-	runID string,
+	_ string,
 	sessionID string,
 	messageCount int,
 	reason string,
 	fields map[string]any,
 ) {
 	entry := extractionLog.Debug().
-		Str("event", "memory episodic background "+event).
-		Str("background_run_id", strings.TrimSpace(runID)).
 		Str("session_id", strings.TrimSpace(sessionID)).
 		Str("trigger_reason", strings.TrimSpace(reason)).
 		Int("message_count", messageCount)

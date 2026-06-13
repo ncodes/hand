@@ -89,6 +89,15 @@ func (c *Config) normalizeFields() {
 	if c.Log.Level == "" {
 		c.Log.Level = constants.DefaultLogLevel
 	}
+	if c.Log.MaxSizeMB == 0 {
+		c.Log.MaxSizeMB = constants.DefaultLogMaxSizeMB
+	}
+	if c.Log.MaxBackups == 0 {
+		c.Log.MaxBackups = constants.DefaultLogMaxBackups
+	}
+	if c.Log.MaxAgeDays == 0 {
+		c.Log.MaxAgeDays = constants.DefaultLogMaxAgeDays
+	}
 	if c.RPC.Address == "" {
 		c.RPC.Address = constants.DefaultRPCAddress
 	}

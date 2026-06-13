@@ -10,11 +10,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	"github.com/wandxy/hand/internal/guardrails"
 	storage "github.com/wandxy/hand/internal/state/core"
 )
+
+var log = logutils.Module("trace")
 
 var (
 	mkdirAll       = os.MkdirAll

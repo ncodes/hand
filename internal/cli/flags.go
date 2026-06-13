@@ -85,14 +85,14 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:   "rpc.address",
-			Usage:  "Bind address for the RPC service",
-			Value:  config.Get().RPC.Address,
+			Name:  "rpc.address",
+			Usage: "Bind address for the RPC service",
+			Value: config.Get().RPC.Address,
 		},
 		&cli.IntFlag{
-			Name:   "rpc.port",
-			Usage:  "Bind port for the RPC service",
-			Value:  config.Get().RPC.Port,
+			Name:  "rpc.port",
+			Usage: "Bind port for the RPC service",
+			Value: config.Get().RPC.Port,
 		},
 		&cli.BoolFlag{
 			Name:  "gateway.enabled",
@@ -180,6 +180,36 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Name:  "log.level",
 			Usage: "Set the minimum log level: debug, info, warn, or error",
 			Value: config.Get().Log.Level,
+		},
+		&cli.StringFlag{
+			Name:   "log.file",
+			Usage:  "Write logs to this file in addition to console output",
+			Value:  config.Get().Log.File,
+			Hidden: true,
+		},
+		&cli.IntFlag{
+			Name:   "log.max-size-mb",
+			Usage:  "Rotate the log file after it reaches this size in megabytes",
+			Value:  config.Get().Log.MaxSizeMB,
+			Hidden: true,
+		},
+		&cli.IntFlag{
+			Name:   "log.max-backups",
+			Usage:  "Maximum number of rotated log files to retain",
+			Value:  config.Get().Log.MaxBackups,
+			Hidden: true,
+		},
+		&cli.IntFlag{
+			Name:   "log.max-age-days",
+			Usage:  "Maximum number of days to retain rotated log files",
+			Value:  config.Get().Log.MaxAgeDays,
+			Hidden: true,
+		},
+		&cli.BoolFlag{
+			Name:   "log.compress",
+			Usage:  "Compress rotated log files",
+			Value:  config.Get().Log.Compress,
+			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:   "log.no-color",
@@ -602,6 +632,21 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("log.level") {
 		cfg.Log.Level = strings.TrimSpace(cmd.String("log.level"))
+	}
+	if cmd.IsSet("log.file") {
+		cfg.Log.File = strings.TrimSpace(cmd.String("log.file"))
+	}
+	if cmd.IsSet("log.max-size-mb") {
+		cfg.Log.MaxSizeMB = cmd.Int("log.max-size-mb")
+	}
+	if cmd.IsSet("log.max-backups") {
+		cfg.Log.MaxBackups = cmd.Int("log.max-backups")
+	}
+	if cmd.IsSet("log.max-age-days") {
+		cfg.Log.MaxAgeDays = cmd.Int("log.max-age-days")
+	}
+	if cmd.IsSet("log.compress") {
+		cfg.Log.Compress = cmd.Bool("log.compress")
 	}
 	if cmd.IsSet("log.no-color") {
 		cfg.Log.NoColor = cmd.Bool("log.no-color")

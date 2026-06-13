@@ -30,7 +30,8 @@ func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
 		"OPENROUTER_API_KEY",
 		"HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS",
-		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR",
+		"HAND_LOG_LEVEL", "HAND_LOG_FILE", "HAND_LOG_MAX_SIZE_MB", "HAND_LOG_MAX_BACKUPS", "HAND_LOG_MAX_AGE_DAYS",
+		"HAND_LOG_COMPRESS", "HAND_LOG_NO_COLOR",
 		"HAND_MODEL_MAX_RETRIES",
 		"HAND_WEB_PROVIDER", "HAND_WEB_API_KEY", "HAND_WEB_BASE_URL", "HAND_WEB_MAX_CHAR_PER_RESULT",
 		"HAND_WEB_MAX_EXTRACT_CHAR_PER_RESULT", "HAND_WEB_MAX_EXTRACT_RESPONSE_BYTES",
@@ -66,6 +67,11 @@ HAND_RPC_ADDRESS=127.0.0.1
 HAND_RPC_PORT=7000
 HAND_SESSION_MAX_ITERATIONS=55
 HAND_LOG_LEVEL=warn
+HAND_LOG_FILE=/tmp/env-hand.log
+HAND_LOG_MAX_SIZE_MB=25
+HAND_LOG_MAX_BACKUPS=9
+HAND_LOG_MAX_AGE_DAYS=30
+HAND_LOG_COMPRESS=false
 HAND_LOG_NO_COLOR=false
 HAND_DEBUG_REQUESTS=false
 HAND_WEB_PROVIDER=tavily
@@ -164,6 +170,11 @@ rules:
 	require.Equal(t, 7000, cfg.RPC.Port)
 	require.Equal(t, 55, cfg.Session.MaxIterations)
 	require.Equal(t, "warn", cfg.Log.Level)
+	require.Equal(t, "/tmp/env-hand.log", cfg.Log.File)
+	require.Equal(t, 25, cfg.Log.MaxSizeMB)
+	require.Equal(t, 9, cfg.Log.MaxBackups)
+	require.Equal(t, 30, cfg.Log.MaxAgeDays)
+	require.False(t, cfg.Log.Compress)
 	require.False(t, cfg.Log.NoColor)
 	require.False(t, cfg.Debug.Requests)
 	require.Equal(t, "tavily", cfg.Web.Provider)

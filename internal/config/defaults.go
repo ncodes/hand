@@ -44,7 +44,11 @@ var DefaultConfig = Config{
 		NoProfileAccess: true,
 	},
 	Log: LogConfig{
-		Level: constants.DefaultProfileLogLevel,
+		Level:      constants.DefaultProfileLogLevel,
+		MaxSizeMB:  constants.DefaultLogMaxSizeMB,
+		MaxBackups: constants.DefaultLogMaxBackups,
+		MaxAgeDays: constants.DefaultLogMaxAgeDays,
+		Compress:   constants.DefaultLogCompress,
 	},
 	Debug: DebugConfig{
 		Requests: constants.DefaultProfileDebugRequests,

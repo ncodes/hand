@@ -11,11 +11,10 @@ import (
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
-var sessionSearchLog = logutils.InitLogger("state.memory")
+var sessionSearchLog = logutils.Module("state.memory")
 
-func (s *Store) logSearchEvent(eventName string, id string, opts base.SearchMessageOptions) *zerolog.Event {
+func (s *Store) logSearchEvent(_ string, id string, opts base.SearchMessageOptions) *zerolog.Event {
 	event := sessionSearchLog.Debug().
-		Str("event", strings.TrimSpace(eventName)).
 		Int("query_chars", len([]rune(strings.TrimSpace(opts.Query))))
 	if id = strings.TrimSpace(id); id != "" {
 		event = event.Str("session_id", id)
@@ -39,8 +38,8 @@ func (s *Store) logSearchEvent(eventName string, id string, opts base.SearchMess
 	return event
 }
 
-func (s *Store) logVectorEvent(eventName string) *zerolog.Event {
-	return sessionSearchLog.Debug().Str("event", strings.TrimSpace(eventName))
+func (s *Store) logVectorEvent(_ string) *zerolog.Event {
+	return sessionSearchLog.Debug()
 }
 
 func applySafeErrorLog(event *zerolog.Event, err error) *zerolog.Event {
@@ -84,7 +83,6 @@ func (s *Store) logCandidateDiagnostics(stage string, candidates []*searchCandid
 
 	for rank, candidate := range candidates {
 		event := sessionSearchLog.Debug().
-			Str("event", "ranking diagnostic").
 			Str("stage", strings.TrimSpace(stage)).
 			Str("session_id", candidate.SessionID).
 			Uint("message_id", candidate.Message.ID).

@@ -133,6 +133,27 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("HAND_LOG_LEVEL")); value != "" {
 		cfg.Log.Level = value
 	}
+	if value := strings.TrimSpace(os.Getenv("HAND_LOG_FILE")); value != "" {
+		cfg.Log.File = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_LOG_MAX_SIZE_MB")); value != "" {
+		if maxSizeMB, err := strconv.Atoi(value); err == nil {
+			cfg.Log.MaxSizeMB = maxSizeMB
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_LOG_MAX_BACKUPS")); value != "" {
+		if maxBackups, err := strconv.Atoi(value); err == nil {
+			cfg.Log.MaxBackups = maxBackups
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_LOG_MAX_AGE_DAYS")); value != "" {
+		if maxAgeDays, err := strconv.Atoi(value); err == nil {
+			cfg.Log.MaxAgeDays = maxAgeDays
+		}
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_LOG_COMPRESS"); ok {
+		cfg.Log.Compress = value
+	}
 	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_LOG_NO_COLOR"))); value != "" {
 		cfg.Log.NoColor = value == "1" || value == "true" || value == "yes"
 	}

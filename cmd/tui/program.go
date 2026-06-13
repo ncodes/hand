@@ -9,7 +9,6 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	handruntime "github.com/wandxy/hand/internal/runtime"
 	tui "github.com/wandxy/hand/internal/tui/app"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -47,26 +46,29 @@ func loadTUICommandModel(ctx context.Context, cmd *cli.Command) (tea.Model, func
 	handcli.ApplyConfigOverrides(cmd, cfg)
 	handcli.AddStartupFilesystemRoots(cfg, inputs)
 
-	endpoint, err := handruntime.ResolveRPC(ctx, cmd, cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-	cfg.RPC = endpoint
-	if err := ensureTUIDaemonRunning(ctx, cmd, cfg, inputs); err != nil {
-		return nil, nil, err
-	}
-
 	config.Set(cfg)
+	logutils.SetConsoleEnabled(false)
 	_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
 	logutils.SetLogLevel(cfg.Log.Level)
 
+	daemonCleanup, err := ensureTUIDaemonRunning(ctx, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	client, err := newTUIChatClient(ctx, cfg)
 	if err != nil {
+		if daemonCleanup != nil {
+			_ = daemonCleanup()
+		}
 		return nil, nil, err
 	}
 
 	cleanup := func() {
 		_ = client.Close()
+		if daemonCleanup != nil {
+			_ = daemonCleanup()
+		}
 	}
 
 	return tui.NewModelWithClientContextAndConfig(ctx, client, cfg), cleanup, nil

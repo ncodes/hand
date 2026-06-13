@@ -7,12 +7,14 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
 )
+
+var log = logutils.Module("tool.listfiles")
 
 // Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {

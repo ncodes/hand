@@ -222,7 +222,6 @@ func (s *Store) searchMessagesVector(
 	}
 
 	s.logSearchEvent("query embedding started", id, opts).
-		Str("relationship", "query_vector_for_session_message_retrieval").
 		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Str("embedding_model", req.Model).
 		Msg("session search query embedding started for vector retrieval")

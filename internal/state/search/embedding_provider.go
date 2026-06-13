@@ -115,10 +115,8 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 	}
 
 	retrievalLog.Debug().
-		Str("event", "embedding request started").
 		Str("provider", p.provider).
 		Str("embedding_model", strings.TrimSpace(req.Model)).
-		Str("relationship", strings.TrimSpace(req.Relationship)).
 		Str("target", strings.TrimSpace(req.Target)).
 		Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
 		Str("input_id", getEmbeddingRequestSingleInputID(req.Inputs)).
@@ -135,11 +133,9 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 		batchResult, err := p.embedBatch(ctx, req.Model, req.Inputs[start:end])
 		if err != nil {
 			retrievalLog.Debug().
-				Str("event", "embedding request failed").
 				Str("error_kind", getEmbeddingProviderErrorKind(err)).
 				Str("provider", p.provider).
 				Str("embedding_model", strings.TrimSpace(req.Model)).
-				Str("relationship", strings.TrimSpace(req.Relationship)).
 				Str("target", strings.TrimSpace(req.Target)).
 				Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
 				Int("input_count", len(req.Inputs)).
@@ -151,11 +147,9 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 		} else if result.Dimensions != batchResult.Dimensions {
 			err := errors.New("embedding dimensions changed between batches")
 			retrievalLog.Debug().
-				Str("event", "embedding request failed").
 				Str("error_kind", err.Error()).
 				Str("provider", p.provider).
 				Str("embedding_model", strings.TrimSpace(req.Model)).
-				Str("relationship", strings.TrimSpace(req.Relationship)).
 				Str("target", strings.TrimSpace(req.Target)).
 				Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
 				Int("input_count", len(req.Inputs)).
@@ -166,10 +160,8 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 	}
 
 	retrievalLog.Debug().
-		Str("event", "embedding request completed").
 		Str("provider", p.provider).
 		Str("embedding_model", result.Model).
-		Str("relationship", strings.TrimSpace(req.Relationship)).
 		Str("target", strings.TrimSpace(req.Target)).
 		Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
 		Str("input_id", getEmbeddingRequestSingleInputID(req.Inputs)).
@@ -199,7 +191,6 @@ func (p *EmbeddingProvider) embedBatch(
 	var lastErr error
 	for attempt := 0; attempt <= p.maxRetries; attempt++ {
 		retrievalLog.Debug().
-			Str("event", "embedding batch started").
 			Str("provider", p.provider).
 			Str("embedding_model", strings.TrimSpace(model)).
 			Str("source_kind", getEmbeddingRequestSourceKind(inputs)).
@@ -211,7 +202,6 @@ func (p *EmbeddingProvider) embedBatch(
 		result, retry, err := p.embedBatchAttempt(ctx, model, inputs)
 		if err == nil {
 			retrievalLog.Debug().
-				Str("event", "embedding batch completed").
 				Str("provider", p.provider).
 				Str("embedding_model", strings.TrimSpace(result.Model)).
 				Str("source_kind", getEmbeddingRequestSourceKind(inputs)).
@@ -226,7 +216,6 @@ func (p *EmbeddingProvider) embedBatch(
 		lastErr = err
 		retrievalLog.Debug().
 			Bool("retry", retry && attempt < p.maxRetries).
-			Str("event", "embedding batch failed").
 			Str("error_kind", getEmbeddingProviderErrorKind(err)).
 			Str("provider", p.provider).
 			Str("embedding_model", strings.TrimSpace(model)).

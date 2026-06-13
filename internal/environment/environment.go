@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
@@ -44,6 +44,7 @@ import (
 )
 
 var (
+	log                = logutils.Module("environment")
 	loadWorkspaceRules = workspace.Load
 	loadPersonality    = personality.Load
 	newMemoryProvider  = memory.NewProvider
@@ -262,7 +263,7 @@ func (e *environment) prepareMemory() error {
 	if err != nil {
 		return err
 	}
-	if err := provider.ConfigureObservability(memoryobservability.New(&log.Logger, nil)); err != nil {
+	if err := provider.ConfigureObservability(memoryobservability.New(log.Logger(), nil)); err != nil {
 		return err
 	}
 	if background, ok := provider.(memory.BackgroundProvider); ok {

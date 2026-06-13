@@ -46,7 +46,7 @@ func (t *Turn) retrieveMemoryInstruction(
 		return instruct.Instruction{Name: instruct.MemoryContextInstructionName}
 	}
 
-	if err := provider.ConfigureObservability(memoryobservability.New(agentLog, traceSession)); err != nil {
+	if err := provider.ConfigureObservability(memoryobservability.New(agentLog.Logger(), traceSession)); err != nil {
 		recordMemoryRetrievalFailed(traceSession, provider.Name(), "configure_observability", err)
 		return instruct.Instruction{Name: instruct.MemoryContextInstructionName}
 	}
@@ -182,7 +182,6 @@ func recordMemoryRetrievalFailed(
 		})
 	}
 	agentLog.Warn().
-		Str("event", "memory retrieval failed").
 		Str("provider", strings.TrimSpace(providerName)).
 		Str("operation", strings.TrimSpace(operation)).
 		Err(err).

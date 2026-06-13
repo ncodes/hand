@@ -5,14 +5,13 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 )
 
+var modelLog = logutils.Module("model.openai")
+
 func logModelClientRequestStarted(req normalizedGenerateRequest, stream bool) {
-	log.Debug().
-		Str("event", "model client request started").
-		Str("target", "openai_compatible_api").
-		Str("provider", "openai-compatible").
+	modelLog.Debug().
 		Str("api", req.API).
 		Str("model", req.Model).
 		Bool("stream", stream).
@@ -24,10 +23,7 @@ func logModelClientRequestStarted(req normalizedGenerateRequest, stream bool) {
 }
 
 func logModelClientRequestCompleted(req normalizedGenerateRequest, stream bool, resp *Response) {
-	event := log.Debug().
-		Str("event", "model client request completed").
-		Str("target", "openai_compatible_api").
-		Str("provider", "openai-compatible").
+	event := modelLog.Debug().
 		Str("api", req.API).
 		Str("model", req.Model).
 		Bool("stream", stream)
@@ -44,10 +40,7 @@ func logModelClientRequestCompleted(req normalizedGenerateRequest, stream bool, 
 }
 
 func logModelClientRequestFailed(req normalizedGenerateRequest, stream bool, err error) {
-	event := log.Debug().
-		Str("event", "model client request failed").
-		Str("target", "openai_compatible_api").
-		Str("provider", "openai-compatible").
+	event := modelLog.Debug().
 		Str("api", req.API).
 		Str("model", req.Model).
 		Bool("stream", stream).
@@ -90,8 +83,7 @@ func getModelClientErrorKind(err error) string {
 }
 
 func logRequestDebugMetadata(req normalizedGenerateRequest) {
-	log.Debug().
-		Str("provider", "openai-compatible").
+	modelLog.Debug().
 		Str("api", req.API).
 		Msg("model request debug metadata")
 }

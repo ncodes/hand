@@ -12,7 +12,7 @@ import (
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
-var retrievalLog = logutils.InitLogger("storage.retrieval")
+var retrievalLog = logutils.Module("storage.retrieval")
 
 const (
 	RerankerNoop          = constants.RerankerNoop
@@ -197,7 +197,6 @@ func rerankDebugLogEvent(req RerankRequest, reranker string) *zerolog.Event {
 func rerankBaseLogEvent(event *zerolog.Event, req RerankRequest, reranker string) *zerolog.Event {
 	event = event.
 		Str("reranker", reranker).
-		Str("relationship", "query_to_candidate_relevance_ordering").
 		Str("caller", strings.TrimSpace(req.Caller)).
 		Str("trace_id", strings.TrimSpace(req.TraceID)).
 		Str("source_kind", strings.TrimSpace(string(req.SourceKind))).

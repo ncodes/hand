@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/rs/zerolog/log"
 	cli "github.com/urfave/cli/v3"
 
 	authcmd "github.com/wandxy/hand/cmd/auth"
@@ -26,9 +25,7 @@ import (
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
-func init() {
-	_ = logutils.InitLogger("hand")
-}
+var log = logutils.Module("hand")
 
 var (
 	envFile                     = ".env"
@@ -86,6 +83,8 @@ COPYRIGHT:
 `
 
 func main() {
+	logutils.InitLogger("hand")
+
 	if err := configureProfileDefaults(os.Args); err != nil {
 		log.Fatal().Err(err).Msg("Failed to resolve profile")
 	}

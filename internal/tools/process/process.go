@@ -14,7 +14,7 @@ import (
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
-var processLog = logutils.InitLogger("tools.process")
+var processLog = logutils.Module("tool.process")
 
 type input struct {
 	Action       string            `json:"action"`

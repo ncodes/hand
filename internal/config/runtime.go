@@ -43,10 +43,15 @@ type CapConfig struct {
 	Browser    *bool `yaml:"browser"`
 }
 
-// LogConfig controls terminal logging level and color output.
+// LogConfig controls application logging.
 type LogConfig struct {
-	Level   string `yaml:"level"`
-	NoColor bool   `yaml:"noColor"`
+	Level      string `yaml:"level"`
+	NoColor    bool   `yaml:"noColor"`
+	File       string `yaml:"file"`
+	MaxSizeMB  int    `yaml:"maxSizeMB"`
+	MaxBackups int    `yaml:"maxBackups"`
+	MaxAgeDays int    `yaml:"maxAgeDays"`
+	Compress   bool   `yaml:"compress"`
 }
 
 // DebugConfig toggles debug-only request logging.

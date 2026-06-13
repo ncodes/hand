@@ -142,10 +142,20 @@ func (c *Config) validate(options validationOptions) error {
 
 	switch strings.TrimSpace(strings.ToLower(c.Log.Level)) {
 	case "", "debug", "info", "warn", "error":
-		return nil
 	default:
 		return errors.New("log level must be one of debug, info, warn, or error; use --log.level")
 	}
+	if c.Log.MaxSizeMB < 0 {
+		return errors.New("log max size must be non-negative; use --log.max-size-mb")
+	}
+	if c.Log.MaxBackups < 0 {
+		return errors.New("log max backups must be non-negative; use --log.max-backups")
+	}
+	if c.Log.MaxAgeDays < 0 {
+		return errors.New("log max age days must be non-negative; use --log.max-age-days")
+	}
+
+	return nil
 }
 
 type gatewayValidationOptions struct {

@@ -4,13 +4,16 @@ import (
 	"context"
 	"time"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
 )
 
-var now = time.Now
+var (
+	log = logutils.Module("tool.time")
+	now = time.Now
+)
 
 // Definition returns the model-visible tool definition.
 func Definition() tools.Definition {

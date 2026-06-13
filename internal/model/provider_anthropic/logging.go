@@ -3,13 +3,15 @@ package provider_anthropic
 import (
 	"time"
 
-	"github.com/rs/zerolog/log"
+	"github.com/wandxy/hand/pkg/logutils"
 
 	models "github.com/wandxy/hand/internal/model"
 )
 
+var modelLog = logutils.Module("model.anthropic")
+
 func logModelClientRequestStarted(req normalizedGenerateRequest, stream bool) {
-	log.Debug().
+	modelLog.Debug().
 		Str("provider", "anthropic").
 		Str("api", models.APIAnthropicMessages).
 		Str("model", req.Model).
@@ -21,7 +23,7 @@ func logModelClientRequestStarted(req normalizedGenerateRequest, stream bool) {
 }
 
 func logModelClientRequestCompleted(req normalizedGenerateRequest, stream bool, resp *Response) {
-	event := log.Debug().
+	event := modelLog.Debug().
 		Str("provider", "anthropic").
 		Str("api", models.APIAnthropicMessages).
 		Str("model", req.Model).
@@ -38,7 +40,7 @@ func logModelClientRequestCompleted(req normalizedGenerateRequest, stream bool, 
 }
 
 func logModelClientRequestFailed(req normalizedGenerateRequest, stream bool, err error) {
-	log.Debug().
+	modelLog.Debug().
 		Err(err).
 		Str("provider", "anthropic").
 		Str("api", models.APIAnthropicMessages).
@@ -48,7 +50,7 @@ func logModelClientRequestFailed(req normalizedGenerateRequest, stream bool, err
 }
 
 func logRequestDebugMetadata(req normalizedGenerateRequest) {
-	log.Debug().
+	modelLog.Debug().
 		Str("provider", "anthropic").
 		Str("api", models.APIAnthropicMessages).
 		Str("model", req.Model).
