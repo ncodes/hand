@@ -4,13 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
-	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
@@ -20,11 +16,9 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	tui "github.com/wandxy/hand/internal/tui/app"
 	"github.com/wandxy/hand/pkg/logutils"
-	"google.golang.org/grpc"
 )
 
 var daemonLog = logutils.Module("daemon")
@@ -340,233 +334,6 @@ models:
 	require.ErrorIs(t, err, expectedErr)
 }
 
-func TestEnsureTUIDaemonRunning_ReturnsConfigError(t *testing.T) {
-	_, err := ensureTUIDaemonRunningImpl(context.Background(), nil)
-
-	require.EqualError(t, err, "config is required")
-}
-
-func TestEnsureTUIDaemonRunning_StartsRuntimeAndWaitsForRPC(t *testing.T) {
-	restore := replaceTUIDaemonBootstrapHooks(t)
-	defer restore()
-
-	started := false
-	cleaned := false
-	startTUIDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
-		started = true
-		return func() error {
-			cleaned = true
-			return nil
-		}, nil
-	}
-	unavailableErr := errors.New("connection refused")
-	checks := 0
-	checkTUIDaemonRPC = func(context.Context, *config.Config) error {
-		checks++
-		if checks < 3 {
-			return unavailableErr
-		}
-		return nil
-	}
-
-	cleanup, err := ensureTUIDaemonRunningImpl(
-		context.Background(),
-		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
-	)
-
-	require.NoError(t, err)
-	require.True(t, started)
-	require.Equal(t, 3, checks)
-	require.NoError(t, cleanup())
-	require.True(t, cleaned)
-}
-
-func TestEnsureTUIDaemonRunning_ReturnsRuntimeStartError(t *testing.T) {
-	restore := replaceTUIDaemonBootstrapHooks(t)
-	defer restore()
-
-	expectedErr := errors.New("runtime failed")
-	startTUIDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
-		return nil, expectedErr
-	}
-
-	_, err := ensureTUIDaemonRunningImpl(
-		context.Background(),
-		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
-	)
-
-	require.ErrorIs(t, err, expectedErr)
-}
-
-func TestEnsureTUIDaemonRunning_ReturnsReadinessError(t *testing.T) {
-	restore := replaceTUIDaemonBootstrapHooks(t)
-	defer restore()
-
-	cleaned := false
-	startTUIDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
-		return func() error {
-			cleaned = true
-			return nil
-		}, nil
-	}
-	checkTUIDaemonRPC = func(context.Context, *config.Config) error {
-		return errors.New("connection refused")
-	}
-
-	_, err := ensureTUIDaemonRunningImpl(
-		context.Background(),
-		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
-	)
-
-	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "RPC did not become ready at 127.0.0.1:50051"))
-	require.True(t, strings.Contains(err.Error(), "connection refused"))
-	require.True(t, cleaned)
-}
-
-func TestEnsureTUIDaemonRunning_ReturnsCleanupErrorAfterReadinessFailure(t *testing.T) {
-	restore := replaceTUIDaemonBootstrapHooks(t)
-	defer restore()
-
-	expectedErr := errors.New("cleanup failed")
-	startTUIDaemonRuntime = func(context.Context, *config.Config) (func() error, error) {
-		return func() error {
-			return expectedErr
-		}, nil
-	}
-	checkTUIDaemonRPC = func(context.Context, *config.Config) error {
-		return errors.New("connection refused")
-	}
-
-	_, err := ensureTUIDaemonRunningImpl(
-		context.Background(),
-		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
-	)
-
-	require.ErrorIs(t, err, expectedErr)
-	require.ErrorContains(t, err, "cleanup after readiness failure")
-}
-
-func TestWaitForTUIDaemonRPC_UsesSingleCheckWhenTimeoutIsNotPositive(t *testing.T) {
-	restore := replaceTUIDaemonBootstrapHooks(t)
-	defer restore()
-
-	expectedErr := errors.New("connection refused")
-	checks := 0
-	checkTUIDaemonRPC = func(context.Context, *config.Config) error {
-		checks++
-		return expectedErr
-	}
-
-	err := waitForTUIDaemonRPC(context.Background(), &config.Config{}, 0)
-
-	require.ErrorIs(t, err, expectedErr)
-	require.Equal(t, 1, checks)
-}
-
-func TestWaitForTUIDaemonRPC_ReturnsContextCancellation(t *testing.T) {
-	restore := replaceTUIDaemonBootstrapHooks(t)
-	defer restore()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	checkTUIDaemonRPC = func(context.Context, *config.Config) error {
-		cancel()
-		return errors.New("connection refused")
-	}
-
-	err := waitForTUIDaemonRPC(ctx, &config.Config{}, time.Second)
-
-	require.ErrorIs(t, err, context.Canceled)
-}
-
-func TestCheckTUIDaemonRPCImpl_ReturnsConfigError(t *testing.T) {
-	err := checkTUIDaemonRPCImpl(context.Background(), nil)
-
-	require.EqualError(t, err, "config is required")
-}
-
-func TestCheckTUIDaemonRPCImpl_ReturnsClientConfigError(t *testing.T) {
-	err := checkTUIDaemonRPCImpl(context.Background(), &config.Config{
-		RPC: config.RPCConfig{Address: "127.0.0.1"},
-	})
-
-	require.EqualError(t, err, "rpc port must be greater than zero")
-}
-
-func TestCheckTUIDaemonRPCImpl_CallsGatewayStatus(t *testing.T) {
-	server := grpc.NewServer()
-	stub := &gatewayStatusServerStub{}
-	handpb.RegisterGatewayServiceServer(server, stub)
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		server.Stop()
-		_ = listener.Close()
-	})
-	go func() {
-		_ = server.Serve(listener)
-	}()
-
-	cfg := &config.Config{
-		RPC: config.RPCConfig{
-			Address: "127.0.0.1",
-			Port:    listener.Addr().(*net.TCPAddr).Port,
-		},
-	}
-
-	err = checkTUIDaemonRPCImpl(context.Background(), cfg)
-
-	require.NoError(t, err)
-	require.Equal(t, 1, stub.calls)
-}
-
-func TestStartTUIDaemonRuntimeImpl_CancelsRunAndRestoresOutput(t *testing.T) {
-	restore := replaceTUIDaemonBootstrapHooks(t)
-	defer restore()
-
-	initialOutput := &bytes.Buffer{}
-	originalOutput := handcli.SetDaemonOutput(initialOutput)
-	t.Cleanup(func() {
-		handcli.SetDaemonOutput(originalOutput)
-	})
-
-	started := make(chan struct{})
-	done := make(chan struct{})
-	gotAddress := make(chan string, 1)
-	runTUIDaemonOnce = func(ctx context.Context, cfg *config.Config) error {
-		gotAddress <- cfg.RPC.Address
-		close(started)
-		<-ctx.Done()
-		close(done)
-		return nil
-	}
-
-	cleanup, err := startTUIDaemonRuntimeImpl(
-		context.Background(),
-		&config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051}},
-	)
-	require.NoError(t, err)
-
-	select {
-	case <-started:
-	case <-time.After(time.Second):
-		t.Fatal("daemon run did not start")
-	}
-	require.Equal(t, "127.0.0.1", <-gotAddress)
-
-	require.NoError(t, cleanup())
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("daemon run did not stop")
-	}
-	require.NoError(t, cleanup())
-
-	previousOutput := handcli.SetDaemonOutput(io.Discard)
-	require.Same(t, initialOutput, previousOutput)
-	handcli.SetDaemonOutput(previousOutput)
-}
-
 func newTUITestRootCommand(action func(context.Context, *cli.Command) error) *cli.Command {
 	envFile := ".env"
 	configFile := "config.yaml"
@@ -579,46 +346,8 @@ func newTUITestRootCommand(action func(context.Context, *cli.Command) error) *cl
 	}
 }
 
-func replaceTUIDaemonBootstrapHooks(t *testing.T) func() {
-	t.Helper()
-
-	originalCheckTUIDaemonRPC := checkTUIDaemonRPC
-	originalStartTUIDaemonRuntime := startTUIDaemonRuntime
-	originalRunTUIDaemonOnce := runTUIDaemonOnce
-	originalInitialTimeout := daemonBootstrapInitialTimeout
-	originalReadyTimeout := daemonBootstrapReadyTimeout
-	originalPollInterval := daemonBootstrapPollInterval
-	daemonBootstrapInitialTimeout = time.Millisecond
-	daemonBootstrapReadyTimeout = 5 * time.Millisecond
-	daemonBootstrapPollInterval = time.Millisecond
-
-	return func() {
-		checkTUIDaemonRPC = originalCheckTUIDaemonRPC
-		startTUIDaemonRuntime = originalStartTUIDaemonRuntime
-		runTUIDaemonOnce = originalRunTUIDaemonOnce
-		daemonBootstrapInitialTimeout = originalInitialTimeout
-		daemonBootstrapReadyTimeout = originalReadyTimeout
-		daemonBootstrapPollInterval = originalPollInterval
-	}
-}
-
 func testProfile(name string) profile.Profile {
 	return profile.Profile{Name: name}
-}
-
-type gatewayStatusServerStub struct {
-	handpb.UnimplementedGatewayServiceServer
-	calls int
-}
-
-func (s *gatewayStatusServerStub) GatewayStatus(
-	context.Context,
-	*handpb.GetGatewayStatusRequest,
-) (*handpb.GetGatewayStatusResponse, error) {
-	s.calls++
-	return &handpb.GetGatewayStatusResponse{
-		Status: &handpb.GatewayStatus{State: "running"},
-	}, nil
 }
 
 type fakeTUIChatClient struct {

@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -411,6 +413,22 @@ func TestFormatConsoleModule_UsesDeterministicColorAndHonorsNoColor(t *testing.T
 	require.Equal(t, "[daemon]", formatConsoleModule("daemon", true))
 	require.Empty(t, formatConsoleModule(" ", false))
 	require.Empty(t, formatConsoleModule(nil, false))
+
+	redCodes := map[int]bool{31: true, 91: true}
+	for _, module := range []string{"agent", "agent.summary", "daemon", "model.openai"} {
+		colorCode := consoleModuleANSIColor(t, formatConsoleModule(module, false))
+		require.False(t, redCodes[colorCode], "module %q used red ANSI color %d", module, colorCode)
+	}
+}
+
+func consoleModuleANSIColor(t *testing.T, formatted string) int {
+	t.Helper()
+
+	matches := regexp.MustCompile(`\x1b\[(\d+)m`).FindStringSubmatch(formatted)
+	require.Len(t, matches, 2)
+	colorCode, err := strconv.Atoi(matches[1])
+	require.NoError(t, err)
+	return colorCode
 }
 
 func TestEnsureLogModule_AddsFallbackModuleOnlyWhenMissing(t *testing.T) {

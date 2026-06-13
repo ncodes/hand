@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -301,6 +302,55 @@ session:
 	require.Empty(t, stub.RespondOptions.Instruct)
 }
 
+func TestNewMainAction_EnsuresDaemonAndCleansStartedRuntime(t *testing.T) {
+	clearEnv(t, "HAND_NAME", "HAND_CONFIG", "HAND_ENV_FILE")
+	resetMainActionState(t)
+
+	started := false
+	cleaned := false
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	cmd := newMainActionTestCommandWithOptions(io.Discard, MainActionOptions{
+		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+			require.True(t, started)
+			require.False(t, cleaned)
+			return stub, nil
+		},
+		EnsureDaemonRunning: func(context.Context, *config.Config) (func() error, error) {
+			started = true
+			return func() error {
+				cleaned = true
+				return nil
+			}, nil
+		},
+	})
+
+	err := cmd.Run(context.Background(), []string{"hand", "--name", "flag-agent", "hello"})
+
+	require.NoError(t, err)
+	require.True(t, cleaned)
+	require.True(t, stub.Closed)
+}
+
+func TestNewMainAction_ReturnsDaemonStartErrorBeforeCreatingClient(t *testing.T) {
+	clearEnv(t, "HAND_NAME", "HAND_CONFIG", "HAND_ENV_FILE")
+	resetMainActionState(t)
+
+	expectedErr := errors.New("daemon unavailable")
+	cmd := newMainActionTestCommandWithOptions(io.Discard, MainActionOptions{
+		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+			t.Fatal("chat client should not be created when daemon startup fails")
+			return nil, nil
+		},
+		EnsureDaemonRunning: func(context.Context, *config.Config) (func() error, error) {
+			return nil, expectedErr
+		},
+	})
+
+	err := cmd.Run(context.Background(), []string{"hand", "--name", "flag-agent", "hello"})
+
+	require.ErrorIs(t, err, expectedErr)
+}
+
 func TestNewMainAction_ReturnsRPCError(t *testing.T) {
 	clearEnv(t, "HAND_NAME", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetMainActionState(t)
@@ -318,17 +368,29 @@ func TestNewMainAction_ReturnsRPCError(t *testing.T) {
 }
 
 func newMainActionTestCommand(output io.Writer, newChatClient NewChatClientFunc) *urfavecli.Command {
+	return newMainActionTestCommandWithOptions(output, MainActionOptions{
+		NewChatClient:       newChatClient,
+		EnsureDaemonRunning: noopEnsureDaemonRunning,
+	})
+}
+
+func newMainActionTestCommandWithOptions(output io.Writer, opts MainActionOptions) *urfavecli.Command {
 	envFile := ".env"
 	configFile := "config.yaml"
+	opts.Output = output
+	if opts.EnsureDaemonRunning == nil {
+		opts.EnsureDaemonRunning = noopEnsureDaemonRunning
+	}
 
 	return &urfavecli.Command{
-		Name:  "hand",
-		Flags: append(RootFlags(&envFile, &configFile), RequestInstructFlag()),
-		Action: NewMainAction(MainActionOptions{
-			Output:        output,
-			NewChatClient: newChatClient,
-		}),
+		Name:   "hand",
+		Flags:  append(RootFlags(&envFile, &configFile), RequestInstructFlag()),
+		Action: NewMainAction(opts),
 	}
+}
+
+func noopEnsureDaemonRunning(context.Context, *config.Config) (func() error, error) {
+	return nil, nil
 }
 
 func resetMainActionState(t *testing.T) {

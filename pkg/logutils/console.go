@@ -13,13 +13,11 @@ import (
 const consoleModuleField = "module"
 
 var consoleModuleColors = []int{
-	31,
 	32,
 	33,
 	34,
 	35,
 	36,
-	91,
 	92,
 	93,
 	94,

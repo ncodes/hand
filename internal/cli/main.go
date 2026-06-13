@@ -22,10 +22,14 @@ const (
 // NewChatClientFunc creates a chat client for CLI commands.
 type NewChatClientFunc func(context.Context, *config.Config) (rpcclient.ChatClient, error)
 
+// EnsureDaemonFunc ensures the daemon is reachable and returns cleanup for daemon instances it starts.
+type EnsureDaemonFunc func(context.Context, *config.Config) (func() error, error)
+
 // MainActionOptions controls main action.
 type MainActionOptions struct {
-	Output        io.Writer
-	NewChatClient NewChatClientFunc
+	Output              io.Writer
+	NewChatClient       NewChatClientFunc
+	EnsureDaemonRunning EnsureDaemonFunc
 }
 
 // NewMainAction returns the root CLI action wired to the supplied chat client factory.
@@ -38,6 +42,10 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 	newChatClient := opts.NewChatClient
 	if newChatClient == nil {
 		newChatClient = newDefaultChatClient
+	}
+	ensureDaemonRunning := opts.EnsureDaemonRunning
+	if ensureDaemonRunning == nil {
+		ensureDaemonRunning = EnsureDaemonRunning
 	}
 
 	return func(ctx context.Context, cmd *urfavecli.Command) error {
@@ -63,6 +71,16 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 		config.Set(cfg)
 		_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
 		logutils.SetLogLevel(cfg.Log.Level)
+
+		daemonCleanup, err := ensureDaemonRunning(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		if daemonCleanup != nil {
+			defer func() {
+				_ = daemonCleanup()
+			}()
+		}
 
 		client, err := newChatClient(ctx, cfg)
 		if err != nil {

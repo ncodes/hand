@@ -35,7 +35,10 @@ var newTUIChatClient = func(ctx context.Context, cfg *config.Config) (tuiClient,
 	})
 }
 
-var loadCommandModel = loadTUICommandModel
+var (
+	ensureTUIDaemonRunning = handcli.EnsureDaemonRunning
+	loadCommandModel       = loadTUICommandModel
+)
 
 func loadTUICommandModel(ctx context.Context, cmd *cli.Command) (tea.Model, func(), error) {
 	cfg, inputs, err := handcli.LoadConfig(cmd)
