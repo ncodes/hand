@@ -214,7 +214,7 @@ Open the TUI:
 hand
 ```
 
-If the daemon is not running at the expected address, `hand` starts one in the background.
+If the daemon is not running at the expected address, `hand` starts a temporary daemon in the same process.
 
 Type a message and press Enter.
 

@@ -12,8 +12,11 @@
   --ifm-footer-background-color: #ffffff;
   --ifm-font-color-base: #202936;
   --ifm-font-color-secondary: #526071;
-  --ifm-font-family-base: 'Lato', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --ifm-heading-font-family: 'Lato', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ifm-font-family-base: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ifm-heading-font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --hand-code-font: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  --ifm-font-family-monospace: var(--hand-code-font);
   --ifm-heading-color: #111827;
   --ifm-link-color: #4c9dff;
   --ifm-code-font-size: 92%;
@@ -491,11 +494,247 @@ body {
 pre,
 code {
   border-radius: 7px;
+  font-family: var(--hand-code-font);
+}
+
+div[class*='codeBlockContainer'],
+div[class*='codeBlockContent'],
+div[class*='codeBlockContent'] pre,
+div[class*='codeBlockContent'] code,
+.prism-code,
+.prism-code span {
+  font-family: var(--hand-code-font) !important;
 }
 
 div[class*='codeBlockContainer'] {
-  border: 1px solid var(--hand-border);
   border-radius: 10px;
+  margin: 0.75rem 0;
+  overflow: hidden;
+}
+
+div[class*='codeBlockContent'] {
+  background: transparent;
+  position: relative;
+}
+
+div[class*='codeBlockContent'] pre {
+  margin: 0;
+  padding-right: 3.25rem;
+}
+
+div[class*='codeBlockContent'] code[class*='codeBlockLines'] {
+  padding: 0;
+}
+
+div[class*='codeBlockContent'] div[class*='buttonGroup'] {
+  align-items: center;
+  display: flex;
+  inset-block: 0;
+  position: absolute;
+  right: 0.55rem;
+}
+
+div[class*='codeBlockContent'] div[class*='buttonGroup'] button {
+  align-items: center;
+  display: inline-flex;
+  height: 2rem;
+  justify-content: center;
+  padding: 0;
+  width: 2rem;
+}
+
+html[data-theme='light'] div[class*='codeBlockContainer'] {
+  border: 1px solid #dfdfdf;
+}
+
+html[data-theme='light'] code[class*='language-'],
+html[data-theme='light'] pre[class*='language-'],
+html[data-theme='light'] .prism-code {
+  background: none !important;
+  color: black !important;
+  font-family: var(--ifm-font-family-monospace);
+  line-height: 1.5;
+}
+
+html[data-theme='light'] pre[class*='language-'],
+html[data-theme='light'] .prism-code {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  border-left: 0;
+  box-shadow: 0 0 0 1px #dfdfdf;
+  padding-block: 1rem;
+  padding-inline: 0.85rem;
+}
+
+html[data-theme='light'] pre[class*='language-'] > code {
+  display: block;
+}
+
+html[data-theme='light'] .token.comment,
+html[data-theme='light'] .token.block-comment,
+html[data-theme='light'] .token.prolog,
+html[data-theme='light'] .token.doctype,
+html[data-theme='light'] .token.cdata {
+  color: #7d8b99 !important;
+}
+
+html[data-theme='light'] .token.punctuation {
+  color: #5f6364 !important;
+}
+
+html[data-theme='light'] .token.property,
+html[data-theme='light'] .token.tag,
+html[data-theme='light'] .token.boolean,
+html[data-theme='light'] .token.number,
+html[data-theme='light'] .token.function-name,
+html[data-theme='light'] .token.constant,
+html[data-theme='light'] .token.symbol,
+html[data-theme='light'] .token.deleted {
+  color: #c92c2c !important;
+}
+
+html[data-theme='light'] .token.selector,
+html[data-theme='light'] .token.attr-name,
+html[data-theme='light'] .token.string,
+html[data-theme='light'] .token.char,
+html[data-theme='light'] .token.function,
+html[data-theme='light'] .token.builtin,
+html[data-theme='light'] .token.inserted {
+  color: #2f9c0a !important;
+}
+
+html[data-theme='light'] .token.operator,
+html[data-theme='light'] .token.entity,
+html[data-theme='light'] .token.url,
+html[data-theme='light'] .token.variable {
+  background: rgba(255, 255, 255, 0.5);
+  color: #a67f59 !important;
+}
+
+html[data-theme='light'] .token.atrule,
+html[data-theme='light'] .token.attr-value,
+html[data-theme='light'] .token.keyword,
+html[data-theme='light'] .token.class-name {
+  color: #1990b8 !important;
+}
+
+html[data-theme='light'] .token.hand-subcommand {
+  color: #a67f59 !important;
+}
+
+html[data-theme='light'] .token.regex,
+html[data-theme='light'] .token.important {
+  color: #e90 !important;
+}
+
+html[data-theme='dark'] div[class*='codeBlockContainer'] {
+  background: #0b1118;
+  border: 1px solid #151c25;
+}
+
+html[data-theme='dark'] code[class*='language-'],
+html[data-theme='dark'] pre[class*='language-'],
+html[data-theme='dark'] .prism-code {
+  background: #0b1118 !important;
+  color: #57718e !important;
+  font-family: var(--ifm-font-family-monospace);
+  line-height: 1.375;
+}
+
+html[data-theme='dark'] pre[class*='language-'] {
+  padding-block: 1rem;
+  padding-inline: 0.85rem;
+}
+
+html[data-theme='dark'] .token.comment,
+html[data-theme='dark'] .token.prolog,
+html[data-theme='dark'] .token.cdata {
+  color: rgb(99, 119, 119) !important;
+}
+
+html[data-theme='dark'] .token.punctuation,
+html[data-theme='dark'] .token.selector,
+html[data-theme='dark'] .token.doctype {
+  color: rgb(199, 146, 234) !important;
+}
+
+html[data-theme='dark'] .namespace {
+  color: rgb(178, 204, 214) !important;
+}
+
+html[data-theme='dark'] .token.deleted {
+  color: rgba(239, 83, 80, 0.56) !important;
+}
+
+html[data-theme='dark'] .token.symbol,
+html[data-theme='dark'] .token.property {
+  color: rgb(128, 203, 196) !important;
+}
+
+html[data-theme='dark'] .token.tag,
+html[data-theme='dark'] .token.operator,
+html[data-theme='dark'] .token.keyword {
+  color: rgb(127, 219, 202) !important;
+}
+
+html[data-theme='dark'] .token.boolean {
+  color: rgb(255, 88, 116) !important;
+}
+
+html[data-theme='dark'] .token.number {
+  color: rgb(247, 140, 108) !important;
+}
+
+html[data-theme='dark'] .token.constant,
+html[data-theme='dark'] .token.function,
+html[data-theme='dark'] .token.builtin,
+html[data-theme='dark'] .token.char {
+  color: rgb(34, 183, 199) !important;
+}
+
+html[data-theme='dark'] .token.attr-name,
+html[data-theme='dark'] .token.inserted,
+html[data-theme='dark'] .token.string,
+html[data-theme='dark'] .token.url,
+html[data-theme='dark'] .token.entity,
+html[data-theme='dark'] .language-css .token.string,
+html[data-theme='dark'] .style .token.string {
+  color: rgb(173, 219, 103) !important;
+}
+
+html[data-theme='dark'] .token.class-name,
+html[data-theme='dark'] .token.atrule,
+html[data-theme='dark'] .token.attr-value {
+  color: rgb(255, 203, 139) !important;
+}
+
+html[data-theme='dark'] .token.hand-subcommand {
+  color: rgb(178, 204, 214) !important;
+}
+
+html[data-theme='dark'] .token.regex,
+html[data-theme='dark'] .token.important,
+html[data-theme='dark'] .token.variable {
+  color: rgb(214, 222, 235) !important;
+}
+
+html[data-theme='dark'] .language-bash .token.parameter,
+html[data-theme='dark'] .language-shell .token.parameter,
+html[data-theme='dark'] .language-sh .token.parameter,
+html[data-theme='dark'] .language-console .token.parameter {
+  color: rgb(127, 219, 202) !important;
+}
+
+html[data-theme='dark'] .language-bash .token.string,
+html[data-theme='dark'] .language-shell .token.string,
+html[data-theme='dark'] .language-sh .token.string,
+html[data-theme='dark'] .language-console .token.string {
+  color: rgb(157, 207, 166) !important;
+}
+
+html[data-theme='light'] .token,
+html[data-theme='dark'] .token {
+  font-style: normal !important;
 }
 
 @media (max-width: 996px) {

@@ -24,7 +24,7 @@ You are ready when `hand doctor` exits cleanly and `hand auth status` shows cred
 
 If the provider, model, or API looks wrong, check the active config:
 
-```console
+```shell-session
 $ hand config get models.main.provider models.main.name models.main.api
 models.main.provider=openai-codex
 models.main.name=gpt-5.5
@@ -42,6 +42,8 @@ The daemon owns the long-running agent runtime. The TUI can start it for you, so
 hand
 ```
 
+When the TUI starts the daemon, it runs the daemon inside the same `hand` process. Exiting the TUI stops that daemon.
+
 If you want to see daemon startup details in the foreground, start it manually in one terminal:
 
 ```bash
@@ -54,10 +56,6 @@ Then open a second terminal and launch the TUI:
 hand
 ```
 
-At startup, the daemon prints the active instance name, model, provider, storage backend, streaming mode, RPC address,
-gateway state, log level, trace state, and safety settings. Those details are useful when a chat does not behave the way
-you expected.
-
 ## Send A Message In The TUI
 
 In the TUI, type a small prompt and press Enter:
@@ -66,16 +64,11 @@ In the TUI, type a small prompt and press Enter:
 Say hello in one sentence.
 ```
 
-Start with a prompt that does not require file access, web access, or external tools. A simple greeting proves that the
-profile, daemon, provider credentials, model configuration, and streaming path are working.
+Use a prompt that does not need files, web access, or tools. A greeting is enough to prove the profile, daemon,
+credentials, model, and streaming path work.
 
-When the response starts, Hand streams assistant text into the transcript. Some models also stream reasoning text before
-or between assistant text. In the CLI one-shot path, reasoning text is dimmed when color output is enabled; in the TUI it
-is shown as part of the live response timeline.
-
-When the assistant finishes, the live response becomes a saved transcript entry. If the response took time or used tools,
-the TUI may show finished activity labels with elapsed time so you can distinguish completed work from text that is still
-streaming.
+Success looks like streamed assistant text followed by a saved transcript entry. Longer responses and tool steps show
+completion labels with elapsed time.
 
 ## Understand Tool Activity
 
@@ -97,14 +90,9 @@ Use a one-shot CLI prompt when you want a quick answer without opening the TUI:
 hand --chat "Say hello in one sentence."
 ```
 
-You can also pass the prompt as root arguments:
-
-```bash
-hand Say hello in one sentence.
-```
-
-Both forms send the message to the daemon and print the final answer in the terminal. When streaming is enabled, text is
-printed as it arrives and ends with a newline.
+`hand --chat` sends the message through the daemon and prints the final answer in the terminal. If no daemon is running,
+Hand starts one for the request and stops it when the response is complete. When streaming is enabled, text is printed as
+it arrives and ends with a newline.
 
 To use a specific profile:
 
@@ -140,8 +128,7 @@ If you used the TUI, reopening `hand` with the same profile should hydrate the r
 
 Use the error message to narrow the problem:
 
-- `connection refused`: the daemon is not running or the profile points at a stale runtime endpoint. Start `hand` again
-  or run `hand daemon start`.
+- `connection refused`: the configured RPC endpoint could not be reached. Check custom RPC address or port settings.
 - Authentication errors: the selected provider is missing credentials or the credential belongs to a different provider.
   Run `hand config get models.main.provider models.main.name models.main.api` and `hand auth status`.
 - Model errors: the configured model name or API mode does not match the provider. Recheck the provider examples in the

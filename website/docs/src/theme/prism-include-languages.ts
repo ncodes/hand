@@ -33,6 +33,43 @@ function addHandCommandLanguage(PrismObject: typeof PrismNamespace): void {
     return;
   }
 
+  const handSubcommands = [
+    'approve',
+    'auth',
+    'clear-pending',
+    'compact',
+    'config',
+    'current',
+    'daemon',
+    'database',
+    'doctor',
+    'gateway',
+    'get',
+    'init',
+    'list',
+    'login',
+    'logout',
+    'new',
+    'pairing',
+    'path',
+    'profile',
+    'repair',
+    'restart',
+    'revoke',
+    'session',
+    'set',
+    'start',
+    'status',
+    'stop',
+    'trace',
+    'unarchive',
+    'use',
+    'version',
+    'view',
+  ].join('|');
+  const handGlobalFlags =
+    String.raw`(?:\s+(?:(?:--profile|-p|--config|--env-file)\s+\S+|--trace\.enabled(?:=\S+)?))*`;
+
   PrismObject.languages.insertBefore('bash', 'function', {
     'hand-command': {
       pattern: /(^|[|&;]\s*|\b[A-Z_][A-Z0-9_]*=\S+\s+)(?:\.\/build\/)?hand(?=\s|$)/m,
@@ -40,6 +77,17 @@ function addHandCommandLanguage(PrismObject: typeof PrismNamespace): void {
       alias: 'function',
     },
   });
+  PrismObject.languages.insertBefore('bash', 'parameter', {
+    'hand-subcommand': {
+      pattern: new RegExp(
+        String.raw`((?:^|[|&;]\s*|\b[A-Z_][A-Z0-9_]*=\S+\s+)(?:\.\/build\/)?hand${handGlobalFlags}\s+)(?:(?:${handSubcommands})(?=\s|$)\s*)+`,
+        'm',
+      ),
+      lookbehind: true,
+      alias: 'keyword',
+    },
+  });
 
   PrismObject.languages.hand = bash;
+  PrismObject.languages.console = bash;
 }
