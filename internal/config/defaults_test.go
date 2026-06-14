@@ -19,7 +19,7 @@ func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
 	require.True(t, first.FS.NoProfileAccess)
 	require.True(t, first.InputSafetyEnabled())
 	require.True(t, first.OutputSafetyEnabled())
-	require.False(t, first.OutputPIIRedactionEnabled())
+	require.True(t, first.OutputPIIRedactionEnabled())
 	require.NotEmpty(t, first.FS.Roots)
 	require.Equal(t, constants.RerankerDeterministic, first.Reranker.Type)
 	require.Equal(t, constants.RerankerDeterministic, first.RerankerEffective())
@@ -34,18 +34,18 @@ func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
 
 	*first.Safety.Input = false
 	*first.Safety.Output = false
-	*first.Safety.PII = true
+	*first.Safety.PII = false
 	first.FS.Roots[0] = "mutated"
 	first.Reranker.Overrides["memory_reflection"] = RerankerOverrideConfig{Type: constants.RerankerNoop}
 
 	require.True(t, *second.Safety.Input)
 	require.True(t, *second.Safety.Output)
-	require.False(t, *second.Safety.PII)
+	require.True(t, *second.Safety.PII)
 	require.NotEqual(t, "mutated", second.FS.Roots[0])
 	require.True(t, *DefaultConfig.TUI.ThinkingComposer)
 	require.True(t, *DefaultConfig.Safety.Input)
 	require.True(t, *DefaultConfig.Safety.Output)
-	require.False(t, *DefaultConfig.Safety.PII)
+	require.True(t, *DefaultConfig.Safety.PII)
 	require.Equal(t, constants.RerankerLLM, second.Reranker.Overrides["memory_reflection"].Type)
 	require.Equal(t, constants.RerankerLLM, DefaultConfig.Reranker.Overrides["memory_reflection"].Type)
 }

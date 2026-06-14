@@ -55,7 +55,7 @@ func TestBuild_ReportsProfileAndMissingDaemonWithoutFailure(t *testing.T) {
 	require.Equal(t, StatusPass, findReadinessCheck(t, report, "profile", "home").Status)
 	safety := findReadinessCheck(t, report, "safety", "policy")
 	require.Equal(t, StatusPass, safety.Status)
-	require.Equal(t, "input=enabled, output=enabled, pii=disabled", safety.Message)
+	require.Equal(t, "input=enabled, output=enabled, pii=enabled", safety.Message)
 	memory := findReadinessCheck(t, report, "memory", "status")
 	require.Equal(t, StatusPass, memory.Status)
 	require.Contains(t, memory.Message, `enabled, provider="default-memory", backend="sqlite"`)

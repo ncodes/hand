@@ -55,7 +55,7 @@ func TestDaemonWrappersDelegateToDaemonPackage(t *testing.T) {
 		runWithCalled = true
 		require.NotNil(t, ctx)
 		require.NotNil(t, cmd)
-		require.Equal(t, "input=enabled, output=enabled, pii=disabled", deps.SafetySummary(config.NewDefaultConfig()))
+		require.Equal(t, "input=enabled, output=enabled, pii=enabled", deps.SafetySummary(config.NewDefaultConfig()))
 		return expectedRunErr
 	}
 	require.ErrorIs(t, RunDaemonWithConfigRestarts(context.Background(), &urfavecli.Command{}), expectedRunErr)
@@ -105,7 +105,7 @@ func TestDaemonDependenciesAdaptCLIConfigInputs(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, configPath, gotConfigPath)
-	require.Equal(t, "input=enabled, output=enabled, pii=disabled", gotSummary)
+	require.Equal(t, "input=enabled, output=enabled, pii=enabled", gotSummary)
 }
 
 func TestCheckDaemonRPCImpl_CallsHealthService(t *testing.T) {

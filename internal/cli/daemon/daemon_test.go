@@ -182,7 +182,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "Traces")
 	require.Contains(t, startupBuffer.String(), "enabled (/tmp/hand-traces)")
 	require.Contains(t, startupBuffer.String(), "Safety")
-	require.Contains(t, startupBuffer.String(), "input=enabled, output=enabled, pii=disabled")
+	require.Contains(t, startupBuffer.String(), "input=enabled, output=enabled, pii=enabled")
 	require.Contains(t, startupBuffer.String(), "Reranker")
 
 	logOutput := stripANSI(logBuffer.String())
@@ -197,7 +197,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.NotContains(t, logOutput, "storage=sqlite")
 	require.NotContains(t, logOutput, "inputSafety=true")
 	require.NotContains(t, logOutput, "outputSafety=true")
-	require.NotContains(t, logOutput, "piiSafety=false")
+	require.NotContains(t, logOutput, "piiSafety=true")
 	require.NotContains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
 	require.NotContains(t, logOutput, "streaming=true")
 	require.NotContains(t, logOutput, "traceEnabled=true")
@@ -409,7 +409,7 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	require.Contains(t, output, "Gateway: disabled")
 	require.Contains(t, output, "Debug requests: enabled")
 	require.Contains(t, output, "Traces: enabled (/tmp/hand-traces)")
-	require.Contains(t, output, "Safety: input=enabled, output=enabled, pii=disabled")
+	require.Contains(t, output, "Safety: input=enabled, output=enabled, pii=enabled")
 	require.NotContains(t, output, "Ready to accept RPC connections.")
 }
 

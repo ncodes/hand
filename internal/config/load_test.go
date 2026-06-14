@@ -154,7 +154,7 @@ func TestConfig_ToYAMLAndSaveYAML(t *testing.T) {
 	require.Equal(t, cfg.Models.Main.Name, loaded.Models.Main.Name)
 	require.True(t, getBoolValue(loaded.Safety.Input))
 	require.True(t, getBoolValue(loaded.Safety.Output))
-	require.False(t, getBoolValue(loaded.Safety.PII))
+	require.True(t, getBoolValue(loaded.Safety.PII))
 	require.Equal(t, map[string]RerankerOverrideConfig{
 		"memory_episodic_extraction": {Type: constants.RerankerLLM},
 		"memory_promotion":           {Type: constants.RerankerLLM},

@@ -68,7 +68,7 @@ const (
 	DefaultTUIThinkingComposerEnabled           = true
 	DefaultSafetyInputEnabled                   = true
 	DefaultSafetyOutputEnabled                  = true
-	DefaultSafetyPIIEnabled                     = false
+	DefaultSafetyPIIEnabled                     = true
 	DefaultProfileCapabilityFilesystem          = true
 	DefaultProfileCapabilityNetwork             = true
 	DefaultProfileCapabilityExec                = true

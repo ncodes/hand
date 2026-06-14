@@ -107,7 +107,7 @@ func (c *Config) OutputSafetyEnabled() bool {
 
 func (c *Config) OutputPIIRedactionEnabled() bool {
 	if c == nil {
-		return false
+		return constants.DefaultSafetyPIIEnabled
 	}
 
 	c.normalizeFields()

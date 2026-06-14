@@ -64,7 +64,7 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 	require.Contains(t, output.String(), "\nmemory:")
 	require.Contains(t, output.String(), "\nsearch:")
 	require.Contains(t, output.String(), "\nsafety:")
-	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] policy: input=enabled, output=enabled, pii=disabled")
+	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] policy: input=enabled, output=enabled, pii=enabled")
 	require.Contains(t, output.String(), "\ntools:")
 	require.Contains(t, output.String(), "fix: \x1b[97mhand daemon start\x1b[0m\x1b[90m - start the daemon for this profile\x1b[0m")
 	require.Contains(t, output.String(), "\n[OK] doctor checks passed")
@@ -150,7 +150,7 @@ search:
 	require.Contains(t, output.String(), "model provider is required")
 	require.Contains(t, output.String(), "fix: \x1b[97m/providers\x1b[0m")
 	require.Contains(t, output.String(), "fix: \x1b[97m/models\x1b[0m")
-	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] policy: input=enabled, output=enabled, pii=disabled")
+	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] policy: input=enabled, output=enabled, pii=enabled")
 }
 
 func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
@@ -186,7 +186,7 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 	require.Contains(t, output.String(), "[PASS] config validation: configuration is valid")
 	require.Contains(t, output.String(), "[WARN] runtime: runtime metadata is not present")
 	require.Contains(t, output.String(), "fix: `hand daemon start` - start the daemon for this profile")
-	require.Contains(t, output.String(), "[PASS] policy: input=enabled, output=enabled, pii=disabled")
+	require.Contains(t, output.String(), "[PASS] policy: input=enabled, output=enabled, pii=enabled")
 	require.NotRegexp(t, regexp.MustCompile(`\x1b\[[0-9;]*m`), output.String())
 }
 
@@ -219,7 +219,7 @@ func TestNewCommand_PrintsJSONReport(t *testing.T) {
 	require.True(t, payload.OK)
 	require.Equal(t, "doctor checks passed", payload.Summary)
 	require.NotEmpty(t, payload.Diagnostics)
-	require.Equal(t, "input=enabled, output=enabled, pii=disabled", payload.Safety)
+	require.Equal(t, "input=enabled, output=enabled, pii=enabled", payload.Safety)
 	require.NotEmpty(t, payload.Readiness)
 	require.Equal(t, "profile", payload.Readiness[0].Name)
 	require.NotEmpty(t, findJSONCheck(t, payload.Readiness, "models", "embedding").Message)

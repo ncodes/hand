@@ -78,29 +78,30 @@ func TestE2E_OutputSafety_RedactsNonStreamedAssistantSecrets(t *testing.T) {
 	}
 }
 
-func TestE2E_OutputSafety_RedactsPIIOnlyWhenEnabled(t *testing.T) {
+func TestE2E_OutputSafety_RedactsPIIByDefault(t *testing.T) {
 	ctx := context.Background()
 	reply := "Email jane.doe@example.com or call +15551234567."
+	redactedReply := "Email ja***@example.com or call +155****4567."
 
 	defaultHarness := newSafetyHarness(t, e2e.NewTextClient(reply), nil)
 	defaultResult, err := defaultHarness.Send(ctx, e2e.RootChatRequest{Message: "emit generated pii"})
 	require.NoError(t, err)
-	require.Equal(t, reply, defaultResult.Reply)
+	require.Equal(t, redactedReply, defaultResult.Reply)
 	defaultMessages := requireSafetyTurnMessages(t, defaultHarness, 2)
 	require.Equal(t, handmsg.RoleAssistant, defaultMessages[1].Role)
-	require.Equal(t, reply, defaultMessages[1].Content)
-	requireNoOutputSafetyTrace(t, defaultHarness)
+	require.Equal(t, redactedReply, defaultMessages[1].Content)
+	requireOutputSafetyTrace(t, defaultHarness, "redacted")
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "memory"})
-	cfg.Safety.PII = new(true)
+	cfg.Safety.PII = new(false)
 	outputHarness := newSafetyHarness(t, e2e.NewTextClient(reply), cfg)
 	outputResult, err := outputHarness.Send(ctx, e2e.RootChatRequest{Message: "emit generated pii"})
 	require.NoError(t, err)
-	require.Equal(t, "Email ja***@example.com or call +155****4567.", outputResult.Reply)
+	require.Equal(t, reply, outputResult.Reply)
 	outputMessages := requireSafetyTurnMessages(t, outputHarness, 2)
 	require.Equal(t, handmsg.RoleAssistant, outputMessages[1].Role)
-	require.Equal(t, outputResult.Reply, outputMessages[1].Content)
-	requireOutputSafetyTrace(t, outputHarness, "redacted")
+	require.Equal(t, reply, outputMessages[1].Content)
+	requireNoOutputSafetyTrace(t, outputHarness)
 }
 
 func TestE2E_SafetyConfig_AllowsInputScreeningOptOut(t *testing.T) {

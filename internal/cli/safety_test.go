@@ -25,5 +25,5 @@ func TestSafetySummary_FormatsSafetyModes(t *testing.T) {
 }
 
 func TestSafetySummary_UsesDefaultsForNilConfig(t *testing.T) {
-	require.Equal(t, "input=enabled, output=enabled, pii=disabled", SafetySummary(nil))
+	require.Equal(t, "input=enabled, output=enabled, pii=enabled", SafetySummary(nil))
 }
