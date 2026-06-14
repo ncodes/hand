@@ -153,6 +153,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	startupOutput := stripANSI(startupBuffer.String())
 	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Version: dev \(commit unknown\)$`), startupOutput)
 	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Instance: flag-agent$`), startupOutput)
+	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Profile: default$`), startupOutput)
 	require.Contains(t, startupOutput, "Summary provider: openrouter")
 	require.Contains(t, startupOutput, "Gateway: disabled")
 	require.Contains(t, startupOutput, "Logs: debug (color)")
@@ -165,6 +166,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.NotContains(t, startupBuffer.String(), AppDescription)
 	require.Contains(t, startupBuffer.String(), "Version")
 	require.Contains(t, startupBuffer.String(), "Instance")
+	require.Contains(t, startupBuffer.String(), "Profile")
 	require.Contains(t, startupBuffer.String(), "flag-agent")
 	require.Contains(t, startupBuffer.String(), "Summary model")
 	require.Contains(t, startupBuffer.String(), "gpt-4o-mini")
@@ -394,10 +396,12 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	require.NotContains(t, output, "\x1b[38;5;")
 	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Version: dev \(commit unknown\)$`), output)
 	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Instance: daemon$`), output)
+	require.Regexp(t, regexp.MustCompile(`(?m)^ +│   Profile: default$`), output)
 	require.Contains(t, output, "Summary model: gpt-4o-mini")
 	require.Contains(t, output, "RPC: 127.0.0.1:50051")
 	require.NotContains(t, output, AppDescription)
 	require.Contains(t, output, "Instance: daemon")
+	require.Contains(t, output, "Profile: default")
 	require.Contains(t, output, "Summary model: gpt-4o-mini")
 	require.Contains(t, output, "Summary provider: openrouter")
 	require.Contains(t, output, "Storage: sqlite")
@@ -407,6 +411,32 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	require.Contains(t, output, "Traces: enabled (/tmp/hand-traces)")
 	require.Contains(t, output, "Safety: input=enabled, output=enabled, pii=disabled")
 	require.NotContains(t, output, "Ready to accept RPC connections.")
+}
+
+func TestRenderStartupPanel_IncludesActiveProfile(t *testing.T) {
+	original := profile.Active()
+	profile.SetActive(profile.Profile{Name: "work"})
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+
+	output := renderStartupPanel(&config.Config{
+		Name:   "daemon",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"}},
+		Log:    config.LogConfig{NoColor: true},
+	})
+
+	require.Contains(t, output, "Profile: work")
+}
+
+func TestGetStartupProfileName_DefaultsWhenActiveProfileIsEmpty(t *testing.T) {
+	original := profile.Active()
+	profile.SetActive(profile.Profile{})
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+
+	require.Equal(t, profile.DefaultName, getStartupProfileName())
 }
 
 func TestRenderStartupPanel_IncludesGatewaySummaryWithoutSecrets(t *testing.T) {

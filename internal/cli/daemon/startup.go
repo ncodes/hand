@@ -2,10 +2,12 @@ package daemon
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/wandxy/hand/internal/brand"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
-	"strings"
+	"github.com/wandxy/hand/internal/profile"
 )
 
 const (
@@ -61,6 +63,7 @@ func getStartupDetailRows(cfg *config.Config) []startupDetailRow {
 	rows := []startupDetailRow{
 		{label: "Version", value: formatStartupVersion()},
 		{label: "Instance", value: cfg.Name},
+		{label: "Profile", value: getStartupProfileName()},
 		{label: "Model", value: cfg.Models.Main.Name},
 		{label: "Provider", value: cfg.Models.Main.Provider},
 		{label: "Summary model", value: cfg.SummaryModelEffective()},
@@ -88,6 +91,15 @@ func getStartupDetailRows(cfg *config.Config) []startupDetailRow {
 	}
 
 	return rows
+}
+
+func getStartupProfileName() string {
+	name := strings.TrimSpace(profile.Active().Name)
+	if name == "" {
+		return profile.DefaultName
+	}
+
+	return name
 }
 
 func getGatewayStartupSummary(cfg *config.Config) string {
