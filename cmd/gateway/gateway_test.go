@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -197,6 +199,69 @@ func TestRuntimeCommandsReturnClientAndRPCErrors(t *testing.T) {
 	require.ErrorIs(t, err, clientErr)
 }
 
+func TestSetWebhookTelegramCommandCallsProvider(t *testing.T) {
+	setGatewayTestProfileConfig(t, `
+gateway:
+  telegram:
+    botToken: telegram-token
+    webhookSecret: webhook-secret
+`)
+	originalSetTelegramWebhook := setTelegramWebhook
+	originalOutput := gatewayOutput
+	t.Cleanup(func() {
+		setTelegramWebhook = originalSetTelegramWebhook
+		gatewayOutput = originalOutput
+	})
+
+	var output bytes.Buffer
+	gatewayOutput = &output
+	var gotCfg config.GatewayTelegramConfig
+	var gotURL string
+	setTelegramWebhook = func(_ context.Context, cfg config.GatewayTelegramConfig, url string) error {
+		gotCfg = cfg
+		gotURL = url
+		return nil
+	}
+
+	err := NewCommand().Run(
+		context.Background(),
+		[]string{"gateway", "setwebhook", "telegram", "https://example.com/gateway/telegram/webhook"},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, "telegram-token", gotCfg.BotToken)
+	require.Equal(t, "webhook-secret", gotCfg.WebhookSecret)
+	require.Equal(t, "https://example.com/gateway/telegram/webhook", gotURL)
+	require.Equal(t, "telegram webhook set url=https://example.com/gateway/telegram/webhook\n", output.String())
+
+	output.Reset()
+	err = NewCommand().Run(context.Background(), []string{"gateway", "setwebhook", "telegram", ""})
+
+	require.NoError(t, err)
+	require.Empty(t, gotURL)
+	require.Equal(t, "telegram webhook unset\n", output.String())
+}
+
+func TestSetWebhookTelegramCommandReturnsProviderErrors(t *testing.T) {
+	setGatewayTestProfileConfig(t, `
+gateway:
+  telegram:
+    botToken: telegram-token
+    webhookSecret: webhook-secret
+`)
+	originalSetTelegramWebhook := setTelegramWebhook
+	t.Cleanup(func() { setTelegramWebhook = originalSetTelegramWebhook })
+	setTelegramWebhook = func(context.Context, config.GatewayTelegramConfig, string) error {
+		return errors.New("telegram failed")
+	}
+
+	err := NewCommand().Run(
+		context.Background(),
+		[]string{"gateway", "setwebhook", "telegram", "https://example.com/gateway/telegram/webhook"},
+	)
+	require.EqualError(t, err, "telegram failed")
+}
+
 func TestPairingListCommandCallsRPC(t *testing.T) {
 	setGatewayTestProfile(t)
 	originalNewClient := newClient
@@ -371,5 +436,21 @@ func setGatewayTestProfile(t *testing.T) {
 		Name:        "test",
 		HomeDir:     t.TempDir(),
 		RuntimePath: t.TempDir() + "/runtime.json",
+	})
+}
+
+func setGatewayTestProfileConfig(t *testing.T, data string) {
+	t.Helper()
+	original := profile.Active()
+	t.Cleanup(func() { profile.SetActive(original) })
+	homeDir := t.TempDir()
+	configPath := filepath.Join(homeDir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(data), 0o600))
+	profile.SetActive(profile.Profile{
+		Name:        "test",
+		HomeDir:     homeDir,
+		ConfigPath:  configPath,
+		EnvPath:     filepath.Join(homeDir, ".env"),
+		RuntimePath: filepath.Join(homeDir, "runtime.json"),
 	})
 }

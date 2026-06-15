@@ -24,6 +24,8 @@ var telegramTypingInterval = 4 * time.Second
 
 type telegramAPI interface {
 	GetUpdates(context.Context, int64) ([]tg.Update, error)
+	SetWebhook(context.Context, string, string) error
+	DeleteWebhook(context.Context) error
 	SendMessage(context.Context, tg.Target, telegramText) (int64, error)
 	EditMessageText(context.Context, tg.Target, int64, telegramText) error
 	SendMessageDraft(context.Context, tg.Target, int64, telegramText) error
@@ -61,6 +63,18 @@ func (c *telegramHTTPClient) GetUpdates(ctx context.Context, offset int64) ([]tg
 	}
 
 	return updates, nil
+}
+
+func (c *telegramHTTPClient) SetWebhook(ctx context.Context, url string, secret string) error {
+	req := map[string]any{
+		"url":          strings.TrimSpace(url),
+		"secret_token": strings.TrimSpace(secret),
+	}
+	return c.call(ctx, "setWebhook", req, nil)
+}
+
+func (c *telegramHTTPClient) DeleteWebhook(ctx context.Context) error {
+	return c.call(ctx, "deleteWebhook", map[string]any{}, nil)
 }
 
 func (c *telegramHTTPClient) SendMessage(
@@ -152,6 +166,9 @@ func (c *telegramHTTPClient) call(ctx context.Context, method string, req any, o
 		return telegramConflictError{description: apiResp.Description}
 	}
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+		if strings.TrimSpace(apiResp.Description) != "" {
+			return fmt.Errorf("telegram api http status %d: %s", httpResp.StatusCode, apiResp.Description)
+		}
 		return fmt.Errorf("telegram api http status %d", httpResp.StatusCode)
 	}
 	if !apiResp.OK {

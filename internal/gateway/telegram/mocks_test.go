@@ -275,6 +275,8 @@ type telegramAPICall struct {
 	parseMode string
 	action    string
 	offset    int64
+	url       string
+	secret    string
 }
 
 type fakeTelegramAPI struct {
@@ -291,6 +293,7 @@ type fakeTelegramAPI struct {
 	draftErrs   []error
 	actionErr   error
 	actionErrs  []error
+	webhookErr  error
 	nextMessage int64
 	onGet       func(int64)
 	onCall      func(telegramAPICall)
@@ -317,6 +320,30 @@ func (a *fakeTelegramAPI) GetUpdates(
 	updates := append([]gatewaytelegram.Update(nil), a.updates[index]...)
 	a.mu.Unlock()
 	return updates, nil
+}
+
+func (a *fakeTelegramAPI) SetWebhook(_ context.Context, url string, secret string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	call := telegramAPICall{method: "setWebhook", url: url, secret: secret}
+	a.calls = append(a.calls, call)
+	if a.onCall != nil {
+		a.onCall(call)
+	}
+
+	return a.webhookErr
+}
+
+func (a *fakeTelegramAPI) DeleteWebhook(_ context.Context) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	call := telegramAPICall{method: "deleteWebhook"}
+	a.calls = append(a.calls, call)
+	if a.onCall != nil {
+		a.onCall(call)
+	}
+
+	return a.webhookErr
 }
 
 func (a *fakeTelegramAPI) SendMessage(

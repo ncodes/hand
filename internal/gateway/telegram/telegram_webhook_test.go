@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -281,6 +282,55 @@ func TestTelegramWebhookReturnsRetryableErrorWhenDispatcherIsClosed(t *testing.T
 		Code:    gatewaytypes.ErrorCodeInternalError,
 		Message: "gateway request failed",
 	}, decodeGatewayResponse(t, recorder).Error)
+}
+
+func TestSetWebhookCallsTelegramAPI(t *testing.T) {
+	origNewTelegramAPI := newTelegramAPI
+	t.Cleanup(func() { newTelegramAPI = origNewTelegramAPI })
+	api := &fakeTelegramAPI{}
+	newTelegramAPI = func(config.GatewayTelegramConfig) telegramAPI {
+		return api
+	}
+
+	err := SetWebhook(context.Background(), config.GatewayTelegramConfig{
+		BotToken:      " token ",
+		WebhookSecret: " secret ",
+	}, " https://example.com/gateway/telegram/webhook ")
+
+	require.NoError(t, err)
+	require.Equal(t, []telegramAPICall{{
+		method: "setWebhook",
+		url:    "https://example.com/gateway/telegram/webhook",
+		secret: "secret",
+	}}, api.callsOfMethod("setWebhook"))
+}
+
+func TestSetWebhookValidatesConfig(t *testing.T) {
+	err := SetWebhook(context.Background(), config.GatewayTelegramConfig{
+		WebhookSecret: "secret",
+	}, "https://example.com/gateway/telegram/webhook")
+	require.EqualError(t, err, "gateway telegram bot token is required")
+
+	err = SetWebhook(context.Background(), config.GatewayTelegramConfig{
+		BotToken: "token",
+	}, "https://example.com/gateway/telegram/webhook")
+	require.EqualError(t, err, "gateway telegram webhook secret is required")
+}
+
+func TestSetWebhookWithEmptyURLDeletesTelegramWebhook(t *testing.T) {
+	origNewTelegramAPI := newTelegramAPI
+	t.Cleanup(func() { newTelegramAPI = origNewTelegramAPI })
+	api := &fakeTelegramAPI{}
+	newTelegramAPI = func(config.GatewayTelegramConfig) telegramAPI {
+		return api
+	}
+
+	err := SetWebhook(context.Background(), config.GatewayTelegramConfig{
+		BotToken: " token ",
+	}, "")
+
+	require.NoError(t, err)
+	require.Equal(t, []telegramAPICall{{method: "deleteWebhook"}}, api.callsOfMethod("deleteWebhook"))
 }
 
 func telegramWebhookConfig() config.GatewayConfig {

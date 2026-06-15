@@ -15,6 +15,67 @@ import (
 	tg "github.com/wandxy/hand/pkg/gateway/telegram"
 )
 
+func TestTelegramHTTPClientSetWebhookSendsURLAndSecret(t *testing.T) {
+	var method string
+	var request map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		method = r.URL.Path
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		_, _ = w.Write([]byte(`{"ok":true,"result":true}`))
+	}))
+	defer server.Close()
+	client := &telegramHTTPClient{
+		client:  server.Client(),
+		baseURL: server.URL,
+		token:   "telegram-token",
+	}
+
+	err := client.SetWebhook(context.Background(), " https://example.com/gateway/telegram/webhook ", " secret ")
+
+	require.NoError(t, err)
+	require.Equal(t, "/bottelegram-token/setWebhook", method)
+	require.Equal(t, map[string]string{
+		"url":          "https://example.com/gateway/telegram/webhook",
+		"secret_token": "secret",
+	}, request)
+}
+
+func TestTelegramHTTPClientDeleteWebhook(t *testing.T) {
+	var method string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		method = r.URL.Path
+		_, _ = w.Write([]byte(`{"ok":true,"result":true}`))
+	}))
+	defer server.Close()
+	client := &telegramHTTPClient{
+		client:  server.Client(),
+		baseURL: server.URL,
+		token:   "telegram-token",
+	}
+
+	err := client.DeleteWebhook(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, "/bottelegram-token/deleteWebhook", method)
+}
+
+func TestTelegramHTTPClientReturnsTelegramHTTPErrorDescription(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"ok":false,"error_code":404,"description":"Not Found"}`))
+	}))
+	defer server.Close()
+	client := &telegramHTTPClient{
+		client:  server.Client(),
+		baseURL: server.URL,
+		token:   "telegram-token",
+	}
+
+	err := client.SetWebhook(context.Background(), "https://example.com/gateway/telegram/webhook", "secret")
+
+	require.EqualError(t, err, "telegram api http status 404: Not Found")
+}
+
 func TestTelegramSender_StreamsPrivateChatWithNativeDraftsThenFinalMessage(t *testing.T) {
 	setTelegramDraftID(t, 77)
 	api := &fakeTelegramAPI{}
@@ -619,7 +680,7 @@ func TestTelegramHTTPClient_ReturnsProviderErrors(t *testing.T) {
 		message  string
 	}{
 		{name: "conflict", status: http.StatusConflict, body: `{"ok":false,"error_code":409,"description":"terminated by other getUpdates"}`, conflict: true},
-		{name: "http status", status: http.StatusBadGateway, body: `{"ok":false,"description":"bad gateway"}`, message: "telegram api http status 502"},
+		{name: "http status", status: http.StatusBadGateway, body: `{"ok":false,"description":"bad gateway"}`, message: "telegram api http status 502: bad gateway"},
 		{name: "ok false", status: http.StatusOK, body: `{"ok":false,"description":"invalid token"}`, message: "invalid token"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

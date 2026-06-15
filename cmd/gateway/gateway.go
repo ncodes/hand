@@ -12,6 +12,7 @@ import (
 
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
+	telegramgateway "github.com/wandxy/hand/internal/gateway/telegram"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/internal/runtime"
 	"github.com/wandxy/hand/pkg/logutils"
@@ -25,6 +26,7 @@ var (
 			Port:    cfg.RPC.Port,
 		})
 	}
+	setTelegramWebhook = telegramgateway.SetWebhook
 )
 
 type gatewayClient interface {
@@ -51,6 +53,7 @@ func NewCommand() *cli.Command {
 			newStartCommand(),
 			newStopCommand(),
 			newRestartCommand(),
+			newSetWebhookCommand(),
 			{
 				Name:  "pairing",
 				Usage: "Manage gateway sender pairings",
@@ -64,6 +67,46 @@ func NewCommand() *cli.Command {
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return cli.ShowSubcommandHelp(cmd)
+		},
+	}
+}
+
+func newSetWebhookCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "setwebhook",
+		Usage: "Register gateway webhooks with providers",
+		Commands: []*cli.Command{
+			newSetTelegramWebhookCommand(),
+		},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			return cli.ShowSubcommandHelp(cmd)
+		},
+	}
+}
+
+func newSetTelegramWebhookCommand() *cli.Command {
+	return &cli.Command{
+		Name:      "telegram",
+		Usage:     "Register the Telegram webhook URL with Telegram",
+		ArgsUsage: "[url]",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			url := strings.TrimSpace(cmd.Args().First())
+
+			cfg, err := loadGatewayConfig(cmd)
+			if err != nil {
+				return err
+			}
+
+			if err := setTelegramWebhook(ctx, cfg.Gateway.Telegram, url); err != nil {
+				return err
+			}
+
+			if url == "" {
+				_, err = fmt.Fprintln(gatewayOutput, "telegram webhook unset")
+				return err
+			}
+			_, err = fmt.Fprintf(gatewayOutput, "telegram webhook set url=%s\n", url)
+			return err
 		},
 	}
 }
@@ -326,13 +369,10 @@ func newPairingClearPendingCommand() *cli.Command {
 }
 
 func getGatewayClient(ctx context.Context, cmd *cli.Command) (gatewayClient, error) {
-	cfg, inputs, err := handcli.LoadConfig(cmd)
+	cfg, err := loadGatewayConfig(cmd)
 	if err != nil {
 		return nil, err
 	}
-
-	handcli.ApplyConfigOverrides(cmd, cfg)
-	handcli.AddStartupFilesystemRoots(cfg, inputs)
 
 	endpoint, err := runtime.ResolveRPC(ctx, cmd, cfg)
 	if err != nil {
@@ -342,8 +382,22 @@ func getGatewayClient(ctx context.Context, cmd *cli.Command) (gatewayClient, err
 	cfg.RPC = endpoint
 	config.Set(cfg)
 
+	return newClient(ctx, cfg)
+}
+
+func loadGatewayConfig(cmd *cli.Command) (*config.Config, error) {
+	cfg, inputs, err := handcli.LoadConfig(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	handcli.ApplyConfigOverrides(cmd, cfg)
+	handcli.AddStartupFilesystemRoots(cfg, inputs)
+
+	config.Set(cfg)
+
 	_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
 	logutils.SetLogLevel(cfg.Log.Level)
 
-	return newClient(ctx, cfg)
+	return cfg, nil
 }

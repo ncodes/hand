@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/gateway/dispatch"
@@ -18,6 +19,25 @@ const (
 	WebhookPath         = "/gateway/telegram/webhook"
 	maxWebhookBodyBytes = 1 << 20
 )
+
+func SetWebhook(ctx context.Context, cfg config.GatewayTelegramConfig, url string) error {
+	url = strings.TrimSpace(url)
+	botToken := strings.TrimSpace(cfg.BotToken)
+	webhookSecret := strings.TrimSpace(cfg.WebhookSecret)
+	if botToken == "" {
+		return errors.New("gateway telegram bot token is required")
+	}
+	cfg.BotToken = botToken
+	if url == "" {
+		return newTelegramAPI(cfg).DeleteWebhook(ctx)
+	}
+	if webhookSecret == "" {
+		return errors.New("gateway telegram webhook secret is required")
+	}
+
+	cfg.WebhookSecret = webhookSecret
+	return newTelegramAPI(cfg).SetWebhook(ctx, url, webhookSecret)
+}
 
 func HandleWebhook(cfg config.GatewayConfig, service Service, dispatcher *dispatch.Dispatcher) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
