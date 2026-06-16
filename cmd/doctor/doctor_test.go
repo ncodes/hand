@@ -66,7 +66,7 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 	require.Contains(t, output.String(), "\nsafety:")
 	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] policy: input=enabled, output=enabled, pii=enabled")
 	require.Contains(t, output.String(), "\ntools:")
-	require.Contains(t, output.String(), "fix: \x1b[97mhand daemon start\x1b[0m\x1b[90m - start the daemon for this profile\x1b[0m")
+	require.Contains(t, output.String(), "fix: \x1b[97mhand daemon\x1b[0m\x1b[90m - start the daemon for this profile\x1b[0m")
 	require.Contains(t, output.String(), "\n[OK] doctor checks passed")
 	require.NotContains(t, output.String(), "flag-key")
 }
@@ -185,7 +185,7 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 	)
 	require.Contains(t, output.String(), "[PASS] config validation: configuration is valid")
 	require.Contains(t, output.String(), "[WARN] runtime: runtime metadata is not present")
-	require.Contains(t, output.String(), "fix: `hand daemon start` - start the daemon for this profile")
+	require.Contains(t, output.String(), "fix: `hand daemon` - start the daemon for this profile")
 	require.Contains(t, output.String(), "[PASS] policy: input=enabled, output=enabled, pii=enabled")
 	require.NotRegexp(t, regexp.MustCompile(`\x1b\[[0-9;]*m`), output.String())
 }
@@ -335,8 +335,8 @@ func TestRenderReadinessReport(t *testing.T) {
 	)
 	require.Equal(
 		t,
-		"\x1b[97m/models\x1b[0m\x1b[90m - choose after hand daemon start; then continue\x1b[0m",
-		formatAction(readiness.Action{Command: "/models", Description: "choose after hand daemon start; then continue"}, &config.Config{}),
+		"\x1b[97m/models\x1b[0m\x1b[90m - choose after hand daemon; then continue\x1b[0m",
+		formatAction(readiness.Action{Command: "/models", Description: "choose after hand daemon; then continue"}, &config.Config{}),
 	)
 	require.Error(t, renderReadinessReport(failingWriter{}, report, &config.Config{}))
 }

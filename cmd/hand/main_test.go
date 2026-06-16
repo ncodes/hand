@@ -559,10 +559,10 @@ func TestNewCommand_HelpShowsUpdatedExamples(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{"hand", "--help"})
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "EXAMPLES:")
-	require.Contains(t, output.String(), "hand daemon start")
-	require.Contains(t, output.String(), "hand --profile work daemon start")
+	require.Contains(t, output.String(), "hand daemon")
+	require.Contains(t, output.String(), "hand --profile work daemon")
 	require.Contains(t, output.String(), "hand profile use work")
-	require.Contains(t, output.String(), "hand --config ./config.yaml --trace.enabled daemon start")
+	require.Contains(t, output.String(), "hand --config ./config.yaml --trace.enabled daemon")
 	require.Contains(t, output.String(), `hand --chat "summarize the failing tests"`)
 	require.Contains(t, output.String(), `hand -c --profile work "continue"`)
 	require.Contains(t, output.String(), `hand --chat --session ses_abc123 --instruct "be brief" "continue from the last debugging step"`)
@@ -574,7 +574,7 @@ func TestNewCommand_HelpShowsUpdatedExamples(t *testing.T) {
 	require.Contains(t, output.String(), "--gateway.slack.mode")
 }
 
-func TestNewCommand_DaemonStartHelpShowsGatewayFlags(t *testing.T) {
+func TestNewCommand_DaemonHelpShowsGatewayFlags(t *testing.T) {
 	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
 
@@ -582,7 +582,7 @@ func TestNewCommand_DaemonStartHelpShowsGatewayFlags(t *testing.T) {
 	cmd := newCommand()
 	cmd.Writer = &output
 	cmd.ErrWriter = &output
-	err := cmd.Run(context.Background(), []string{"hand", "daemon", "start", "--help"})
+	err := cmd.Run(context.Background(), []string{"hand", "daemon", "--help"})
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "--gateway.enabled")
 	require.Contains(t, output.String(), "--gateway.telegram.mode")

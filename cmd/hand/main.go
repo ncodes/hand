@@ -62,10 +62,10 @@ EXAMPLES:
       hand --profile work
 
    Start the daemon:
-      hand daemon start
-      hand --profile work daemon start
+      hand daemon
+      hand --profile work daemon
       hand profile use work
-      hand --config ./config.yaml --trace.enabled daemon start
+      hand --config ./config.yaml --trace.enabled daemon
 
    Chat with the agent:
       hand --chat "summarize the failing tests"

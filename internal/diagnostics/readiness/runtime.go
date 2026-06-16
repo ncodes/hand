@@ -41,7 +41,7 @@ func buildRuntimeGroup(ctx context.Context, active profile.Profile) Group {
 				"runtime",
 				status,
 				message,
-				commandAction("hand daemon start", "start the daemon for this profile"),
+				commandAction("hand daemon", "start the daemon for this profile"),
 			),
 		},
 	}

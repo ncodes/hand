@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	WebhookPath             = "/gateway/slack/events"
+	WebhookPath             = "/gateway/slack/webhook"
 	maxEventsBodyBytes      = 1 << 20
 	slackHTTPMaxJobAttempts = 1
 )

@@ -75,7 +75,7 @@ func TestBuild_ReportsProfileAndMissingDaemonWithoutFailure(t *testing.T) {
 	daemon := findReadinessCheck(t, report, "daemon", "runtime")
 	require.Equal(t, StatusWarn, daemon.Status)
 	require.Contains(t, daemon.Message, "runtime metadata is not present")
-	require.Equal(t, "hand daemon start", daemon.Actions[0].Command)
+	require.Equal(t, "hand daemon", daemon.Actions[0].Command)
 }
 
 func TestBuild_ReportsModelAuthWithoutLeakingCredentials(t *testing.T) {
