@@ -76,7 +76,7 @@ search:
 		"hand",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"daemon", "start",
+		"daemon",
 	})
 	require.NoError(t, err)
 
@@ -133,7 +133,7 @@ search:
 		"--env-file", envPath,
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"daemon", "start",
+		"daemon",
 	})
 	require.NoError(t, err)
 
@@ -175,7 +175,7 @@ search:
 		"hand",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"daemon", "start",
+		"daemon",
 	})
 	require.NoError(t, err)
 }
@@ -206,7 +206,7 @@ storage:
 		"hand",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"daemon", "start",
+		"daemon",
 	})
 	require.NoError(t, err)
 
@@ -242,7 +242,7 @@ storage:
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
 		"--model.provider", "openrouter",
-		"daemon", "start",
+		"daemon",
 	})
 	require.NoError(t, err)
 
@@ -299,7 +299,7 @@ storage:
 		"--rpc.port", nextTestPort(t),
 		"--log.level", "debug",
 		"--log.no-color=true",
-		"daemon", "start",
+		"daemon",
 	})
 	require.NoError(t, err)
 
@@ -341,7 +341,7 @@ storage:
 		"agent",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"daemon", "start",
+		"daemon",
 	})
 	require.NoError(t, err)
 
@@ -574,7 +574,7 @@ func TestNewCommand_HelpShowsUpdatedExamples(t *testing.T) {
 	require.Contains(t, output.String(), "--gateway.slack.mode")
 }
 
-func TestNewCommand_DaemonHelpShowsGatewayFlags(t *testing.T) {
+func TestNewCommand_DaemonHelpShowsStatusCommand(t *testing.T) {
 	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
 
@@ -584,9 +584,38 @@ func TestNewCommand_DaemonHelpShowsGatewayFlags(t *testing.T) {
 	cmd.ErrWriter = &output
 	err := cmd.Run(context.Background(), []string{"hand", "daemon", "--help"})
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "--gateway.enabled")
-	require.Contains(t, output.String(), "--gateway.telegram.mode")
-	require.Contains(t, output.String(), "--gateway.slack.mode")
+	require.Contains(t, output.String(), "Start the Hand daemon")
+	require.Contains(t, output.String(), "status")
+	require.Contains(t, output.String(), "Show daemon health and connection status")
+}
+
+func TestNewCommand_DoesNotAliasMisspelledDaemon(t *testing.T) {
+	clearEnvKeys(t, "HAND_ENV_FILE")
+	resetGlobals(t)
+
+	var output bytes.Buffer
+	cmd := newCommand()
+	cmd.Writer = &output
+	cmd.ErrWriter = &output
+
+	err := cmd.Run(context.Background(), []string{"hand", "deamon", "status"})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `unexpected root arguments "deamon status"`)
+}
+
+func TestNewCommand_DaemonStartIsNotAccepted(t *testing.T) {
+	clearEnvKeys(t, "HAND_ENV_FILE")
+	resetGlobals(t)
+
+	var output bytes.Buffer
+	cmd := newCommand()
+	cmd.Writer = &output
+	cmd.ErrWriter = &output
+
+	err := cmd.Run(context.Background(), []string{"hand", "daemon", "start"})
+
+	require.Error(t, err)
 }
 
 func TestNewCommand_VersionCommandShowsVersionAndCommit(t *testing.T) {
@@ -656,7 +685,7 @@ models:
 		"hand",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"daemon", "start",
+		"daemon",
 	})
 	require.NoError(t, err)
 }
@@ -687,7 +716,7 @@ storage:
 		"hand",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"daemon", "start",
+		"daemon",
 	})
 	require.NoError(t, err)
 

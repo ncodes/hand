@@ -15,6 +15,8 @@ import (
 
 	clidaemon "github.com/wandxy/hand/internal/cli/daemon"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/profile"
+	handruntime "github.com/wandxy/hand/internal/runtime"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -26,6 +28,9 @@ const (
 
 var (
 	checkDaemonRPC                = checkDaemonRPCImpl
+	checkDaemonHealth             = checkDaemonHealthImpl
+	probeActiveRuntime            = handruntime.Probe
+	daemonStatusNow               = time.Now
 	startDaemonRuntime            = startDaemonRuntimeImpl
 	runDaemonRuntimeOnce          = RunDaemonOnce
 	setDaemonOutput               = clidaemon.SetOutput
@@ -35,6 +40,17 @@ var (
 	daemonBootstrapReadyTimeout   = defaultDaemonBootstrapReadyTimeout
 	daemonBootstrapPollInterval   = defaultDaemonBootstrapPollInterval
 )
+
+type DaemonStatus struct {
+	State     string
+	Health    string
+	Profile   string
+	PID       int
+	Address   string
+	Port      int
+	StartedAt time.Time
+	Uptime    time.Duration
+}
 
 func SetDaemonOutput(w io.Writer) io.Writer {
 	return setDaemonOutput(w)
@@ -46,6 +62,27 @@ func RunDaemonWithConfigRestarts(ctx context.Context, cmd *urfavecli.Command) er
 
 func RunDaemonOnce(ctx context.Context, cfg *config.Config) error {
 	return runDaemonOnce(ctx, cfg)
+}
+
+func GetDaemonStatus(ctx context.Context) (DaemonStatus, error) {
+	probe := probeActiveRuntime(ctx, profile.Active())
+	status := daemonStatusFromProbe(probe)
+	if probe.State != handruntime.ProbeStateReady {
+		if probe.Err != nil {
+			return status, fmt.Errorf("daemon is %s: %w", probe.State, probe.Err)
+		}
+
+		return status, fmt.Errorf("daemon is %s", probe.State)
+	}
+
+	health, err := checkDaemonHealth(ctx, status.Address, status.Port)
+	if err != nil {
+		return status, fmt.Errorf("daemon health check failed: %w", err)
+	}
+
+	status.State = "running"
+	status.Health = health
+	return status, nil
 }
 
 func EnsureDaemonRunning(ctx context.Context, cfg *config.Config) (func() error, error) {
@@ -117,24 +154,57 @@ func checkDaemonRPCImpl(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("rpc port must be greater than zero")
 	}
 
+	_, err := checkDaemonHealth(ctx, address, cfg.RPC.Port)
+	return err
+}
+
+func checkDaemonHealthImpl(ctx context.Context, address string, port int) (string, error) {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return "", fmt.Errorf("rpc address is required")
+	}
+	if port <= 0 {
+		return "", fmt.Errorf("rpc port must be greater than zero")
+	}
+
 	conn, err := grpc.NewClient(
-		fmt.Sprintf("%s:%d", address, cfg.RPC.Port),
+		fmt.Sprintf("%s:%d", address, port),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer conn.Close()
 
 	resp, err := healthpb.NewHealthClient(conn).Check(ctx, &healthpb.HealthCheckRequest{})
 	if err != nil {
-		return err
+		return "", err
 	}
 	if resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
-		return fmt.Errorf("daemon health status is %s", resp.GetStatus())
+		return "", fmt.Errorf("daemon health status is %s", resp.GetStatus())
 	}
 
-	return nil
+	return resp.GetStatus().String(), nil
+}
+
+func daemonStatusFromProbe(probe handruntime.ProbeResult) DaemonStatus {
+	metadata := probe.Metadata
+	status := DaemonStatus{
+		State:     string(probe.State),
+		Profile:   strings.TrimSpace(metadata.Profile),
+		PID:       metadata.PID,
+		Address:   strings.TrimSpace(metadata.RPC.Address),
+		Port:      metadata.RPC.Port,
+		StartedAt: metadata.StartedAt,
+	}
+	if status.Profile == "" {
+		status.Profile = profile.DefaultName
+	}
+	if !status.StartedAt.IsZero() {
+		status.Uptime = max(daemonStatusNow().Sub(status.StartedAt).Round(time.Second), 0)
+	}
+
+	return status
 }
 
 func startDaemonRuntimeImpl(ctx context.Context, cfg *config.Config) (func() error, error) {

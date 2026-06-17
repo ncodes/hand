@@ -19,6 +19,8 @@ import (
 
 	clidaemon "github.com/wandxy/hand/internal/cli/daemon"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/profile"
+	handruntime "github.com/wandxy/hand/internal/runtime"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -118,6 +120,117 @@ func TestCheckDaemonRPCImpl_CallsHealthService(t *testing.T) {
 	)
 
 	require.NoError(t, err)
+}
+
+func TestGetDaemonStatus_ReturnsRunningStatus(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
+
+	startedAt := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
+	daemonStatusNow = func() time.Time {
+		return startedAt.Add(90 * time.Second)
+	}
+	probeActiveRuntime = func(context.Context, profile.Profile) handruntime.ProbeResult {
+		return handruntime.ProbeResult{
+			State: handruntime.ProbeStateReady,
+			Metadata: handruntime.Metadata{
+				Profile:   "work",
+				PID:       1234,
+				RPC:       handruntime.RPC{Address: "127.0.0.1", Port: 50051},
+				StartedAt: startedAt,
+			},
+		}
+	}
+	checkDaemonHealth = func(_ context.Context, address string, port int) (string, error) {
+		require.Equal(t, "127.0.0.1", address)
+		require.Equal(t, 50051, port)
+		return "SERVING", nil
+	}
+
+	status, err := GetDaemonStatus(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, "running", status.State)
+	require.Equal(t, "SERVING", status.Health)
+	require.Equal(t, "work", status.Profile)
+	require.Equal(t, 1234, status.PID)
+	require.Equal(t, "127.0.0.1", status.Address)
+	require.Equal(t, 50051, status.Port)
+	require.Equal(t, 90*time.Second, status.Uptime)
+	require.Equal(t, startedAt, status.StartedAt)
+}
+
+func TestGetDaemonStatus_ReturnsProbeError(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
+
+	expectedErr := errors.New("runtime metadata is not present")
+	probeActiveRuntime = func(context.Context, profile.Profile) handruntime.ProbeResult {
+		return handruntime.ProbeResult{State: handruntime.ProbeStateMissing, Err: expectedErr}
+	}
+	checkDaemonHealth = func(context.Context, string, int) (string, error) {
+		t.Fatal("health should not be checked when runtime probe fails")
+		return "", nil
+	}
+
+	status, err := GetDaemonStatus(context.Background())
+
+	require.ErrorIs(t, err, expectedErr)
+	require.ErrorContains(t, err, "daemon is missing")
+	require.Equal(t, "missing", status.State)
+}
+
+func TestGetDaemonStatus_ReturnsProbeStateWithoutError(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
+
+	probeActiveRuntime = func(context.Context, profile.Profile) handruntime.ProbeResult {
+		return handruntime.ProbeResult{State: handruntime.ProbeStateStale}
+	}
+	checkDaemonHealth = func(context.Context, string, int) (string, error) {
+		t.Fatal("health should not be checked when runtime probe is stale")
+		return "", nil
+	}
+
+	status, err := GetDaemonStatus(context.Background())
+
+	require.EqualError(t, err, "daemon is stale")
+	require.Equal(t, "stale", status.State)
+}
+
+func TestGetDaemonStatus_ReturnsHealthError(t *testing.T) {
+	restore := replaceDaemonBootstrapHooks(t)
+	defer restore()
+
+	expectedErr := errors.New("connection refused")
+	probeActiveRuntime = func(context.Context, profile.Profile) handruntime.ProbeResult {
+		return handruntime.ProbeResult{
+			State: handruntime.ProbeStateReady,
+			Metadata: handruntime.Metadata{
+				RPC: handruntime.RPC{Address: "127.0.0.1", Port: 50051},
+			},
+		}
+	}
+	checkDaemonHealth = func(context.Context, string, int) (string, error) {
+		return "", expectedErr
+	}
+
+	_, err := GetDaemonStatus(context.Background())
+
+	require.ErrorIs(t, err, expectedErr)
+	require.ErrorContains(t, err, "daemon health check failed")
+}
+
+func TestCheckDaemonHealthImpl_ReturnsMissingAddressError(t *testing.T) {
+	_, err := checkDaemonHealthImpl(context.Background(), "", 50051)
+
+	require.EqualError(t, err, "rpc address is required")
+}
+
+func TestCheckDaemonHealthImpl_ReturnsMissingPortError(t *testing.T) {
+	_, err := checkDaemonHealthImpl(context.Background(), "127.0.0.1", 0)
+
+	require.EqualError(t, err, "rpc port must be greater than zero")
 }
 
 func TestCheckDaemonRPCImpl_ReturnsConfigError(t *testing.T) {
@@ -436,6 +549,9 @@ func replaceDaemonBootstrapHooks(t *testing.T) func() {
 	t.Helper()
 
 	originalCheckDaemonRPC := checkDaemonRPC
+	originalCheckDaemonHealth := checkDaemonHealth
+	originalProbeActiveRuntime := probeActiveRuntime
+	originalDaemonStatusNow := daemonStatusNow
 	originalStartDaemonRuntime := startDaemonRuntime
 	originalRunDaemonRuntimeOnce := runDaemonRuntimeOnce
 	originalRunDaemonOnce := runDaemonOnce
@@ -448,6 +564,9 @@ func replaceDaemonBootstrapHooks(t *testing.T) func() {
 
 	return func() {
 		checkDaemonRPC = originalCheckDaemonRPC
+		checkDaemonHealth = originalCheckDaemonHealth
+		probeActiveRuntime = originalProbeActiveRuntime
+		daemonStatusNow = originalDaemonStatusNow
 		startDaemonRuntime = originalStartDaemonRuntime
 		runDaemonRuntimeOnce = originalRunDaemonRuntimeOnce
 		runDaemonOnce = originalRunDaemonOnce

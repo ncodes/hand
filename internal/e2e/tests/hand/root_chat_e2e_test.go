@@ -219,7 +219,7 @@ func Test_E2E_HandRootChat_ConfigPrecedenceCLIOverridesEnvAndYAML(t *testing.T) 
 	assert.Equal(t, "cli reply\n", output)
 }
 
-func Test_E2E_HandRootChat_UnavailableRPCReturnsError(t *testing.T) {
+func Test_E2E_HandRootChat_StartsDaemonAndReturnsModelErrorWhenUnconfigured(t *testing.T) {
 	resetRootChatE2E(t)
 
 	port, err := strconv.Atoi(nextTestPort(t))
@@ -232,7 +232,7 @@ func Test_E2E_HandRootChat_UnavailableRPCReturnsError(t *testing.T) {
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "hello")
 	require.Error(t, err)
 	assert.Empty(t, output)
-	assert.Contains(t, err.Error(), "connection refused")
+	assert.Contains(t, err.Error(), "model is required")
 }
 
 func Test_E2E_HandStartup_InvalidConfigBlocksStartup(t *testing.T) {
@@ -252,7 +252,7 @@ log:
   level: trace
 `), 0o600))
 
-	_, err := runRootChatCommand(t, "hand", "--config", configPath, "--rpc.port", nextTestPort(t), "daemon", "start")
+	_, err := runRootChatCommand(t, "hand", "--config", configPath, "--rpc.port", nextTestPort(t), "daemon")
 	require.Error(t, err)
 	require.ErrorContains(t, err, "log level must be one of debug, info, warn, or error")
 }

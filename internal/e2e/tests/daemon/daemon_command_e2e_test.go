@@ -66,7 +66,7 @@ rpc:
 			"--env-file", envPath,
 			"--config", configPath,
 			"--name", "cli-up",
-			"daemon", "start",
+			"daemon",
 		})
 	}()
 
