@@ -8,8 +8,6 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
-	"github.com/wandxy/hand/internal/config"
 )
 
 var (
@@ -22,11 +20,33 @@ var (
 
 	currentProgramName = "agent"
 	currentNoColor     = getCurrentNoColorSetting()
+	configProvider     ConfigProvider
 
 	mkdirAll           mkdirAllFunc         = os.MkdirAll
 	newLogFileWriter   newLogFileWriterFunc = newLumberjackFileWriter
 	defaultFileEnabled                      = func() bool { return !isGoTestProcess() }
 )
+
+type Config struct {
+	NoColor    bool
+	LogFile    string
+	MaxSizeMB  int
+	MaxBackups int
+	MaxAgeDays int
+	Compress   bool
+}
+
+type ConfigProvider func() Config
+
+func SetConfigProvider(provider ConfigProvider) ConfigProvider {
+	loggerMu.Lock()
+	defer loggerMu.Unlock()
+
+	previous := configProvider
+	configProvider = provider
+
+	return previous
+}
 
 func InitLogger(programName string) *zerolog.Logger {
 	return ConfigureLogger(programName, getCurrentNoColorSetting())
@@ -117,8 +137,11 @@ func configureLoggerLocked(programName string, noColor bool) {
 }
 
 func getCurrentNoColorSetting() bool {
-	cfg := config.Get()
-	return (cfg != nil && cfg.Log.NoColor) || isGoTestProcess()
+	if configProvider == nil {
+		return isGoTestProcess()
+	}
+
+	return configProvider().NoColor || isGoTestProcess()
 }
 
 func getEffectiveNoColorSetting(noColor bool) bool {

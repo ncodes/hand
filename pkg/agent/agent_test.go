@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/agent/prompt"
 	"github.com/wandxy/hand/pkg/agent/session"
 	"github.com/wandxy/hand/pkg/agent/tool"

@@ -3,8 +3,8 @@ package tool
 import (
 	"context"
 
-	"github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/agent/model"
 )
 
 type Registry interface {

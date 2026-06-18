@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/pkg/netpolicy"
 )
 
 type stubPolicy struct {
@@ -449,8 +449,8 @@ func TestFetcher_ResolveAndValidateHostUsesDefaultResolver(t *testing.T) {
 	require.Nil(t, addrs)
 }
 
-func TestPkgGuardrailsSafeAddr(t *testing.T) {
-	require.True(t, guardrails.SafeAddr(netip.MustParseAddr("93.184.216.34"), nil))
+func TestNetpolicySafeAddr(t *testing.T) {
+	require.True(t, netpolicy.SafeAddr(netip.MustParseAddr("93.184.216.34"), nil))
 }
 
 func TestNew_AppliesOptionsAndClonesBlockedPrefixes(t *testing.T) {

@@ -1,90 +1,26 @@
 package model
 
-import (
-	"context"
-
-	"github.com/wandxy/hand/pkg/agent/message"
-)
+import agentmodel "github.com/wandxy/hand/pkg/agent/model"
 
 const (
-	APIOpenAICompletions = "openai-completions"
-	APIOpenAIResponses   = "openai-responses"
-	APIAnthropicMessages = "anthropic-messages"
+	APIOpenAICompletions = agentmodel.APIOpenAICompletions
+	APIOpenAIResponses   = agentmodel.APIOpenAIResponses
+	APIAnthropicMessages = agentmodel.APIAnthropicMessages
 )
 
-type Client interface {
-	Complete(context.Context, Request) (*Response, error)
-	CompleteStream(context.Context, Request, func(StreamDelta)) (*Response, error)
-}
-
-type StreamChannel string
+type Client = agentmodel.Client
+type StreamChannel = agentmodel.StreamChannel
 
 const (
-	StreamChannelAssistant StreamChannel = "assistant"
-	StreamChannelReasoning StreamChannel = "reasoning"
+	StreamChannelAssistant = agentmodel.StreamChannelAssistant
+	StreamChannelReasoning = agentmodel.StreamChannelReasoning
 )
 
-type StreamDelta struct {
-	Channel StreamChannel
-	Text    string
-}
+type StreamDelta = agentmodel.StreamDelta
+type Request = agentmodel.Request
+type StructuredOutput = agentmodel.StructuredOutput
+type Response = agentmodel.Response
+type ToolDefinition = agentmodel.ToolDefinition
+type ToolCall = agentmodel.ToolCall
 
-type Request struct {
-	Model            string
-	API              string
-	Instructions     string
-	Messages         []message.Message
-	Tools            []ToolDefinition
-	StructuredOutput *StructuredOutput
-	MaxOutputTokens  int64
-	Temperature      float64
-	DebugRequests    bool
-}
-
-type StructuredOutput struct {
-	Name        string
-	Description string
-	Schema      map[string]any
-	Strict      bool
-}
-
-type Response struct {
-	ID                string
-	Model             string
-	OutputText        string
-	ToolCalls         []ToolCall
-	RequiresToolCalls bool
-	PromptTokens      int
-	CompletionTokens  int
-	TotalTokens       int
-}
-
-type ToolDefinition struct {
-	Name         string
-	Description  string
-	InputSchema  map[string]any
-	ParallelSafe bool
-}
-
-type ToolCall struct {
-	ID    string
-	Name  string
-	Input string
-}
-
-func ToolCallsToMessageToolCalls(toolCalls []ToolCall) []message.ToolCall {
-	if len(toolCalls) == 0 {
-		return nil
-	}
-
-	converted := make([]message.ToolCall, 0, len(toolCalls))
-	for _, toolCall := range toolCalls {
-		converted = append(converted, message.ToolCall{
-			ID:    toolCall.ID,
-			Name:  toolCall.Name,
-			Input: toolCall.Input,
-		})
-	}
-
-	return converted
-}
+var ToolCallsToMessageToolCalls = agentmodel.ToolCallsToMessageToolCalls

@@ -15,9 +15,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
-
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/profile"
 )
 
 func TestSetOutput_SetsCustomConsoleWriterAndDefaultsToStderr(t *testing.T) {
@@ -189,7 +186,7 @@ func TestConfigureLogger_UsesConfiguredLogFile(t *testing.T) {
 	restoreLogger(t)
 
 	path := filepath.Join(t.TempDir(), "hand-test.log")
-	config.Set(&config.Config{Log: config.LogConfig{File: path}})
+	setTestLogConfig(Config{LogFile: path})
 	defaultFileEnabled = func() bool { return true }
 
 	ConfigureLogger("svc", true)
@@ -206,7 +203,7 @@ func TestConfigureLogger_DefaultsLogFileToActiveProfileHome(t *testing.T) {
 	restoreLogger(t)
 
 	home := t.TempDir()
-	profile.SetActive(profile.Profile{Name: "work", HomeDir: home})
+	setTestLogConfig(Config{LogFile: filepath.Join(home, defaultLogFilename)})
 	defaultFileEnabled = func() bool { return true }
 
 	ConfigureLogger("svc", true)
@@ -224,13 +221,13 @@ func TestConfigureLogger_ReopensWhenConfiguredLogFileChanges(t *testing.T) {
 	dir := t.TempDir()
 	firstPath := filepath.Join(dir, "first.log")
 	secondPath := filepath.Join(dir, "second.log")
-	config.Set(&config.Config{Log: config.LogConfig{File: firstPath}})
+	setTestLogConfig(Config{LogFile: firstPath})
 	defaultFileEnabled = func() bool { return true }
 
 	ConfigureLogger("svc", true)
 	log.Info().Msg("First file")
 
-	config.Set(&config.Config{Log: config.LogConfig{File: secondPath}})
+	setTestLogConfig(Config{LogFile: secondPath})
 	ConfigureLogger("svc", true)
 	log.Info().Msg("Second file")
 
@@ -250,13 +247,13 @@ func TestConfigureLogger_ReopensWhenLogRotationSettingsChange(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "hand.log")
-	config.Set(&config.Config{Log: config.LogConfig{
-		File:       path,
+	setTestLogConfig(Config{
+		LogFile:    path,
 		MaxSizeMB:  11,
 		MaxBackups: 7,
 		MaxAgeDays: 21,
 		Compress:   true,
-	}})
+	})
 	defaultFileEnabled = func() bool { return true }
 
 	var created []logFileSettings
@@ -266,13 +263,13 @@ func TestConfigureLogger_ReopensWhenLogRotationSettingsChange(t *testing.T) {
 	}
 
 	ConfigureLogger("svc", true)
-	config.Set(&config.Config{Log: config.LogConfig{
-		File:       path,
+	setTestLogConfig(Config{
+		LogFile:    path,
 		MaxSizeMB:  12,
 		MaxBackups: 7,
 		MaxAgeDays: 21,
 		Compress:   true,
-	}})
+	})
 	ConfigureLogger("svc", true)
 
 	require.Len(t, created, 2)
@@ -297,7 +294,7 @@ func TestConfigureLogger_FallsBackWhenLogDirectoryCannotBeCreated(t *testing.T) 
 
 	console := &bytes.Buffer{}
 	SetOutput(console)
-	config.Set(&config.Config{Log: config.LogConfig{File: filepath.Join(t.TempDir(), "hand.log")}})
+	setTestLogConfig(Config{LogFile: filepath.Join(t.TempDir(), "hand.log")})
 	defaultFileEnabled = func() bool { return true }
 	mkdirAll = func(string, os.FileMode) error {
 		return errors.New("mkdir failed")
@@ -314,7 +311,7 @@ func TestConfigureLogger_FallsBackWhenLogFileCannotBeOpened(t *testing.T) {
 
 	console := &bytes.Buffer{}
 	SetOutput(console)
-	config.Set(&config.Config{Log: config.LogConfig{File: filepath.Join(t.TempDir(), "hand.log")}})
+	setTestLogConfig(Config{LogFile: filepath.Join(t.TempDir(), "hand.log")})
 	defaultFileEnabled = func() bool { return true }
 	newLogFileWriter = func(logFileSettings) (io.WriteCloser, error) {
 		return nil, errors.New("open failed")
@@ -339,7 +336,7 @@ func TestConfigureLogger_UsesDiscardWhenConsoleAndFileAreDisabled(t *testing.T) 
 func TestInitLogger_UsesCurrentNoColorSetting(t *testing.T) {
 	restoreLogger(t)
 
-	config.Set(&config.Config{Log: config.LogConfig{NoColor: true}})
+	setTestLogConfig(Config{NoColor: true})
 	buf := &bytes.Buffer{}
 	SetOutput(buf)
 
@@ -354,7 +351,7 @@ func TestInitLogger_UsesCurrentNoColorSetting(t *testing.T) {
 func TestGetLogger_UsesCurrentNoColorSetting(t *testing.T) {
 	restoreLogger(t)
 
-	config.Set(&config.Config{Log: config.LogConfig{NoColor: false}})
+	setTestLogConfig(Config{NoColor: false})
 	buf := &bytes.Buffer{}
 	SetOutput(buf)
 
@@ -446,13 +443,13 @@ func TestEnsureLogModule_AddsFallbackModuleOnlyWhenMissing(t *testing.T) {
 func TestCurrentNoColorSetting_UsesConfig(t *testing.T) {
 	restoreLogger(t)
 
-	config.Set(nil)
+	SetConfigProvider(nil)
 	require.True(t, getCurrentNoColorSetting())
 
-	config.Set(&config.Config{Log: config.LogConfig{NoColor: true}})
+	setTestLogConfig(Config{NoColor: true})
 	require.True(t, getCurrentNoColorSetting())
 
-	config.Set(&config.Config{Log: config.LogConfig{NoColor: false}})
+	setTestLogConfig(Config{NoColor: false})
 	require.True(t, getCurrentNoColorSetting())
 }
 
@@ -492,8 +489,7 @@ func restoreLogger(t *testing.T) {
 	originalFileSettings := fileSettings
 	originalFileCloser := fileCloser
 	originalLogger := log.Logger
-	originalConfig := config.Get()
-	originalProfile := profile.Active()
+	originalConfigProvider := configProvider
 	originalDefaultFileEnabled := defaultFileEnabled
 	originalMkdirAll := mkdirAll
 	originalNewLogFileWriter := newLogFileWriter
@@ -505,8 +501,7 @@ func restoreLogger(t *testing.T) {
 		fileSettings = originalFileSettings
 		fileCloser = originalFileCloser
 		log.Logger = originalLogger
-		config.Set(originalConfig)
-		profile.SetActive(originalProfile)
+		configProvider = originalConfigProvider
 		defaultFileEnabled = originalDefaultFileEnabled
 		mkdirAll = originalMkdirAll
 		newLogFileWriter = originalNewLogFileWriter
@@ -518,10 +513,15 @@ func restoreLogger(t *testing.T) {
 	fileOutput = nil
 	fileSettings = logFileSettings{}
 	fileCloser = nil
-	config.Set(nil)
-	profile.SetActive(profile.Profile{})
+	configProvider = nil
 	mkdirAll = os.MkdirAll
 	newLogFileWriter = newLumberjackFileWriter
+}
+
+func setTestLogConfig(cfg Config) {
+	SetConfigProvider(func() Config {
+		return cfg
+	})
 }
 
 type nopWriteCloser struct {

@@ -12,7 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/pkg/netpolicy"
 )
 
 const defaultDialTimeout = 10 * time.Second
@@ -198,7 +198,7 @@ func (f *Fetcher) ResolveAndValidateHost(ctx context.Context, host string) ([]ne
 	}
 
 	if addr, err := netip.ParseAddr(host); err == nil {
-		if !guardrails.SafeAddr(addr, f.BlockedAddressPrefixes) {
+		if !netpolicy.SafeAddr(addr, f.BlockedAddressPrefixes) {
 			return nil, errors.New("url host resolves to a blocked address")
 		}
 
@@ -220,7 +220,7 @@ func (f *Fetcher) ResolveAndValidateHost(ctx context.Context, host string) ([]ne
 		return nil, errors.New("url host resolved to no addresses")
 	}
 	for _, addr := range addrs {
-		if !guardrails.SafeAddr(addr, f.BlockedAddressPrefixes) {
+		if !netpolicy.SafeAddr(addr, f.BlockedAddressPrefixes) {
 			return nil, errors.New("url host resolves to a blocked address")
 		}
 	}

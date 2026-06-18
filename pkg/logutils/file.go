@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"gopkg.in/natefinch/lumberjack.v2"
-
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/datadir"
 )
 
 const defaultLogFilename = "hand.log"
+const defaultLogMaxSizeMB = 10
+const defaultLogMaxBackups = 5
+const defaultLogMaxAgeDays = 14
+const defaultLogCompress = true
 
 type mkdirAllFunc func(string, os.FileMode) error
 
@@ -68,39 +68,45 @@ func newLumberjackFileWriter(settings logFileSettings) (io.WriteCloser, error) {
 }
 
 func getLogFileSettings() logFileSettings {
-	cfg := config.Get()
 	settings := logFileSettings{
 		path:       getLogFilePath(),
-		maxSizeMB:  constants.DefaultLogMaxSizeMB,
-		maxBackups: constants.DefaultLogMaxBackups,
-		maxAgeDays: constants.DefaultLogMaxAgeDays,
-		compress:   constants.DefaultLogCompress,
+		maxSizeMB:  defaultLogMaxSizeMB,
+		maxBackups: defaultLogMaxBackups,
+		maxAgeDays: defaultLogMaxAgeDays,
+		compress:   defaultLogCompress,
 	}
-	if cfg == nil {
+	if configProvider == nil {
 		return settings
 	}
-	if cfg.Log.MaxSizeMB > 0 {
-		settings.maxSizeMB = cfg.Log.MaxSizeMB
+
+	cfg := configProvider()
+	if cfg.MaxSizeMB > 0 {
+		settings.maxSizeMB = cfg.MaxSizeMB
 	}
-	if cfg.Log.MaxBackups > 0 {
-		settings.maxBackups = cfg.Log.MaxBackups
+	if cfg.MaxBackups > 0 {
+		settings.maxBackups = cfg.MaxBackups
 	}
-	if cfg.Log.MaxAgeDays > 0 {
-		settings.maxAgeDays = cfg.Log.MaxAgeDays
+	if cfg.MaxAgeDays > 0 {
+		settings.maxAgeDays = cfg.MaxAgeDays
 	}
-	settings.compress = cfg.Log.Compress
+	settings.compress = cfg.Compress
 
 	return settings
 }
 
 func getLogFilePath() string {
-	if cfg := config.Get(); cfg != nil {
-		if path := strings.TrimSpace(cfg.Log.File); path != "" {
+	if configProvider != nil {
+		if path := strings.TrimSpace(configProvider().LogFile); path != "" {
 			return path
 		}
 	}
 
-	return filepath.Join(datadir.HomeDir(), defaultLogFilename)
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return defaultLogFilename
+	}
+
+	return filepath.Join(home, ".hand", defaultLogFilename)
 }
 
 func closeFileLocked() {
