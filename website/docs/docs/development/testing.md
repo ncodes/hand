@@ -1,6 +1,7 @@
 ---
 title: Testing
 description: Run and write tests for Hand.
+displayed_sidebar: null
 ---
 
 # Testing

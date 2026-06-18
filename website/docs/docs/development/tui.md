@@ -1,6 +1,7 @@
 ---
 title: TUI Internals
 description: TUI architecture and rendering model.
+displayed_sidebar: null
 ---
 
 # TUI Internals

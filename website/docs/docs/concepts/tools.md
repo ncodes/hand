@@ -5,11 +5,115 @@ description: How Hand exposes capabilities to the model.
 
 # Tools
 
-Tools give Hand controlled access to files, web, process state, sessions, memory, and other capabilities.
+Tools are how the model acts on the world. On their own, models can only produce text; tools give Hand controlled,
+auditable access to the filesystem, shell, web, session history, and memory. Each turn, the model is offered a set of
+tools it may call, Hand runs the ones it picks, and the results are fed back into the conversation so the model can
+continue.
 
-## Content Outline
+This page explains the tool model: what a tool is, which tools exist, how availability is decided, and how calls are
+guarded. For the implementation-level design, see [Tools Runtime](../development/tools-runtime) and the
+[Agent Loop](../development/agent-loop).
 
-- Tool registry and schemas.
-- Tool availability and guardrails.
-- Tool event streaming in the TUI.
-- Adding tools as a developer.
+## What a Tool Is
+
+A tool is a named capability with a description and a JSON schema for its inputs. The model sees only that public
+surface — name, description, and parameter schema — and decides when to call it. Behind that surface, each tool has a
+handler that runs inside the daemon and returns a structured result.
+
+Tools also carry runtime metadata the model never sees: which **capabilities** they require (filesystem, exec, network,
+memory), whether they are safe to run in parallel with their neighbors, and an optional usage instruction that is folded
+into the system prompt when the tool is registered. This split keeps the model-facing contract small while letting Hand
+gate and sandbox execution.
+
+## The Built-in Tools
+
+Hand registers its built-in tools when the daemon prepares a profile's environment. They fall into a few groups:
+
+- **Filesystem** — `read_file`, `write_file`, `patch`, `list_files`, `search_files`.
+- **Shell / process** — `run_command` (one-shot commands) and `process` (managing longer-lived processes).
+- **Web** — `web_search` and `web_extract`.
+- **Sessions** — `session_search` and `session_messages`, for looking back over stored conversation history.
+- **Memory** — `memory_search` and `memory_extract` for reading, and `memory_add`, `memory_update`, `memory_delete`
+  for writing.
+- **Utility / planning** — `time` and `plan_tool`.
+
+Not all of these are present in every turn. The filesystem, shell, session-history, planning, and `time` tools are
+always registered; the web and memory tools are only registered when their subsystem is configured and enabled (see
+below). On top of that, the capability switches below filter what the model actually sees each turn — only `time` and
+`plan_tool` need no capability at all.
+
+## Capabilities and Availability
+
+Tool availability is decided per turn, not baked in once. Two things govern whether a given tool reaches the model:
+
+**Capabilities.** Every profile has a set of capability switches under `cap` — `cap.fs` (filesystem), `cap.net`
+(network), `cap.exec` (shell/process), `cap.mem` (memory), and `cap.browser`. Filesystem, network, exec, and memory
+are on by default; browser is off. Each tool declares the capabilities it needs, and a tool is hidden from the model
+whenever any required capability is off. Turning off `cap.exec`, for example, removes `run_command` and `process`
+entirely. Note that the session-history tools (`session_search`, `session_messages`) require the memory capability.
+
+**Subsystem configuration.** Some tools also depend on their subsystem being set up:
+
+- The web tools appear only when a [web provider](../guides/config) is configured with valid credentials. `web_search`
+  additionally requires a provider that supports search (a "native" provider exposes only `web_extract`).
+- The memory read/extract tools appear only when [memory](./memory) is enabled and the provider supports them, and the
+  memory write tools (`memory_add` / `memory_update` / `memory_delete`) additionally require memory write to be enabled.
+
+Because availability is recomputed on every step of the agent loop, changing capabilities or configuration (which can
+trigger a [daemon restart](./daemon-and-rpc)) changes the tool set the model sees on subsequent turns.
+
+## Guardrails Around Tool Calls
+
+Capabilities decide *whether* a tool is offered; guardrails decide *what a call may do*. Hand applies them on both the
+input and output sides:
+
+- **Filesystem roots.** File tools resolve every path against the profile's allowed workspace roots (`fs.roots`). Paths
+  that escape those roots are rejected, and reads are capped in size.
+- **Command policy.** `run_command` evaluates each command against the profile's `exec.allow` / `exec.ask` / `exec.deny`
+  rules plus built-in dangerous-pattern checks. A denied command returns a `command_denied` error; a command that needs
+  approval returns an `approval_required` error. These are structured tool errors the model receives — there is no
+  interactive approval popup in the tool path, so the model must stop or ask the user.
+- **Web blocking.** Web tools honor blocked-domain rules before fetching.
+- **Output safety.** When output safety is enabled, a tool's output is scanned before it is returned to the model, and
+  unsafe content is blocked or redacted with a trace recorded; PII is also redacted from that output when PII redaction
+  is enabled.
+- **Memory write safety.** Memory writes are safety-scanned before being stored.
+
+For the broader safety model these draw on, see [Safety and Guardrails](./safety-and-guardrails).
+
+## How a Tool Call Runs
+
+When the model returns one or more tool calls, Hand runs them and loops:
+
+1. Hand batches the calls, running tools marked parallel-safe together and others one at a time.
+2. For each call it records a `tool.invocation.started` trace event, then invokes the tool's handler through the
+   registry. An unknown tool name or a handler failure becomes a structured error rather than crashing the turn.
+3. The result — output or error — is wrapped as a `tool` message and appended to the conversation, and a
+   `tool.invocation.completed` event is recorded.
+4. The model runs again with those results in context and may call more tools. This continues until the model produces a
+   final answer or the turn hits its iteration budget (`session.maxIterations`).
+
+See the [Agent Loop](../development/agent-loop) for the full turn lifecycle.
+
+## Seeing Tools in the Interface
+
+Tool activity is streamed, not hidden. The `tool.invocation.started` and `tool.invocation.completed` events flow over
+[RPC](./daemon-and-rpc) to clients, and the TUI renders them inline so you can watch which tools run and what they
+return. The non-interactive CLI path does not render these trace events. The same tool events are also persisted to a
+session's timeline. See [Trace Events](../reference/trace-events).
+
+## Adding a Tool
+
+Tools are plain Go packages: a definition (name, description, input schema, required capabilities, handler) registered
+into the environment's tool registry alongside the built-ins. New tools automatically participate in capability gating,
+guardrails, and trace streaming. For the registry contract and conventions, see [Tools Runtime](../development/tools-runtime).
+
+## Where To Go Next
+
+- [Tools Runtime](../development/tools-runtime): the registry, schemas, and how to add a tool.
+- [Agent Loop](../development/agent-loop): how tool calls fit into a turn.
+- [Memory](./memory): the memory capability and the read/write memory tools.
+- [Sessions](./sessions): what `session_search` and `session_messages` read from.
+- [Safety and Guardrails](./safety-and-guardrails): the scans and policies applied to tool calls.
+- [Configuration](../guides/config): capability switches, exec rules, and web setup.
+- [Trace Events](../reference/trace-events): the tool events streamed to clients.

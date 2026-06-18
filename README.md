@@ -22,10 +22,10 @@ The long-term dream for Hand is a personal agent that can understand your workfl
 4. Start the daemon:
 
 ```bash
-go run ./cmd/hand daemon start
+go run ./cmd/hand daemon
 ```
 
-The `daemon start` command prepares the runtime service.
+The `daemon` command prepares the runtime service.
 
 You can also send a direct prompt through the root command:
 
@@ -177,12 +177,12 @@ Telegram:
 
 Slack:
 - Socket mode is the local default and needs `HAND_GATEWAY_SLACK_BOT_TOKEN` plus `HAND_GATEWAY_SLACK_APP_TOKEN`.
-- HTTP Events API mode needs `HAND_GATEWAY_SLACK_BOT_TOKEN`, `HAND_GATEWAY_SLACK_SIGNING_SECRET`, and a public HTTPS URL routed to `/gateway/slack/events`.
+- HTTP Events API mode needs `HAND_GATEWAY_SLACK_BOT_TOKEN`, `HAND_GATEWAY_SLACK_SIGNING_SECRET`, and a public HTTPS URL routed to `/gateway/slack/webhook`.
 - `gateway.slack.responseMode: message` makes Hand respond as a top-level message unless the inbound Slack message is already in a thread.
 
 ## Commands
 
-- `hand daemon start`: start the runtime service
+- `hand daemon`: start the runtime service
 - `hand doctor`: run startup diagnostics and readiness checks
 - `hand --chat "<message>"` or `hand -c "<message>"`: send a single chat message
 

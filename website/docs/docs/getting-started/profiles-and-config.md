@@ -35,8 +35,9 @@ current:
       config.yaml            # profile-local configuration
       .env                   # optional environment overrides
       auth.json              # credentials stored by hand auth login
-      runtime.json           # daemon runtime metadata (RPC endpoint, etc.)
-      hand.pid               # daemon process id
+      runtime.json           # daemon runtime metadata: RPC endpoint, pid, start time
+      data/                  # SQLite store (state.db; WAL sidecars while in use)
+      traces/                # on-disk trace files
     work/                    # another profile home
       ...
 ```
@@ -59,7 +60,8 @@ profile:
 hand profile init work --use
 ```
 
-The first run of `hand` usually creates and selects `default` for you. Use `--bare` if you want only the directory
+If you never run `init`, Hand still falls back to the `default` profile and creates its home directory on demand, but it
+will not write a `config.yaml` or store a current selection until you do. Use `--bare` if you want only the directory
 without a `config.yaml`.
 
 ### Select The Current Profile
@@ -84,8 +86,9 @@ hand profile doctor
 hand profile doctor work
 ```
 
-`hand profile doctor` prints the resolved name, home, and the config, env, runtime, and pid paths, along with whether
-each file exists. Use it to confirm a profile is set up the way you expect.
+`hand profile doctor` prints the resolved name and the home, config, env, runtime, and pid paths, and reports whether
+the home, config, env, and runtime files exist. Use it to confirm a profile is set up the way you expect. (The pid path
+is reserved and is not written by the current daemon; the running daemon's pid is stored in `runtime.json`.)
 
 ### Select A Profile For One Command
 
@@ -170,12 +173,13 @@ Two flags select the files Hand reads instead of the profile defaults:
 
 `hand config set` only writes to the profile `config.yaml`; it never writes to the `.env` file. Both `get` and `set` do
 read the profile `.env` so that values reflect any environment overrides, but they do not apply command-line override
-flags. To confirm what a running command will actually use, prefer `hand doctor` and check the daemon startup output.
+flags. To confirm what a running command will actually use, prefer `hand doctor` and check the daemonup output.
 
 ## Profiles and the Daemon
 
 Each profile has its own daemon runtime metadata in `runtime.json`, which records the RPC endpoint the CLI and TUI
-connect to. This has a few practical consequences:
+connect to. For how that endpoint is resolved and how clients talk to the daemon, see
+[Daemon and RPC](../concepts/daemon-and-rpc). This has a few practical consequences:
 
 - `hand profile use` only changes which profile new commands target. A daemon already running for another profile keeps
   running and is unaffected.
@@ -187,13 +191,13 @@ connect to. This has a few practical consequences:
 - Commands resolve the profile first, then connect to that profile's runtime endpoint. Interactive `hand` and
   `hand --chat` can start a temporary daemon when none is reachable; other client commands such as `hand session ...`
   and `hand gateway ...` expect a daemon to already be running. The only command that launches a daemon directly is
-  `hand daemon start`.
+  `hand daemon`.
 
 To apply an `.env` change, restart the profile's daemon. Stop the running daemon first: press `Ctrl+C` if you started
-it in the foreground with `hand daemon start`, or exit the TUI that started it. Then start it again:
+it in the foreground with `hand daemon`, or exit the TUI that started it. Then start it again:
 
 ```bash
-hand --profile work daemon start
+hand --profile work daemon
 ```
 
 For daemon lifecycle details, see [Daemon Operations](../operations/daemon).
@@ -218,3 +222,4 @@ keys above and confirm credentials with `hand auth status`.
 - [Config Reference](../reference/config): every config key.
 - [Environment Variables](../reference/environment-variables): supported `HAND_` overrides.
 - [Doctor](../operations/doctor): readiness checks and diagnostics.
+- [Backups and State](../operations/backups-and-state): back up or move a profile home.

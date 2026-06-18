@@ -5,17 +5,82 @@ description: TUI slash command reference.
 
 # Slash Commands
 
-This page should document TUI slash commands.
+The Hand TUI accepts **slash commands** — messages that start with `/` — for session management, model selection, and
+utility actions without leaving the chat surface. For general TUI behavior, see the [TUI Guide](../guides/tui). For the
+full CLI, see [CLI Reference](./cli).
 
-## Content Outline
+## Input model
 
-- `changelog`.
-- `chats`.
-- `clear`.
-- `compact`.
-- `copy`.
-- `models`.
-- `new-chat`.
-- `archive`.
-- `providers`.
-- `setup`.
+| Prefix | Type | Example |
+| --- | --- | --- |
+| `/name …` | Slash command | `/compact` |
+| Plain text | Chat message to the agent | `explain this error` |
+
+When input starts with `/`, the TUI shows a filtered command menu. Tab or arrow keys select an entry.
+
+## Commands
+
+| Command | Description | Backend |
+| --- | --- | --- |
+| `/changelog` | Show the latest changelog entry | Embedded `changelog.Latest()` |
+| `/chats` | List recent sessions and switch, rename, or archive | RPC `SessionService` |
+| `/archive` | List archived sessions and restore or switch | RPC `SessionService` |
+| `/clear` | Clear the on-screen transcript (does not delete stored history) | Local UI |
+| `/compact` | Force summary compaction on the current session | RPC `SessionService.Compact` |
+| `/copy` | Copy the visible transcript to the system clipboard | Local clipboard |
+| `/models` | Browse and select models for the current provider | Local catalog + RPC `ModelService` |
+| `/providers` | Browse model providers and auth types | Local catalog |
+| `/new-chat` | Create a new session and switch to it | RPC `SessionService.Create` |
+| `/setup` | Open profile setup (name, auth method) | Local onboarding flow |
+
+### `/chats` and `/archive`
+
+These open an interactive session list. From the list you can:
+
+- Switch session (`SessionService.Use` + timeline reload)
+- Archive or unarchive
+- Rename a session
+- Create a new chat
+
+Archived sessions appear only under `/archive`.
+
+### `/compact`
+
+Runs the same compaction path as `hand session compact` on the current session, then reloads context in the TUI. See
+[Sessions](../concepts/sessions) and [Sessions Guide](../guides/sessions).
+
+### `/models` and `/providers`
+
+The catalog is loaded locally. Selecting a model or entering an API key may call RPC `ModelService.SelectModel` or
+`SetProviderAPIKey`. For credential setup outside the TUI, use `hand auth login` — see
+[Provider Auth](../guides/provider-auth).
+
+### `/setup`
+
+Opens the dismissible onboarding flow for agent name and provider auth. Useful on first run or after switching profiles.
+
+## Errors
+
+| Input | Status message |
+| --- | --- |
+| `/` alone or empty name | `empty command` |
+| Unknown `/foo` | `unknown command: /foo` |
+
+## RPC methods used
+
+| Slash command | RPC surface |
+| --- | --- |
+| `/chats`, `/archive` | `SessionService.List`, `Use`, `Timeline`, `Archive`, `Unarchive`, `Rename`, `Create` |
+| `/compact` | `SessionService.Compact` |
+| `/new-chat` | `SessionService.Create` |
+| `/models` | `ModelService.SelectModel`, `SetProviderAPIKey` (from models view) |
+
+Full method definitions: [RPC Reference](./rpc).
+
+## Where To Go Next
+
+- [TUI Guide](../guides/tui): layout, streaming, and keybindings
+- [CLI Reference](./cli): `hand session …` equivalents
+- [Sessions Guide](../guides/sessions): session workflows
+- [RPC Reference](./rpc): underlying gRPC API
+- [Learning Path](../getting-started/learning-path): daily-driver track lists slash commands early

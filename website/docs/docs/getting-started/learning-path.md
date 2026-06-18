@@ -33,14 +33,14 @@ Start here once Hand runs and you want to use it well from the terminal.
 5. [Search and Traces](../guides/search-and-traces): find past work and inspect what the agent did.
 6. [CLI Reference](../reference/cli): every command and flag for scripting and quick answers.
 
-For the model behind your chats, see [Model Auth](../guides/model-auth) and [Config Guide](../guides/config).
+For the model behind your chats, see [Provider Auth](../guides/provider-auth) and [Config Guide](../guides/config).
 
 ## Gateway Operator
 
 Start here if you want to reach Hand from Slack, Telegram, or a generic HTTP client.
 
 1. [Gateways Concept](../concepts/gateways): what a gateway is and how messages flow.
-2. [Gateway Overview](../guides/gateway/index): enable and configure the external gateway.
+2. [Gateway Overview](../guides/gateway/): enable and configure the external gateway.
 3. Pick your transport: [Telegram](../guides/gateway/telegram), [Slack](../guides/gateway/slack), or
    [Generic HTTP](../guides/gateway/generic-http).
 4. [Pairing and Allowlists](../guides/gateway/pairing-and-allowlists): control who can talk to your agent.

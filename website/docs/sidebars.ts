@@ -36,7 +36,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'guides/tui',
-        'guides/model-auth',
+        'guides/provider-auth',
         'guides/config',
         'guides/sessions',
         'guides/memory',
@@ -64,23 +64,6 @@ const sidebars: SidebarsConfig = {
         'operations/doctor',
         'operations/security',
         'operations/backups-and-state',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Development',
-      items: [
-        'development/architecture',
-        'development/agent-loop',
-        'development/prompt-assembly',
-        'development/model-providers',
-        'development/tools-runtime',
-        'development/session-storage',
-        'development/memory-system',
-        'development/gateway-internals',
-        'development/tui',
-        'development/testing',
-        'contributing',
       ],
     },
     {

@@ -1,6 +1,7 @@
 ---
 title: Gateway Internals
 description: Gateway lifecycle, dispatch, pairing, and providers.
+displayed_sidebar: null
 ---
 
 # Gateway Internals

@@ -19,7 +19,7 @@ subscription login is often fastest. Hand stores OAuth credentials for supported
 
 API keys are also supported. They are often better for OpenRouter, servers, service accounts, and automation.
 
-See [Model Auth](../guides/model-auth) for provider notes and API key links.
+See [Provider Auth](../guides/provider-auth) for provider notes and API key links.
 
 ## Install Hand
 
@@ -82,7 +82,7 @@ Common profile files:
 First choose how Hand should route model requests. These commands set the provider, model name, and API shape in the
 active profile; they do not authenticate the provider yet.
 
-Replace `<model-name>` with a [model supported by the provider you choose](../guides/model-auth). After this section,
+Replace `<model-name>` with a [model supported by the provider you choose](../guides/provider-auth). After this section,
 continue to [Store Credentials](#store-credentials) and authenticate the same provider.
 
 Subscription login is usually quickest if you already pay for ChatGPT, Claude, or GitHub Copilot. Providers like
@@ -150,7 +150,7 @@ Check the routing config before adding credentials:
 hand config get models.main.provider models.main.name models.main.api
 ```
 
-To learn about credentials and available models for each provider, see the [Model Auth](../guides/model-auth) guide.
+To learn about credentials and available models for each provider, see the [Provider Auth](../guides/provider-auth) guide.
 
 ## Store Credentials
 
@@ -242,7 +242,7 @@ hand gateway status
 If you want to run the daemon in the foreground or don't want a TUI-managed daemon, you can run:
 
 ```bash
-hand daemon start
+hand daemon
 ```
 
 then start the TUI:
@@ -280,6 +280,6 @@ For daily use, the TUI can continue from the current session automatically.
 - [Installation](./installation): build and install paths.
 - [First Chat](./first-chat): the conversation workflow in more detail.
 - [Profiles and Config](./profiles-and-config): profile-local setup and config precedence.
-- [Model Auth](../guides/model-auth): provider credentials and model roles.
+- [Provider Auth](../guides/provider-auth): provider credentials and model roles.
 - [TUI Guide](../guides/tui): daily terminal usage.
 - [Doctor](../operations/doctor): readiness checks and diagnostics.

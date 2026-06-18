@@ -13,7 +13,7 @@ Hand is a terminal-first personal agent backed by a local daemon, durable sessio
 - [Quickstart](getting-started/quickstart.md): get from checkout to first conversation.
 - [TUI Guide](guides/tui.md): learn the terminal chat surface.
 - [Profiles and Config](getting-started/profiles-and-config.md): understand profile-local setup.
-- [Gateway Overview](guides/gateway/index.md): connect Slack, Telegram, or generic HTTP clients.
+- [Gateway Overview](guides/gateway/): connect Slack, Telegram, or generic HTTP clients.
 - [Developer Architecture](development/architecture.md): understand the Go package boundaries.
 
 ## Documentation Map
@@ -23,4 +23,4 @@ Hand is a terminal-first personal agent backed by a local daemon, durable sessio
 - **Guides**: task-focused usage docs for daily workflows.
 - **Operations**: daemon, gateway, security, state, and doctor guidance.
 - **Development**: implementation-level docs for contributors.
-- **Reference**: commands, config, environment variables, routes, RPC, trace events, and FAQ.
+- **Reference**: [CLI](./reference/cli), [Slash Commands](./reference/slash-commands), [Config](./reference/config), [Environment Variables](./reference/environment-variables), [Gateway Routes](./reference/gateway-routes), [RPC](./reference/rpc), [Trace Events](./reference/trace-events), [FAQ](./reference/faq).

@@ -44,10 +44,10 @@ hand
 
 When the TUI starts the daemon, it runs the daemon inside the same `hand` process. Exiting the TUI stops that daemon.
 
-If you want to see daemon startup details in the foreground, start it manually in one terminal:
+If you want to see daemonup details in the foreground, start it manually in one terminal:
 
 ```bash
-hand daemon start
+hand daemon
 ```
 
 Then open a second terminal and launch the TUI:
@@ -133,7 +133,7 @@ Use the error message to narrow the problem:
   Run `hand config get models.main.provider models.main.name models.main.api` and `hand auth status`.
 - Model errors: the configured model name or API mode does not match the provider. Recheck the provider examples in the
   [Quickstart](./quickstart).
-- No visible streaming: streaming may be disabled in config. Check the daemon startup details or run
+- No visible streaming: streaming may be disabled in config. Check the daemonup details or run
   `hand config get models.main.stream`.
 
 When in doubt, run:

@@ -1,6 +1,7 @@
 ---
 title: Model Providers
 description: Add and maintain provider integrations.
+displayed_sidebar: null
 ---
 
 # Model Providers

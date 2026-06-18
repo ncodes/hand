@@ -1,6 +1,7 @@
 ---
 title: Session Storage
 description: Session persistence, search, and repair internals.
+displayed_sidebar: null
 ---
 
 # Session Storage

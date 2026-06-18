@@ -9,6 +9,7 @@ Hand is still moving quickly, so the best contributions are small, tested, and e
 
 ## Before You Start
 
+- Read [Developer Architecture](development/architecture.md) for package boundaries before large code changes.
 - Open or join a discussion for larger changes.
 - Keep changes scoped to one behavior or documentation area.
 - Prefer existing package boundaries, naming conventions, and test patterns.

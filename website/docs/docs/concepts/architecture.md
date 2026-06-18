@@ -46,7 +46,7 @@ The daemon is the long-lived process that owns everything stateful and expensive
 agent loop, the tool registry, the memory subsystem, and the connection to persistent storage. Running it once and
 keeping it warm means clients stay thin and fast.
 
-`hand daemon start` boots the runtime for the active profile. On startup it loads and validates config, builds the model
+`hand daemon` boots the runtime for the active profile. On startup it loads and validates config, builds the model
 clients, opens the state store, starts the agent, optionally starts the gateway, and binds the RPC listener. If model or
 embedding credentials are missing, the daemon still starts but disables the parts that need them (for example the
 gateway, vector search, or memory) so you can fix configuration and retry.
@@ -98,7 +98,7 @@ Several subsystems support that loop:
   can touch. See [Tools](./tools).
 - **Model clients** abstract providers (OpenRouter, OpenAI, OpenAI Codex, Anthropic, GitHub Copilot) behind common API
   shapes. The daemon builds separate clients for the main model, the summary model, and the reranker. See
-  [Model Auth](../guides/model-auth).
+  [Provider Auth](../guides/provider-auth).
 - **Memory** retrieves relevant context at the start of a turn and writes new memory during compaction and shutdown, so
   the agent carries useful context across sessions. See [Memory](./memory).
 - **Guardrails** scan input, loaded content, and output, and redact sensitive data, recording safety events to traces.
@@ -120,10 +120,10 @@ All persistent state for a profile lives under its home directory, `~/.hand/prof
 - **Config and credentials**: `config.yaml`, `.env`, and `auth.json`.
 - **Conversations and memory**: a SQLite database with full-text search (FTS5) for session messages and memory items.
 - **Traces**: recorded agent activity, on disk and in the database.
-- **Runtime metadata**: `runtime.json` (the RPC endpoint and daemon pid) and `hand.pid`.
+- **Runtime metadata**: `runtime.json`, which records the daemon's RPC endpoint, process id, and start time.
 
 Because each profile is self-contained, you can run several profiles on one machine without sharing state, and you can
-back up or move a profile by copying its directory. See [Sessions](./sessions),
+back up or move a profile by copying its directory. See [Profiles](./profiles), [Sessions](./sessions),
 [Profiles and Config](../getting-started/profiles-and-config), and
 [Backups and State](../operations/backups-and-state).
 

@@ -5,24 +5,429 @@ description: Complete profile config key reference.
 
 # Config Reference
 
-This page should manually track the latest config metadata.
+Every Hand **profile** stores settings in `config.yaml` under the profile home (typically `~/.hand/profiles/<name>/`).
+This page lists the supported keys, value types, defaults, and validation notes.
 
-## Content Outline
+Task-oriented editing: [Config Guide](../guides/config). Env overrides: [Environment Variables](./environment-variables).
+Profile layout: [Profiles and Config](../getting-started/profiles-and-config).
 
-- `models`.
-- `rpc`.
-- `gateway`.
-- `fs`.
-- `exec`.
-- `storage`.
-- `session`.
-- `search`.
-- `memory`.
-- `reranker`.
-- `compaction`.
-- `cap`.
-- `log`.
-- `debug`.
-- `trace`.
-- `web`.
-- `rules`.
+## How to read this reference
+
+- **Paths** use YAML tag names (camelCase). CLI: `hand config get session.maxIterations`.
+- **Defaults** come from `DefaultConfig` plus normalization when a key is omitted.
+- **`*bool`** means an optional pointer; unset uses the documented default after `Normalize()`.
+- **Durations** use Go syntax (`24h`, `720h`, `10s`).
+
+Validation runs during daemon startup and `hand doctor`. Some keys require others (for example embedding model when vector
+search is required).
+
+:::note[Defaults vs setup state]
+This reference describes effective config defaults. A freshly initialized profile may intentionally leave model fields
+blank so setup can choose a provider and model; validation then tells you which required values are still missing.
+:::
+
+## Top-level
+
+| Key | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `name` | string | `"Hand"` | Agent name in base instructions |
+| `platform` | string | `"cli"` | Must be `cli` at validate |
+
+## `models`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `models.maxRetries` | `*int` | `2` |
+
+### `models.main`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `name` | string | `""` (required at validate) |
+| `provider` | string | `""` (required) |
+| `api` | string | provider default if empty |
+| `apiKey` | string | `""` |
+| `baseUrl` | string | provider registry default |
+| `stream` | `*bool` | `true` |
+| `contextLength` | int | `128000` |
+
+**Providers:** `openrouter`, `openai`, `openai-codex`, `anthropic`, `github-copilot`.  
+**Generation APIs:** `openai-completions`, `openai-responses`, `anthropic-messages`.  
+**Embedding APIs:** `openai-embeddings`, `openrouter-embeddings`.
+
+### `models.summary`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `name` | string | `""` (falls back to main at runtime) |
+| `provider` | string | `""` (falls back to main) |
+| `api` | string | `""` (falls back to main) |
+| `apiKey` | string | `""` |
+| `baseUrl` | string | `""` |
+
+### `models.embedding`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `name` | string | `"text-embedding-3-small"` |
+| `provider` | string | `""` (falls back to main) |
+| `api` | string | `""` |
+| `apiKey` | string | `""` |
+| `baseUrl` | string | `""` |
+
+Required when `search.vector.enabled` and `search.vector.required` are both true.
+
+### `models.providers.<provider>`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `apiKey` | string | `""` |
+| `apiKeyEnv` | `[]string` | `[]` |
+
+Per-provider credential env names. See [Provider Auth](../guides/provider-auth).
+
+## `rpc`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `address` | string | `"127.0.0.1"` |
+| `port` | int | `50051` |
+
+See [Daemon and RPC](../concepts/daemon-and-rpc) and [RPC Reference](./rpc).
+
+## `gateway`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | bool | `false` |
+| `address` | string | `"127.0.0.1"` |
+| `port` | int | `50052` |
+| `authToken` | string | `""` (required when enabled + non-loopback) |
+| `pairingSecret` | string | `""` |
+| `allowedUsers` | `[]string` | `[]` |
+
+### `gateway.telegram`
+
+| Key | Type | Default | Valid |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | |
+| `mode` | string | `"polling"` | `polling`, `webhook` |
+| `botToken` | string | `""` | required when enabled |
+| `webhookSecret` | string | `""` | required in webhook mode |
+| `allowedUsers` | `[]string` | `[]` | |
+
+### `gateway.slack`
+
+| Key | Type | Default | Valid |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | |
+| `mode` | string | `"socket"` | `socket`, `http` |
+| `responseMode` | string | `"thread"` | `thread`, `message` |
+| `botToken` | string | `""` | required when enabled |
+| `appToken` | string | `""` | required in socket mode |
+| `signingSecret` | string | `""` | required in http mode |
+| `allowedUsers` | `[]string` | `[]` | |
+
+Routes: [Gateway Routes](./gateway-routes). Guides: [Gateway Overview](../guides/gateway/).
+
+## `fs`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `noProfileAccess` | bool | `true` |
+| `roots` | `[]string` | current working directory (absolute) |
+
+## `exec`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `allow` | `[]string` | `[]` |
+| `ask` | `[]string` | `[]` |
+| `deny` | `[]string` | `[]` |
+
+See [Safety and Guardrails](../concepts/safety-and-guardrails).
+
+## `storage`
+
+| Key | Type | Default | Valid |
+| --- | --- | --- | --- |
+| `backend` | string | `"sqlite"` | `memory`, `sqlite` |
+
+Production data: `<profile>/data/state.db`. See [Backups and State](../operations/backups-and-state).
+
+## `session`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `maxIterations` | int | `90` |
+| `instruct` | string | `""` |
+| `defaultIdleExpiry` | duration | `24h` |
+| `archiveRetention` | duration | `720h` (30 days) |
+
+## `search`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enableRerank` | `*bool` | `true` |
+
+### `search.vector`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | bool | `true` |
+| `required` | bool | `true` |
+| `rebuildBatchSize` | int | `100` |
+
+## `memory`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` |
+| `provider` | string | `"default-memory"` |
+| `backend` | string | `""` (effective: same as `storage.backend`) |
+
+### `memory.pinned`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` |
+| `maxChars` | int | `4000` |
+| `maxItemChars` | int | `1000` |
+
+### `memory.retrieval`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` |
+
+### `memory.flush`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` |
+| `maxCalls` | int | `2` |
+| `maxOutputTokens` | int64 | `512` |
+| `timeout` | duration | `10s` |
+
+### `memory.write`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` |
+
+### `memory.episodic`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` in default YAML; normalize nil → `false` |
+| `interval` | duration | `1m` |
+| `idleAfter` | duration | `1m` |
+| `minMessages` | int | `2` |
+| `windowSize` | int | `20` |
+| `maxWindows` | int | `10` |
+| `maxWindowChars` | int | `6000` |
+| `maxWindowTokens` | int | `1500` |
+| `maxRetries` | int | `1` |
+
+### `memory.reflection`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` in default YAML; normalize nil → `false` |
+| `interval` | duration | `5m` |
+| `limit` | int | `10` |
+| `relatedLimit` | int | `3` |
+
+### `memory.promotion`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` |
+| `interval` | duration | `3m` |
+| `limit` | int | `10` |
+
+Guide: [Memory Guide](../guides/memory). Concept: [Memory](../concepts/memory).
+
+## `reranker`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` |
+| `type` | string | `"deterministic"` |
+| `model` | string | `""` (effective: summary model, else main) |
+| `maxCandidates` | int | `20` |
+| `maxCandidateTextChars` | int | `500` |
+| `maxOutputTokens` | int | `0` |
+
+**Valid `type`:** `deterministic`, `noop`, `llm`.
+
+### `reranker.overrides.<useCase>`
+
+Optional per-use-case overrides: `type`, `model`, `maxCandidates`, `maxCandidateTextChars`, `maxOutputTokens`.
+
+Built-in override defaults:
+
+| Use case | Default `type` |
+| --- | --- |
+| `memory_episodic_extraction` | `llm` |
+| `memory_promotion` | `llm` |
+| `memory_reflection` | `llm` |
+
+Env JSON: `HAND_RERANKER_OVERRIDES`.
+
+## `compaction`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` |
+| `triggerPercent` | float64 | `0.85` |
+| `warnPercent` | float64 | `0.95` |
+| `recentSessionTail` | `*int` | `8` |
+
+`warnPercent` must be ≥ `triggerPercent`. Both in `(0, 1)`.
+
+## `cap`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `fs` | `*bool` | `true` |
+| `net` | `*bool` | `true` |
+| `exec` | `*bool` | `true` |
+| `mem` | `*bool` | `true` |
+| `browser` | `*bool` | `false` |
+
+Gates tool visibility. See [Tools](../concepts/tools).
+
+## `log`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `level` | string | `"debug"` in default YAML; empty → `"info"` |
+| `noColor` | bool | `false` |
+| `file` | string | `""` |
+| `maxSizeMB` | int | `10` |
+| `maxBackups` | int | `5` |
+| `maxAgeDays` | int | `14` |
+| `compress` | bool | `true` |
+
+Valid levels: `debug`, `info`, `warn`, `error`.
+
+## `debug`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `requests` | bool | `true` |
+
+Logs sanitized model requests at debug level.
+
+## `trace`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | bool | `true` |
+
+### `trace.disk`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` |
+| `dir` | string | `<profile>/traces` |
+
+### `trace.database`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | `*bool` | `true` |
+| `maxEventsPerSession` | int | `10000` |
+
+Events: [Trace Events](./trace-events).
+
+## `tui`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `thinkingComposer` | `*bool` | `true` |
+
+## `safety`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `input` | `*bool` | `true` |
+| `output` | `*bool` | `true` |
+| `pii` | `*bool` | `true` |
+
+## `web`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `provider` | string | `""` |
+| `apiKey` | string | `""` |
+| `baseUrl` | string | `""` |
+| `maxCharPerResult` | int | `1200` |
+| `maxExtractCharPerResult` | int | `50000` |
+| `maxExtractResponseBytes` | int | `2097152` |
+| `cacheTTL` | duration | `5m` |
+| `extractMinSummarizeChars` | int | `12000` |
+| `extractMaxSummaryChars` | int | `4000` |
+| `extractMaxSummaryChunkChars` | int | `25000` |
+| `extractRefusalThresholdChars` | int | `200000` |
+
+**Providers:** `firecrawl`, `parallel`, `tavily`, `exa`.
+
+### `web.blockedDomains`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | bool | `true` |
+| `domains` | `[]string` | `[]` |
+| `files` | `[]string` | `[]` |
+
+### `web.native`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `allowedHosts` | `[]string` | `[]` |
+| `blockedHosts` | `[]string` | `[]` |
+| `allowedHostFiles` | `[]string` | `[]` |
+| `blockedHostFiles` | `[]string` | `[]` |
+
+## `rules`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `files` | `[]string` | `[]` |
+
+Extra workspace rule paths. Default discovery loads `agents.md` and `hand.md`.
+
+## `personalities.<name>`
+
+Name pattern: `[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`.
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `soul` | string | path to soul file |
+| `instruct` | string | inline instruct text |
+| `state` | string | `"shared"` — `shared`, `isolated`, `readonly` |
+| `maxIterations` | int | `0` |
+| `model.*` | | same shape as `models.main`; inherits global when unset |
+| `memory.pinned` … `memory.flush` | `*bool` | nil → inherit |
+| `tools.fs`, `tools.net`, `tools.exec` | `*bool` | nil → inherit |
+| `tools.mem` | string | `""`, `none`, `read`, or `write` |
+
+## Config paths without `HAND_*` env overrides
+
+- `personalities.*`
+- `compaction.recentSessionTail`
+- `fs.noProfileAccess`
+- `models.providers.*.apiKey` (use auth store / provider env)
+
+Full env mapping: [Environment Variables](./environment-variables).
+
+## Where To Go Next
+
+- [Config Guide](../guides/config): common edits and examples
+- [Environment Variables](./environment-variables): `HAND_*` overrides
+- [Provider Auth](../guides/provider-auth): models and web credentials
+- [Safety and Guardrails](../concepts/safety-and-guardrails): `safety`, `exec`, `fs`, `web`
+- [Doctor](../operations/doctor): validation and readiness checks
+- [CLI Reference](./cli): `hand config get/set`
