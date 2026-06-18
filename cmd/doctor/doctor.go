@@ -99,14 +99,13 @@ func NewCommand() *cli.Command {
 }
 
 type jsonReport struct {
-	OK          bool                 `json:"ok"`
-	Summary     string               `json:"summary"`
-	Diagnostics []jsonCheck          `json:"diagnostics"`
-	Safety      string               `json:"safety,omitempty"`
-	Readiness   []jsonReadinessGroup `json:"readiness,omitempty"`
+	OK      bool        `json:"ok"`
+	Summary string      `json:"summary"`
+	Safety  string      `json:"safety,omitempty"`
+	Groups  []jsonGroup `json:"groups,omitempty"`
 }
 
-type jsonReadinessGroup struct {
+type jsonGroup struct {
 	Name   string      `json:"name"`
 	Checks []jsonCheck `json:"checks"`
 }
@@ -138,11 +137,10 @@ func IsCheckFailed(err error) bool {
 
 func renderJSONReport(w io.Writer, diagnosticsReport diagnostics.Report, readinessReport readiness.Report, safety string) error {
 	payload := jsonReport{
-		OK:          !diagnosticsReport.HasFailures() && !readinessReport.HasFailures(),
-		Summary:     getDoctorSummary(diagnosticsReport, readinessReport),
-		Diagnostics: diagnosticsChecksToJSON(diagnosticsReport.Checks),
-		Safety:      strings.TrimSpace(safety),
-		Readiness:   readinessGroupsToJSON(readinessReport.Groups),
+		OK:      !diagnosticsReport.HasFailures() && !readinessReport.HasFailures(),
+		Summary: getDoctorSummary(diagnosticsReport, readinessReport),
+		Safety:  strings.TrimSpace(safety),
+		Groups:  doctorGroupsToJSON(diagnosticsReport, readinessReport),
 	}
 
 	encoder := json.NewEncoder(w)
@@ -153,35 +151,62 @@ func renderJSONReport(w io.Writer, diagnosticsReport diagnostics.Report, readine
 func diagnosticsChecksToJSON(checks []diagnostics.Check) []jsonCheck {
 	items := make([]jsonCheck, 0, len(checks))
 	for _, check := range checks {
-		items = append(items, jsonCheck{
-			Name:    check.Name,
-			Status:  string(check.Status),
-			Message: check.Message,
-		})
+		items = append(items, diagnosticCheckToJSON(check))
 	}
 
 	return items
 }
 
-func readinessGroupsToJSON(groups []readiness.Group) []jsonReadinessGroup {
-	items := make([]jsonReadinessGroup, 0, len(groups))
+func doctorGroupsToJSON(diagnosticsReport diagnostics.Report, readinessReport readiness.Report) []jsonGroup {
+	profileDiagnostics := getRenderableDiagnosticChecks(diagnosticsReport)
+	if len(readinessReport.Groups) == 0 {
+		if len(profileDiagnostics) == 0 {
+			return nil
+		}
+
+		return []jsonGroup{{
+			Name:   "config",
+			Checks: diagnosticsChecksToJSON(profileDiagnostics),
+		}}
+	}
+
+	return readinessGroupsToJSON(readinessReport.Groups, profileDiagnostics)
+}
+
+func readinessGroupsToJSON(groups []readiness.Group, profileDiagnostics []diagnostics.Check) []jsonGroup {
+	items := make([]jsonGroup, 0, len(groups))
 	for _, group := range groups {
-		item := jsonReadinessGroup{
+		item := jsonGroup{
 			Name:   group.Name,
 			Checks: make([]jsonCheck, 0, len(group.Checks)),
 		}
 		for _, check := range group.Checks {
-			item.Checks = append(item.Checks, jsonCheck{
-				Name:    check.Name,
-				Status:  string(check.Status),
-				Message: check.Message,
-				Actions: readinessActionsToJSON(check.Actions),
-			})
+			item.Checks = append(item.Checks, readinessCheckToJSON(check))
+			if group.Name == "profile" && check.Name == "env" {
+				item.Checks = append(item.Checks, diagnosticsChecksToJSON(profileDiagnostics)...)
+			}
 		}
 		items = append(items, item)
 	}
 
 	return items
+}
+
+func diagnosticCheckToJSON(check diagnostics.Check) jsonCheck {
+	return jsonCheck{
+		Name:    check.Name,
+		Status:  string(check.Status),
+		Message: check.Message,
+	}
+}
+
+func readinessCheckToJSON(check readiness.Check) jsonCheck {
+	return jsonCheck{
+		Name:    check.Name,
+		Status:  string(check.Status),
+		Message: check.Message,
+		Actions: readinessActionsToJSON(check.Actions),
+	}
 }
 
 func readinessActionsToJSON(actions []readiness.Action) []jsonAction {

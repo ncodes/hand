@@ -218,11 +218,17 @@ func TestNewCommand_PrintsJSONReport(t *testing.T) {
 	require.NoError(t, json.Unmarshal(output.Bytes(), &payload))
 	require.True(t, payload.OK)
 	require.Equal(t, "doctor checks passed", payload.Summary)
-	require.NotEmpty(t, payload.Diagnostics)
 	require.Equal(t, "input=enabled, output=enabled, pii=enabled", payload.Safety)
-	require.NotEmpty(t, payload.Readiness)
-	require.Equal(t, "profile", payload.Readiness[0].Name)
-	require.NotEmpty(t, findJSONCheck(t, payload.Readiness, "models", "embedding").Message)
+	require.NotEmpty(t, payload.Groups)
+	require.Equal(t, "profile", payload.Groups[0].Name)
+	require.NotEmpty(t, findJSONCheck(t, payload.Groups, "models", "embedding").Message)
+	requireInJSONCheckOrder(
+		t,
+		payload.Groups,
+		"profile",
+		"env",
+		"config validation",
+	)
 }
 
 func TestNewCommand_PrintsJSONFailureReport(t *testing.T) {
@@ -257,7 +263,7 @@ search:
 	require.NoError(t, json.Unmarshal(output.Bytes(), &payload))
 	require.False(t, payload.OK)
 	require.Contains(t, payload.Summary, "model auth")
-	require.NotEmpty(t, payload.Diagnostics)
+	require.NotEmpty(t, payload.Groups)
 }
 
 func TestNewCommand_ReadinessFailureAffectsExit(t *testing.T) {
@@ -394,9 +400,28 @@ func TestRenderJSONReport(t *testing.T) {
 	require.NoError(t, json.Unmarshal(output.Bytes(), &payload))
 	require.True(t, payload.OK)
 	require.Equal(t, "safety", payload.Safety)
-	require.Equal(t, "config", payload.Diagnostics[0].Name)
-	require.Equal(t, "/models", payload.Readiness[0].Checks[0].Actions[0].Command)
+	require.Len(t, payload.Groups, 1)
+	require.Equal(t, "models", payload.Groups[0].Name)
+	require.Equal(t, "/models", payload.Groups[0].Checks[0].Actions[0].Command)
 	require.Error(t, renderJSONReport(failingWriter{}, diagnosticsReport, readinessReport, ""))
+}
+
+func TestRenderJSONReportUsesConfigGroupWhenReadinessIsEmpty(t *testing.T) {
+	var output bytes.Buffer
+	diagnosticsReport := diagnostics.Report{Checks: []diagnostics.Check{{
+		Name:    "config validation",
+		Status:  diagnostics.StatusFail,
+		Message: "invalid",
+	}}}
+
+	err := renderJSONReport(&output, diagnosticsReport, readiness.Report{}, "")
+
+	require.NoError(t, err)
+	var payload jsonReport
+	require.NoError(t, json.Unmarshal(output.Bytes(), &payload))
+	require.Len(t, payload.Groups, 1)
+	require.Equal(t, "config", payload.Groups[0].Name)
+	require.Equal(t, "config validation", payload.Groups[0].Checks[0].Name)
 }
 
 func TestDoctorSummaryUsesReadinessFailure(t *testing.T) {
@@ -467,7 +492,7 @@ func (failingWriter) Write([]byte) (int, error) {
 	return 0, errors.New("write failed")
 }
 
-func findJSONCheck(t *testing.T, groups []jsonReadinessGroup, groupName string, checkName string) jsonCheck {
+func findJSONCheck(t *testing.T, groups []jsonGroup, groupName string, checkName string) jsonCheck {
 	t.Helper()
 
 	for _, group := range groups {
@@ -483,6 +508,33 @@ func findJSONCheck(t *testing.T, groups []jsonReadinessGroup, groupName string, 
 
 	require.Failf(t, "missing json check", "%s/%s", groupName, checkName)
 	return jsonCheck{}
+}
+
+func requireInJSONCheckOrder(t *testing.T, groups []jsonGroup, groupName string, checkNames ...string) {
+	t.Helper()
+
+	groupChecks := make([]jsonCheck, 0)
+	for _, group := range groups {
+		if group.Name == groupName {
+			groupChecks = group.Checks
+			break
+		}
+	}
+	require.NotEmpty(t, groupChecks)
+
+	offset := 0
+	for _, checkName := range checkNames {
+		found := false
+		for offset < len(groupChecks) {
+			if groupChecks[offset].Name == checkName {
+				found = true
+				offset++
+				break
+			}
+			offset++
+		}
+		require.Truef(t, found, "missing check %q after offset %d", checkName, offset)
+	}
 }
 
 func requireInOrder(t *testing.T, value string, fragments ...string) {
