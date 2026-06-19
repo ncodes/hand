@@ -779,7 +779,7 @@ html[data-theme='dark'] .token {
 }
 
 .handDocsHome__hero {
-  background: #10141a;
+  background: #000000;
   color: #f7f9fc;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -948,10 +948,36 @@ html[data-theme='dark'] .token {
   font-family: var(--hand-code-font);
   font-size: 0.82rem;
   justify-content: space-between;
-  padding: 0.8rem 0.95rem;
+  padding: 0 0.95rem;
 }
 
-.handDocsHome__install pre {
+.handDocsHome__installTab {
+  align-items: center;
+  border-bottom: 2px solid #ffffff;
+  color: #ffffff;
+  display: inline-flex;
+  font-family: var(--ifm-font-family-base);
+  font-weight: 650;
+  min-height: 2.65rem;
+  padding: 0 0.15rem;
+}
+
+.handDocsHome__installPlatform {
+  color: #7d8795;
+  font-family: var(--ifm-font-family-base);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.handDocsHome__installCommand {
+  align-items: center;
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0 0.60rem 0 0;
+}
+
+.handDocsHome__installCommand pre {
   background: transparent;
   color: #dce7f5;
   font-family: var(--hand-code-font);
@@ -975,8 +1001,9 @@ html[data-theme='dark'] .token {
 .handDocsHome__tui {
   --hand-tui-loop: 24s;
   background: #000000;
-  border: 0;
+  border: 1px solid #4a4a4a;
   border-radius: 2px;
+  box-sizing: border-box;
   box-shadow: 0 34px 100px rgba(0, 0, 0, 0.5);
   color: #f1f1f1;
   display: flex;
@@ -1427,16 +1454,16 @@ html[data-theme='dark'] .token {
   font-family: var(--hand-code-font);
   font-size: 0.76rem;
   gap: 0.65rem;
-  grid-template-columns: auto auto auto 1fr auto;
+  grid-template-columns: auto auto auto 1fr;
   min-height: 1.5rem;
   padding: 0 0.65rem 0.35rem;
 }
 
-.handDocsHome__previewTitle {
-  justify-self: center;
+.handDocsHome__tuiStatus span:last-child {
+  justify-self: end;
   min-width: 0;
   overflow: hidden;
-  text-align: center;
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1483,23 +1510,30 @@ html[data-theme='dark'] .token {
 .handDocsHome__copyButton {
   align-items: center;
   background: #111820;
-  border: 1px solid #2b3542;
+  border: 0;
   border-radius: 7px;
   color: #a7b0bf;
   cursor: pointer;
+  opacity: 0.3;
   display: inline-flex;
   flex: 0 0 auto;
-  height: 1.85rem;
   justify-content: center;
-  padding: 0;
-  width: 1.85rem;
+  padding: 0.5rem;
+  padding-bottom: 0.7rem;
+  
+  &:hover {
+    opacity: 0.6;
+  }
 }
 
 .handDocsHome__copyButton:hover,
 .handDocsHome__copyButton:focus-visible {
-  border-color: var(--ifm-color-primary);
   color: #ffffff;
   outline: none;
+}
+
+.handDocsHome__copyButton:focus-visible {
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.42);
 }
 
 @keyframes handTuiRowOne {
@@ -2182,22 +2216,30 @@ html[data-theme='dark'] .token {
 }
 
 .handDocsHome__copyIcon {
-  border: 1.6px solid currentColor;
-  border-radius: 2px;
-  height: 0.82rem;
+  display: block;
+  height: 1.1rem;
   position: relative;
-  width: 0.68rem;
+  width: 1.1rem;
 }
 
+.handDocsHome__copyIcon::after,
 .handDocsHome__copyIcon::before {
   border: 1.6px solid currentColor;
   border-radius: 2px;
   content: '';
   height: 0.82rem;
-  left: -0.28rem;
   position: absolute;
-  top: -0.28rem;
   width: 0.68rem;
+}
+
+.handDocsHome__copyIcon::before {
+  left: 0.07rem;
+  top: 0;
+}
+
+.handDocsHome__copyIcon::after {
+  left: 0.35rem;
+  top: 0.28rem;
 }
 
 .handDocsHome__strip {
@@ -2446,12 +2488,6 @@ html[data-theme='dark'] .token {
     display: flex;
     flex-wrap: wrap;
     gap: 0.45rem 0.75rem;
-  }
-
-  .handDocsHome__previewTitle {
-    flex: 1 1 100%;
-    order: -1;
-    text-align: left;
   }
 
   .handDocsHome__grid,

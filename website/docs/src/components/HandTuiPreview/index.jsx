@@ -197,7 +197,6 @@ export default function HandTuiPreview() {
         <span>gpt-5.5</span>
         <span>enter to send</span>
         <span>ctrl+c to quit</span>
-        <span className="handDocsHome__previewTitle">Slack gateway rollout</span>
         <span>12,840 used · 18%</span>
       </div>
     </div>

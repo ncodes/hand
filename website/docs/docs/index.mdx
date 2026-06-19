@@ -12,11 +12,11 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
 <main className="handDocsHome">
   <section className="handDocsHome__hero" aria-labelledby="hand-docs-title">
     <div className="handDocsHome__heroCopy">
-      <span className="handDocsHome__eyebrow">Hand Agent</span>
-      <h1 id="hand-docs-title">Your personal agent workspace</h1>
+      <span className="handDocsHome__eyebrow">A Personal Agent</span>
+      <h1 id="hand-docs-title">Non-human intelligence at your service</h1>
       <div className="handDocsHome__bodyText">
-        Hand keeps long-running sessions, memory, tools, model providers, and gateways behind one local runtime you can
-        use from the terminal today and other clients tomorrow.
+        Hand is a personal AI helper that remembers what matters, helps you figure things out, and picks up where you
+        left off.
       </div>
       <div className="handDocsHome__actions">
         <a className="handDocsHome__button handDocsHome__buttonPrimary" href="/docs/getting-started/quickstart">
@@ -27,8 +27,14 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
         </a>
       </div>
       <div className="handDocsHome__install" aria-label="Hand install command">
-        <div className="handDocsHome__installTabs">
-          <span>macOS / Linux</span>
+        <div className="handDocsHome__installTabs" role="tablist" aria-label="Install command options">
+          <span className="handDocsHome__installTab" role="tab" aria-selected="true">
+            curl
+          </span>
+          <span className="handDocsHome__installPlatform">macOS</span>
+        </div>
+        <div className="handDocsHome__installCommand">
+          <pre>{`curl -fsSL https://handagent.ai/install.sh | bash`}</pre>
           <button
             aria-label="Copy install command"
             className="handDocsHome__copyButton"
@@ -37,7 +43,6 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
             <span aria-hidden="true" className="handDocsHome__copyIcon"></span>
           </button>
         </div>
-        <pre>{`curl -fsSL https://handagent.ai/install.sh | bash`}</pre>
       </div>
     </div>
     <div className="handDocsHome__tuiWrap" aria-label="Animated Hand TUI preview">
