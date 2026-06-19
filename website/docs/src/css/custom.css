@@ -770,9 +770,8 @@ html[data-theme='dark'] .token {
 }
 
 .handDocsHome__hero,
-.handDocsHome__strip,
-.handDocsHome__sectionIntro,
-.handDocsHome__featureBand,
+.handDocsHome__featureIntro,
+.handDocsHome__featureGrid,
 .handDocsHome__footerCta,
 .handDocsHome__footerLinks {
   border-bottom: 1px solid var(--hand-border);
@@ -892,8 +891,7 @@ html[data-theme='dark'] .token {
   background: #171d25;
 }
 
-.handDocsHome__button:hover,
-.handDocsHome__tile:hover {
+.handDocsHome__button:hover {
   color: var(--hand-text-strong);
 }
 
@@ -2242,89 +2240,180 @@ html[data-theme='dark'] .token {
   top: 0.28rem;
 }
 
-.handDocsHome__strip {
-  padding: 2rem;
-}
-
-.theme-doc-markdown .handDocsHome__strip h2 {
-  color: var(--hand-text-strong);
-  font-size: 1rem;
-  line-height: 1.4;
-  margin: 0 0 1.6rem;
-}
-
-.handDocsHome__capabilities {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
-
-.handDocsHome__capabilities span {
-  align-items: center;
-  border-left: 1px solid var(--hand-border);
-  color: var(--hand-navbar-text);
-  display: flex;
-  font-size: 0.92rem;
-  font-weight: 700;
-  min-height: 4rem;
-  padding: 0 1.2rem;
-}
-
-.handDocsHome__capabilities span:first-child {
-  border-left: 0;
-  padding-left: 0;
-}
-
-.handDocsHome__sectionIntro {
-  padding: clamp(3.75rem, 10vw, 7rem) clamp(2rem, 8vw, 6rem);
+.handDocsHome__featureIntro {
+  background: #000000;
+  padding: clamp(3.5rem, 8vw, 6rem) clamp(2rem, 8vw, 6rem);
   text-align: center;
 }
 
-.theme-doc-markdown .handDocsHome__sectionIntro h2 {
+.theme-doc-markdown .handDocsHome__featureIntro h2 {
+  color: #ffffff;
   margin: 0 auto;
-  max-width: 760px;
+  max-width: 900px;
 }
 
-.handDocsHome__grid {
+.handDocsHome__featureGrid {
+  background: #000000;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.handDocsHome__tile {
+.handDocsHome__featureCard {
   border-bottom: 1px solid var(--hand-border);
   border-right: 1px solid var(--hand-border);
-  display: flex;
-  flex-direction: column;
-  min-height: 260px;
-  padding: clamp(1.6rem, 4vw, 2.8rem);
-  transition:
-    background 160ms ease,
-    border-color 160ms ease;
+  display: grid;
+  grid-template-rows: auto minmax(260px, 1fr);
+  min-height: 560px;
+  overflow: hidden;
 }
 
-.handDocsHome__tile:nth-child(2n) {
+.handDocsHome__featureCard:nth-child(2n) {
   border-right: 0;
 }
 
-.handDocsHome__tile:hover {
-  background: var(--hand-panel-soft);
-  border-color: var(--hand-border-strong);
+.handDocsHome__featureCard:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.handDocsHome__featureCopy {
+  padding: clamp(2rem, 4.5vw, 3.75rem);
+}
+
+.theme-doc-markdown .handDocsHome__featureCopy h3 {
+  color: #ffffff;
+}
+
+.handDocsHome__featureCopy .handDocsHome__tileText {
+  color: #aeb8c7;
+  max-width: 540px;
 }
 
 .handDocsHome__tileKicker {
   color: var(--ifm-color-primary);
+  display: block;
   font-family: var(--hand-code-font);
   font-size: 0.76rem;
   font-weight: 800;
-  margin-bottom: 1.45rem;
+  margin-bottom: 1.25rem;
   text-transform: uppercase;
 }
 
-.handDocsHome__featureBand {
-  background: var(--hand-panel-soft);
+.handDocsHome__featureVisual {
+  align-items: center;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(20, 184, 166, 0.12), transparent 26%),
+    linear-gradient(135deg, rgba(9, 13, 18, 0.92), rgba(0, 0, 0, 0.98));
+  border-top: 1px solid var(--hand-border);
+  display: flex;
+  justify-content: center;
+  min-height: 300px;
+  overflow: hidden;
+  padding: clamp(2rem, 4vw, 4rem);
+  position: relative;
 }
 
-.handDocsHome__gridCompact .handDocsHome__tile {
-  min-height: 225px;
+.handDocsHome__featureVisual::before {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  content: '';
+  inset: clamp(1rem, 2vw, 1.8rem);
+  position: absolute;
+}
+
+.handDocsHome__featureVisual span {
+  position: relative;
+  z-index: 1;
+}
+
+.handDocsHome__memoryVisual {
+  align-content: center;
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(2, minmax(130px, 190px));
+}
+
+.handDocsHome__memoryVisual span {
+  background: #080c11;
+  border: 1px solid #263241;
+  border-radius: 999px;
+  color: #d5dfec;
+  font-family: var(--hand-code-font);
+  font-size: 0.8rem;
+  padding: 0.85rem 1rem;
+  text-align: center;
+}
+
+.handDocsHome__toolsVisual {
+  align-items: stretch;
+  color: #a8b3c2;
+  flex-direction: column;
+  font-family: var(--hand-code-font);
+  font-size: 0.86rem;
+  gap: 0.85rem;
+}
+
+.handDocsHome__toolsVisual span {
+  background: #05070a;
+  border: 1px solid #202a36;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+.handDocsHome__toolsVisual span:first-child,
+.handDocsHome__toolsVisual span:last-child {
+  color: #f4f7fb;
+}
+
+.handDocsHome__gatewayVisual {
+  gap: 1rem;
+  min-height: 300px;
+}
+
+.handDocsHome__gatewayVisual span {
+  align-items: center;
+  background: #05070a;
+  border: 1px solid #2a3442;
+  border-radius: 14px;
+  color: #eef4fb;
+  display: flex;
+  font-weight: 750;
+  height: clamp(5rem, 8vw, 7rem);
+  justify-content: center;
+  width: clamp(5rem, 8vw, 7rem);
+}
+
+.handDocsHome__gatewayVisual span:nth-child(2) {
+  transform: translateY(-1.3rem);
+}
+
+.handDocsHome__gatewayVisual span:nth-child(3) {
+  transform: translateY(1.3rem);
+}
+
+.handDocsHome__controlVisual {
+  align-items: stretch;
+  color: #c9d4e3;
+  flex-direction: column;
+  font-family: var(--hand-code-font);
+  font-size: 0.84rem;
+  gap: 0.72rem;
+}
+
+.handDocsHome__controlVisual span {
+  border-bottom: 1px solid #1d2632;
+  padding: 0.7rem 0.2rem 0.9rem 1.6rem;
+  position: relative;
+}
+
+.handDocsHome__controlVisual span::before {
+  background: #22ff50;
+  border-radius: 999px;
+  box-shadow: 0 0 16px rgba(34, 255, 80, 0.5);
+  content: '';
+  height: 0.48rem;
+  left: 0.25rem;
+  position: absolute;
+  top: 1rem;
+  width: 0.48rem;
 }
 
 .handDocsHome__footerCta {
@@ -2401,19 +2490,17 @@ html[data-theme='dark'] .token {
     border-bottom: 1px solid #2a313c;
   }
 
-  .handDocsHome__capabilities,
+  .handDocsHome__featureGrid,
   .handDocsHome__footerLinks {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .handDocsHome__capabilities span {
-    border-left: 0;
-    border-top: 1px solid var(--hand-border);
-    padding: 1rem 0;
+  .handDocsHome__featureCard:nth-child(2n) {
+    border-right: 1px solid var(--hand-border);
   }
 
-  .handDocsHome__capabilities span:nth-child(-n + 2) {
-    border-top: 0;
+  .handDocsHome__featureCard:nth-last-child(-n + 2) {
+    border-bottom: 1px solid var(--hand-border);
   }
 }
 
@@ -2429,8 +2516,7 @@ html[data-theme='dark'] .token {
   }
 
   .handDocsHome__heroCopy,
-  .handDocsHome__strip,
-  .handDocsHome__sectionIntro,
+  .handDocsHome__featureIntro,
   .handDocsHome__footerCta,
   .handDocsHome__footerLinks {
     padding-left: 1.25rem;
@@ -2441,7 +2527,7 @@ html[data-theme='dark'] .token {
     margin: 1.25rem;
   }
 
-  .handDocsHome__install pre {
+  .handDocsHome__installCommand pre {
     font-size: 0.76rem;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
@@ -2490,22 +2576,39 @@ html[data-theme='dark'] .token {
     gap: 0.45rem 0.75rem;
   }
 
-  .handDocsHome__grid,
-  .handDocsHome__capabilities,
+  .handDocsHome__featureGrid,
   .handDocsHome__footerLinks {
     grid-template-columns: 1fr;
   }
 
-  .handDocsHome__tile,
-  .handDocsHome__tile:nth-child(2n) {
+  .handDocsHome__featureCard,
+  .handDocsHome__featureCard:nth-child(2n) {
     border-right: 0;
   }
 
-  .handDocsHome__capabilities span:nth-child(n) {
-    border-top: 1px solid var(--hand-border);
+  .handDocsHome__featureCard,
+  .handDocsHome__featureCard:nth-last-child(-n + 2) {
+    border-bottom: 1px solid var(--hand-border);
   }
 
-  .handDocsHome__capabilities span:first-child {
-    border-top: 0;
+  .handDocsHome__featureCard {
+    grid-template-rows: auto minmax(220px, 1fr);
+    min-height: 0;
+  }
+
+  .handDocsHome__featureVisual {
+    min-height: 240px;
+  }
+
+  .handDocsHome__memoryVisual {
+    grid-template-columns: 1fr;
+  }
+
+  .handDocsHome__gatewayVisual {
+    flex-wrap: wrap;
+  }
+
+  .handDocsHome__gatewayVisual span:nth-child(n) {
+    transform: none;
   }
 }

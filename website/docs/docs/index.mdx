@@ -50,93 +50,83 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
     </div>
   </section>
 
-  <section className="handDocsHome__strip" aria-labelledby="hand-docs-capabilities">
-    <h2 id="hand-docs-capabilities">What Hand brings together</h2>
-    <div className="handDocsHome__capabilities" aria-label="Hand capability summary">
-      <span>Daemon RPC</span>
-      <span>Durable sessions</span>
-      <span>Memory</span>
-      <span>Search</span>
-      <span>Gateway routing</span>
-      <span>Safety checks</span>
-    </div>
+  <section className="handDocsHome__featureIntro" aria-labelledby="hand-features-title">
+    <span className="handDocsHome__eyebrow">Built for everyday asks</span>
+    <h2 id="hand-features-title">The parts of life you keep repeating, handled with memory.</h2>
   </section>
 
-  <section className="handDocsHome__sectionIntro" aria-labelledby="hand-docs-paths">
-    <span className="handDocsHome__eyebrow">Documentation map</span>
-    <h2 id="hand-docs-paths">Find the path for the job in front of you</h2>
-  </section>
+  <section className="handDocsHome__featureGrid" aria-label="Hand product features">
+    <article className="handDocsHome__featureCard">
+      <div className="handDocsHome__featureCopy">
+        <span className="handDocsHome__tileKicker">Memory</span>
+        <h3>It remembers what matters</h3>
+        <div className="handDocsHome__tileText">
+          Keep preferences, plans, decisions, and unfinished threads close so every new ask starts with context.
+        </div>
+      </div>
+      <div className="handDocsHome__featureVisual handDocsHome__memoryVisual" aria-hidden="true">
+        <span>travel dates</span>
+        <span>favorite tone</span>
+        <span>open errands</span>
+        <span>family notes</span>
+      </div>
+    </article>
 
-  <section className="handDocsHome__grid" aria-label="Primary documentation paths">
-    <a className="handDocsHome__tile" href="/docs/getting-started/quickstart">
-      <span className="handDocsHome__tileKicker">Start</span>
-      <h3>Quickstart</h3>
-      <div className="handDocsHome__tileText">
-        Install Hand, choose a profile, configure a model provider, and run the first readiness check.
+    <article className="handDocsHome__featureCard">
+      <div className="handDocsHome__featureCopy">
+        <span className="handDocsHome__tileKicker">Tools</span>
+        <h3>It can actually do things</h3>
+        <div className="handDocsHome__tileText">
+          Hand can inspect, search, check, write, and report back with the steps it took.
+        </div>
       </div>
-    </a>
-    <a className="handDocsHome__tile" href="/docs/guides/tui">
-      <span className="handDocsHome__tileKicker">Use</span>
-      <h3>TUI guide</h3>
-      <div className="handDocsHome__tileText">
-        Send messages, use slash commands, watch tool activity, and understand the terminal chat flow.
+      <div className="handDocsHome__featureVisual handDocsHome__toolsVisual" aria-hidden="true">
+        <span>● Read receipts.csv</span>
+        <span>● Search warranty policy</span>
+        <span>● Draft refund email</span>
+        <span>◉ Ready to send</span>
       </div>
-    </a>
-    <a className="handDocsHome__tile" href="/docs/guides/provider-auth">
-      <span className="handDocsHome__tileKicker">Configure</span>
-      <h3>Provider auth</h3>
-      <div className="handDocsHome__tileText">
-        Set credentials for OpenAI-compatible providers, GitHub Copilot, Anthropic, and role-specific models.
-      </div>
-    </a>
-    <a className="handDocsHome__tile" href="/docs/operations/doctor">
-      <span className="handDocsHome__tileKicker">Diagnose</span>
-      <h3>Doctor</h3>
-      <div className="handDocsHome__tileText">
-        Validate the active profile, model auth, daemon probe, memory, search, safety, gateways, and web tools.
-      </div>
-    </a>
-  </section>
+    </article>
 
-  <section className="handDocsHome__featureBand" aria-labelledby="hand-docs-foundation">
-    <div className="handDocsHome__sectionIntro">
-      <span className="handDocsHome__eyebrow">Runtime foundation</span>
-      <h2 id="hand-docs-foundation">Everything flows through one local runtime</h2>
-    </div>
-    <div className="handDocsHome__grid handDocsHome__gridCompact">
-      <a className="handDocsHome__tile" href="/docs/concepts/daemon-and-rpc">
-        <h3>Daemon and RPC</h3>
+    <article className="handDocsHome__featureCard">
+      <div className="handDocsHome__featureCopy">
+        <span className="handDocsHome__tileKicker">Everywhere</span>
+        <h3>It follows you across surfaces</h3>
         <div className="handDocsHome__tileText">
-          Understand how clients discover the running daemon and why runtime metadata matters.
+          Start in the terminal, continue from a gateway, and bring the same agent into shared channels.
         </div>
-      </a>
-      <a className="handDocsHome__tile" href="/docs/concepts/sessions">
-        <h3>Sessions</h3>
+      </div>
+      <div className="handDocsHome__featureVisual handDocsHome__gatewayVisual" aria-hidden="true">
+        <span>Terminal</span>
+        <span>Slack</span>
+        <span>Telegram</span>
+        <span>HTTP</span>
+      </div>
+    </article>
+
+    <article className="handDocsHome__featureCard">
+      <div className="handDocsHome__featureCopy">
+        <span className="handDocsHome__tileKicker">Control</span>
+        <h3>You decide what it can touch</h3>
         <div className="handDocsHome__tileText">
-          Follow durable chat state, compaction, archive behavior, and recovery expectations.
+          Profiles, readiness checks, auth boundaries, and visible tool activity keep the agent understandable.
         </div>
-      </a>
-      <a className="handDocsHome__tile" href="/docs/guides/memory">
-        <h3>Memory</h3>
-        <div className="handDocsHome__tileText">
-          Configure pinned memory, retrieval, flushing, promotion, reflection, and write behavior.
-        </div>
-      </a>
-      <a className="handDocsHome__tile" href="/docs/guides/gateway">
-        <h3>Gateways</h3>
-        <div className="handDocsHome__tileText">
-          Connect Slack, Telegram, or generic HTTP clients to daemon-owned Hand sessions.
-        </div>
-      </a>
-    </div>
+      </div>
+      <div className="handDocsHome__featureVisual handDocsHome__controlVisual" aria-hidden="true">
+        <span>profile ready</span>
+        <span>model connected</span>
+        <span>gateway approved</span>
+        <span>tools visible</span>
+      </div>
+    </article>
   </section>
 
   <section className="handDocsHome__footerCta" aria-labelledby="hand-docs-next">
     <div>
       <span className="handDocsHome__eyebrow">Ready when you are</span>
-      <h2 id="hand-docs-next">Start with readiness, then open a chat</h2>
+      <h2 id="hand-docs-next">Install Hand, then ask for the thing on your mind</h2>
       <div className="handDocsHome__bodyText">
-        Run doctor first, fix any blocking checks, then launch the daemon or TUI for the active profile.
+        Start with one request. Hand will keep the thread, show its steps, and stay ready for what comes next.
       </div>
     </div>
     <div className="handDocsHome__terminal handDocsHome__terminalSmall" aria-label="Hand command sequence">
