@@ -2300,9 +2300,7 @@ html[data-theme='dark'] .token {
 
 .handDocsHome__featureVisual {
   align-items: center;
-  background:
-    radial-gradient(circle at 18% 18%, rgba(20, 184, 166, 0.12), transparent 26%),
-    linear-gradient(135deg, rgba(9, 13, 18, 0.92), rgba(0, 0, 0, 0.98));
+  background: #030507;
   border-top: 1px solid var(--hand-border);
   display: flex;
   justify-content: center;
@@ -2312,13 +2310,6 @@ html[data-theme='dark'] .token {
   position: relative;
 }
 
-.handDocsHome__featureVisual::before {
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  content: '';
-  inset: clamp(1rem, 2vw, 1.8rem);
-  position: absolute;
-}
-
 .handDocsHome__featureVisual span {
   position: relative;
   z-index: 1;
@@ -2326,6 +2317,9 @@ html[data-theme='dark'] .token {
 
 .handDocsHome__memoryVisual {
   align-content: center;
+  background:
+    url('/img/hand-grain-bg.png') center / cover no-repeat,
+    #030507;
   display: grid;
   gap: 0.85rem;
   grid-template-columns: repeat(2, minmax(130px, 190px));
@@ -2344,6 +2338,9 @@ html[data-theme='dark'] .token {
 
 .handDocsHome__toolsVisual {
   align-items: stretch;
+  background:
+    url('/img/hand-grain-bg.png') center / cover no-repeat,
+    #030507;
   color: #a8b3c2;
   flex-direction: column;
   font-family: var(--hand-code-font);
