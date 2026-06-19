@@ -7,6 +7,8 @@ hide_table_of_contents: true
 hide_title: true
 ---
 
+import {ApiIcon, SlackIcon, TelegramIcon, TerminalIcon} from '@hugeicons/core-free-icons';
+import {HugeiconsIcon} from '@hugeicons/react';
 import HandTuiPreview from '@site/src/components/HandTuiPreview';
 
 <main className="handDocsHome">
@@ -15,8 +17,8 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
       <span className="handDocsHome__eyebrow">A Personal Agent</span>
       <h1 id="hand-docs-title">Non-human intelligence at your service</h1>
       <div className="handDocsHome__bodyText">
-        Hand is a personal AI helper that remembers what matters, helps you figure things out, and picks up where you
-        left off.
+        Hand is a personal AI assistant that helps you do things, remembers what matters, work with you to figure 
+        things out, and picks up where you left off.
       </div>
       <div className="handDocsHome__actions">
         <a className="handDocsHome__button handDocsHome__buttonPrimary" href="/docs/getting-started/quickstart">
@@ -52,7 +54,7 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
 
   <section className="handDocsHome__featureIntro" aria-labelledby="hand-features-title">
     <span className="handDocsHome__eyebrow">Built for everyday asks</span>
-    <h2 id="hand-features-title">The parts of life you keep repeating, handled with memory.</h2>
+    <h2 id="hand-features-title">Hand runs on your computer to help in your daily life.</h2>
   </section>
 
   <section className="handDocsHome__featureGrid" aria-label="Hand product features">
@@ -61,7 +63,7 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
         <span className="handDocsHome__tileKicker">Memory</span>
         <h3>It remembers what matters</h3>
         <div className="handDocsHome__tileText">
-          Keep preferences, plans, decisions, and unfinished threads close so every new ask starts with context.
+          Keep preferences, plans, decisions, and unfinished threads close so every new ask starts with the right context.
         </div>
       </div>
       <div className="handDocsHome__featureVisual handDocsHome__memoryVisual" aria-hidden="true">
@@ -77,7 +79,7 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
         <span className="handDocsHome__tileKicker">Tools</span>
         <h3>It can actually do things</h3>
         <div className="handDocsHome__tileText">
-          Hand can inspect, search, check, write, and report back with the steps it took.
+          Hand can inspect, search, check, write, build, and report back with the steps it took. 
         </div>
       </div>
       <div className="handDocsHome__featureVisual handDocsHome__toolsVisual" aria-hidden="true">
@@ -96,27 +98,45 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
           Start in the terminal, continue from a gateway, and bring the same agent into shared channels.
         </div>
       </div>
-      <div className="handDocsHome__featureVisual handDocsHome__gatewayVisual" aria-hidden="true">
-        <span>Terminal</span>
-        <span>Slack</span>
-        <span>Telegram</span>
-        <span>HTTP</span>
+      <div className="handDocsHome__featureVisual handDocsHome__gatewayVisual" aria-label="Hand surfaces">
+        <span aria-label="Terminal" title="Terminal">
+          <HugeiconsIcon color="currentColor" icon={TerminalIcon} size={40} strokeWidth={1.8} />
+        </span>
+        <span aria-label="Slack" title="Slack">
+          <HugeiconsIcon color="currentColor" icon={SlackIcon} size={40} strokeWidth={1.8} />
+        </span>
+        <span aria-label="Telegram" title="Telegram">
+          <HugeiconsIcon color="currentColor" icon={TelegramIcon} size={40} strokeWidth={1.8} />
+        </span>
+        <span aria-label="HTTP" title="HTTP">
+          <HugeiconsIcon color="currentColor" icon={ApiIcon} size={40} strokeWidth={1.8} />
+        </span>
       </div>
     </article>
 
     <article className="handDocsHome__featureCard">
       <div className="handDocsHome__featureCopy">
         <span className="handDocsHome__tileKicker">Control</span>
-        <h3>You decide what it can touch</h3>
+        <h3>Nothing happens outside your boundaries</h3>
         <div className="handDocsHome__tileText">
-          Profiles, readiness checks, auth boundaries, and visible tool activity keep the agent understandable.
+          Give Hand scoped access, review risky actions before they run, and change the rules whenever the work
+          changes.
         </div>
       </div>
       <div className="handDocsHome__featureVisual handDocsHome__controlVisual" aria-hidden="true">
-        <span>profile ready</span>
-        <span>model connected</span>
-        <span>gateway approved</span>
-        <span>tools visible</span>
+        <div className="handDocsHome__controlPanel">
+          <span className="handDocsHome__controlLabel">Action pending</span>
+          <strong>Send refund email</strong>
+          <div className="handDocsHome__controlScope">
+            <span>Allow: inbox draft</span>
+            <span>Ask: send email</span>
+            <span>Block: billing data</span>
+          </div>
+          <div className="handDocsHome__controlActions">
+            <span>Deny</span>
+            <span>Approve once</span>
+          </div>
+        </div>
       </div>
     </article>
   </section>
@@ -124,15 +144,22 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
   <section className="handDocsHome__footerCta" aria-labelledby="hand-docs-next">
     <div>
       <span className="handDocsHome__eyebrow">Ready when you are</span>
-      <h2 id="hand-docs-next">Install Hand, then ask for the thing on your mind</h2>
+      <h2 id="hand-docs-next">Give Hand a thread and let it carry the context</h2>
       <div className="handDocsHome__bodyText">
-        Start with one request. Hand will keep the thread, show its steps, and stay ready for what comes next.
+        Install once, run a quick check, then start with the request you have been putting off.
       </div>
     </div>
     <div className="handDocsHome__terminal handDocsHome__terminalSmall" aria-label="Hand command sequence">
+      <div className="handDocsHome__terminalBar">
+        <span>hand setup</span>
+        <span>ready</span>
+      </div>
       <pre>{`$ hand doctor
-$ hand daemon
-$ hand`}</pre>
+✓ config found
+✓ gateway ready
+
+$ hand
+Ask me what you want to move forward.`}</pre>
     </div>
   </section>
 

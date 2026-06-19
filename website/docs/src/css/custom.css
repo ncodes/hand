@@ -2255,27 +2255,28 @@ html[data-theme='dark'] .token {
 .handDocsHome__featureGrid {
   background: #000000;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .handDocsHome__featureCard {
   border-bottom: 1px solid var(--hand-border);
-  border-right: 1px solid var(--hand-border);
+  border-right: 0;
   display: grid;
-  grid-template-rows: auto minmax(260px, 1fr);
-  min-height: 560px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 420px;
   overflow: hidden;
 }
 
-.handDocsHome__featureCard:nth-child(2n) {
-  border-right: 0;
-}
-
-.handDocsHome__featureCard:nth-last-child(-n + 2) {
+.handDocsHome__featureCard:last-child {
   border-bottom: 0;
 }
 
 .handDocsHome__featureCopy {
+  align-self: stretch;
+  border-right: 1px solid var(--hand-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   padding: clamp(2rem, 4.5vw, 3.75rem);
 }
 
@@ -2301,13 +2302,22 @@ html[data-theme='dark'] .token {
 .handDocsHome__featureVisual {
   align-items: center;
   background: #030507;
-  border-top: 1px solid var(--hand-border);
   display: flex;
   justify-content: center;
   min-height: 300px;
   overflow: hidden;
   padding: clamp(2rem, 4vw, 4rem);
   position: relative;
+}
+
+.handDocsHome__featureCard:nth-child(even) .handDocsHome__featureCopy {
+  border-left: 1px solid var(--hand-border);
+  border-right: 0;
+  order: 2;
+}
+
+.handDocsHome__featureCard:nth-child(even) .handDocsHome__featureVisual {
+  order: 1;
 }
 
 .handDocsHome__featureVisual span {
@@ -2321,19 +2331,25 @@ html[data-theme='dark'] .token {
     url('/img/hand-grain-bg.png') center / cover no-repeat,
     #030507;
   display: grid;
-  gap: 0.85rem;
-  grid-template-columns: repeat(2, minmax(130px, 190px));
+  gap: clamp(0.85rem, 1.6vw, 1.2rem);
+  grid-template-columns: repeat(2, minmax(0, 190px));
+  justify-content: center;
 }
 
 .handDocsHome__memoryVisual span {
-  background: #080c11;
-  border: 1px solid #263241;
-  border-radius: 999px;
-  color: #d5dfec;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.78);
+  border: 2px solid #d7f9ff;
+  box-shadow: 6px 6px 0 #00a1ce;
+  color: #f4f7fb;
+  display: flex;
   font-family: var(--hand-code-font);
-  font-size: 0.8rem;
-  padding: 0.85rem 1rem;
-  text-align: center;
+  font-size: clamp(0.74rem, 0.9vw, 0.82rem);
+  font-weight: 800;
+  min-height: 5rem;
+  padding: 0.95rem 1rem;
+  text-transform: uppercase;
+  width: 100%;
 }
 
 .handDocsHome__toolsVisual {
@@ -2349,10 +2365,13 @@ html[data-theme='dark'] .token {
 }
 
 .handDocsHome__toolsVisual span {
-  background: #05070a;
-  border: 1px solid #202a36;
-  border-radius: 8px;
-  padding: 0.85rem 1rem;
+  background: rgba(0, 0, 0, 0.84);
+  border: 2px solid #d7f9ff;
+  box-shadow: 6px 6px 0 #00ffb2;
+  color: #f4f7fb;
+  font-weight: 800;
+  padding: 1rem 1.1rem;
+  text-transform: uppercase;
 }
 
 .handDocsHome__toolsVisual span:first-child,
@@ -2370,12 +2389,26 @@ html[data-theme='dark'] .token {
   background: #05070a;
   border: 1px solid #2a3442;
   border-radius: 14px;
-  color: #eef4fb;
+  color: #d7f9ff;
   display: flex;
-  font-weight: 750;
   height: clamp(5rem, 8vw, 7rem);
   justify-content: center;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
   width: clamp(5rem, 8vw, 7rem);
+}
+
+.handDocsHome__gatewayVisual span:hover {
+  border-color: rgba(0, 215, 219, 0.62);
+  color: #00ffb2;
+}
+
+.handDocsHome__gatewayVisual svg {
+  display: block;
+  height: clamp(2rem, 3.2vw, 2.65rem);
+  width: clamp(2rem, 3.2vw, 2.65rem);
 }
 
 .handDocsHome__gatewayVisual span:nth-child(2) {
@@ -2387,30 +2420,80 @@ html[data-theme='dark'] .token {
 }
 
 .handDocsHome__controlVisual {
-  align-items: stretch;
-  color: #c9d4e3;
-  flex-direction: column;
+  background:
+    url('/img/hand-grain-bg.png') center / cover no-repeat,
+    #030507;
+  color: #dce7f5;
   font-family: var(--hand-code-font);
-  font-size: 0.84rem;
-  gap: 0.72rem;
 }
 
-.handDocsHome__controlVisual span {
-  border-bottom: 1px solid #1d2632;
-  padding: 0.7rem 0.2rem 0.9rem 1.6rem;
-  position: relative;
+.handDocsHome__controlPanel {
+  background: rgba(0, 0, 0, 0.82);
+  border: 2px solid #d7f9ff;
+  box-shadow: 7px 7px 0 #4c9dff;
+  display: grid;
+  gap: 1.05rem;
+  max-width: 520px;
+  padding: clamp(1.25rem, 2.5vw, 2rem);
+  width: min(100%, 520px);
 }
 
-.handDocsHome__controlVisual span::before {
-  background: #22ff50;
-  border-radius: 999px;
-  box-shadow: 0 0 16px rgba(34, 255, 80, 0.5);
-  content: '';
-  height: 0.48rem;
-  left: 0.25rem;
-  position: absolute;
-  top: 1rem;
-  width: 0.48rem;
+.handDocsHome__controlPanel strong {
+  color: #ffffff;
+  font-family: var(--ifm-heading-font-family);
+  font-size: clamp(1.25rem, 2.2vw, 1.75rem);
+  line-height: 1.15;
+}
+
+.handDocsHome__controlLabel {
+  color: var(--ifm-color-primary);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.handDocsHome__controlScope {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.handDocsHome__controlScope span {
+  border: 1px solid #263241;
+  color: #c9d4e3;
+  padding: 0.72rem 0.85rem;
+}
+
+.handDocsHome__controlScope span:nth-child(1) {
+  border-color: rgba(34, 255, 80, 0.44);
+}
+
+.handDocsHome__controlScope span:nth-child(2) {
+  border-color: rgba(76, 157, 255, 0.58);
+}
+
+.handDocsHome__controlScope span:nth-child(3) {
+  border-color: rgba(255, 88, 116, 0.5);
+}
+
+.handDocsHome__controlActions {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.handDocsHome__controlActions span {
+  border: 2px solid #d7f9ff;
+  color: #f4f7fb;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.8rem 0.85rem;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.handDocsHome__controlActions span:last-child {
+  background: #d7f9ff;
+  color: #030507;
 }
 
 .handDocsHome__footerCta {
@@ -2430,7 +2513,20 @@ html[data-theme='dark'] .token {
   margin: 0;
 }
 
+.handDocsHome__terminalSmall .handDocsHome__terminalBar {
+  color: #aeb8c7;
+  font-size: 0.74rem;
+}
+
+.handDocsHome__terminalSmall .handDocsHome__terminalBar span:last-child {
+  color: #00ffb2;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .handDocsHome__terminalSmall pre {
+  font-size: clamp(0.82rem, 1.35vw, 0.96rem);
+  line-height: 1.72;
   white-space: pre-wrap;
 }
 
@@ -2487,17 +2583,8 @@ html[data-theme='dark'] .token {
     border-bottom: 1px solid #2a313c;
   }
 
-  .handDocsHome__featureGrid,
   .handDocsHome__footerLinks {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .handDocsHome__featureCard:nth-child(2n) {
-    border-right: 1px solid var(--hand-border);
-  }
-
-  .handDocsHome__featureCard:nth-last-child(-n + 2) {
-    border-bottom: 1px solid var(--hand-border);
   }
 }
 
@@ -2589,16 +2676,41 @@ html[data-theme='dark'] .token {
   }
 
   .handDocsHome__featureCard {
+    grid-template-columns: 1fr;
     grid-template-rows: auto minmax(220px, 1fr);
     min-height: 0;
   }
 
+  .handDocsHome__featureCard:last-child {
+    border-bottom: 1px solid var(--hand-border);
+  }
+
+  .handDocsHome__featureCopy,
+  .handDocsHome__featureCard:nth-child(even) .handDocsHome__featureCopy {
+    border-left: 0;
+    border-right: 0;
+    order: 1;
+  }
+
   .handDocsHome__featureVisual {
+    border-top: 1px solid var(--hand-border);
     min-height: 240px;
+    order: 2;
   }
 
   .handDocsHome__memoryVisual {
+    gap: 0.85rem;
     grid-template-columns: 1fr;
+  }
+
+  .handDocsHome__memoryVisual span {
+    box-shadow: 5px 5px 0 #00a1ce;
+    min-height: 0;
+    padding: 0.85rem 1rem;
+  }
+
+  .handDocsHome__memoryVisual span:nth-child(n) {
+    transform: none;
   }
 
   .handDocsHome__gatewayVisual {
