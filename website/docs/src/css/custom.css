@@ -737,8 +737,1739 @@ html[data-theme='dark'] .token {
   font-style: normal !important;
 }
 
+.theme-doc-markdown:has(.handDocsHome) {
+  max-width: none;
+  padding: 0;
+}
+
+.docs-doc-id-index .container.padding-top--md:has(.handDocsHome),
+.docs-doc-id-index .container.padding-top--md {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0 !important;
+  width: 100%;
+}
+
+.theme-doc-markdown:has(.handDocsHome) > header {
+  display: none;
+}
+
+.theme-doc-markdown .handDocsHome {
+  background: var(--hand-bg);
+  border-left: 1px solid var(--hand-border);
+  border-right: 1px solid var(--hand-border);
+  color: var(--hand-text-strong);
+  margin: -1rem auto 4rem;
+  max-width: min(1640px, calc(100vw - 32px));
+}
+
+.handDocsHome a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.handDocsHome__hero,
+.handDocsHome__strip,
+.handDocsHome__sectionIntro,
+.handDocsHome__featureBand,
+.handDocsHome__footerCta,
+.handDocsHome__footerLinks {
+  border-bottom: 1px solid var(--hand-border);
+}
+
+.handDocsHome__hero {
+  background: #10141a;
+  color: #f7f9fc;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: calc(100vh - 56px);
+}
+
+.handDocsHome__heroCopy {
+  border-right: 1px solid #2a313c;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: clamp(3rem, 6vw, 6rem);
+}
+
+.handDocsHome__eyebrow,
+.theme-doc-markdown .handDocsHome__eyebrow {
+  color: var(--hand-muted);
+  display: block;
+  font-family: 'Silkscreen', var(--hand-code-font);
+  font-size: 0.76rem;
+  letter-spacing: 0.05em;
+  line-height: 1.4;
+  margin: 0 0 1rem;
+  text-transform: uppercase;
+}
+
+.theme-doc-markdown .handDocsHome h1,
+.theme-doc-markdown .handDocsHome h2,
+.theme-doc-markdown .handDocsHome h3 {
+  color: var(--hand-text-strong);
+  letter-spacing: 0;
+}
+
+.theme-doc-markdown .handDocsHome__hero h1 {
+  color: #ffffff;
+}
+
+.theme-doc-markdown .handDocsHome h1 {
+  font-size: clamp(4rem, 6vw, 6.6rem);
+  line-height: 0.95;
+  margin: 0 0 1.5rem;
+  max-width: 680px;
+}
+
+.theme-doc-markdown .handDocsHome h2 {
+  border: 0;
+  font-size: clamp(2.25rem, 5vw, 4.1rem);
+  line-height: 0.98;
+  margin: 0;
+  padding: 0;
+}
+
+.theme-doc-markdown .handDocsHome h3 {
+  font-size: 1.25rem;
+  line-height: 1.15;
+  margin: 0 0 0.85rem;
+}
+
+.theme-doc-markdown .handDocsHome p,
+.handDocsHome__bodyText,
+.handDocsHome__tileText {
+  color: var(--hand-text-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.handDocsHome__bodyText {
+  max-width: 620px;
+}
+
+.handDocsHome__hero .handDocsHome__bodyText {
+  color: #b8c1ce;
+  font-size: clamp(1rem, 1.25vw, 1.18rem);
+  max-width: 650px;
+}
+
+.handDocsHome__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-top: 2.2rem;
+}
+
+.handDocsHome__button {
+  align-items: center;
+  border: 1px solid var(--hand-border-strong);
+  border-radius: 8px;
+  color: var(--hand-text-strong);
+  display: inline-flex;
+  font-size: 0.9rem;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 2.65rem;
+  padding: 0.6rem 1rem;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.handDocsHome__hero .handDocsHome__button {
+  border-color: #343d4b;
+  color: #f7f9fc;
+}
+
+.handDocsHome__hero .handDocsHome__button:hover {
+  background: #171d25;
+}
+
+.handDocsHome__button:hover,
+.handDocsHome__tile:hover {
+  color: var(--hand-text-strong);
+}
+
+.handDocsHome__button:hover {
+  background: var(--hand-panel-soft);
+  border-color: #4c9dff;
+  transform: translateY(-1px);
+}
+
+.handDocsHome__buttonPrimary {
+  background: var(--hand-text-strong);
+  border-color: var(--hand-text-strong);
+  color: var(--hand-bg);
+}
+
+.handDocsHome__hero .handDocsHome__buttonPrimary {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #0d1218;
+}
+
+.handDocsHome__buttonPrimary span {
+  color: var(--hand-bg);
+}
+
+.handDocsHome__hero .handDocsHome__buttonPrimary span {
+  color: #0d1218;
+}
+
+.handDocsHome__buttonPrimary:hover {
+  background: var(--ifm-color-primary);
+  color: #ffffff;
+}
+
+.handDocsHome__install {
+  background: #0b0f14;
+  border: 1px solid #252d38;
+  border-radius: 10px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  margin-top: clamp(1.25rem, 2.5vw, 2rem);
+  max-width: 720px;
+  min-width: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.handDocsHome__installTabs {
+  align-items: center;
+  border-bottom: 1px solid #252d38;
+  color: #98a4b5;
+  display: flex;
+  font-family: var(--hand-code-font);
+  font-size: 0.82rem;
+  justify-content: space-between;
+  padding: 0.8rem 0.95rem;
+}
+
+.handDocsHome__install pre {
+  background: transparent;
+  color: #dce7f5;
+  font-family: var(--hand-code-font);
+  font-size: clamp(0.82rem, 1vw, 0.98rem);
+  line-height: 1.7;
+  margin: 0;
+  overflow-x: auto;
+  padding: 1.1rem 1.35rem;
+}
+
+.handDocsHome__tuiWrap {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  padding: clamp(1.5rem, 3vw, 3rem);
+}
+
+.handDocsHome__tui {
+  --hand-tui-loop: 24s;
+  background: #000000;
+  border: 0;
+  border-radius: 2px;
+  box-shadow: 0 34px 100px rgba(0, 0, 0, 0.5);
+  color: #f1f1f1;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--hand-code-font);
+  font-size: clamp(0.78rem, 1vw, 1rem);
+  height: 650px;
+  max-width: 980px;
+  max-height: calc(100vh - 8rem);
+  min-height: 560px;
+  overflow: hidden;
+  position: relative;
+  min-width: 0;
+  width: 100%;
+}
+
+.handDocsHome__tuiHeader {
+  align-items: center;
+  background: #000000;
+  border-bottom: 1px solid #1f1f1f;
+  color: #767676;
+  display: flex;
+  flex: 0 0 1.8rem;
+  font-size: 0.76rem;
+  gap: 1rem;
+  justify-content: space-between;
+  min-height: 1.8rem;
+  padding: 0 0.75rem;
+}
+
+.handDocsHome__tuiViewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+}
+
+.handDocsHome__tuiTranscript {
+  animation: handTuiTranscriptScroll var(--hand-tui-loop) ease-in-out infinite both;
+  will-change: transform;
+}
+
+.handDocsHome__tuiLog,
+.handDocsHome__answerBlock,
+.handDocsHome__composeTurn,
+.handDocsHome__workedLine {
+  transform: translateY(10px);
+  visibility: hidden;
+}
+
+.handDocsHome__tuiLog {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0 1rem 1.1rem;
+}
+
+.handDocsHome__tuiLog div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.handDocsHome__tuiLog strong {
+  color: #9a9a9a;
+  font-weight: 600;
+}
+
+.handDocsHome__tuiLog span:not(.handDocsHome__logDot) {
+  color: #858585;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.handDocsHome__logLine {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+}
+
+.handDocsHome__logStreamText {
+  display: block;
+  max-width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 0;
+}
+
+.handDocsHome__tuiLog strong .handDocsHome__logStreamText {
+  color: inherit;
+  font-weight: inherit;
+}
+
+.handDocsHome__toolTurn strong {
+  color: #d7d7d7;
+}
+
+.handDocsHome__logDot {
+  animation: handTuiPulse 1.8s ease-in-out infinite;
+  background: #22ff50;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  height: 0.58rem;
+  margin-top: 0.46rem;
+  width: 0.58rem;
+}
+
+.handDocsHome__answerBlock {
+  color: #f1f1f1;
+  margin: 0 1rem 0.95rem;
+}
+
+.handDocsHome__streamLine {
+  color: #f1f1f1;
+  display: block;
+  line-height: 1.55;
+  margin-bottom: 0.42rem;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 0;
+}
+
+.handDocsHome__streamLine mark {
+  background: #3b3b3b;
+  border-radius: 2px;
+  color: #d6d6d6;
+  padding: 0 0.2rem;
+}
+
+.handDocsHome__logOne {
+  animation: handTuiRowOne var(--hand-tui-loop) ease-out infinite both;
+}
+
+.handDocsHome__logTwo {
+  animation: handTuiRowTwo var(--hand-tui-loop) ease-out infinite both;
+}
+
+.handDocsHome__logThree {
+  animation: handTuiRowThree var(--hand-tui-loop) ease-out infinite both;
+}
+
+.handDocsHome__logFour {
+  animation: handTuiRowFour var(--hand-tui-loop) ease-out infinite both;
+}
+
+.handDocsHome__logFive {
+  animation: handTuiRowFive var(--hand-tui-loop) ease-out infinite both;
+}
+
+.handDocsHome__logSix {
+  animation: handTuiRowSix var(--hand-tui-loop) ease-out infinite both;
+}
+
+.handDocsHome__logSeven {
+  animation: handTuiRowSeven var(--hand-tui-loop) ease-out infinite both;
+}
+
+.handDocsHome__logEight {
+  animation: handTuiRowEight var(--hand-tui-loop) ease-out infinite both;
+}
+
+.handDocsHome__toolPlanTitle {
+  animation: handTuiLinePlanTitle var(--hand-tui-loop) linear infinite both;
+}
+
+.handDocsHome__toolPlanTitle .handDocsHome__logStreamText {
+  animation: handTuiToolPlanTitle var(--hand-tui-loop) steps(12, end) infinite both;
+}
+
+.handDocsHome__toolPlanDetail {
+  animation: handTuiLinePlanDetail var(--hand-tui-loop) linear infinite both;
+}
+
+.handDocsHome__toolPlanDetail .handDocsHome__logStreamText {
+  animation: handTuiToolPlanDetail var(--hand-tui-loop) steps(15, end) infinite both;
+}
+
+.handDocsHome__toolReadTitle {
+  animation: handTuiLineReadTitle var(--hand-tui-loop) linear infinite both;
+}
+
+.handDocsHome__toolReadTitle .handDocsHome__logStreamText {
+  animation: handTuiToolReadTitle var(--hand-tui-loop) steps(4, end) infinite both;
+}
+
+.handDocsHome__toolReadConfig {
+  animation: handTuiLineReadConfig var(--hand-tui-loop) linear infinite both;
+}
+
+.handDocsHome__toolReadConfig .handDocsHome__logStreamText {
+  animation: handTuiToolReadConfig var(--hand-tui-loop) steps(47, end) infinite both;
+}
+
+.handDocsHome__toolReadSlack {
+  animation: handTuiLineReadSlack var(--hand-tui-loop) linear infinite both;
+}
+
+.handDocsHome__toolReadSlack .handDocsHome__logStreamText {
+  animation: handTuiToolReadSlack var(--hand-tui-loop) steps(42, end) infinite both;
+}
+
+.handDocsHome__toolReadDoctor {
+  animation: handTuiLineReadDoctor var(--hand-tui-loop) linear infinite both;
+}
+
+.handDocsHome__toolReadDoctor .handDocsHome__logStreamText {
+  animation: handTuiToolReadDoctor var(--hand-tui-loop) steps(39, end) infinite both;
+}
+
+.handDocsHome__toolDoctorCommand {
+  animation: handTuiLineDoctorCommand var(--hand-tui-loop) linear infinite both;
+}
+
+.handDocsHome__toolDoctorCommand .handDocsHome__logStreamText {
+  animation: handTuiToolDoctorCommand var(--hand-tui-loop) steps(22, end) infinite both;
+}
+
+.handDocsHome__streamA1 {
+  animation: handTuiStreamA1 var(--hand-tui-loop) steps(47, end) infinite both;
+}
+
+.handDocsHome__streamA2 {
+  animation: handTuiStreamA2 var(--hand-tui-loop) steps(60, end) infinite both;
+}
+
+.handDocsHome__streamA3 {
+  animation: handTuiStreamA3 var(--hand-tui-loop) steps(38, end) infinite both;
+}
+
+.handDocsHome__streamA4 {
+  animation: handTuiStreamA4 var(--hand-tui-loop) steps(53, end) infinite both;
+}
+
+.handDocsHome__streamB1 {
+  animation: handTuiStreamB1 var(--hand-tui-loop) steps(49, end) infinite both;
+}
+
+.handDocsHome__streamB2 {
+  animation: handTuiStreamB2 var(--hand-tui-loop) steps(44, end) infinite both;
+}
+
+.handDocsHome__streamB3 {
+  animation: handTuiStreamB3 var(--hand-tui-loop) steps(57, end) infinite both;
+}
+
+.handDocsHome__composeTurn {
+  align-items: center;
+  background: #262626;
+  color: #d7d7d7;
+  display: flex;
+  gap: 0.65rem;
+  min-height: 2.9rem;
+  padding: 0 1.05rem;
+  width: 100%;
+}
+
+.handDocsHome__composeTurn > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.handDocsHome__logOne {
+  margin-bottom: 1.55rem;
+}
+
+.handDocsHome__logSeven {
+  margin-top: 0.95rem;
+}
+
+.handDocsHome__logEight {
+  margin-top: 0.8rem;
+}
+
+.handDocsHome__prompt {
+  color: #8b8b8b;
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.handDocsHome__typedText {
+  color: #d7d7d7;
+  display: inline-block;
+  left: 0;
+  max-width: 36ch;
+  overflow: hidden;
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+  width: 0;
+}
+
+.handDocsHome__composeText {
+  display: inline-block;
+  flex: 0 1 36ch;
+  height: 1.35rem;
+  max-width: calc(100% - 1.5rem);
+  min-width: 0;
+  position: relative;
+  width: 36ch;
+}
+
+.handDocsHome__typedTextOne {
+  animation: handTuiComposerFirst var(--hand-tui-loop) steps(29, end) infinite;
+}
+
+.handDocsHome__typedTextTwo {
+  animation: handTuiComposerSecond var(--hand-tui-loop) steps(31, end) infinite;
+}
+
+.handDocsHome__caret {
+  animation:
+    handTuiCaret 900ms steps(1, end) infinite,
+    handTuiComposerCaret var(--hand-tui-loop) linear infinite;
+  background: #d7d7d7;
+  display: inline-block;
+  height: 1.1rem;
+  left: 10ch;
+  position: absolute;
+  top: 0.12rem;
+  width: 0.48rem;
+}
+
+.handDocsHome__composer {
+  align-items: center;
+  background: #000000;
+  border: 1px solid #4a4a4a;
+  border-radius: 2px;
+  color: #777777;
+  display: flex;
+  flex: 0 0 2.25rem;
+  gap: 0.55rem;
+  margin: 0 0.45rem 0.45rem;
+  min-height: 2.25rem;
+  padding: 0 0.65rem;
+}
+
+.handDocsHome__composerPlaceholder {
+  color: #777777;
+  display: inline-block;
+  left: 0;
+  position: absolute;
+  top: 0;
+  animation: handTuiComposerPlaceholder var(--hand-tui-loop) steps(1, end) infinite;
+}
+
+.handTuiPreview__transcript {
+  padding: 0 0 1rem;
+}
+
+.handTuiPreview__event {
+  max-width: 100%;
+}
+
+.handTuiPreview__eventUser {
+  align-items: center;
+  background: #262626;
+  color: #d7d7d7;
+  display: flex;
+  gap: 0.65rem;
+  line-height: 1.45;
+  margin: 0 0 1.1rem;
+  padding: 0.85rem 1.05rem;
+  width: 100%;
+}
+
+.handTuiPreview__eventUser span:last-child,
+.handTuiPreview__toolBody span,
+.handTuiPreview__toolBody strong,
+.handTuiPreview__eventHand span {
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.handTuiPreview__eventTool {
+  color: #858585;
+  display: flex;
+  gap: 0.75rem;
+  margin: 0 1rem 1.1rem;
+}
+
+.handTuiPreview__toolBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.handTuiPreview__toolBody strong {
+  color: #9a9a9a;
+  font-weight: 600;
+}
+
+.handTuiPreview__toolBody span {
+  display: block;
+}
+
+.handTuiPreview__eventHand {
+  color: #f1f1f1;
+  margin: 0 1rem 1rem;
+}
+
+.handTuiPreview__eventHand span {
+  display: block;
+  line-height: 1.55;
+  margin-bottom: 0.42rem;
+}
+
+.handTuiPreview__composerText {
+  align-items: center;
+  color: #d7d7d7;
+  display: inline-flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.handTuiPreview__placeholder {
+  color: #777777;
+}
+
+.handTuiPreview__composerText .handDocsHome__caret {
+  animation: handTuiCaret 900ms steps(1, end) infinite;
+  flex: 0 0 auto;
+  margin-left: 0.2rem;
+  position: static;
+}
+
+.handDocsHome__workedLine {
+  align-items: center;
+  color: #777777;
+  display: flex;
+  gap: 0.55rem;
+  margin: 0 1rem;
+}
+
+.handDocsHome__tuiStatus {
+  align-items: center;
+  color: #777777;
+  display: grid;
+  flex: 0 0 1.5rem;
+  font-family: var(--hand-code-font);
+  font-size: 0.76rem;
+  gap: 0.65rem;
+  grid-template-columns: auto auto auto 1fr auto;
+  min-height: 1.5rem;
+  padding: 0 0.65rem 0.35rem;
+}
+
+.handDocsHome__previewTitle {
+  justify-self: center;
+  min-width: 0;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.handDocsHome__terminal {
+  align-self: center;
+  background: #0b0f14;
+  border: 1px solid #2b3542;
+  border-radius: 12px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+  margin: clamp(2rem, 5vw, 4rem) clamp(1.25rem, 3vw, 2.5rem);
+  overflow: hidden;
+  position: relative;
+}
+
+.handDocsHome__terminalBar {
+  align-items: center;
+  border-bottom: 1px solid #242b35;
+  color: #91a0b4;
+  display: flex;
+  font-family: var(--hand-code-font);
+  font-size: 0.78rem;
+  justify-content: space-between;
+  padding: 0.8rem 1rem;
+}
+
+.handDocsHome__terminalMeta {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.75rem;
+}
+
+.handDocsHome__terminal pre {
+  background: transparent;
+  color: #d6e1ef;
+  font-family: var(--hand-code-font);
+  font-size: clamp(0.78rem, 1.2vw, 0.86rem);
+  line-height: 1.7;
+  margin: 0;
+  overflow-x: auto;
+  padding: 1.25rem;
+}
+
+.handDocsHome__copyButton {
+  align-items: center;
+  background: #111820;
+  border: 1px solid #2b3542;
+  border-radius: 7px;
+  color: #a7b0bf;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 1.85rem;
+  justify-content: center;
+  padding: 0;
+  width: 1.85rem;
+}
+
+.handDocsHome__copyButton:hover,
+.handDocsHome__copyButton:focus-visible {
+  border-color: var(--ifm-color-primary);
+  color: #ffffff;
+  outline: none;
+}
+
+@keyframes handTuiRowOne {
+  0%,
+  14% {
+    transform: translateY(10px);
+    visibility: hidden;
+  }
+
+  17%,
+  20%,
+  93% {
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  100% {
+    transform: translateY(-6px);
+    visibility: hidden;
+  }
+}
+
+@keyframes handTuiRowTwo {
+  0%,
+  22.9% {
+    transform: translateY(10px);
+    visibility: hidden;
+  }
+
+  23%,
+  93% {
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  100% {
+    transform: translateY(-6px);
+    visibility: hidden;
+  }
+}
+
+@keyframes handTuiRowThree {
+  0%,
+  31.9% {
+    transform: translateY(10px);
+    visibility: hidden;
+  }
+
+  32%,
+  93% {
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  100% {
+    transform: translateY(-6px);
+    visibility: hidden;
+  }
+}
+
+@keyframes handTuiRowFour {
+  0%,
+  43.9% {
+    transform: translateY(10px);
+    visibility: hidden;
+  }
+
+  44%,
+  93% {
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  100% {
+    transform: translateY(-6px);
+    visibility: hidden;
+  }
+}
+
+@keyframes handTuiRowFive {
+  0%,
+  50.9% {
+    transform: translateY(10px);
+    visibility: hidden;
+  }
+
+  51%,
+  98% {
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  100% {
+    transform: translateY(-6px);
+    visibility: hidden;
+  }
+}
+
+@keyframes handTuiRowSix {
+  0%,
+  68% {
+    transform: translateY(10px);
+    visibility: hidden;
+  }
+
+  70%,
+  98% {
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  100% {
+    transform: translateY(-6px);
+    visibility: hidden;
+  }
+}
+
+@keyframes handTuiRowSeven {
+  0%,
+  82% {
+    transform: translateY(10px);
+    visibility: hidden;
+  }
+
+  84%,
+  98% {
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  100% {
+    transform: translateY(-6px);
+    visibility: hidden;
+  }
+}
+
+@keyframes handTuiRowEight {
+  0%,
+  87.9% {
+    transform: translateY(10px);
+    visibility: hidden;
+  }
+
+  88%,
+  98% {
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  100% {
+    transform: translateY(-6px);
+    visibility: hidden;
+  }
+}
+
+@keyframes handTuiTranscriptScroll {
+  0%,
+  80% {
+    transform: translateY(0);
+  }
+
+  82%,
+  98% {
+    transform: translateY(-180px);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes handTuiLinePlanTitle {
+  0%,
+  22.9% {
+    grid-template-rows: 0fr;
+  }
+
+  23%,
+  93% {
+    grid-template-rows: 1fr;
+  }
+
+  100% {
+    grid-template-rows: 0fr;
+  }
+}
+
+@keyframes handTuiToolPlanTitle {
+  0%,
+  22.9% {
+    width: 0;
+  }
+
+  23% {
+    width: 1ch;
+  }
+
+  25%,
+  93% {
+    width: 12ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiLinePlanDetail {
+  0%,
+  25.9% {
+    grid-template-rows: 0fr;
+  }
+
+  26%,
+  93% {
+    grid-template-rows: 1fr;
+  }
+
+  100% {
+    grid-template-rows: 0fr;
+  }
+}
+
+@keyframes handTuiToolPlanDetail {
+  0%,
+  25.9% {
+    width: 0;
+  }
+
+  26% {
+    width: 1ch;
+  }
+
+  28%,
+  93% {
+    width: 15ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiLineReadTitle {
+  0%,
+  31.9% {
+    grid-template-rows: 0fr;
+  }
+
+  32%,
+  93% {
+    grid-template-rows: 1fr;
+  }
+
+  100% {
+    grid-template-rows: 0fr;
+  }
+}
+
+@keyframes handTuiToolReadTitle {
+  0%,
+  31.9% {
+    width: 0;
+  }
+
+  32% {
+    width: 1ch;
+  }
+
+  33%,
+  93% {
+    width: 4ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiLineReadConfig {
+  0%,
+  33.9% {
+    grid-template-rows: 0fr;
+  }
+
+  34%,
+  93% {
+    grid-template-rows: 1fr;
+  }
+
+  100% {
+    grid-template-rows: 0fr;
+  }
+}
+
+@keyframes handTuiToolReadConfig {
+  0%,
+  33.9% {
+    width: 0;
+  }
+
+  34% {
+    width: 1ch;
+  }
+
+  37%,
+  93% {
+    width: 47ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiLineReadSlack {
+  0%,
+  36.9% {
+    grid-template-rows: 0fr;
+  }
+
+  37%,
+  93% {
+    grid-template-rows: 1fr;
+  }
+
+  100% {
+    grid-template-rows: 0fr;
+  }
+}
+
+@keyframes handTuiToolReadSlack {
+  0%,
+  36.9% {
+    width: 0;
+  }
+
+  37% {
+    width: 1ch;
+  }
+
+  40%,
+  93% {
+    width: 42ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiLineReadDoctor {
+  0%,
+  39.9% {
+    grid-template-rows: 0fr;
+  }
+
+  40%,
+  93% {
+    grid-template-rows: 1fr;
+  }
+
+  100% {
+    grid-template-rows: 0fr;
+  }
+}
+
+@keyframes handTuiToolReadDoctor {
+  0%,
+  39.9% {
+    width: 0;
+  }
+
+  40% {
+    width: 1ch;
+  }
+
+  43%,
+  93% {
+    width: 39ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiLineDoctorCommand {
+  0%,
+  43.9% {
+    grid-template-rows: 0fr;
+  }
+
+  44%,
+  93% {
+    grid-template-rows: 1fr;
+  }
+
+  100% {
+    grid-template-rows: 0fr;
+  }
+}
+
+@keyframes handTuiToolDoctorCommand {
+  0%,
+  43.9% {
+    width: 0;
+  }
+
+  44% {
+    width: 1ch;
+  }
+
+  47%,
+  93% {
+    width: 22ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiStreamA1 {
+  0%,
+  50% {
+    width: 0;
+  }
+
+  51% {
+    width: 1ch;
+  }
+
+  55%,
+  98% {
+    width: 47ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiStreamA2 {
+  0%,
+  54% {
+    width: 0;
+  }
+
+  55% {
+    width: 1ch;
+  }
+
+  60%,
+  98% {
+    width: 60ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiStreamA3 {
+  0%,
+  59% {
+    width: 0;
+  }
+
+  60% {
+    width: 1ch;
+  }
+
+  63%,
+  98% {
+    width: 38ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiStreamA4 {
+  0%,
+  62% {
+    width: 0;
+  }
+
+  63% {
+    width: 1ch;
+  }
+
+  67%,
+  98% {
+    width: 53ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiStreamB1 {
+  0%,
+  87% {
+    width: 0;
+  }
+
+  88% {
+    width: 1ch;
+  }
+
+  89.5%,
+  98% {
+    width: 49ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiStreamB2 {
+  0%,
+  88.5% {
+    width: 0;
+  }
+
+  89.5% {
+    width: 1ch;
+  }
+
+  91.5%,
+  98% {
+    width: 44ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiStreamB3 {
+  0%,
+  90.5% {
+    width: 0;
+  }
+
+  91.5% {
+    width: 1ch;
+  }
+
+  93.5%,
+  98% {
+    width: 57ch;
+  }
+
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes handTuiComposerFirst {
+  0%,
+  4% {
+    width: 0;
+    visibility: visible;
+  }
+
+  13%,
+  14% {
+    width: 29ch;
+    visibility: visible;
+  }
+
+  15%,
+  100% {
+    width: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes handTuiComposerSecond {
+  0%,
+  70% {
+    width: 0;
+    visibility: hidden;
+  }
+
+  71% {
+    visibility: visible;
+  }
+
+  80%,
+  81% {
+    width: 31ch;
+    visibility: visible;
+  }
+
+  82%,
+  100% {
+    width: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes handTuiComposerPlaceholder {
+  0%,
+  3%,
+  15%,
+  70%,
+  82%,
+  100% {
+    visibility: visible;
+  }
+
+  4%,
+  14%,
+  71%,
+  81% {
+    visibility: hidden;
+  }
+}
+
+@keyframes handTuiComposerCaret {
+  0%,
+  3%,
+  15%,
+  70%,
+  82%,
+  100% {
+    left: 10ch;
+  }
+
+  4% {
+    left: 0;
+    animation-timing-function: steps(29, end);
+  }
+
+  13%,
+  14% {
+    left: 29ch;
+    animation-timing-function: steps(1, end);
+  }
+
+  71% {
+    left: 0;
+    animation-timing-function: steps(31, end);
+  }
+
+  80%,
+  81% {
+    left: 31ch;
+    animation-timing-function: steps(1, end);
+  }
+}
+
+@keyframes handTuiCaret {
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes handTuiPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 255, 80, 0.35);
+  }
+
+  50% {
+    box-shadow: 0 0 0 7px rgba(34, 255, 80, 0);
+  }
+}
+
+.handDocsHome__copyIcon {
+  border: 1.6px solid currentColor;
+  border-radius: 2px;
+  height: 0.82rem;
+  position: relative;
+  width: 0.68rem;
+}
+
+.handDocsHome__copyIcon::before {
+  border: 1.6px solid currentColor;
+  border-radius: 2px;
+  content: '';
+  height: 0.82rem;
+  left: -0.28rem;
+  position: absolute;
+  top: -0.28rem;
+  width: 0.68rem;
+}
+
+.handDocsHome__strip {
+  padding: 2rem;
+}
+
+.theme-doc-markdown .handDocsHome__strip h2 {
+  color: var(--hand-text-strong);
+  font-size: 1rem;
+  line-height: 1.4;
+  margin: 0 0 1.6rem;
+}
+
+.handDocsHome__capabilities {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.handDocsHome__capabilities span {
+  align-items: center;
+  border-left: 1px solid var(--hand-border);
+  color: var(--hand-navbar-text);
+  display: flex;
+  font-size: 0.92rem;
+  font-weight: 700;
+  min-height: 4rem;
+  padding: 0 1.2rem;
+}
+
+.handDocsHome__capabilities span:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.handDocsHome__sectionIntro {
+  padding: clamp(3.75rem, 10vw, 7rem) clamp(2rem, 8vw, 6rem);
+  text-align: center;
+}
+
+.theme-doc-markdown .handDocsHome__sectionIntro h2 {
+  margin: 0 auto;
+  max-width: 760px;
+}
+
+.handDocsHome__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.handDocsHome__tile {
+  border-bottom: 1px solid var(--hand-border);
+  border-right: 1px solid var(--hand-border);
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+  padding: clamp(1.6rem, 4vw, 2.8rem);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.handDocsHome__tile:nth-child(2n) {
+  border-right: 0;
+}
+
+.handDocsHome__tile:hover {
+  background: var(--hand-panel-soft);
+  border-color: var(--hand-border-strong);
+}
+
+.handDocsHome__tileKicker {
+  color: var(--ifm-color-primary);
+  font-family: var(--hand-code-font);
+  font-size: 0.76rem;
+  font-weight: 800;
+  margin-bottom: 1.45rem;
+  text-transform: uppercase;
+}
+
+.handDocsHome__featureBand {
+  background: var(--hand-panel-soft);
+}
+
+.handDocsHome__gridCompact .handDocsHome__tile {
+  min-height: 225px;
+}
+
+.handDocsHome__footerCta {
+  align-items: center;
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.5fr);
+  padding: clamp(2.5rem, 7vw, 5rem);
+}
+
+.theme-doc-markdown .handDocsHome__footerCta h2 {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  margin-bottom: 1rem;
+}
+
+.handDocsHome__terminalSmall {
+  margin: 0;
+}
+
+.handDocsHome__terminalSmall pre {
+  white-space: pre-wrap;
+}
+
+.handDocsHome__footerLinks {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: clamp(2.5rem, 6vw, 4.75rem);
+}
+
+.theme-doc-markdown .handDocsHome__footerLinks h2 {
+  color: var(--hand-muted);
+  font-family: 'Silkscreen', var(--hand-code-font);
+  font-size: 0.74rem;
+  line-height: 1.2;
+  margin: 0 0 1.5rem;
+  text-transform: uppercase;
+}
+
+.handDocsHome__footerLinks a {
+  color: var(--hand-navbar-text);
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 650;
+  margin-top: 0.9rem;
+}
+
+.handDocsHome__footerLinks a:hover {
+  color: var(--ifm-color-primary);
+}
+
 @media (max-width: 996px) {
   .theme-doc-markdown {
     padding-top: 2rem;
+  }
+
+  .theme-doc-markdown:has(.handDocsHome) {
+    padding-top: 0;
+  }
+
+  .theme-doc-markdown .handDocsHome {
+    border-left: 0;
+    border-right: 0;
+    margin-bottom: 2rem;
+  }
+
+  .handDocsHome__hero,
+  .handDocsHome__footerCta {
+    grid-template-columns: 1fr;
+  }
+
+  .handDocsHome__heroCopy {
+    border-right: 0;
+    border-bottom: 1px solid #2a313c;
+  }
+
+  .handDocsHome__capabilities,
+  .handDocsHome__footerLinks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .handDocsHome__capabilities span {
+    border-left: 0;
+    border-top: 1px solid var(--hand-border);
+    padding: 1rem 0;
+  }
+
+  .handDocsHome__capabilities span:nth-child(-n + 2) {
+    border-top: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .theme-doc-markdown .handDocsHome {
+    max-width: 100vw;
+    width: 100%;
+  }
+
+  .theme-doc-markdown .handDocsHome h1 {
+    font-size: 2.72rem;
+    line-height: 1.02;
+  }
+
+  .handDocsHome__heroCopy,
+  .handDocsHome__strip,
+  .handDocsHome__sectionIntro,
+  .handDocsHome__footerCta,
+  .handDocsHome__footerLinks {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .handDocsHome__terminal {
+    margin: 1.25rem;
+  }
+
+  .handDocsHome__install pre {
+    font-size: 0.76rem;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .handDocsHome__tuiWrap {
+    padding: 1.25rem;
+  }
+
+  .handDocsHome__tui {
+    font-size: 0.72rem;
+    height: 620px;
+    max-height: none;
+    min-height: 620px;
+  }
+
+  .handDocsHome__tuiViewport {
+    height: auto;
+  }
+
+  .handDocsHome__tuiLog,
+  .handDocsHome__answerBlock,
+  .handDocsHome__workedLine {
+    margin-left: 0.75rem;
+    margin-right: 0.75rem;
+  }
+
+  .handDocsHome__tuiLog span:not(.handDocsHome__logDot) {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .handDocsHome__composeTurn {
+    min-height: 2.65rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .handDocsHome__typedText {
+    font-size: 0.76rem;
+  }
+
+  .handDocsHome__tuiStatus {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.75rem;
+  }
+
+  .handDocsHome__previewTitle {
+    flex: 1 1 100%;
+    order: -1;
+    text-align: left;
+  }
+
+  .handDocsHome__grid,
+  .handDocsHome__capabilities,
+  .handDocsHome__footerLinks {
+    grid-template-columns: 1fr;
+  }
+
+  .handDocsHome__tile,
+  .handDocsHome__tile:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .handDocsHome__capabilities span:nth-child(n) {
+    border-top: 1px solid var(--hand-border);
+  }
+
+  .handDocsHome__capabilities span:first-child {
+    border-top: 0;
   }
 }

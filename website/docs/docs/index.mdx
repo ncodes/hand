@@ -1,0 +1,170 @@
+---
+title: Hand Documentation
+slug: /
+description: Learn how to install, configure, operate, and extend Hand.
+displayed_sidebar: null
+hide_table_of_contents: true
+hide_title: true
+---
+
+import HandTuiPreview from '@site/src/components/HandTuiPreview';
+
+<main className="handDocsHome">
+  <section className="handDocsHome__hero" aria-labelledby="hand-docs-title">
+    <div className="handDocsHome__heroCopy">
+      <span className="handDocsHome__eyebrow">Hand Agent</span>
+      <h1 id="hand-docs-title">Your personal agent workspace</h1>
+      <div className="handDocsHome__bodyText">
+        Hand keeps long-running sessions, memory, tools, model providers, and gateways behind one local runtime you can
+        use from the terminal today and other clients tomorrow.
+      </div>
+      <div className="handDocsHome__actions">
+        <a className="handDocsHome__button handDocsHome__buttonPrimary" href="/docs/getting-started/quickstart">
+          <span>Get started</span>
+        </a>
+        <a className="handDocsHome__button" href="https://github.com/wandxy/hand">
+          <span>View on GitHub</span>
+        </a>
+      </div>
+      <div className="handDocsHome__install" aria-label="Hand install command">
+        <div className="handDocsHome__installTabs">
+          <span>macOS / Linux</span>
+          <button
+            aria-label="Copy install command"
+            className="handDocsHome__copyButton"
+            type="button"
+            onClick={() => navigator.clipboard?.writeText('curl -fsSL https://handagent.ai/install.sh | bash')}>
+            <span aria-hidden="true" className="handDocsHome__copyIcon"></span>
+          </button>
+        </div>
+        <pre>{`curl -fsSL https://handagent.ai/install.sh | bash`}</pre>
+      </div>
+    </div>
+    <div className="handDocsHome__tuiWrap" aria-label="Animated Hand TUI preview">
+      <HandTuiPreview />
+    </div>
+  </section>
+
+  <section className="handDocsHome__strip" aria-labelledby="hand-docs-capabilities">
+    <h2 id="hand-docs-capabilities">What Hand brings together</h2>
+    <div className="handDocsHome__capabilities" aria-label="Hand capability summary">
+      <span>Daemon RPC</span>
+      <span>Durable sessions</span>
+      <span>Memory</span>
+      <span>Search</span>
+      <span>Gateway routing</span>
+      <span>Safety checks</span>
+    </div>
+  </section>
+
+  <section className="handDocsHome__sectionIntro" aria-labelledby="hand-docs-paths">
+    <span className="handDocsHome__eyebrow">Documentation map</span>
+    <h2 id="hand-docs-paths">Find the path for the job in front of you</h2>
+  </section>
+
+  <section className="handDocsHome__grid" aria-label="Primary documentation paths">
+    <a className="handDocsHome__tile" href="/docs/getting-started/quickstart">
+      <span className="handDocsHome__tileKicker">Start</span>
+      <h3>Quickstart</h3>
+      <div className="handDocsHome__tileText">
+        Install Hand, choose a profile, configure a model provider, and run the first readiness check.
+      </div>
+    </a>
+    <a className="handDocsHome__tile" href="/docs/guides/tui">
+      <span className="handDocsHome__tileKicker">Use</span>
+      <h3>TUI guide</h3>
+      <div className="handDocsHome__tileText">
+        Send messages, use slash commands, watch tool activity, and understand the terminal chat flow.
+      </div>
+    </a>
+    <a className="handDocsHome__tile" href="/docs/guides/provider-auth">
+      <span className="handDocsHome__tileKicker">Configure</span>
+      <h3>Provider auth</h3>
+      <div className="handDocsHome__tileText">
+        Set credentials for OpenAI-compatible providers, GitHub Copilot, Anthropic, and role-specific models.
+      </div>
+    </a>
+    <a className="handDocsHome__tile" href="/docs/operations/doctor">
+      <span className="handDocsHome__tileKicker">Diagnose</span>
+      <h3>Doctor</h3>
+      <div className="handDocsHome__tileText">
+        Validate the active profile, model auth, daemon probe, memory, search, safety, gateways, and web tools.
+      </div>
+    </a>
+  </section>
+
+  <section className="handDocsHome__featureBand" aria-labelledby="hand-docs-foundation">
+    <div className="handDocsHome__sectionIntro">
+      <span className="handDocsHome__eyebrow">Runtime foundation</span>
+      <h2 id="hand-docs-foundation">Everything flows through one local runtime</h2>
+    </div>
+    <div className="handDocsHome__grid handDocsHome__gridCompact">
+      <a className="handDocsHome__tile" href="/docs/concepts/daemon-and-rpc">
+        <h3>Daemon and RPC</h3>
+        <div className="handDocsHome__tileText">
+          Understand how clients discover the running daemon and why runtime metadata matters.
+        </div>
+      </a>
+      <a className="handDocsHome__tile" href="/docs/concepts/sessions">
+        <h3>Sessions</h3>
+        <div className="handDocsHome__tileText">
+          Follow durable chat state, compaction, archive behavior, and recovery expectations.
+        </div>
+      </a>
+      <a className="handDocsHome__tile" href="/docs/guides/memory">
+        <h3>Memory</h3>
+        <div className="handDocsHome__tileText">
+          Configure pinned memory, retrieval, flushing, promotion, reflection, and write behavior.
+        </div>
+      </a>
+      <a className="handDocsHome__tile" href="/docs/guides/gateway">
+        <h3>Gateways</h3>
+        <div className="handDocsHome__tileText">
+          Connect Slack, Telegram, or generic HTTP clients to daemon-owned Hand sessions.
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <section className="handDocsHome__footerCta" aria-labelledby="hand-docs-next">
+    <div>
+      <span className="handDocsHome__eyebrow">Ready when you are</span>
+      <h2 id="hand-docs-next">Start with readiness, then open a chat</h2>
+      <div className="handDocsHome__bodyText">
+        Run doctor first, fix any blocking checks, then launch the daemon or TUI for the active profile.
+      </div>
+    </div>
+    <div className="handDocsHome__terminal handDocsHome__terminalSmall" aria-label="Hand command sequence">
+      <pre>{`$ hand doctor
+$ hand daemon
+$ hand`}</pre>
+    </div>
+  </section>
+
+  <nav className="handDocsHome__footerLinks" aria-label="Documentation sections">
+    <div>
+      <h2>Guide</h2>
+      <a href="/docs/getting-started/quickstart">Quickstart</a>
+      <a href="/docs/getting-started/profiles-and-config">Profiles</a>
+      <a href="/docs/guides/config">Config</a>
+    </div>
+    <div>
+      <h2>Operations</h2>
+      <a href="/docs/operations/daemon">Daemon</a>
+      <a href="/docs/operations/gateway-management">Gateway management</a>
+      <a href="/docs/operations/security">Security</a>
+    </div>
+    <div>
+      <h2>Reference</h2>
+      <a href="/docs/reference/cli">CLI</a>
+      <a href="/docs/reference/config">Config keys</a>
+      <a href="/docs/reference/environment-variables">Environment variables</a>
+    </div>
+    <div>
+      <h2>Project</h2>
+      <a href="https://github.com/wandxy/hand">GitHub</a>
+      <a href="https://github.com/wandxy/hand/discussions">Discussions</a>
+      <a href="/docs/contributing">Contributing</a>
+    </div>
+  </nav>
+</main>
