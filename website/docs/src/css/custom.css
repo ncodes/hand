@@ -751,6 +751,16 @@ html[data-theme='dark'] .token {
   width: 100%;
 }
 
+.docs-doc-id-index .row:has(.handDocsHome) {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.docs-doc-id-index .row:has(.handDocsHome) > .col {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .theme-doc-markdown:has(.handDocsHome) > header {
   display: none;
 }
@@ -2326,78 +2336,206 @@ html[data-theme='dark'] .token {
 }
 
 .handDocsHome__memoryVisual {
-  align-content: center;
+  align-items: center;
   background:
+    radial-gradient(circle at 50% 45%, rgba(76, 157, 255, 0.18), transparent 40%),
+    radial-gradient(circle at 58% 58%, rgba(0, 255, 178, 0.14), transparent 34%),
     url('/img/hand-grain-bg.png') center / cover no-repeat,
     #030507;
-  display: grid;
-  gap: clamp(0.85rem, 1.6vw, 1.2rem);
-  grid-template-columns: repeat(2, minmax(0, 190px));
-  justify-content: center;
+  display: flex;
 }
 
-.handDocsHome__memoryVisual span {
-  align-items: center;
-  background: rgba(0, 0, 0, 0.78);
-  border: 2px solid #d7f9ff;
-  box-shadow: 6px 6px 0 #00a1ce;
-  color: #f4f7fb;
-  display: flex;
-  font-family: var(--hand-code-font);
-  font-size: clamp(0.74rem, 0.9vw, 0.82rem);
-  font-weight: 800;
-  min-height: 5rem;
-  padding: 0.95rem 1rem;
-  text-transform: uppercase;
-  width: 100%;
+.handDocsHome__memoryMap {
+  filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.28));
+  height: auto;
+  max-width: 560px;
+  width: min(100%, 560px);
+}
+
+.handDocsHome__memoryPath {
+  fill: none;
+  stroke: rgba(199, 232, 239, 0.34);
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.handDocsHome__memoryHubGlow {
+  fill: url('#memoryHubGlow');
+}
+
+.handDocsHome__memoryHubRing {
+  fill: rgba(3, 5, 7, 0.52);
+  stroke: rgba(215, 249, 255, 0.22);
+  stroke-width: 1.5;
+}
+
+.handDocsHome__memoryHub {
+  fill: #d7f9ff;
+}
+
+.handDocsHome__memoryHubMark {
+  fill: none;
+  stroke: #030507;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 7;
+}
+
+.handDocsHome__memoryTile rect {
+  fill: url('#memoryCardGlow');
+  stroke: rgba(215, 249, 255, 0.28);
+  stroke-width: 1.5;
+}
+
+.handDocsHome__memoryIcon path,
+.handDocsHome__memoryIcon circle,
+.handDocsHome__memoryIcon rect {
+  fill: none;
+  stroke: rgba(244, 247, 251, 0.9);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
 }
 
 .handDocsHome__toolsVisual {
-  align-items: stretch;
+  align-items: center;
   background:
-    url('/img/hand-grain-bg.png') center / cover no-repeat,
+    radial-gradient(circle at 58% 50%, rgba(76, 157, 255, 0.14), transparent 38%),
+    url('/img/tools-grain-bg.png') center / cover no-repeat,
     #030507;
   color: #a8b3c2;
-  flex-direction: column;
-  font-family: var(--hand-code-font);
-  font-size: 0.86rem;
-  gap: 0.85rem;
 }
 
-.handDocsHome__toolsVisual span {
-  background: rgba(0, 0, 0, 0.84);
-  border: 2px solid #d7f9ff;
-  box-shadow: 6px 6px 0 #00ffb2;
-  color: #f4f7fb;
-  font-weight: 800;
-  padding: 1rem 1.1rem;
-  text-transform: uppercase;
+.handDocsHome__toolsMap {
+  filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.3));
+  height: auto;
+  max-width: 590px;
+  width: min(100%, 590px);
 }
 
-.handDocsHome__toolsVisual span:first-child,
-.handDocsHome__toolsVisual span:last-child {
-  color: #f4f7fb;
+.handDocsHome__toolsPath {
+  fill: none;
+  stroke: rgba(198, 224, 255, 0.28);
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.handDocsHome__toolsPathStrong {
+  stroke: rgba(152, 200, 255, 0.48);
+  stroke-width: 2.4;
+}
+
+.handDocsHome__toolsSource rect,
+.handDocsHome__toolsResult rect {
+  fill: url('#toolsCardGlow');
+  stroke: rgba(198, 224, 255, 0.3);
+  stroke-width: 1.5;
+}
+
+.handDocsHome__toolsActionGlow {
+  fill: url('#toolsActionGlow');
+}
+
+.handDocsHome__toolsAction circle {
+  fill: rgba(5, 10, 23, 0.64);
+  stroke: rgba(198, 224, 255, 0.22);
+  stroke-width: 1.5;
+}
+
+.handDocsHome__toolsAction path {
+  fill: none;
+  stroke: rgba(198, 224, 255, 0.9);
+  stroke-linecap: round;
+  stroke-width: 3.4;
+  transform-origin: 304px 180px;
+}
+
+.handDocsHome__toolsIcon path,
+.handDocsHome__toolsIcon circle {
+  fill: none;
+  stroke: rgba(244, 247, 251, 0.92);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
 }
 
 .handDocsHome__gatewayVisual {
-  gap: 1rem;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(76, 157, 255, 0.1), transparent 34%),
+    url('/img/surfaces-grain-bg.png') center / cover no-repeat,
+    #030507;
+  color: #d7f9ff;
   min-height: 300px;
+}
+
+.handDocsHome__gatewayMap {
+  inset: 0;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.handDocsHome__gatewayMap path {
+  fill: none;
+  stroke: rgba(215, 249, 255, 0.22);
+  stroke-linecap: round;
+  stroke-width: 0.36;
+  vector-effect: non-scaling-stroke;
+}
+
+.handDocsHome__gatewayHub {
+  background:
+    url('/img/logo-mark-white.svg') center / 50% auto no-repeat,
+    radial-gradient(circle at 50% 50%, rgba(8, 17, 29, 0.92) 0 45%, rgba(76, 157, 255, 0.18) 46% 68%, transparent 69%);
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 1px rgba(215, 249, 255, 0.16),
+    0 0 0 clamp(1.8rem, 4vw, 3rem) rgba(76, 157, 255, 0.08),
+    0 0 4rem rgba(76, 157, 255, 0.36);
+  height: clamp(3.8rem, 8vw, 5.8rem);
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(3.8rem, 8vw, 5.8rem);
+  z-index: 1;
+}
+
+.handDocsHome__gatewayHub::before {
+  border-radius: 999px;
+  content: '';
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.handDocsHome__gatewayHub::before {
+  border: 1px solid rgba(215, 249, 255, 0.22);
+  height: 68%;
+  width: 68%;
 }
 
 .handDocsHome__gatewayVisual span {
   align-items: center;
-  background: #05070a;
-  border: 1px solid #2a3442;
-  border-radius: 14px;
+  background: rgba(7, 12, 20, 0.54);
+  border: 1px solid rgba(198, 224, 255, 0.26);
+  border-radius: 24px;
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   color: #d7f9ff;
   display: flex;
-  height: clamp(5rem, 8vw, 7rem);
+  height: clamp(5.25rem, 8vw, 7rem);
   justify-content: center;
+  position: absolute;
   transition:
     border-color 160ms ease,
     color 160ms ease,
     transform 160ms ease;
-  width: clamp(5rem, 8vw, 7rem);
+  width: clamp(5.25rem, 8vw, 7rem);
 }
 
 .handDocsHome__gatewayVisual span:hover {
@@ -2405,95 +2543,119 @@ html[data-theme='dark'] .token {
   color: #00ffb2;
 }
 
-.handDocsHome__gatewayVisual svg {
+.handDocsHome__gatewayVisual span svg {
   display: block;
   height: clamp(2rem, 3.2vw, 2.65rem);
   width: clamp(2rem, 3.2vw, 2.65rem);
 }
 
+.handDocsHome__gatewayVisual span:nth-of-type(1) {
+  left: 18%;
+  top: 22%;
+}
+
+.handDocsHome__gatewayVisual span:nth-of-type(2) {
+  right: 18%;
+  top: 22%;
+}
+
+.handDocsHome__gatewayVisual span:nth-of-type(3) {
+  left: 18%;
+  bottom: 22%;
+}
+
+.handDocsHome__gatewayVisual span:nth-of-type(4) {
+  right: 18%;
+  bottom: 22%;
+}
+
 .handDocsHome__gatewayVisual span:nth-child(2) {
-  transform: translateY(-1.3rem);
+  transform: none;
 }
 
 .handDocsHome__gatewayVisual span:nth-child(3) {
-  transform: translateY(1.3rem);
+  transform: none;
 }
 
 .handDocsHome__controlVisual {
+  align-items: center;
   background:
-    url('/img/hand-grain-bg.png') center / cover no-repeat,
+    radial-gradient(circle at 50% 50%, rgba(76, 157, 255, 0.08), transparent 42%),
+    url('/img/control-grain-bg.png') center / cover no-repeat,
     #030507;
   color: #dce7f5;
-  font-family: var(--hand-code-font);
 }
 
-.handDocsHome__controlPanel {
-  background: rgba(0, 0, 0, 0.82);
-  border: 2px solid #d7f9ff;
-  box-shadow: 7px 7px 0 #4c9dff;
-  display: grid;
-  gap: 1.05rem;
-  max-width: 520px;
-  padding: clamp(1.25rem, 2.5vw, 2rem);
-  width: min(100%, 520px);
+.handDocsHome__controlMap {
+  filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.28));
+  height: auto;
+  max-width: 590px;
+  width: min(100%, 590px);
 }
 
-.handDocsHome__controlPanel strong {
-  color: #ffffff;
-  font-family: var(--ifm-heading-font-family);
-  font-size: clamp(1.25rem, 2.2vw, 1.75rem);
-  line-height: 1.15;
+.handDocsHome__controlPath {
+  fill: none;
+  stroke: rgba(215, 249, 255, 0.26);
+  stroke-linecap: round;
+  stroke-width: 2;
 }
 
-.handDocsHome__controlLabel {
-  color: var(--ifm-color-primary);
-  font-size: 0.76rem;
-  font-weight: 800;
-  text-transform: uppercase;
+.handDocsHome__controlPathApprove {
+  stroke: rgba(34, 255, 80, 0.36);
 }
 
-.handDocsHome__controlScope {
-  display: grid;
-  gap: 0.65rem;
+.handDocsHome__controlPathReject {
+  stroke: rgba(255, 88, 116, 0.36);
 }
 
-.handDocsHome__controlScope span {
-  border: 1px solid #263241;
-  color: #c9d4e3;
-  padding: 0.72rem 0.85rem;
+.handDocsHome__controlRequest rect,
+.handDocsHome__controlOutcome rect {
+  fill: url('#controlCardGlow');
+  stroke: rgba(215, 249, 255, 0.28);
+  stroke-width: 1.5;
 }
 
-.handDocsHome__controlScope span:nth-child(1) {
-  border-color: rgba(34, 255, 80, 0.44);
+.handDocsHome__controlHubGlow {
+  fill: url('#controlHubGlow');
 }
 
-.handDocsHome__controlScope span:nth-child(2) {
-  border-color: rgba(76, 157, 255, 0.58);
+.handDocsHome__controlHub path:first-child {
+  fill: rgba(5, 10, 18, 0.72);
+  stroke: rgba(215, 249, 255, 0.34);
+  stroke-linejoin: round;
+  stroke-width: 2.5;
 }
 
-.handDocsHome__controlScope span:nth-child(3) {
-  border-color: rgba(255, 88, 116, 0.5);
+.handDocsHome__controlHub path:last-child,
+.handDocsHome__controlIcon path,
+.handDocsHome__controlOutcome path {
+  fill: none;
+  stroke: rgba(244, 247, 251, 0.92);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
 }
 
-.handDocsHome__controlActions {
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.handDocsHome__controlHub path:last-child {
+  stroke: #d7f9ff;
+  stroke-width: 7;
 }
 
-.handDocsHome__controlActions span {
-  border: 2px solid #d7f9ff;
-  color: #f4f7fb;
-  font-size: 0.78rem;
-  font-weight: 800;
-  padding: 0.8rem 0.85rem;
-  text-align: center;
-  text-transform: uppercase;
+.handDocsHome__controlApprove rect {
+  stroke: rgba(34, 255, 80, 0.42);
 }
 
-.handDocsHome__controlActions span:last-child {
-  background: #d7f9ff;
-  color: #030507;
+.handDocsHome__controlReject rect {
+  stroke: rgba(255, 88, 116, 0.42);
+}
+
+.handDocsHome__controlApprove path {
+  stroke: #22ff50;
+}
+
+.handDocsHome__controlReject path {
+  stroke: #ff5874;
 }
 
 .handDocsHome__footerCta {
@@ -2607,6 +2769,10 @@ html[data-theme='dark'] .token {
     padding-right: 1.25rem;
   }
 
+  .handDocsHome__heroCopy {
+    padding-bottom: 1.25rem;
+  }
+
   .handDocsHome__terminal {
     margin: 1.25rem;
   }
@@ -2693,28 +2859,42 @@ html[data-theme='dark'] .token {
   }
 
   .handDocsHome__featureVisual {
-    border-top: 1px solid var(--hand-border);
     min-height: 240px;
     order: 2;
   }
 
   .handDocsHome__memoryVisual {
-    gap: 0.85rem;
-    grid-template-columns: 1fr;
-  }
-
-  .handDocsHome__memoryVisual span {
-    box-shadow: 5px 5px 0 #00a1ce;
-    min-height: 0;
-    padding: 0.85rem 1rem;
-  }
-
-  .handDocsHome__memoryVisual span:nth-child(n) {
-    transform: none;
+    min-height: 320px;
   }
 
   .handDocsHome__gatewayVisual {
     flex-wrap: wrap;
+    min-height: 320px;
+  }
+
+  .handDocsHome__gatewayVisual span {
+    height: 4.8rem;
+    width: 4.8rem;
+  }
+
+  .handDocsHome__gatewayVisual span:nth-of-type(1),
+  .handDocsHome__gatewayVisual span:nth-of-type(3) {
+    left: 13.5%;
+  }
+
+  .handDocsHome__gatewayVisual span:nth-of-type(2),
+  .handDocsHome__gatewayVisual span:nth-of-type(4) {
+    right: 13.5%;
+  }
+
+  .handDocsHome__gatewayVisual span:nth-of-type(1),
+  .handDocsHome__gatewayVisual span:nth-of-type(2) {
+    top: 23.4%;
+  }
+
+  .handDocsHome__gatewayVisual span:nth-of-type(3),
+  .handDocsHome__gatewayVisual span:nth-of-type(4) {
+    bottom: 23.4%;
   }
 
   .handDocsHome__gatewayVisual span:nth-child(n) {

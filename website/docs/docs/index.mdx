@@ -67,10 +67,69 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
         </div>
       </div>
       <div className="handDocsHome__featureVisual handDocsHome__memoryVisual" aria-hidden="true">
-        <span>travel dates</span>
-        <span>favorite tone</span>
-        <span>open errands</span>
-        <span>family notes</span>
+        <svg className="handDocsHome__memoryMap" viewBox="0 0 520 360" role="img">
+          <defs>
+            <linearGradient id="memoryCardGlow" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stopColor="#d7f9ff" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#00ffb2" stopOpacity="0.08" />
+            </linearGradient>
+            <radialGradient id="memoryHubGlow" cx="50%" cy="45%" r="65%">
+              <stop offset="0%" stopColor="#d7f9ff" stopOpacity="0.44" />
+              <stop offset="58%" stopColor="#00ffb2" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#00ffb2" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <path className="handDocsHome__memoryPath" d="M185 112 C218 123 238 150 260 180" />
+          <path className="handDocsHome__memoryPath" d="M335 112 C302 123 282 150 260 180" />
+          <path className="handDocsHome__memoryPath" d="M185 248 C218 237 238 210 260 180" />
+          <path className="handDocsHome__memoryPath" d="M335 248 C302 237 282 210 260 180" />
+
+          <circle className="handDocsHome__memoryHubGlow" cx="260" cy="180" r="82" />
+          <circle className="handDocsHome__memoryHubRing" cx="260" cy="180" r="48" />
+          <circle className="handDocsHome__memoryHub" cx="260" cy="180" r="26" />
+          <path className="handDocsHome__memoryHubMark" d="M246 181 L256 191 L276 168" />
+
+          <g className="handDocsHome__memoryTile" transform="translate(72 62)">
+            <rect height="88" rx="22" width="112" />
+            <g className="handDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
+              <path d="M8 2 V6" />
+              <path d="M16 2 V6" />
+              <rect height="18" rx="2.5" width="18" x="3" y="4" />
+              <path d="M3 10 H21" />
+              <path d="M8 14 H8.01" />
+              <path d="M12 14 H12.01" />
+              <path d="M16 14 H16.01" />
+              <path d="M8 18 H8.01" />
+              <path d="M12 18 H12.01" />
+            </g>
+          </g>
+          <g className="handDocsHome__memoryTile" transform="translate(336 62)">
+            <rect height="88" rx="22" width="112" />
+            <g className="handDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
+              <path d="M19.5 12.57 L12 20 L4.5 12.57 C1.8 9.9 2.1 5.5 5.5 4.2 C7.6 3.4 10 4.2 12 6.4 C14 4.2 16.4 3.4 18.5 4.2 C21.9 5.5 22.2 9.9 19.5 12.57 Z" />
+            </g>
+          </g>
+          <g className="handDocsHome__memoryTile" transform="translate(72 210)">
+            <rect height="88" rx="22" width="112" />
+            <g className="handDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
+              <path d="M9 6 H21" />
+              <path d="M9 12 H21" />
+              <path d="M9 18 H16" />
+              <path d="M3.5 6 L4.5 7 L6.5 4.8" />
+              <path d="M3.5 12 L4.5 13 L6.5 10.8" />
+              <path d="M3.5 18 L4.5 19 L6.5 16.8" />
+            </g>
+          </g>
+          <g className="handDocsHome__memoryTile" transform="translate(336 210)">
+            <rect height="88" rx="22" width="112" />
+            <g className="handDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
+              <circle cx="9" cy="8" r="3.4" />
+              <path d="M3.5 20 C4.2 16.2 7 14.5 9 14.5 C11 14.5 13.8 16.2 14.5 20" />
+              <circle cx="16.5" cy="9" r="2.9" />
+              <path d="M14.8 15.1 C17.8 14.4 20 16.2 20.6 20" />
+            </g>
+          </g>
+        </svg>
       </div>
     </article>
 
@@ -83,10 +142,69 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
         </div>
       </div>
       <div className="handDocsHome__featureVisual handDocsHome__toolsVisual" aria-hidden="true">
-        <span>● Read receipts.csv</span>
-        <span>● Search warranty policy</span>
-        <span>● Draft refund email</span>
-        <span>◉ Ready to send</span>
+        <svg className="handDocsHome__toolsMap" viewBox="0 0 560 360" role="img">
+          <defs>
+            <linearGradient id="toolsCardGlow" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stopColor="#c6e0ff" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#4c9dff" stopOpacity="0.08" />
+            </linearGradient>
+            <radialGradient id="toolsActionGlow" cx="50%" cy="50%" r="60%">
+              <stop offset="0%" stopColor="#98c8ff" stopOpacity="0.42" />
+              <stop offset="56%" stopColor="#4c9dff" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#4c9dff" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+
+          <path className="handDocsHome__toolsPath" d="M165 87 C226 88 246 128 280 180" />
+          <path className="handDocsHome__toolsPath" d="M165 180 H280" />
+          <path className="handDocsHome__toolsPath" d="M165 273 C226 272 246 232 280 180" />
+          <path className="handDocsHome__toolsPath handDocsHome__toolsPathStrong" d="M330 180 C368 180 389 180 424 180" />
+
+          <g className="handDocsHome__toolsSource" transform="translate(48 48)">
+            <rect height="78" rx="22" width="118" />
+            <g className="handDocsHome__toolsIcon" transform="translate(41 21) scale(1.55)">
+              <path d="M7 3 H14 L19 8 V21 H7 Z" />
+              <path d="M14 3 V8 H19" />
+              <path d="M10 13 H16" />
+              <path d="M10 17 H15" />
+            </g>
+          </g>
+
+          <g className="handDocsHome__toolsSource" transform="translate(48 141)">
+            <rect height="78" rx="22" width="118" />
+            <g className="handDocsHome__toolsIcon" transform="translate(41 21) scale(1.55)">
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="M16 16 L21 21" />
+              <path d="M8 11 H14" />
+            </g>
+          </g>
+
+          <g className="handDocsHome__toolsSource" transform="translate(48 234)">
+            <rect height="78" rx="22" width="118" />
+            <g className="handDocsHome__toolsIcon" transform="translate(41 21) scale(1.55)">
+              <path d="M5 19 L9 18 L19 8 C20.3 6.7 20.3 4.7 19 3.5 C17.8 2.3 15.8 2.3 14.5 3.6 L4.8 13.3 Z" />
+              <path d="M13.5 4.7 L17.8 9" />
+              <path d="M5 22 H20" />
+            </g>
+          </g>
+
+          <circle className="handDocsHome__toolsActionGlow" cx="304" cy="180" r="86" />
+          <g className="handDocsHome__toolsAction">
+            <circle cx="304" cy="180" r="46" />
+            <path d="M286 180 H322" />
+            <path d="M304 162 V198" />
+            <path d="M292 168 L316 192" />
+            <path d="M316 168 L292 192" />
+          </g>
+
+          <g className="handDocsHome__toolsResult" transform="translate(424 124)">
+            <rect height="112" rx="28" width="112" />
+            <g className="handDocsHome__toolsIcon" transform="translate(31 30) scale(2.08)">
+              <path d="M6 12 L10 16 L19 7" />
+              <path d="M5 21 H20" />
+            </g>
+          </g>
+        </svg>
       </div>
     </article>
 
@@ -99,6 +217,13 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
         </div>
       </div>
       <div className="handDocsHome__featureVisual handDocsHome__gatewayVisual" aria-label="Hand surfaces">
+        <svg className="handDocsHome__gatewayMap" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M33.2 35.4 C39 35.4 45 43 50 50" />
+          <path d="M66.8 35.4 C61 35.4 55 43 50 50" />
+          <path d="M33.2 64.6 C39 64.6 45 57 50 50" />
+          <path d="M66.8 64.6 C61 64.6 55 57 50 50" />
+        </svg>
+        <div className="handDocsHome__gatewayHub" aria-hidden="true"></div>
         <span aria-label="Terminal" title="Terminal">
           <HugeiconsIcon color="currentColor" icon={TerminalIcon} size={40} strokeWidth={1.8} />
         </span>
@@ -124,19 +249,50 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
         </div>
       </div>
       <div className="handDocsHome__featureVisual handDocsHome__controlVisual" aria-hidden="true">
-        <div className="handDocsHome__controlPanel">
-          <span className="handDocsHome__controlLabel">Action pending</span>
-          <strong>Send refund email</strong>
-          <div className="handDocsHome__controlScope">
-            <span>Allow: inbox draft</span>
-            <span>Ask: send email</span>
-            <span>Block: billing data</span>
-          </div>
-          <div className="handDocsHome__controlActions">
-            <span>Deny</span>
-            <span>Approve once</span>
-          </div>
-        </div>
+        <svg className="handDocsHome__controlMap" viewBox="0 0 560 360" role="img">
+          <defs>
+            <linearGradient id="controlCardGlow" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stopColor="#d7f9ff" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#4c9dff" stopOpacity="0.08" />
+            </linearGradient>
+            <radialGradient id="controlHubGlow" cx="50%" cy="50%" r="62%">
+              <stop offset="0%" stopColor="#d7f9ff" stopOpacity="0.36" />
+              <stop offset="60%" stopColor="#4c9dff" stopOpacity="0.16" />
+              <stop offset="100%" stopColor="#4c9dff" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+
+          <path className="handDocsHome__controlPath" d="M170 180 H248" />
+          <path className="handDocsHome__controlPath handDocsHome__controlPathApprove" d="M312 164 C352 132 374 100 420 94" />
+          <path className="handDocsHome__controlPath handDocsHome__controlPathReject" d="M312 196 C352 228 374 260 420 266" />
+
+          <g className="handDocsHome__controlRequest" transform="translate(58 124)">
+            <rect height="112" rx="28" width="112" />
+            <g className="handDocsHome__controlIcon" transform="translate(29 31)">
+              <path d="M2 14 H34" />
+              <path d="M2 28 H27" />
+              <path d="M2 42 H20" />
+              <path d="M41 18 L54 28 L41 38 Z" />
+            </g>
+          </g>
+
+          <circle className="handDocsHome__controlHubGlow" cx="280" cy="180" r="86" />
+          <g className="handDocsHome__controlHub">
+            <path d="M280 117 C304 132 326 134 326 134 V174 C326 207 302 230 280 241 C258 230 234 207 234 174 V134 C234 134 256 132 280 117 Z" />
+            <path d="M264 180 L276 192 L298 165" />
+          </g>
+
+          <g className="handDocsHome__controlOutcome handDocsHome__controlApprove" transform="translate(420 42)">
+            <rect height="104" rx="28" width="104" />
+            <path d="M33 54 L47 68 L73 38" />
+          </g>
+
+          <g className="handDocsHome__controlOutcome handDocsHome__controlReject" transform="translate(420 214)">
+            <rect height="104" rx="28" width="104" />
+            <path d="M36 36 L68 68" />
+            <path d="M68 36 L36 68" />
+          </g>
+        </svg>
       </div>
     </article>
   </section>
