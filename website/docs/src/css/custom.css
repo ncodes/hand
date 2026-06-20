@@ -1008,8 +1008,9 @@ html[data-theme='dark'] .token {
 
 .handDocsHome__tui {
   --hand-tui-loop: 24s;
+  --hand-tui-separator: #2a313c;
   background: #000000;
-  border: 1px solid #4a4a4a;
+  border: 1px solid var(--hand-tui-separator);
   border-radius: 2px;
   box-sizing: border-box;
   box-shadow: 0 34px 100px rgba(0, 0, 0, 0.5);
@@ -1031,7 +1032,7 @@ html[data-theme='dark'] .token {
 .handDocsHome__tuiHeader {
   align-items: center;
   background: #000000;
-  border-bottom: 1px solid #1f1f1f;
+  border-bottom: 1px solid var(--hand-tui-separator);
   color: #767676;
   display: flex;
   flex: 0 0 1.8rem;
@@ -1342,7 +1343,7 @@ html[data-theme='dark'] .token {
 .handDocsHome__composer {
   align-items: center;
   background: #000000;
-  border: 1px solid #4a4a4a;
+  border: 1px solid var(--hand-tui-separator);
   border-radius: 2px;
   color: #777777;
   display: flex;
@@ -2656,6 +2657,94 @@ html[data-theme='dark'] .token {
 
 .handDocsHome__controlReject path {
   stroke: #ff5874;
+}
+
+.handDocsHome__scheduleVisual {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(0, 255, 178, 0.08), transparent 42%),
+    url('/img/schedule-grain-bg.png') center / cover no-repeat,
+    #030507;
+}
+
+.handDocsHome__scheduleMap,
+.handDocsHome__browseMap {
+  filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.3));
+  height: auto;
+  max-width: 590px;
+  width: min(100%, 590px);
+}
+
+.handDocsHome__scheduleOrbit,
+.handDocsHome__schedulePath,
+.handDocsHome__browsePath {
+  fill: none;
+  stroke: rgba(215, 249, 255, 0.24);
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.handDocsHome__scheduleOrbit {
+  stroke-dasharray: 8 12;
+}
+
+.handDocsHome__scheduleHubGlow {
+  fill: url('#scheduleHubGlow');
+}
+
+.handDocsHome__scheduleClock circle {
+  fill: rgba(5, 10, 18, 0.72);
+  stroke: rgba(215, 249, 255, 0.34);
+  stroke-width: 1.8;
+}
+
+.handDocsHome__scheduleClock path,
+.handDocsHome__scheduleNode path,
+.handDocsHome__browseWindow path,
+.handDocsHome__browseWindow circle,
+.handDocsHome__browseNode path {
+  fill: none;
+  stroke: rgba(244, 247, 251, 0.92);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.handDocsHome__scheduleNode rect {
+  fill: url('#scheduleCardGlow');
+  stroke: rgba(215, 249, 255, 0.28);
+  stroke-width: 1.5;
+}
+
+.handDocsHome__scheduleNodeSmall rect {
+  stroke: rgba(0, 255, 178, 0.28);
+}
+
+.handDocsHome__browseVisual {
+  background:
+    radial-gradient(circle at 54% 50%, rgba(76, 157, 255, 0.08), transparent 42%),
+    url('/img/browse-grain-bg.png') center / cover no-repeat,
+    #030507;
+}
+
+.handDocsHome__browsePath {
+  stroke: rgba(198, 224, 255, 0.28);
+}
+
+.handDocsHome__browseHubGlow {
+  fill: url('#browseHubGlow');
+}
+
+.handDocsHome__browseWindow rect,
+.handDocsHome__browseNode rect {
+  fill: url('#browseCardGlow');
+  stroke: rgba(198, 224, 255, 0.3);
+  stroke-width: 1.5;
+}
+
+.handDocsHome__browseWindow circle {
+  fill: rgba(198, 224, 255, 0.5);
+  stroke: none;
 }
 
 .handDocsHome__footerCta {
