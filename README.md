@@ -1,10 +1,10 @@
-# Hand
+# Morph
 
-Hand is a terminal-first personal agent written in Go.
+Morph is a terminal-first personal agent written in Go.
 
 The project is inspired in part by the [dæmon from *His Dark Materials*](https://en.wikipedia.org/wiki/D%C3%A6mon_(His_Dark_Materials)): close companions that are personal, steady, and meaningfully present. The goal is not just to build another CLI assistant, but to shape a tool that feels like a capable working partner.
 
-The long-term dream for Hand is a personal agent that can understand your workflow, help you think, assist with research and coding, carry useful context over time, and become dependable enough to feel like a real extension of how you work. A further part of that dream is meaningful interaction between daemons, where your Hand can collaborate with other trusted Hands on shared tasks and coordination.
+The long-term dream for Morph is a personal agent that can understand your workflow, help you think, assist with research and coding, carry useful context over time, and become dependable enough to feel like a real extension of how you work. A further part of that dream is meaningful interaction between daemons, where your Morph can collaborate with other trusted Morphs on shared tasks and coordination.
 
 ## Requirements
 
@@ -17,12 +17,12 @@ The long-term dream for Hand is a personal agent that can understand your workfl
    - `cp example.env .env`
    - `cp example.yaml config.yaml`
 2. Uncomment the values you want to use and replace the placeholder key values.
-3. Set at least `HAND_NAME`, `HAND_MODEL`, `HAND_MODEL_PROVIDER`, and a provider auth value such as
+3. Set at least `MORPH_NAME`, `MORPH_MODEL`, `MORPH_MODEL_PROVIDER`, and a provider auth value such as
    `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, or `COPILOT_GITHUB_TOKEN`.
 4. Start the daemon:
 
 ```bash
-go run ./cmd/hand daemon
+go run ./cmd/morph daemon
 ```
 
 The `daemon` command prepares the runtime service.
@@ -30,7 +30,7 @@ The `daemon` command prepares the runtime service.
 You can also send a direct prompt through the root command:
 
 ```bash
-go run ./cmd/hand \
+go run ./cmd/morph \
   --chat \
   --name Daemon \
   --model qwen/qwen3.5-27b \
@@ -82,44 +82,44 @@ Config file values:
 - `memory.provider`
 
 Env equivalents:
-- `HAND_NAME`
-- `HAND_MODEL`
-- `HAND_MODEL_SUMMARY`
-- `HAND_MODEL_PROVIDER`
-- `HAND_MODEL_SUMMARY_PROVIDER`
+- `MORPH_NAME`
+- `MORPH_MODEL`
+- `MORPH_MODEL_SUMMARY`
+- `MORPH_MODEL_PROVIDER`
+- `MORPH_MODEL_SUMMARY_PROVIDER`
 - `OPENAI_API_KEY`
 - `OPENROUTER_API_KEY`
 - `ANTHROPIC_API_KEY`
 - `COPILOT_GITHUB_TOKEN`
-- `HAND_MODEL_BASE_URL`
-- `HAND_MODEL_SUMMARY_BASE_URL`
-- `HAND_MODEL_API`
-- `HAND_MODEL_SUMMARY_API`
-- `HAND_MODEL_STREAM`
-- `HAND_RPC_ADDRESS`
-- `HAND_RPC_PORT`
-- `HAND_GATEWAY_ENABLED`
-- `HAND_GATEWAY_ADDRESS`
-- `HAND_GATEWAY_PORT`
-- `HAND_GATEWAY_AUTH_TOKEN`
-- `HAND_GATEWAY_ALLOWED_USERS`
-- `HAND_GATEWAY_TELEGRAM_ENABLED`
-- `HAND_GATEWAY_TELEGRAM_MODE`
-- `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`
-- `HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET`
-- `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS`
-- `HAND_GATEWAY_SLACK_ENABLED`
-- `HAND_GATEWAY_SLACK_MODE`
-- `HAND_GATEWAY_SLACK_RESPONSE_MODE`
-- `HAND_GATEWAY_SLACK_BOT_TOKEN`
-- `HAND_GATEWAY_SLACK_APP_TOKEN`
-- `HAND_GATEWAY_SLACK_SIGNING_SECRET`
-- `HAND_GATEWAY_SLACK_ALLOWED_USERS`
-- `HAND_LOG_LEVEL`
-- `HAND_LOG_NO_COLOR`
-- `HAND_DEBUG_REQUESTS`
-- `HAND_MEMORY_ENABLED`
-- `HAND_MEMORY_PROVIDER`
+- `MORPH_MODEL_BASE_URL`
+- `MORPH_MODEL_SUMMARY_BASE_URL`
+- `MORPH_MODEL_API`
+- `MORPH_MODEL_SUMMARY_API`
+- `MORPH_MODEL_STREAM`
+- `MORPH_RPC_ADDRESS`
+- `MORPH_RPC_PORT`
+- `MORPH_GATEWAY_ENABLED`
+- `MORPH_GATEWAY_ADDRESS`
+- `MORPH_GATEWAY_PORT`
+- `MORPH_GATEWAY_AUTH_TOKEN`
+- `MORPH_GATEWAY_ALLOWED_USERS`
+- `MORPH_GATEWAY_TELEGRAM_ENABLED`
+- `MORPH_GATEWAY_TELEGRAM_MODE`
+- `MORPH_GATEWAY_TELEGRAM_BOT_TOKEN`
+- `MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET`
+- `MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS`
+- `MORPH_GATEWAY_SLACK_ENABLED`
+- `MORPH_GATEWAY_SLACK_MODE`
+- `MORPH_GATEWAY_SLACK_RESPONSE_MODE`
+- `MORPH_GATEWAY_SLACK_BOT_TOKEN`
+- `MORPH_GATEWAY_SLACK_APP_TOKEN`
+- `MORPH_GATEWAY_SLACK_SIGNING_SECRET`
+- `MORPH_GATEWAY_SLACK_ALLOWED_USERS`
+- `MORPH_LOG_LEVEL`
+- `MORPH_LOG_NO_COLOR`
+- `MORPH_DEBUG_REQUESTS`
+- `MORPH_MEMORY_ENABLED`
+- `MORPH_MEMORY_PROVIDER`
 
 ### Model Configuration
 
@@ -155,43 +155,43 @@ Typical model settings:
 - `gateway.telegram.mode`: `polling` or `webhook`; defaults to `polling`
 - `gateway.slack.mode`: `socket` or `http`; defaults to `socket`
 - `gateway.slack.responseMode`: `thread` or `message`; `message` still replies in-thread when the inbound Slack message is already in a thread
-- Gateway credentials can be set directly in config or `HAND_`-prefixed environment variables:
-  `HAND_GATEWAY_AUTH_TOKEN`, `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`, `HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET`, `HAND_GATEWAY_SLACK_BOT_TOKEN`,
-  `HAND_GATEWAY_SLACK_APP_TOKEN`, and `HAND_GATEWAY_SLACK_SIGNING_SECRET`.
+- Gateway credentials can be set directly in config or `MORPH_`-prefixed environment variables:
+  `MORPH_GATEWAY_AUTH_TOKEN`, `MORPH_GATEWAY_TELEGRAM_BOT_TOKEN`, `MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET`, `MORPH_GATEWAY_SLACK_BOT_TOKEN`,
+  `MORPH_GATEWAY_SLACK_APP_TOKEN`, and `MORPH_GATEWAY_SLACK_SIGNING_SECRET`.
 - `debug.requests`: emits model request metadata at debug level without request bodies
 
 ### Gateway Setup
 
 Generic HTTP gateway:
 - Keep `gateway.address` on loopback for local use.
-- If binding to a non-loopback address, set `HAND_GATEWAY_AUTH_TOKEN` or `gateway.authToken`.
-- Use `hand doctor` before exposing the listener.
+- If binding to a non-loopback address, set `MORPH_GATEWAY_AUTH_TOKEN` or `gateway.authToken`.
+- Use `morph doctor` before exposing the listener.
 
 Telegram:
-- Polling mode is the local default and needs `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`.
-- Webhook mode needs `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`, `HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET`, and a public HTTPS URL routed to `/gateway/telegram/webhook`.
-- Unknown Telegram DMs receive a pairing code; approve with `hand gateway pairing approve telegram <code>`.
-- Telegram groups never receive pairing prompts. Group senders must be paired or listed in `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` or `HAND_GATEWAY_ALLOWED_USERS`.
-- Get your Telegram numeric sender ID by messaging a user-info bot or by checking the pending pairing entry with `hand gateway pairing list telegram`.
-- Telegram replies use MarkdownV2 where possible and fall back to plain text if Telegram rejects formatting. Hand does not use Telegram HTML.
+- Polling mode is the local default and needs `MORPH_GATEWAY_TELEGRAM_BOT_TOKEN`.
+- Webhook mode needs `MORPH_GATEWAY_TELEGRAM_BOT_TOKEN`, `MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET`, and a public HTTPS URL routed to `/gateway/telegram/webhook`.
+- Unknown Telegram DMs receive a pairing code; approve with `morph gateway pairing approve telegram <code>`.
+- Telegram groups never receive pairing prompts. Group senders must be paired or listed in `MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS` or `MORPH_GATEWAY_ALLOWED_USERS`.
+- Get your Telegram numeric sender ID by messaging a user-info bot or by checking the pending pairing entry with `morph gateway pairing list telegram`.
+- Telegram replies use MarkdownV2 where possible and fall back to plain text if Telegram rejects formatting. Morph does not use Telegram HTML.
 
 Slack:
-- Socket mode is the local default and needs `HAND_GATEWAY_SLACK_BOT_TOKEN` plus `HAND_GATEWAY_SLACK_APP_TOKEN`.
-- HTTP Events API mode needs `HAND_GATEWAY_SLACK_BOT_TOKEN`, `HAND_GATEWAY_SLACK_SIGNING_SECRET`, and a public HTTPS URL routed to `/gateway/slack/webhook`.
-- `gateway.slack.responseMode: message` makes Hand respond as a top-level message unless the inbound Slack message is already in a thread.
+- Socket mode is the local default and needs `MORPH_GATEWAY_SLACK_BOT_TOKEN` plus `MORPH_GATEWAY_SLACK_APP_TOKEN`.
+- HTTP Events API mode needs `MORPH_GATEWAY_SLACK_BOT_TOKEN`, `MORPH_GATEWAY_SLACK_SIGNING_SECRET`, and a public HTTPS URL routed to `/gateway/slack/webhook`.
+- `gateway.slack.responseMode: message` makes Morph respond as a top-level message unless the inbound Slack message is already in a thread.
 
 ## Commands
 
-- `hand daemon`: start the runtime service
-- `hand doctor`: run startup diagnostics and readiness checks
-- `hand --chat "<message>"` or `hand -c "<message>"`: send a single chat message
+- `morph daemon`: start the runtime service
+- `morph doctor`: run startup diagnostics and readiness checks
+- `morph --chat "<message>"` or `morph -c "<message>"`: send a single chat message
 
 ## gRPC
 
-The daemon exposes a gRPC service defined in [internal/rpc/proto/hand.proto](./internal/rpc/proto/hand.proto).
+The daemon exposes a gRPC service defined in [internal/rpc/proto/morph.proto](./internal/rpc/proto/morph.proto).
 
 Current RPC surface:
-- `HandService/Respond`: streams assistant text deltas and a terminal done event
+- `MorphService/Respond`: streams assistant text deltas and a terminal done event
 
 The generated Go stubs live under [internal/rpc/proto](./internal/rpc/proto), and the service implementation lives in [internal/rpc/service.go](./internal/rpc/service.go).
 

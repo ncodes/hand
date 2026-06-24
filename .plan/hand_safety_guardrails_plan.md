@@ -1,4 +1,4 @@
-# Hand Safety Guardrails Plan
+# Morph Safety Guardrails Plan
 
 ## Current State
 
@@ -112,7 +112,7 @@
   - [x] sensitive JSON fields
   - [x] sensitive env assignments
   - [x] phone numbers
-- [x] Add stricter optional handling for env-looking outputs:
+- [x] Add stricter optional morphling for env-looking outputs:
   - [x] `SECRET=value`
   - [x] `TOKEN=value`
   - [x] `PASSWORD=value`
@@ -142,7 +142,7 @@
 
 ## Phase 7: PII Safety
 
-- [x] Define PII classes Hand should redact by default:
+- [x] Define PII classes Morph should redact by default:
   - [x] phone numbers
   - [x] email addresses where appropriate
   - [x] physical addresses where detectable
@@ -179,7 +179,7 @@ safety:
 
 - [x] Default input and output safety to enabled for all new profiles.
 - [x] Allow explicit local development overrides through config and documented env vars.
-- [x] Surface safety mode in `hand doctor` and startup output.
+- [x] Surface safety mode in `morph doctor` and startup output.
 - [x] Add config load, env override, and validation tests.
 
 ## Phase 10: Observability
@@ -225,9 +225,9 @@ safety:
 
 ## Acceptance Criteria
 
-- Asking Hand to reveal, quote, encode, translate, summarize, or list hidden instructions produces a safe refusal.
+- Asking Morph to reveal, quote, encode, translate, summarize, or list hidden instructions produces a safe refusal.
 - Such requests do not reach the model client.
 - Model attempts to return hidden prompt fragments are blocked before the user sees them.
 - Model attempts to emit secret-looking values are redacted according to safety policy.
 - Safety events are traceable without storing sensitive raw content.
-- Benign questions about Hand's public safety design remain answerable.
+- Benign questions about Morph's public safety design remain answerable.

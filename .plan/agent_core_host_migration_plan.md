@@ -2,14 +2,14 @@
 
 ## Goal
 
-Make the agent core reusable outside Hand by moving application-agnostic orchestration into `pkg/agent` and keeping Hand-specific wiring in `internal/host`.
+Make the agent core reusable outside Morph by moving application-agnostic orchestration into `pkg/agent` and keeping Morph-specific wiring in `internal/host`.
 
-External applications should be able to instantiate an agent with their own model client, session store, tool registry, trace sink, memory provider, and prompt/instruction provider without importing Hand internals.
+External applications should be able to instantiate an agent with their own model client, session store, tool registry, trace sink, memory provider, and prompt/instruction provider without importing Morph internals.
 
 ## Non-Goals
 
 - Do not change CLI, TUI, RPC, storage, memory, tracing, or tool behavior during extraction.
-- Do not move Hand-native tools into `pkg/agent`.
+- Do not move Morph-native tools into `pkg/agent`.
 - Do not make `pkg/agent` depend on any `internal/*` package.
 - Do not redesign prompts, compaction, planning, or memory semantics while moving boundaries.
 
@@ -41,21 +41,21 @@ internal/host
   environment.go
 ```
 
-`pkg/agent` owns reusable orchestration. `internal/host` owns Hand defaults and wires current Hand packages into the reusable interfaces.
+`pkg/agent` owns reusable orchestration. `internal/host` owns Morph defaults and wires current Morph packages into the reusable interfaces.
 
-The final architecture must not look like a compatibility bridge. Hand should use the public agent core as first-class infrastructure, with `internal/host` acting as the native Hand runtime assembly layer.
+The final architecture must not look like a compatibility bridge. Morph should use the public agent core as first-class infrastructure, with `internal/host` acting as the native Morph runtime assembly layer.
 
 ## Final Architecture Target
 
-The migration is not complete while Hand still depends on compatibility aliases, fallback constructors, legacy turn wrappers, or host types that only exist to mimic the old `internal/agent` surface.
+The migration is not complete while Morph still depends on compatibility aliases, fallback constructors, legacy turn wrappers, or host types that only exist to mimic the old `internal/agent` surface.
 
 The intended final shape is:
 
 - `pkg/agent` contains the reusable agent core, public runtime types, and orchestration contracts.
-- `internal/host` is the Hand runtime composition package. It constructs `pkg/agent.Agent` directly from Hand config, state, tools, prompts, traces, memory, and environment services.
-- Hand application packages depend on `internal/host` for construction and on public/shared packages for data types. They do not depend on `internal/agent`.
-- `internal/agent` is deleted or reduced to non-orchestration feature code only if a real Hand-specific feature remains there. It must not be a compatibility facade.
-- Adapters are allowed only when they represent real ownership boundaries, such as Hand state to agent session store, Hand tools to agent tool registry, or Hand traces to agent trace sink. They must be named by their domain, not by compatibility.
+- `internal/host` is the Morph runtime composition package. It constructs `pkg/agent.Agent` directly from Morph config, state, tools, prompts, traces, memory, and environment services.
+- Morph application packages depend on `internal/host` for construction and on public/shared packages for data types. They do not depend on `internal/agent`.
+- `internal/agent` is deleted or reduced to non-orchestration feature code only if a real Morph-specific feature remains there. It must not be a compatibility facade.
+- Adapters are allowed only when they represent real ownership boundaries, such as Morph state to agent session store, Morph tools to agent tool registry, or Morph traces to agent trace sink. They must be named by their domain, not by compatibility.
 
 Forbidden end-state patterns:
 
@@ -83,7 +83,7 @@ agent, err := agent.New(agent.Options{
 })
 ```
 
-Hand then becomes one host:
+Morph then becomes one host:
 
 ```go
 core, err := host.NewAgent(ctx, host.Options{
@@ -109,7 +109,7 @@ type Client interface {
 
 ### Session
 
-Expose only what the turn loop needs, not the full Hand state manager.
+Expose only what the turn loop needs, not the full Morph state manager.
 
 ```go
 type Store interface {
@@ -124,7 +124,7 @@ Trace persistence can either be part of a trace sink or a small optional interfa
 
 ### Tools
 
-Separate tool definitions from Hand's native tool registry.
+Separate tool definitions from Morph's native tool registry.
 
 ```go
 type Registry interface {
@@ -133,11 +133,11 @@ type Registry interface {
 }
 ```
 
-Hand's current tool system becomes an adapter in `internal/host/tools.go`.
+Morph's current tool system becomes an adapter in `internal/host/tools.go`.
 
 ### Trace
 
-Keep trace events generic, with Hand-specific hydration/rendering outside the core.
+Keep trace events generic, with Morph-specific hydration/rendering outside the core.
 
 ```go
 type Factory interface {
@@ -177,7 +177,7 @@ type Provider interface {
 - Each phase must compile and pass focused tests before the next phase.
 - Use type aliases only as short-lived scaffolding inside the active phase that introduces them.
 - Move one dependency boundary at a time.
-- Remove old `internal/agent` entry points once Hand callers are migrated.
+- Remove old `internal/agent` entry points once Morph callers are migrated.
 - Preserve trace event names and payloads until TUI hydration and live rendering are explicitly migrated.
 - Keep `internal/host` names plain: `config.go`, `session.go`, `tools.go`, `trace.go`, `memory.go`, `prompt.go`, `environment.go`.
 - Treat adapters as first-class host wiring, not compatibility shims. If an adapter has no stable domain boundary, remove it.
@@ -206,7 +206,7 @@ make agent-deps
 make test-agent-baseline
 ```
 
-`make agent-deps` prints direct and transitive Hand imports for `internal/agent`.
+`make agent-deps` prints direct and transitive Morph imports for `internal/agent`.
 `make test-agent-baseline` runs the focused agent, compaction, summary, TUI trace conversion, and CLI package tests.
 
 Risk:
@@ -252,7 +252,7 @@ Progress:
 
 Deferred:
 
-- Keep the Hand trace-backed `internal/agent.Event` shape until the trace boundary is extracted.
+- Keep the Morph trace-backed `internal/agent.Event` shape until the trace boundary is extracted.
 - Migrate direct internal callers to public packages later when broader import churn is safer.
 
 ## [x] Phase 2: Define Session Store Boundary
@@ -264,12 +264,12 @@ Work:
 - Add `pkg/agent/session.Store`.
 - Implement `internal/host/session.go` adapter over the existing state manager.
 - Change turn loading, appending, prompt-token updates, and trace persistence to use the interface.
-- Keep state search, SQLite, vector stores, and profile data inside Hand internals.
+- Keep state search, SQLite, vector stores, and profile data inside Morph internals.
 
 Done when:
 
 - `Turn` no longer depends directly on `internal/state/manager`.
-- Hand behavior is unchanged.
+- Morph behavior is unchanged.
 - Session timeline and compaction still read current state correctly.
 
 Risk:
@@ -279,7 +279,7 @@ Risk:
 Progress:
 
 - Added `pkg/agent/session` with public session, compaction, message query, store, and trace recorder shapes.
-- Added `internal/host/session.go` as the first Hand host adapter over the current state manager surface.
+- Added `internal/host/session.go` as the first Morph host adapter over the current state manager surface.
 - Verified `go test ./pkg/agent/... ./internal/host`.
 - Replaced turn-scoped session resolution, message reads/writes, prompt-token writes, reasoning trace persistence, and plan hydration with the session store/trace recorder interfaces.
 - Added an Agent turn factory so normal response and memory-flush paths construct turns through the session boundary.
@@ -288,11 +288,11 @@ Progress:
 Deferred:
 
 - Broader Agent service methods still use the state manager until the public Agent API moves in later phases.
-- Summary compaction still uses the existing summary store interface until summary is extracted from Hand internals.
+- Summary compaction still uses the existing summary store interface until summary is extracted from Morph internals.
 
 ## [x] Phase 3: Define Tool Boundary
 
-Objective: make the core execute abstract tools while Hand supplies its native tools.
+Objective: make the core execute abstract tools while Morph supplies its native tools.
 
 Work:
 
@@ -303,18 +303,18 @@ Work:
 
 Done when:
 
-- `pkg/agent` can request tool definitions and invoke tools without importing Hand tools.
+- `pkg/agent` can request tool definitions and invoke tools without importing Morph tools.
 - Tool-call turns, plan tool state, and process tool state still trace correctly.
 
 Risk:
 
-- Tool context currently carries Hand run/session metadata. Keep that metadata in host context injection, not in core tool types.
+- Tool context currently carries Morph run/session metadata. Keep that metadata in host context injection, not in core tool types.
 
 Progress:
 
 - Added `pkg/agent/tool` with public registry, call, definition, policy, group, and capability shapes.
 - Added conversion helpers between public tool calls/definitions and model calls/definitions.
-- Added `internal/host/tools.go` to adapt the current Hand environment tool registry into the public tool registry boundary.
+- Added `internal/host/tools.go` to adapt the current Morph environment tool registry into the public tool registry boundary.
 - Moved normal `Agent` turn construction onto the public tool registry while keeping the legacy `NewTurn` wrapper behavior-preserving for tests and transitional callers.
 - Routed turn tool resolution and invocation through the tool registry interface when present.
 - Routed memory-flush tool definition filtering through the same turn tool boundary.
@@ -323,12 +323,12 @@ Progress:
 
 Deferred:
 
-- `internal/agent` still uses Hand environment and tool-context helpers until Phase 4 extracts trace, memory, and prompt/environment boundaries.
+- `internal/agent` still uses Morph environment and tool-context helpers until Phase 4 extracts trace, memory, and prompt/environment boundaries.
 - Agent-level helper methods still expose the older environment-backed tool path until the public Agent API moves in later phases.
 
 ## [x] Phase 4: Define Trace, Memory, And Prompt Boundaries
 
-Objective: remove remaining Hand environment coupling from the turn loop.
+Objective: remove remaining Morph environment coupling from the turn loop.
 
 Work:
 
@@ -336,7 +336,7 @@ Work:
 - Add `pkg/agent/memory` provider interface.
 - Add `pkg/agent/prompt` instruction types or move current `internal/instructions` behind aliases.
 - Implement host adapters for current environment, memory provider, safety trace events, and prompt instructions.
-- Split plan hydration interfaces from the concrete Hand environment.
+- Split plan hydration interfaces from the concrete Morph environment.
 
 Done when:
 
@@ -353,11 +353,11 @@ Progress:
 - Added `pkg/agent/prompt` with public prompt provider, instruction, run-context, and environment-input shapes.
 - Added `pkg/agent/trace` with public trace session/factory/event shapes.
 - Added `pkg/agent/memory` with public prompt-retrieval and compaction-flush provider shapes.
-- Added `internal/host/prompt.go` to adapt Hand environment instructions into the public prompt boundary.
+- Added `internal/host/prompt.go` to adapt Morph environment instructions into the public prompt boundary.
 - Routed normal Agent turn construction through the host prompt provider.
 - Updated `Turn.load` to load base instructions through the prompt provider when present, with the legacy environment path retained for transitional tests and callers.
 - Split the turn runtime dependencies into small capability interfaces for trace sessions, safety trace events, memory providers, iteration budgets, plan state, prompts, and tools.
-- Updated normal Agent turn construction to pass the existing Hand environment as those discrete host capabilities instead of storing it as the turn runtime.
+- Updated normal Agent turn construction to pass the existing Morph environment as those discrete host capabilities instead of storing it as the turn runtime.
 - Kept a legacy `env any` shim for transitional tests and compatibility wrappers, while avoiding a direct `environment.Environment` dependency in the turn loop.
 - Verified `go test -tags sqlite_fts5 ./internal/agent ./internal/host ./pkg/agent/...`, `make test-agent-baseline`, and `make test`.
 
@@ -367,7 +367,7 @@ Objective: move the reusable turn loop after its dependencies are abstract.
 
 Work:
 
-- Move `turn.go`, preflight tracing, summary fallback flow, and context assembly pieces that are not Hand-specific into `pkg/agent`.
+- Move `turn.go`, preflight tracing, summary fallback flow, and context assembly pieces that are not Morph-specific into `pkg/agent`.
 - Keep compaction and summary logic public only where needed.
 - Keep a compatibility wrapper in `internal/agent` if callers still import it.
 
@@ -385,7 +385,7 @@ Progress:
 
 - Added `pkg/agent.RunModelToolLoop` as the public reusable model/tool loop runner.
 - Updated `internal/agent.Turn` to delegate repeated model/tool iteration, completion detection, and exhausted-budget fallback to the public loop runner.
-- Kept Hand-specific compaction, memory, safety, persistence, trace, streaming, and tool execution behavior in the turn step hook so behavior remains stable during migration.
+- Kept Morph-specific compaction, memory, safety, persistence, trace, streaming, and tool execution behavior in the turn step hook so behavior remains stable during migration.
 - Moved generic model-to-message tool-call conversion into `pkg/agent/model`.
 - Kept the internal `models` compatibility package forwarding to the public conversion helper.
 - Updated `internal/agent` to use the public helper through the compatibility package.
@@ -399,7 +399,7 @@ Objective: expose the reusable Agent constructor and public API.
 Work:
 
 - Move `Agent`, `Options`, `RespondOptions`, `CompactSessionResult`, `ContextStatus`, and response event types into `pkg/agent`.
-- Keep Hand-specific defaults out of the constructor.
+- Keep Morph-specific defaults out of the constructor.
 - Keep `internal/agent` as a thin compatibility wrapper or remove it after all callers migrate.
 
 Done when:
@@ -416,13 +416,13 @@ Progress:
 - Added a public `pkg/agent.Agent` with `Options`, `RespondOptions`, `Responder`, `CompactSessionResult`, and `ContextStatus`.
 - Added `pkg/agent.New` and `pkg/agent.NewAgent` constructors that accept public model, session, tool, and prompt dependencies.
 - Implemented a public response path that resolves sessions, appends user/assistant/tool messages, runs model calls, executes public tool registries, and uses the public loop runner.
-- Kept Hand-specific defaults, config, storage, compaction, trace, and environment wiring outside `pkg/agent`.
+- Kept Morph-specific defaults, config, storage, compaction, trace, and environment wiring outside `pkg/agent`.
 - Added external-package tests proving another application can instantiate `pkg/agent.Agent` with fake in-memory dependencies and receive normal and tool-loop responses without importing `internal/*`.
 - Verified `go test ./pkg/agent/...`.
 
 ## [x] Phase 7: Build `internal/host`
 
-Objective: make Hand a host of the reusable core.
+Objective: make Morph a host of the reusable core.
 
 Work:
 
@@ -434,13 +434,13 @@ Work:
   - `memory.go`
   - `prompt.go`
   - `environment.go`
-- Move Hand-specific construction from `internal/agent.NewAgent` into host assembly.
+- Move Morph-specific construction from `internal/agent.NewAgent` into host assembly.
 - Keep profile, datadir, constants, SQLite, vector search, native tools, and TUI/RPC trace choices inside the host.
 
 Done when:
 
 - Daemon, RPC, CLI, and TUI construct the agent through `internal/host`.
-- `pkg/agent` has no Hand-specific imports.
+- `pkg/agent` has no Morph-specific imports.
 
 Risk:
 
@@ -448,14 +448,14 @@ Risk:
 
 Progress:
 
-- Added `internal/host.NewAgent` as the application-facing Hand agent constructor.
+- Added `internal/host.NewAgent` as the application-facing Morph agent constructor.
 - Added host-owned `config.go`, `environment.go`, `memory.go`, `session.go`, `trace.go`, `tools.go`, and `prompt.go` adapter seams.
 - Updated daemon startup and the e2e harness to construct agents through `internal/host`.
 - Removed the transitional `internal/agent` dependency on `internal/host` so host can wrap agent construction without an import cycle.
 - Kept direct `internal/agent.NewAgent` usage in internal agent tests as compatibility coverage.
 - Verified focused agent, host, daemon, e2e tests, and the full test suite.
 
-## [x] Phase 8: Migrate Hand Callers
+## [x] Phase 8: Migrate Morph Callers
 
 Objective: switch application entry points to the new host/core split.
 
@@ -468,7 +468,7 @@ Work:
 
 Done when:
 
-- `hand up`, `hand version`, manual compaction, auto compaction, normal turns, and TUI transcript rendering behave as before.
+- `morph up`, `morph version`, manual compaction, auto compaction, normal turns, and TUI transcript rendering behave as before.
 - There are no important application callers left on the compatibility wrapper.
 
 Risk:
@@ -495,7 +495,7 @@ Work:
 Done when:
 
 - `pkg/agent` is the only owner of core orchestration.
-- `internal/host` is the only owner of Hand-specific wiring.
+- `internal/host` is the only owner of Morph-specific wiring.
 - Package ownership is clear in code review and tests.
 
 Risk:
@@ -512,7 +512,7 @@ Progress:
 
 ## [x] Phase 10: External Integration Example
 
-Objective: prove the reusable package works outside Hand.
+Objective: prove the reusable package works outside Morph.
 
 Work:
 
@@ -522,7 +522,7 @@ Work:
 
 Done when:
 
-- The example/test constructs `pkg/agent.Agent` without importing Hand internals.
+- The example/test constructs `pkg/agent.Agent` without importing Morph internals.
 - The example covers a normal response and a tool-call response.
 
 Risk:
@@ -531,7 +531,7 @@ Risk:
 
 Progress:
 
-- Added public `pkg/agent` examples that construct an agent with an in-memory session store, fake model client, and fake tool registry without importing Hand internals.
+- Added public `pkg/agent` examples that construct an agent with an in-memory session store, fake model client, and fake tool registry without importing Morph internals.
 - Covered both a normal response and a model tool-call response in executable examples.
 - Reused the test-only fake dependencies already used by the public package tests to avoid adding another product surface.
 
@@ -542,7 +542,7 @@ Objective: make `pkg/agent` own every reusable service type so the host does not
 Work:
 
 - Move reusable response options, stream events, context status, compaction results, and timeline/status data into `pkg/agent` or focused public subpackages.
-- Keep Hand-only presentation or RPC details in `internal/host`, `internal/rpc`, or `internal/tui`.
+- Keep Morph-only presentation or RPC details in `internal/host`, `internal/rpc`, or `internal/tui`.
 - Replace host aliases and wrapper-only types with direct use of the public core types where they are genuinely reusable.
 - Remove any type whose only purpose is keeping the old `internal/agent` shape alive.
 - Update tests to assert behavior against the public core and host-native surfaces, not compatibility aliases.
@@ -555,13 +555,13 @@ Done when:
 
 Risk:
 
-- Moving too much into `pkg/agent` can make Hand-specific details public. Keep public types limited to reusable agent concepts.
+- Moving too much into `pkg/agent` can make Morph-specific details public. Keep public types limited to reusable agent concepts.
 
 Progress:
 
 - Moved the reusable response, event, context status, compaction result, and session timeline shapes into `pkg/agent`.
-- Added public timeline records backed by `pkg/agent/message` and `pkg/agent/session` instead of Hand storage internals.
-- Changed `internal/host.ServiceAPI` to use public agent service types directly while keeping Hand-only storage, summary, and repair methods in the host boundary.
+- Added public timeline records backed by `pkg/agent/message` and `pkg/agent/session` instead of Morph storage internals.
+- Changed `internal/host.ServiceAPI` to use public agent service types directly while keeping Morph-only storage, summary, and repair methods in the host boundary.
 - Removed host-owned copied response/status/timeline structs and wrapper conversion helpers.
 - Collapsed live trace streaming into the public `agent.Event` stream with an explicit `TraceEvents` opt-in flag.
 - Updated RPC, TUI, e2e, CLI tests, and stubs to assert against public core service types where those types are reusable.
@@ -573,8 +573,8 @@ Objective: make the reusable core own the full turn lifecycle instead of delegat
 
 Work:
 
-- Move request assembly, context building, summary fallback control flow, tool-turn continuation, streaming event production, prompt-token accounting hooks, and cancellation handling into `pkg/agent`.
-- Keep Hand-specific compaction storage, memory extraction, trace payload conversion, safety policy, and plan persistence behind explicit dependencies.
+- Move request assembly, context building, summary fallback control flow, tool-turn continuation, streaming event production, prompt-token accounting hooks, and cancellation morphling into `pkg/agent`.
+- Keep Morph-specific compaction storage, memory extraction, trace payload conversion, safety policy, and plan persistence behind explicit dependencies.
 - Replace legacy turn construction with a single public runtime constructor that receives all dependencies explicitly.
 - Remove nil-driven fallback paths that switch between legacy environment behavior and public interfaces.
 - Keep logs and trace events behavior-preserving while moving ownership.
@@ -582,7 +582,7 @@ Work:
 Done when:
 
 - `pkg/agent` owns the turn lifecycle, not only a loop helper.
-- Hand passes dependencies into the core explicitly through host wiring.
+- Morph passes dependencies into the core explicitly through host wiring.
 - There is no `internal/agent.NewTurn` compatibility constructor or equivalent fallback path.
 
 Risk:
@@ -593,13 +593,13 @@ Progress:
 
 - Added `pkg/agent.RunTurnLifecycle` to own the reusable turn lifecycle order: load, request instruction setup, trace/session opening, preparation hooks, input checks, user message acceptance, memory loading, model/tool iteration, and exhaustion fallback.
 - Moved lifecycle behavior coverage into `pkg/agent` tests.
-- Updated `internal/agent.Turn.Run` to delegate the top-level lifecycle to `pkg/agent` while keeping Hand-specific safety, memory, summary, trace, persistence, and model request details behind callbacks.
+- Updated `internal/agent.Turn.Run` to delegate the top-level lifecycle to `pkg/agent` while keeping Morph-specific safety, memory, summary, trace, persistence, and model request details behind callbacks.
 - Removed the production `internal/agent.NewTurn` compatibility constructor. The old constructor shape now exists only as package-local test support for existing focused turn tests.
-- Kept Hand runtime construction on the explicit `NewTurnWithSessionStore` dependency path.
+- Kept Morph runtime construction on the explicit `NewTurnWithSessionStore` dependency path.
 
-## [x] Phase 13: Rebuild `internal/host` As Native Hand Runtime Wiring
+## [x] Phase 13: Rebuild `internal/host` As Native Morph Runtime Wiring
 
-Objective: make the host package read like Hand's intended runtime assembly layer, not a bridge from old internals to new core.
+Objective: make the host package read like Morph's intended runtime assembly layer, not a bridge from old internals to new core.
 
 Work:
 
@@ -607,7 +607,7 @@ Work:
 - Split host wiring by domain: config, sessions, tools, traces, memory, prompts, safety, compaction, plans, and runtime identity.
 - Rename or delete adapters that describe their transitional role instead of their domain responsibility.
 - Remove any wrapper that delegates wholesale to `internal/agent.Agent`.
-- Keep Hand policies and defaults in host-owned constructors with explicit dependencies.
+- Keep Morph policies and defaults in host-owned constructors with explicit dependencies.
 
 Done when:
 
@@ -623,7 +623,7 @@ Completed:
 
 - Replaced the wrapper-only `internal/host.Agent` with host-owned runtime assembly and turn execution.
 - `internal/host.NewAgent` now starts a host runtime that owns state, environment, tools, traces, memory, summaries, timelines, and session operations directly.
-- Host startup now builds a public `pkg/agent.Agent` from Hand model, session, tool, and prompt dependencies.
+- Host startup now builds a public `pkg/agent.Agent` from Morph model, session, tool, and prompt dependencies.
 - Removed the root `internal/agent` import from `internal/host`; remaining imports from `internal/agent/context` and `internal/agent/runcontext` are tracked for Phase 14 package-path cleanup.
 - Renamed the host runtime files by domain so the package no longer reads as a compatibility bridge.
 
@@ -670,17 +670,17 @@ Verified:
 
 ## [ ] Phase 15: Review First-Class Boundaries
 
-Objective: confirm the final package shape reads as first-class Hand infrastructure without adding automated boundary or dependency checkers.
+Objective: confirm the final package shape reads as first-class Morph infrastructure without adding automated boundary or dependency checkers.
 
 Work:
 
 - Review `pkg/agent`, `internal/host`, and application package imports for direct first-class ownership.
 - Keep final runtime naming free of compatibility-only surfaces unless the term describes real behavior.
-- Add focused behavioral tests only where Hand construction or public core usage lacks coverage.
+- Add focused behavioral tests only where Morph construction or public core usage lacks coverage.
 
 Done when:
 
-- The architecture can be understood from imports alone: applications -> host -> public core and Hand feature packages.
+- The architecture can be understood from imports alone: applications -> host -> public core and Morph feature packages.
 - The migration plan can be closed with no remaining compatibility cleanup deferred.
 
 Risk:
@@ -696,7 +696,7 @@ go test ./internal/host
 go test ./internal/host/context/compaction
 go test ./internal/host/context/summary
 go test ./internal/tui/app
-go test ./cmd/hand
+go test ./cmd/morph
 go test ./pkg/agent/...
 ```
 

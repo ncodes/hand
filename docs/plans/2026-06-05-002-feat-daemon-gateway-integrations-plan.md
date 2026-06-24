@@ -9,13 +9,13 @@ date: "2026-06-05"
 
 ## Summary
 
-Add optional gateway integrations inside `hand daemon start` so external clients can reach the same long-lived Hand agent runtime through generic HTTP, Slack, and Telegram. Generic HTTP uses an HTTP endpoint, Slack defaults to Socket Mode, and Telegram defaults to long polling; Slack HTTP Events API mode and Telegram webhook mode remain available as explicit hosted-deployment options. The gateway should share the daemon's lifecycle, config reload behavior, session store, memory, model clients, and shutdown path rather than introducing a second long-lived process.
+Add optional gateway integrations inside `morph daemon start` so external clients can reach the same long-lived Morph agent runtime through generic HTTP, Slack, and Telegram. Generic HTTP uses an HTTP endpoint, Slack defaults to Socket Mode, and Telegram defaults to long polling; Slack HTTP Events API mode and Telegram webhook mode remain available as explicit hosted-deployment options. The gateway should share the daemon's lifecycle, config reload behavior, session store, memory, model clients, and shutdown path rather than introducing a second long-lived process.
 
 ---
 
 ## Problem Frame
 
-Hand already has a long-lived daemon with a clean `agent.ServiceAPI` surface and gRPC adapters for CLI/TUI clients. External chat surfaces need gateway ingress and channel-specific request/response handling, but running a separate gateway process would duplicate runtime ownership and make lifecycle, config, and state harder to reason about. The plan keeps the daemon as the single owner and treats gateway work as adapter code around the existing agent service.
+Morph already has a long-lived daemon with a clean `agent.ServiceAPI` surface and gRPC adapters for CLI/TUI clients. External chat surfaces need gateway ingress and channel-specific request/response morphling, but running a separate gateway process would duplicate runtime ownership and make lifecycle, config, and state harder to reason about. The plan keeps the daemon as the single owner and treats gateway work as adapter code around the existing agent service.
 
 ---
 
@@ -23,29 +23,29 @@ Hand already has a long-lived daemon with a clean `agent.ServiceAPI` surface and
 
 **Daemon lifecycle**
 
-- R1. Gateway runs inside `hand daemon start` and stops on the same context, signal, and config-reload lifecycle as the existing gRPC server.
+- R1. Gateway runs inside `morph daemon start` and stops on the same context, signal, and config-reload lifecycle as the existing gRPC server.
 - R2. Gateway is disabled by default and only listens when explicitly enabled by flag, config, or environment.
 - R3. Startup output and logs report gateway state without exposing tokens, bot credentials, signing secrets, webhook payloads, or user message bodies.
 
 **Generic HTTP**
 
-- R4. Generic HTTP clients can send a message with a stable `conversation_id` and receive the Hand response without knowing Slack or Telegram payload formats.
+- R4. Generic HTTP clients can send a message with a stable `conversation_id` and receive the Morph response without knowing Slack or Telegram payload formats.
 - R5. Generic HTTP uses bearer-token authentication when configured and requires a token for any non-loopback bind.
-- R6. Generic HTTP maps each `conversation_id` to a deterministic Hand session so repeated requests continue the same conversation.
+- R6. Generic HTTP maps each `conversation_id` to a deterministic Morph session so repeated requests continue the same conversation.
 
 **Telegram**
 
-- R7. Telegram supports long polling as the default ingress using the bot token, so local Hand daemons can receive Telegram updates without a public webhook URL.
+- R7. Telegram supports long polling as the default ingress using the bot token, so local Morph daemons can receive Telegram updates without a public webhook URL.
 - R8. Telegram supports webhook mode when explicitly configured, verifying `X-Telegram-Bot-Api-Secret-Token` before dispatch.
 - R9. Telegram message updates are mapped to stable sessions using chat, topic/thread, and sender context, then replies are sent back through the Telegram Bot API.
 - R10. Telegram outbound text supports visible streaming progress only where the Bot API natively supports it, then persists the final answer with the appropriate chat/topic reply metadata, platform-safe chunking, and Hermes-style MarkdownV2 formatting with plain-text fallback.
 
 **Slack**
 
-- R11. Slack supports Socket Mode as the default ingress using bot and app tokens, so local Hand daemons can receive Slack events without a public webhook URL.
+- R11. Slack supports Socket Mode as the default ingress using bot and app tokens, so local Morph daemons can receive Slack events without a public webhook URL.
 - R12. Slack supports HTTP Events API mode when explicitly configured, verifying webhook requests with the Slack signing secret before JSON parsing or dispatch.
 - R13. Slack HTTP `url_verification` requests return the challenge without starting an agent turn.
-- R14. Slack message events addressed to Hand are mapped to stable sessions using team, channel, and thread context, then replies are sent back through Slack Web API.
+- R14. Slack message events addressed to Morph are mapped to stable sessions using team, channel, and thread context, then replies are sent back through Slack Web API.
 - R15. Slack retries, reconnects, and duplicate event IDs are handled idempotently so provider redelivery cannot create duplicate agent turns.
 - R16. Slack outbound text supports native streaming through Slack's `chat.startStream`, `chat.appendStream`, and `chat.stopStream` APIs when streaming is enabled, with `chat.postMessage` retained for non-streaming and fallback delivery.
 
@@ -59,34 +59,34 @@ Hand already has a long-lived daemon with a clean `agent.ServiceAPI` surface and
 
 - R20. Gateway DM providers can use a shared pairing flow where an unknown direct-message sender receives a short TOTP-derived approval code, the original message is not processed as an agent turn, and the operator approves the sender through daemon gateway management.
 - R21. Telegram uses the shared DM pairing flow for unknown private-chat senders, pairing by Telegram `from.id` rather than chat ID, and stores approval as a sender authorization independent of the conversation/session binding.
-- R22. Telegram groups never issue pairing challenges. Group messages are authorized through `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS`, `HAND_GATEWAY_ALLOWED_USERS`, and previously paired Telegram sender IDs; unauthorized group senders are ignored without invoking the agent.
+- R22. Telegram groups never issue pairing challenges. Group messages are authorized through `MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS`, `MORPH_GATEWAY_ALLOWED_USERS`, and previously paired Telegram sender IDs; unauthorized group senders are ignored without invoking the agent.
 - R23. Pairing state is durable, redacted in logs/status output, bounded by TOTP validity windows, request expiry, and pending-request limits, and reusable by future DM providers such as Slack, Signal, WhatsApp, or Discord without provider-specific store logic.
 
 **Gateway management commands**
 
-- R24. `hand gateway status` reports the current gateway runtime state from the running daemon, including enabled/running/stopped state, listener bind, configured channel modes, channel health, and last safe error without exposing secrets or message bodies.
-- R25. `hand gateway start` asks the running daemon to start the gateway runtime from the current daemon config when it is stopped; it is idempotent when the gateway is already running and does not start a second daemon or standalone gateway process.
-- R26. `hand gateway stop` asks the running daemon to stop gateway listeners, socket clients, and polling loops while leaving the daemon and gRPC server running.
-- R27. `hand gateway restart` asks the running daemon to stop the active gateway runtime, reload gateway config from the daemon's current effective config, and start the gateway again without restarting the daemon or gRPC server.
+- R24. `morph gateway status` reports the current gateway runtime state from the running daemon, including enabled/running/stopped state, listener bind, configured channel modes, channel health, and last safe error without exposing secrets or message bodies.
+- R25. `morph gateway start` asks the running daemon to start the gateway runtime from the current daemon config when it is stopped; it is idempotent when the gateway is already running and does not start a second daemon or standalone gateway process.
+- R26. `morph gateway stop` asks the running daemon to stop gateway listeners, socket clients, and polling loops while leaving the daemon and gRPC server running.
+- R27. `morph gateway restart` asks the running daemon to stop the active gateway runtime, reload gateway config from the daemon's current effective config, and start the gateway again without restarting the daemon or gRPC server.
 
 ---
 
 ## Key Technical Decisions
 
-- KTD1. **Gateway is daemon-owned optional integration runtime:** This preserves the daemon as Hand's single long-lived owner and lets config reload restart gateway integrations and gRPC together.
+- KTD1. **Gateway is daemon-owned optional integration runtime:** This preserves the daemon as Morph's single long-lived owner and lets config reload restart gateway integrations and gRPC together.
 - KTD2. **Split reusable gateway libraries from daemon orchestration:** Reusable protocol-neutral pieces should live under `pkg/gateway` packages, while `internal/gateway` owns daemon-specific lifecycle wiring, config binding, state access, and runtime management. `cmd/daemon` should remain orchestration-only.
 - KTD3. **Use `agent.ServiceAPI` directly, not the gRPC client:** The gateway lives in-process with the daemon, so routing through gRPC would add avoidable serialization, reconnection, and failure modes.
-- KTD4. **Make Slack Socket Mode the default:** Hermes uses Slack Socket Mode, and OpenClaw defaults Slack accounts to Socket Mode with HTTP mode as an option. Hand should follow that path so local daemons can receive Slack events through an outbound WebSocket rather than requiring a public webhook URL for the common case.
-- KTD5. **Make Telegram long polling the default:** Hermes receives Telegram updates through `python-telegram-bot` polling, including conflict handling for the one-poller-per-token constraint. Hand should follow that local-first path so Telegram works without a public webhook URL, while keeping webhook mode for hosted deployments.
-- KTD6. **Normalize channel ingress before invoking Hand:** Generic HTTP, Slack, and Telegram should all produce one internal request shape with source, conversation key, user identity, text, and reply target. This follows the useful part of OpenClaw's channel adapter pattern without importing its larger plugin/control-plane architecture.
-- KTD7. **Persist conversation bindings through Hand sessions:** Channel conversations should map to Hand session IDs via durable storage rather than relying on current-session state, so a daemon restart can continue external conversations.
+- KTD4. **Make Slack Socket Mode the default:** Hermes uses Slack Socket Mode, and OpenClaw defaults Slack accounts to Socket Mode with HTTP mode as an option. Morph should follow that path so local daemons can receive Slack events through an outbound WebSocket rather than requiring a public webhook URL for the common case.
+- KTD5. **Make Telegram long polling the default:** Hermes receives Telegram updates through `python-telegram-bot` polling, including conflict morphling for the one-poller-per-token constraint. Morph should follow that local-first path so Telegram works without a public webhook URL, while keeping webhook mode for hosted deployments.
+- KTD6. **Normalize channel ingress before invoking Morph:** Generic HTTP, Slack, and Telegram should all produce one internal request shape with source, conversation key, user identity, text, and reply target. This follows the useful part of OpenClaw's channel adapter pattern without importing its larger plugin/control-plane architecture.
+- KTD7. **Persist conversation bindings through Morph sessions:** Channel conversations should map to Morph session IDs via durable storage rather than relying on current-session state, so a daemon restart can continue external conversations.
 - KTD8. **Verify provider auth on raw request bodies when using HTTP webhooks:** Slack HTTP mode signature verification depends on the raw body and timestamp. Telegram webhook verification depends on the secret-token header. Both must run before parsing or dispatch.
 - KTD9. **Acknowledge provider webhooks quickly, dispatch asynchronously:** Slack HTTP mode and Telegram webhook mode should verify/authenticate, normalize, dedupe, persist delivery state, enqueue bounded work, and return the provider acknowledgment before any agent turn runs. Agent execution and outbound replies should happen asynchronously under the daemon's gateway dispatcher with idempotency keys, retry/backoff, cancellation on shutdown, and observable failed/degraded state. Provider retries must be safe to accept without duplicating agent turns.
 - KTD10. **Keep channel outbound clients focused and injectable:** Slack and Telegram senders should have explicit interfaces with injectable transports, socket clients, polling clients, or stream clients so unit tests do not hit external APIs.
-- KTD11. **Expose gateway management through daemon control, not a top-level gateway process:** The CLI should provide `hand gateway start|status|stop|restart` as short-lived management commands over the existing daemon RPC/control path. This keeps the daemon as the only long-lived owner while still letting operators recover a failed adapter, inspect state, restart adapters after secret/config changes, or temporarily stop external ingress.
-- KTD12. **Use Slack native streaming instead of edit-loop simulation:** Slack provides `chat.startStream`, `chat.appendStream`, and `chat.stopStream` for streaming message chunks. Hand should use those APIs for Slack streaming, and reserve `chat.postMessage` for non-streaming responses or fallback if native streaming is unavailable.
-- KTD13. **Use Telegram MarkdownV2 with plain-text fallback:** Hermes formats standard Markdown into Telegram MarkdownV2, sends and edits messages with `ParseMode.MARKDOWN_V2`, and retries as plain text when Telegram rejects formatting. Hand should follow that approach instead of using Telegram HTML.
-- KTD14. **Treat DM pairing as shared sender authorization, not session binding:** OpenClaw's reusable channel pairing model and Hermes' private-DM-only challenge behavior are the right shape for Hand. Pairing should approve a provider sender identity, while conversation bindings continue to map chat/channel/thread identifiers to Hand sessions. This lets Telegram ship first without hardcoding pairing to Telegram, and keeps group chats quiet when unauthorized users send messages.
+- KTD11. **Expose gateway management through daemon control, not a top-level gateway process:** The CLI should provide `morph gateway start|status|stop|restart` as short-lived management commands over the existing daemon RPC/control path. This keeps the daemon as the only long-lived owner while still letting operators recover a failed adapter, inspect state, restart adapters after secret/config changes, or temporarily stop external ingress.
+- KTD12. **Use Slack native streaming instead of edit-loop simulation:** Slack provides `chat.startStream`, `chat.appendStream`, and `chat.stopStream` for streaming message chunks. Morph should use those APIs for Slack streaming, and reserve `chat.postMessage` for non-streaming responses or fallback if native streaming is unavailable.
+- KTD13. **Use Telegram MarkdownV2 with plain-text fallback:** Hermes formats standard Markdown into Telegram MarkdownV2, sends and edits messages with `ParseMode.MARKDOWN_V2`, and retries as plain text when Telegram rejects formatting. Morph should follow that approach instead of using Telegram HTML.
+- KTD14. **Treat DM pairing as shared sender authorization, not session binding:** OpenClaw's reusable channel pairing model and Hermes' private-DM-only challenge behavior are the right shape for Morph. Pairing should approve a provider sender identity, while conversation bindings continue to map chat/channel/thread identifiers to Morph sessions. This lets Telegram ship first without hardcoding pairing to Telegram, and keeps group chats quiet when unauthorized users send messages.
 - KTD15. **Use `github.com/pquerna/otp/totp` for TOTP-derived pairing codes:** Pairing approval codes should be generated and verified with `github.com/pquerna/otp/totp` using daemon-owned pairing secret material, source, sender ID, and a short time step. Pending request storage should hold sender metadata and timestamps, not generated code values or reusable approval secret material. This keeps codes short-lived, naturally expiring, and verifiable without storing code values that can be replayed after disclosure.
 
 ---
@@ -95,10 +95,10 @@ Hand already has a long-lived daemon with a clean `agent.ServiceAPI` surface and
 
 ```mermaid
 flowchart TB
-  Daemon["hand daemon start"] --> Agent["agentRunner / ServiceAPI"]
+  Daemon["morph daemon start"] --> Agent["agentRunner / ServiceAPI"]
   Daemon --> RPC["gRPC server"]
   Daemon --> Gateway["gateway runtime"]
-  CLI["hand gateway start/status/stop/restart"] --> RPC
+  CLI["morph gateway start/status/stop/restart"] --> RPC
 
   Gateway --> Auth["auth middleware"]
   Auth --> Generic["generic HTTP adapter"]
@@ -129,7 +129,7 @@ sequenceDiagram
   participant Slack
   participant Gateway
   participant Resolver as Session Resolver
-  participant Agent as Hand ServiceAPI
+  participant Agent as Morph ServiceAPI
   participant SlackAPI as Slack Web API
 
   Gateway->>Slack: open Socket Mode WebSocket
@@ -149,7 +149,7 @@ sequenceDiagram
   participant Telegram
   participant Gateway
   participant Resolver as Session Resolver
-  participant Agent as Hand ServiceAPI
+  participant Agent as Morph ServiceAPI
   participant BotAPI as Telegram Bot API
 
   Gateway->>BotAPI: getUpdates long poll
@@ -173,8 +173,8 @@ sequenceDiagram
 - Daemon gateway management commands for start, status, stop, and restart.
 - Reusable `pkg/gateway` libraries for auth, normalized request/response types, provider payload helpers, idempotency primitives, queue abstractions, and channel sender contracts.
 - Generic HTTP request/response API for direct integrations and test harnesses.
-- Slack Socket Mode ingestion, message filtering, reconnect handling, optional HTTP Events API ingestion, request verification, native stream delivery, and outbound message posting.
-- Telegram long-polling ingestion, optional webhook ingestion, secret-token verification for webhook mode, message filtering, polling conflict handling, and outbound message posting.
+- Slack Socket Mode ingestion, message filtering, reconnect morphling, optional HTTP Events API ingestion, request verification, native stream delivery, and outbound message posting.
+- Telegram long-polling ingestion, optional webhook ingestion, secret-token verification for webhook mode, message filtering, polling conflict morphling, and outbound message posting.
 - Shared DM pairing, sender allowlists, and Telegram sender authorization for private chats and groups.
 - Durable conversation-to-session binding for daemon restarts.
 - Unit and focused integration tests using fake transports and fake agent services.
@@ -191,7 +191,7 @@ sequenceDiagram
 
 ### Out of Scope
 
-- A standalone `hand gateway` command or second long-lived gateway process.
+- A standalone `morph gateway` command or second long-lived gateway process.
 - Gateway management commands that can outlive the daemon or run external listeners directly.
 - Public `pkg/gateway` APIs that expose daemon internals, model clients, session stores, raw secrets, or workspace state.
 - Replacing the existing gRPC RPC server.
@@ -201,7 +201,7 @@ sequenceDiagram
 
 ## System-Wide Impact
 
-This feature adds new external integration surfaces to a personal agent that can use tools, memory, and workspace context. The implementation must treat authentication, request body handling, socket and polling lifecycle, management commands, redaction, session binding, and logs as security-sensitive. It also adds platform-facing behavior where Slack and Telegram can retry, redeliver, reconnect, or conflict with another active poller, so idempotency, backpressure, and timeout behavior are production requirements.
+This feature adds new external integration surfaces to a personal agent that can use tools, memory, and workspace context. The implementation must treat authentication, request body morphling, socket and polling lifecycle, management commands, redaction, session binding, and logs as security-sensitive. It also adds platform-facing behavior where Slack and Telegram can retry, redeliver, reconnect, or conflict with another active poller, so idempotency, backpressure, and timeout behavior are production requirements.
 
 ---
 
@@ -221,9 +221,9 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Dependencies:** None.
 
-**Files:** `internal/config/config.go`, `internal/config/runtime.go`, `internal/config/defaults.go`, `internal/config/env.go`, `internal/config/validation.go`, `internal/cli/flags.go`, `internal/config/load_test.go`, `internal/config/env_test.go`, `internal/config/validation_test.go`, `cmd/daemon/daemon.go`, `cmd/daemon/daemon_test.go`, `cmd/hand/main_test.go`, `example.yaml`, `README.md`.
+**Files:** `internal/config/config.go`, `internal/config/runtime.go`, `internal/config/defaults.go`, `internal/config/env.go`, `internal/config/validation.go`, `internal/cli/flags.go`, `internal/config/load_test.go`, `internal/config/env_test.go`, `internal/config/validation_test.go`, `cmd/daemon/daemon.go`, `cmd/daemon/daemon_test.go`, `cmd/morph/main_test.go`, `example.yaml`, `README.md`.
 
-**Approach:** Add a `GatewayConfig` under root config with `enabled`, `address`, `port`, generic auth token fields, Slack fields, and Telegram fields. Keep gateway defaults disabled, bind loopback by default for HTTP surfaces, make Slack mode default to `socket` when Slack is enabled, and make Telegram mode default to `polling` when Telegram is enabled. Expose matching CLI overrides on daemon startup, including `--gateway.enabled`, `--gateway.address`, `--gateway.port`, `--gateway.auth-token`, `--gateway.telegram.enabled`, `--gateway.telegram.mode`, `--gateway.telegram.bot-token`, `--gateway.telegram.webhook-secret`, `--gateway.slack.enabled`, `--gateway.slack.mode`, `--gateway.slack.bot-token`, `--gateway.slack.app-token`, and `--gateway.slack.signing-secret`. Validate that Slack socket mode has bot token and app token, Slack HTTP mode has bot token and signing secret, Telegram polling mode has bot token, Telegram webhook mode has bot token plus webhook secret when webhook auth is required, and enabled non-loopback HTTP binds have an auth path. Extend loading with `HAND_`-prefixed gateway credential env vars such as `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`, `HAND_GATEWAY_SLACK_BOT_TOKEN`, and `HAND_GATEWAY_SLACK_APP_TOKEN`; do not support user-configurable credential env-name fields like `botTokenEnv` or non-`HAND_` provider credential env vars. Ensure CLI flags override config/env using existing precedence rules, and update startup rendering with either `Gateway: disabled` or configured listener/channel states.
+**Approach:** Add a `GatewayConfig` under root config with `enabled`, `address`, `port`, generic auth token fields, Slack fields, and Telegram fields. Keep gateway defaults disabled, bind loopback by default for HTTP surfaces, make Slack mode default to `socket` when Slack is enabled, and make Telegram mode default to `polling` when Telegram is enabled. Expose matching CLI overrides on daemon startup, including `--gateway.enabled`, `--gateway.address`, `--gateway.port`, `--gateway.auth-token`, `--gateway.telegram.enabled`, `--gateway.telegram.mode`, `--gateway.telegram.bot-token`, `--gateway.telegram.webhook-secret`, `--gateway.slack.enabled`, `--gateway.slack.mode`, `--gateway.slack.bot-token`, `--gateway.slack.app-token`, and `--gateway.slack.signing-secret`. Validate that Slack socket mode has bot token and app token, Slack HTTP mode has bot token and signing secret, Telegram polling mode has bot token, Telegram webhook mode has bot token plus webhook secret when webhook auth is required, and enabled non-loopback HTTP binds have an auth path. Extend loading with `MORPH_`-prefixed gateway credential env vars such as `MORPH_GATEWAY_TELEGRAM_BOT_TOKEN`, `MORPH_GATEWAY_SLACK_BOT_TOKEN`, and `MORPH_GATEWAY_SLACK_APP_TOKEN`; do not support user-configurable credential env-name fields like `botTokenEnv` or non-`MORPH_` provider credential env vars. Ensure CLI flags override config/env using existing precedence rules, and update startup rendering with either `Gateway: disabled` or configured listener/channel states.
 
 **Patterns to follow:** Existing `RPCConfig` in `internal/config/runtime.go`, default cloning in `internal/config/defaults.go`, override style in `internal/config/env.go`, CLI flag wiring in `internal/cli/flags.go`, validation phrasing in `internal/config/validation.go`, startup rows in `cmd/daemon/daemon.go`.
 
@@ -298,7 +298,7 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Approach:** Provide `GET /health` with safe unauthenticated readiness and `POST /v1/respond` with bearer auth when configured. Decode a focused request containing `conversation_id`, `message`, optional `user_id`, optional `source`, and optional `instruct`. Convert it into the normalized gateway request and return JSON with `conversation_id`, `session_id`, `text`, and safe error fields. Package protocol-neutral request/response structs, auth helpers, and JSON error shapes in `pkg/gateway` so channel adapters and future clients can reuse them without depending on daemon internals.
 
-**Patterns to follow:** HTTP server style in `cmd/trace/trace.go`, JSON testing style in existing handler tests, constant-time secret comparison expectations from security-sensitive code.
+**Patterns to follow:** HTTP server style in `cmd/trace/trace.go`, JSON testing style in existing Hand tests, constant-time secret comparison expectations from security-sensitive code.
 
 **Test scenarios:**
 
@@ -314,7 +314,7 @@ This feature adds new external integration surfaces to a personal agent that can
 
 ### U4. Conversation Session Resolver
 
-**Goal:** Map external conversation keys to stable Hand session IDs without depending on current-session state.
+**Goal:** Map external conversation keys to stable Morph session IDs without depending on current-session state.
 
 **Requirements:** R6, R9, R14, R17, R19.
 
@@ -328,7 +328,7 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Files:** `internal/gateway/session.go`, `internal/gateway/session_test.go`, `pkg/gateway/bindings/bindings.go`, `pkg/gateway/bindings/bindings_test.go`, `internal/agent/service.go`, `internal/agent/service_test.go`, `internal/state/core/session.go`, `internal/state/storesqlite/session_test.go`, `internal/state/storememory/session_test.go`.
 
-**Approach:** Add a dedicated persistence path for gateway conversation bindings if existing session metadata cannot safely carry the mapping. The resolver should derive a stable binding key from source and provider identifiers, create a Hand session when missing, and reuse it thereafter. It should avoid switching the daemon's current session as a side effect. Put binding-key construction and validation in `pkg/gateway/bindings`; keep storage and session creation in `internal/gateway`.
+**Approach:** Add a dedicated persistence path for gateway conversation bindings if existing session metadata cannot safely carry the mapping. The resolver should derive a stable binding key from source and provider identifiers, create a Morph session when missing, and reuse it thereafter. It should avoid switching the daemon's current session as a side effect. Put binding-key construction and validation in `pkg/gateway/bindings`; keep storage and session creation in `internal/gateway`.
 
 **Technical design:** Directional only: `source + ":" + account/team + ":" + conversation/thread` resolves to a stored `session_id`; missing entries create `ses_`* through the session service and persist the binding.
 
@@ -365,9 +365,9 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Files:** `internal/gateway/telegram.go`, `internal/gateway/telegram_polling.go`, `internal/gateway/telegram_webhook.go`, `internal/gateway/telegram_send.go`, `internal/gateway/telegram_stream.go`, `pkg/gateway/telegram/auth.go`, `pkg/gateway/telegram/format.go`, `pkg/gateway/telegram/updates.go`, `pkg/gateway/telegram/stream.go`, `pkg/gateway/telegram/auth_test.go`, `pkg/gateway/telegram/format_test.go`, `pkg/gateway/telegram/updates_test.go`, `pkg/gateway/telegram/stream_test.go`, `internal/gateway/telegram_test.go`, `internal/gateway/telegram_polling_test.go`, `internal/gateway/telegram_webhook_test.go`, `internal/gateway/telegram_send_test.go`, `internal/gateway/telegram_stream_test.go`.
 
-**Approach:** Implement Telegram polling mode as the default adapter using `getUpdates` with a tracked offset and context-aware long-poll loop. The polling client should normalize supported `Update` message shapes, ignore unsupported updates, advance offsets only after accepted handling decisions, and treat Telegram 409 conflicts as a clear fatal or retryable state indicating another poller is using the same bot token. Also add optional webhook mode at `POST /gateway/telegram/webhook`: verify the configured secret-token header, decode the same supported update shapes, and reuse the same normalization and dispatch path. For streaming responses, prefer Telegram `sendMessageDraft` when the target is clearly supported by the Bot API; it gives users an ephemeral animated draft preview while the answer is generated. For chats, groups, topics, or threads where native draft streaming is unavailable, support Hermes-style simulated streaming by sending one placeholder message and applying throttled `editMessageText` updates to that same message. Add Telegram formatting at the sender layer by extending `telegramSendRequest` with a parse-mode field and applying it consistently to `sendMessage`, `editMessageText`, and `sendMessageDraft`. Follow Hermes' MarkdownV2 approach: convert standard model Markdown into Telegram MarkdownV2, including headers, bold, italic, links, inline code, fenced code blocks, strikethrough, spoilers, blockquotes, and required MarkdownV2 escaping. For simulated edits and drafts, format each partial text before sending; if Telegram rejects MarkdownV2 parsing, retry the same delivery as plain text without duplicating visible final replies. Do not use Telegram HTML. Final replies should remove any cursor/progress marker and persist the completed answer with `sendMessage` or a final edit, chunking text at Telegram's message limit with topic/thread metadata when present. Put secret-token verification, MarkdownV2 formatting/plain fallback helpers, Update parsing, reply target extraction, and stream payload helpers in `pkg/gateway/telegram`; keep polling loops, outbound client ownership, and daemon lifecycle in `internal/gateway`.
+**Approach:** Implement Telegram polling mode as the default adapter using `getUpdates` with a tracked offset and context-aware long-poll loop. The polling client should normalize supported `Update` message shapes, ignore unsupported updates, advance offsets only after accepted morphling decisions, and treat Telegram 409 conflicts as a clear fatal or retryable state indicating another poller is using the same bot token. Also add optional webhook mode at `POST /gateway/telegram/webhook`: verify the configured secret-token header, decode the same supported update shapes, and reuse the same normalization and dispatch path. For streaming responses, prefer Telegram `sendMessageDraft` when the target is clearly supported by the Bot API; it gives users an ephemeral animated draft preview while the answer is generated. For chats, groups, topics, or threads where native draft streaming is unavailable, support Hermes-style simulated streaming by sending one placeholder message and applying throttled `editMessageText` updates to that same message. Add Telegram formatting at the sender layer by extending `telegramSendRequest` with a parse-mode field and applying it consistently to `sendMessage`, `editMessageText`, and `sendMessageDraft`. Follow Hermes' MarkdownV2 approach: convert standard model Markdown into Telegram MarkdownV2, including headers, bold, italic, links, inline code, fenced code blocks, strikethrough, spoilers, blockquotes, and required MarkdownV2 escaping. For simulated edits and drafts, format each partial text before sending; if Telegram rejects MarkdownV2 parsing, retry the same delivery as plain text without duplicating visible final replies. Do not use Telegram HTML. Final replies should remove any cursor/progress marker and persist the completed answer with `sendMessage` or a final edit, chunking text at Telegram's message limit with topic/thread metadata when present. Put secret-token verification, MarkdownV2 formatting/plain fallback helpers, Update parsing, reply target extraction, and stream payload helpers in `pkg/gateway/telegram`; keep polling loops, outbound client ownership, and daemon lifecycle in `internal/gateway`.
 
-**Patterns to follow:** Hermes `gateway/platforms/telegram.py` uses polling as the local gateway path, registers handlers for supported message types, handles polling conflicts when another poller owns the token, formats outbound text as MarkdownV2 with plain-text fallback on parse failure, and implements simulated streaming with `send_message` plus repeated `edit_message_text`. OpenClaw's Telegram extension is useful for its separation between message context, conversation routing, and outbound delivery. Hand's Telegram adapter should cover text messages, topic routing, conflict handling, optional webhook mode, MarkdownV2-safe outbound delivery, and a Telegram-specific streaming abstraction that chooses native draft streaming when supported and simulated edit streaming otherwise.
+**Patterns to follow:** Hermes `gateway/platforms/telegram.py` uses polling as the local gateway path, registers Hands for supported message types, handles polling conflicts when another poller owns the token, formats outbound text as MarkdownV2 with plain-text fallback on parse failure, and implements simulated streaming with `send_message` plus repeated `edit_message_text`. OpenClaw's Telegram extension is useful for its separation between message context, conversation routing, and outbound delivery. Morph's Telegram adapter should cover text messages, topic routing, conflict morphling, optional webhook mode, MarkdownV2-safe outbound delivery, and a Telegram-specific streaming abstraction that chooses native draft streaming when supported and simulated edit streaming otherwise.
 
 **Test scenarios:**
 
@@ -389,7 +389,7 @@ This feature adds new external integration surfaces to a personal agent that can
 - `message_thread_id` is included when replying in a topic.
 - Telegram sender handles API `ok=false`, HTTP failures, and invalid bot token responses as safe gateway errors.
 
-**Verification:** Telegram tests cover polling ingress, polling conflict handling, webhook auth, shared update normalization, topic routing, native draft streaming, simulated edit streaming, MarkdownV2 conversion, MarkdownV2 send/edit/draft requests, plain-text fallback on parse failure, streaming fallback to final delivery, chunking, and outbound HTTP without live Telegram calls. Focused validation runs with `CGO_ENABLED=1 go test -tags sqlite_fts5 ./pkg/gateway/telegram ./internal/gateway/telegram`.
+**Verification:** Telegram tests cover polling ingress, polling conflict morphling, webhook auth, shared update normalization, topic routing, native draft streaming, simulated edit streaming, MarkdownV2 conversion, MarkdownV2 send/edit/draft requests, plain-text fallback on parse failure, streaming fallback to final delivery, chunking, and outbound HTTP without live Telegram calls. Focused validation runs with `CGO_ENABLED=1 go test -tags sqlite_fts5 ./pkg/gateway/telegram ./internal/gateway/telegram`.
 
 ### U6. Shared DM Pairing and Sender Authorization
 
@@ -410,15 +410,15 @@ This feature adds new external integration surfaces to a personal agent that can
 
 **Dependencies:** U3, U4, U5.
 
-**Files:** `go.mod`, `go.sum`, `pkg/gateway/pairing/pairing.go`, `pkg/gateway/pairing/pairing_test.go`, `pkg/gateway/pairing/messages.go`, `pkg/gateway/pairing/messages_test.go`, `internal/gateway/authz.go`, `internal/gateway/authz_test.go`, `internal/gateway/pairing.go`, `internal/gateway/pairing_test.go`, `internal/gateway/telegram/telegram.go`, `internal/gateway/telegram/telegram_polling.go`, `internal/gateway/telegram/telegram_webhook.go`, `internal/gateway/telegram/telegram_polling_test.go`, `internal/gateway/telegram/telegram_webhook_test.go`, `internal/state/core/gateway_pairing.go`, `internal/state/storememory/gateway_pairing.go`, `internal/state/storememory/gateway_pairing_test.go`, `internal/state/storesqlite/gateway_pairing.go`, `internal/state/storesqlite/gateway_pairing_test.go`, `internal/rpc/proto/hand.proto`, `internal/rpc/service.go`, `internal/rpc/client/client.go`, `cmd/daemon/daemon.go`, `cmd/daemon/daemon_test.go`.
+**Files:** `go.mod`, `go.sum`, `pkg/gateway/pairing/pairing.go`, `pkg/gateway/pairing/pairing_test.go`, `pkg/gateway/pairing/messages.go`, `pkg/gateway/pairing/messages_test.go`, `internal/gateway/authz.go`, `internal/gateway/authz_test.go`, `internal/gateway/pairing.go`, `internal/gateway/pairing_test.go`, `internal/gateway/telegram/telegram.go`, `internal/gateway/telegram/telegram_polling.go`, `internal/gateway/telegram/telegram_webhook.go`, `internal/gateway/telegram/telegram_polling_test.go`, `internal/gateway/telegram/telegram_webhook_test.go`, `internal/state/core/gateway_pairing.go`, `internal/state/storememory/gateway_pairing.go`, `internal/state/storememory/gateway_pairing_test.go`, `internal/state/storesqlite/gateway_pairing.go`, `internal/state/storesqlite/gateway_pairing_test.go`, `internal/rpc/proto/morph.proto`, `internal/rpc/service.go`, `internal/rpc/client/client.go`, `cmd/daemon/daemon.go`, `cmd/daemon/daemon_test.go`.
 
 **Approach:** Add a provider-neutral pairing package that works on normalized sender identity rather than raw provider payloads. A pairing request should include source, sender ID, optional sender display name, created/last-seen/expiry timestamps, and optional provider metadata. Approved senders should be stored separately from pending requests and checked by the gateway authorization layer before session resolution. Add `github.com/pquerna/otp` and use `github.com/pquerna/otp/totp` for approval code generation and verification. Derive a per-request TOTP secret from daemon-owned pairing secret material plus source and sender ID, using a short period and a small validation window for clock drift. Store pending request metadata, not generated code values or derived TOTP secrets. Use 8-digit numeric TOTP codes for compatibility with the library and familiar authenticator semantics, a 1-hour pending-request expiry, a bounded pending-request limit per provider, and safe redaction in status/log output. Repeated direct messages from the same unknown sender while a pending request exists should refresh last-seen metadata and may show the current TOTP code only when a new challenge message is intentionally sent.
 
-For Telegram, normalize sender authorization from `message.from.id`; do not use `chat.id` as the authorization identity when `from.id` is present. Private chats should enforce Telegram DM policy before media handling, session resolution, or agent dispatch. When an unknown private-chat sender is not in `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS`, not in `HAND_GATEWAY_ALLOWED_USERS`, and not already paired, create or reuse a pairing request, send a MarkdownV2-safe challenge message to that private chat, and stop processing the original update. Groups and topics should never receive pairing challenge messages. Group senders should be authorized only when their Telegram `from.id` appears in `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS`, appears in `HAND_GATEWAY_ALLOWED_USERS`, or is already paired for Telegram; unauthorized group messages should be ignored without invoking the agent.
+For Telegram, normalize sender authorization from `message.from.id`; do not use `chat.id` as the authorization identity when `from.id` is present. Private chats should enforce Telegram DM policy before media morphling, session resolution, or agent dispatch. When an unknown private-chat sender is not in `MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS`, not in `MORPH_GATEWAY_ALLOWED_USERS`, and not already paired, create or reuse a pairing request, send a MarkdownV2-safe challenge message to that private chat, and stop processing the original update. Groups and topics should never receive pairing challenge messages. Group senders should be authorized only when their Telegram `from.id` appears in `MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS`, appears in `MORPH_GATEWAY_ALLOWED_USERS`, or is already paired for Telegram; unauthorized group messages should be ignored without invoking the agent.
 
-Expose daemon-owned management commands for pairing state under the existing gateway control surface: `hand gateway pairing list`, `hand gateway pairing approve <source> <code>`, `hand gateway pairing revoke <source> <sender-id>`, and `hand gateway pairing clear-pending [source]`. Approval should verify the submitted code against pending requests for that source using the current TOTP window; when multiple pending requests could match, the command should fail clearly and ask the operator to use the request ID or sender ID variant rather than guessing. These commands should talk to the running daemon over RPC, mutate daemon-owned state, and render source, sender ID, display name, age, and status without exposing message bodies, TOTP secret material, or raw provider payloads. Keep the reusable pairing mechanics in `pkg/gateway/pairing`; keep storage, daemon RPC wiring, and Telegram integration in `internal`.
+Expose daemon-owned management commands for pairing state under the existing gateway control surface: `morph gateway pairing list`, `morph gateway pairing approve <source> <code>`, `morph gateway pairing revoke <source> <sender-id>`, and `morph gateway pairing clear-pending [source]`. Approval should verify the submitted code against pending requests for that source using the current TOTP window; when multiple pending requests could match, the command should fail clearly and ask the operator to use the request ID or sender ID variant rather than guessing. These commands should talk to the running daemon over RPC, mutate daemon-owned state, and render source, sender ID, display name, age, and status without exposing message bodies, TOTP secret material, or raw provider payloads. Keep the reusable pairing mechanics in `pkg/gateway/pairing`; keep storage, daemon RPC wiring, and Telegram integration in `internal`.
 
-**Patterns to follow:** OpenClaw `src/pairing/pairing-store.ts` and `src/pairing/pairing-challenge.ts` for the reusable channel-pairing shape, account/source-scoped approval store, create-if-missing challenge behavior, expiry, and pending caps. Hermes `gateway/pairing.py` and `gateway/run.py` for private-DM-only pairing challenges, CLI approval, and quiet handling of unauthorized group messages. Hand's existing `pkg/gateway/bindings` package is the model for keeping reusable gateway value objects out of daemon orchestration. For code semantics, rely on `github.com/pquerna/otp/totp` rather than hand-rolling RFC 6238 behavior.
+**Patterns to follow:** OpenClaw `src/pairing/pairing-store.ts` and `src/pairing/pairing-challenge.ts` for the reusable channel-pairing shape, account/source-scoped approval store, create-if-missing challenge behavior, expiry, and pending caps. Hermes `gateway/pairing.py` and `gateway/run.py` for private-DM-only pairing challenges, CLI approval, and quiet morphling of unauthorized group messages. Morph's existing `pkg/gateway/bindings` package is the model for keeping reusable gateway value objects out of daemon orchestration. For code semantics, rely on `github.com/pquerna/otp/totp` rather than morph-rolling RFC 6238 behavior.
 
 **Test scenarios:**
 
@@ -432,20 +432,20 @@ Expose daemon-owned management commands for pairing state under the existing gat
 - Approving a TOTP code that matches more than one pending request fails as ambiguous and does not approve any sender.
 - Pairing code values, daemon pairing secret material, and derived TOTP secrets are never persisted in pending request storage or rendered by status/list commands after the challenge is sent.
 - Revoking an approved sender removes authorization without touching unrelated providers.
-- `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` authorizes matching Telegram sender IDs.
-- `HAND_GATEWAY_ALLOWED_USERS` authorizes matching sender IDs across gateway providers.
+- `MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS` authorizes matching Telegram sender IDs.
+- `MORPH_GATEWAY_ALLOWED_USERS` authorizes matching sender IDs across gateway providers.
 - Telegram private-chat update from an unknown sender sends a pairing challenge and does not call the agent.
 - Telegram private-chat update from an approved sender reaches session resolution and agent dispatch.
 - Telegram group update from an unknown sender sends no pairing challenge and does not call the agent.
-- Telegram group update from a sender in `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` reaches session resolution and agent dispatch.
-- Telegram group update from a sender in `HAND_GATEWAY_ALLOWED_USERS` reaches session resolution and agent dispatch.
+- Telegram group update from a sender in `MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS` reaches session resolution and agent dispatch.
+- Telegram group update from a sender in `MORPH_GATEWAY_ALLOWED_USERS` reaches session resolution and agent dispatch.
 - Telegram group update from an already paired Telegram sender reaches session resolution and agent dispatch.
 - Telegram authorization uses `from.id` rather than `chat.id` when both are present.
 - Pairing challenge text is safe for Telegram MarkdownV2 and does not expose provider secrets, tokens, or message bodies.
 - Daemon gateway pairing list/approve/revoke/clear-pending commands mutate daemon-owned state and redact output.
 - Pairing RPC and CLI calls fail clearly when the daemon is unreachable.
 
-**Verification:** Pairing package tests cover TOTP code generation and verification, expiry, pending caps, ambiguous-code handling, approval, revocation, and message rendering. Storage parity tests cover memory and SQLite stores without persisting code values. Telegram tests prove DM pairing, allowlist authorization, group silence for unknown senders, and paired-sender group access. RPC and command tests prove pairing management operates through the running daemon without a standalone long-lived process.
+**Verification:** Pairing package tests cover TOTP code generation and verification, expiry, pending caps, ambiguous-code morphling, approval, revocation, and message rendering. Storage parity tests cover memory and SQLite stores without persisting code values. Telegram tests prove DM pairing, allowlist authorization, group silence for unknown senders, and paired-sender group access. RPC and command tests prove pairing management operates through the running daemon without a standalone long-lived process.
 
 ### U7. Slack Socket Mode and HTTP Adapter
 
@@ -457,11 +457,11 @@ Expose daemon-owned management commands for pairing state under the existing gat
 - [x] Slack HTTP Events API ingress and request verification are implemented.
 - [x] Slack outbound posting and native stream delivery are implemented.
 - [x] Slack adapter tests pass without live Slack calls.
-- [x] Slack Socket Mode dispatch uses the shared dispatcher for idempotent event handling.
+- [x] Slack Socket Mode dispatch uses the shared dispatcher for idempotent event morphling.
 - [x] Slack Socket Mode reconnects with exponential backoff.
 - [x] Slack stream terminal, rate-limit, and transient HTTP errors are classified to avoid duplicate replies after visible output.
 
-**Goal:** Add Slack Socket Mode ingestion by default, optional Events API HTTP ingestion, event normalization, filtering, idempotency, reconnect handling, native stream delivery, and outbound replies.
+**Goal:** Add Slack Socket Mode ingestion by default, optional Events API HTTP ingestion, event normalization, filtering, idempotency, reconnect morphling, native stream delivery, and outbound replies.
 
 **Requirements:** R11, R12, R13, R14, R15, R16, R17, R18, R19.
 
@@ -471,17 +471,17 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 **Approach:** Implement Slack socket mode as the default adapter using Slack bot and app tokens. The socket client should acknowledge envelopes, normalize supported message events, ignore bot/self events, and reconnect with backoff on transient disconnects. Also add optional HTTP mode at `POST /gateway/slack/events`: read and cap the raw request body, verify `X-Slack-Signature` and `X-Slack-Request-Timestamp`, handle `url_verification`, ignore retry duplicates and bot/self events, then normalize supported message events. For non-streaming responses, send through `chat.postMessage` with injectable HTTP transport, preserving thread replies where Slack provides `thread_ts`. For streaming responses, start a native Slack stream in the user request thread with `chat.startStream`, coalesce model deltas into markdown chunks sent through `chat.appendStream`, and finalize with `chat.stopStream`. Include `recipient_user_id` and `recipient_team_id` when Slack requires them for channel streaming, and fall back to `chat.postMessage` if stream start fails before any chunk is visible. Put raw-body signature verification, Events API payload parsing, and stream request/response shapes in `pkg/gateway/slack`; keep daemon adapter lifecycle and token loading in `internal/gateway`.
 
-**Patterns to follow:** Hermes `gateway/platforms/slack.py` uses Slack Socket Mode for local gateway operation. OpenClaw defaults Slack accounts to socket mode in `extensions/slack/src/monitor/provider.ts` and registers HTTP mode through `extensions/slack/src/http/registry.ts`. Follow that default shape, but keep the Go package boundaries explicit for Hand. Use Slack's official raw-body HMAC verification flow and Events API acknowledgment expectations only for HTTP mode. Use Slack's official stream APIs for streaming instead of `chat.update` loops; Slack reports `streaming_state_conflict` when trying to update a currently streaming message.
+**Patterns to follow:** Hermes `gateway/platforms/slack.py` uses Slack Socket Mode for local gateway operation. OpenClaw defaults Slack accounts to socket mode in `extensions/slack/src/monitor/provider.ts` and registers HTTP mode through `extensions/slack/src/http/registry.ts`. Follow that default shape, but keep the Go package boundaries explicit for Morph. Use Slack's official raw-body HMAC verification flow and Events API acknowledgment expectations only for HTTP mode. Use Slack's official stream APIs for streaming instead of `chat.update` loops; Slack reports `streaming_state_conflict` when trying to update a currently streaming message.
 
 **Test scenarios:**
 
-- Slack socket mode connects with bot/app tokens and registers message handling without requiring a public webhook URL.
+- Slack socket mode connects with bot/app tokens and registers message morphling without requiring a public webhook URL.
 - Slack socket mode acknowledges inbound envelopes before or while dispatching work so Slack does not redeliver the same envelope.
 - Slack socket mode reconnects with exponential backoff after a transient disconnect and stops cleanly on daemon cancellation.
 - Valid Slack HTTP signature over raw body is accepted.
 - Missing, malformed, stale timestamp, or mismatched HTTP signature returns unauthorized and does not parse JSON.
 - HTTP `url_verification` returns the challenge and does not call the agent.
-- Socket or HTTP message event with a supported message addressed to Hand resolves the expected session and sends a reply.
+- Socket or HTTP message event with a supported message addressed to Morph resolves the expected session and sends a reply.
 - Bot/self messages and unsupported events return success without invoking the agent.
 - Retry duplicate event IDs do not create duplicate agent turns.
 - Slack sender posts to the configured Web API base URL with bearer bot token, channel, text, and thread timestamp.
@@ -490,9 +490,9 @@ Expose daemon-owned management commands for pairing state under the existing gat
 - If `chat.startStream` fails before any visible output, the adapter falls back to `chat.postMessage`; if append/stop fails after visible output, the adapter records a safe error and avoids posting a duplicate full response unless the stream was never visible.
 - Slack sender handles API `ok=false`, HTTP failures, and rate-limit responses as safe gateway errors.
 
-**Verification:** Slack tests cover socket ingress, socket reconnect/stop behavior, HTTP raw-body auth, event normalization, duplicate handling, native stream delivery, stream fallback behavior, and outbound HTTP without live Slack calls.
+**Verification:** Slack tests cover socket ingress, socket reconnect/stop behavior, HTTP raw-body auth, event normalization, duplicate morphling, native stream delivery, stream fallback behavior, and outbound HTTP without live Slack calls.
 
-### U8. Shared Gateway Dispatch and Error Handling
+### U8. Shared Gateway Dispatch and Error Morphling
 
 **Status:** Completed.
 
@@ -518,7 +518,7 @@ Expose daemon-owned management commands for pairing state under the existing gat
 **Test scenarios:**
 
 - Dispatch applies a request timeout and cancels the agent call when exceeded.
-- HTTP webhook handlers enqueue accepted work and return provider ACK before invoking the agent.
+- HTTP webhook Hands enqueue accepted work and return provider ACK before invoking the agent.
 - Queue saturation returns a provider-safe backpressure response where the platform will retry, without accepting work that cannot be tracked.
 - Duplicate keys within the retention window are acknowledged without invoking the agent.
 - Duplicate keys outside the retention window can invoke the agent again.
@@ -548,7 +548,7 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 **Files:** `README.md`, `example.yaml`, `internal/diagnostics/readiness/gateway.go`, `internal/diagnostics/readiness/readiness.go`, `internal/diagnostics/readiness/readiness_test.go`, `cmd/doctor/doctor_test.go`.
 
-**Approach:** Add concise config examples for generic HTTP, Slack socket mode, Slack HTTP mode, Slack streaming, Telegram polling mode, Telegram webhook mode, Telegram DM pairing, and Telegram group allowlists. Extend doctor/readiness checks to report whether gateway is disabled, locally enabled, externally bound with auth, or missing required provider secrets. Include operator guidance for finding Telegram sender IDs, approving/revoking paired senders, and using `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` plus `HAND_GATEWAY_ALLOWED_USERS` for group authorization. Keep guidance operational and avoid turning README into a channel manual.
+**Approach:** Add concise config examples for generic HTTP, Slack socket mode, Slack HTTP mode, Slack streaming, Telegram polling mode, Telegram webhook mode, Telegram DM pairing, and Telegram group allowlists. Extend doctor/readiness checks to report whether gateway is disabled, locally enabled, externally bound with auth, or missing required provider secrets. Include operator guidance for finding Telegram sender IDs, approving/revoking paired senders, and using `MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS` plus `MORPH_GATEWAY_ALLOWED_USERS` for group authorization. Keep guidance operational and avoid turning README into a channel manual.
 
 **Patterns to follow:** Existing README config section, `example.yaml` commented defaults, readiness checks under `internal/diagnostics/readiness`.
 
@@ -582,15 +582,15 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 **Dependencies:** U1, U2.
 
-**Files:** `cmd/gateway/gateway.go`, `cmd/gateway/gateway_test.go`, `internal/cli/daemon.go`, `internal/cli/daemon_test.go`, `internal/gateway/manager.go`, `internal/gateway/manager_test.go`, `internal/rpc/proto/hand.proto`, `internal/rpc/service.go`, `internal/rpc/client/client.go`, `internal/rpc/server/server.go`, `internal/rpc/service_test.go`, `internal/rpc/client/client_test.go`.
+**Files:** `cmd/gateway/gateway.go`, `cmd/gateway/gateway_test.go`, `internal/cli/daemon.go`, `internal/cli/daemon_test.go`, `internal/gateway/manager.go`, `internal/gateway/manager_test.go`, `internal/rpc/proto/morph.proto`, `internal/rpc/service.go`, `internal/rpc/client/client.go`, `internal/rpc/server/server.go`, `internal/rpc/service_test.go`, `internal/rpc/client/client_test.go`.
 
-**Approach:** Add `hand gateway status`, `hand gateway start`, `hand gateway stop`, and `hand gateway restart` under the existing daemon command. Each command should connect to the running daemon over the same configured RPC address and port used by other daemon clients. The daemon should own a gateway manager that can report safe state, start the configured runtime if it is stopped, restart a failed runtime, explicitly restart a running runtime, and stop listeners/socket/polling clients without stopping gRPC or the agent service. Commands should fail clearly when the daemon is unreachable, gateway config is disabled, or required provider secrets are missing.
+**Approach:** Add `morph gateway status`, `morph gateway start`, `morph gateway stop`, and `morph gateway restart` under the existing daemon command. Each command should connect to the running daemon over the same configured RPC address and port used by other daemon clients. The daemon should own a gateway manager that can report safe state, start the configured runtime if it is stopped, restart a failed runtime, explicitly restart a running runtime, and stop listeners/socket/polling clients without stopping gRPC or the agent service. Commands should fail clearly when the daemon is unreachable, gateway config is disabled, or required provider secrets are missing.
 
-**Patterns to follow:** Existing urfave/cli command layout in `cmd/session/session.go`, RPC client construction from session commands, daemon lifecycle test hooks in `cmd/daemon/daemon_test.go`, and protobuf service expansion patterns in `internal/rpc/proto/hand.proto`.
+**Patterns to follow:** Existing urfave/cli command layout in `cmd/session/session.go`, RPC client construction from session commands, daemon lifecycle test hooks in `cmd/daemon/daemon_test.go`, and protobuf service expansion patterns in `internal/rpc/proto/morph.proto`.
 
 **Test scenarios:**
 
-- `hand gateway status` prints disabled, stopped, starting, running, degraded, or failed state with channel modes and safe last errors.
+- `morph gateway status` prints disabled, stopped, starting, running, degraded, or failed state with channel modes and safe last errors.
 - `status` fails with a clear message when no daemon is reachable.
 - `start` calls the daemon gateway manager and reports already-running as success.
 - `start` fails without starting partial listeners when gateway config is disabled or invalid.
@@ -606,38 +606,38 @@ Expose daemon-owned management commands for pairing state under the existing gat
 
 ## Acceptance Examples
 
-- AE1. Given gateway is disabled, when `hand daemon start` runs, then only the existing daemon services start and startup output says the gateway is disabled.
-- AE2. Given gateway is enabled on `127.0.0.1` with a generic bearer token, when a valid `POST /v1/respond` request includes a repeated `conversation_id`, then Hand responds in the same session each time.
-- AE3. Given Slack socket mode is enabled with valid app and bot tokens, when Slack sends a message event over the socket, then Hand acknowledges the event, invokes Hand with the mapped session, and posts the reply back into the same thread or DM.
-- AE4. Given Slack HTTP mode is enabled and Slack sends an Events API `url_verification` payload with a valid signature, when Slack calls the webhook, then Hand returns the challenge and does not start an agent turn.
-- AE5. Given a valid Slack HTTP message event in a thread, when the message is addressed to Hand, then the gateway invokes Hand with the thread's mapped session and posts the reply back into the same thread.
-- AE6. Given Slack streaming is enabled and a user asks Hand in a thread, when Hand generates a long response, then the gateway starts a Slack stream in that thread, appends markdown chunks as the answer is produced, and stops the stream with the final answer.
-- AE7. Given Slack streaming is unavailable before any visible output, when Hand completes the response, then the gateway posts one normal `chat.postMessage` reply instead of losing the answer.
-- AE8. Given Telegram polling mode is enabled with a valid bot token, when `getUpdates` returns a text message with a topic ID, then the gateway invokes Hand with the topic's mapped session, advances the update offset, and sends the reply back to that topic.
-- AE9. Given Telegram webhook mode is enabled and a text update arrives with a valid webhook secret header, when the update includes a topic ID, then the gateway invokes Hand with the topic's mapped session and sends the reply back to that topic.
-- AE10. Given Telegram streaming is enabled for a supported private chat, when Hand generates a long response, then the user sees draft text update during generation and receives a persisted final message when generation completes.
-- AE11. Given Telegram streaming is enabled but the target is a group or topic without native draft-streaming support, when Hand generates a long response, then Hand sends one placeholder message in that target and updates that same message with throttled `editMessageText` calls until the final answer is persisted.
-- AE12. Given Telegram DM pairing is enabled and an unknown private-chat sender messages Hand, when the sender is not allowlisted or paired, then Hand sends one pairing challenge to that DM and does not start an agent turn.
-- AE13. Given the operator approves the Telegram pairing code through `hand gateway pairing approve telegram <code>`, when that sender messages Hand again, then Hand processes the message normally using the sender's chat/session binding.
-- AE14. Given an unknown Telegram sender posts in a group or topic, when the sender is not allowlisted or paired, then Hand sends no pairing challenge and does not invoke the agent.
-- AE15. Given `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` or `HAND_GATEWAY_ALLOWED_USERS` includes a Telegram sender ID, when that sender posts in a group or topic, then Hand may process the message according to the normal Telegram actionable-message rules.
-- AE16. Given the daemon is running and gateway config is valid but currently stopped, when `hand gateway start` runs, then the daemon starts the configured gateway runtime without starting another daemon process.
-- AE17. Given the daemon gateway is running, when `hand gateway status` runs, then it prints safe listener/channel state and redacted adapter health.
-- AE18. Given the daemon gateway is running, when `hand gateway stop` runs, then external ingress stops while normal daemon RPC commands still work.
-- AE19. Given the daemon gateway is running, when `hand gateway restart` runs, then external ingress is replaced from effective daemon config while normal daemon RPC commands remain responsive.
-- AE20. Given any invalid Slack HTTP signature, Telegram webhook secret, generic bearer token, or pairing code, when the gateway receives a request or management command, then it rejects the action before invoking Hand and does not log the secret, raw message body, or pairing code.
+- AE1. Given gateway is disabled, when `morph daemon start` runs, then only the existing daemon services start and startup output says the gateway is disabled.
+- AE2. Given gateway is enabled on `127.0.0.1` with a generic bearer token, when a valid `POST /v1/respond` request includes a repeated `conversation_id`, then Morph responds in the same session each time.
+- AE3. Given Slack socket mode is enabled with valid app and bot tokens, when Slack sends a message event over the socket, then Morph acknowledges the event, invokes Morph with the mapped session, and posts the reply back into the same thread or DM.
+- AE4. Given Slack HTTP mode is enabled and Slack sends an Events API `url_verification` payload with a valid signature, when Slack calls the webhook, then Morph returns the challenge and does not start an agent turn.
+- AE5. Given a valid Slack HTTP message event in a thread, when the message is addressed to Morph, then the gateway invokes Morph with the thread's mapped session and posts the reply back into the same thread.
+- AE6. Given Slack streaming is enabled and a user asks Morph in a thread, when Morph generates a long response, then the gateway starts a Slack stream in that thread, appends markdown chunks as the answer is produced, and stops the stream with the final answer.
+- AE7. Given Slack streaming is unavailable before any visible output, when Morph completes the response, then the gateway posts one normal `chat.postMessage` reply instead of losing the answer.
+- AE8. Given Telegram polling mode is enabled with a valid bot token, when `getUpdates` returns a text message with a topic ID, then the gateway invokes Morph with the topic's mapped session, advances the update offset, and sends the reply back to that topic.
+- AE9. Given Telegram webhook mode is enabled and a text update arrives with a valid webhook secret header, when the update includes a topic ID, then the gateway invokes Morph with the topic's mapped session and sends the reply back to that topic.
+- AE10. Given Telegram streaming is enabled for a supported private chat, when Morph generates a long response, then the user sees draft text update during generation and receives a persisted final message when generation completes.
+- AE11. Given Telegram streaming is enabled but the target is a group or topic without native draft-streaming support, when Morph generates a long response, then Morph sends one placeholder message in that target and updates that same message with throttled `editMessageText` calls until the final answer is persisted.
+- AE12. Given Telegram DM pairing is enabled and an unknown private-chat sender messages Morph, when the sender is not allowlisted or paired, then Morph sends one pairing challenge to that DM and does not start an agent turn.
+- AE13. Given the operator approves the Telegram pairing code through `morph gateway pairing approve telegram <code>`, when that sender messages Morph again, then Morph processes the message normally using the sender's chat/session binding.
+- AE14. Given an unknown Telegram sender posts in a group or topic, when the sender is not allowlisted or paired, then Morph sends no pairing challenge and does not invoke the agent.
+- AE15. Given `MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS` or `MORPH_GATEWAY_ALLOWED_USERS` includes a Telegram sender ID, when that sender posts in a group or topic, then Morph may process the message according to the normal Telegram actionable-message rules.
+- AE16. Given the daemon is running and gateway config is valid but currently stopped, when `morph gateway start` runs, then the daemon starts the configured gateway runtime without starting another daemon process.
+- AE17. Given the daemon gateway is running, when `morph gateway status` runs, then it prints safe listener/channel state and redacted adapter health.
+- AE18. Given the daemon gateway is running, when `morph gateway stop` runs, then external ingress stops while normal daemon RPC commands still work.
+- AE19. Given the daemon gateway is running, when `morph gateway restart` runs, then external ingress is replaced from effective daemon config while normal daemon RPC commands remain responsive.
+- AE20. Given any invalid Slack HTTP signature, Telegram webhook secret, generic bearer token, or pairing code, when the gateway receives a request or management command, then it rejects the action before invoking Morph and does not log the secret, raw message body, or pairing code.
 
 ---
 
 ## Risks & Dependencies
 
-- **External webhook timing:** Slack HTTP mode and Telegram webhook mode expect prompt acknowledgments and retry failed deliveries. Webhook handlers must never wait for agent turns; they should authenticate, dedupe, enqueue tracked work, and ACK quickly, with explicit backpressure behavior when the daemon cannot accept more work.
+- **External webhook timing:** Slack HTTP mode and Telegram webhook mode expect prompt acknowledgments and retry failed deliveries. Webhook Hands must never wait for agent turns; they should authenticate, dedupe, enqueue tracked work, and ACK quickly, with explicit backpressure behavior when the daemon cannot accept more work.
 - **Outbound channel lifecycle:** Slack socket mode and Telegram polling avoid public webhooks but add reconnect, backoff, envelope acknowledgement, update offset, and one-poller-per-token conflict behavior that must be covered by tests.
 - **Slack streaming state:** Slack stream messages have their own lifecycle and cannot be treated like ordinary editable messages while streaming. The sender must track start/append/stop state, handle user-stopped streams, and avoid duplicate final posts after partial stream visibility.
 - **Telegram streaming limits:** `sendMessageDraft` is ephemeral and target-limited, while simulated edit streaming can hit Telegram edit/rate limits or duplicate-edit errors. The adapter should coalesce chunks, throttle updates, preserve a final-send path, and degrade to final-only delivery if streaming is rejected.
 - **Pairing state safety:** DM pairing reduces manual sender-ID setup, but it creates an authorization store that must be durable, bounded, revocable, and redacted. Pairing prompts must stay private to DMs so public groups do not leak access-control instructions or invite abuse.
 - **Imperative state versus config reload:** `daemon gateway stop` creates a runtime override that can diverge from enabled config. A daemon restart or config reload reapplies config and starts the gateway again unless a persisted disabled flag is explicitly introduced as a product decision.
-- **Security exposure:** Gateway makes Hand reachable over HTTP. Validation must fail unsafe non-loopback binds without auth, and logs must stay aggressively redacted.
+- **Security exposure:** Gateway makes Morph reachable over HTTP. Validation must fail unsafe non-loopback binds without auth, and logs must stay aggressively redacted.
 - **Session binding persistence:** If a new binding store is required, both SQLite and memory stores need contract coverage to avoid state drift.
 - **Provider API drift:** Slack and Telegram APIs change. Keep adapter payload parsing tolerant, and keep unsupported event/update types acknowledged but ignored.
 - **Message formatting:** Telegram should use Hermes-style MarkdownV2 formatting with strict escaping, code-region protection, and plain-text fallback on parse failure. Slack can preserve normal markdown/mrkdwn semantics where supported by the API. Formatting failures must degrade to safe readable text rather than losing or duplicating a response.
@@ -647,25 +647,25 @@ Expose daemon-owned management commands for pairing state under the existing gat
 ## Documentation / Operational Notes
 
 - Gateway should be documented as part of daemon configuration, not as a separate command.
-- Gateway management should be documented as daemon control commands: `hand gateway status`, `hand gateway start`, `hand gateway stop`, and `hand gateway restart`.
+- Gateway management should be documented as daemon control commands: `morph gateway status`, `morph gateway start`, `morph gateway stop`, and `morph gateway restart`.
 - Reusable `pkg/gateway` libraries should document public contracts and explicitly state that daemon runtime ownership remains in `internal/gateway`.
 - Slack setup should describe Socket Mode as the default local path, requiring bot token, app token, event subscriptions, and message scopes.
 - Slack HTTP setup should name required app pieces: Events API request URL, signing secret, bot token, and message scopes.
 - Slack streaming setup should describe `chat.startStream`, `chat.appendStream`, `chat.stopStream`, required `chat:write` scope, thread requirements, and fallback behavior.
 - Telegram polling setup should describe the default local path, requiring only a bot token and warning that only one poller can use a bot token at a time.
 - Telegram webhook setup should name required pieces: bot token, webhook URL, and webhook secret token.
-- Telegram pairing setup should explain that unknown DMs get an approval code, groups never get pairing prompts, and group senders must be paired or present in `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS` or `HAND_GATEWAY_ALLOWED_USERS`.
-- Telegram formatting docs should state that Hand sends Telegram MarkdownV2 where possible, falls back to plain text when Telegram rejects formatting, and does not use Telegram HTML.
+- Telegram pairing setup should explain that unknown DMs get an approval code, groups never get pairing prompts, and group senders must be paired or present in `MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS` or `MORPH_GATEWAY_ALLOWED_USERS`.
+- Telegram formatting docs should state that Morph sends Telegram MarkdownV2 where possible, falls back to plain text when Telegram rejects formatting, and does not use Telegram HTML.
 - Generic HTTP should be presented as an integration/testing surface, not the main user-facing chat-app experience.
 
 ---
 
 ## Sources / Research
 
-- Hand daemon lifecycle and service wiring: `cmd/daemon/daemon.go`.
-- Hand RPC and in-process service boundary: `internal/agent/service.go`, `internal/rpc/service.go`, `internal/rpc/client/client.go`, `internal/rpc/proto/hand.proto`.
-- Hand config patterns: `internal/config/runtime.go`, `internal/config/defaults.go`, `internal/config/env.go`, `internal/config/validation.go`.
-- Hand session model: `internal/state/core/session.go`.
+- Morph daemon lifecycle and service wiring: `cmd/daemon/daemon.go`.
+- Morph RPC and in-process service boundary: `internal/agent/service.go`, `internal/rpc/service.go`, `internal/rpc/client/client.go`, `internal/rpc/proto/morph.proto`.
+- Morph config patterns: `internal/config/runtime.go`, `internal/config/defaults.go`, `internal/config/env.go`, `internal/config/validation.go`.
+- Morph session model: `internal/state/core/session.go`.
 - OpenClaw channel/gateway prior art: `.plan/agentuniversity/openclaw/src/gateway`, `.plan/agentuniversity/openclaw/extensions/slack`, `.plan/agentuniversity/openclaw/extensions/discord`, `.plan/agentuniversity/openclaw/extensions/telegram`.
 - OpenClaw reusable channel pairing prior art: `.plan/agentuniversity/openclaw/src/pairing/pairing-store.ts`, `.plan/agentuniversity/openclaw/src/pairing/pairing-challenge.ts`, `.plan/agentuniversity/openclaw/extensions/telegram/src/dm-access.ts`.
 - Hermes Slack Socket Mode prior art: `.plan/agentuniversity/hermes-agent/gateway/platforms/slack.py`.
