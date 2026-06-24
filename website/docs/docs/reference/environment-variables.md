@@ -280,7 +280,7 @@ env vars → `models.providers.<p>.apiKey`.
 
 Firecrawl base URL: `MORPH_FIRECRAWL_API_URL`. Details: [Provider Auth](../guides/provider-auth).
 
-## Secret morphling
+## Secret handling
 
 - Prefer **`morph auth login`** or profile `auth.json` over long-lived shell exports for OAuth and API keys.
 - Do not commit `.env` files with secrets. See [Security](../operations/security).

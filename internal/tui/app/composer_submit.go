@@ -41,7 +41,7 @@ func normalizeComposerPaste(value string) string {
 	return tuicomposer.NormalizePaste(value)
 }
 
-// submitPrompt routes a non-empty composer value to prompt or command morphling.
+// submitPrompt routes a non-empty composer value to prompt or command handling.
 func (m *model) submitPrompt() tea.Cmd {
 	input := m.parseComposerInputForSubmit()
 

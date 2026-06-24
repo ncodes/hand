@@ -446,7 +446,7 @@ func (t *Turn) environmentToolPolicy() (tools.Policy, bool) {
 	return policy, ok
 }
 
-// Run executes the turn's logic, morphling instructions, tool actions, tracing,
+// Run executes the turn's logic, handling instructions, tool actions, tracing,
 // safety enforcement, and returns the final assistant reply for this turn.
 func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOptions) (string, error) {
 	var traceSession trace.Session

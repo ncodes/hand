@@ -27,7 +27,7 @@ The root app model is in `app/model.go`.
 
 ## Main Directories
 
-- `app`: the interactive app, rendering, input morphling, chat streaming, and
+- `app`: the interactive app, rendering, input handling, chat streaming, and
   transcript behavior.
 - `composer`: parsing and history helpers for prompt input.
 - `events`: small typed app events used inside the TUI.
@@ -59,7 +59,7 @@ Input:
 ```text
 keyboard/mouse/window message
   -> app/bubbletea_adapter.go Update
-  -> handleKeyPressMsg or mouse Hand
+  -> handleKeyPressMsg or mouse handler
   -> handleAppEvent
   -> action or effect
 ```

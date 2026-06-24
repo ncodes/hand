@@ -24,7 +24,7 @@ Morph ships three gateway types, all served by the same daemon:
 - **Telegram** — connects a Telegram bot to Morph, either by long polling or by webhook.
 
 All three are configured under a single `gateway` section of the profile config and share the same session binding,
-authorization, and message-morphling machinery; only the transport and platform details differ.
+authorization, and message-handling machinery; only the transport and platform details differ.
 
 ## Owned by the Daemon
 

@@ -229,4 +229,4 @@ Start the daemon first. Pairing commands do not start it or reload config from d
 - [Gateway Management](../../operations/gateway-management): start, stop, restart.
 - [Config Guide](../config): changing gateway settings safely.
 - [Profiles](../../concepts/profiles): where pairing state lives.
-- [Safety and Guardrails](../../concepts/safety-and-guardrails): secret morphling in logs and traces.
+- [Safety and Guardrails](../../concepts/safety-and-guardrails): secret handling in logs and traces.

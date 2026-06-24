@@ -34,7 +34,7 @@ type InsertInputNewlineEvent struct{}
 // DeleteInputLineEvent requests deleting the current composer line.
 type DeleteInputLineEvent struct{}
 
-// ApplyTUIMessageEvent wraps an incoming Bubble Tea message for app morphling.
+// ApplyTUIMessageEvent wraps an incoming Bubble Tea message for app handling.
 type ApplyTUIMessageEvent struct {
 	Message any
 }

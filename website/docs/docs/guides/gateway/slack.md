@@ -29,7 +29,7 @@ Create the app at [api.slack.com/apps](https://api.slack.com/apps):
    - `chat:write` — post replies
    - `im:history` — receive direct messages
    - `mpim:history` — receive group direct messages
-   - `app_mentions:read` — optional, only if you want `@`-mention morphling in channels
+   - `app_mentions:read` — optional, only if you want `@`-mention handling in channels
 3. Under **Event Subscriptions**, enable events and subscribe to **Bot Events**:
    - `message.im` — DMs to the bot
    - `message.mpim` — group DMs

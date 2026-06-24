@@ -104,7 +104,7 @@ session's timeline. See [Trace Events](../reference/trace-events).
 
 ## Adding a Tool
 
-Tools are plain Go packages: a definition (name, description, input schema, required capabilities, Hand) registered
+Tools are plain Go packages: a definition (name, description, input schema, required capabilities, handler) registered
 into the environment's tool registry alongside the built-ins. New tools automatically participate in capability gating,
 guardrails, and trace streaming. For the registry contract and conventions, see [Tools Runtime](../development/tools-runtime).
 

@@ -162,5 +162,5 @@ Full defaults: [Config Reference](./config#gateway).
 - [RPC Reference](./rpc): `GatewayService` for start/stop/pairing
 - [Config Reference](./config): all gateway keys
 - [Environment Variables](./environment-variables): `MORPH_GATEWAY_*` overrides
-- [Security](../operations/security): exposure and token morphling
+- [Security](../operations/security): exposure and token handling
 - [Troubleshooting](../guides/troubleshooting): gateway connection issues

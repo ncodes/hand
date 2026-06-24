@@ -19,7 +19,7 @@ Morph separates a few layers:
 
 | Layer | What it protects | Where to read more |
 | --- | --- | --- |
-| **Secrets morphling** | Provider keys, gateway tokens, OAuth credentials | This page — [Provider secrets](#provider-secrets) |
+| **Secrets handling** | Provider keys, gateway tokens, OAuth credentials | This page — [Provider secrets](#provider-secrets) |
 | **Network exposure** | RPC, gateway HTTP, webhook surfaces | [Network exposure](#network-exposure) |
 | **Sender authorization** | Who can trigger agent turns on Slack/Telegram | [Sender authorization](#sender-authorization) |
 | **Runtime guardrails** | Command, filesystem, web, and tool output policy | [Runtime guardrails](#runtime-guardrails) |
@@ -336,7 +336,7 @@ Pages that link here for operational security detail:
 - [Doctor](./doctor): PASS/WARN/FAIL for safety toggles, gateway listener, and tools.
 - [Provider Auth](../guides/provider-auth): store and rotate model credentials safely.
 - [Pairing and Allowlists](../guides/gateway/pairing-and-allowlists): authorize Slack and Telegram senders.
-- [Gateway Overview](../guides/gateway/): prerequisites and secret morphling at enable time.
+- [Gateway Overview](../guides/gateway/): prerequisites and secret handling at enable time.
 - [Generic HTTP Gateway](../guides/gateway/generic-http): bearer auth for `/v1/respond`.
 - [Gateway Management](./gateway-management): runtime control after config is hardened.
 - [Daemon Operations](./daemon): process lifecycle, config reload, and `.env` restart rules.
