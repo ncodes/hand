@@ -1,12 +1,12 @@
 syntax = "proto3";
 
-package hand.v1;
+package morph.v1;
 
-option go_package = "github.com/wandxy/hand/internal/rpc/proto;handpb";
+option go_package = "github.com/wandxy/morph/internal/rpc/proto;morphpb";
 
 import "google/protobuf/timestamp.proto";
 
-service HandService {
+service MorphService {
   rpc Respond(RespondRequest) returns (stream RespondEvent);
 }
 

@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.0
 // - protoc             v6.33.2
-// source: internal/rpc/proto/hand.proto
+// source: internal/rpc/proto/morph.proto
 
-package handpb
+package morphpb
 
 import (
 	context "context"
@@ -19,27 +19,27 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HandService_Respond_FullMethodName = "/hand.v1.HandService/Respond"
+	MorphService_Respond_FullMethodName = "/morph.v1.MorphService/Respond"
 )
 
-// HandServiceClient is the client API for HandService service.
+// MorphServiceClient is the client API for MorphService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type HandServiceClient interface {
+type MorphServiceClient interface {
 	Respond(ctx context.Context, in *RespondRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RespondEvent], error)
 }
 
-type handServiceClient struct {
+type morphServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewHandServiceClient(cc grpc.ClientConnInterface) HandServiceClient {
-	return &handServiceClient{cc}
+func NewMorphServiceClient(cc grpc.ClientConnInterface) MorphServiceClient {
+	return &morphServiceClient{cc}
 }
 
-func (c *handServiceClient) Respond(ctx context.Context, in *RespondRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RespondEvent], error) {
+func (c *morphServiceClient) Respond(ctx context.Context, in *RespondRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RespondEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &HandService_ServiceDesc.Streams[0], HandService_Respond_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &MorphService_ServiceDesc.Streams[0], MorphService_Respond_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -54,87 +54,87 @@ func (c *handServiceClient) Respond(ctx context.Context, in *RespondRequest, opt
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type HandService_RespondClient = grpc.ServerStreamingClient[RespondEvent]
+type MorphService_RespondClient = grpc.ServerStreamingClient[RespondEvent]
 
-// HandServiceServer is the server API for HandService service.
-// All implementations must embed UnimplementedHandServiceServer
+// MorphServiceServer is the server API for MorphService service.
+// All implementations must embed UnimplementedMorphServiceServer
 // for forward compatibility.
-type HandServiceServer interface {
+type MorphServiceServer interface {
 	Respond(*RespondRequest, grpc.ServerStreamingServer[RespondEvent]) error
-	mustEmbedUnimplementedHandServiceServer()
+	mustEmbedUnimplementedMorphServiceServer()
 }
 
-// UnimplementedHandServiceServer must be embedded to have
+// UnimplementedMorphServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedHandServiceServer struct{}
+type UnimplementedMorphServiceServer struct{}
 
-func (UnimplementedHandServiceServer) Respond(*RespondRequest, grpc.ServerStreamingServer[RespondEvent]) error {
+func (UnimplementedMorphServiceServer) Respond(*RespondRequest, grpc.ServerStreamingServer[RespondEvent]) error {
 	return status.Error(codes.Unimplemented, "method Respond not implemented")
 }
-func (UnimplementedHandServiceServer) mustEmbedUnimplementedHandServiceServer() {}
-func (UnimplementedHandServiceServer) testEmbeddedByValue()                     {}
+func (UnimplementedMorphServiceServer) mustEmbedUnimplementedMorphServiceServer() {}
+func (UnimplementedMorphServiceServer) testEmbeddedByValue()                      {}
 
-// UnsafeHandServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to HandServiceServer will
+// UnsafeMorphServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MorphServiceServer will
 // result in compilation errors.
-type UnsafeHandServiceServer interface {
-	mustEmbedUnimplementedHandServiceServer()
+type UnsafeMorphServiceServer interface {
+	mustEmbedUnimplementedMorphServiceServer()
 }
 
-func RegisterHandServiceServer(s grpc.ServiceRegistrar, srv HandServiceServer) {
-	// If the following call panics, it indicates UnimplementedHandServiceServer was
+func RegisterMorphServiceServer(s grpc.ServiceRegistrar, srv MorphServiceServer) {
+	// If the following call panics, it indicates UnimplementedMorphServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&HandService_ServiceDesc, srv)
+	s.RegisterService(&MorphService_ServiceDesc, srv)
 }
 
-func _HandService_Respond_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _MorphService_Respond_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(RespondRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(HandServiceServer).Respond(m, &grpc.GenericServerStream[RespondRequest, RespondEvent]{ServerStream: stream})
+	return srv.(MorphServiceServer).Respond(m, &grpc.GenericServerStream[RespondRequest, RespondEvent]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type HandService_RespondServer = grpc.ServerStreamingServer[RespondEvent]
+type MorphService_RespondServer = grpc.ServerStreamingServer[RespondEvent]
 
-// HandService_ServiceDesc is the grpc.ServiceDesc for HandService service.
+// MorphService_ServiceDesc is the grpc.ServiceDesc for MorphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var HandService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "hand.v1.HandService",
-	HandlerType: (*HandServiceServer)(nil),
+var MorphService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "morph.v1.MorphService",
+	HandlerType: (*MorphServiceServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Respond",
-			Handler:       _HandService_Respond_Handler,
+			Handler:       _MorphService_Respond_Handler,
 			ServerStreams: true,
 		},
 	},
-	Metadata: "internal/rpc/proto/hand.proto",
+	Metadata: "internal/rpc/proto/morph.proto",
 }
 
 const (
-	SessionService_Create_FullMethodName    = "/hand.v1.SessionService/Create"
-	SessionService_List_FullMethodName      = "/hand.v1.SessionService/List"
-	SessionService_Use_FullMethodName       = "/hand.v1.SessionService/Use"
-	SessionService_Archive_FullMethodName   = "/hand.v1.SessionService/Archive"
-	SessionService_Unarchive_FullMethodName = "/hand.v1.SessionService/Unarchive"
-	SessionService_Rename_FullMethodName    = "/hand.v1.SessionService/Rename"
-	SessionService_Current_FullMethodName   = "/hand.v1.SessionService/Current"
-	SessionService_Compact_FullMethodName   = "/hand.v1.SessionService/Compact"
-	SessionService_Repair_FullMethodName    = "/hand.v1.SessionService/Repair"
-	SessionService_Status_FullMethodName    = "/hand.v1.SessionService/Status"
-	SessionService_Timeline_FullMethodName  = "/hand.v1.SessionService/Timeline"
+	SessionService_Create_FullMethodName    = "/morph.v1.SessionService/Create"
+	SessionService_List_FullMethodName      = "/morph.v1.SessionService/List"
+	SessionService_Use_FullMethodName       = "/morph.v1.SessionService/Use"
+	SessionService_Archive_FullMethodName   = "/morph.v1.SessionService/Archive"
+	SessionService_Unarchive_FullMethodName = "/morph.v1.SessionService/Unarchive"
+	SessionService_Rename_FullMethodName    = "/morph.v1.SessionService/Rename"
+	SessionService_Current_FullMethodName   = "/morph.v1.SessionService/Current"
+	SessionService_Compact_FullMethodName   = "/morph.v1.SessionService/Compact"
+	SessionService_Repair_FullMethodName    = "/morph.v1.SessionService/Repair"
+	SessionService_Status_FullMethodName    = "/morph.v1.SessionService/Status"
+	SessionService_Timeline_FullMethodName  = "/morph.v1.SessionService/Timeline"
 )
 
 // SessionServiceClient is the client API for SessionService service.
@@ -553,7 +553,7 @@ func _SessionService_Timeline_Handler(srv interface{}, ctx context.Context, dec 
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var SessionService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "hand.v1.SessionService",
+	ServiceName: "morph.v1.SessionService",
 	HandlerType: (*SessionServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -602,14 +602,14 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "internal/rpc/proto/hand.proto",
+	Metadata: "internal/rpc/proto/morph.proto",
 }
 
 const (
-	ModelService_ListProviders_FullMethodName     = "/hand.v1.ModelService/ListProviders"
-	ModelService_ListModels_FullMethodName        = "/hand.v1.ModelService/ListModels"
-	ModelService_SelectModel_FullMethodName       = "/hand.v1.ModelService/SelectModel"
-	ModelService_SetProviderAPIKey_FullMethodName = "/hand.v1.ModelService/SetProviderAPIKey"
+	ModelService_ListProviders_FullMethodName     = "/morph.v1.ModelService/ListProviders"
+	ModelService_ListModels_FullMethodName        = "/morph.v1.ModelService/ListModels"
+	ModelService_SelectModel_FullMethodName       = "/morph.v1.ModelService/SelectModel"
+	ModelService_SetProviderAPIKey_FullMethodName = "/morph.v1.ModelService/SetProviderAPIKey"
 )
 
 // ModelServiceClient is the client API for ModelService service.
@@ -797,7 +797,7 @@ func _ModelService_SetProviderAPIKey_Handler(srv interface{}, ctx context.Contex
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var ModelService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "hand.v1.ModelService",
+	ServiceName: "morph.v1.ModelService",
 	HandlerType: (*ModelServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -818,18 +818,18 @@ var ModelService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "internal/rpc/proto/hand.proto",
+	Metadata: "internal/rpc/proto/morph.proto",
 }
 
 const (
-	GatewayService_GatewayStatus_FullMethodName        = "/hand.v1.GatewayService/GatewayStatus"
-	GatewayService_Start_FullMethodName                = "/hand.v1.GatewayService/Start"
-	GatewayService_Stop_FullMethodName                 = "/hand.v1.GatewayService/Stop"
-	GatewayService_Restart_FullMethodName              = "/hand.v1.GatewayService/Restart"
-	GatewayService_ListPairings_FullMethodName         = "/hand.v1.GatewayService/ListPairings"
-	GatewayService_ApprovePairing_FullMethodName       = "/hand.v1.GatewayService/ApprovePairing"
-	GatewayService_RevokePairing_FullMethodName        = "/hand.v1.GatewayService/RevokePairing"
-	GatewayService_ClearPendingPairings_FullMethodName = "/hand.v1.GatewayService/ClearPendingPairings"
+	GatewayService_GatewayStatus_FullMethodName        = "/morph.v1.GatewayService/GatewayStatus"
+	GatewayService_Start_FullMethodName                = "/morph.v1.GatewayService/Start"
+	GatewayService_Stop_FullMethodName                 = "/morph.v1.GatewayService/Stop"
+	GatewayService_Restart_FullMethodName              = "/morph.v1.GatewayService/Restart"
+	GatewayService_ListPairings_FullMethodName         = "/morph.v1.GatewayService/ListPairings"
+	GatewayService_ApprovePairing_FullMethodName       = "/morph.v1.GatewayService/ApprovePairing"
+	GatewayService_RevokePairing_FullMethodName        = "/morph.v1.GatewayService/RevokePairing"
+	GatewayService_ClearPendingPairings_FullMethodName = "/morph.v1.GatewayService/ClearPendingPairings"
 )
 
 // GatewayServiceClient is the client API for GatewayService service.
@@ -1149,7 +1149,7 @@ func _GatewayService_ClearPendingPairings_Handler(srv interface{}, ctx context.C
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var GatewayService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "hand.v1.GatewayService",
+	ServiceName: "morph.v1.GatewayService",
 	HandlerType: (*GatewayServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -1186,5 +1186,5 @@ var GatewayService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "internal/rpc/proto/hand.proto",
+	Metadata: "internal/rpc/proto/morph.proto",
 }

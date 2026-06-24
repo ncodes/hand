@@ -1,10 +1,10 @@
 package server
 
 import (
-	handagent "github.com/wandxy/hand/internal/agent"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/rpc"
-	handpb "github.com/wandxy/hand/internal/rpc/proto"
+	morphagent "github.com/wandxy/morph/internal/agent"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/rpc"
+	morphpb "github.com/wandxy/morph/internal/rpc/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -18,18 +18,18 @@ type Options struct {
 	GatewayRuntime       rpc.GatewayRuntime
 }
 
-// New returns a gRPC server registered with the Hand RPC services.
-func New(service handagent.ServiceAPI, opts Options) *grpc.Server {
+// New returns a gRPC server registered with the Morph RPC services.
+func New(service morphagent.ServiceAPI, opts Options) *grpc.Server {
 	server := grpc.NewServer()
 	rpcService := rpc.NewServiceWithOptions(service, rpc.ServiceOptions{
 		GatewayPairingSecret: opts.GatewayPairingSecret,
 		GatewayConfig:        opts.GatewayConfig,
 		GatewayRuntime:       opts.GatewayRuntime,
 	})
-	handpb.RegisterHandServiceServer(server, rpcService)
-	handpb.RegisterSessionServiceServer(server, rpcService)
-	handpb.RegisterModelServiceServer(server, rpcService)
-	handpb.RegisterGatewayServiceServer(server, rpcService)
+	morphpb.RegisterMorphServiceServer(server, rpcService)
+	morphpb.RegisterSessionServiceServer(server, rpcService)
+	morphpb.RegisterModelServiceServer(server, rpcService)
+	morphpb.RegisterGatewayServiceServer(server, rpcService)
 
 	if opts.Health {
 		healthcheck := health.NewServer()

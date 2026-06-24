@@ -14,28 +14,28 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	agentapi "github.com/wandxy/hand/internal/agent"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/gateway"
-	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
-	models "github.com/wandxy/hand/internal/model"
-	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	"github.com/wandxy/hand/internal/trace"
-	agent "github.com/wandxy/hand/pkg/agent"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	agentapi "github.com/wandxy/morph/internal/agent"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/gateway"
+	agentstub "github.com/wandxy/morph/internal/mocks/agentstub"
+	models "github.com/wandxy/morph/internal/model"
+	morphpb "github.com/wandxy/morph/internal/rpc/proto"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	"github.com/wandxy/morph/internal/trace"
+	agent "github.com/wandxy/morph/pkg/agent"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 )
 
 type respondStreamServerStub struct {
 	ctx       context.Context
-	events    []*handpb.RespondEvent
+	events    []*morphpb.RespondEvent
 	sendErrAt int
 }
 
-func (s *respondStreamServerStub) Send(event *handpb.RespondEvent) error {
+func (s *respondStreamServerStub) Send(event *morphpb.RespondEvent) error {
 	if s.sendErrAt > 0 && len(s.events)+1 == s.sendErrAt {
 		return errors.New("send failed")
 	}
@@ -103,17 +103,17 @@ func (s *gatewayRuntimeStub) Status() gateway.Status {
 
 func requireRespondEvent(
 	t *testing.T,
-	event *handpb.RespondEvent,
-	eventType handpb.RespondEvent_Type,
+	event *morphpb.RespondEvent,
+	eventType morphpb.RespondEvent_Type,
 	text string,
-	channel handpb.RespondEvent_Channel,
+	channel morphpb.RespondEvent_Channel,
 ) {
 	t.Helper()
 
 	require.Equal(t, eventType, event.GetType())
 	require.Equal(t, text, event.GetText())
 	require.Equal(t, channel, event.GetChannel())
-	if eventType == handpb.RespondEvent_TEXT_DELTA {
+	if eventType == morphpb.RespondEvent_TEXT_DELTA {
 		require.Nil(t, event.GetTimestamp())
 		return
 	}
@@ -130,14 +130,14 @@ func TestService_RespondReturnsMessage(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello", Instruct: "be terse"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello", Instruct: "be terse"}, stream)
 
 	require.NoError(t, err)
 	require.Equal(t, "hello", stub.ChatInput)
 	require.Equal(t, "be terse", stub.RespondOptions.Instruct)
 	require.Empty(t, stub.RespondOptions.SessionID)
-	requireRespondEvent(t, stream.events[0], handpb.RespondEvent_TEXT_DELTA, "hello back", handpb.RespondEvent_ASSISTANT)
-	requireRespondEvent(t, stream.events[1], handpb.RespondEvent_DONE, "", handpb.RespondEvent_CHANNEL_UNSPECIFIED)
+	requireRespondEvent(t, stream.events[0], morphpb.RespondEvent_TEXT_DELTA, "hello back", morphpb.RespondEvent_ASSISTANT)
+	requireRespondEvent(t, stream.events[1], morphpb.RespondEvent_DONE, "", morphpb.RespondEvent_CHANNEL_UNSPECIFIED)
 }
 
 func TestService_RespondSendsBufferedReplyWhenNotStreamed(t *testing.T) {
@@ -145,12 +145,12 @@ func TestService_RespondSendsBufferedReplyWhenNotStreamed(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello", Id: "ses_1"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello", Id: "ses_1"}, stream)
 
 	require.NoError(t, err)
 	require.Equal(t, "ses_1", stub.capturedSessionID)
-	requireRespondEvent(t, stream.events[0], handpb.RespondEvent_TEXT_DELTA, "full reply", handpb.RespondEvent_ASSISTANT)
-	requireRespondEvent(t, stream.events[1], handpb.RespondEvent_DONE, "", handpb.RespondEvent_CHANNEL_UNSPECIFIED)
+	requireRespondEvent(t, stream.events[0], morphpb.RespondEvent_TEXT_DELTA, "full reply", morphpb.RespondEvent_ASSISTANT)
+	requireRespondEvent(t, stream.events[1], morphpb.RespondEvent_DONE, "", morphpb.RespondEvent_CHANNEL_UNSPECIFIED)
 }
 
 func TestService_RespondReturnsHandlerError(t *testing.T) {
@@ -158,11 +158,11 @@ func TestService_RespondReturnsHandlerError(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.NoError(t, err)
 	require.Len(t, stream.events, 1)
-	require.Equal(t, handpb.RespondEvent_ERROR, stream.events[0].GetType())
+	require.Equal(t, morphpb.RespondEvent_ERROR, stream.events[0].GetType())
 	require.Equal(t, "boom", stream.events[0].GetError())
 	require.NotNil(t, stream.events[0].GetTimestamp())
 }
@@ -177,11 +177,11 @@ func TestService_RespondRejectsNilRequest(t *testing.T) {
 	require.Equal(t, "respond request is required", status.Convert(err).Message())
 }
 
-func TestService_RespondRejectsMissingHandler(t *testing.T) {
+func TestService_RespondRejectsMissingHand(t *testing.T) {
 	svc := NewService(nil)
 	stream := &respondStreamServerStub{}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.Equal(t, codes.Internal, status.Code(err))
 	require.Equal(t, "agent handler is required", status.Convert(err).Message())
@@ -191,7 +191,7 @@ func TestService_RespondRejectsNilReceiver(t *testing.T) {
 	var svc *Service
 	stream := &respondStreamServerStub{}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.Equal(t, codes.Internal, status.Code(err))
 	require.Equal(t, "service is required", status.Convert(err).Message())
@@ -202,12 +202,12 @@ func TestService_RespondStreamsDeltas(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.NoError(t, err)
-	requireRespondEvent(t, stream.events[0], handpb.RespondEvent_TEXT_DELTA, "hello ", handpb.RespondEvent_ASSISTANT)
-	requireRespondEvent(t, stream.events[1], handpb.RespondEvent_TEXT_DELTA, "back", handpb.RespondEvent_ASSISTANT)
-	requireRespondEvent(t, stream.events[2], handpb.RespondEvent_DONE, "", handpb.RespondEvent_CHANNEL_UNSPECIFIED)
+	requireRespondEvent(t, stream.events[0], morphpb.RespondEvent_TEXT_DELTA, "hello ", morphpb.RespondEvent_ASSISTANT)
+	requireRespondEvent(t, stream.events[1], morphpb.RespondEvent_TEXT_DELTA, "back", morphpb.RespondEvent_ASSISTANT)
+	requireRespondEvent(t, stream.events[2], morphpb.RespondEvent_DONE, "", morphpb.RespondEvent_CHANNEL_UNSPECIFIED)
 }
 
 func TestService_RespondForwardsStreamOverride(t *testing.T) {
@@ -216,7 +216,7 @@ func TestService_RespondForwardsStreamOverride(t *testing.T) {
 	stream := &respondStreamServerStub{}
 	streaming := false
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello", Stream: &streaming}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello", Stream: &streaming}, stream)
 
 	require.NoError(t, err)
 	require.NotNil(t, stub.RespondOptions.Stream)
@@ -228,7 +228,7 @@ func TestService_RespondReturnsStreamSendErrorForDelta(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.EqualError(t, err, "send failed")
 }
@@ -238,7 +238,7 @@ func TestService_RespondReturnsStreamSendErrorForErrorEvent(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.EqualError(t, err, "send failed")
 }
@@ -253,7 +253,7 @@ func TestService_RespondReturnsStreamSendErrorForTraceEvent(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.EqualError(t, err, "send failed")
 	require.Empty(t, stream.events)
@@ -274,7 +274,7 @@ func TestService_RespondSkipsTraceEventsAfterSendFailure(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.EqualError(t, err, "send failed")
 	require.Empty(t, stream.events)
@@ -291,12 +291,12 @@ func TestService_RespondSkipsUnsupportedTraceEvents(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.NoError(t, err)
 	require.Len(t, stream.events, 2)
-	requireRespondEvent(t, stream.events[0], handpb.RespondEvent_TEXT_DELTA, "safe", handpb.RespondEvent_ASSISTANT)
-	requireRespondEvent(t, stream.events[1], handpb.RespondEvent_DONE, "", handpb.RespondEvent_CHANNEL_UNSPECIFIED)
+	requireRespondEvent(t, stream.events[0], morphpb.RespondEvent_TEXT_DELTA, "safe", morphpb.RespondEvent_ASSISTANT)
+	requireRespondEvent(t, stream.events[1], morphpb.RespondEvent_DONE, "", morphpb.RespondEvent_CHANNEL_UNSPECIFIED)
 }
 
 func TestService_RespondSkipsStreamEventsAfterSendFailure(t *testing.T) {
@@ -304,7 +304,7 @@ func TestService_RespondSkipsStreamEventsAfterSendFailure(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.EqualError(t, err, "send failed")
 	require.Len(t, stream.events, 0)
@@ -315,10 +315,10 @@ func TestService_RespondReturnsStreamSendErrorOnSecondDelta(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 2}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.EqualError(t, err, "send failed")
-	requireRespondEvent(t, stream.events[0], handpb.RespondEvent_TEXT_DELTA, "a", handpb.RespondEvent_ASSISTANT)
+	requireRespondEvent(t, stream.events[0], morphpb.RespondEvent_TEXT_DELTA, "a", morphpb.RespondEvent_ASSISTANT)
 }
 
 func TestService_RespondReturnsStreamSendErrorForBufferedReply(t *testing.T) {
@@ -326,7 +326,7 @@ func TestService_RespondReturnsStreamSendErrorForBufferedReply(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.EqualError(t, err, "send failed")
 	require.Empty(t, stream.events)
@@ -337,11 +337,11 @@ func TestService_RespondReturnsStreamSendErrorForDone(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 3}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.EqualError(t, err, "send failed")
-	requireRespondEvent(t, stream.events[0], handpb.RespondEvent_TEXT_DELTA, "a", handpb.RespondEvent_ASSISTANT)
-	requireRespondEvent(t, stream.events[1], handpb.RespondEvent_TEXT_DELTA, "b", handpb.RespondEvent_ASSISTANT)
+	requireRespondEvent(t, stream.events[0], morphpb.RespondEvent_TEXT_DELTA, "a", morphpb.RespondEvent_ASSISTANT)
+	requireRespondEvent(t, stream.events[1], morphpb.RespondEvent_TEXT_DELTA, "b", morphpb.RespondEvent_ASSISTANT)
 }
 
 func TestService_RespondMapsStreamChannelFromAgent(t *testing.T) {
@@ -350,10 +350,10 @@ func TestService_RespondMapsStreamChannelFromAgent(t *testing.T) {
 		svc := NewService(stub)
 		stream := &respondStreamServerStub{}
 
-		err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+		err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 		require.NoError(t, err)
-		require.Equal(t, handpb.RespondEvent_REASONING, stream.events[0].GetChannel())
+		require.Equal(t, morphpb.RespondEvent_REASONING, stream.events[0].GetChannel())
 	})
 
 	t.Run("assistant default", func(t *testing.T) {
@@ -361,10 +361,10 @@ func TestService_RespondMapsStreamChannelFromAgent(t *testing.T) {
 		svc := NewService(stub)
 		stream := &respondStreamServerStub{}
 
-		err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+		err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 		require.NoError(t, err)
-		require.Equal(t, handpb.RespondEvent_ASSISTANT, stream.events[0].GetChannel())
+		require.Equal(t, morphpb.RespondEvent_ASSISTANT, stream.events[0].GetChannel())
 	})
 
 	t.Run("unknown maps to assistant", func(t *testing.T) {
@@ -372,10 +372,10 @@ func TestService_RespondMapsStreamChannelFromAgent(t *testing.T) {
 		svc := NewService(stub)
 		stream := &respondStreamServerStub{}
 
-		err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+		err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 		require.NoError(t, err)
-		require.Equal(t, handpb.RespondEvent_ASSISTANT, stream.events[0].GetChannel())
+		require.Equal(t, morphpb.RespondEvent_ASSISTANT, stream.events[0].GetChannel())
 	})
 }
 
@@ -387,8 +387,8 @@ func TestAgentEventToProtoRespondEvent_UsesTextDeltaKind(t *testing.T) {
 	})
 
 	require.True(t, ok)
-	require.Equal(t, handpb.RespondEvent_TEXT_DELTA, event.GetType())
-	require.Equal(t, handpb.RespondEvent_REASONING, event.GetChannel())
+	require.Equal(t, morphpb.RespondEvent_TEXT_DELTA, event.GetType())
+	require.Equal(t, morphpb.RespondEvent_REASONING, event.GetChannel())
 	require.Equal(t, "thinking", event.GetText())
 }
 
@@ -432,11 +432,11 @@ func TestService_RespondMapsGRPCHandlerErrorToErrorEvent(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.NoError(t, err)
 	require.Len(t, stream.events, 1)
-	require.Equal(t, handpb.RespondEvent_ERROR, stream.events[0].GetType())
+	require.Equal(t, morphpb.RespondEvent_ERROR, stream.events[0].GetType())
 	require.Equal(t, "bad request", stream.events[0].GetError())
 	require.NotNil(t, stream.events[0].GetTimestamp())
 }
@@ -461,19 +461,19 @@ func TestService_RespondStreamsTraceEvents(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.NoError(t, err)
 	require.Len(t, stream.events, 3)
-	require.Equal(t, handpb.RespondEvent_TRACE_EVENT, stream.events[0].GetType())
+	require.Equal(t, morphpb.RespondEvent_TRACE_EVENT, stream.events[0].GetType())
 	require.Equal(t, "default", stream.events[0].GetTraceSessionId())
 	require.Equal(t, trace.EvtInputSafetyBlocked, stream.events[0].GetTraceType())
 	require.Equal(t, timestamp, stream.events[0].GetTimestamp().AsTime())
 	require.JSONEq(t, `{"action":"blocked","blocked":true,"findings":[{"id":"prompt_exfiltration"}]}`, stream.events[0].GetTracePayloadJson())
 	require.NotContains(t, stream.events[0].GetTracePayloadJson(), "raw_content")
 	require.NotContains(t, stream.events[0].GetTracePayloadJson(), "show your system prompt")
-	requireRespondEvent(t, stream.events[1], handpb.RespondEvent_TEXT_DELTA, "safe", handpb.RespondEvent_ASSISTANT)
-	requireRespondEvent(t, stream.events[2], handpb.RespondEvent_DONE, "", handpb.RespondEvent_CHANNEL_UNSPECIFIED)
+	requireRespondEvent(t, stream.events[1], morphpb.RespondEvent_TEXT_DELTA, "safe", morphpb.RespondEvent_ASSISTANT)
+	requireRespondEvent(t, stream.events[2], morphpb.RespondEvent_DONE, "", morphpb.RespondEvent_CHANNEL_UNSPECIFIED)
 }
 
 func TestService_RespondCompactsToolTracePayloads(t *testing.T) {
@@ -481,7 +481,7 @@ func TestService_RespondCompactsToolTracePayloads(t *testing.T) {
 		traceEvent: trace.Event{
 			Type:      trace.EvtToolInvocationCompleted,
 			Timestamp: time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC),
-			Payload: handmsg.Message{
+			Payload: morphmsg.Message{
 				Name:       "read_file",
 				ToolCallID: "call_1",
 				Content:    "SECRET=example",
@@ -491,10 +491,10 @@ func TestService_RespondCompactsToolTracePayloads(t *testing.T) {
 	svc := NewService(stub)
 	stream := &respondStreamServerStub{}
 
-	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
 	require.NoError(t, err)
-	require.Equal(t, handpb.RespondEvent_TRACE_EVENT, stream.events[0].GetType())
+	require.Equal(t, morphpb.RespondEvent_TRACE_EVENT, stream.events[0].GetType())
 	require.JSONEq(t, `{"name":"read_file","tool_call_id":"call_1"}`, stream.events[0].GetTracePayloadJson())
 	require.NotContains(t, stream.events[0].GetTracePayloadJson(), "SECRET=example")
 }
@@ -545,7 +545,7 @@ func TestTraceEventToProtoRespondEvent_UsesCurrentTimeWhenTraceTimestampIsMissin
 
 	after := time.Now().UTC()
 	require.True(t, ok)
-	require.Equal(t, handpb.RespondEvent_TRACE_EVENT, event.GetType())
+	require.Equal(t, morphpb.RespondEvent_TRACE_EVENT, event.GetType())
 	require.Equal(t, "default", event.GetTraceSessionId())
 	require.Equal(t, trace.EvtSessionFailed, event.GetTraceType())
 	require.NotNil(t, event.GetTimestamp())
@@ -1176,7 +1176,7 @@ func TestService_CreateSessionReturnsSummary(t *testing.T) {
 	}}
 	svc := NewService(stub)
 
-	resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
+	resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{Id: "project-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", resp.GetSession().GetId())
@@ -1191,7 +1191,7 @@ func TestService_CreateSessionCanSkipAutoSwitch(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{ID: "project-a"}}
 	svc := NewService(stub)
 
-	resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{
+	resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{
 		Id:         "project-a",
 		AutoSwitch: &autoSwitch,
 	})
@@ -1207,16 +1207,16 @@ func TestIsCreateSessionAutoSwitchEnabled_DefaultsToEnabled(t *testing.T) {
 	autoSwitchOff := false
 
 	require.False(t, isCreateSessionAutoSwitchEnabled(nil))
-	require.True(t, isCreateSessionAutoSwitchEnabled(&handpb.CreateSessionRequest{}))
-	require.True(t, isCreateSessionAutoSwitchEnabled(&handpb.CreateSessionRequest{AutoSwitch: &autoSwitchOn}))
-	require.False(t, isCreateSessionAutoSwitchEnabled(&handpb.CreateSessionRequest{AutoSwitch: &autoSwitchOff}))
+	require.True(t, isCreateSessionAutoSwitchEnabled(&morphpb.CreateSessionRequest{}))
+	require.True(t, isCreateSessionAutoSwitchEnabled(&morphpb.CreateSessionRequest{AutoSwitch: &autoSwitchOn}))
+	require.False(t, isCreateSessionAutoSwitchEnabled(&morphpb.CreateSessionRequest{AutoSwitch: &autoSwitchOff}))
 }
 
 func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{})
+		resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1225,7 +1225,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{})
+		resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1243,7 +1243,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session already exists")})
 
-		resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
+		resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.AlreadyExists, "session already exists")
 		require.Nil(t, resp)
@@ -1255,7 +1255,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 			UseSessionErr:  errors.New("session not found"),
 		})
 
-		resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
+		resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.NotFound, "session not found")
 		require.Nil(t, resp)
@@ -1269,7 +1269,7 @@ func TestService_ListSessionsReturnsItems(t *testing.T) {
 	}}
 	svc := NewService(stub)
 
-	resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{})
+	resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{})
 
 	require.NoError(t, err)
 	require.Len(t, resp.GetSessions(), 2)
@@ -1286,7 +1286,7 @@ func TestService_ListSessionsReturnsArchivedItems(t *testing.T) {
 	svc := NewService(stub)
 	archived := true
 
-	resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{Archived: &archived})
+	resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{Archived: &archived})
 
 	require.NoError(t, err)
 	require.Len(t, resp.GetSessions(), 1)
@@ -1302,7 +1302,7 @@ func TestService_ListSessionsWithArchivedFalseReturnsActiveItems(t *testing.T) {
 	svc := NewService(stub)
 	archived := false
 
-	resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{Archived: &archived})
+	resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{Archived: &archived})
 
 	require.NoError(t, err)
 	require.Len(t, resp.GetSessions(), 1)
@@ -1313,7 +1313,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{})
+		resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1322,7 +1322,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{})
+		resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1340,7 +1340,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("boom")})
 
-		resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{})
+		resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{})
 
 		requireStatusError(t, err, codes.Internal, "boom")
 		require.Nil(t, resp)
@@ -1350,7 +1350,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 func TestService_UseSessionReturnsSessionID(t *testing.T) {
 	svc := NewService(&agentstub.AgentServiceStub{})
 
-	resp, err := svc.Use(context.Background(), &handpb.UseSessionRequest{Id: "project-a"})
+	resp, err := svc.Use(context.Background(), &morphpb.UseSessionRequest{Id: "project-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", resp.GetId())
@@ -1360,7 +1360,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.Use(context.Background(), &handpb.UseSessionRequest{})
+		resp, err := svc.Use(context.Background(), &morphpb.UseSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1369,7 +1369,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.Use(context.Background(), &handpb.UseSessionRequest{})
+		resp, err := svc.Use(context.Background(), &morphpb.UseSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1387,7 +1387,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
-		resp, err := svc.Use(context.Background(), &handpb.UseSessionRequest{Id: "project-a"})
+		resp, err := svc.Use(context.Background(), &morphpb.UseSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.NotFound, "session not found")
 		require.Nil(t, resp)
@@ -1398,7 +1398,7 @@ func TestService_ArchiveSessionReturnsSessionID(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{}
 	svc := NewService(stub)
 
-	resp, err := svc.Archive(context.Background(), &handpb.ArchiveSessionRequest{Id: "project-a"})
+	resp, err := svc.Archive(context.Background(), &morphpb.ArchiveSessionRequest{Id: "project-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", resp.GetId())
@@ -1409,7 +1409,7 @@ func TestService_ArchiveSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.Archive(context.Background(), &handpb.ArchiveSessionRequest{})
+		resp, err := svc.Archive(context.Background(), &morphpb.ArchiveSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1418,7 +1418,7 @@ func TestService_ArchiveSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.Archive(context.Background(), &handpb.ArchiveSessionRequest{})
+		resp, err := svc.Archive(context.Background(), &morphpb.ArchiveSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1436,7 +1436,7 @@ func TestService_ArchiveSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{ArchiveSessionErr: errors.New("session not found")})
 
-		resp, err := svc.Archive(context.Background(), &handpb.ArchiveSessionRequest{Id: "project-a"})
+		resp, err := svc.Archive(context.Background(), &morphpb.ArchiveSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.NotFound, "session not found")
 		require.Nil(t, resp)
@@ -1451,7 +1451,7 @@ func TestService_UnarchiveSessionReturnsSummary(t *testing.T) {
 	}}
 	svc := NewService(stub)
 
-	resp, err := svc.Unarchive(context.Background(), &handpb.UnarchiveSessionRequest{Id: "project-a"})
+	resp, err := svc.Unarchive(context.Background(), &morphpb.UnarchiveSessionRequest{Id: "project-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", stub.UnarchivedSessionID)
@@ -1464,7 +1464,7 @@ func TestService_UnarchiveSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.Unarchive(context.Background(), &handpb.UnarchiveSessionRequest{})
+		resp, err := svc.Unarchive(context.Background(), &morphpb.UnarchiveSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1473,7 +1473,7 @@ func TestService_UnarchiveSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.Unarchive(context.Background(), &handpb.UnarchiveSessionRequest{})
+		resp, err := svc.Unarchive(context.Background(), &morphpb.UnarchiveSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1491,7 +1491,7 @@ func TestService_UnarchiveSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing session", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{UnarchiveSessionErr: errors.New("session not found")})
 
-		resp, err := svc.Unarchive(context.Background(), &handpb.UnarchiveSessionRequest{Id: "project-a"})
+		resp, err := svc.Unarchive(context.Background(), &morphpb.UnarchiveSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.NotFound, "session not found")
 		require.Nil(t, resp)
@@ -1500,7 +1500,7 @@ func TestService_UnarchiveSessionRejectsInvalidState(t *testing.T) {
 	t.Run("non archived session", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{UnarchiveSessionErr: errors.New("session is not archived")})
 
-		resp, err := svc.Unarchive(context.Background(), &handpb.UnarchiveSessionRequest{Id: "project-a"})
+		resp, err := svc.Unarchive(context.Background(), &morphpb.UnarchiveSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.FailedPrecondition, "session is not archived")
 		require.Nil(t, resp)
@@ -1515,7 +1515,7 @@ func TestService_RenameSessionReturnsSummary(t *testing.T) {
 	}}
 	svc := NewService(stub)
 
-	resp, err := svc.Rename(context.Background(), &handpb.RenameSessionRequest{
+	resp, err := svc.Rename(context.Background(), &morphpb.RenameSessionRequest{
 		Id:    "project-a",
 		Title: "Project Planning",
 	})
@@ -1532,7 +1532,7 @@ func TestService_RenameSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.Rename(context.Background(), &handpb.RenameSessionRequest{})
+		resp, err := svc.Rename(context.Background(), &morphpb.RenameSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1541,7 +1541,7 @@ func TestService_RenameSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.Rename(context.Background(), &handpb.RenameSessionRequest{})
+		resp, err := svc.Rename(context.Background(), &morphpb.RenameSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1559,7 +1559,7 @@ func TestService_RenameSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{RenameSessionErr: errors.New("session title is required")})
 
-		resp, err := svc.Rename(context.Background(), &handpb.RenameSessionRequest{
+		resp, err := svc.Rename(context.Background(), &morphpb.RenameSessionRequest{
 			Id:    "project-a",
 			Title: " ",
 		})
@@ -1580,7 +1580,7 @@ func TestService_CompactSessionReturnsResult(t *testing.T) {
 		TotalContextLength:   128000,
 	}})
 
-	resp, err := svc.Compact(context.Background(), &handpb.CompactSessionRequest{Id: "project-a"})
+	resp, err := svc.Compact(context.Background(), &morphpb.CompactSessionRequest{Id: "project-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", resp.GetId())
@@ -1595,7 +1595,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.Compact(context.Background(), &handpb.CompactSessionRequest{})
+		resp, err := svc.Compact(context.Background(), &morphpb.CompactSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1604,7 +1604,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.Compact(context.Background(), &handpb.CompactSessionRequest{})
+		resp, err := svc.Compact(context.Background(), &morphpb.CompactSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1622,7 +1622,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
-		resp, err := svc.Compact(context.Background(), &handpb.CompactSessionRequest{Id: "project-a"})
+		resp, err := svc.Compact(context.Background(), &morphpb.CompactSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.NotFound, "session not found")
 		require.Nil(t, resp)
@@ -1643,9 +1643,9 @@ func TestService_RepairSessionReturnsResult(t *testing.T) {
 	}}
 	svc := NewService(stub)
 
-	resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{
-		Type: handpb.RepairSessionRequest_VECTOR,
-		Vector: &handpb.VectorRepairOption{
+	resp, err := svc.Repair(context.Background(), &morphpb.RepairSessionRequest{
+		Type: morphpb.RepairSessionRequest_VECTOR,
+		Vector: &morphpb.VectorRepairOption{
 			Id:   "project-a",
 			Full: true,
 		},
@@ -1654,7 +1654,7 @@ func TestService_RepairSessionReturnsResult(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "project-a", stub.RepairOptions.SessionID)
 	require.True(t, stub.RepairOptions.Full)
-	require.Equal(t, handpb.RepairSessionRequest_VECTOR, resp.GetType())
+	require.Equal(t, morphpb.RepairSessionRequest_VECTOR, resp.GetType())
 	require.EqualValues(t, 2, resp.GetVector().GetSessionsScanned())
 	require.EqualValues(t, 3, resp.GetVector().GetMessagesScanned())
 	require.EqualValues(t, 4, resp.GetVector().GetRowsScanned())
@@ -1670,7 +1670,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{})
+		resp, err := svc.Repair(context.Background(), &morphpb.RepairSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1679,7 +1679,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{})
+		resp, err := svc.Repair(context.Background(), &morphpb.RepairSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1697,7 +1697,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	t.Run("unsupported type", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{})
+		resp, err := svc.Repair(context.Background(), &morphpb.RepairSessionRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "repair session type must be vector")
 		require.Nil(t, resp)
@@ -1706,8 +1706,8 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing vector options", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{
-			Type: handpb.RepairSessionRequest_VECTOR,
+		resp, err := svc.Repair(context.Background(), &morphpb.RepairSessionRequest{
+			Type: morphpb.RepairSessionRequest_VECTOR,
 		})
 
 		requireStatusError(t, err, codes.InvalidArgument, "repair session vector options are required")
@@ -1717,9 +1717,9 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
-		resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{
-			Type: handpb.RepairSessionRequest_VECTOR,
-			Vector: &handpb.VectorRepairOption{
+		resp, err := svc.Repair(context.Background(), &morphpb.RepairSessionRequest{
+			Type: morphpb.RepairSessionRequest_VECTOR,
+			Vector: &morphpb.VectorRepairOption{
 				Id: "project-a",
 			},
 		})
@@ -1746,8 +1746,8 @@ func TestService_GetSessionStatusReturnsResult(t *testing.T) {
 		CompactionStatus: "running",
 	}})
 
-	resp, err := svc.Status(context.Background(), &handpb.GetSessionStatusRequest{
-		Context: &handpb.GetSessionStatusRequestContext{Id: "project-a"},
+	resp, err := svc.Status(context.Background(), &morphpb.GetSessionStatusRequest{
+		Context: &morphpb.GetSessionStatusRequestContext{Id: "project-a"},
 	})
 
 	require.NoError(t, err)
@@ -1769,7 +1769,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.Status(context.Background(), &handpb.GetSessionStatusRequest{})
+		resp, err := svc.Status(context.Background(), &morphpb.GetSessionStatusRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1778,7 +1778,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.Status(context.Background(), &handpb.GetSessionStatusRequest{})
+		resp, err := svc.Status(context.Background(), &morphpb.GetSessionStatusRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1796,7 +1796,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	t.Run("nil context", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.Status(context.Background(), &handpb.GetSessionStatusRequest{})
+		resp, err := svc.Status(context.Background(), &morphpb.GetSessionStatusRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "get session status request context is required")
 		require.Nil(t, resp)
@@ -1805,8 +1805,8 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
-		resp, err := svc.Status(context.Background(), &handpb.GetSessionStatusRequest{
-			Context: &handpb.GetSessionStatusRequestContext{Id: "project-a"},
+		resp, err := svc.Status(context.Background(), &morphpb.GetSessionStatusRequest{
+			Context: &morphpb.GetSessionStatusRequestContext{Id: "project-a"},
 		})
 
 		requireStatusError(t, err, codes.NotFound, "session not found")
@@ -1835,7 +1835,7 @@ func TestService_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
 	}
 	svc := NewServiceWithOptions(stub, ServiceOptions{GatewayPairingSecret: "secret"})
 
-	list, err := svc.ListPairings(context.Background(), &handpb.ListGatewayPairingsRequest{Source: "telegram"})
+	list, err := svc.ListPairings(context.Background(), &morphpb.ListGatewayPairingsRequest{Source: "telegram"})
 	require.NoError(t, err)
 	require.Len(t, list.GetPending(), 1)
 	require.Equal(t, "123", list.GetPending()[0].GetSenderId())
@@ -1846,7 +1846,7 @@ func TestService_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
 
 	code, err := pairing.NewManager(pairing.Options{Store: stub, Secret: "secret"}).Code("telegram", "123", time.Now().UTC())
 	require.NoError(t, err)
-	approved, err := svc.ApprovePairing(context.Background(), &handpb.ApproveGatewayPairingRequest{
+	approved, err := svc.ApprovePairing(context.Background(), &morphpb.ApproveGatewayPairingRequest{
 		Source: "telegram",
 		Code:   code,
 	})
@@ -1854,7 +1854,7 @@ func TestService_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
 	require.True(t, approved.GetApproved())
 	require.Equal(t, "123", approved.GetSender().GetSenderId())
 
-	_, err = svc.RevokePairing(context.Background(), &handpb.RevokeGatewayPairingRequest{
+	_, err = svc.RevokePairing(context.Background(), &morphpb.RevokeGatewayPairingRequest{
 		Source:   "telegram",
 		SenderId: "123",
 	})
@@ -1862,7 +1862,7 @@ func TestService_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
 	require.Equal(t, "telegram", stub.RevokedPairingSource)
 	require.Equal(t, "123", stub.RevokedPairingSender)
 
-	_, err = svc.ClearPendingPairings(context.Background(), &handpb.ClearPendingGatewayPairingsRequest{Source: "telegram"})
+	_, err = svc.ClearPendingPairings(context.Background(), &morphpb.ClearPendingGatewayPairingsRequest{Source: "telegram"})
 	require.NoError(t, err)
 	require.Equal(t, "telegram", stub.ClearedPairingSource)
 
@@ -1898,13 +1898,13 @@ func TestService_GatewayRuntimeStatusStartStopAndRestart(t *testing.T) {
 		GatewayRuntime: runtime,
 	})
 
-	statusResp, err := svc.GatewayStatus(context.Background(), &handpb.GetGatewayStatusRequest{})
+	statusResp, err := svc.GatewayStatus(context.Background(), &morphpb.GetGatewayStatusRequest{})
 	require.NoError(t, err)
 	require.Equal(t, "stopped", statusResp.GetStatus().GetState())
 	require.Equal(t, int32(50052), statusResp.GetStatus().GetPort())
 
 	startCtx, cancelStart := context.WithCancel(context.Background())
-	startResp, err := svc.Start(startCtx, &handpb.StartGatewayRequest{})
+	startResp, err := svc.Start(startCtx, &morphpb.StartGatewayRequest{})
 	require.NoError(t, err)
 	require.True(t, runtime.started)
 	require.Equal(t, "127.0.0.1", runtime.startCfg.Address)
@@ -1913,7 +1913,7 @@ func TestService_GatewayRuntimeStatusStartStopAndRestart(t *testing.T) {
 	cancelStart()
 	requireRuntimeContextActive(t, runtime.startCtx)
 
-	stopResp, err := svc.Stop(context.Background(), &handpb.StopGatewayRequest{})
+	stopResp, err := svc.Stop(context.Background(), &morphpb.StopGatewayRequest{})
 	require.NoError(t, err)
 	require.True(t, runtime.stopped)
 	require.Equal(t, "stopped", stopResp.GetStatus().GetState())
@@ -1921,7 +1921,7 @@ func TestService_GatewayRuntimeStatusStartStopAndRestart(t *testing.T) {
 	runtime.started = false
 	runtime.stopped = false
 	restartCtx, cancelRestart := context.WithCancel(context.Background())
-	restartResp, err := svc.Restart(restartCtx, &handpb.RestartGatewayRequest{})
+	restartResp, err := svc.Restart(restartCtx, &morphpb.RestartGatewayRequest{})
 	require.NoError(t, err)
 	require.True(t, runtime.started)
 	require.True(t, runtime.stopped)
@@ -1973,13 +1973,13 @@ func TestService_GatewayRuntimeRejectsInvalidState(t *testing.T) {
 		GatewayRuntime: runtime,
 	})
 
-	resp, err := svc.Start(context.Background(), &handpb.StartGatewayRequest{})
+	resp, err := svc.Start(context.Background(), &morphpb.StartGatewayRequest{})
 
 	requireStatusError(
 		t,
 		err,
 		codes.InvalidArgument,
-		"gateway telegram bot token is required when telegram gateway is enabled; set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token",
+		"gateway telegram bot token is required when telegram gateway is enabled; set MORPH_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token",
 	)
 	require.Nil(t, resp)
 	require.False(t, runtime.started)
@@ -1990,44 +1990,44 @@ func TestService_GatewayRuntimeRejectsInvalidState(t *testing.T) {
 		GatewayConfig:  cfg,
 		GatewayRuntime: runtime,
 	})
-	resp, err = svc.Start(context.Background(), &handpb.StartGatewayRequest{})
+	resp, err = svc.Start(context.Background(), &morphpb.StartGatewayRequest{})
 
 	requireStatusError(t, err, codes.FailedPrecondition, "gateway is disabled")
 	require.Nil(t, resp)
 
-	restartResp, err := svc.Restart(context.Background(), &handpb.RestartGatewayRequest{})
+	restartResp, err := svc.Restart(context.Background(), &morphpb.RestartGatewayRequest{})
 	requireStatusError(t, err, codes.FailedPrecondition, "gateway is disabled")
 	require.Nil(t, restartResp)
 }
 
 func TestService_GatewayRuntimeRejectsMissingRuntime(t *testing.T) {
-	resp, err := NewService(&agentstub.AgentServiceStub{}).Start(context.Background(), &handpb.StartGatewayRequest{})
+	resp, err := NewService(&agentstub.AgentServiceStub{}).Start(context.Background(), &morphpb.StartGatewayRequest{})
 
 	requireStatusError(t, err, codes.Internal, "gateway runtime is required")
 	require.Nil(t, resp)
 
-	stopResp, err := NewService(&agentstub.AgentServiceStub{}).Stop(context.Background(), &handpb.StopGatewayRequest{})
+	stopResp, err := NewService(&agentstub.AgentServiceStub{}).Stop(context.Background(), &morphpb.StopGatewayRequest{})
 	requireStatusError(t, err, codes.Internal, "gateway runtime is required")
 	require.Nil(t, stopResp)
 
-	restartResp, err := NewService(&agentstub.AgentServiceStub{}).Restart(context.Background(), &handpb.RestartGatewayRequest{})
+	restartResp, err := NewService(&agentstub.AgentServiceStub{}).Restart(context.Background(), &morphpb.RestartGatewayRequest{})
 	requireStatusError(t, err, codes.Internal, "gateway runtime is required")
 	require.Nil(t, restartResp)
 
 	svc := NewServiceWithOptions(nil, ServiceOptions{GatewayRuntime: &gatewayRuntimeStub{}})
-	resp, err = svc.Start(context.Background(), &handpb.StartGatewayRequest{})
+	resp, err = svc.Start(context.Background(), &morphpb.StartGatewayRequest{})
 	requireStatusError(t, err, codes.Internal, "agent handler is required")
 	require.Nil(t, resp)
 
-	resp, err = (*Service)(nil).Start(context.Background(), &handpb.StartGatewayRequest{})
+	resp, err = (*Service)(nil).Start(context.Background(), &morphpb.StartGatewayRequest{})
 	requireStatusError(t, err, codes.Internal, "service is required")
 	require.Nil(t, resp)
 
-	stopResp, err = (*Service)(nil).Stop(context.Background(), &handpb.StopGatewayRequest{})
+	stopResp, err = (*Service)(nil).Stop(context.Background(), &morphpb.StopGatewayRequest{})
 	requireStatusError(t, err, codes.Internal, "service is required")
 	require.Nil(t, stopResp)
 
-	restartResp, err = (*Service)(nil).Restart(context.Background(), &handpb.RestartGatewayRequest{})
+	restartResp, err = (*Service)(nil).Restart(context.Background(), &morphpb.RestartGatewayRequest{})
 	requireStatusError(t, err, codes.Internal, "service is required")
 	require.Nil(t, restartResp)
 
@@ -2049,28 +2049,28 @@ func TestService_GatewayRuntimePropagatesRuntimeErrors(t *testing.T) {
 			name:    "start",
 			runtime: &gatewayRuntimeStub{startErr: errors.New("runtime failed")},
 			run: func(svc *Service) (any, error) {
-				return svc.Start(context.Background(), &handpb.StartGatewayRequest{})
+				return svc.Start(context.Background(), &morphpb.StartGatewayRequest{})
 			},
 		},
 		{
 			name:    "stop",
 			runtime: &gatewayRuntimeStub{stopErr: errors.New("runtime failed")},
 			run: func(svc *Service) (any, error) {
-				return svc.Stop(context.Background(), &handpb.StopGatewayRequest{})
+				return svc.Stop(context.Background(), &morphpb.StopGatewayRequest{})
 			},
 		},
 		{
 			name:    "restart stop",
 			runtime: &gatewayRuntimeStub{stopErr: errors.New("runtime failed")},
 			run: func(svc *Service) (any, error) {
-				return svc.Restart(context.Background(), &handpb.RestartGatewayRequest{})
+				return svc.Restart(context.Background(), &morphpb.RestartGatewayRequest{})
 			},
 		},
 		{
 			name:    "restart start",
 			runtime: &gatewayRuntimeStub{startErr: errors.New("runtime failed")},
 			run: func(svc *Service) (any, error) {
-				return svc.Restart(context.Background(), &handpb.RestartGatewayRequest{})
+				return svc.Restart(context.Background(), &morphpb.RestartGatewayRequest{})
 			},
 		},
 	}
@@ -2096,7 +2096,7 @@ func TestService_GatewayPairingRejectsMissingStore(t *testing.T) {
 		ServiceOptions{GatewayPairingSecret: "secret"},
 	)
 
-	resp, err := svc.ListPairings(context.Background(), &handpb.ListGatewayPairingsRequest{})
+	resp, err := svc.ListPairings(context.Background(), &morphpb.ListGatewayPairingsRequest{})
 
 	requireStatusError(t, err, codes.Internal, "gateway pairing store is required")
 	require.Nil(t, resp)
@@ -2125,7 +2125,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 			listPairedErr:    expected,
 		})
 
-		resp, err := svc.ListPairings(context.Background(), &handpb.ListGatewayPairingsRequest{})
+		resp, err := svc.ListPairings(context.Background(), &morphpb.ListGatewayPairingsRequest{})
 
 		requireStatusError(t, err, codes.Internal, expected.Error())
 		require.Nil(t, resp)
@@ -2137,21 +2137,21 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 			listPendingErr:   expected,
 		})
 
-		resp, err := svc.ListPairings(context.Background(), &handpb.ListGatewayPairingsRequest{})
+		resp, err := svc.ListPairings(context.Background(), &morphpb.ListGatewayPairingsRequest{})
 
 		requireStatusError(t, err, codes.Internal, expected.Error())
 		require.Nil(t, resp)
 	})
 
 	t.Run("approve nil service", func(t *testing.T) {
-		resp, err := (*Service)(nil).ApprovePairing(context.Background(), &handpb.ApproveGatewayPairingRequest{})
+		resp, err := (*Service)(nil).ApprovePairing(context.Background(), &morphpb.ApproveGatewayPairingRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("approve nil api", func(t *testing.T) {
-		resp, err := (&Service{}).ApprovePairing(context.Background(), &handpb.ApproveGatewayPairingRequest{})
+		resp, err := (&Service{}).ApprovePairing(context.Background(), &morphpb.ApproveGatewayPairingRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -2167,7 +2167,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	t.Run("approve missing store", func(t *testing.T) {
 		svc := NewService(serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}})
 
-		resp, err := svc.ApprovePairing(context.Background(), &handpb.ApproveGatewayPairingRequest{})
+		resp, err := svc.ApprovePairing(context.Background(), &morphpb.ApproveGatewayPairingRequest{})
 
 		requireStatusError(t, err, codes.Internal, "gateway pairing store is required")
 		require.Nil(t, resp)
@@ -2176,7 +2176,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	t.Run("approve missing pairing secret", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.ApprovePairing(context.Background(), &handpb.ApproveGatewayPairingRequest{
+		resp, err := svc.ApprovePairing(context.Background(), &morphpb.ApproveGatewayPairingRequest{
 			Source: "telegram",
 			Code:   "12345678",
 		})
@@ -2186,14 +2186,14 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("revoke nil service", func(t *testing.T) {
-		resp, err := (*Service)(nil).RevokePairing(context.Background(), &handpb.RevokeGatewayPairingRequest{})
+		resp, err := (*Service)(nil).RevokePairing(context.Background(), &morphpb.RevokeGatewayPairingRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("revoke nil api", func(t *testing.T) {
-		resp, err := (&Service{}).RevokePairing(context.Background(), &handpb.RevokeGatewayPairingRequest{})
+		resp, err := (&Service{}).RevokePairing(context.Background(), &morphpb.RevokeGatewayPairingRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -2209,7 +2209,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	t.Run("revoke missing store", func(t *testing.T) {
 		svc := NewService(serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}})
 
-		resp, err := svc.RevokePairing(context.Background(), &handpb.RevokeGatewayPairingRequest{})
+		resp, err := svc.RevokePairing(context.Background(), &morphpb.RevokeGatewayPairingRequest{})
 
 		requireStatusError(t, err, codes.Internal, "gateway pairing store is required")
 		require.Nil(t, resp)
@@ -2218,7 +2218,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	t.Run("revoke store error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: expected})
 
-		resp, err := svc.RevokePairing(context.Background(), &handpb.RevokeGatewayPairingRequest{
+		resp, err := svc.RevokePairing(context.Background(), &morphpb.RevokeGatewayPairingRequest{
 			Source:   "telegram",
 			SenderId: "123",
 		})
@@ -2255,7 +2255,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 
 		resp, err := svc.ClearPendingPairings(
 			context.Background(),
-			&handpb.ClearPendingGatewayPairingsRequest{Source: "telegram"},
+			&morphpb.ClearPendingGatewayPairingsRequest{Source: "telegram"},
 		)
 
 		requireStatusError(t, err, codes.Internal, expected.Error())
@@ -2296,7 +2296,7 @@ func TestService_CurrentSessionReturnsValue(t *testing.T) {
 		},
 	})
 
-	resp, err := svc.Current(context.Background(), &handpb.CurrentSessionRequest{})
+	resp, err := svc.Current(context.Background(), &morphpb.CurrentSessionRequest{})
 
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, resp.GetId())
@@ -2308,7 +2308,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.Current(context.Background(), &handpb.CurrentSessionRequest{})
+		resp, err := svc.Current(context.Background(), &morphpb.CurrentSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -2317,7 +2317,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.Current(context.Background(), &handpb.CurrentSessionRequest{})
+		resp, err := svc.Current(context.Background(), &morphpb.CurrentSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -2335,7 +2335,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("boom")})
 
-		resp, err := svc.Current(context.Background(), &handpb.CurrentSessionRequest{})
+		resp, err := svc.Current(context.Background(), &morphpb.CurrentSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "boom")
 		require.Nil(t, resp)
@@ -2352,14 +2352,14 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 			TitleSource: storage.SessionTitleSourceGenerated,
 			Messages: []agentapi.SessionTimelineMessage{{
 				Offset: 2,
-				Message: handmsg.Message{
+				Message: morphmsg.Message{
 					ID:         7,
-					Role:       handmsg.RoleTool,
+					Role:       morphmsg.RoleTool,
 					Name:       "read_file",
 					ToolCallID: "call_1",
 					Content:    "file content",
 					CreatedAt:  createdAt,
-					ToolCalls:  []handmsg.ToolCall{{ID: "call_2", Name: "search", Input: `{"query":"hello"}`}},
+					ToolCalls:  []morphmsg.ToolCall{{ID: "call_2", Name: "search", Input: `{"query":"hello"}`}},
 				},
 			}},
 			TraceEvents: []agentapi.SessionTimelineTraceEvent{{
@@ -2387,7 +2387,7 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 	}
 	svc := NewService(stub)
 
-	resp, err := svc.Timeline(context.Background(), &handpb.GetSessionTimelineRequest{
+	resp, err := svc.Timeline(context.Background(), &morphpb.GetSessionTimelineRequest{
 		Id:            "default",
 		MessageOffset: 2,
 		MessageLimit:  1,
@@ -2449,7 +2449,7 @@ func TestService_GetSessionTimelineSkipsNonDisplayTraceEvents(t *testing.T) {
 		},
 	})
 
-	resp, err := svc.Timeline(context.Background(), &handpb.GetSessionTimelineRequest{Id: "default"})
+	resp, err := svc.Timeline(context.Background(), &morphpb.GetSessionTimelineRequest{Id: "default"})
 
 	require.NoError(t, err)
 	require.Empty(t, resp.GetTraceEvents())
@@ -2478,7 +2478,7 @@ func TestService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
 	}
 	svc := NewService(stub)
 
-	resp, err := svc.ListModels(context.Background(), &handpb.ListModelsRequest{Provider: "openai"})
+	resp, err := svc.ListModels(context.Background(), &morphpb.ListModelsRequest{Provider: "openai"})
 
 	require.NoError(t, err)
 	require.Equal(t, "openai", stub.ModelListOptions.Provider)
@@ -2512,7 +2512,7 @@ func TestService_ListProvidersReturnsOptions(t *testing.T) {
 		},
 	})
 
-	resp, err := svc.ListProviders(context.Background(), &handpb.ListProvidersRequest{})
+	resp, err := svc.ListProviders(context.Background(), &morphpb.ListProvidersRequest{})
 
 	require.NoError(t, err)
 	require.Len(t, resp.GetProviders(), 1)
@@ -2532,7 +2532,7 @@ func TestService_SelectModelReturnsSelectedOption(t *testing.T) {
 	}
 	svc := NewService(stub)
 
-	resp, err := svc.SelectModel(context.Background(), &handpb.SelectModelRequest{Id: "gpt-4o", Provider: "openai"})
+	resp, err := svc.SelectModel(context.Background(), &morphpb.SelectModelRequest{Id: "gpt-4o", Provider: "openai"})
 
 	require.NoError(t, err)
 	require.Equal(t, "gpt-4o", stub.SelectedModelID)
@@ -2545,7 +2545,7 @@ func TestService_SetProviderAPIKeySendsProviderAndKey(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{}
 	svc := NewService(stub)
 
-	resp, err := svc.SetProviderAPIKey(context.Background(), &handpb.SetProviderAPIKeyRequest{
+	resp, err := svc.SetProviderAPIKey(context.Background(), &morphpb.SetProviderAPIKeyRequest{
 		Provider: "openrouter",
 		ApiKey:   "router-key",
 	})
@@ -2560,7 +2560,7 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 	t.Run("list nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.ListModels(context.Background(), &handpb.ListModelsRequest{})
+		resp, err := svc.ListModels(context.Background(), &morphpb.ListModelsRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -2569,21 +2569,21 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 	t.Run("list providers nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.ListProviders(context.Background(), &handpb.ListProvidersRequest{})
+		resp, err := svc.ListProviders(context.Background(), &morphpb.ListProvidersRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("list missing handler", func(t *testing.T) {
-		resp, err := NewService(nil).ListModels(context.Background(), &handpb.ListModelsRequest{})
+		resp, err := NewService(nil).ListModels(context.Background(), &morphpb.ListModelsRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("list providers missing handler", func(t *testing.T) {
-		resp, err := NewService(nil).ListProviders(context.Background(), &handpb.ListProvidersRequest{})
+		resp, err := NewService(nil).ListProviders(context.Background(), &morphpb.ListProvidersRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -2620,21 +2620,21 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 	t.Run("select nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.SelectModel(context.Background(), &handpb.SelectModelRequest{})
+		resp, err := svc.SelectModel(context.Background(), &morphpb.SelectModelRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("select missing handler", func(t *testing.T) {
-		resp, err := NewService(nil).SelectModel(context.Background(), &handpb.SelectModelRequest{})
+		resp, err := NewService(nil).SelectModel(context.Background(), &morphpb.SelectModelRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("set provider api key missing handler", func(t *testing.T) {
-		resp, err := NewService(nil).SetProviderAPIKey(context.Background(), &handpb.SetProviderAPIKeyRequest{})
+		resp, err := NewService(nil).SetProviderAPIKey(context.Background(), &morphpb.SetProviderAPIKeyRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -2643,7 +2643,7 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 	t.Run("set provider api key nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.SetProviderAPIKey(context.Background(), &handpb.SetProviderAPIKeyRequest{})
+		resp, err := svc.SetProviderAPIKey(context.Background(), &morphpb.SetProviderAPIKeyRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -2651,7 +2651,7 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 
 	t.Run("list handler error", func(t *testing.T) {
 		resp, err := NewService(&agentstub.AgentServiceStub{Err: errors.New("config is required")}).
-			ListModels(context.Background(), &handpb.ListModelsRequest{})
+			ListModels(context.Background(), &morphpb.ListModelsRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "config is required")
 		require.Nil(t, resp)
@@ -2659,7 +2659,7 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 
 	t.Run("list providers handler error", func(t *testing.T) {
 		resp, err := NewService(&agentstub.AgentServiceStub{Err: errors.New("config is required")}).
-			ListProviders(context.Background(), &handpb.ListProvidersRequest{})
+			ListProviders(context.Background(), &morphpb.ListProvidersRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "config is required")
 		require.Nil(t, resp)
@@ -2667,7 +2667,7 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 
 	t.Run("select error", func(t *testing.T) {
 		resp, err := NewService(&agentstub.AgentServiceStub{SelectModelErr: errors.New("model id is required")}).
-			SelectModel(context.Background(), &handpb.SelectModelRequest{})
+			SelectModel(context.Background(), &morphpb.SelectModelRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "model id is required")
 		require.Nil(t, resp)
@@ -2675,7 +2675,7 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 
 	t.Run("set provider api key error", func(t *testing.T) {
 		resp, err := NewService(&agentstub.AgentServiceStub{SetProviderAPIKeyErr: errors.New("provider API key is required")}).
-			SetProviderAPIKey(context.Background(), &handpb.SetProviderAPIKeyRequest{})
+			SetProviderAPIKey(context.Background(), &morphpb.SetProviderAPIKeyRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "provider API key is required")
 		require.Nil(t, resp)
@@ -2696,7 +2696,7 @@ func TestService_GetSessionTimelineRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.Timeline(context.Background(), &handpb.GetSessionTimelineRequest{})
+		resp, err := svc.Timeline(context.Background(), &morphpb.GetSessionTimelineRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -2705,7 +2705,7 @@ func TestService_GetSessionTimelineRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.Timeline(context.Background(), &handpb.GetSessionTimelineRequest{})
+		resp, err := svc.Timeline(context.Background(), &morphpb.GetSessionTimelineRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -2723,7 +2723,7 @@ func TestService_GetSessionTimelineRejectsInvalidState(t *testing.T) {
 	t.Run("handler validation error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("message offset must be greater than or equal to zero")})
 
-		resp, err := svc.Timeline(context.Background(), &handpb.GetSessionTimelineRequest{})
+		resp, err := svc.Timeline(context.Background(), &morphpb.GetSessionTimelineRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "message offset must be greater than or equal to zero")
 		require.Nil(t, resp)

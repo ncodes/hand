@@ -1,4 +1,4 @@
-module github.com/wandxy/hand
+module github.com/wandxy/morph
 
 go 1.26.1
 

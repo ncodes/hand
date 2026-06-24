@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	protomock "github.com/wandxy/hand/internal/mocks/proto"
-	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/trace"
-	agent "github.com/wandxy/hand/pkg/agent"
+	protomock "github.com/wandxy/morph/internal/mocks/proto"
+	morphpb "github.com/wandxy/morph/internal/rpc/proto"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/trace"
+	agent "github.com/wandxy/morph/pkg/agent"
 )
 
 type reconnectRecorder struct {
@@ -30,9 +30,9 @@ func (r *reconnectRecorder) Connect() {
 }
 
 func TestClient_RespondSendsInstruct(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
-		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "hello back", Channel: handpb.RespondEvent_ASSISTANT},
-		{Type: handpb.RespondEvent_DONE},
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
+		{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "hello back", Channel: morphpb.RespondEvent_ASSISTANT},
+		{Type: morphpb.RespondEvent_DONE},
 	}}
 	client := &Client{client: stub}
 
@@ -40,13 +40,13 @@ func TestClient_RespondSendsInstruct(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
-	require.Equal(t, &handpb.RespondRequest{Message: "hello", Instruct: "be terse"}, stub.Req)
+	require.Equal(t, &morphpb.RespondRequest{Message: "hello", Instruct: "be terse"}, stub.Req)
 }
 
 func TestClient_RespondPreparesConnectionBeforeRequest(t *testing.T) {
 	reconnector := &reconnectRecorder{}
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
-		{Type: handpb.RespondEvent_DONE},
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
+		{Type: morphpb.RespondEvent_DONE},
 	}}
 	stub.OnRespond = func() {
 		require.Equal(t, []string{"reset", "connect"}, reconnector.calls)
@@ -60,9 +60,9 @@ func TestClient_RespondPreparesConnectionBeforeRequest(t *testing.T) {
 }
 
 func TestClient_RespondSendsSessionID(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
-		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "hello back", Channel: handpb.RespondEvent_ASSISTANT},
-		{Type: handpb.RespondEvent_DONE},
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
+		{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "hello back", Channel: morphpb.RespondEvent_ASSISTANT},
+		{Type: morphpb.RespondEvent_DONE},
 	}}
 	client := &Client{client: stub}
 
@@ -74,8 +74,8 @@ func TestClient_RespondSendsSessionID(t *testing.T) {
 
 func TestClient_RespondSendsStreamOption(t *testing.T) {
 	stream := false
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
-		{Type: handpb.RespondEvent_DONE},
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
+		{Type: morphpb.RespondEvent_DONE},
 	}}
 	client := &Client{client: stub}
 
@@ -89,7 +89,7 @@ func TestClient_RespondSendsStreamOption(t *testing.T) {
 
 func TestModelService_ListModelsPreparesConnectionBeforeRequest(t *testing.T) {
 	reconnector := &reconnectRecorder{}
-	stub := &protomock.HandServiceClientStub{ModelsResp: &handpb.ListModelsResponse{}}
+	stub := &protomock.MorphServiceClientStub{ModelsResp: &morphpb.ListModelsResponse{}}
 	stub.OnListModels = func() {
 		require.Equal(t, []string{"reset", "connect"}, reconnector.calls)
 	}
@@ -102,7 +102,7 @@ func TestModelService_ListModelsPreparesConnectionBeforeRequest(t *testing.T) {
 }
 
 func TestClient_RespondPropagatesRPCError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := &Client{client: stub}
 
 	reply, err := client.Respond(context.Background(), "hello", RespondOptions{})
@@ -113,10 +113,10 @@ func TestClient_RespondPropagatesRPCError(t *testing.T) {
 }
 
 func TestClient_RespondStreamsTextDeltas(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
-		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "hello ", Channel: handpb.RespondEvent_ASSISTANT},
-		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "back", Channel: handpb.RespondEvent_ASSISTANT},
-		{Type: handpb.RespondEvent_DONE},
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
+		{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "hello ", Channel: morphpb.RespondEvent_ASSISTANT},
+		{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "back", Channel: morphpb.RespondEvent_ASSISTANT},
+		{Type: morphpb.RespondEvent_DONE},
 	}}
 	client := &Client{client: stub}
 
@@ -136,8 +136,8 @@ func TestClient_RespondStreamsTextDeltas(t *testing.T) {
 }
 
 func TestClient_RespondRejectsStreamThatEndsBeforeDone(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
-		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "partial", Channel: handpb.RespondEvent_ASSISTANT},
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
+		{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "partial", Channel: morphpb.RespondEvent_ASSISTANT},
 	}}
 	client := &Client{client: stub}
 
@@ -148,9 +148,9 @@ func TestClient_RespondRejectsStreamThatEndsBeforeDone(t *testing.T) {
 }
 
 func TestClient_RespondPropagatesStreamReceiveError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{
-		Events: []*handpb.RespondEvent{
-			{Type: handpb.RespondEvent_TEXT_DELTA, Text: "partial", Channel: handpb.RespondEvent_ASSISTANT},
+	stub := &protomock.MorphServiceClientStub{
+		Events: []*morphpb.RespondEvent{
+			{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "partial", Channel: morphpb.RespondEvent_ASSISTANT},
 		},
 		RecvErr: context.Canceled,
 	}
@@ -163,9 +163,9 @@ func TestClient_RespondPropagatesStreamReceiveError(t *testing.T) {
 }
 
 func TestClient_RespondReturnsStreamErrorEvent(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
-		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "partial", Channel: handpb.RespondEvent_ASSISTANT},
-		{Type: handpb.RespondEvent_ERROR, Error: " model unavailable "},
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
+		{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "partial", Channel: morphpb.RespondEvent_ASSISTANT},
+		{Type: morphpb.RespondEvent_ERROR, Error: " model unavailable "},
 	}}
 	client := &Client{client: stub}
 
@@ -176,8 +176,8 @@ func TestClient_RespondReturnsStreamErrorEvent(t *testing.T) {
 }
 
 func TestClient_RespondReturnsDefaultStreamErrorMessage(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
-		{Type: handpb.RespondEvent_ERROR},
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
+		{Type: morphpb.RespondEvent_ERROR},
 	}}
 	client := &Client{client: stub}
 
@@ -188,10 +188,10 @@ func TestClient_RespondReturnsDefaultStreamErrorMessage(t *testing.T) {
 }
 
 func TestClient_RespondIgnoresReasoningForFinalReplyAndExposesEvents(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
-		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "thinking", Channel: handpb.RespondEvent_REASONING},
-		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "answer", Channel: handpb.RespondEvent_ASSISTANT},
-		{Type: handpb.RespondEvent_DONE},
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
+		{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "thinking", Channel: morphpb.RespondEvent_REASONING},
+		{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "answer", Channel: morphpb.RespondEvent_ASSISTANT},
+		{Type: morphpb.RespondEvent_DONE},
 	}}
 	client := &Client{client: stub}
 
@@ -212,16 +212,16 @@ func TestClient_RespondIgnoresReasoningForFinalReplyAndExposesEvents(t *testing.
 
 func TestClient_RespondExposesTraceEvents(t *testing.T) {
 	timestamp := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
 		{
-			Type:             handpb.RespondEvent_TRACE_EVENT,
+			Type:             morphpb.RespondEvent_TRACE_EVENT,
 			TraceSessionId:   "default",
 			TraceType:        trace.EvtInputSafetyBlocked,
 			TracePayloadJson: `{"blocked":true,"findings":[{"id":"prompt_exfiltration"}]}`,
 			Timestamp:        timestamppb.New(timestamp),
 		},
-		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "safe", Channel: handpb.RespondEvent_ASSISTANT},
-		{Type: handpb.RespondEvent_DONE},
+		{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "safe", Channel: morphpb.RespondEvent_ASSISTANT},
+		{Type: morphpb.RespondEvent_DONE},
 	}}
 	client := &Client{client: stub}
 
@@ -252,10 +252,10 @@ func TestClient_RespondExposesTraceEvents(t *testing.T) {
 }
 
 func TestClient_RespondIgnoresMalformedTraceEvents(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
-		{Type: handpb.RespondEvent_TRACE_EVENT, TraceType: trace.EvtSessionFailed, TracePayloadJson: `{`},
-		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "safe", Channel: handpb.RespondEvent_ASSISTANT},
-		{Type: handpb.RespondEvent_DONE},
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
+		{Type: morphpb.RespondEvent_TRACE_EVENT, TraceType: trace.EvtSessionFailed, TracePayloadJson: `{`},
+		{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "safe", Channel: morphpb.RespondEvent_ASSISTANT},
+		{Type: morphpb.RespondEvent_DONE},
 	}}
 	client := &Client{client: stub}
 
@@ -272,10 +272,10 @@ func TestClient_RespondIgnoresMalformedTraceEvents(t *testing.T) {
 }
 
 func TestClient_RespondIgnoresTraceEventWithoutType(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
-		{Type: handpb.RespondEvent_TRACE_EVENT, TraceSessionId: "default"},
-		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "safe", Channel: handpb.RespondEvent_ASSISTANT},
-		{Type: handpb.RespondEvent_DONE},
+	stub := &protomock.MorphServiceClientStub{Events: []*morphpb.RespondEvent{
+		{Type: morphpb.RespondEvent_TRACE_EVENT, TraceSessionId: "default"},
+		{Type: morphpb.RespondEvent_TEXT_DELTA, Text: "safe", Channel: morphpb.RespondEvent_ASSISTANT},
+		{Type: morphpb.RespondEvent_DONE},
 	}}
 	client := &Client{client: stub}
 
@@ -292,9 +292,9 @@ func TestClient_RespondIgnoresTraceEventWithoutType(t *testing.T) {
 }
 
 func TestClient_CreateSessionReturnsSummary(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{
-		CreateResp: &handpb.CreateSessionResponse{
-			Session: &handpb.SessionSummary{
+	stub := &protomock.MorphServiceClientStub{
+		CreateResp: &morphpb.CreateSessionResponse{
+			Session: &morphpb.SessionSummary{
 				Id:            "project-a",
 				Title:         "Project Planning",
 				TitleSource:   storage.SessionTitleSourceGenerated,
@@ -316,9 +316,9 @@ func TestClient_CreateSessionReturnsSummary(t *testing.T) {
 
 func TestClient_CreateSessionWithOptionsSendsAutoSwitch(t *testing.T) {
 	autoSwitch := false
-	stub := &protomock.HandServiceClientStub{
-		CreateResp: &handpb.CreateSessionResponse{
-			Session: &handpb.SessionSummary{Id: "project-a"},
+	stub := &protomock.MorphServiceClientStub{
+		CreateResp: &morphpb.CreateSessionResponse{
+			Session: &morphpb.SessionSummary{Id: "project-a"},
 		},
 	}
 	client := NewSessionService(stub)
@@ -336,7 +336,7 @@ func TestClient_CreateSessionWithOptionsSendsAutoSwitch(t *testing.T) {
 }
 
 func TestClient_CreateSessionWithOptionsPropagatesError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := NewSessionService(stub)
 
 	session, err := client.CreateWithOptions(context.Background(), CreateSessionOptions{ID: "project-a"})
@@ -347,7 +347,7 @@ func TestClient_CreateSessionWithOptionsPropagatesError(t *testing.T) {
 }
 
 func TestClient_CreateSessionWithOptionsReturnsEmptySessionForMissingSummary(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{CreateResp: &handpb.CreateSessionResponse{}}
+	stub := &protomock.MorphServiceClientStub{CreateResp: &morphpb.CreateSessionResponse{}}
 	client := NewSessionService(stub)
 
 	session, err := client.CreateWithOptions(context.Background(), CreateSessionOptions{ID: "project-a"})
@@ -360,13 +360,13 @@ func TestClient_CreateSessionWithOptionsReturnsEmptySessionForMissingSummary(t *
 func TestClient_CreateSessionWithOptionsRequiresClient(t *testing.T) {
 	_, err := (*SessionService)(nil).CreateWithOptions(context.Background(), CreateSessionOptions{})
 
-	require.EqualError(t, err, "hand: session service client is required")
+	require.EqualError(t, err, "morph: session service client is required")
 }
 
 func TestClient_ListSessionsReturnsItems(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{
-		ListResp: &handpb.ListSessionsResponse{
-			Sessions: []*handpb.SessionSummary{
+	stub := &protomock.MorphServiceClientStub{
+		ListResp: &morphpb.ListSessionsResponse{
+			Sessions: []*morphpb.SessionSummary{
 				{Id: "default", Title: "Daily Planning", TitleSource: storage.SessionTitleSourceGenerated, UpdatedAtUnix: 10},
 				{Id: "project-a", UpdatedAtUnix: 20},
 			},
@@ -387,9 +387,9 @@ func TestClient_ListSessionsReturnsItems(t *testing.T) {
 }
 
 func TestClient_ListSessionsWithArchivedOptionSendsArchivedFlagAndMarksItems(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{
-		ListResp: &handpb.ListSessionsResponse{
-			Sessions: []*handpb.SessionSummary{
+	stub := &protomock.MorphServiceClientStub{
+		ListResp: &morphpb.ListSessionsResponse{
+			Sessions: []*morphpb.SessionSummary{
 				{Id: "project-a", Title: "Archived Planning", UpdatedAtUnix: 20},
 			},
 		},
@@ -412,11 +412,11 @@ func TestClient_ListSessionsWithArchivedOptionRequiresClient(t *testing.T) {
 
 	_, err := (*SessionService)(nil).List(context.Background(), SessionListOptions{Archived: &archived})
 
-	require.EqualError(t, err, "hand: session service client is required")
+	require.EqualError(t, err, "morph: session service client is required")
 }
 
 func TestClient_ListSessionsWithArchivedOptionReturnsRPCError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := NewSessionService(stub)
 	archived := true
 
@@ -428,7 +428,7 @@ func TestClient_ListSessionsWithArchivedOptionReturnsRPCError(t *testing.T) {
 }
 
 func TestClient_UseSessionSendsSessionID(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{}
+	stub := &protomock.MorphServiceClientStub{}
 	client := NewSessionService(stub)
 
 	err := client.Use(context.Background(), "project-a")
@@ -440,11 +440,11 @@ func TestClient_UseSessionSendsSessionID(t *testing.T) {
 func TestClient_UseSessionRequiresClient(t *testing.T) {
 	err := (*SessionService)(nil).Use(context.Background(), "project-a")
 
-	require.EqualError(t, err, "hand: session service client is required")
+	require.EqualError(t, err, "morph: session service client is required")
 }
 
 func TestClient_UseSessionReturnsRPCError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := NewSessionService(stub)
 
 	err := client.Use(context.Background(), "project-a")
@@ -454,7 +454,7 @@ func TestClient_UseSessionReturnsRPCError(t *testing.T) {
 }
 
 func TestClient_ArchiveSessionSendsSessionID(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{}
+	stub := &protomock.MorphServiceClientStub{}
 	client := NewSessionService(stub)
 
 	err := client.Archive(context.Background(), " project-a ")
@@ -464,9 +464,9 @@ func TestClient_ArchiveSessionSendsSessionID(t *testing.T) {
 }
 
 func TestClient_UnarchiveSessionSendsSessionIDAndReturnsSession(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{
-		UnarchiveResp: &handpb.UnarchiveSessionResponse{
-			Session: &handpb.SessionSummary{
+	stub := &protomock.MorphServiceClientStub{
+		UnarchiveResp: &morphpb.UnarchiveSessionResponse{
+			Session: &morphpb.SessionSummary{
 				Id:          "project-a",
 				Title:       "Project Planning",
 				TitleSource: storage.SessionTitleSourceManual,
@@ -487,11 +487,11 @@ func TestClient_UnarchiveSessionSendsSessionIDAndReturnsSession(t *testing.T) {
 func TestClient_UnarchiveSessionRequiresClient(t *testing.T) {
 	_, err := (*SessionService)(nil).Unarchive(context.Background(), "project-a")
 
-	require.EqualError(t, err, "hand: session service client is required")
+	require.EqualError(t, err, "morph: session service client is required")
 }
 
 func TestClient_UnarchiveSessionReturnsRPCError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := NewSessionService(stub)
 
 	session, err := client.Unarchive(context.Background(), "project-a")
@@ -502,9 +502,9 @@ func TestClient_UnarchiveSessionReturnsRPCError(t *testing.T) {
 }
 
 func TestClient_RenameSessionSendsTitle(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{
-		RenameResp: &handpb.RenameSessionResponse{
-			Session: &handpb.SessionSummary{
+	stub := &protomock.MorphServiceClientStub{
+		RenameResp: &morphpb.RenameSessionResponse{
+			Session: &morphpb.SessionSummary{
 				Id:          "project-a",
 				Title:       "Project Planning",
 				TitleSource: storage.SessionTitleSourceManual,
@@ -526,11 +526,11 @@ func TestClient_RenameSessionSendsTitle(t *testing.T) {
 func TestClient_RenameSessionRequiresClient(t *testing.T) {
 	_, err := (*SessionService)(nil).Rename(context.Background(), "project-a", "Title")
 
-	require.EqualError(t, err, "hand: session service client is required")
+	require.EqualError(t, err, "morph: session service client is required")
 }
 
 func TestClient_RenameSessionReturnsRPCError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := NewSessionService(stub)
 
 	session, err := client.Rename(context.Background(), "project-a", "Title")
@@ -544,11 +544,11 @@ func TestClient_RenameSessionReturnsRPCError(t *testing.T) {
 func TestClient_ArchiveSessionRequiresClient(t *testing.T) {
 	err := (*SessionService)(nil).Archive(context.Background(), "project-a")
 
-	require.EqualError(t, err, "hand: session service client is required")
+	require.EqualError(t, err, "morph: session service client is required")
 }
 
 func TestClient_ArchiveSessionReturnsRPCError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := NewSessionService(stub)
 
 	err := client.Archive(context.Background(), "project-a")
@@ -558,7 +558,7 @@ func TestClient_ArchiveSessionReturnsRPCError(t *testing.T) {
 }
 
 func TestClient_CurrentSessionReturnsValue(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{CurrentResp: &handpb.CurrentSessionResponse{
+	stub := &protomock.MorphServiceClientStub{CurrentResp: &morphpb.CurrentSessionResponse{
 		Id:          "project-a",
 		Title:       "Project Planning",
 		TitleSource: storage.SessionTitleSourceGenerated,
@@ -576,11 +576,11 @@ func TestClient_CurrentSessionReturnsValue(t *testing.T) {
 func TestClient_CurrentSessionRequiresClient(t *testing.T) {
 	_, err := (*SessionService)(nil).Current(context.Background())
 
-	require.EqualError(t, err, "hand: session service client is required")
+	require.EqualError(t, err, "morph: session service client is required")
 }
 
 func TestClient_CurrentSessionReturnsRPCError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := NewSessionService(stub)
 
 	session, err := client.Current(context.Background())
@@ -591,7 +591,7 @@ func TestClient_CurrentSessionReturnsRPCError(t *testing.T) {
 
 func TestClient_CompactSessionReturnsResult(t *testing.T) {
 	now := time.Unix(123, 0).UTC()
-	stub := &protomock.HandServiceClientStub{CompactResp: &handpb.CompactSessionResponse{
+	stub := &protomock.MorphServiceClientStub{CompactResp: &morphpb.CompactSessionResponse{
 		Id:                   "project-a",
 		SourceEndOffset:      12,
 		SourceMessageCount:   20,
@@ -616,11 +616,11 @@ func TestClient_CompactSessionReturnsResult(t *testing.T) {
 func TestClient_CompactSessionRequiresClient(t *testing.T) {
 	_, err := (*SessionService)(nil).Compact(context.Background(), "project-a")
 
-	require.EqualError(t, err, "hand: session service client is required")
+	require.EqualError(t, err, "morph: session service client is required")
 }
 
 func TestClient_CompactSessionReturnsRPCError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := NewSessionService(stub)
 
 	result, err := client.Compact(context.Background(), "project-a")
@@ -631,9 +631,9 @@ func TestClient_CompactSessionReturnsRPCError(t *testing.T) {
 }
 
 func TestClient_RepairSessionReturnsResult(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{RepairResp: &handpb.RepairSessionResponse{
-		Type: handpb.RepairSessionRequest_VECTOR,
-		Vector: &handpb.VectorRepairResponse{
+	stub := &protomock.MorphServiceClientStub{RepairResp: &morphpb.RepairSessionResponse{
+		Type: morphpb.RepairSessionRequest_VECTOR,
+		Vector: &morphpb.VectorRepairResponse{
 			SessionsScanned: 2,
 			MessagesScanned: 3,
 			RowsScanned:     4,
@@ -653,7 +653,7 @@ func TestClient_RepairSessionReturnsResult(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, handpb.RepairSessionRequest_VECTOR, stub.RepairReq.GetType())
+	require.Equal(t, morphpb.RepairSessionRequest_VECTOR, stub.RepairReq.GetType())
 	require.Equal(t, "project-a", stub.RepairReq.GetVector().GetId())
 	require.True(t, stub.RepairReq.GetVector().GetFull())
 	require.Equal(t, 2, result.SessionsScanned)
@@ -670,11 +670,11 @@ func TestClient_RepairSessionReturnsResult(t *testing.T) {
 func TestClient_RepairSessionRequiresClient(t *testing.T) {
 	_, err := (*SessionService)(nil).Repair(context.Background(), RepairSessionOptions{})
 
-	require.EqualError(t, err, "hand: session service client is required")
+	require.EqualError(t, err, "morph: session service client is required")
 }
 
 func TestClient_RepairSessionReturnsRPCError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := NewSessionService(stub)
 
 	result, err := client.Repair(context.Background(), RepairSessionOptions{SessionID: "project-a"})
@@ -687,13 +687,13 @@ func TestClient_RepairSessionReturnsRPCError(t *testing.T) {
 func TestClient_GetSessionStatusReturnsResult(t *testing.T) {
 	created := time.Date(2024, 4, 1, 10, 0, 0, 0, time.UTC)
 	updated := time.Date(2024, 4, 2, 11, 0, 0, 0, time.UTC)
-	stub := &protomock.HandServiceClientStub{StatusResp: &handpb.GetSessionStatusResponse{
+	stub := &protomock.MorphServiceClientStub{StatusResp: &morphpb.GetSessionStatusResponse{
 		Id:               "project-a",
 		Size:             20,
 		CreatedAt:        timestamppb.New(created),
 		UpdatedAt:        timestamppb.New(updated),
 		CompactionStatus: "pending",
-		Context: &handpb.GetSessionStatusResponse_Context{
+		Context: &morphpb.GetSessionStatusResponse_Context{
 			Offset:       12,
 			Length:       128000,
 			Used:         64000,
@@ -724,11 +724,11 @@ func TestClient_GetSessionStatusReturnsResult(t *testing.T) {
 func TestClient_GetSessionStatusRequiresClient(t *testing.T) {
 	_, err := (*SessionService)(nil).Status(context.Background(), "project-a")
 
-	require.EqualError(t, err, "hand: session service client is required")
+	require.EqualError(t, err, "morph: session service client is required")
 }
 
 func TestClient_GetSessionStatusReturnsRPCError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := NewSessionService(stub)
 
 	result, err := client.Status(context.Background(), "project-a")
@@ -739,20 +739,20 @@ func TestClient_GetSessionStatusReturnsRPCError(t *testing.T) {
 }
 
 func TestClient_GetSessionStatusRequiresResponseContext(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{StatusResp: &handpb.GetSessionStatusResponse{Id: "project-a"}}
+	stub := &protomock.MorphServiceClientStub{StatusResp: &morphpb.GetSessionStatusResponse{Id: "project-a"}}
 	client := NewSessionService(stub)
 
 	result, err := client.Status(context.Background(), "project-a")
 
-	require.EqualError(t, err, "hand: get session status response context is required")
+	require.EqualError(t, err, "morph: get session status response context is required")
 	require.Empty(t, result.SessionID)
 }
 
 func TestClient_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
 	now := time.Date(2026, 6, 8, 12, 0, 0, 0, time.UTC)
-	stub := &protomock.HandServiceClientStub{
-		PairingsResp: &handpb.ListGatewayPairingsResponse{
-			Pending: []*handpb.GatewayPairingRequest{{
+	stub := &protomock.MorphServiceClientStub{
+		PairingsResp: &morphpb.ListGatewayPairingsResponse{
+			Pending: []*morphpb.GatewayPairingRequest{{
 				Source:      "telegram",
 				SenderId:    "123",
 				DisplayName: "Ada",
@@ -760,7 +760,7 @@ func TestClient_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
 				LastSeenAt:  timestamppb.New(now),
 				ExpiresAt:   timestamppb.New(now.Add(time.Hour)),
 			}},
-			Approved: []*handpb.GatewayPairedSender{{
+			Approved: []*morphpb.GatewayPairedSender{{
 				Source:      "telegram",
 				SenderId:    "456",
 				DisplayName: "Grace",
@@ -768,9 +768,9 @@ func TestClient_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
 				UpdatedAt:   timestamppb.New(now),
 			}},
 		},
-		ApproveResp: &handpb.ApproveGatewayPairingResponse{
+		ApproveResp: &morphpb.ApproveGatewayPairingResponse{
 			Approved: true,
-			Sender:   &handpb.GatewayPairedSender{Source: "telegram", SenderId: "123"},
+			Sender:   &morphpb.GatewayPairedSender{Source: "telegram", SenderId: "123"},
 		},
 	}
 	client := NewGatewayService(stub)
@@ -797,7 +797,7 @@ func TestClient_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
 }
 
 func TestClient_GatewayRuntimeStatusStartStopAndRestart(t *testing.T) {
-	status := &handpb.GatewayStatus{
+	status := &morphpb.GatewayStatus{
 		State:        " running ",
 		Address:      " 127.0.0.1 ",
 		Port:         50052,
@@ -805,11 +805,11 @@ func TestClient_GatewayRuntimeStatusStartStopAndRestart(t *testing.T) {
 		TelegramMode: " polling ",
 		LastError:    " safe error ",
 	}
-	stub := &protomock.HandServiceClientStub{
-		GatewayStatusResp:  &handpb.GetGatewayStatusResponse{Status: status},
-		GatewayStartResp:   &handpb.StartGatewayResponse{Status: status},
-		GatewayStopResp:    &handpb.StopGatewayResponse{Status: status},
-		GatewayRestartResp: &handpb.RestartGatewayResponse{Status: status},
+	stub := &protomock.MorphServiceClientStub{
+		GatewayStatusResp:  &morphpb.GetGatewayStatusResponse{Status: status},
+		GatewayStartResp:   &morphpb.StartGatewayResponse{Status: status},
+		GatewayStopResp:    &morphpb.StopGatewayResponse{Status: status},
+		GatewayRestartResp: &morphpb.RestartGatewayResponse{Status: status},
 	}
 	client := NewGatewayService(stub)
 
@@ -841,7 +841,7 @@ func TestClient_GatewayRuntimeStatusStartStopAndRestart(t *testing.T) {
 
 func TestClient_GatewayRuntimeReturnsRPCErrors(t *testing.T) {
 	rpcErr := errors.New("rpc failed")
-	client := NewGatewayService(&protomock.HandServiceClientStub{Err: rpcErr})
+	client := NewGatewayService(&protomock.MorphServiceClientStub{Err: rpcErr})
 	tests := []struct {
 		name string
 		run  func(context.Context) (GatewayStatus, error)
@@ -906,7 +906,7 @@ func TestClient_GatewayPairingRequiresClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.EqualError(t, tt.run(nil), "hand: gateway service client is required")
+			require.EqualError(t, tt.run(nil), "morph: gateway service client is required")
 		})
 	}
 }
@@ -914,11 +914,11 @@ func TestClient_GatewayPairingRequiresClient(t *testing.T) {
 func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 	messageAt := time.Date(2026, 5, 16, 10, 0, 0, 0, time.UTC)
 	traceAt := time.Date(2026, 5, 16, 11, 0, 0, 0, time.UTC)
-	stub := &protomock.HandServiceClientStub{TimelineResp: &handpb.GetSessionTimelineResponse{
+	stub := &protomock.MorphServiceClientStub{TimelineResp: &morphpb.GetSessionTimelineResponse{
 		Id:          "default",
 		Title:       "Daily Planning",
 		TitleSource: storage.SessionTitleSourceGenerated,
-		Messages: []*handpb.SessionTimelineMessage{{
+		Messages: []*morphpb.SessionTimelineMessage{{
 			Offset:     2,
 			Id:         7,
 			Role:       "tool",
@@ -926,13 +926,13 @@ func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 			ToolCallId: "call_1",
 			Content:    "file content",
 			CreatedAt:  timestamppb.New(messageAt),
-			ToolCalls: []*handpb.SessionTimelineToolCall{{
+			ToolCalls: []*morphpb.SessionTimelineToolCall{{
 				Id:    "call_2",
 				Name:  "search",
 				Input: `{"query":"hello"}`,
 			}},
 		}},
-		TraceEvents: []*handpb.SessionTimelineTraceEvent{{
+		TraceEvents: []*morphpb.SessionTimelineTraceEvent{{
 			Id:          9,
 			Sequence:    3,
 			Type:        trace.EvtInputSafetyBlocked,
@@ -990,20 +990,20 @@ func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 }
 
 func TestClient_GetSessionTimelineReturnsDecodeErrors(t *testing.T) {
-	client := NewSessionService(&protomock.HandServiceClientStub{})
+	client := NewSessionService(&protomock.MorphServiceClientStub{})
 
 	_, err := client.Timeline(context.Background(), SessionTimelineOptions{})
-	require.EqualError(t, err, "hand: get session timeline response is required")
+	require.EqualError(t, err, "morph: get session timeline response is required")
 
-	client = NewSessionService(&protomock.HandServiceClientStub{TimelineResp: &handpb.GetSessionTimelineResponse{
-		TraceEvents: []*handpb.SessionTimelineTraceEvent{{PayloadJson: "{"}},
+	client = NewSessionService(&protomock.MorphServiceClientStub{TimelineResp: &morphpb.GetSessionTimelineResponse{
+		TraceEvents: []*morphpb.SessionTimelineTraceEvent{{PayloadJson: "{"}},
 	}})
 	_, err = client.Timeline(context.Background(), SessionTimelineOptions{})
 	require.ErrorContains(t, err, "unexpected end of JSON input")
 }
 
 func TestClient_GetSessionTimelineReturnsRPCError(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	stub := &protomock.MorphServiceClientStub{Err: context.Canceled}
 	client := NewSessionService(stub)
 
 	_, err := client.Timeline(context.Background(), SessionTimelineOptions{})
@@ -1014,14 +1014,14 @@ func TestClient_GetSessionTimelineReturnsRPCError(t *testing.T) {
 func TestClient_GetSessionTimelineRequiresClient(t *testing.T) {
 	_, err := (*SessionService)(nil).Timeline(context.Background(), SessionTimelineOptions{})
 
-	require.EqualError(t, err, "hand: session service client is required")
+	require.EqualError(t, err, "morph: session service client is required")
 }
 
 func TestModelService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{ModelsResp: &handpb.ListModelsResponse{
+	stub := &protomock.MorphServiceClientStub{ModelsResp: &morphpb.ListModelsResponse{
 		Provider: "openai",
 		AuthType: "oauth",
-		Models: []*handpb.ModelOption{{
+		Models: []*morphpb.ModelOption{{
 			Id:            " gpt-5.4-mini ",
 			Name:          " GPT 5.4 Mini ",
 			Provider:      " openai ",
@@ -1057,8 +1057,8 @@ func TestModelService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
 }
 
 func TestModelService_ListProvidersReturnsOptions(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{ProvidersResp: &handpb.ListProvidersResponse{
-		Providers: []*handpb.ProviderOption{{
+	stub := &protomock.MorphServiceClientStub{ProvidersResp: &morphpb.ListProvidersResponse{
+		Providers: []*morphpb.ProviderOption{{
 			Id:             " openrouter ",
 			Name:           " OpenRouter ",
 			Type:           " api-key ",
@@ -1086,8 +1086,8 @@ func TestModelService_ListProvidersReturnsOptions(t *testing.T) {
 }
 
 func TestModelService_SelectModelSendsTrimmedIDAndProvider(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{SelectResp: &handpb.SelectModelResponse{
-		Model: &handpb.ModelOption{Id: "gpt-4o", Current: true},
+	stub := &protomock.MorphServiceClientStub{SelectResp: &morphpb.SelectModelResponse{
+		Model: &morphpb.ModelOption{Id: "gpt-4o", Current: true},
 	}}
 	client := NewModelService(stub)
 
@@ -1101,7 +1101,7 @@ func TestModelService_SelectModelSendsTrimmedIDAndProvider(t *testing.T) {
 }
 
 func TestModelService_SetProviderAPIKeySendsTrimmedProviderAndKey(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{APIKeyResp: &handpb.SetProviderAPIKeyResponse{Provider: "openrouter"}}
+	stub := &protomock.MorphServiceClientStub{APIKeyResp: &morphpb.SetProviderAPIKeyResponse{Provider: "openrouter"}}
 	client := NewModelService(stub)
 
 	err := client.SetProviderAPIKey(context.Background(), " openrouter ", " key ")
@@ -1113,22 +1113,22 @@ func TestModelService_SetProviderAPIKeySendsTrimmedProviderAndKey(t *testing.T) 
 
 func TestModelService_ReturnsClientErrors(t *testing.T) {
 	_, err := (*ModelService)(nil).ListModels(context.Background())
-	require.EqualError(t, err, "hand: model service client is required")
+	require.EqualError(t, err, "morph: model service client is required")
 
 	_, err = (*ModelService)(nil).ListProviders(context.Background())
-	require.EqualError(t, err, "hand: model service client is required")
+	require.EqualError(t, err, "morph: model service client is required")
 
 	_, err = (*ModelService)(nil).SelectModel(context.Background(), "gpt-4o")
-	require.EqualError(t, err, "hand: model service client is required")
+	require.EqualError(t, err, "morph: model service client is required")
 
 	err = (*ModelService)(nil).SetProviderAPIKey(context.Background(), "openrouter", "key")
-	require.EqualError(t, err, "hand: model service client is required")
+	require.EqualError(t, err, "morph: model service client is required")
 
 	require.Nil(t, (*Client)(nil).ModelAPI())
-	wrapped := &Client{Model: NewModelService(&protomock.HandServiceClientStub{})}
+	wrapped := &Client{Model: NewModelService(&protomock.MorphServiceClientStub{})}
 	require.NotNil(t, wrapped.ModelAPI())
 
-	client := NewModelService(&protomock.HandServiceClientStub{Err: context.Canceled})
+	client := NewModelService(&protomock.MorphServiceClientStub{Err: context.Canceled})
 	providers, err := client.ListProviders(context.Background())
 	require.ErrorIs(t, err, context.Canceled)
 	require.Empty(t, providers.Providers)
@@ -1201,8 +1201,8 @@ func TestClient_ServiceAPIsAndCloseHandleNilValues(t *testing.T) {
 	require.NoError(t, (&Client{}).Close())
 
 	wrapped := &Client{
-		Session: NewSessionService(&protomock.HandServiceClientStub{}),
-		Model:   NewModelService(&protomock.HandServiceClientStub{}),
+		Session: NewSessionService(&protomock.MorphServiceClientStub{}),
+		Model:   NewModelService(&protomock.MorphServiceClientStub{}),
 	}
 	require.NotNil(t, wrapped.SessionAPI())
 	require.NotNil(t, wrapped.ModelAPI())

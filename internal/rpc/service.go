@@ -9,18 +9,18 @@ import (
 	"strings"
 	"time"
 
-	handagent "github.com/wandxy/hand/internal/agent"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/gateway"
-	"github.com/wandxy/hand/internal/guardrails"
-	models "github.com/wandxy/hand/internal/model"
-	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	"github.com/wandxy/hand/internal/trace"
-	agent "github.com/wandxy/hand/pkg/agent"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	morphagent "github.com/wandxy/morph/internal/agent"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/gateway"
+	"github.com/wandxy/morph/internal/guardrails"
+	models "github.com/wandxy/morph/internal/model"
+	morphpb "github.com/wandxy/morph/internal/rpc/proto"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	"github.com/wandxy/morph/internal/trace"
+	agent "github.com/wandxy/morph/pkg/agent"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -28,11 +28,11 @@ import (
 
 // Service is the RPC service that wraps the agent-facing service interface.
 type Service struct {
-	handpb.UnimplementedHandServiceServer
-	handpb.UnimplementedSessionServiceServer
-	handpb.UnimplementedModelServiceServer
-	handpb.UnimplementedGatewayServiceServer
-	api                  handagent.ServiceAPI
+	morphpb.UnimplementedMorphServiceServer
+	morphpb.UnimplementedSessionServiceServer
+	morphpb.UnimplementedModelServiceServer
+	morphpb.UnimplementedGatewayServiceServer
+	api                  morphagent.ServiceAPI
 	gatewayPairingSecret string
 	gatewayConfig        config.GatewayConfig
 	gatewayRuntime       GatewayRuntime
@@ -53,11 +53,11 @@ type GatewayRuntime interface {
 }
 
 // NewService creates a new RPC service that wraps the shared service interface.
-func NewService(api handagent.ServiceAPI) *Service {
+func NewService(api morphagent.ServiceAPI) *Service {
 	return NewServiceWithOptions(api, ServiceOptions{})
 }
 
-func NewServiceWithOptions(api handagent.ServiceAPI, opts ServiceOptions) *Service {
+func NewServiceWithOptions(api morphagent.ServiceAPI, opts ServiceOptions) *Service {
 	return &Service{
 		api:                  api,
 		gatewayPairingSecret: strings.TrimSpace(opts.GatewayPairingSecret),
@@ -67,7 +67,7 @@ func NewServiceWithOptions(api handagent.ServiceAPI, opts ServiceOptions) *Servi
 }
 
 // Respond sends a chat request to the service and returns the completed response.
-func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_RespondServer) error {
+func (s *Service) Respond(req *morphpb.RespondRequest, stream morphpb.MorphService_RespondServer) error {
 	if s == nil {
 		return status.Error(codes.Internal, "service is required")
 	}
@@ -94,7 +94,7 @@ func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_
 			if !ok {
 				return
 			}
-			if protoEvent.GetType() == handpb.RespondEvent_TEXT_DELTA {
+			if protoEvent.GetType() == morphpb.RespondEvent_TEXT_DELTA {
 				streamed = true
 			}
 			sendErr = stream.Send(protoEvent)
@@ -107,8 +107,8 @@ func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_
 	}
 	if err != nil {
 		grpcErr := getGRPCError(err)
-		if sendErr := stream.Send(&handpb.RespondEvent{
-			Type:      handpb.RespondEvent_ERROR,
+		if sendErr := stream.Send(&morphpb.RespondEvent{
+			Type:      morphpb.RespondEvent_ERROR,
 			Error:     status.Convert(grpcErr).Message(),
 			Timestamp: timestamppb.New(time.Now().UTC()),
 		}); sendErr != nil {
@@ -118,22 +118,22 @@ func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_
 	}
 
 	if !streamed {
-		if err := stream.Send(&handpb.RespondEvent{
-			Type:    handpb.RespondEvent_TEXT_DELTA,
+		if err := stream.Send(&morphpb.RespondEvent{
+			Type:    morphpb.RespondEvent_TEXT_DELTA,
 			Text:    reply,
-			Channel: handpb.RespondEvent_ASSISTANT,
+			Channel: morphpb.RespondEvent_ASSISTANT,
 		}); err != nil {
 			return err
 		}
 	}
 
-	return stream.Send(&handpb.RespondEvent{
-		Type:      handpb.RespondEvent_DONE,
+	return stream.Send(&morphpb.RespondEvent{
+		Type:      morphpb.RespondEvent_DONE,
 		Timestamp: timestamppb.New(time.Now().UTC()),
 	})
 }
 
-func eventToProtoRespondEvent(event agent.Event) (*handpb.RespondEvent, bool) {
+func eventToProtoRespondEvent(event agent.Event) (*morphpb.RespondEvent, bool) {
 	kind := strings.TrimSpace(event.Kind)
 	if kind == agent.EventKindTrace {
 		traceEvent, ok := traceEventFromAgentEvent(event)
@@ -146,8 +146,8 @@ func eventToProtoRespondEvent(event agent.Event) (*handpb.RespondEvent, bool) {
 		return nil, false
 	}
 
-	return &handpb.RespondEvent{
-		Type:    handpb.RespondEvent_TEXT_DELTA,
+	return &morphpb.RespondEvent{
+		Type:    morphpb.RespondEvent_TEXT_DELTA,
 		Text:    event.Text,
 		Channel: agentChannelToProtoStreamChannel(event.Channel),
 	}, true
@@ -167,16 +167,16 @@ func traceEventFromAgentEvent(event agent.Event) (trace.Event, bool) {
 	}
 }
 
-func agentChannelToProtoStreamChannel(channel string) handpb.RespondEvent_Channel {
+func agentChannelToProtoStreamChannel(channel string) morphpb.RespondEvent_Channel {
 	switch strings.TrimSpace(strings.ToLower(channel)) {
 	case "reasoning":
-		return handpb.RespondEvent_REASONING
+		return morphpb.RespondEvent_REASONING
 	default:
-		return handpb.RespondEvent_ASSISTANT
+		return morphpb.RespondEvent_ASSISTANT
 	}
 }
 
-func traceEventToProtoRespondEvent(event trace.Event) (*handpb.RespondEvent, bool) {
+func traceEventToProtoRespondEvent(event trace.Event) (*morphpb.RespondEvent, bool) {
 	event.Type = strings.TrimSpace(event.Type)
 	if event.Type == "" {
 		return nil, false
@@ -192,8 +192,8 @@ func traceEventToProtoRespondEvent(event trace.Event) (*handpb.RespondEvent, boo
 		return nil, false
 	}
 
-	protoEvent := &handpb.RespondEvent{
-		Type:             handpb.RespondEvent_TRACE_EVENT,
+	protoEvent := &morphpb.RespondEvent{
+		Type:             morphpb.RespondEvent_TRACE_EVENT,
 		TraceSessionId:   strings.TrimSpace(event.SessionID),
 		TraceType:        event.Type,
 		TracePayloadJson: string(payloadJSON),
@@ -846,7 +846,7 @@ func getRPCPlanSteps(steps []trace.PlanStepPayload) []trace.PlanStepPayload {
 	return result
 }
 
-func (s *Service) Create(ctx context.Context, req *handpb.CreateSessionRequest) (*handpb.CreateSessionResponse, error) {
+func (s *Service) Create(ctx context.Context, req *morphpb.CreateSessionRequest) (*morphpb.CreateSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -867,10 +867,10 @@ func (s *Service) Create(ctx context.Context, req *handpb.CreateSessionRequest) 
 		}
 	}
 
-	return &handpb.CreateSessionResponse{Session: sessionToProtoSummary(session)}, nil
+	return &morphpb.CreateSessionResponse{Session: sessionToProtoSummary(session)}, nil
 }
 
-func isCreateSessionAutoSwitchEnabled(req *handpb.CreateSessionRequest) bool {
+func isCreateSessionAutoSwitchEnabled(req *morphpb.CreateSessionRequest) bool {
 	if req == nil {
 		return false
 	}
@@ -881,7 +881,7 @@ func isCreateSessionAutoSwitchEnabled(req *handpb.CreateSessionRequest) bool {
 	return req.GetAutoSwitch()
 }
 
-func (s *Service) List(ctx context.Context, req *handpb.ListSessionsRequest) (*handpb.ListSessionsResponse, error) {
+func (s *Service) List(ctx context.Context, req *morphpb.ListSessionsRequest) (*morphpb.ListSessionsResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -897,15 +897,15 @@ func (s *Service) List(ctx context.Context, req *handpb.ListSessionsRequest) (*h
 		return nil, getGRPCError(err)
 	}
 
-	items := make([]*handpb.SessionSummary, 0, len(sessions))
+	items := make([]*morphpb.SessionSummary, 0, len(sessions))
 	for _, session := range sessions {
 		items = append(items, sessionToProtoSummary(session))
 	}
 
-	return &handpb.ListSessionsResponse{Sessions: items}, nil
+	return &morphpb.ListSessionsResponse{Sessions: items}, nil
 }
 
-func (s *Service) ListProviders(ctx context.Context, req *handpb.ListProvidersRequest) (*handpb.ListProvidersResponse, error) {
+func (s *Service) ListProviders(ctx context.Context, req *morphpb.ListProvidersRequest) (*morphpb.ListProvidersResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -921,10 +921,10 @@ func (s *Service) ListProviders(ctx context.Context, req *handpb.ListProvidersRe
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.ListProvidersResponse{Providers: providerOptionsToProto(list.Providers)}, nil
+	return &morphpb.ListProvidersResponse{Providers: providerOptionsToProto(list.Providers)}, nil
 }
 
-func (s *Service) ListModels(ctx context.Context, req *handpb.ListModelsRequest) (*handpb.ListModelsResponse, error) {
+func (s *Service) ListModels(ctx context.Context, req *morphpb.ListModelsRequest) (*morphpb.ListModelsResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -935,19 +935,19 @@ func (s *Service) ListModels(ctx context.Context, req *handpb.ListModelsRequest)
 		return nil, status.Error(codes.InvalidArgument, "list models request is required")
 	}
 
-	list, err := s.api.ListModels(ctx, handagent.ModelListOptions{Provider: req.GetProvider()})
+	list, err := s.api.ListModels(ctx, morphagent.ModelListOptions{Provider: req.GetProvider()})
 	if err != nil {
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.ListModelsResponse{
+	return &morphpb.ListModelsResponse{
 		Provider: strings.TrimSpace(list.Provider),
 		AuthType: strings.TrimSpace(list.AuthType),
 		Models:   modelOptionsToProto(list.Models),
 	}, nil
 }
 
-func (s *Service) SelectModel(ctx context.Context, req *handpb.SelectModelRequest) (*handpb.SelectModelResponse, error) {
+func (s *Service) SelectModel(ctx context.Context, req *morphpb.SelectModelRequest) (*morphpb.SelectModelResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -958,18 +958,18 @@ func (s *Service) SelectModel(ctx context.Context, req *handpb.SelectModelReques
 		return nil, status.Error(codes.InvalidArgument, "select model request is required")
 	}
 
-	model, err := s.api.SelectModel(ctx, req.GetId(), handagent.ModelSelectOptions{Provider: req.GetProvider()})
+	model, err := s.api.SelectModel(ctx, req.GetId(), morphagent.ModelSelectOptions{Provider: req.GetProvider()})
 	if err != nil {
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.SelectModelResponse{Model: modelOptionToProto(model)}, nil
+	return &morphpb.SelectModelResponse{Model: modelOptionToProto(model)}, nil
 }
 
 func (s *Service) SetProviderAPIKey(
 	ctx context.Context,
-	req *handpb.SetProviderAPIKeyRequest,
-) (*handpb.SetProviderAPIKeyResponse, error) {
+	req *morphpb.SetProviderAPIKeyRequest,
+) (*morphpb.SetProviderAPIKeyResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -984,10 +984,10 @@ func (s *Service) SetProviderAPIKey(
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.SetProviderAPIKeyResponse{Provider: strings.TrimSpace(req.GetProvider())}, nil
+	return &morphpb.SetProviderAPIKeyResponse{Provider: strings.TrimSpace(req.GetProvider())}, nil
 }
 
-func (s *Service) Use(ctx context.Context, req *handpb.UseSessionRequest) (*handpb.UseSessionResponse, error) {
+func (s *Service) Use(ctx context.Context, req *morphpb.UseSessionRequest) (*morphpb.UseSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1002,10 +1002,10 @@ func (s *Service) Use(ctx context.Context, req *handpb.UseSessionRequest) (*hand
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.UseSessionResponse{Id: req.GetId()}, nil
+	return &morphpb.UseSessionResponse{Id: req.GetId()}, nil
 }
 
-func (s *Service) Archive(ctx context.Context, req *handpb.ArchiveSessionRequest) (*handpb.ArchiveSessionResponse, error) {
+func (s *Service) Archive(ctx context.Context, req *morphpb.ArchiveSessionRequest) (*morphpb.ArchiveSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1020,13 +1020,13 @@ func (s *Service) Archive(ctx context.Context, req *handpb.ArchiveSessionRequest
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.ArchiveSessionResponse{Id: req.GetId()}, nil
+	return &morphpb.ArchiveSessionResponse{Id: req.GetId()}, nil
 }
 
 func (s *Service) Unarchive(
 	ctx context.Context,
-	req *handpb.UnarchiveSessionRequest,
-) (*handpb.UnarchiveSessionResponse, error) {
+	req *morphpb.UnarchiveSessionRequest,
+) (*morphpb.UnarchiveSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1042,10 +1042,10 @@ func (s *Service) Unarchive(
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.UnarchiveSessionResponse{Session: sessionToProtoSummary(session)}, nil
+	return &morphpb.UnarchiveSessionResponse{Session: sessionToProtoSummary(session)}, nil
 }
 
-func (s *Service) Rename(ctx context.Context, req *handpb.RenameSessionRequest) (*handpb.RenameSessionResponse, error) {
+func (s *Service) Rename(ctx context.Context, req *morphpb.RenameSessionRequest) (*morphpb.RenameSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1061,10 +1061,10 @@ func (s *Service) Rename(ctx context.Context, req *handpb.RenameSessionRequest) 
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.RenameSessionResponse{Session: sessionToProtoSummary(session)}, nil
+	return &morphpb.RenameSessionResponse{Session: sessionToProtoSummary(session)}, nil
 }
 
-func (s *Service) Current(ctx context.Context, req *handpb.CurrentSessionRequest) (*handpb.CurrentSessionResponse, error) {
+func (s *Service) Current(ctx context.Context, req *morphpb.CurrentSessionRequest) (*morphpb.CurrentSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1080,7 +1080,7 @@ func (s *Service) Current(ctx context.Context, req *handpb.CurrentSessionRequest
 		return nil, getGRPCError(err)
 	}
 
-	response := &handpb.CurrentSessionResponse{
+	response := &morphpb.CurrentSessionResponse{
 		Id:          session.ID,
 		Title:       session.Title,
 		TitleSource: session.TitleSource,
@@ -1091,8 +1091,8 @@ func (s *Service) Current(ctx context.Context, req *handpb.CurrentSessionRequest
 
 func (s *Service) Compact(
 	ctx context.Context,
-	req *handpb.CompactSessionRequest,
-) (*handpb.CompactSessionResponse, error) {
+	req *morphpb.CompactSessionRequest,
+) (*morphpb.CompactSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1108,7 +1108,7 @@ func (s *Service) Compact(
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.CompactSessionResponse{
+	return &morphpb.CompactSessionResponse{
 		Id:                   result.SessionID,
 		SourceEndOffset:      int32(result.SourceEndOffset),
 		SourceMessageCount:   int32(result.SourceMessageCount),
@@ -1120,8 +1120,8 @@ func (s *Service) Compact(
 
 func (s *Service) Repair(
 	ctx context.Context,
-	req *handpb.RepairSessionRequest,
-) (*handpb.RepairSessionResponse, error) {
+	req *morphpb.RepairSessionRequest,
+) (*morphpb.RepairSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1131,7 +1131,7 @@ func (s *Service) Repair(
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "repair session request is required")
 	}
-	if req.GetType() != handpb.RepairSessionRequest_VECTOR {
+	if req.GetType() != morphpb.RepairSessionRequest_VECTOR {
 		return nil, status.Error(codes.InvalidArgument, "repair session type must be vector")
 	}
 	if req.GetVector() == nil {
@@ -1146,9 +1146,9 @@ func (s *Service) Repair(
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.RepairSessionResponse{
-		Type: handpb.RepairSessionRequest_VECTOR,
-		Vector: &handpb.VectorRepairResponse{
+	return &morphpb.RepairSessionResponse{
+		Type: morphpb.RepairSessionRequest_VECTOR,
+		Vector: &morphpb.VectorRepairResponse{
 			SessionsScanned: int32(result.SessionsScanned),
 			MessagesScanned: int32(result.MessagesScanned),
 			RowsScanned:     int32(result.RowsScanned),
@@ -1162,7 +1162,7 @@ func (s *Service) Repair(
 	}, nil
 }
 
-func (s *Service) Status(ctx context.Context, req *handpb.GetSessionStatusRequest) (*handpb.GetSessionStatusResponse, error) {
+func (s *Service) Status(ctx context.Context, req *morphpb.GetSessionStatusRequest) (*morphpb.GetSessionStatusResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1181,13 +1181,13 @@ func (s *Service) Status(ctx context.Context, req *handpb.GetSessionStatusReques
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.GetSessionStatusResponse{
+	return &morphpb.GetSessionStatusResponse{
 		Id:               result.SessionID,
 		Size:             int32(result.Size),
 		CreatedAt:        timestamppb.New(result.CreatedAt),
 		UpdatedAt:        timestamppb.New(result.UpdatedAt),
 		CompactionStatus: result.CompactionStatus,
-		Context: &handpb.GetSessionStatusResponse_Context{
+		Context: &morphpb.GetSessionStatusResponse_Context{
 			Offset:       int32(result.Offset),
 			Length:       int32(result.Length),
 			Used:         int32(result.Used),
@@ -1200,8 +1200,8 @@ func (s *Service) Status(ctx context.Context, req *handpb.GetSessionStatusReques
 
 func (s *Service) ListPairings(
 	ctx context.Context,
-	req *handpb.ListGatewayPairingsRequest,
-) (*handpb.ListGatewayPairingsResponse, error) {
+	req *morphpb.ListGatewayPairingsRequest,
+) (*morphpb.ListGatewayPairingsResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1226,7 +1226,7 @@ func (s *Service) ListPairings(
 		return nil, getGRPCError(err)
 	}
 
-	resp := &handpb.ListGatewayPairingsResponse{}
+	resp := &morphpb.ListGatewayPairingsResponse{}
 	for _, request := range pending {
 		resp.Pending = append(resp.Pending, gatewayPairingRequestToProto(request))
 	}
@@ -1239,8 +1239,8 @@ func (s *Service) ListPairings(
 
 func (s *Service) GatewayStatus(
 	context.Context,
-	*handpb.GetGatewayStatusRequest,
-) (*handpb.GetGatewayStatusResponse, error) {
+	*morphpb.GetGatewayStatusRequest,
+) (*morphpb.GetGatewayStatusResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1259,13 +1259,13 @@ func (s *Service) GatewayStatus(
 		status = s.gatewayRuntime.Status()
 	}
 
-	return &handpb.GetGatewayStatusResponse{Status: gatewayStatusToProto(status)}, nil
+	return &morphpb.GetGatewayStatusResponse{Status: gatewayStatusToProto(status)}, nil
 }
 
 func (s *Service) Start(
 	ctx context.Context,
-	_ *handpb.StartGatewayRequest,
-) (*handpb.StartGatewayResponse, error) {
+	_ *morphpb.StartGatewayRequest,
+) (*morphpb.StartGatewayResponse, error) {
 	if err := s.checkGatewayRuntimeReady(); err != nil {
 		return nil, err
 	}
@@ -1277,13 +1277,13 @@ func (s *Service) Start(
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.StartGatewayResponse{Status: gatewayStatusToProto(s.gatewayRuntime.Status())}, nil
+	return &morphpb.StartGatewayResponse{Status: gatewayStatusToProto(s.gatewayRuntime.Status())}, nil
 }
 
 func (s *Service) Stop(
 	ctx context.Context,
-	_ *handpb.StopGatewayRequest,
-) (*handpb.StopGatewayResponse, error) {
+	_ *morphpb.StopGatewayRequest,
+) (*morphpb.StopGatewayResponse, error) {
 	if err := s.checkGatewayRuntimeReady(); err != nil {
 		return nil, err
 	}
@@ -1291,13 +1291,13 @@ func (s *Service) Stop(
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.StopGatewayResponse{Status: gatewayStatusToProto(s.gatewayRuntime.Status())}, nil
+	return &morphpb.StopGatewayResponse{Status: gatewayStatusToProto(s.gatewayRuntime.Status())}, nil
 }
 
 func (s *Service) Restart(
 	ctx context.Context,
-	_ *handpb.RestartGatewayRequest,
-) (*handpb.RestartGatewayResponse, error) {
+	_ *morphpb.RestartGatewayRequest,
+) (*morphpb.RestartGatewayResponse, error) {
 	if err := s.checkGatewayRuntimeReady(); err != nil {
 		return nil, err
 	}
@@ -1312,7 +1312,7 @@ func (s *Service) Restart(
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.RestartGatewayResponse{Status: gatewayStatusToProto(s.gatewayRuntime.Status())}, nil
+	return &morphpb.RestartGatewayResponse{Status: gatewayStatusToProto(s.gatewayRuntime.Status())}, nil
 }
 
 func (s *Service) checkGatewayRuntimeReady() error {
@@ -1345,8 +1345,8 @@ func normalizeGatewayRuntimeConfig(cfg config.GatewayConfig) (config.GatewayConf
 
 func (s *Service) ApprovePairing(
 	ctx context.Context,
-	req *handpb.ApproveGatewayPairingRequest,
-) (*handpb.ApproveGatewayPairingResponse, error) {
+	req *morphpb.ApproveGatewayPairingRequest,
+) (*morphpb.ApproveGatewayPairingResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1369,7 +1369,7 @@ func (s *Service) ApprovePairing(
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.ApproveGatewayPairingResponse{
+	return &morphpb.ApproveGatewayPairingResponse{
 		Approved: ok,
 		Sender:   gatewayPairedSenderToProto(sender),
 	}, nil
@@ -1377,8 +1377,8 @@ func (s *Service) ApprovePairing(
 
 func (s *Service) RevokePairing(
 	ctx context.Context,
-	req *handpb.RevokeGatewayPairingRequest,
-) (*handpb.RevokeGatewayPairingResponse, error) {
+	req *morphpb.RevokeGatewayPairingRequest,
+) (*morphpb.RevokeGatewayPairingResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1396,13 +1396,13 @@ func (s *Service) RevokePairing(
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.RevokeGatewayPairingResponse{}, nil
+	return &morphpb.RevokeGatewayPairingResponse{}, nil
 }
 
 func (s *Service) ClearPendingPairings(
 	ctx context.Context,
-	req *handpb.ClearPendingGatewayPairingsRequest,
-) (*handpb.ClearPendingGatewayPairingsResponse, error) {
+	req *morphpb.ClearPendingGatewayPairingsRequest,
+) (*morphpb.ClearPendingGatewayPairingsResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1422,11 +1422,11 @@ func (s *Service) ClearPendingPairings(
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.ClearPendingGatewayPairingsResponse{}, nil
+	return &morphpb.ClearPendingGatewayPairingsResponse{}, nil
 }
 
-func gatewayPairingRequestToProto(request pairing.PendingRequest) *handpb.GatewayPairingRequest {
-	return &handpb.GatewayPairingRequest{
+func gatewayPairingRequestToProto(request pairing.PendingRequest) *morphpb.GatewayPairingRequest {
+	return &morphpb.GatewayPairingRequest{
 		Source:      request.Source,
 		SenderId:    request.SenderID,
 		DisplayName: request.DisplayName,
@@ -1436,8 +1436,8 @@ func gatewayPairingRequestToProto(request pairing.PendingRequest) *handpb.Gatewa
 	}
 }
 
-func gatewayPairedSenderToProto(sender pairing.ApprovedSender) *handpb.GatewayPairedSender {
-	return &handpb.GatewayPairedSender{
+func gatewayPairedSenderToProto(sender pairing.ApprovedSender) *morphpb.GatewayPairedSender {
+	return &morphpb.GatewayPairedSender{
 		Source:      sender.Source,
 		SenderId:    sender.SenderID,
 		DisplayName: sender.DisplayName,
@@ -1446,8 +1446,8 @@ func gatewayPairedSenderToProto(sender pairing.ApprovedSender) *handpb.GatewayPa
 	}
 }
 
-func gatewayStatusToProto(status gateway.Status) *handpb.GatewayStatus {
-	return &handpb.GatewayStatus{
+func gatewayStatusToProto(status gateway.Status) *morphpb.GatewayStatus {
+	return &morphpb.GatewayStatus{
 		State:        string(status.State),
 		Address:      strings.TrimSpace(status.Address),
 		Port:         int32(status.Port),
@@ -1467,8 +1467,8 @@ func timestampOrNil(value time.Time) *timestamppb.Timestamp {
 
 func (s *Service) Timeline(
 	ctx context.Context,
-	req *handpb.GetSessionTimelineRequest,
-) (*handpb.GetSessionTimelineResponse, error) {
+	req *morphpb.GetSessionTimelineRequest,
+) (*morphpb.GetSessionTimelineResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1479,7 +1479,7 @@ func (s *Service) Timeline(
 		return nil, status.Error(codes.InvalidArgument, "get session timeline request is required")
 	}
 
-	result, err := s.api.GetSessionTimeline(ctx, handagent.SessionTimelineOptions{
+	result, err := s.api.GetSessionTimeline(ctx, morphagent.SessionTimelineOptions{
 		SessionID:     req.GetId(),
 		MessageOffset: int(req.GetMessageOffset()),
 		MessageLimit:  int(req.GetMessageLimit()),
@@ -1528,8 +1528,8 @@ func getGRPCError(err error) error {
 	}
 }
 
-func sessionToProtoSummary(session storage.Session) *handpb.SessionSummary {
-	return &handpb.SessionSummary{
+func sessionToProtoSummary(session storage.Session) *morphpb.SessionSummary {
+	return &morphpb.SessionSummary{
 		Id:            session.ID,
 		Title:         session.Title,
 		TitleSource:   session.TitleSource,
@@ -1537,8 +1537,8 @@ func sessionToProtoSummary(session storage.Session) *handpb.SessionSummary {
 	}
 }
 
-func providerOptionsToProto(options []models.ProviderOption) []*handpb.ProviderOption {
-	items := make([]*handpb.ProviderOption, 0, len(options))
+func providerOptionsToProto(options []models.ProviderOption) []*morphpb.ProviderOption {
+	items := make([]*morphpb.ProviderOption, 0, len(options))
 	for _, option := range options {
 		items = append(items, providerOptionToProto(option))
 	}
@@ -1546,8 +1546,8 @@ func providerOptionsToProto(options []models.ProviderOption) []*handpb.ProviderO
 	return items
 }
 
-func providerOptionToProto(option models.ProviderOption) *handpb.ProviderOption {
-	return &handpb.ProviderOption{
+func providerOptionToProto(option models.ProviderOption) *morphpb.ProviderOption {
+	return &morphpb.ProviderOption{
 		Id:             option.ID,
 		Name:           option.Name,
 		Type:           option.Type,
@@ -1559,8 +1559,8 @@ func providerOptionToProto(option models.ProviderOption) *handpb.ProviderOption 
 	}
 }
 
-func modelOptionsToProto(options []models.Option) []*handpb.ModelOption {
-	items := make([]*handpb.ModelOption, 0, len(options))
+func modelOptionsToProto(options []models.Option) []*morphpb.ModelOption {
+	items := make([]*morphpb.ModelOption, 0, len(options))
 	for _, option := range options {
 		items = append(items, modelOptionToProto(option))
 	}
@@ -1568,8 +1568,8 @@ func modelOptionsToProto(options []models.Option) []*handpb.ModelOption {
 	return items
 }
 
-func modelOptionToProto(option models.Option) *handpb.ModelOption {
-	return &handpb.ModelOption{
+func modelOptionToProto(option models.Option) *morphpb.ModelOption {
+	return &morphpb.ModelOption{
 		Id:            option.ID,
 		Name:          option.Name,
 		Provider:      option.Provider,
@@ -1583,16 +1583,16 @@ func modelOptionToProto(option models.Option) *handpb.ModelOption {
 	}
 }
 
-func sessionTimelineToProtoResponse(timeline handagent.SessionTimeline) *handpb.GetSessionTimelineResponse {
-	response := &handpb.GetSessionTimelineResponse{
+func sessionTimelineToProtoResponse(timeline morphagent.SessionTimeline) *morphpb.GetSessionTimelineResponse {
+	response := &morphpb.GetSessionTimelineResponse{
 		Id:                    timeline.SessionID,
 		Title:                 timeline.Title,
 		TitleSource:           timeline.TitleSource,
 		MessagesHasMore:       timeline.MessagesHasMore,
 		TracesHasMore:         timeline.TracesHasMore,
 		TracesTruncatedBefore: timeline.TracesTruncatedBefore,
-		Messages:              make([]*handpb.SessionTimelineMessage, 0, len(timeline.Messages)),
-		TraceEvents:           make([]*handpb.SessionTimelineTraceEvent, 0, len(timeline.TraceEvents)),
+		Messages:              make([]*morphpb.SessionTimelineMessage, 0, len(timeline.Messages)),
+		TraceEvents:           make([]*morphpb.SessionTimelineTraceEvent, 0, len(timeline.TraceEvents)),
 	}
 	for _, message := range timeline.Messages {
 		response.Messages = append(response.Messages, timelineMessageToProto(message))
@@ -1610,9 +1610,9 @@ func sessionTimelineToProtoResponse(timeline handagent.SessionTimeline) *handpb.
 	return response
 }
 
-func timelineMessageToProto(record handagent.SessionTimelineMessage) *handpb.SessionTimelineMessage {
+func timelineMessageToProto(record morphagent.SessionTimelineMessage) *morphpb.SessionTimelineMessage {
 	message := record.Message
-	protoMessage := &handpb.SessionTimelineMessage{
+	protoMessage := &morphpb.SessionTimelineMessage{
 		Offset:     int32(record.Offset),
 		Id:         uint64(message.ID),
 		Role:       string(message.Role),
@@ -1620,10 +1620,10 @@ func timelineMessageToProto(record handagent.SessionTimelineMessage) *handpb.Ses
 		ToolCallId: message.ToolCallID,
 		Content:    message.Content,
 		CreatedAt:  timestamppb.New(message.CreatedAt),
-		ToolCalls:  make([]*handpb.SessionTimelineToolCall, 0, len(message.ToolCalls)),
+		ToolCalls:  make([]*morphpb.SessionTimelineToolCall, 0, len(message.ToolCalls)),
 	}
 	for _, toolCall := range message.ToolCalls {
-		protoMessage.ToolCalls = append(protoMessage.ToolCalls, &handpb.SessionTimelineToolCall{
+		protoMessage.ToolCalls = append(protoMessage.ToolCalls, &morphpb.SessionTimelineToolCall{
 			Id:    strings.TrimSpace(toolCall.ID),
 			Name:  strings.TrimSpace(toolCall.Name),
 			Input: strings.TrimSpace(toolCall.Input),
@@ -1633,7 +1633,7 @@ func timelineMessageToProto(record handagent.SessionTimelineMessage) *handpb.Ses
 	return protoMessage
 }
 
-func timelineTraceEventToProto(event agentsession.TraceEvent) (*handpb.SessionTimelineTraceEvent, bool) {
+func timelineTraceEventToProto(event agentsession.TraceEvent) (*morphpb.SessionTimelineTraceEvent, bool) {
 	payload, ok := getRPCTracePayload(event.Type, event.Payload)
 	if !ok {
 		return nil, false
@@ -1644,7 +1644,7 @@ func timelineTraceEventToProto(event agentsession.TraceEvent) (*handpb.SessionTi
 		return nil, false
 	}
 
-	return &handpb.SessionTimelineTraceEvent{
+	return &morphpb.SessionTimelineTraceEvent{
 		Id:          uint64(event.ID),
 		Sequence:    int32(event.Sequence),
 		Type:        strings.TrimSpace(event.Type),
