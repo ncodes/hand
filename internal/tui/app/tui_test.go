@@ -1872,21 +1872,25 @@ func TestGetMorphBannerColor_UsesLastColorForOutOfRangeIndex(t *testing.T) {
 
 func TestModel_ViewKeepsBannerFullWhenInfoPanelWouldClipIt(t *testing.T) {
 	runModel := newModel()
-	runModel.width = lipgloss.Width(morphBanner) + headerGapWidth + getHeaderInfoWidth(getHeaderInfoRows(runModel)) - 1
+	banner := getHeaderBrandText(runModel.runtimeInfo)
+	runModel.width = lipgloss.Width(banner) + headerGapWidth + getHeaderInfoWidth(getHeaderInfoRows(runModel)) - 1
 	runModel.resize()
 	content := stripANSI(runModel.renderHeader())
 
-	require.Contains(t, content, "░██     ░██░░████████ ███  ░██░░██████")
+	require.Contains(t, content, "Morph")
+	require.Contains(t, content, "dev (unknown)")
 	require.NotContains(t, content, "provider: openrouter")
 }
 
 func TestModel_ViewShowsHeaderMarkNextToFullBanner(t *testing.T) {
 	runModel := newModel()
-	runModel.width = lipgloss.Width(morphHeaderMark) + headerGapWidth + lipgloss.Width(morphBanner) + headerBodyPadding*2
+	banner := getHeaderBrandText(runModel.runtimeInfo)
+	runModel.width = lipgloss.Width(morphHeaderMark) + headerGapWidth + lipgloss.Width(banner) + headerBodyPadding*2
 	runModel.resize()
 	content := stripANSI(runModel.renderHeader())
 
-	require.Contains(t, content, "░████████  ░██")
+	require.Contains(t, content, "░████████  Morph")
+	require.Contains(t, content, "dev (unknown)")
 	require.Contains(t, content, "░█░█░█▀")
 	require.Contains(t, content, "   █ █ █")
 	require.Contains(t, content, "   ▀▀▀▀▀  ")
@@ -1894,22 +1898,25 @@ func TestModel_ViewShowsHeaderMarkNextToFullBanner(t *testing.T) {
 
 func TestModel_ViewHidesHeaderMarkWhenFullBannerWouldClip(t *testing.T) {
 	runModel := newModel()
-	runModel.width = lipgloss.Width(morphHeaderMark) + headerGapWidth + lipgloss.Width(morphBanner) + headerBodyPadding*2 - 1
+	banner := getHeaderBrandText(runModel.runtimeInfo)
+	runModel.width = lipgloss.Width(morphHeaderMark) + headerGapWidth + lipgloss.Width(banner) + headerBodyPadding*2 - 1
 	runModel.resize()
 	content := stripANSI(runModel.renderHeader())
 
-	require.Contains(t, content, "░██     ░██")
+	require.Contains(t, content, "Morph")
+	require.Contains(t, content, "dev (unknown)")
 	require.NotContains(t, content, "░█░█░█▀")
 }
 
 func TestModel_ViewUsesCompactBannerWhenFullBannerDoesNotFit(t *testing.T) {
 	runModel := newModel()
-	runModel.width = lipgloss.Width(morphBanner) - 1
+	banner := getHeaderBrandText(runModel.runtimeInfo)
+	runModel.width = lipgloss.Width(banner) - 1
 	runModel.resize()
 	content := stripANSI(runModel.renderHeader())
 
-	require.Contains(t, content, "|_||_\\__,_|_||_\\__,_|")
-	require.NotContains(t, content, "░██")
+	require.Contains(t, content, "Morph")
+	require.NotContains(t, content, "dev (unknown)")
 }
 
 func TestRenderHeaderBody_FillsAvailableWidthWhenInfoIsVisible(t *testing.T) {

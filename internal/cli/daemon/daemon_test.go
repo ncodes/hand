@@ -19,6 +19,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
 	urfavecli "github.com/urfave/cli/v3"
+	"github.com/wandxy/morph/internal/brand"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	morphgateway "github.com/wandxy/morph/internal/gateway"
@@ -568,7 +569,20 @@ func TestSetOutput_SwitchesWriterAndRestoresPrevious(t *testing.T) {
 
 func TestRenderStartupPanel_NilConfigReturnsBadgeOnly(t *testing.T) {
 	out := renderStartupPanel(nil)
-	require.Equal(t, morphBadge, out)
+	require.Equal(t, getStartupBadge(), out)
+}
+
+func TestStartupBadgeAlignsMarkAndText(t *testing.T) {
+	badge := joinStartupBanner(brand.Mark, "Morph\n1.2.3 (commit abc123)")
+	lines := strings.Split(badge, "\n")
+
+	require.Len(t, lines, 5)
+	for _, line := range lines {
+		require.Equal(t, len([]rune(lines[0])), len([]rune(line)))
+	}
+	require.Contains(t, lines[1], "Morph")
+	require.Contains(t, lines[2], "1.2.3 (commit abc123)")
+	require.Contains(t, lines[2], "░████████")
 }
 
 func TestRenderStartupPanel_IncludesSummaryProviderAndAPIWhenDistinct(t *testing.T) {

@@ -261,7 +261,7 @@ func TestToolCallPayloadToTUIMessage_ShortensLongListFilesPath(t *testing.T) {
 	require.Equal(t, toolInvocationStartedMsg{
 		ID:     "call_1",
 		Name:   "list_files",
-		Detail: "list_files(path=/Users/nedy/projects/wandxy/h/.../listfiles recursive=true)",
+		Detail: "list_files(path=/Users/nedy/projects/wandxy/m/.../listfiles recursive=true)",
 	}, msg)
 }
 

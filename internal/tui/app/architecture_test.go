@@ -195,7 +195,7 @@ func TestModelView_FullScreenLayoutSnapshot(t *testing.T) {
 
 	view := stripANSI(runModel.View().Content)
 
-	require.Contains(t, view, "░██")
+	require.Contains(t, view, "░████████  Morph")
 	require.Contains(t, view, "❯ hello")
 	require.Contains(t, view, "Hi")
 	require.Contains(t, view, "Ask Morph...")
@@ -241,7 +241,7 @@ func TestChromePanelData_SeparatesModelStateFromRendering(t *testing.T) {
 	panel := getHeaderPanel(runModel, runModel.width)
 
 	require.Equal(t, 180, panel.Width)
-	require.Equal(t, morphBanner, panel.Banner)
+	require.Equal(t, getHeaderBrandText(runModel.runtimeInfo), panel.Banner)
 	require.True(t, panel.ShowInfo)
 	require.Equal(t, "Welcome, ", panel.Notice.LeftLead)
 	require.Equal(t, "/changelog", panel.Notice.Link)

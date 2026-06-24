@@ -9,14 +9,7 @@ import (
 	"github.com/wandxy/morph/internal/brand"
 )
 
-const morphBanner = brand.Wordmark
-
-const compactMorphBanner = ` _  _              _ 
-| || |__ _ _ _  __| |
-| __ / _` + "`" + ` | ' \/ _` + "`" + ` |
-|_||_\__,_|_||_\__,_|`
-
-const tinyMorphBanner = `Morph`
+const morphProductName = "Morph"
 
 const morphHeaderMark = brand.Mark
 
@@ -96,8 +89,9 @@ func getHeaderPanel(m model, width int) headerPanel {
 	rows := getHeaderInfoRows(m)
 	infoWidth := getHeaderInfoWidth(rows)
 	bodyWidth := getHeaderBodyContentWidth(width)
-	banner := getHeaderBanner(bodyWidth)
-	mark := getHeaderMark(bodyWidth, banner)
+	fullBanner := getHeaderBrandText(m.runtimeInfo)
+	banner := getHeaderBanner(bodyWidth, m.runtimeInfo)
+	mark := getHeaderMark(bodyWidth, banner, fullBanner)
 	bannerWidth := getHeaderBannerGroupWidth(mark, banner)
 
 	return headerPanel{
@@ -189,22 +183,43 @@ func getModelDisplayName(name string) string {
 	return name
 }
 
-func getHeaderBanner(width int) string {
-	if width >= lipgloss.Width(morphBanner) {
-		return morphBanner
-	}
-	if width >= lipgloss.Width(compactMorphBanner) {
-		return compactMorphBanner
-	}
-
-	return tinyMorphBanner
+func getHeaderBrandText(info runtimeInfo) string {
+	return morphProductName + "\n" + getHeaderBrandVersion(info)
 }
 
-func getHeaderMark(width int, banner string) string {
-	if banner != morphBanner {
+func getHeaderCompactBrandText(info runtimeInfo) string {
+	return morphProductName + " " + getHeaderBrandVersion(info)
+}
+
+func getHeaderBrandVersion(info runtimeInfo) string {
+	version := getRuntimeValue(info.Version, "dev")
+	commit := getRuntimeValue(info.Commit, "unknown")
+	if version != "dev" && !strings.HasPrefix(strings.ToLower(version), "v") {
+		version = "v" + version
+	}
+
+	return version + " (" + commit + ")"
+}
+
+func getHeaderBanner(width int, info runtimeInfo) string {
+	full := getHeaderBrandText(info)
+	if width >= lipgloss.Width(full) {
+		return full
+	}
+
+	compact := getHeaderCompactBrandText(info)
+	if width >= lipgloss.Width(compact) {
+		return compact
+	}
+
+	return morphProductName
+}
+
+func getHeaderMark(width int, banner string, fullBanner string) string {
+	if banner != fullBanner {
 		return ""
 	}
-	if width < lipgloss.Width(morphHeaderMark)+headerGapWidth+lipgloss.Width(morphBanner) {
+	if width < lipgloss.Width(morphHeaderMark)+headerGapWidth+lipgloss.Width(fullBanner) {
 		return ""
 	}
 

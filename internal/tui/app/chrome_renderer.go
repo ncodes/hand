@@ -122,13 +122,29 @@ func renderHeaderBody(panel headerPanel) string {
 }
 
 func renderHeaderBannerGroup(panel headerPanel) string {
-	banner := renderMorphBannerWithColors(panel.Banner, panel.BannerRows)
+	banner := renderHeaderBrandText(panel.Banner)
 	if panel.Mark == "" {
 		return banner
 	}
 
 	mark := renderMorphBannerWithColors(panel.Mark, panel.BannerRows)
-	return lipgloss.JoinHorizontal(lipgloss.Top, mark, strings.Repeat(" ", headerGapWidth), banner)
+	return lipgloss.JoinHorizontal(lipgloss.Center, mark, strings.Repeat(" ", headerGapWidth), banner)
+}
+
+func renderHeaderBrandText(text string) string {
+	lines := strings.Split(text, "\n")
+	for index, line := range lines {
+		style := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(defaultTUITheme.MutedText))
+		if index == 0 {
+			style = style.
+				Bold(true).
+				Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground))
+		}
+		lines[index] = style.Render(line)
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func padHeaderBody(body string, width int) string {

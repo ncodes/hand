@@ -26,15 +26,14 @@ var startupLogoColors = []string{
 	"\x1b[38;5;83m",
 }
 
-var morphBadge = joinStartupBanner(brand.Mark, brand.Wordmark)
-
 func renderStartupPanel(cfg *config.Config) string {
+	badge := getStartupBadge()
 	if cfg == nil {
-		return morphBadge
+		return badge
 	}
 
 	detailRows := getStartupDetailRows(cfg)
-	panel := renderStartupBannerPanel(morphBadge, detailRows, cfg.Log.NoColor)
+	panel := renderStartupBannerPanel(badge, detailRows, cfg.Log.NoColor)
 
 	return "\n" + panel + "\n\n"
 }
@@ -132,6 +131,14 @@ func formatStartupVersion() string {
 	return fmt.Sprintf("%s (commit %s)", version, commit)
 }
 
+func getStartupBadge() string {
+	return joinStartupBanner(brand.Mark, getStartupBrandText())
+}
+
+func getStartupBrandText() string {
+	return "Morph\n" + formatStartupVersion()
+}
+
 func renderStartupBannerPanel(logo string, rows []startupDetailRow, noColor bool) string {
 	logoLines := splitStartupLines(logo)
 	detailLines := renderStartupDetailLines(rows, noColor)
@@ -225,13 +232,33 @@ func appendStartupBlankLines(lines []string, count int, width int) []string {
 func joinStartupBanner(mark string, wordmark string) string {
 	markLines := strings.Split(mark, "\n")
 	wordmarkLines := strings.Split(wordmark, "\n")
+	markWidth := getStartupBlockWidth(markLines)
+	wordmarkWidth := getStartupBlockWidth(wordmarkLines)
 	lines := make([]string, 0, max(len(markLines), len(wordmarkLines)))
+	height := max(len(markLines), len(wordmarkLines))
 
-	for index := range max(len(markLines), len(wordmarkLines)) {
-		lines = append(lines, getStartupBannerLine(markLines, index)+"  "+getStartupBannerLine(wordmarkLines, index))
+	for index := range height {
+		markLine := getCenteredStartupBannerLine(markLines, index, height, markWidth)
+		wordmarkLine := getCenteredStartupBannerLine(wordmarkLines, index, height, wordmarkWidth)
+		lines = append(lines, markLine+"  "+wordmarkLine)
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func getStartupBlockWidth(lines []string) int {
+	width := 0
+	for _, line := range lines {
+		width = max(width, len([]rune(line)))
+	}
+
+	return width
+}
+
+func getCenteredStartupBannerLine(lines []string, index int, height int, width int) string {
+	topPadding := max((height-len(lines))/2, 0)
+	line := getStartupBannerLine(lines, index-topPadding)
+	return padStartupLineRight(line, width)
 }
 
 func getStartupBannerLine(lines []string, index int) string {
@@ -240,6 +267,15 @@ func getStartupBannerLine(lines []string, index int) string {
 	}
 
 	return lines[index]
+}
+
+func padStartupLineRight(line string, width int) string {
+	lineWidth := len([]rune(line))
+	if lineWidth >= width {
+		return line
+	}
+
+	return line + strings.Repeat(" ", width-lineWidth)
 }
 
 func getEffectiveStorageBackend(cfg *config.Config) string {
