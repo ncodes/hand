@@ -1,34 +1,34 @@
 ---
 title: Config Guide
-description: Configure Hand safely and predictably.
+description: Configure Morph safely and predictably.
 ---
 
 # Config Guide
 
-Hand reads its settings from a per-[profile](../concepts/profiles) `config.yaml`. This guide is a practical tour of what
-each section controls and how to change it. For where config lives, how sources combine, and the `hand config get` /
-`hand config set` mechanics in depth, see [Profiles and Config](../getting-started/profiles-and-config); for an
+Morph reads its settings from a per-[profile](../concepts/profiles) `config.yaml`. This guide is a practical tour of what
+each section controls and how to change it. For where config lives, how sources combine, and the `morph config get` /
+`morph config set` mechanics in depth, see [Profiles and Config](../getting-started/profiles-and-config); for an
 exhaustive key-by-key listing, see the [Config Reference](../reference/config).
 
 ## Changing Config
 
-You rarely edit `config.yaml` by hand. Read and write it with `hand config get` and `hand config set`, which operate on
+You rarely edit `config.yaml` by morph. Read and write it with `morph config get` and `morph config set`, which operate on
 the active profile (add `--profile <name>` to target another):
 
 ```bash
-hand config get models.main.provider models.main.name
-hand config set models.main.name gpt-5.5
+morph config get models.main.provider models.main.name
+morph config set models.main.name gpt-5.5
 ```
 
 A few things to know:
 
 - **Values are typed.** Booleans accept `true`/`false` (also `yes`/`no`, `on`/`off`); durations take Go duration
-  strings like `30s` or `720h`; and lists accept comma-separated values, for example `hand config set fs.roots
+  strings like `30s` or `720h`; and lists accept comma-separated values, for example `morph config set fs.roots
   "/work/repo,/tmp/scratch"`.
 - **`config set` only writes `config.yaml`.** It never edits `.env`. Invalid values are rejected before the file is
   written.
 - **Changes apply automatically.** A daemon running for the profile watches `config.yaml` and restarts to pick up a
-  valid change, so you do not normally restart by hand. `.env` changes are the exception and need a manual restart. See
+  valid change, so you do not normally restart by morph. `.env` changes are the exception and need a manual restart. See
   [Daemon and RPC](../concepts/daemon-and-rpc).
 - **Precedence.** Flags beat environment variables, which beat `config.yaml`, which beats defaults — covered in
   [Profiles and Config](../getting-started/profiles-and-config#config-precedence).
@@ -64,12 +64,12 @@ The profile config is organized into these top-level sections:
 ### Switch the main model
 
 ```bash
-hand config set models.main.provider openai-codex
-hand config set models.main.name gpt-5.5
-hand config set models.main.api openai-responses
+morph config set models.main.provider openai-codex
+morph config set models.main.name gpt-5.5
+morph config set models.main.api openai-responses
 ```
 
-After changing providers, confirm credentials resolve with `hand auth status` and `hand doctor`. See
+After changing providers, confirm credentials resolve with `morph auth status` and `morph doctor`. See
 [Provider Auth](./provider-auth).
 
 ### Use a cheaper summary model
@@ -78,8 +78,8 @@ The summary role handles compaction and background memory work, and inherits the
 smaller model can cut the cost of long sessions:
 
 ```bash
-hand config set models.summary.provider anthropic
-hand config set models.summary.name claude-haiku-4-5
+morph config set models.summary.provider anthropic
+morph config set models.summary.name claude-haiku-4-5
 ```
 
 ### Restrict or open capabilities
@@ -87,7 +87,7 @@ hand config set models.summary.name claude-haiku-4-5
 Capabilities gate whole groups of tools. To run read-only, turn off execution:
 
 ```bash
-hand config set cap.exec false
+morph config set cap.exec false
 ```
 
 The defaults are on for `fs`, `net`, `exec`, and `mem`, and off for `browser`. See [Tools](../concepts/tools).
@@ -97,8 +97,8 @@ The defaults are on for `fs`, `net`, `exec`, and `mem`, and off for `browser`. S
 Limit where file tools may read and write, and which commands may run without approval:
 
 ```bash
-hand config set fs.roots "/work/repo,/tmp/scratch"
-hand config set exec.deny "rm -rf /,mkfs"
+morph config set fs.roots "/work/repo,/tmp/scratch"
+morph config set exec.deny "rm -rf /,mkfs"
 ```
 
 See [Safety and Guardrails](../concepts/safety-and-guardrails) for how `exec.allow`/`ask`/`deny` are evaluated.
@@ -106,7 +106,7 @@ See [Safety and Guardrails](../concepts/safety-and-guardrails) for how `exec.all
 ### Enable the gateway
 
 ```bash
-hand config set gateway.enabled true
+morph config set gateway.enabled true
 ```
 
 Turning on Slack or Telegram additionally requires their credentials — `config set` validates the whole config, so
@@ -116,8 +116,8 @@ enabling a platform without its token is rejected. Set the platform's tokens and
 ### Tune memory
 
 ```bash
-hand config set memory.enabled true
-hand config set memory.episodic.enabled true
+morph config set memory.enabled true
+morph config set memory.episodic.enabled true
 ```
 
 See the [Memory Guide](./memory) for the full set of memory toggles.
@@ -127,7 +127,7 @@ See the [Memory Guide](./memory) for the full set of memory toggles.
 Secret redaction is always on; PII redaction in model-facing output is opt-in:
 
 ```bash
-hand config set safety.pii true
+morph config set safety.pii true
 ```
 
 See [Safety and Guardrails](../concepts/safety-and-guardrails).
@@ -135,7 +135,7 @@ See [Safety and Guardrails](../concepts/safety-and-guardrails).
 ### Change log verbosity
 
 ```bash
-hand config set log.level debug
+morph config set log.level debug
 ```
 
 ## Verify
@@ -143,17 +143,17 @@ hand config set log.level debug
 After any change, confirm the active setup resolves cleanly:
 
 ```bash
-hand config get models.main.provider models.main.name
-hand doctor
+morph config get models.main.provider models.main.name
+morph doctor
 ```
 
-`hand doctor` exits cleanly when the profile is ready and otherwise prints the exact command to fix what is missing. See
+`morph doctor` exits cleanly when the profile is ready and otherwise prints the exact command to fix what is missing. See
 [Doctor](../operations/doctor).
 
 ## Where To Go Next
 
 - [Profiles and Config](../getting-started/profiles-and-config): config sources, precedence, and the daemon's role.
 - [Config Reference](../reference/config): every key and its default.
-- [Environment Variables](../reference/environment-variables): the `HAND_` overrides.
+- [Environment Variables](../reference/environment-variables): the `MORPH_` overrides.
 - [Provider Auth](./provider-auth): provider credentials and model roles.
 - [Doctor](../operations/doctor): verify a profile is ready.

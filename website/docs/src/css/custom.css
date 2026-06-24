@@ -14,9 +14,9 @@
   --ifm-font-color-secondary: #526071;
   --ifm-font-family-base: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --ifm-heading-font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --hand-code-font: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+  --morph-code-font: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
-  --ifm-font-family-monospace: var(--hand-code-font);
+  --ifm-font-family-monospace: var(--morph-code-font);
   --ifm-heading-color: #111827;
   --ifm-link-color: #4c9dff;
   --ifm-code-font-size: 92%;
@@ -34,25 +34,25 @@
   --ifm-table-border-color: #dbe3ee;
   --ifm-table-stripe-background: #f1f5fa;
   --docusaurus-highlighted-code-line-bg: rgba(76, 157, 255, 0.14);
-  --hand-bg: #f7f9fc;
-  --hand-sidebar-bg: #f1f5fa;
-  --hand-navbar-bg: rgba(255, 255, 255, 0.96);
-  --hand-panel: #ffffff;
-  --hand-panel-soft: #f4f7fb;
-  --hand-border: #dbe3ee;
-  --hand-border-strong: #c7d3e2;
-  --hand-muted: #66758a;
-  --hand-text-muted: #4c5a6d;
-  --hand-text-strong: #111827;
-  --hand-navbar-text: #253044;
-  --hand-navbar-brand: #111827;
-  --hand-search-bg: #f7f9fc;
-  --hand-search-text: #253044;
-  --hand-menu-hover-bg: rgba(76, 157, 255, 0.1);
-  --hand-menu-hover-text: #1f2937;
-  --hand-menu-active-bg: #eaf3ff;
-  --hand-blockquote-bg: #eef5ff;
-  --hand-table-header-bg: #eef3f9;
+  --morph-bg: #f7f9fc;
+  --morph-sidebar-bg: #f1f5fa;
+  --morph-navbar-bg: rgba(255, 255, 255, 0.96);
+  --morph-panel: #ffffff;
+  --morph-panel-soft: #f4f7fb;
+  --morph-border: #dbe3ee;
+  --morph-border-strong: #c7d3e2;
+  --morph-muted: #66758a;
+  --morph-text-muted: #4c5a6d;
+  --morph-text-strong: #111827;
+  --morph-navbar-text: #253044;
+  --morph-navbar-brand: #111827;
+  --morph-search-bg: #f7f9fc;
+  --morph-search-text: #253044;
+  --morph-menu-hover-bg: rgba(76, 157, 255, 0.1);
+  --morph-menu-hover-text: #1f2937;
+  --morph-menu-active-bg: #eaf3ff;
+  --morph-blockquote-bg: #eef5ff;
+  --morph-table-header-bg: #eef3f9;
 }
 
 [data-theme='dark'] {
@@ -75,30 +75,30 @@
   --ifm-color-emphasis-900: #f7f9fc;
   --ifm-table-border-color: #1f2a38;
   --ifm-table-stripe-background: #0b1118;
-  --hand-bg: #05090d;
-  --hand-sidebar-bg: #070b10;
-  --hand-navbar-bg: rgba(5, 9, 13, 0.96);
-  --hand-panel: #0b1016;
-  --hand-panel-soft: #111820;
-  --hand-border: #1b2430;
-  --hand-border-strong: #283545;
-  --hand-muted: #8e98a8;
-  --hand-text-muted: #b4bdca;
-  --hand-text-strong: #f7f9fc;
-  --hand-navbar-text: #c7d0dc;
-  --hand-navbar-brand: #f7f9fc;
-  --hand-search-bg: #070d13;
-  --hand-search-text: #dce5ef;
-  --hand-menu-hover-bg: rgba(76, 157, 255, 0.08);
-  --hand-menu-hover-text: #dce7f5;
-  --hand-menu-active-bg: #121923;
-  --hand-blockquote-bg: #0b1118;
-  --hand-table-header-bg: #101720;
+  --morph-bg: #05090d;
+  --morph-sidebar-bg: #070b10;
+  --morph-navbar-bg: rgba(5, 9, 13, 0.96);
+  --morph-panel: #0b1016;
+  --morph-panel-soft: #111820;
+  --morph-border: #1b2430;
+  --morph-border-strong: #283545;
+  --morph-muted: #8e98a8;
+  --morph-text-muted: #b4bdca;
+  --morph-text-strong: #f7f9fc;
+  --morph-navbar-text: #c7d0dc;
+  --morph-navbar-brand: #f7f9fc;
+  --morph-search-bg: #070d13;
+  --morph-search-text: #dce5ef;
+  --morph-menu-hover-bg: rgba(76, 157, 255, 0.08);
+  --morph-menu-hover-text: #dce7f5;
+  --morph-menu-active-bg: #121923;
+  --morph-blockquote-bg: #0b1118;
+  --morph-table-header-bg: #101720;
 }
 
 html,
 body {
-  background: var(--hand-bg);
+  background: var(--morph-bg);
 }
 
 body {
@@ -106,14 +106,14 @@ body {
 }
 
 .navbar {
-  background: var(--hand-navbar-bg);
-  border-bottom: 1px solid var(--hand-border);
+  background: var(--morph-navbar-bg);
+  border-bottom: 1px solid var(--morph-border);
   box-shadow: none;
   height: 56px;
 }
 
 .navbar__brand {
-  color: var(--hand-navbar-brand);
+  color: var(--morph-navbar-brand);
   font-weight: 700;
 }
 
@@ -122,7 +122,7 @@ body {
 }
 
 .navbar__item {
-  color: var(--hand-navbar-text);
+  color: var(--morph-navbar-text);
   font-size: 0.86rem;
   font-weight: 650;
 }
@@ -151,7 +151,7 @@ body {
   .navbar__link[href='/docs/'],
 .navbar__items:has(.navbar__link[href='/docs/reference/cli'].navbar__link--active)
   .navbar__link[href='/docs/'] {
-  color: var(--hand-navbar-text);
+  color: var(--morph-navbar-text);
 }
 
 .navbar__items:has(.navbar__link[href='/docs/guides/gateway'].navbar__link--active)
@@ -162,38 +162,38 @@ body {
 }
 
 .navbar__search-input {
-  background: var(--hand-search-bg);
-  border: 1px solid var(--hand-border-strong);
+  background: var(--morph-search-bg);
+  border: 1px solid var(--morph-border-strong);
   border-radius: 8px;
-  color: var(--hand-search-text);
+  color: var(--morph-search-text);
 }
 
 .DocSearch {
   --docsearch-primary-color: var(--ifm-color-primary);
   --docsearch-text-color: var(--ifm-font-color-base);
-  --docsearch-muted-color: var(--hand-muted);
-  --docsearch-searchbox-background: var(--hand-panel-soft);
-  --docsearch-searchbox-focus-background: var(--hand-panel);
-  --docsearch-hit-background: var(--hand-panel);
+  --docsearch-muted-color: var(--morph-muted);
+  --docsearch-searchbox-background: var(--morph-panel-soft);
+  --docsearch-searchbox-focus-background: var(--morph-panel);
+  --docsearch-hit-background: var(--morph-panel);
   --docsearch-hit-color: var(--ifm-font-color-base);
   --docsearch-hit-active-color: #ffffff;
-  --docsearch-footer-background: var(--hand-panel);
-  --docsearch-modal-background: var(--hand-bg);
+  --docsearch-footer-background: var(--morph-panel);
+  --docsearch-modal-background: var(--morph-bg);
 }
 
 .DocSearch-Button {
-  background: var(--hand-search-bg);
-  border: 1px solid var(--hand-border-strong);
+  background: var(--morph-search-bg);
+  border: 1px solid var(--morph-border-strong);
   border-radius: 8px;
-  color: var(--hand-search-text);
+  color: var(--morph-search-text);
   height: 34px;
   margin-left: 0.75rem;
 }
 
 .DocSearch-Button:hover {
-  background: var(--hand-panel-soft);
+  background: var(--morph-panel-soft);
   border-color: var(--ifm-color-primary);
-  color: var(--hand-search-text);
+  color: var(--morph-search-text);
 }
 
 .DocSearch-Button-Keys {
@@ -211,7 +211,7 @@ body {
 }
 
 .navbar-social-link-start {
-  border-left: 1px solid var(--hand-border-strong);
+  border-left: 1px solid var(--morph-border-strong);
   margin-left: 0.65rem;
   padding-left: 0.75rem;
   width: 2.75rem;
@@ -240,12 +240,12 @@ body {
 }
 
 .main-wrapper {
-  background: var(--hand-bg);
+  background: var(--morph-bg);
 }
 
 .theme-doc-sidebar-container {
-  background: var(--hand-sidebar-bg);
-  border-right: 1px solid var(--hand-border) !important;
+  background: var(--morph-sidebar-bg);
+  border-right: 1px solid var(--morph-border) !important;
 }
 
 .theme-doc-sidebar-menu {
@@ -272,7 +272,7 @@ body {
 .theme-doc-sidebar-item-category-level-1
   > .menu__list-item-collapsible
   > .menu__link {
-  color: var(--hand-muted);
+  color: var(--morph-muted);
   font-family: 'Silkscreen', monospace;
   font-size: 0.82rem;
   font-weight: 400;
@@ -286,7 +286,7 @@ body {
   > .menu__list-item-collapsible
   > .menu__link:hover {
   background: transparent;
-  color: var(--hand-muted);
+  color: var(--morph-muted);
 }
 
 .theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible:hover {
@@ -294,7 +294,7 @@ body {
 }
 
 .theme-doc-sidebar-item-category-level-1 > .menu__list {
-  border-left: 1px solid var(--hand-border) !important;
+  border-left: 1px solid var(--morph-border) !important;
   margin: 0;
   padding-left: 1rem;
 }
@@ -320,12 +320,12 @@ body {
 
 .menu__link:hover {
   background: transparent;
-  color: var(--hand-menu-hover-text);
+  color: var(--morph-menu-hover-text);
 }
 
 .menu__link--active {
   background: transparent;
-  color: var(--hand-text-strong);
+  color: var(--morph-text-strong);
   font-weight: 650;
   position: relative;
 }
@@ -342,7 +342,7 @@ body {
 
 .theme-doc-sidebar-item-link > .menu__link:hover::before,
 .theme-doc-sidebar-item-link > .menu__link--active::before {
-  background: var(--hand-text-strong);
+  background: var(--morph-text-strong);
 }
 
 .theme-doc-sidebar-item-link-level-3 > .menu__link::before {
@@ -368,7 +368,7 @@ body {
   > .menu__list-item-collapsible
   > .menu__link--active {
   background: transparent;
-  color: var(--hand-text-strong);
+  color: var(--morph-text-strong);
 }
 
 .theme-doc-sidebar-item-category-level-2
@@ -389,7 +389,7 @@ body {
 .theme-doc-sidebar-item-category-level-2
   > .menu__list-item-collapsible
   > .menu__link--active::before {
-  background: var(--hand-text-strong);
+  background: var(--morph-text-strong);
 }
 
 .theme-doc-markdown {
@@ -405,7 +405,7 @@ body {
 }
 
 .theme-doc-markdown h2 {
-  border-top: 1px solid var(--hand-border);
+  border-top: 1px solid var(--morph-border);
   font-size: 1.55rem;
   margin-top: 3rem;
   padding-top: 2rem;
@@ -413,13 +413,13 @@ body {
 
 .theme-doc-markdown p,
 .theme-doc-markdown li {
-  color: var(--hand-text-muted);
+  color: var(--morph-text-muted);
   font-size: 1rem;
   line-height: 1.78;
 }
 
 .theme-doc-markdown strong {
-  color: var(--hand-text-strong);
+  color: var(--morph-text-strong);
 }
 
 .theme-doc-markdown a {
@@ -427,10 +427,10 @@ body {
 }
 
 .theme-doc-markdown blockquote {
-  background: var(--hand-blockquote-bg);
+  background: var(--morph-blockquote-bg);
   border-left: 3px solid var(--ifm-color-primary);
   border-radius: 0 8px 8px 0;
-  color: var(--hand-navbar-text);
+  color: var(--morph-navbar-text);
   padding: 0.95rem 1.1rem;
 }
 
@@ -440,38 +440,38 @@ body {
 }
 
 .theme-doc-markdown table {
-  background: var(--hand-panel);
-  border: 1px solid var(--hand-border);
+  background: var(--morph-panel);
+  border: 1px solid var(--morph-border);
   border-radius: 8px;
   overflow: hidden;
 }
 
 .theme-doc-markdown th {
-  background: var(--hand-table-header-bg);
-  color: var(--hand-text-strong);
+  background: var(--morph-table-header-bg);
+  color: var(--morph-text-strong);
 }
 
 .card,
 .theme-doc-markdown .card {
-  background: var(--hand-panel-soft);
-  border: 1px solid var(--hand-border);
+  background: var(--morph-panel-soft);
+  border: 1px solid var(--morph-border);
   border-radius: 10px;
   box-shadow: none;
 }
 
 .pagination-nav__link {
-  background: var(--hand-panel);
-  border: 1px solid var(--hand-border);
+  background: var(--morph-panel);
+  border: 1px solid var(--morph-border);
   border-radius: 10px;
 }
 
 .table-of-contents {
-  border-left: 1px solid var(--hand-border);
+  border-left: 1px solid var(--morph-border);
   font-size: 0.82rem;
 }
 
 .table-of-contents__link {
-  color: var(--hand-muted);
+  color: var(--morph-muted);
 }
 
 .table-of-contents__link--active,
@@ -480,11 +480,11 @@ body {
 }
 
 .footer {
-  border-top: 1px solid var(--hand-border);
+  border-top: 1px solid var(--morph-border);
 }
 
 .footer__title {
-  color: var(--hand-text-strong);
+  color: var(--morph-text-strong);
 }
 
 .footer__link-item {
@@ -494,7 +494,7 @@ body {
 pre,
 code {
   border-radius: 7px;
-  font-family: var(--hand-code-font);
+  font-family: var(--morph-code-font);
 }
 
 div[class*='codeBlockContainer'],
@@ -503,7 +503,7 @@ div[class*='codeBlockContent'] pre,
 div[class*='codeBlockContent'] code,
 .prism-code,
 .prism-code span {
-  font-family: var(--hand-code-font) !important;
+  font-family: var(--morph-code-font) !important;
 }
 
 div[class*='codeBlockContainer'] {
@@ -618,7 +618,7 @@ html[data-theme='light'] .token.class-name {
   color: #1990b8 !important;
 }
 
-html[data-theme='light'] .token.hand-subcommand {
+html[data-theme='light'] .token.morph-subcommand {
   color: #a67f59 !important;
 }
 
@@ -708,7 +708,7 @@ html[data-theme='dark'] .token.attr-value {
   color: rgb(255, 203, 139) !important;
 }
 
-html[data-theme='dark'] .token.hand-subcommand {
+html[data-theme='dark'] .token.morph-subcommand {
   color: rgb(178, 204, 214) !important;
 }
 
@@ -737,12 +737,12 @@ html[data-theme='dark'] .token {
   font-style: normal !important;
 }
 
-.theme-doc-markdown:has(.handDocsHome) {
+.theme-doc-markdown:has(.morphDocsHome) {
   max-width: none;
   padding: 0;
 }
 
-.docs-doc-id-index .container.padding-top--md:has(.handDocsHome),
+.docs-doc-id-index .container.padding-top--md:has(.morphDocsHome),
 .docs-doc-id-index .container.padding-top--md {
   max-width: none;
   padding-left: 0;
@@ -751,43 +751,43 @@ html[data-theme='dark'] .token {
   width: 100%;
 }
 
-.docs-doc-id-index .row:has(.handDocsHome) {
+.docs-doc-id-index .row:has(.morphDocsHome) {
   margin-left: 0;
   margin-right: 0;
 }
 
-.docs-doc-id-index .row:has(.handDocsHome) > .col {
+.docs-doc-id-index .row:has(.morphDocsHome) > .col {
   padding-left: 0;
   padding-right: 0;
 }
 
-.theme-doc-markdown:has(.handDocsHome) > header {
+.theme-doc-markdown:has(.morphDocsHome) > header {
   display: none;
 }
 
-.theme-doc-markdown .handDocsHome {
-  background: var(--hand-bg);
-  border-left: 1px solid var(--hand-border);
-  border-right: 1px solid var(--hand-border);
-  color: var(--hand-text-strong);
+.theme-doc-markdown .morphDocsHome {
+  background: var(--morph-bg);
+  border-left: 1px solid var(--morph-border);
+  border-right: 1px solid var(--morph-border);
+  color: var(--morph-text-strong);
   margin: -1rem auto 4rem;
   max-width: min(1640px, calc(100vw - 32px));
 }
 
-.handDocsHome a {
+.morphDocsHome a {
   color: inherit;
   text-decoration: none;
 }
 
-.handDocsHome__hero,
-.handDocsHome__featureIntro,
-.handDocsHome__featureGrid,
-.handDocsHome__footerCta,
-.handDocsHome__footerLinks {
-  border-bottom: 1px solid var(--hand-border);
+.morphDocsHome__hero,
+.morphDocsHome__featureIntro,
+.morphDocsHome__featureGrid,
+.morphDocsHome__footerCta,
+.morphDocsHome__footerLinks {
+  border-bottom: 1px solid var(--morph-border);
 }
 
-.handDocsHome__hero {
+.morphDocsHome__hero {
   background: #000000;
   color: #f7f9fc;
   display: grid;
@@ -795,7 +795,7 @@ html[data-theme='dark'] .token {
   min-height: calc(100vh - 56px);
 }
 
-.handDocsHome__heroCopy {
+.morphDocsHome__heroCopy {
   border-right: 1px solid #2a313c;
   display: flex;
   flex-direction: column;
@@ -804,11 +804,11 @@ html[data-theme='dark'] .token {
   padding: clamp(3rem, 6vw, 6rem);
 }
 
-.handDocsHome__eyebrow,
-.theme-doc-markdown .handDocsHome__eyebrow {
-  color: var(--hand-muted);
+.morphDocsHome__eyebrow,
+.theme-doc-markdown .morphDocsHome__eyebrow {
+  color: var(--morph-muted);
   display: block;
-  font-family: 'Silkscreen', var(--hand-code-font);
+  font-family: 'Silkscreen', var(--morph-code-font);
   font-size: 0.76rem;
   letter-spacing: 0.05em;
   line-height: 1.4;
@@ -816,25 +816,25 @@ html[data-theme='dark'] .token {
   text-transform: uppercase;
 }
 
-.theme-doc-markdown .handDocsHome h1,
-.theme-doc-markdown .handDocsHome h2,
-.theme-doc-markdown .handDocsHome h3 {
-  color: var(--hand-text-strong);
+.theme-doc-markdown .morphDocsHome h1,
+.theme-doc-markdown .morphDocsHome h2,
+.theme-doc-markdown .morphDocsHome h3 {
+  color: var(--morph-text-strong);
   letter-spacing: 0;
 }
 
-.theme-doc-markdown .handDocsHome__hero h1 {
+.theme-doc-markdown .morphDocsHome__hero h1 {
   color: #ffffff;
 }
 
-.theme-doc-markdown .handDocsHome h1 {
+.theme-doc-markdown .morphDocsHome h1 {
   font-size: clamp(4rem, 6vw, 6.6rem);
   line-height: 0.95;
   margin: 0 0 1.5rem;
   max-width: 680px;
 }
 
-.theme-doc-markdown .handDocsHome h2 {
+.theme-doc-markdown .morphDocsHome h2 {
   border: 0;
   font-size: clamp(2.25rem, 5vw, 4.1rem);
   line-height: 0.98;
@@ -842,43 +842,43 @@ html[data-theme='dark'] .token {
   padding: 0;
 }
 
-.theme-doc-markdown .handDocsHome h3 {
+.theme-doc-markdown .morphDocsHome h3 {
   font-size: 1.25rem;
   line-height: 1.15;
   margin: 0 0 0.85rem;
 }
 
-.theme-doc-markdown .handDocsHome p,
-.handDocsHome__bodyText,
-.handDocsHome__tileText {
-  color: var(--hand-text-muted);
+.theme-doc-markdown .morphDocsHome p,
+.morphDocsHome__bodyText,
+.morphDocsHome__tileText {
+  color: var(--morph-text-muted);
   font-size: 1rem;
   line-height: 1.65;
   margin: 0;
 }
 
-.handDocsHome__bodyText {
+.morphDocsHome__bodyText {
   max-width: 620px;
 }
 
-.handDocsHome__hero .handDocsHome__bodyText {
+.morphDocsHome__hero .morphDocsHome__bodyText {
   color: #b8c1ce;
   font-size: clamp(1rem, 1.25vw, 1.18rem);
   max-width: 650px;
 }
 
-.handDocsHome__actions {
+.morphDocsHome__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.85rem;
   margin-top: 2.2rem;
 }
 
-.handDocsHome__button {
+.morphDocsHome__button {
   align-items: center;
-  border: 1px solid var(--hand-border-strong);
+  border: 1px solid var(--morph-border-strong);
   border-radius: 8px;
-  color: var(--hand-text-strong);
+  color: var(--morph-text-strong);
   display: inline-flex;
   font-size: 0.9rem;
   font-weight: 700;
@@ -892,51 +892,51 @@ html[data-theme='dark'] .token {
     transform 160ms ease;
 }
 
-.handDocsHome__hero .handDocsHome__button {
+.morphDocsHome__hero .morphDocsHome__button {
   border-color: #343d4b;
   color: #f7f9fc;
 }
 
-.handDocsHome__hero .handDocsHome__button:hover {
+.morphDocsHome__hero .morphDocsHome__button:hover {
   background: #171d25;
 }
 
-.handDocsHome__button:hover {
-  color: var(--hand-text-strong);
+.morphDocsHome__button:hover {
+  color: var(--morph-text-strong);
 }
 
-.handDocsHome__button:hover {
-  background: var(--hand-panel-soft);
+.morphDocsHome__button:hover {
+  background: var(--morph-panel-soft);
   border-color: #4c9dff;
   transform: translateY(-1px);
 }
 
-.handDocsHome__buttonPrimary {
-  background: var(--hand-text-strong);
-  border-color: var(--hand-text-strong);
-  color: var(--hand-bg);
+.morphDocsHome__buttonPrimary {
+  background: var(--morph-text-strong);
+  border-color: var(--morph-text-strong);
+  color: var(--morph-bg);
 }
 
-.handDocsHome__hero .handDocsHome__buttonPrimary {
+.morphDocsHome__hero .morphDocsHome__buttonPrimary {
   background: #ffffff;
   border-color: #ffffff;
   color: #0d1218;
 }
 
-.handDocsHome__buttonPrimary span {
-  color: var(--hand-bg);
+.morphDocsHome__buttonPrimary span {
+  color: var(--morph-bg);
 }
 
-.handDocsHome__hero .handDocsHome__buttonPrimary span {
+.morphDocsHome__hero .morphDocsHome__buttonPrimary span {
   color: #0d1218;
 }
 
-.handDocsHome__buttonPrimary:hover {
+.morphDocsHome__buttonPrimary:hover {
   background: var(--ifm-color-primary);
   color: #ffffff;
 }
 
-.handDocsHome__install {
+.morphDocsHome__install {
   background: #0b0f14;
   border: 1px solid #252d38;
   border-radius: 10px;
@@ -948,18 +948,18 @@ html[data-theme='dark'] .token {
   width: 100%;
 }
 
-.handDocsHome__installTabs {
+.morphDocsHome__installTabs {
   align-items: center;
   border-bottom: 1px solid #252d38;
   color: #98a4b5;
   display: flex;
-  font-family: var(--hand-code-font);
+  font-family: var(--morph-code-font);
   font-size: 0.82rem;
   justify-content: space-between;
   padding: 0 0.95rem;
 }
 
-.handDocsHome__installTab {
+.morphDocsHome__installTab {
   align-items: center;
   border-bottom: 2px solid #ffffff;
   color: #ffffff;
@@ -970,14 +970,14 @@ html[data-theme='dark'] .token {
   padding: 0 0.15rem;
 }
 
-.handDocsHome__installPlatform {
+.morphDocsHome__installPlatform {
   color: #7d8795;
   font-family: var(--ifm-font-family-base);
   font-size: 0.78rem;
   font-weight: 600;
 }
 
-.handDocsHome__installCommand {
+.morphDocsHome__installCommand {
   align-items: center;
   display: grid;
   gap: 0.85rem;
@@ -985,10 +985,10 @@ html[data-theme='dark'] .token {
   padding: 0 0.60rem 0 0;
 }
 
-.handDocsHome__installCommand pre {
+.morphDocsHome__installCommand pre {
   background: transparent;
   color: #dce7f5;
-  font-family: var(--hand-code-font);
+  font-family: var(--morph-code-font);
   font-size: clamp(0.82rem, 1vw, 0.98rem);
   line-height: 1.7;
   margin: 0;
@@ -996,7 +996,7 @@ html[data-theme='dark'] .token {
   padding: 1.1rem 1.35rem;
 }
 
-.handDocsHome__tuiWrap {
+.morphDocsHome__tuiWrap {
   align-items: center;
   display: flex;
   flex-direction: column;
@@ -1006,18 +1006,18 @@ html[data-theme='dark'] .token {
   padding: clamp(1.5rem, 3vw, 3rem);
 }
 
-.handDocsHome__tui {
-  --hand-tui-loop: 24s;
-  --hand-tui-separator: #2a313c;
+.morphDocsHome__tui {
+  --morph-tui-loop: 24s;
+  --morph-tui-separator: #2a313c;
   background: #000000;
-  border: 1px solid var(--hand-tui-separator);
+  border: 1px solid var(--morph-tui-separator);
   border-radius: 2px;
   box-sizing: border-box;
   box-shadow: 0 34px 100px rgba(0, 0, 0, 0.5);
   color: #f1f1f1;
   display: flex;
   flex-direction: column;
-  font-family: var(--hand-code-font);
+  font-family: var(--morph-code-font);
   font-size: clamp(0.78rem, 1vw, 1rem);
   height: 650px;
   max-width: 980px;
@@ -1029,10 +1029,10 @@ html[data-theme='dark'] .token {
   width: 100%;
 }
 
-.handDocsHome__tuiHeader {
+.morphDocsHome__tuiHeader {
   align-items: center;
   background: #000000;
-  border-bottom: 1px solid var(--hand-tui-separator);
+  border-bottom: 1px solid var(--morph-tui-separator);
   color: #767676;
   display: flex;
   flex: 0 0 1.8rem;
@@ -1043,7 +1043,7 @@ html[data-theme='dark'] .token {
   padding: 0 0.75rem;
 }
 
-.handDocsHome__tuiViewport {
+.morphDocsHome__tuiViewport {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
@@ -1051,51 +1051,51 @@ html[data-theme='dark'] .token {
   position: relative;
 }
 
-.handDocsHome__tuiTranscript {
-  animation: handTuiTranscriptScroll var(--hand-tui-loop) ease-in-out infinite both;
+.morphDocsHome__tuiTranscript {
+  animation: morphTuiTranscriptScroll var(--morph-tui-loop) ease-in-out infinite both;
   will-change: transform;
 }
 
-.handDocsHome__tuiLog,
-.handDocsHome__answerBlock,
-.handDocsHome__composeTurn,
-.handDocsHome__workedLine {
+.morphDocsHome__tuiLog,
+.morphDocsHome__answerBlock,
+.morphDocsHome__composeTurn,
+.morphDocsHome__workedLine {
   transform: translateY(10px);
   visibility: hidden;
 }
 
-.handDocsHome__tuiLog {
+.morphDocsHome__tuiLog {
   display: flex;
   gap: 0.75rem;
   margin: 0 1rem 1.1rem;
 }
 
-.handDocsHome__tuiLog div {
+.morphDocsHome__tuiLog div {
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
   min-width: 0;
 }
 
-.handDocsHome__tuiLog strong {
+.morphDocsHome__tuiLog strong {
   color: #9a9a9a;
   font-weight: 600;
 }
 
-.handDocsHome__tuiLog span:not(.handDocsHome__logDot) {
+.morphDocsHome__tuiLog span:not(.morphDocsHome__logDot) {
   color: #858585;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.handDocsHome__logLine {
+.morphDocsHome__logLine {
   display: grid;
   grid-template-rows: 0fr;
   overflow: hidden;
 }
 
-.handDocsHome__logStreamText {
+.morphDocsHome__logStreamText {
   display: block;
   max-width: 100%;
   min-height: 0;
@@ -1104,17 +1104,17 @@ html[data-theme='dark'] .token {
   width: 0;
 }
 
-.handDocsHome__tuiLog strong .handDocsHome__logStreamText {
+.morphDocsHome__tuiLog strong .morphDocsHome__logStreamText {
   color: inherit;
   font-weight: inherit;
 }
 
-.handDocsHome__toolTurn strong {
+.morphDocsHome__toolTurn strong {
   color: #d7d7d7;
 }
 
-.handDocsHome__logDot {
-  animation: handTuiPulse 1.8s ease-in-out infinite;
+.morphDocsHome__logDot {
+  animation: morphTuiPulse 1.8s ease-in-out infinite;
   background: #22ff50;
   border-radius: 999px;
   flex: 0 0 auto;
@@ -1123,12 +1123,12 @@ html[data-theme='dark'] .token {
   width: 0.58rem;
 }
 
-.handDocsHome__answerBlock {
+.morphDocsHome__answerBlock {
   color: #f1f1f1;
   margin: 0 1rem 0.95rem;
 }
 
-.handDocsHome__streamLine {
+.morphDocsHome__streamLine {
   color: #f1f1f1;
   display: block;
   line-height: 1.55;
@@ -1139,130 +1139,130 @@ html[data-theme='dark'] .token {
   width: 0;
 }
 
-.handDocsHome__streamLine mark {
+.morphDocsHome__streamLine mark {
   background: #3b3b3b;
   border-radius: 2px;
   color: #d6d6d6;
   padding: 0 0.2rem;
 }
 
-.handDocsHome__logOne {
-  animation: handTuiRowOne var(--hand-tui-loop) ease-out infinite both;
+.morphDocsHome__logOne {
+  animation: morphTuiRowOne var(--morph-tui-loop) ease-out infinite both;
 }
 
-.handDocsHome__logTwo {
-  animation: handTuiRowTwo var(--hand-tui-loop) ease-out infinite both;
+.morphDocsHome__logTwo {
+  animation: morphTuiRowTwo var(--morph-tui-loop) ease-out infinite both;
 }
 
-.handDocsHome__logThree {
-  animation: handTuiRowThree var(--hand-tui-loop) ease-out infinite both;
+.morphDocsHome__logThree {
+  animation: morphTuiRowThree var(--morph-tui-loop) ease-out infinite both;
 }
 
-.handDocsHome__logFour {
-  animation: handTuiRowFour var(--hand-tui-loop) ease-out infinite both;
+.morphDocsHome__logFour {
+  animation: morphTuiRowFour var(--morph-tui-loop) ease-out infinite both;
 }
 
-.handDocsHome__logFive {
-  animation: handTuiRowFive var(--hand-tui-loop) ease-out infinite both;
+.morphDocsHome__logFive {
+  animation: morphTuiRowFive var(--morph-tui-loop) ease-out infinite both;
 }
 
-.handDocsHome__logSix {
-  animation: handTuiRowSix var(--hand-tui-loop) ease-out infinite both;
+.morphDocsHome__logSix {
+  animation: morphTuiRowSix var(--morph-tui-loop) ease-out infinite both;
 }
 
-.handDocsHome__logSeven {
-  animation: handTuiRowSeven var(--hand-tui-loop) ease-out infinite both;
+.morphDocsHome__logSeven {
+  animation: morphTuiRowSeven var(--morph-tui-loop) ease-out infinite both;
 }
 
-.handDocsHome__logEight {
-  animation: handTuiRowEight var(--hand-tui-loop) ease-out infinite both;
+.morphDocsHome__logEight {
+  animation: morphTuiRowEight var(--morph-tui-loop) ease-out infinite both;
 }
 
-.handDocsHome__toolPlanTitle {
-  animation: handTuiLinePlanTitle var(--hand-tui-loop) linear infinite both;
+.morphDocsHome__toolPlanTitle {
+  animation: morphTuiLinePlanTitle var(--morph-tui-loop) linear infinite both;
 }
 
-.handDocsHome__toolPlanTitle .handDocsHome__logStreamText {
-  animation: handTuiToolPlanTitle var(--hand-tui-loop) steps(12, end) infinite both;
+.morphDocsHome__toolPlanTitle .morphDocsHome__logStreamText {
+  animation: morphTuiToolPlanTitle var(--morph-tui-loop) steps(12, end) infinite both;
 }
 
-.handDocsHome__toolPlanDetail {
-  animation: handTuiLinePlanDetail var(--hand-tui-loop) linear infinite both;
+.morphDocsHome__toolPlanDetail {
+  animation: morphTuiLinePlanDetail var(--morph-tui-loop) linear infinite both;
 }
 
-.handDocsHome__toolPlanDetail .handDocsHome__logStreamText {
-  animation: handTuiToolPlanDetail var(--hand-tui-loop) steps(15, end) infinite both;
+.morphDocsHome__toolPlanDetail .morphDocsHome__logStreamText {
+  animation: morphTuiToolPlanDetail var(--morph-tui-loop) steps(15, end) infinite both;
 }
 
-.handDocsHome__toolReadTitle {
-  animation: handTuiLineReadTitle var(--hand-tui-loop) linear infinite both;
+.morphDocsHome__toolReadTitle {
+  animation: morphTuiLineReadTitle var(--morph-tui-loop) linear infinite both;
 }
 
-.handDocsHome__toolReadTitle .handDocsHome__logStreamText {
-  animation: handTuiToolReadTitle var(--hand-tui-loop) steps(4, end) infinite both;
+.morphDocsHome__toolReadTitle .morphDocsHome__logStreamText {
+  animation: morphTuiToolReadTitle var(--morph-tui-loop) steps(4, end) infinite both;
 }
 
-.handDocsHome__toolReadConfig {
-  animation: handTuiLineReadConfig var(--hand-tui-loop) linear infinite both;
+.morphDocsHome__toolReadConfig {
+  animation: morphTuiLineReadConfig var(--morph-tui-loop) linear infinite both;
 }
 
-.handDocsHome__toolReadConfig .handDocsHome__logStreamText {
-  animation: handTuiToolReadConfig var(--hand-tui-loop) steps(47, end) infinite both;
+.morphDocsHome__toolReadConfig .morphDocsHome__logStreamText {
+  animation: morphTuiToolReadConfig var(--morph-tui-loop) steps(47, end) infinite both;
 }
 
-.handDocsHome__toolReadSlack {
-  animation: handTuiLineReadSlack var(--hand-tui-loop) linear infinite both;
+.morphDocsHome__toolReadSlack {
+  animation: morphTuiLineReadSlack var(--morph-tui-loop) linear infinite both;
 }
 
-.handDocsHome__toolReadSlack .handDocsHome__logStreamText {
-  animation: handTuiToolReadSlack var(--hand-tui-loop) steps(42, end) infinite both;
+.morphDocsHome__toolReadSlack .morphDocsHome__logStreamText {
+  animation: morphTuiToolReadSlack var(--morph-tui-loop) steps(42, end) infinite both;
 }
 
-.handDocsHome__toolReadDoctor {
-  animation: handTuiLineReadDoctor var(--hand-tui-loop) linear infinite both;
+.morphDocsHome__toolReadDoctor {
+  animation: morphTuiLineReadDoctor var(--morph-tui-loop) linear infinite both;
 }
 
-.handDocsHome__toolReadDoctor .handDocsHome__logStreamText {
-  animation: handTuiToolReadDoctor var(--hand-tui-loop) steps(39, end) infinite both;
+.morphDocsHome__toolReadDoctor .morphDocsHome__logStreamText {
+  animation: morphTuiToolReadDoctor var(--morph-tui-loop) steps(39, end) infinite both;
 }
 
-.handDocsHome__toolDoctorCommand {
-  animation: handTuiLineDoctorCommand var(--hand-tui-loop) linear infinite both;
+.morphDocsHome__toolDoctorCommand {
+  animation: morphTuiLineDoctorCommand var(--morph-tui-loop) linear infinite both;
 }
 
-.handDocsHome__toolDoctorCommand .handDocsHome__logStreamText {
-  animation: handTuiToolDoctorCommand var(--hand-tui-loop) steps(22, end) infinite both;
+.morphDocsHome__toolDoctorCommand .morphDocsHome__logStreamText {
+  animation: morphTuiToolDoctorCommand var(--morph-tui-loop) steps(22, end) infinite both;
 }
 
-.handDocsHome__streamA1 {
-  animation: handTuiStreamA1 var(--hand-tui-loop) steps(47, end) infinite both;
+.morphDocsHome__streamA1 {
+  animation: morphTuiStreamA1 var(--morph-tui-loop) steps(47, end) infinite both;
 }
 
-.handDocsHome__streamA2 {
-  animation: handTuiStreamA2 var(--hand-tui-loop) steps(60, end) infinite both;
+.morphDocsHome__streamA2 {
+  animation: morphTuiStreamA2 var(--morph-tui-loop) steps(60, end) infinite both;
 }
 
-.handDocsHome__streamA3 {
-  animation: handTuiStreamA3 var(--hand-tui-loop) steps(38, end) infinite both;
+.morphDocsHome__streamA3 {
+  animation: morphTuiStreamA3 var(--morph-tui-loop) steps(38, end) infinite both;
 }
 
-.handDocsHome__streamA4 {
-  animation: handTuiStreamA4 var(--hand-tui-loop) steps(53, end) infinite both;
+.morphDocsHome__streamA4 {
+  animation: morphTuiStreamA4 var(--morph-tui-loop) steps(53, end) infinite both;
 }
 
-.handDocsHome__streamB1 {
-  animation: handTuiStreamB1 var(--hand-tui-loop) steps(49, end) infinite both;
+.morphDocsHome__streamB1 {
+  animation: morphTuiStreamB1 var(--morph-tui-loop) steps(49, end) infinite both;
 }
 
-.handDocsHome__streamB2 {
-  animation: handTuiStreamB2 var(--hand-tui-loop) steps(44, end) infinite both;
+.morphDocsHome__streamB2 {
+  animation: morphTuiStreamB2 var(--morph-tui-loop) steps(44, end) infinite both;
 }
 
-.handDocsHome__streamB3 {
-  animation: handTuiStreamB3 var(--hand-tui-loop) steps(57, end) infinite both;
+.morphDocsHome__streamB3 {
+  animation: morphTuiStreamB3 var(--morph-tui-loop) steps(57, end) infinite both;
 }
 
-.handDocsHome__composeTurn {
+.morphDocsHome__composeTurn {
   align-items: center;
   background: #262626;
   color: #d7d7d7;
@@ -1273,31 +1273,31 @@ html[data-theme='dark'] .token {
   width: 100%;
 }
 
-.handDocsHome__composeTurn > span:last-child {
+.morphDocsHome__composeTurn > span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.handDocsHome__logOne {
+.morphDocsHome__logOne {
   margin-bottom: 1.55rem;
 }
 
-.handDocsHome__logSeven {
+.morphDocsHome__logSeven {
   margin-top: 0.95rem;
 }
 
-.handDocsHome__logEight {
+.morphDocsHome__logEight {
   margin-top: 0.8rem;
 }
 
-.handDocsHome__prompt {
+.morphDocsHome__prompt {
   color: #8b8b8b;
   flex: 0 0 auto;
   font-weight: 700;
 }
 
-.handDocsHome__typedText {
+.morphDocsHome__typedText {
   color: #d7d7d7;
   display: inline-block;
   left: 0;
@@ -1309,7 +1309,7 @@ html[data-theme='dark'] .token {
   width: 0;
 }
 
-.handDocsHome__composeText {
+.morphDocsHome__composeText {
   display: inline-block;
   flex: 0 1 36ch;
   height: 1.35rem;
@@ -1319,18 +1319,18 @@ html[data-theme='dark'] .token {
   width: 36ch;
 }
 
-.handDocsHome__typedTextOne {
-  animation: handTuiComposerFirst var(--hand-tui-loop) steps(29, end) infinite;
+.morphDocsHome__typedTextOne {
+  animation: morphTuiComposerFirst var(--morph-tui-loop) steps(29, end) infinite;
 }
 
-.handDocsHome__typedTextTwo {
-  animation: handTuiComposerSecond var(--hand-tui-loop) steps(31, end) infinite;
+.morphDocsHome__typedTextTwo {
+  animation: morphTuiComposerSecond var(--morph-tui-loop) steps(31, end) infinite;
 }
 
-.handDocsHome__caret {
+.morphDocsHome__caret {
   animation:
-    handTuiCaret 900ms steps(1, end) infinite,
-    handTuiComposerCaret var(--hand-tui-loop) linear infinite;
+    morphTuiCaret 900ms steps(1, end) infinite,
+    morphTuiComposerCaret var(--morph-tui-loop) linear infinite;
   background: #d7d7d7;
   display: inline-block;
   height: 1.1rem;
@@ -1340,10 +1340,10 @@ html[data-theme='dark'] .token {
   width: 0.48rem;
 }
 
-.handDocsHome__composer {
+.morphDocsHome__composer {
   align-items: center;
   background: #000000;
-  border: 1px solid var(--hand-tui-separator);
+  border: 1px solid var(--morph-tui-separator);
   border-radius: 2px;
   color: #777777;
   display: flex;
@@ -1354,24 +1354,24 @@ html[data-theme='dark'] .token {
   padding: 0 0.65rem;
 }
 
-.handDocsHome__composerPlaceholder {
+.morphDocsHome__composerPlaceholder {
   color: #777777;
   display: inline-block;
   left: 0;
   position: absolute;
   top: 0;
-  animation: handTuiComposerPlaceholder var(--hand-tui-loop) steps(1, end) infinite;
+  animation: morphTuiComposerPlaceholder var(--morph-tui-loop) steps(1, end) infinite;
 }
 
-.handTuiPreview__transcript {
+.morphTuiPreview__transcript {
   padding: 0 0 1rem;
 }
 
-.handTuiPreview__event {
+.morphTuiPreview__event {
   max-width: 100%;
 }
 
-.handTuiPreview__eventUser {
+.morphTuiPreview__eventUser {
   align-items: center;
   background: #262626;
   color: #d7d7d7;
@@ -1383,50 +1383,50 @@ html[data-theme='dark'] .token {
   width: 100%;
 }
 
-.handTuiPreview__eventUser span:last-child,
-.handTuiPreview__toolBody span,
-.handTuiPreview__toolBody strong,
-.handTuiPreview__eventHand span {
+.morphTuiPreview__eventUser span:last-child,
+.morphTuiPreview__toolBody span,
+.morphTuiPreview__toolBody strong,
+.morphTuiPreview__eventMorph span {
   overflow: hidden;
   text-overflow: clip;
   white-space: nowrap;
 }
 
-.handTuiPreview__eventTool {
+.morphTuiPreview__eventTool {
   color: #858585;
   display: flex;
   gap: 0.75rem;
   margin: 0 1rem 1.1rem;
 }
 
-.handTuiPreview__toolBody {
+.morphTuiPreview__toolBody {
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
   min-width: 0;
 }
 
-.handTuiPreview__toolBody strong {
+.morphTuiPreview__toolBody strong {
   color: #9a9a9a;
   font-weight: 600;
 }
 
-.handTuiPreview__toolBody span {
+.morphTuiPreview__toolBody span {
   display: block;
 }
 
-.handTuiPreview__eventHand {
+.morphTuiPreview__eventMorph {
   color: #f1f1f1;
   margin: 0 1rem 1rem;
 }
 
-.handTuiPreview__eventHand span {
+.morphTuiPreview__eventMorph span {
   display: block;
   line-height: 1.55;
   margin-bottom: 0.42rem;
 }
 
-.handTuiPreview__composerText {
+.morphTuiPreview__composerText {
   align-items: center;
   color: #d7d7d7;
   display: inline-flex;
@@ -1436,18 +1436,18 @@ html[data-theme='dark'] .token {
   white-space: nowrap;
 }
 
-.handTuiPreview__placeholder {
+.morphTuiPreview__placeholder {
   color: #777777;
 }
 
-.handTuiPreview__composerText .handDocsHome__caret {
-  animation: handTuiCaret 900ms steps(1, end) infinite;
+.morphTuiPreview__composerText .morphDocsHome__caret {
+  animation: morphTuiCaret 900ms steps(1, end) infinite;
   flex: 0 0 auto;
   margin-left: 0.2rem;
   position: static;
 }
 
-.handDocsHome__workedLine {
+.morphDocsHome__workedLine {
   align-items: center;
   color: #777777;
   display: flex;
@@ -1455,12 +1455,12 @@ html[data-theme='dark'] .token {
   margin: 0 1rem;
 }
 
-.handDocsHome__tuiStatus {
+.morphDocsHome__tuiStatus {
   align-items: center;
   color: #777777;
   display: grid;
   flex: 0 0 1.5rem;
-  font-family: var(--hand-code-font);
+  font-family: var(--morph-code-font);
   font-size: 0.76rem;
   gap: 0.65rem;
   grid-template-columns: auto auto auto 1fr;
@@ -1468,7 +1468,7 @@ html[data-theme='dark'] .token {
   padding: 0 0.65rem 0.35rem;
 }
 
-.handDocsHome__tuiStatus span:last-child {
+.morphDocsHome__tuiStatus span:last-child {
   justify-self: end;
   min-width: 0;
   overflow: hidden;
@@ -1477,7 +1477,7 @@ html[data-theme='dark'] .token {
   white-space: nowrap;
 }
 
-.handDocsHome__terminal {
+.morphDocsHome__terminal {
   align-self: center;
   background: #0b0f14;
   border: 1px solid #2b3542;
@@ -1488,27 +1488,27 @@ html[data-theme='dark'] .token {
   position: relative;
 }
 
-.handDocsHome__terminalBar {
+.morphDocsHome__terminalBar {
   align-items: center;
   border-bottom: 1px solid #242b35;
   color: #91a0b4;
   display: flex;
-  font-family: var(--hand-code-font);
+  font-family: var(--morph-code-font);
   font-size: 0.78rem;
   justify-content: space-between;
   padding: 0.8rem 1rem;
 }
 
-.handDocsHome__terminalMeta {
+.morphDocsHome__terminalMeta {
   align-items: center;
   display: inline-flex;
   gap: 0.75rem;
 }
 
-.handDocsHome__terminal pre {
+.morphDocsHome__terminal pre {
   background: transparent;
   color: #d6e1ef;
-  font-family: var(--hand-code-font);
+  font-family: var(--morph-code-font);
   font-size: clamp(0.78rem, 1.2vw, 0.86rem);
   line-height: 1.7;
   margin: 0;
@@ -1516,7 +1516,7 @@ html[data-theme='dark'] .token {
   padding: 1.25rem;
 }
 
-.handDocsHome__copyButton {
+.morphDocsHome__copyButton {
   align-items: center;
   background: #111820;
   border: 0;
@@ -1535,17 +1535,17 @@ html[data-theme='dark'] .token {
   }
 }
 
-.handDocsHome__copyButton:hover,
-.handDocsHome__copyButton:focus-visible {
+.morphDocsHome__copyButton:hover,
+.morphDocsHome__copyButton:focus-visible {
   color: #ffffff;
   outline: none;
 }
 
-.handDocsHome__copyButton:focus-visible {
+.morphDocsHome__copyButton:focus-visible {
   box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.42);
 }
 
-@keyframes handTuiRowOne {
+@keyframes morphTuiRowOne {
   0%,
   14% {
     transform: translateY(10px);
@@ -1565,7 +1565,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiRowTwo {
+@keyframes morphTuiRowTwo {
   0%,
   22.9% {
     transform: translateY(10px);
@@ -1584,7 +1584,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiRowThree {
+@keyframes morphTuiRowThree {
   0%,
   31.9% {
     transform: translateY(10px);
@@ -1603,7 +1603,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiRowFour {
+@keyframes morphTuiRowFour {
   0%,
   43.9% {
     transform: translateY(10px);
@@ -1622,7 +1622,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiRowFive {
+@keyframes morphTuiRowFive {
   0%,
   50.9% {
     transform: translateY(10px);
@@ -1641,7 +1641,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiRowSix {
+@keyframes morphTuiRowSix {
   0%,
   68% {
     transform: translateY(10px);
@@ -1660,7 +1660,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiRowSeven {
+@keyframes morphTuiRowSeven {
   0%,
   82% {
     transform: translateY(10px);
@@ -1679,7 +1679,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiRowEight {
+@keyframes morphTuiRowEight {
   0%,
   87.9% {
     transform: translateY(10px);
@@ -1698,7 +1698,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiTranscriptScroll {
+@keyframes morphTuiTranscriptScroll {
   0%,
   80% {
     transform: translateY(0);
@@ -1714,7 +1714,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiLinePlanTitle {
+@keyframes morphTuiLinePlanTitle {
   0%,
   22.9% {
     grid-template-rows: 0fr;
@@ -1730,7 +1730,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiToolPlanTitle {
+@keyframes morphTuiToolPlanTitle {
   0%,
   22.9% {
     width: 0;
@@ -1750,7 +1750,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiLinePlanDetail {
+@keyframes morphTuiLinePlanDetail {
   0%,
   25.9% {
     grid-template-rows: 0fr;
@@ -1766,7 +1766,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiToolPlanDetail {
+@keyframes morphTuiToolPlanDetail {
   0%,
   25.9% {
     width: 0;
@@ -1786,7 +1786,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiLineReadTitle {
+@keyframes morphTuiLineReadTitle {
   0%,
   31.9% {
     grid-template-rows: 0fr;
@@ -1802,7 +1802,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiToolReadTitle {
+@keyframes morphTuiToolReadTitle {
   0%,
   31.9% {
     width: 0;
@@ -1822,7 +1822,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiLineReadConfig {
+@keyframes morphTuiLineReadConfig {
   0%,
   33.9% {
     grid-template-rows: 0fr;
@@ -1838,7 +1838,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiToolReadConfig {
+@keyframes morphTuiToolReadConfig {
   0%,
   33.9% {
     width: 0;
@@ -1858,7 +1858,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiLineReadSlack {
+@keyframes morphTuiLineReadSlack {
   0%,
   36.9% {
     grid-template-rows: 0fr;
@@ -1874,7 +1874,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiToolReadSlack {
+@keyframes morphTuiToolReadSlack {
   0%,
   36.9% {
     width: 0;
@@ -1894,7 +1894,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiLineReadDoctor {
+@keyframes morphTuiLineReadDoctor {
   0%,
   39.9% {
     grid-template-rows: 0fr;
@@ -1910,7 +1910,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiToolReadDoctor {
+@keyframes morphTuiToolReadDoctor {
   0%,
   39.9% {
     width: 0;
@@ -1930,7 +1930,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiLineDoctorCommand {
+@keyframes morphTuiLineDoctorCommand {
   0%,
   43.9% {
     grid-template-rows: 0fr;
@@ -1946,7 +1946,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiToolDoctorCommand {
+@keyframes morphTuiToolDoctorCommand {
   0%,
   43.9% {
     width: 0;
@@ -1966,7 +1966,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiStreamA1 {
+@keyframes morphTuiStreamA1 {
   0%,
   50% {
     width: 0;
@@ -1986,7 +1986,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiStreamA2 {
+@keyframes morphTuiStreamA2 {
   0%,
   54% {
     width: 0;
@@ -2006,7 +2006,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiStreamA3 {
+@keyframes morphTuiStreamA3 {
   0%,
   59% {
     width: 0;
@@ -2026,7 +2026,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiStreamA4 {
+@keyframes morphTuiStreamA4 {
   0%,
   62% {
     width: 0;
@@ -2046,7 +2046,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiStreamB1 {
+@keyframes morphTuiStreamB1 {
   0%,
   87% {
     width: 0;
@@ -2066,7 +2066,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiStreamB2 {
+@keyframes morphTuiStreamB2 {
   0%,
   88.5% {
     width: 0;
@@ -2086,7 +2086,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiStreamB3 {
+@keyframes morphTuiStreamB3 {
   0%,
   90.5% {
     width: 0;
@@ -2106,7 +2106,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiComposerFirst {
+@keyframes morphTuiComposerFirst {
   0%,
   4% {
     width: 0;
@@ -2126,7 +2126,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiComposerSecond {
+@keyframes morphTuiComposerSecond {
   0%,
   70% {
     width: 0;
@@ -2150,7 +2150,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiComposerPlaceholder {
+@keyframes morphTuiComposerPlaceholder {
   0%,
   3%,
   15%,
@@ -2168,7 +2168,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiComposerCaret {
+@keyframes morphTuiComposerCaret {
   0%,
   3%,
   15%,
@@ -2201,7 +2201,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiCaret {
+@keyframes morphTuiCaret {
   0%,
   50% {
     opacity: 1;
@@ -2213,7 +2213,7 @@ html[data-theme='dark'] .token {
   }
 }
 
-@keyframes handTuiPulse {
+@keyframes morphTuiPulse {
   0%,
   100% {
     box-shadow: 0 0 0 0 rgba(34, 255, 80, 0.35);
@@ -2224,15 +2224,15 @@ html[data-theme='dark'] .token {
   }
 }
 
-.handDocsHome__copyIcon {
+.morphDocsHome__copyIcon {
   display: block;
   height: 1.1rem;
   position: relative;
   width: 1.1rem;
 }
 
-.handDocsHome__copyIcon::after,
-.handDocsHome__copyIcon::before {
+.morphDocsHome__copyIcon::after,
+.morphDocsHome__copyIcon::before {
   border: 1.6px solid currentColor;
   border-radius: 2px;
   content: '';
@@ -2241,36 +2241,36 @@ html[data-theme='dark'] .token {
   width: 0.68rem;
 }
 
-.handDocsHome__copyIcon::before {
+.morphDocsHome__copyIcon::before {
   left: 0.07rem;
   top: 0;
 }
 
-.handDocsHome__copyIcon::after {
+.morphDocsHome__copyIcon::after {
   left: 0.35rem;
   top: 0.28rem;
 }
 
-.handDocsHome__featureIntro {
+.morphDocsHome__featureIntro {
   background: #000000;
   padding: clamp(3.5rem, 8vw, 6rem) clamp(2rem, 8vw, 6rem);
   text-align: center;
 }
 
-.theme-doc-markdown .handDocsHome__featureIntro h2 {
+.theme-doc-markdown .morphDocsHome__featureIntro h2 {
   color: #ffffff;
   margin: 0 auto;
   max-width: 900px;
 }
 
-.handDocsHome__featureGrid {
+.morphDocsHome__featureGrid {
   background: #000000;
   display: grid;
   grid-template-columns: 1fr;
 }
 
-.handDocsHome__featureCard {
-  border-bottom: 1px solid var(--hand-border);
+.morphDocsHome__featureCard {
+  border-bottom: 1px solid var(--morph-border);
   border-right: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2278,39 +2278,39 @@ html[data-theme='dark'] .token {
   overflow: hidden;
 }
 
-.handDocsHome__featureCard:last-child {
+.morphDocsHome__featureCard:last-child {
   border-bottom: 0;
 }
 
-.handDocsHome__featureCopy {
+.morphDocsHome__featureCopy {
   align-self: stretch;
-  border-right: 1px solid var(--hand-border);
+  border-right: 1px solid var(--morph-border);
   display: flex;
   flex-direction: column;
   justify-content: center;
   padding: clamp(2rem, 4.5vw, 3.75rem);
 }
 
-.theme-doc-markdown .handDocsHome__featureCopy h3 {
+.theme-doc-markdown .morphDocsHome__featureCopy h3 {
   color: #ffffff;
 }
 
-.handDocsHome__featureCopy .handDocsHome__tileText {
+.morphDocsHome__featureCopy .morphDocsHome__tileText {
   color: #aeb8c7;
   max-width: 540px;
 }
 
-.handDocsHome__tileKicker {
+.morphDocsHome__tileKicker {
   color: var(--ifm-color-primary);
   display: block;
-  font-family: var(--hand-code-font);
+  font-family: var(--morph-code-font);
   font-size: 0.76rem;
   font-weight: 800;
   margin-bottom: 1.25rem;
   text-transform: uppercase;
 }
 
-.handDocsHome__featureVisual {
+.morphDocsHome__featureVisual {
   align-items: center;
   background: #030507;
   display: flex;
@@ -2321,60 +2321,60 @@ html[data-theme='dark'] .token {
   position: relative;
 }
 
-.handDocsHome__featureCard:nth-child(even) .handDocsHome__featureCopy {
-  border-left: 1px solid var(--hand-border);
+.morphDocsHome__featureCard:nth-child(even) .morphDocsHome__featureCopy {
+  border-left: 1px solid var(--morph-border);
   border-right: 0;
   order: 2;
 }
 
-.handDocsHome__featureCard:nth-child(even) .handDocsHome__featureVisual {
+.morphDocsHome__featureCard:nth-child(even) .morphDocsHome__featureVisual {
   order: 1;
 }
 
-.handDocsHome__featureVisual span {
+.morphDocsHome__featureVisual span {
   position: relative;
   z-index: 1;
 }
 
-.handDocsHome__memoryVisual {
+.morphDocsHome__memoryVisual {
   align-items: center;
   background:
     radial-gradient(circle at 50% 45%, rgba(76, 157, 255, 0.18), transparent 40%),
     radial-gradient(circle at 58% 58%, rgba(0, 255, 178, 0.14), transparent 34%),
-    url('/img/hand-grain-bg.png') center / cover no-repeat,
+    url('/img/morph-grain-bg.png') center / cover no-repeat,
     #030507;
   display: flex;
 }
 
-.handDocsHome__memoryMap {
+.morphDocsHome__memoryMap {
   filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.28));
   height: auto;
   max-width: 560px;
   width: min(100%, 560px);
 }
 
-.handDocsHome__memoryPath {
+.morphDocsHome__memoryPath {
   fill: none;
   stroke: rgba(199, 232, 239, 0.34);
   stroke-linecap: round;
   stroke-width: 2;
 }
 
-.handDocsHome__memoryHubGlow {
+.morphDocsHome__memoryHubGlow {
   fill: url('#memoryHubGlow');
 }
 
-.handDocsHome__memoryHubRing {
+.morphDocsHome__memoryHubRing {
   fill: rgba(3, 5, 7, 0.52);
   stroke: rgba(215, 249, 255, 0.22);
   stroke-width: 1.5;
 }
 
-.handDocsHome__memoryHub {
+.morphDocsHome__memoryHub {
   fill: #d7f9ff;
 }
 
-.handDocsHome__memoryHubMark {
+.morphDocsHome__memoryHubMark {
   fill: none;
   stroke: #030507;
   stroke-linecap: round;
@@ -2382,15 +2382,15 @@ html[data-theme='dark'] .token {
   stroke-width: 7;
 }
 
-.handDocsHome__memoryTile rect {
+.morphDocsHome__memoryTile rect {
   fill: url('#memoryCardGlow');
   stroke: rgba(215, 249, 255, 0.28);
   stroke-width: 1.5;
 }
 
-.handDocsHome__memoryIcon path,
-.handDocsHome__memoryIcon circle,
-.handDocsHome__memoryIcon rect {
+.morphDocsHome__memoryIcon path,
+.morphDocsHome__memoryIcon circle,
+.morphDocsHome__memoryIcon rect {
   fill: none;
   stroke: rgba(244, 247, 251, 0.9);
   stroke-linecap: round;
@@ -2399,7 +2399,7 @@ html[data-theme='dark'] .token {
   vector-effect: non-scaling-stroke;
 }
 
-.handDocsHome__toolsVisual {
+.morphDocsHome__toolsVisual {
   align-items: center;
   background:
     radial-gradient(circle at 58% 50%, rgba(76, 157, 255, 0.14), transparent 38%),
@@ -2408,43 +2408,43 @@ html[data-theme='dark'] .token {
   color: #a8b3c2;
 }
 
-.handDocsHome__toolsMap {
+.morphDocsHome__toolsMap {
   filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.3));
   height: auto;
   max-width: 590px;
   width: min(100%, 590px);
 }
 
-.handDocsHome__toolsPath {
+.morphDocsHome__toolsPath {
   fill: none;
   stroke: rgba(198, 224, 255, 0.28);
   stroke-linecap: round;
   stroke-width: 2;
 }
 
-.handDocsHome__toolsPathStrong {
+.morphDocsHome__toolsPathStrong {
   stroke: rgba(152, 200, 255, 0.48);
   stroke-width: 2.4;
 }
 
-.handDocsHome__toolsSource rect,
-.handDocsHome__toolsResult rect {
+.morphDocsHome__toolsSource rect,
+.morphDocsHome__toolsResult rect {
   fill: url('#toolsCardGlow');
   stroke: rgba(198, 224, 255, 0.3);
   stroke-width: 1.5;
 }
 
-.handDocsHome__toolsActionGlow {
+.morphDocsHome__toolsActionGlow {
   fill: url('#toolsActionGlow');
 }
 
-.handDocsHome__toolsAction circle {
+.morphDocsHome__toolsAction circle {
   fill: rgba(5, 10, 23, 0.64);
   stroke: rgba(198, 224, 255, 0.22);
   stroke-width: 1.5;
 }
 
-.handDocsHome__toolsAction path {
+.morphDocsHome__toolsAction path {
   fill: none;
   stroke: rgba(198, 224, 255, 0.9);
   stroke-linecap: round;
@@ -2452,8 +2452,8 @@ html[data-theme='dark'] .token {
   transform-origin: 304px 180px;
 }
 
-.handDocsHome__toolsIcon path,
-.handDocsHome__toolsIcon circle {
+.morphDocsHome__toolsIcon path,
+.morphDocsHome__toolsIcon circle {
   fill: none;
   stroke: rgba(244, 247, 251, 0.92);
   stroke-linecap: round;
@@ -2462,7 +2462,7 @@ html[data-theme='dark'] .token {
   vector-effect: non-scaling-stroke;
 }
 
-.handDocsHome__gatewayVisual {
+.morphDocsHome__gatewayVisual {
   background:
     radial-gradient(circle at 50% 50%, rgba(76, 157, 255, 0.1), transparent 34%),
     url('/img/surfaces-grain-bg.png') center / cover no-repeat,
@@ -2471,14 +2471,14 @@ html[data-theme='dark'] .token {
   min-height: 300px;
 }
 
-.handDocsHome__gatewayMap {
+.morphDocsHome__gatewayMap {
   inset: 0;
   position: absolute;
   width: 100%;
   height: 100%;
 }
 
-.handDocsHome__gatewayMap path {
+.morphDocsHome__gatewayMap path {
   fill: none;
   stroke: rgba(215, 249, 255, 0.22);
   stroke-linecap: round;
@@ -2486,7 +2486,7 @@ html[data-theme='dark'] .token {
   vector-effect: non-scaling-stroke;
 }
 
-.handDocsHome__gatewayHub {
+.morphDocsHome__gatewayHub {
   background:
     url('/img/logo-mark-white.svg') center / 50% auto no-repeat,
     radial-gradient(circle at 50% 50%, rgba(8, 17, 29, 0.92) 0 45%, rgba(76, 157, 255, 0.18) 46% 68%, transparent 69%);
@@ -2504,7 +2504,7 @@ html[data-theme='dark'] .token {
   z-index: 1;
 }
 
-.handDocsHome__gatewayHub::before {
+.morphDocsHome__gatewayHub::before {
   border-radius: 999px;
   content: '';
   left: 50%;
@@ -2513,13 +2513,13 @@ html[data-theme='dark'] .token {
   transform: translate(-50%, -50%);
 }
 
-.handDocsHome__gatewayHub::before {
+.morphDocsHome__gatewayHub::before {
   border: 1px solid rgba(215, 249, 255, 0.22);
   height: 68%;
   width: 68%;
 }
 
-.handDocsHome__gatewayVisual span {
+.morphDocsHome__gatewayVisual span {
   align-items: center;
   background: rgba(7, 12, 20, 0.54);
   border: 1px solid rgba(198, 224, 255, 0.26);
@@ -2539,46 +2539,46 @@ html[data-theme='dark'] .token {
   width: clamp(5.25rem, 8vw, 7rem);
 }
 
-.handDocsHome__gatewayVisual span:hover {
+.morphDocsHome__gatewayVisual span:hover {
   border-color: rgba(0, 215, 219, 0.62);
   color: #00ffb2;
 }
 
-.handDocsHome__gatewayVisual span svg {
+.morphDocsHome__gatewayVisual span svg {
   display: block;
   height: clamp(2rem, 3.2vw, 2.65rem);
   width: clamp(2rem, 3.2vw, 2.65rem);
 }
 
-.handDocsHome__gatewayVisual span:nth-of-type(1) {
+.morphDocsHome__gatewayVisual span:nth-of-type(1) {
   left: 18%;
   top: 22%;
 }
 
-.handDocsHome__gatewayVisual span:nth-of-type(2) {
+.morphDocsHome__gatewayVisual span:nth-of-type(2) {
   right: 18%;
   top: 22%;
 }
 
-.handDocsHome__gatewayVisual span:nth-of-type(3) {
+.morphDocsHome__gatewayVisual span:nth-of-type(3) {
   left: 18%;
   bottom: 22%;
 }
 
-.handDocsHome__gatewayVisual span:nth-of-type(4) {
+.morphDocsHome__gatewayVisual span:nth-of-type(4) {
   right: 18%;
   bottom: 22%;
 }
 
-.handDocsHome__gatewayVisual span:nth-child(2) {
+.morphDocsHome__gatewayVisual span:nth-child(2) {
   transform: none;
 }
 
-.handDocsHome__gatewayVisual span:nth-child(3) {
+.morphDocsHome__gatewayVisual span:nth-child(3) {
   transform: none;
 }
 
-.handDocsHome__controlVisual {
+.morphDocsHome__controlVisual {
   align-items: center;
   background:
     radial-gradient(circle at 50% 50%, rgba(76, 157, 255, 0.08), transparent 42%),
@@ -2587,49 +2587,49 @@ html[data-theme='dark'] .token {
   color: #dce7f5;
 }
 
-.handDocsHome__controlMap {
+.morphDocsHome__controlMap {
   filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.28));
   height: auto;
   max-width: 590px;
   width: min(100%, 590px);
 }
 
-.handDocsHome__controlPath {
+.morphDocsHome__controlPath {
   fill: none;
   stroke: rgba(215, 249, 255, 0.26);
   stroke-linecap: round;
   stroke-width: 2;
 }
 
-.handDocsHome__controlPathApprove {
+.morphDocsHome__controlPathApprove {
   stroke: rgba(34, 255, 80, 0.36);
 }
 
-.handDocsHome__controlPathReject {
+.morphDocsHome__controlPathReject {
   stroke: rgba(255, 88, 116, 0.36);
 }
 
-.handDocsHome__controlRequest rect,
-.handDocsHome__controlOutcome rect {
+.morphDocsHome__controlRequest rect,
+.morphDocsHome__controlOutcome rect {
   fill: url('#controlCardGlow');
   stroke: rgba(215, 249, 255, 0.28);
   stroke-width: 1.5;
 }
 
-.handDocsHome__controlHubGlow {
+.morphDocsHome__controlHubGlow {
   fill: url('#controlHubGlow');
 }
 
-.handDocsHome__controlHub path:first-child {
+.morphDocsHome__controlHub path:first-child {
   fill: rgba(5, 10, 18, 0.72);
   stroke: rgba(215, 249, 255, 0.34);
   stroke-linejoin: round;
   stroke-width: 2.5;
 }
 
-.handDocsHome__controlHub path:last-child,
-.handDocsHome__controlIcon path,
-.handDocsHome__controlOutcome path {
+.morphDocsHome__controlHub path:last-child,
+.morphDocsHome__controlIcon path,
+.morphDocsHome__controlOutcome path {
   fill: none;
   stroke: rgba(244, 247, 251, 0.92);
   stroke-linecap: round;
@@ -2638,70 +2638,70 @@ html[data-theme='dark'] .token {
   vector-effect: non-scaling-stroke;
 }
 
-.handDocsHome__controlHub path:last-child {
+.morphDocsHome__controlHub path:last-child {
   stroke: #d7f9ff;
   stroke-width: 7;
 }
 
-.handDocsHome__controlApprove rect {
+.morphDocsHome__controlApprove rect {
   stroke: rgba(34, 255, 80, 0.42);
 }
 
-.handDocsHome__controlReject rect {
+.morphDocsHome__controlReject rect {
   stroke: rgba(255, 88, 116, 0.42);
 }
 
-.handDocsHome__controlApprove path {
+.morphDocsHome__controlApprove path {
   stroke: #22ff50;
 }
 
-.handDocsHome__controlReject path {
+.morphDocsHome__controlReject path {
   stroke: #ff5874;
 }
 
-.handDocsHome__scheduleVisual {
+.morphDocsHome__scheduleVisual {
   background:
     radial-gradient(circle at 50% 50%, rgba(0, 255, 178, 0.08), transparent 42%),
     url('/img/schedule-grain-bg.png') center / cover no-repeat,
     #030507;
 }
 
-.handDocsHome__scheduleMap,
-.handDocsHome__browseMap {
+.morphDocsHome__scheduleMap,
+.morphDocsHome__browseMap {
   filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.3));
   height: auto;
   max-width: 590px;
   width: min(100%, 590px);
 }
 
-.handDocsHome__scheduleOrbit,
-.handDocsHome__schedulePath,
-.handDocsHome__browsePath {
+.morphDocsHome__scheduleOrbit,
+.morphDocsHome__schedulePath,
+.morphDocsHome__browsePath {
   fill: none;
   stroke: rgba(215, 249, 255, 0.24);
   stroke-linecap: round;
   stroke-width: 2;
 }
 
-.handDocsHome__scheduleOrbit {
+.morphDocsHome__scheduleOrbit {
   stroke-dasharray: 8 12;
 }
 
-.handDocsHome__scheduleHubGlow {
+.morphDocsHome__scheduleHubGlow {
   fill: url('#scheduleHubGlow');
 }
 
-.handDocsHome__scheduleClock circle {
+.morphDocsHome__scheduleClock circle {
   fill: rgba(5, 10, 18, 0.72);
   stroke: rgba(215, 249, 255, 0.34);
   stroke-width: 1.8;
 }
 
-.handDocsHome__scheduleClock path,
-.handDocsHome__scheduleNode path,
-.handDocsHome__browseWindow path,
-.handDocsHome__browseWindow circle,
-.handDocsHome__browseNode path {
+.morphDocsHome__scheduleClock path,
+.morphDocsHome__scheduleNode path,
+.morphDocsHome__browseWindow path,
+.morphDocsHome__browseWindow circle,
+.morphDocsHome__browseNode path {
   fill: none;
   stroke: rgba(244, 247, 251, 0.92);
   stroke-linecap: round;
@@ -2710,44 +2710,44 @@ html[data-theme='dark'] .token {
   vector-effect: non-scaling-stroke;
 }
 
-.handDocsHome__scheduleNode rect {
+.morphDocsHome__scheduleNode rect {
   fill: url('#scheduleCardGlow');
   stroke: rgba(215, 249, 255, 0.28);
   stroke-width: 1.5;
 }
 
-.handDocsHome__scheduleNodeSmall rect {
+.morphDocsHome__scheduleNodeSmall rect {
   stroke: rgba(0, 255, 178, 0.28);
 }
 
-.handDocsHome__browseVisual {
+.morphDocsHome__browseVisual {
   background:
     radial-gradient(circle at 54% 50%, rgba(76, 157, 255, 0.08), transparent 42%),
     url('/img/browse-grain-bg.png') center / cover no-repeat,
     #030507;
 }
 
-.handDocsHome__browsePath {
+.morphDocsHome__browsePath {
   stroke: rgba(198, 224, 255, 0.28);
 }
 
-.handDocsHome__browseHubGlow {
+.morphDocsHome__browseHubGlow {
   fill: url('#browseHubGlow');
 }
 
-.handDocsHome__browseWindow rect,
-.handDocsHome__browseNode rect {
+.morphDocsHome__browseWindow rect,
+.morphDocsHome__browseNode rect {
   fill: url('#browseCardGlow');
   stroke: rgba(198, 224, 255, 0.3);
   stroke-width: 1.5;
 }
 
-.handDocsHome__browseWindow circle {
+.morphDocsHome__browseWindow circle {
   fill: rgba(198, 224, 255, 0.5);
   stroke: none;
 }
 
-.handDocsHome__footerCta {
+.morphDocsHome__footerCta {
   align-items: center;
   display: grid;
   gap: 2rem;
@@ -2755,57 +2755,57 @@ html[data-theme='dark'] .token {
   padding: clamp(2.5rem, 7vw, 5rem);
 }
 
-.theme-doc-markdown .handDocsHome__footerCta h2 {
+.theme-doc-markdown .morphDocsHome__footerCta h2 {
   font-size: clamp(2rem, 4vw, 3.2rem);
   margin-bottom: 1rem;
 }
 
-.handDocsHome__terminalSmall {
+.morphDocsHome__terminalSmall {
   margin: 0;
 }
 
-.handDocsHome__terminalSmall .handDocsHome__terminalBar {
+.morphDocsHome__terminalSmall .morphDocsHome__terminalBar {
   color: #aeb8c7;
   font-size: 0.74rem;
 }
 
-.handDocsHome__terminalSmall .handDocsHome__terminalBar span:last-child {
+.morphDocsHome__terminalSmall .morphDocsHome__terminalBar span:last-child {
   color: #00ffb2;
   font-weight: 800;
   text-transform: uppercase;
 }
 
-.handDocsHome__terminalSmall pre {
+.morphDocsHome__terminalSmall pre {
   font-size: clamp(0.82rem, 1.35vw, 0.96rem);
   line-height: 1.72;
   white-space: pre-wrap;
 }
 
-.handDocsHome__footerLinks {
+.morphDocsHome__footerLinks {
   display: grid;
   gap: 2rem;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   padding: clamp(2.5rem, 6vw, 4.75rem);
 }
 
-.theme-doc-markdown .handDocsHome__footerLinks h2 {
-  color: var(--hand-muted);
-  font-family: 'Silkscreen', var(--hand-code-font);
+.theme-doc-markdown .morphDocsHome__footerLinks h2 {
+  color: var(--morph-muted);
+  font-family: 'Silkscreen', var(--morph-code-font);
   font-size: 0.74rem;
   line-height: 1.2;
   margin: 0 0 1.5rem;
   text-transform: uppercase;
 }
 
-.handDocsHome__footerLinks a {
-  color: var(--hand-navbar-text);
+.morphDocsHome__footerLinks a {
+  color: var(--morph-navbar-text);
   display: block;
   font-size: 0.95rem;
   font-weight: 650;
   margin-top: 0.9rem;
 }
 
-.handDocsHome__footerLinks a:hover {
+.morphDocsHome__footerLinks a:hover {
   color: var(--ifm-color-primary);
 }
 
@@ -2814,179 +2814,179 @@ html[data-theme='dark'] .token {
     padding-top: 2rem;
   }
 
-  .theme-doc-markdown:has(.handDocsHome) {
+  .theme-doc-markdown:has(.morphDocsHome) {
     padding-top: 0;
   }
 
-  .theme-doc-markdown .handDocsHome {
+  .theme-doc-markdown .morphDocsHome {
     border-left: 0;
     border-right: 0;
     margin-bottom: 2rem;
   }
 
-  .handDocsHome__hero,
-  .handDocsHome__footerCta {
+  .morphDocsHome__hero,
+  .morphDocsHome__footerCta {
     grid-template-columns: 1fr;
   }
 
-  .handDocsHome__heroCopy {
+  .morphDocsHome__heroCopy {
     border-right: 0;
     border-bottom: 1px solid #2a313c;
   }
 
-  .handDocsHome__footerLinks {
+  .morphDocsHome__footerLinks {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 640px) {
-  .theme-doc-markdown .handDocsHome {
+  .theme-doc-markdown .morphDocsHome {
     max-width: 100vw;
     width: 100%;
   }
 
-  .theme-doc-markdown .handDocsHome h1 {
+  .theme-doc-markdown .morphDocsHome h1 {
     font-size: 2.72rem;
     line-height: 1.02;
   }
 
-  .handDocsHome__heroCopy,
-  .handDocsHome__featureIntro,
-  .handDocsHome__footerCta,
-  .handDocsHome__footerLinks {
+  .morphDocsHome__heroCopy,
+  .morphDocsHome__featureIntro,
+  .morphDocsHome__footerCta,
+  .morphDocsHome__footerLinks {
     padding-left: 1.25rem;
     padding-right: 1.25rem;
   }
 
-  .handDocsHome__heroCopy {
+  .morphDocsHome__heroCopy {
     padding-bottom: 1.25rem;
   }
 
-  .handDocsHome__terminal {
+  .morphDocsHome__terminal {
     margin: 1.25rem;
   }
 
-  .handDocsHome__installCommand pre {
+  .morphDocsHome__installCommand pre {
     font-size: 0.76rem;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
   }
 
-  .handDocsHome__tuiWrap {
+  .morphDocsHome__tuiWrap {
     padding: 1.25rem;
   }
 
-  .handDocsHome__tui {
+  .morphDocsHome__tui {
     font-size: 0.72rem;
     height: 620px;
     max-height: none;
     min-height: 620px;
   }
 
-  .handDocsHome__tuiViewport {
+  .morphDocsHome__tuiViewport {
     height: auto;
   }
 
-  .handDocsHome__tuiLog,
-  .handDocsHome__answerBlock,
-  .handDocsHome__workedLine {
+  .morphDocsHome__tuiLog,
+  .morphDocsHome__answerBlock,
+  .morphDocsHome__workedLine {
     margin-left: 0.75rem;
     margin-right: 0.75rem;
   }
 
-  .handDocsHome__tuiLog span:not(.handDocsHome__logDot) {
+  .morphDocsHome__tuiLog span:not(.morphDocsHome__logDot) {
     overflow-wrap: anywhere;
     white-space: normal;
   }
 
-  .handDocsHome__composeTurn {
+  .morphDocsHome__composeTurn {
     min-height: 2.65rem;
     padding-left: 0.75rem;
     padding-right: 0.75rem;
   }
 
-  .handDocsHome__typedText {
+  .morphDocsHome__typedText {
     font-size: 0.76rem;
   }
 
-  .handDocsHome__tuiStatus {
+  .morphDocsHome__tuiStatus {
     display: flex;
     flex-wrap: wrap;
     gap: 0.45rem 0.75rem;
   }
 
-  .handDocsHome__featureGrid,
-  .handDocsHome__footerLinks {
+  .morphDocsHome__featureGrid,
+  .morphDocsHome__footerLinks {
     grid-template-columns: 1fr;
   }
 
-  .handDocsHome__featureCard,
-  .handDocsHome__featureCard:nth-child(2n) {
+  .morphDocsHome__featureCard,
+  .morphDocsHome__featureCard:nth-child(2n) {
     border-right: 0;
   }
 
-  .handDocsHome__featureCard,
-  .handDocsHome__featureCard:nth-last-child(-n + 2) {
-    border-bottom: 1px solid var(--hand-border);
+  .morphDocsHome__featureCard,
+  .morphDocsHome__featureCard:nth-last-child(-n + 2) {
+    border-bottom: 1px solid var(--morph-border);
   }
 
-  .handDocsHome__featureCard {
+  .morphDocsHome__featureCard {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(220px, 1fr);
     min-height: 0;
   }
 
-  .handDocsHome__featureCard:last-child {
-    border-bottom: 1px solid var(--hand-border);
+  .morphDocsHome__featureCard:last-child {
+    border-bottom: 1px solid var(--morph-border);
   }
 
-  .handDocsHome__featureCopy,
-  .handDocsHome__featureCard:nth-child(even) .handDocsHome__featureCopy {
+  .morphDocsHome__featureCopy,
+  .morphDocsHome__featureCard:nth-child(even) .morphDocsHome__featureCopy {
     border-left: 0;
     border-right: 0;
     order: 1;
   }
 
-  .handDocsHome__featureVisual {
+  .morphDocsHome__featureVisual {
     min-height: 240px;
     order: 2;
   }
 
-  .handDocsHome__memoryVisual {
+  .morphDocsHome__memoryVisual {
     min-height: 320px;
   }
 
-  .handDocsHome__gatewayVisual {
+  .morphDocsHome__gatewayVisual {
     flex-wrap: wrap;
     min-height: 320px;
   }
 
-  .handDocsHome__gatewayVisual span {
+  .morphDocsHome__gatewayVisual span {
     height: 4.8rem;
     width: 4.8rem;
   }
 
-  .handDocsHome__gatewayVisual span:nth-of-type(1),
-  .handDocsHome__gatewayVisual span:nth-of-type(3) {
+  .morphDocsHome__gatewayVisual span:nth-of-type(1),
+  .morphDocsHome__gatewayVisual span:nth-of-type(3) {
     left: 13.5%;
   }
 
-  .handDocsHome__gatewayVisual span:nth-of-type(2),
-  .handDocsHome__gatewayVisual span:nth-of-type(4) {
+  .morphDocsHome__gatewayVisual span:nth-of-type(2),
+  .morphDocsHome__gatewayVisual span:nth-of-type(4) {
     right: 13.5%;
   }
 
-  .handDocsHome__gatewayVisual span:nth-of-type(1),
-  .handDocsHome__gatewayVisual span:nth-of-type(2) {
+  .morphDocsHome__gatewayVisual span:nth-of-type(1),
+  .morphDocsHome__gatewayVisual span:nth-of-type(2) {
     top: 23.4%;
   }
 
-  .handDocsHome__gatewayVisual span:nth-of-type(3),
-  .handDocsHome__gatewayVisual span:nth-of-type(4) {
+  .morphDocsHome__gatewayVisual span:nth-of-type(3),
+  .morphDocsHome__gatewayVisual span:nth-of-type(4) {
     bottom: 23.4%;
   }
 
-  .handDocsHome__gatewayVisual span:nth-child(n) {
+  .morphDocsHome__gatewayVisual span:nth-child(n) {
     transform: none;
   }
 }

@@ -1,11 +1,11 @@
 ---
 title: Daemon and RPC
-description: How Hand's daemon and RPC clients fit together.
+description: How Morph's daemon and RPC clients fit together.
 ---
 
 # Daemon and RPC
 
-Hand splits work between a long-lived **daemon** that owns the agent runtime and thin **clients** that connect to it over
+Morph splits work between a long-lived **daemon** that owns the agent runtime and thin **clients** that connect to it over
 a local gRPC interface. This page explains why that split exists, how the daemon is started, how clients find and talk
 to it, and how the daemon reloads config and shuts down.
 
@@ -24,7 +24,7 @@ profile.
 
 ## Starting the Daemon
 
-`hand daemon` boots the runtime for the active profile. It loads and validates config, builds the model clients
+`morph daemon` boots the runtime for the active profile. It loads and validates config, builds the model clients
 (main, summary, and reranker), opens the state store, starts the agent, optionally starts the gateway, and binds the
 gRPC listener.
 
@@ -32,7 +32,7 @@ If model or embedding credentials are missing, the daemon still starts but disab
 gateway, vector search, or memory — and logs a warning. This lets you start the daemon, fix configuration, and let the
 change be picked up without fighting a hard failure.
 
-`hand daemon` is the only command in the `daemon` group; there is no `stop` or `restart` subcommand. You stop a
+`morph daemon` is the only command in the `daemon` group; there is no `stop` or `restart` subcommand. You stop a
 daemon with `Ctrl+C` / SIGTERM, or by exiting a TUI that started it. See [Daemon Operations](../operations/daemon) for
 operator guidance.
 
@@ -52,7 +52,7 @@ The daemon serves a local gRPC interface, bound by default to `127.0.0.1:50051`.
 
 Clients use this file to locate the daemon for a profile. Endpoint resolution follows a clear order:
 
-1. **Explicit RPC settings win.** If `--rpc.address`/`--rpc.port` flags, `HAND_RPC_ADDRESS`/`HAND_RPC_PORT` environment
+1. **Explicit RPC settings win.** If `--rpc.address`/`--rpc.port` flags, `MORPH_RPC_ADDRESS`/`MORPH_RPC_PORT` environment
    variables, or a non-default `rpc` config value are set, the client connects to that endpoint directly.
 2. **Otherwise the client reads `runtime.json`.** If the recorded process is alive and the endpoint accepts a
    connection, the client uses it.
@@ -66,14 +66,14 @@ endpoint of an already-running daemon uses the reachability check in step 2 abov
 
 Not every command talks to the daemon, and only some start one:
 
-- **TUI (`hand`)** connects over RPC. If no daemon is reachable, it starts one inside the same process, waits for the
+- **TUI (`morph`)** connects over RPC. If no daemon is reachable, it starts one inside the same process, waits for the
   health check to pass, then connects; exiting the TUI stops that embedded daemon.
-- **One-shot chat (`hand --chat`)** connects over RPC and will likewise start a temporary daemon when none is reachable,
+- **One-shot chat (`morph --chat`)** connects over RPC and will likewise start a temporary daemon when none is reachable,
   then stop it after the response completes.
-- **Session commands (`hand session ...`)** and **gateway commands (`hand gateway ...`)** connect over RPC but do **not**
+- **Session commands (`morph session ...`)** and **gateway commands (`morph gateway ...`)** connect over RPC but do **not**
   start a daemon; they expect one to already be running.
-- **Trace (`hand trace ...`)** reads trace files from the profile on disk and does not use RPC.
-- **Auth (`hand auth ...`)** reads and writes the local credential store and does not use RPC.
+- **Trace (`morph trace ...`)** reads trace files from the profile on disk and does not use RPC.
+- **Auth (`morph auth ...`)** reads and writes the local credential store and does not use RPC.
 
 Because every RPC client resolves the profile first and then connects, they all share the same runtime and state. See
 [Profiles and Config](../getting-started/profiles-and-config) for how the active profile is resolved.
@@ -83,7 +83,7 @@ Because every RPC client resolves the profile first and then connects, they all 
 The daemon exposes four gRPC services. The full request and response messages are in the
 [RPC Reference](../reference/rpc); the summary below is by concern.
 
-- **`HandService`** — `Respond` streams a reply back as it is produced. Events carry incremental assistant text and
+- **`MorphService`** — `Respond` streams a reply back as it is produced. Events carry incremental assistant text and
   reasoning, trace events, an error, or a final done signal, so clients can render output live. See
   [Sessions](./sessions) for how a reply is tied to a conversation.
 - **`SessionService`** — create, list, switch (`Use`), rename, archive and unarchive, compact, repair the vector index,
@@ -99,7 +99,7 @@ When the gateway is enabled, the daemon hosts it as a separate HTTP server (defa
 listener. The gateway and the gRPC clients answer through the same agent runtime.
 
 Because gateway lifecycle is exposed through `GatewayService`, you can start, stop, restart, and approve or revoke
-pairings at runtime without restarting the daemon. This is what `hand gateway ...` commands drive. See
+pairings at runtime without restarting the daemon. This is what `morph gateway ...` commands drive. See
 [Gateways](./gateways) and [Gateway Management](../operations/gateway-management).
 
 ## Config Reload and Shutdown

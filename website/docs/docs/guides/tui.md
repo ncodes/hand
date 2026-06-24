@@ -1,11 +1,11 @@
 ---
 title: TUI Guide
-description: Use Hand's terminal chat interface.
+description: Use Morph's terminal chat interface.
 ---
 
 # TUI Guide
 
-The TUI is Hand's interactive terminal chat — the surface you will use most. It is a full-screen app with a scrolling
+The TUI is Morph's interactive terminal chat — the surface you will use most. It is a full-screen app with a scrolling
 transcript, a multiline composer, and a status row, and it streams the agent's replies, tool activity, and reasoning
 live as a turn runs.
 
@@ -15,25 +15,25 @@ transcript, and the slash commands. For the in-chat command list on its own, see
 
 ## Launching
 
-Run Hand with no arguments to open the TUI:
+Run Morph with no arguments to open the TUI:
 
 ```bash
-hand
+morph
 ```
 
 The TUI connects to the [daemon](../concepts/daemon-and-rpc) over RPC. If no daemon is running for the active
-[profile](../concepts/profiles), Hand starts a temporary one for you and stops it again when you exit; if a daemon is
+[profile](../concepts/profiles), Morph starts a temporary one for you and stops it again when you exit; if a daemon is
 already running, the TUI just attaches to it. On startup it loads the timeline of the profile's current session, so you
 resume exactly where you left off.
 
-The bare `hand` command is the only one that opens the TUI. A one-shot, non-interactive request uses `hand --chat`
+The bare `morph` command is the only one that opens the TUI. A one-shot, non-interactive request uses `morph --chat`
 (or `-c`) instead, which prints a single reply and exits rather than entering the full-screen interface.
 
 ## Sending Messages
 
 Type into the composer at the bottom and press **Enter** to send. While the composer has focus:
 
-![Hand TUI composer](/img/page-images/composer.png)
+![Morph TUI composer](/img/page-images/composer.png)
 
 - **Multiline input** — insert a newline without sending using **Shift+Enter**, **Alt+Enter**, or **Ctrl+J**. The
   composer grows to fit, so you can paste or write multi-paragraph prompts.
@@ -47,10 +47,10 @@ appears as you type.
 
 ## Watching a Response
 
-When you send a message, Hand streams the turn into the transcript as it happens. Depending on the model and what the
+When you send a message, Morph streams the turn into the transcript as it happens. Depending on the model and what the
 agent does, you may see several kinds of entries:
 
-![Hand TUI response with tool activity and final answer](/img/page-images/response.png)
+![Morph TUI response with tool activity and final answer](/img/page-images/response.png)
 
 - **Assistant** text, rendered as Markdown, streaming in as it is produced.
 - **Reasoning** output, when the model exposes it, shown distinctly from the final answer.
@@ -77,7 +77,7 @@ The transcript scrolls independently of the composer:
 Type `/` to open the command menu; keep typing to filter it, and use the arrow keys to choose. The available commands
 are:
 
-![Hand TUI slash command menu](/img/page-images/commandlist.png)
+![Morph TUI slash command menu](/img/page-images/commandlist.png)
 
 | Command | What it does |
 | --- | --- |
@@ -114,7 +114,7 @@ and for the command-line equivalents see the [Session Guide](./sessions).
 ## Setup and Models
 
 On first run, or when credentials are missing, the TUI walks you through naming and model setup so you can start
-chatting without editing config by hand. You can reopen this later with `/setup`, and inspect what is available with
+chatting without editing config by morph. You can reopen this later with `/setup`, and inspect what is available with
 `/models` and `/providers`. For configuring provider credentials in depth, see [Provider Auth](./provider-auth).
 
 ## Exiting

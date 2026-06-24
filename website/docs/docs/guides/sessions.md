@@ -10,19 +10,19 @@ A session is one durable conversation: its messages, summary, title, and context
 covers the day-to-day commands for listing, switching, inspecting, and maintaining sessions. For the underlying model —
 identity, summaries, archiving, and search — see [Sessions](../concepts/sessions).
 
-The `hand session` subcommands talk to a running [daemon](../concepts/daemon-and-rpc) over RPC; they do not start one.
-If you see a connection error, start a daemon first — run `hand daemon`, or keep a TUI (`hand`) open, which runs
+The `morph session` subcommands talk to a running [daemon](../concepts/daemon-and-rpc) over RPC; they do not start one.
+If you see a connection error, start a daemon first — run `morph daemon`, or keep a TUI (`morph`) open, which runs
 one for as long as it is open. All of them accept a global `--profile` to target a profile other than the current one,
-for example `hand --profile work session list`.
+for example `morph --profile work session list`.
 
 ## Listing and Switching
 
 See your sessions, which one is current, and switch between them:
 
 ```bash
-hand session list
-hand session current
-hand session use ses_abc123
+morph session list
+morph session current
+morph session use ses_abc123
 ```
 
 `list` prints each session as `Title (id)` (or just the id when it has no title yet). `current` prints the id of the
@@ -34,18 +34,18 @@ non-archived session current.
 Create a new session, optionally with your own id:
 
 ```bash
-hand session new
-hand session new ses_review
+morph session new
+morph session new ses_review
 ```
 
 `new` prints the new session's id but does **not** make it current — create-then-switch is two steps, so follow it with
-`hand session use <id>` if you want to continue there interactively. The special `default` session always exists and is
+`morph session use <id>` if you want to continue there interactively. The special `default` session always exists and is
 the fallback when nothing else is selected.
 
 To continue a specific session in a one-shot request without changing your current selection, pass `--session`:
 
 ```bash
-hand --chat --session ses_review "pick up where we left off"
+morph --chat --session ses_review "pick up where we left off"
 ```
 
 ## Inspecting Context Usage
@@ -53,39 +53,39 @@ hand --chat --session ses_review "pick up where we left off"
 A session accumulates context as it grows. `status` reports how full it is:
 
 ```bash
-hand session status
-hand session status ses_review
+morph session status
+morph session status ses_review
 ```
 
 It shows the created and updated times, the current compaction state, and the context budget — how much of the model's
 context window is used versus remaining, as both token counts and percentages. Watch the used percentage to see when a
-conversation is approaching the point where Hand will compact it automatically.
+conversation is approaching the point where Morph will compact it automatically.
 
 ## Compacting
 
-Compaction summarizes older messages so a long conversation keeps working without resending everything. Hand does this
+Compaction summarizes older messages so a long conversation keeps working without resending everything. Morph does this
 automatically as context fills, but you can force it:
 
 ```bash
-hand session compact
-hand session compact ses_review
+morph session compact
+morph session compact ses_review
 ```
 
 The command reports the resulting summary boundary and the new context lengths. Persisted history is not deleted —
 compaction only trims the live working set. See [Sessions](../concepts/sessions#summaries-and-compaction) for how
-summaries and thresholds work, and note that when memory is enabled Hand flushes durable [memory](./memory) before an
+summaries and thresholds work, and note that when memory is enabled Morph flushes durable [memory](./memory) before an
 automatic compaction.
 
 ## Archiving
 
-Archiving removes a session from your active list while keeping its content, and Hand permanently deletes archives after
+Archiving removes a session from your active list while keeping its content, and Morph permanently deletes archives after
 a retention period. Archiving a session is done from the TUI — the `/chats` panel can archive the session you select,
 and `/archive` lists archived ones. The `default` session cannot be archived.
 
 From the CLI you can restore an archived session:
 
 ```bash
-hand session unarchive ses_old
+morph session unarchive ses_old
 ```
 
 See the [TUI Guide](./tui) for the archive panels and [Sessions](../concepts/sessions#archiving-sessions) for retention
@@ -96,8 +96,8 @@ behavior.
 If session search results look stale or incomplete, rebuild a session's search/index artifacts:
 
 ```bash
-hand session repair
-hand session repair ses_review --full
+morph session repair
+morph session repair ses_review --full
 ```
 
 By default `repair` only rebuilds missing or stale artifacts; `--full` rebuilds everything repairable. It prints how
@@ -106,7 +106,7 @@ many rows were scanned, rebuilt, and so on. See [Search and Traces](./search-and
 ## Sessions Across Surfaces
 
 Because sessions live in the daemon's store, every client on the profile sees the same conversations and the same
-current selection — the TUI, one-shot `hand --chat`, and the `hand session` commands all agree. Messaging
+current selection — the TUI, one-shot `morph --chat`, and the `morph session` commands all agree. Messaging
 [gateways](../concepts/gateways) reuse the same sessions too: each external conversation is bound to its own session, so
 a Slack or Telegram thread keeps a continuous history without disturbing the current session your terminal uses.
 

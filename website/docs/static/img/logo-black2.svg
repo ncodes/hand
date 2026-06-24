@@ -21,7 +21,7 @@
                         <polygon id="Path" fill="#00FB66" points="17.0524644 45.7218536 45.5817664 45.7218536 45.5817664 51.5239119 17.0524644 51.5239119"></polygon>
                     </g>
                 </g>
-                <g id="Hand" transform="translate(64, 0)" fill="#000000" fill-rule="nonzero">
+                <g id="Morph" transform="translate(64, 0)" fill="#000000" fill-rule="nonzero">
                     <polygon id="Path" points="10 82 10 32 20 32 20 52 40 52 40 32 50 32 50 82 40 82 40 62 20 62 20 82"></polygon>
                     <path d="M65,82 L65,42 L75,42 L75,32 L95,32 L95,42 L105,42 L105,82 L95,82 L95,62 L75,62 L75,82 L65,82 Z M75,52 L95,52 L95,42.4 L75,42.4 L75,52 Z" id="Shape"></path>
                     <polygon id="Path" points="120 82 120 32 130 32 130 42 140 42 140 52 150 52 150 62 160 62 160 32 170 32 170 82 160 82 160 72 150 72 150 62 140 62 140 52 130 52 130 82"></polygon>

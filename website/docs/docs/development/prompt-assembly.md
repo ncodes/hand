@@ -1,12 +1,12 @@
 ---
 title: Prompt Assembly
-description: How Hand builds system instructions and message context before each model call.
+description: How Morph builds system instructions and message context before each model call.
 displayed_sidebar: null
 ---
 
 # Prompt Assembly
 
-Hand separates what the model reads into two surfaces on every inference call:
+Morph separates what the model reads into two surfaces on every inference call:
 
 1. **`Instructions`** — the system prompt: static profile rules, runtime facts, retrieved memory, and turn-specific
    guidance. Assembled as named instruction blocks, then joined into one string.
@@ -31,7 +31,7 @@ flowchart TB
     PlanPol[planning.policy]
     Base[BuildBase agent name]
     Soul[SOUL.md personality]
-    Rules[Workspace rules agents.md / hand.md]
+    Rules[Workspace rules agents.md / morph.md]
     SessInst[session.instruct → config.instruct]
     ToolGuide[Registered tool usage instructions]
     PlanPol --> Base --> Soul --> Rules --> SessInst --> ToolGuide
@@ -96,14 +96,14 @@ Builders for summaries, memory flush, web extract, reranking, and session titles
 
 ## Base Instructions at Daemon Prepare
 
-When `internal/agent.Agent.Start` calls `environment.Prepare`, Hand builds the static instruction stack before tools
+When `internal/agent.Agent.Start` calls `environment.Prepare`, Morph builds the static instruction stack before tools
 register.
 
 ### Core behavior and planning policy
 
 1. **`planning.policy`** — when to use `plan_tool` and how to maintain step status.
 2. **`BuildBase`** — agent identity, tool-use honesty, instruction-secrecy rules, and terminal-friendly formatting. The
-   agent name comes from profile `name` (default `"Hand"`).
+   agent name comes from profile `name` (default `"Morph"`).
 
 ### Personality overlays
 
@@ -123,15 +123,15 @@ replay at turn start. Configure named personality maps under `personalities` in 
 
 | Source | Behavior |
 | --- | --- |
-| **Default discovery** | When the workspace root contains a top-level `agents.md` or `hand.md`, Hand walks the tree (skipping `.git`, `node_modules`, virtualenvs, and similar dirs) and loads every matching file, shallow paths first. Matching is case-insensitive. |
-| **`rules.files`** | Additional explicit paths (relative to the workspace root or absolute). Configured via profile YAML or the `HAND_RULES_FILES` env var. See [Config Guide](../guides/config). |
+| **Default discovery** | When the workspace root contains a top-level `agents.md` or `morph.md`, Morph walks the tree (skipping `.git`, `node_modules`, virtualenvs, and similar dirs) and loads every matching file, shallow paths first. Matching is case-insensitive. |
+| **`rules.files`** | Additional explicit paths (relative to the workspace root or absolute). Configured via profile YAML or the `MORPH_RULES_FILES` env var. See [Config Guide](../guides/config). |
 
 Each file is safety-scanned, prefixed with a `## <path>` heading, and concatenated. The combined text is truncated to
 **15,000** characters (`constants.WorkspaceMaxContentLength`) with a middle `[... workspace rules truncated ...]`
 marker when needed.
 
 :::tip AGENTS.md vs agents.md
-Hand's default filenames are **`agents.md`** and **`hand.md`** (see `constants.WorkspaceDefaultInstructionFiles`). A
+Morph's default filenames are **`agents.md`** and **`morph.md`** (see `constants.WorkspaceDefaultInstructionFiles`). A
 repository `AGENTS.md` is picked up because matching is case-insensitive on supported platforms.
 :::
 
@@ -155,7 +155,7 @@ Then, on **every** `RunStep`, `buildRequestInstructions` merges dynamic blocks i
 1. **Plan context** — active non-completed plan steps from in-memory plan state (hydrated from prior `plan_tool`
    messages). When present, **`planning.policy`** is moved to the top of the merged stack and plan markdown follows
    immediately after it (`internal/agent/plan.go`, `renderPlanInstructions`).
-2. **Session summary** — structured handoff text from persisted compaction state: summary, current task, discoveries,
+2. **Session summary** — structured morphoff text from persisted compaction state: summary, current task, discoveries,
    open questions, and next actions (`summary.State.RenderSummaryInstructions`). This replaces older messages in
    **instructions**, not in the message list.
 3. **Memory context** — retrieved durable memory for this turn (`memory.context`). See [Memory at turn start](#memory-at-turn-start).
@@ -233,7 +233,7 @@ Typical fields include:
 - Web provider name when configured
 - Session ID and **session origin** (gateway account, conversation, thread, source)
 
-When the session origin indicates a chat surface, Hand adds **channel response guidance** — for example Telegram
+When the session origin indicates a chat surface, Morph adds **channel response guidance** — for example Telegram
 MarkdownV2 or Slack-compatible formatting hints (`renderEnvironmentSessionResponseGuidance` in
 `internal/instructions/builders.go`). Gateway bindings populate origin metadata; see
 [Gateway Internals](./gateway-internals).

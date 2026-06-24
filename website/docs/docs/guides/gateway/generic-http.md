@@ -6,7 +6,7 @@ description: Use the generic HTTP gateway route.
 # Generic HTTP Gateway
 
 The generic HTTP gateway exposes a simple JSON API for your own apps, scripts, and automation. Send a message and a
-conversation id; Hand runs a full agent turn against the bound [session](../../concepts/sessions) and returns the
+conversation id; Morph runs a full agent turn against the bound [session](../../concepts/sessions) and returns the
 assistant reply in one response. There is no Slack or Telegram setup — only the shared gateway listener and this route.
 
 For gateway prerequisites, lifecycle, and how surfaces fit together, start with the [Gateway Overview](./). For
@@ -17,14 +17,14 @@ the underlying model, see [Gateways](../../concepts/gateways).
 Generic HTTP is available whenever the gateway is enabled. There is no separate platform toggle:
 
 ```bash
-hand config set gateway.enabled true
+morph config set gateway.enabled true
 ```
 
 That starts the gateway listener inside the daemon (default `127.0.0.1:50052`) and registers `POST /v1/respond`. A
-daemon must be running for the profile — `hand daemon`, or keep `hand` open. Confirm it is up:
+daemon must be running for the profile — `morph daemon`, or keep `morph` open. Confirm it is up:
 
 ```bash
-hand gateway status
+morph gateway status
 ```
 
 The listener address and port come from `gateway.address` and `gateway.port`. Changes to `config.yaml` restart the
@@ -70,11 +70,11 @@ Binding the gateway to a non-loopback address **requires** `gateway.authToken`; 
 bind. Set a token before exposing the listener:
 
 ```bash
-hand config set gateway.authToken "$(openssl rand -hex 32)"
+morph config set gateway.authToken "$(openssl rand -hex 32)"
 ```
 
-Store the token wherever your client can read it — Hand does not print it again. You can also set `HAND_GATEWAY_AUTH_TOKEN`
-or use `--gateway.auth-token`. Run `hand doctor` and fix any **gateway** / **listener** warnings before exposing the
+Store the token wherever your client can read it — Morph does not print it again. You can also set `MORPH_GATEWAY_AUTH_TOKEN`
+or use `--gateway.auth-token`. Run `morph doctor` and fix any **gateway** / **listener** warnings before exposing the
 endpoint. See [Safety and Guardrails](../../concepts/safety-and-guardrails).
 
 Unlike Slack and Telegram, generic HTTP has no per-sender allowlist or pairing — anyone who can reach the endpoint and
@@ -107,7 +107,7 @@ On success, the response is HTTP 200 with:
 }
 ```
 
-`session_id` is the Hand session this conversation is bound to. Keep your `conversation_id` stable in your client; Hand
+`session_id` is the Morph session this conversation is bound to. Keep your `conversation_id` stable in your client; Morph
 creates the binding on first use and reuses it on later messages.
 
 ### Error response
@@ -135,7 +135,7 @@ For the full route table and auth rules, see [Gateway Routes](../../reference/ga
 
 ## Conversation IDs and Session Continuity
 
-Each `conversation_id` maps to one Hand session through a gateway binding stored in the profile database. The binding
+Each `conversation_id` maps to one Morph session through a gateway binding stored in the profile database. The binding
 key looks like `generic::<conversation_id>:` — for example `generic::support-bot:` for `conversation_id`
 `support-bot`.
 
@@ -164,7 +164,7 @@ curl -sS http://127.0.0.1:50052/v1/respond \
   -H 'Content-Type: application/json' \
   -d '{
     "conversation_id": "demo",
-    "message": "Summarize what Hand can do in one sentence."
+    "message": "Summarize what Morph can do in one sentence."
   }'
 ```
 
@@ -193,7 +193,7 @@ curl -sS http://127.0.0.1:50052/v1/respond \
   }'
 ```
 
-Inspect it with `hand session list` or open it in the TUI. The gateway conversation appears as its own session,
+Inspect it with `morph session list` or open it in the TUI. The gateway conversation appears as its own session,
 separate from your current interactive chat. Reusing the same `conversation_id` continues that session.
 
 ## Safe Exposure
@@ -206,8 +206,8 @@ Default settings target local integration:
 Before exposing the gateway beyond localhost:
 
 1. Set `gateway.authToken` to a strong random value and give it only to trusted clients.
-2. Prefer a reverse proxy with TLS termination in front of Hand.
-3. Run `hand doctor` and resolve **gateway** readiness warnings.
+2. Prefer a reverse proxy with TLS termination in front of Morph.
+3. Run `morph doctor` and resolve **gateway** readiness warnings.
 4. Treat the token like an API key — rotate it if leaked; it is stored in profile config, not `auth.json`.
 
 If you only need local automation on the same machine, keep `gateway.address` on loopback and avoid publishing the
@@ -217,13 +217,13 @@ port.
 
 ### Connection refused
 
-Confirm the daemon and gateway are running (`hand gateway status` should show `state=running`). If the gateway was
-stopped with `hand gateway stop`, run `hand gateway start`.
+Confirm the daemon and gateway are running (`morph gateway status` should show `state=running`). If the gateway was
+stopped with `morph gateway stop`, run `morph gateway start`.
 
 ### 401 unauthorized
 
 `gateway.authToken` is set but the request is missing `Authorization: Bearer …` or the token does not match. Retrieve
-the token from your profile config or environment — Hand does not echo it after `config set`.
+the token from your profile config or environment — Morph does not echo it after `config set`.
 
 ### 400 bad_request
 
@@ -231,7 +231,7 @@ Check that `conversation_id` and `message` are non-empty strings and the body is
 
 ### 500 internal_error
 
-Check model credentials (`hand auth status`, `hand doctor`) and daemon logs. The HTTP response intentionally omits
+Check model credentials (`morph auth status`, `morph doctor`) and daemon logs. The HTTP response intentionally omits
 internal details. Use [Search and Traces](../search-and-traces) to inspect trace events for the bound session.
 
 ### Slow or timed-out requests

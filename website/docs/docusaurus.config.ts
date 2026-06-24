@@ -1,6 +1,6 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import type { Config } from '@docusaurus/types';
+import { themes as prismThemes } from 'prism-react-renderer';
 
 function getAlgoliaConfig(): Preset.ThemeConfig['algolia'] | undefined {
   const appId = process.env.DOCUSAURUS_ALGOLIA_APP_ID?.trim();
@@ -41,7 +41,7 @@ function getAlgoliaConfig(): Preset.ThemeConfig['algolia'] | undefined {
 const algolia = getAlgoliaConfig();
 
 const config: Config = {
-  title: 'Hand',
+  title: 'Morph',
   tagline: 'A terminal-first personal agent',
   favicon: 'img/favicon.ico',
 
@@ -49,7 +49,7 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://hand.local',
+  url: 'https://morph.local',
   baseUrl: '/',
 
   headTags: [
@@ -92,7 +92,7 @@ const config: Config = {
   ],
 
   organizationName: 'wandxy',
-  projectName: 'hand',
+  projectName: 'morph',
 
   onBrokenLinks: 'throw',
 
@@ -130,7 +130,7 @@ const config: Config = {
     },
     navbar: {
       logo: {
-        alt: 'Hand',
+        alt: 'Morph',
         src: 'img/logo-black2.svg',
         srcDark: 'img/logo-white2.svg',
       },
@@ -169,7 +169,7 @@ const config: Config = {
           items: [
             {
               label: 'Forum',
-              href: 'https://github.com/wandxy/hand/discussions',
+              href: 'https://github.com/wandxy/morph/discussions',
             },
             {
               label: 'Twitter',
@@ -203,7 +203,7 @@ const config: Config = {
         },
         {
           type: 'custom-socialIcon',
-          href: 'https://github.com/wandxy/hand',
+          href: 'https://github.com/wandxy/morph',
           icon: 'github',
           label: 'GitHub',
           position: 'right',

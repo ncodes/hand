@@ -1,9 +1,9 @@
-import type {ReactNode} from 'react';
-import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
-import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
+import Layout from '@theme/Layout';
+import clsx from 'clsx';
+import type { ReactNode } from 'react';
 
 import styles from './index.module.css';
 
@@ -12,7 +12,7 @@ function HomepageHeader() {
   return (
     <header className={clsx(styles.heroBanner)}>
       <div className="container">
-        <p className={styles.eyebrow}>Hand Docs</p>
+        <p className={styles.eyebrow}>Morph Docs</p>
         <Heading as="h1" className={styles.title}>
           {siteConfig.title}
         </Heading>
@@ -37,7 +37,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title={siteConfig.title}
-      description="Documentation for Hand, a terminal-first personal agent.">
+      description="Documentation for Morph, a terminal-first personal agent.">
       <HomepageHeader />
     </Layout>
   );

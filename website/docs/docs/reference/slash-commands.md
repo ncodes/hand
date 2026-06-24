@@ -5,7 +5,7 @@ description: TUI slash command reference.
 
 # Slash Commands
 
-The Hand TUI accepts **slash commands** — messages that start with `/` — for session management, model selection, and
+The Morph TUI accepts **slash commands** — messages that start with `/` — for session management, model selection, and
 utility actions without leaving the chat surface. For general TUI behavior, see the [TUI Guide](../guides/tui). For the
 full CLI, see [CLI Reference](./cli).
 
@@ -46,13 +46,13 @@ Archived sessions appear only under `/archive`.
 
 ### `/compact`
 
-Runs the same compaction path as `hand session compact` on the current session, then reloads context in the TUI. See
+Runs the same compaction path as `morph session compact` on the current session, then reloads context in the TUI. See
 [Sessions](../concepts/sessions) and [Sessions Guide](../guides/sessions).
 
 ### `/models` and `/providers`
 
 The catalog is loaded locally. Selecting a model or entering an API key may call RPC `ModelService.SelectModel` or
-`SetProviderAPIKey`. For credential setup outside the TUI, use `hand auth login` — see
+`SetProviderAPIKey`. For credential setup outside the TUI, use `morph auth login` — see
 [Provider Auth](../guides/provider-auth).
 
 ### `/setup`
@@ -80,7 +80,7 @@ Full method definitions: [RPC Reference](./rpc).
 ## Where To Go Next
 
 - [TUI Guide](../guides/tui): layout, streaming, and keybindings
-- [CLI Reference](./cli): `hand session …` equivalents
+- [CLI Reference](./cli): `morph session …` equivalents
 - [Sessions Guide](../guides/sessions): session workflows
 - [RPC Reference](./rpc): underlying gRPC API
 - [Learning Path](../getting-started/learning-path): daily-driver track lists slash commands early

@@ -5,11 +5,11 @@ description: Daemon gRPC service reference.
 
 # RPC Reference
 
-Hand exposes a **gRPC** API on the daemon process (default `127.0.0.1:50051`). TUI, `hand session`, `hand gateway`, and
+Morph exposes a **gRPC** API on the daemon process (default `127.0.0.1:50051`). TUI, `morph session`, `morph gateway`, and
 one-shot `--chat` are RPC clients. Conceptual overview: [Daemon and RPC](../concepts/daemon-and-rpc).
 
-**Proto source:** `internal/rpc/proto/hand.proto`  
-**Package:** `hand.v1`  
+**Proto source:** `internal/rpc/proto/morph.proto`  
+**Package:** `morph.v1`  
 
 :::warning[Transport security]
 Daemon RPC currently uses **plaintext gRPC** with no application-level authentication. Bind `rpc.address` to loopback
@@ -28,13 +28,13 @@ not part of durable user state and can be recreated by starting the daemon again
 
 Typical flow for chat:
 
-1. `HandService.Respond` — server-streaming; receive `TEXT_DELTA`, selected display-safe `TRACE_EVENT` events, then
+1. `MorphService.Respond` — server-streaming; receive `TEXT_DELTA`, selected display-safe `TRACE_EVENT` events, then
    `DONE` or `ERROR`.
 2. Session commands use `SessionService` unary RPCs against the same connection.
 
 For HTTP gateway clients that bypass gRPC, see [Gateway Routes](./gateway-routes).
 
-## HandService
+## MorphService
 
 | Method | Type | Description |
 | --- | --- | --- |
@@ -115,7 +115,7 @@ Used by TUI `/models` and `/providers` flows. Auth details: [Provider Auth](../g
 | `RevokePairing` | Revoke approved sender |
 | `ClearPendingPairings` | Clear pending requests for a source |
 
-CLI: `hand gateway …`. Operations: [Gateway Management](../operations/gateway-management).
+CLI: `morph gateway …`. Operations: [Gateway Management](../operations/gateway-management).
 
 ### Pairing messages
 

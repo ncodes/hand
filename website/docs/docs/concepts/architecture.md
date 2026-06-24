@@ -1,11 +1,11 @@
 ---
 title: Architecture
-description: The high-level shape of Hand.
+description: The high-level shape of Morph.
 ---
 
 # Architecture
 
-Hand is built around a long-lived **daemon** that owns the agent runtime, with thin **clients** that connect to it over
+Morph is built around a long-lived **daemon** that owns the agent runtime, with thin **clients** that connect to it over
 **RPC**. The daemon holds the model clients, the agent loop, tools, memory, and state for one profile; clients like the
 TUI and CLI send requests and stream results back. Everything for a profile lives in that profile's home directory.
 
@@ -15,7 +15,7 @@ This page describes the high-level shape and how the parts fit. For the package-
 ```text
 ┌─────────────┐   ┌─────────────┐   ┌──────────────────┐
 │  TUI        │   │  CLI        │   │  Gateway clients │
-│  (hand)     │   │  (hand ...) │   │  Slack/Telegram  │
+│  (morph)     │   │  (morph ...) │   │  Slack/Telegram  │
 └──────┬──────┘   └──────┬──────┘   └────────┬─────────┘
        │  gRPC           │  gRPC             │  HTTP
        └────────┬────────┘                   │
@@ -37,7 +37,7 @@ This page describes the high-level shape and how the parts fit. For the package-
         │   State manager  ─►  SQLite + FTS5        │
         └───────────────────────────────────────────┘
                 ▼
-   ~/.hand/profiles/<name>/  (config, credentials, db, traces, runtime.json)
+   ~/.morph/profiles/<name>/  (config, credentials, db, traces, runtime.json)
 ```
 
 ## The Daemon Owns the Runtime
@@ -46,7 +46,7 @@ The daemon is the long-lived process that owns everything stateful and expensive
 agent loop, the tool registry, the memory subsystem, and the connection to persistent storage. Running it once and
 keeping it warm means clients stay thin and fast.
 
-`hand daemon` boots the runtime for the active profile. On startup it loads and validates config, builds the model
+`morph daemon` boots the runtime for the active profile. On startup it loads and validates config, builds the model
 clients, opens the state store, starts the agent, optionally starts the gateway, and binds the RPC listener. If model or
 embedding credentials are missing, the daemon still starts but disables the parts that need them (for example the
 gateway, vector search, or memory) so you can fix configuration and retry.
@@ -61,9 +61,9 @@ For lifecycle details, see [Daemon and RPC](./daemon-and-rpc) and [Daemon Operat
 
 Clients do not run the agent themselves. They resolve the active profile, find its daemon, and send requests over RPC:
 
-- The **CLI** (`hand --chat`, `hand session ...`, `hand gateway ...`) connects to the daemon and prints results. A
+- The **CLI** (`morph --chat`, `morph session ...`, `morph gateway ...`) connects to the daemon and prints results. A
   one-shot chat starts a temporary daemon when none is reachable, then stops it after the response completes.
-- The **TUI** (`hand`) is the interactive surface. For convenience it can start a daemon for you: when no daemon is
+- The **TUI** (`morph`) is the interactive surface. For convenience it can start a daemon for you: when no daemon is
   running, it launches one inside the same process, waits until RPC is ready, then connects. Exiting the TUI stops that
   embedded daemon.
 
@@ -108,14 +108,14 @@ Several subsystems support that loop:
 
 When enabled, the gateway lets external clients — Slack, Telegram, or a generic HTTP caller — reach the same agent. The
 daemon hosts the gateway as an HTTP server on its own address and port (default `50052`), separate from the gRPC
-listener. Inbound messages are mapped to a Hand session and answered by the same agent runtime the TUI and CLI use.
+listener. Inbound messages are mapped to a Morph session and answered by the same agent runtime the TUI and CLI use.
 
 The gateway is controlled at runtime through the RPC gateway service, so you can start, stop, and manage pairings
 without restarting the daemon. See [Gateways](./gateways) and [Gateway Management](../operations/gateway-management).
 
 ## Where State Lives
 
-All persistent state for a profile lives under its home directory, `~/.hand/profiles/<name>/`:
+All persistent state for a profile lives under its home directory, `~/.morph/profiles/<name>/`:
 
 - **Config and credentials**: `config.yaml`, `.env`, and `auth.json`.
 - **Conversations and memory**: a SQLite database with full-text search (FTS5) for session messages and memory items.
@@ -129,9 +129,9 @@ back up or move a profile by copying its directory. See [Profiles](./profiles), 
 
 ## Where To Go Next
 
-- [Daemon and RPC](./daemon-and-rpc): why Hand runs a daemon and how clients connect.
+- [Daemon and RPC](./daemon-and-rpc): why Morph runs a daemon and how clients connect.
 - [Sessions](./sessions): the durable conversation model.
 - [Tools](./tools): how capabilities are exposed and gated.
-- [Memory](./memory): how Hand remembers across sessions.
+- [Memory](./memory): how Morph remembers across sessions.
 - [Gateways](./gateways): reaching the agent from external clients.
 - [Development Architecture](../development/architecture): the package-level implementation map.

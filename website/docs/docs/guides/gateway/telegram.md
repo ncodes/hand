@@ -5,7 +5,7 @@ description: Configure Telegram polling and webhook modes.
 
 # Telegram Gateway
 
-The Telegram gateway connects a Telegram bot to Hand. Messages arrive through Telegram's Bot API, Hand runs a normal
+The Telegram gateway connects a Telegram bot to Morph. Messages arrive through Telegram's Bot API, Morph runs a normal
 agent turn against the bound [session](../../concepts/sessions), and replies stream back into the chat. Tools, memory,
 and history behave the same as in the TUI.
 
@@ -20,48 +20,48 @@ You need a bot token from [BotFather](https://t.me/BotFather):
 2. Send `/newbot`; follow the prompts for display name and username.
 3. Copy the token BotFather returns (`123456789:ABC…`) — use the raw value, not a `bot` URL prefix.
 
-Keep the token secret. Store it in profile config or an environment variable, not in chat logs or git. Hand redacts
+Keep the token secret. Store it in profile config or an environment variable, not in chat logs or git. Morph redacts
 gateway tokens from traces and logs — see [Safety and Guardrails](../../concepts/safety-and-guardrails).
 
-## Enable Telegram in Hand
+## Enable Telegram in Morph
 
 Turn on the gateway, then configure Telegram with its bot token. A daemon must be running for the profile.
 
 ```bash
-hand config set gateway.enabled true
-hand config set gateway.telegram.botToken "<your-bot-token>"
-hand config set gateway.telegram.enabled true
+morph config set gateway.enabled true
+morph config set gateway.telegram.botToken "<your-bot-token>"
+morph config set gateway.telegram.enabled true
 ```
 
-Polling is the default mode (`gateway.telegram.mode polling`) — Hand pulls updates over an outbound connection, so you
+Polling is the default mode (`gateway.telegram.mode polling`) — Morph pulls updates over an outbound connection, so you
 do not need a public URL for local use. Confirm runtime state:
 
 ```bash
-hand gateway status
-hand doctor
+morph gateway status
+morph doctor
 ```
 
 The **gateway** readiness group should show Telegram enabled with the bot token configured. Fix any warnings before
 relying on the bot in production.
 
-Optional environment overrides include `HAND_GATEWAY_TELEGRAM_ENABLED`, `HAND_GATEWAY_TELEGRAM_BOT_TOKEN`, and
-`HAND_GATEWAY_TELEGRAM_MODE`. See [Config Guide](../config#enable-the-gateway).
+Optional environment overrides include `MORPH_GATEWAY_TELEGRAM_ENABLED`, `MORPH_GATEWAY_TELEGRAM_BOT_TOKEN`, and
+`MORPH_GATEWAY_TELEGRAM_MODE`. See [Config Guide](../config#enable-the-gateway).
 
 ## Polling Mode (Default)
 
 Polling mode is the simplest setup for a laptop or private network:
 
 ```bash
-hand config set gateway.telegram.mode polling
+morph config set gateway.telegram.mode polling
 ```
 
-Hand calls Telegram's `getUpdates` loop inside the daemon. No inbound port needs to be reachable from the internet.
+Morph calls Telegram's `getUpdates` loop inside the daemon. No inbound port needs to be reachable from the internet.
 
-**Only one active poller per bot token.** If another process (a second Hand daemon, a staging bot runner, or a previous
-session that did not shut down) is already polling, Hand reports a polling conflict and the gateway may fail. Stop the
+**Only one active poller per bot token.** If another process (a second Morph daemon, a staging bot runner, or a previous
+session that did not shut down) is already polling, Morph reports a polling conflict and the gateway may fail. Stop the
 other consumer or use a separate bot token per environment.
 
-After config changes, the daemon restarts automatically when the config is valid. You can also run `hand gateway
+After config changes, the daemon restarts automatically when the config is valid. You can also run `morph gateway
 restart` once the new settings are loaded.
 
 ## Webhook Mode
@@ -69,15 +69,15 @@ restart` once the new settings are loaded.
 Webhook mode is for hosted deployments where Telegram pushes updates to you:
 
 ```bash
-hand config set gateway.telegram.mode webhook
-hand config set gateway.telegram.webhookSecret "<webhook-secret>"
+morph config set gateway.telegram.mode webhook
+morph config set gateway.telegram.webhookSecret "<webhook-secret>"
 ```
 
 Requirements:
 
 - `gateway.telegram.webhookSecret` — 1–256 characters, letters, digits, underscore, or hyphen only. Telegram sends this
-  back as the `X-Telegram-Bot-Api-Secret-Token` header; Hand rejects requests that do not match.
-- A **public HTTPS URL** that forwards to Hand's gateway listener at:
+  back as the `X-Telegram-Bot-Api-Secret-Token` header; Morph rejects requests that do not match.
+- A **public HTTPS URL** that forwards to Morph's gateway listener at:
 
   ```text
   https://<your-host>/gateway/telegram/webhook
@@ -86,14 +86,14 @@ Requirements:
 After the gateway is reachable, register the webhook URL with Telegram:
 
 ```bash
-hand gateway setwebhook telegram "https://<your-host>/gateway/telegram/webhook"
+morph gateway setwebhook telegram "https://<your-host>/gateway/telegram/webhook"
 ```
 
 The command uses `gateway.telegram.botToken` and `gateway.telegram.webhookSecret` from the active profile.
 To clear the registered Telegram webhook, pass an empty URL:
 
 ```bash
-hand gateway setwebhook telegram ""
+morph gateway setwebhook telegram ""
 ```
 
 The webhook route is verified with `gateway.telegram.webhookSecret`, not `gateway.authToken`. The latter protects
@@ -105,77 +105,77 @@ you only use Telegram webhooks — see [Gateway Overview](./).
 
 ## Authorize Senders
 
-Telegram bots can be messaged by anyone who finds them. Hand uses allowlists and pairing before running agent turns.
+Telegram bots can be messaged by anyone who finds them. Morph uses allowlists and pairing before running agent turns.
 
 ### Allowlists
 
 Skip pairing for known sender ids:
 
 ```bash
-hand config set gateway.telegram.allowedUsers "123456789,987654321"
+morph config set gateway.telegram.allowedUsers "123456789,987654321"
 ```
 
 `gateway.allowedUsers` applies to all gateway platforms; `gateway.telegram.allowedUsers` is Telegram-only. Sender ids
 are Telegram's numeric user ids, not `@username` strings.
 
-To discover your id, message a bot like `@userinfobot`, or send Hand a DM and read the pending entry:
+To discover your id, message a bot like `@userinfobot`, or send Morph a DM and read the pending entry:
 
 ```bash
-hand gateway pairing list telegram
+morph gateway pairing list telegram
 ```
 
 ### Pairing in private chats
 
-For DMs from senders not on an allowlist, Hand sends a short pairing code. Set a pairing secret first:
+For DMs from senders not on an allowlist, Morph sends a short pairing code. Set a pairing secret first:
 
 ```bash
-hand config set gateway.pairingSecret "$(openssl rand -hex 32)"
+morph config set gateway.pairingSecret "$(openssl rand -hex 32)"
 ```
 
 When someone messages your bot in a **private chat**, they receive instructions with a code. Approve them:
 
 ```bash
-hand gateway pairing approve telegram <code>
+morph gateway pairing approve telegram <code>
 ```
 
 List or revoke pairings:
 
 ```bash
-hand gateway pairing list telegram
-hand gateway pairing revoke telegram <sender-id>
-hand gateway pairing clear-pending telegram
+morph gateway pairing list telegram
+morph gateway pairing revoke telegram <sender-id>
+morph gateway pairing clear-pending telegram
 ```
 
-Pairing approves the **sender**, not a session — once approved, that user can talk to the bot across chats Hand
+Pairing approves the **sender**, not a session — once approved, that user can talk to the bot across chats Morph
 allows. See [Pairing and Allowlists](./pairing-and-allowlists).
 
 ### Groups and supergroups
 
-**Groups never receive pairing prompts.** Unlisted senders in a group are ignored silently. To use Hand in a group:
+**Groups never receive pairing prompts.** Unlisted senders in a group are ignored silently. To use Morph in a group:
 
 1. Add the bot to the group.
 2. Allowlist every sender who should be able to trigger it (`gateway.telegram.allowedUsers` or pre-approve them via
    pairing in a private DM first).
 
-Forum **topics** map to separate Hand sessions via Telegram's thread id — each topic keeps its own binding and history.
+Forum **topics** map to separate Morph sessions via Telegram's thread id — each topic keeps its own binding and history.
 
 ## How Replies Appear
 
-Hand **streams** assistant output into Telegram while the turn runs:
+Morph **streams** assistant output into Telegram while the turn runs:
 
 - In **private chats**, native draft streaming is used when available.
-- In other chats, Hand simulates streaming by editing a single message as text arrives.
-- If streaming fails, Hand falls back to sending the final reply only.
+- In other chats, Morph simulates streaming by editing a single message as text arrives.
+- If streaming fails, Morph falls back to sending the final reply only.
 
-Replies are formatted as **MarkdownV2** where possible. Hand converts common markdown (bold, code fences, links, and
-similar) and escapes Telegram's special characters. If Telegram rejects the formatted message, Hand retries as plain
-text. Hand does not use Telegram HTML.
+Replies are formatted as **MarkdownV2** where possible. Morph converts common markdown (bold, code fences, links, and
+similar) and escapes Telegram's special characters. If Telegram rejects the formatted message, Morph retries as plain
+text. Morph does not use Telegram HTML.
 
 Long replies are split into chunks within Telegram's message size limit (4096 characters).
 
 ## Sessions and Continuity
 
-Each Telegram chat (and forum thread, when applicable) binds to one Hand session through `gateway_bindings`. The same
+Each Telegram chat (and forum thread, when applicable) binds to one Morph session through `gateway_bindings`. The same
 chat keeps continuous history across messages. Gateway traffic does not change the **current session** in your TUI or
 CLI. See [Sessions](../../concepts/sessions).
 
@@ -184,17 +184,17 @@ commands like `/start`). Media-only messages without text are ignored.
 
 ## Verify the Bot
 
-1. Run `hand doctor` — the **gateway** group should show Telegram enabled with your mode and token.
-2. Run `hand gateway status` — expect `state=running` and `telegram=polling` or `telegram=webhook`.
+1. Run `morph doctor` — the **gateway** group should show Telegram enabled with your mode and token.
+2. Run `morph gateway status` — expect `state=running` and `telegram=polling` or `telegram=webhook`.
 3. In Telegram, open a **private chat** with your bot and send a message. If you are not allowlisted, complete pairing
-   from the code Hand replies with.
-4. Confirm Hand answers and that `hand session list` shows a session bound to that chat (separate from your TUI session).
+   from the code Morph replies with.
+4. Confirm Morph answers and that `morph session list` shows a session bound to that chat (separate from your TUI session).
 
 ## Troubleshooting
 
 ### Polling conflict
 
-Another process is already calling `getUpdates` for this bot token. Stop duplicate Hand daemons or other integrations,
+Another process is already calling `getUpdates` for this bot token. Stop duplicate Morph daemons or other integrations,
 or assign a separate bot per environment.
 
 ### DM pairing code never arrives
@@ -219,12 +219,12 @@ on the gateway listener port.
 
 ### Replies look unformatted
 
-Hand fell back to plain text after a MarkdownV2 parse error from Telegram. Simplify markdown in the model output or
+Morph fell back to plain text after a MarkdownV2 parse error from Telegram. Simplify markdown in the model output or
 check daemon logs for Telegram API errors.
 
 ### Agent errors with no user-visible reply
 
-Check model credentials (`hand auth status`, `hand doctor`) and inspect traces for the bound session — see
+Check model credentials (`morph auth status`, `morph doctor`) and inspect traces for the bound session — see
 [Search and Traces](../search-and-traces).
 
 ## Where To Go Next

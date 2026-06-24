@@ -1,13 +1,13 @@
 ---
 title: Tools
-description: How Hand exposes capabilities to the model.
+description: How Morph exposes capabilities to the model.
 ---
 
 # Tools
 
-Tools are how the model acts on the world. On their own, models can only produce text; tools give Hand controlled,
+Tools are how the model acts on the world. On their own, models can only produce text; tools give Morph controlled,
 auditable access to the filesystem, shell, web, session history, and memory. Each turn, the model is offered a set of
-tools it may call, Hand runs the ones it picks, and the results are fed back into the conversation so the model can
+tools it may call, Morph runs the ones it picks, and the results are fed back into the conversation so the model can
 continue.
 
 This page explains the tool model: what a tool is, which tools exist, how availability is decided, and how calls are
@@ -18,16 +18,16 @@ guarded. For the implementation-level design, see [Tools Runtime](../development
 
 A tool is a named capability with a description and a JSON schema for its inputs. The model sees only that public
 surface — name, description, and parameter schema — and decides when to call it. Behind that surface, each tool has a
-handler that runs inside the daemon and returns a structured result.
+Handler that runs inside the daemon and returns a structured result.
 
 Tools also carry runtime metadata the model never sees: which **capabilities** they require (filesystem, exec, network,
 memory), whether they are safe to run in parallel with their neighbors, and an optional usage instruction that is folded
-into the system prompt when the tool is registered. This split keeps the model-facing contract small while letting Hand
+into the system prompt when the tool is registered. This split keeps the model-facing contract small while letting Morph
 gate and sandbox execution.
 
 ## The Built-in Tools
 
-Hand registers its built-in tools when the daemon prepares a profile's environment. They fall into a few groups:
+Morph registers its built-in tools when the daemon prepares a profile's environment. They fall into a few groups:
 
 - **Filesystem** — `read_file`, `write_file`, `patch`, `list_files`, `search_files`.
 - **Shell / process** — `run_command` (one-shot commands) and `process` (managing longer-lived processes).
@@ -64,7 +64,7 @@ trigger a [daemon restart](./daemon-and-rpc)) changes the tool set the model see
 
 ## Guardrails Around Tool Calls
 
-Capabilities decide *whether* a tool is offered; guardrails decide *what a call may do*. Hand applies them on both the
+Capabilities decide *whether* a tool is offered; guardrails decide *what a call may do*. Morph applies them on both the
 input and output sides:
 
 - **Filesystem roots.** File tools resolve every path against the profile's allowed workspace roots (`fs.roots`). Paths
@@ -83,9 +83,9 @@ For the broader safety model these draw on, see [Safety and Guardrails](./safety
 
 ## How a Tool Call Runs
 
-When the model returns one or more tool calls, Hand runs them and loops:
+When the model returns one or more tool calls, Morph runs them and loops:
 
-1. Hand batches the calls, running tools marked parallel-safe together and others one at a time.
+1. Morph batches the calls, running tools marked parallel-safe together and others one at a time.
 2. For each call it records a `tool.invocation.started` trace event, then invokes the tool's handler through the
    registry. An unknown tool name or a handler failure becomes a structured error rather than crashing the turn.
 3. The result — output or error — is wrapped as a `tool` message and appended to the conversation, and a
@@ -104,7 +104,7 @@ session's timeline. See [Trace Events](../reference/trace-events).
 
 ## Adding a Tool
 
-Tools are plain Go packages: a definition (name, description, input schema, required capabilities, handler) registered
+Tools are plain Go packages: a definition (name, description, input schema, required capabilities, Hand) registered
 into the environment's tool registry alongside the built-ins. New tools automatically participate in capability gating,
 guardrails, and trace streaming. For the registry contract and conventions, see [Tools Runtime](../development/tools-runtime).
 

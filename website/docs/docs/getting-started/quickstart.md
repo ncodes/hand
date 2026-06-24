@@ -1,50 +1,50 @@
 ---
 title: Quickstart
-description: Get Hand running and start your first conversation.
+description: Get Morph running and start your first conversation.
 ---
 
 # Quickstart
 
-This guide gets Hand installed, configured, and ready for your first chat.
+This guide gets Morph installed, configured, and ready for your first chat.
 
 ## Requirements
 
 You need:
 
 - A model provider account or API key.
-- A terminal on the machine where you want Hand to run.
+- A terminal on the machine where you want Morph to run.
 
-Hand can store subscription accounts or API keys. If you already pay for ChatGPT, Claude, or GitHub Copilot,
-subscription login is often fastest. Hand stores OAuth credentials for supported providers.
+Morph can store subscription accounts or API keys. If you already pay for ChatGPT, Claude, or GitHub Copilot,
+subscription login is often fastest. Morph stores OAuth credentials for supported providers.
 
 API keys are also supported. They are often better for OpenRouter, servers, service accounts, and automation.
 
 See [Provider Auth](../guides/provider-auth) for provider notes and API key links.
 
-## Install Hand
+## Install Morph
 
-Install Hand with the hosted installer:
+Install Morph with the hosted installer:
 
 ```bash
-curl -fsSL https://handagent.ai/install.sh | bash
+curl -fsSL https://morphagent.ai/install.sh | bash
 ```
 
 After installation, verify the CLI is available:
 
 ```bash
-hand version
+morph version
 ```
 
-If your shell cannot find `hand`, restart the shell or check that the install directory is on your `PATH`.
+If your shell cannot find `morph`, restart the shell or check that the install directory is on your `PATH`.
 For source builds, platform notes, and update or uninstall guidance, see [Installation](./installation).
 
-Once `hand version` works, start the terminal UI:
+Once `morph version` works, start the terminal UI:
 
 ```bash
-hand
+morph
 ```
 
-You can finish setup there and start chatting. See the [TUI Guide](../guides/tui) to learn more about Hand's TUI.
+You can finish setup there and start chatting. See the [TUI Guide](../guides/tui) to learn more about Morph's TUI.
 
 The rest of this page shows the same setup with commands.
 
@@ -52,34 +52,34 @@ The rest of this page shows the same setup with commands.
 
 Profiles keep config, credentials, sessions, search state, and memory separate.
 
-The first run of `hand` usually creates and selects `default`. To do it yourself:
+The first run of `morph` usually creates and selects `default`. To do it yourself:
 
 ```bash
-hand profile init default --use
+morph profile init default --use
 ```
 
 Check it:
 
 ```bash
-hand profile current
+morph profile current
 ```
 
 Print the exact profile path:
 
 ```bash
-hand profile path
+morph profile path
 ```
 
 Common profile files:
 
 - `config.yaml`: profile-local configuration.
 - `.env`: optional environment overrides.
-- `auth.json`: credentials stored by `hand auth login`.
+- `auth.json`: credentials stored by `morph auth login`.
 - `runtime.json`: daemon runtime metadata.
 
 ## Choose A Provider
 
-First choose how Hand should route model requests. These commands set the provider, model name, and API shape in the
+First choose how Morph should route model requests. These commands set the provider, model name, and API shape in the
 active profile; they do not authenticate the provider yet.
 
 Replace `<model-name>` with a [model supported by the provider you choose](../guides/provider-auth). After this section,
@@ -95,25 +95,25 @@ Use one of these when you want to authenticate later with OAuth.
 Use OpenAI Codex if you want to sign in with an OpenAI subscription:
 
 ```bash
-hand config set models.main.provider openai-codex
-hand config set models.main.name <model-name>
-hand config set models.main.api openai-responses
+morph config set models.main.provider openai-codex
+morph config set models.main.name <model-name>
+morph config set models.main.api openai-responses
 ```
 
 Anthropic for Claude models:
 
 ```bash
-hand config set models.main.provider anthropic
-hand config set models.main.name <model-name>
-hand config set models.main.api anthropic-messages
+morph config set models.main.provider anthropic
+morph config set models.main.name <model-name>
+morph config set models.main.api anthropic-messages
 ```
 
 GitHub Copilot uses your Copilot subscription:
 
 ```bash
-hand config set models.main.provider github-copilot
-hand config set models.main.name <model-name>
-hand config set models.main.api openai-completions
+morph config set models.main.provider github-copilot
+morph config set models.main.name <model-name>
+morph config set models.main.api openai-completions
 ```
 
 ### API Key
@@ -123,38 +123,38 @@ Use one of these when you want to authenticate later with an API key.
 OpenRouter gives one API key to access many hosted models:
 
 ```bash
-hand config set models.main.provider openrouter
-hand config set models.main.name <model-name>
-hand config set models.main.api openai-responses
+morph config set models.main.provider openrouter
+morph config set models.main.name <model-name>
+morph config set models.main.api openai-responses
 ```
 
 For OpenAI, you'll need to provide an OpenAI API key:
 
 ```bash
-hand config set models.main.provider openai
-hand config set models.main.name <model-name>
-hand config set models.main.api openai-responses
+morph config set models.main.provider openai
+morph config set models.main.name <model-name>
+morph config set models.main.api openai-responses
 ```
 
 To use Anthropic's models, you'll need an Anthropic API key:
 
 ```bash
-hand config set models.main.provider anthropic
-hand config set models.main.name <model-name>
-hand config set models.main.api anthropic-messages
+morph config set models.main.provider anthropic
+morph config set models.main.name <model-name>
+morph config set models.main.api anthropic-messages
 ```
 
 Check the routing config before adding credentials:
 
 ```bash
-hand config get models.main.provider models.main.name models.main.api
+morph config get models.main.provider models.main.name models.main.api
 ```
 
 To learn about credentials and available models for each provider, see the [Provider Auth](../guides/provider-auth) guide.
 
 ## Store Credentials
 
-Now authenticate the provider you selected in [Choose A Provider](#choose-a-provider). Hand cannot work until the active
+Now authenticate the provider you selected in [Choose A Provider](#choose-a-provider). Morph cannot work until the active
 profile has credentials for `models.main.provider`.
 
 Store credentials in the active profile. Do not put real keys in shared docs, tickets, or config.
@@ -162,19 +162,19 @@ Store credentials in the active profile. Do not put real keys in shared docs, ti
 For subscription login, run only the command for your configured provider and omit `--api-key`:
 
 ```bash
-hand auth login openai-codex
+morph auth login openai-codex
 ```
 
 For Claude subscription login:
 
 ```bash
-hand auth login anthropic
+morph auth login anthropic
 ```
 
 For GitHub Copilot:
 
 ```bash
-hand auth login github-copilot
+morph auth login github-copilot
 ```
 
 For API key auth, run only the command for your configured provider:
@@ -182,26 +182,26 @@ For API key auth, run only the command for your configured provider:
 OpenRouter:
 
 ```bash
-hand auth login openrouter --api-key "<openrouter-api-key>"
+morph auth login openrouter --api-key "<openrouter-api-key>"
 ```
 
 OpenAI:
 
 ```bash
-hand auth login openai --api-key "<openai-api-key>"
+morph auth login openai --api-key "<openai-api-key>"
 ```
 
 Anthropic:
 
 ```bash
-hand auth login anthropic --api-key "<anthropic-api-key>"
+morph auth login anthropic --api-key "<anthropic-api-key>"
 ```
 
 Verify:
 
 ```bash
-hand auth status
-hand doctor
+morph auth status
+morph doctor
 ```
 
 If credentials are missing, check that `models.main.provider` matches the provider you logged into.
@@ -211,23 +211,23 @@ If credentials are missing, check that `models.main.provider` matches the provid
 Open the TUI:
 
 ```bash
-hand
+morph
 ```
 
-If the daemon is not running at the expected address, `hand` starts a temporary daemon in the same process.
+If the daemon is not running at the expected address, `morph` starts a temporary daemon in the same process.
 
 Type a message and press Enter.
 
 Or send one message:
 
 ```bash
-hand --chat "Say hello in one sentence."
+morph --chat "Say hello in one sentence."
 ```
 
 Select a profile explicitly:
 
 ```bash
-hand --profile default --chat "Summarize what you can do."
+morph --profile default --chat "Summarize what you can do."
 ```
 
 ## Check The Daemon
@@ -235,42 +235,42 @@ hand --profile default --chat "Summarize what you can do."
 For manual daemon control or readiness checks:
 
 ```bash
-hand doctor
-hand gateway status
+morph doctor
+morph gateway status
 ```
 
 If you want to run the daemon in the foreground or don't want a TUI-managed daemon, you can run:
 
 ```bash
-hand daemon
+morph daemon
 ```
 
 then start the TUI:
 
 ```bash
-hand
+morph
 ```
 
 ## Check Sessions
 
-Hand saves chats as sessions. Use them to find recent conversations or continue work later.
+Morph saves chats as sessions. Use them to find recent conversations or continue work later.
 
 Show the active session:
 
 ```bash
-hand session current
+morph session current
 ```
 
 List recent sessions:
 
 ```bash
-hand session list
+morph session list
 ```
 
 Continue a specific session from a one-shot prompt:
 
 ```bash
-hand --chat --session "<session-id>" "Continue from there."
+morph --chat --session "<session-id>" "Continue from there."
 ```
 
 For daily use, the TUI can continue from the current session automatically.

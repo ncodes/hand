@@ -1,26 +1,26 @@
-import React, {useEffect, useRef, useState} from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const SCRIPT = [
   {type: 'user', text: 'prepare Slack gateway rollout'},
-  {type: 'hand', lines: ['I will inspect the profile, gateway docs, and current daemon readiness first.']},
+  {type: 'morph', lines: ['I will inspect the profile, gateway docs, and current daemon readiness first.']},
   {type: 'tool', title: 'Plan updated', lines: ['└ Added 3 tasks']},
-  {type: 'tool', title: 'Read', lines: ['├ read_file .hand/profiles/default/config.yaml', '└ read_file docs/guides/gateway/slack.md']},
-  {type: 'tool', title: 'Run 1 shell command', lines: ['└ $ hand doctor --json']},
+  {type: 'tool', title: 'Read', lines: ['├ read_file .morph/profiles/default/config.yaml', '└ read_file docs/guides/gateway/slack.md']},
+  {type: 'tool', title: 'Run 1 shell command', lines: ['└ $ morph doctor --json']},
   {type: 'tool', title: 'Doctor result', lines: ['├ profile: default ready', '├ models: main provider ready', '└ daemon: restart recommended']},
-  {type: 'hand', lines: ['Created a rollout checklist for the Slack gateway:', '• hand doctor is passing for models and profile config', '• gateway.slack.botToken is present', '• Restart the daemon before opening the shared channel']},
+  {type: 'morph', lines: ['Created a rollout checklist for the Slack gateway:', '• morph doctor is passing for models and profile config', '• gateway.slack.botToken is present', '• Restart the daemon before opening the shared channel']},
   {type: 'user', text: 'tighten this for shared channels'},
-  {type: 'hand', lines: ['I will make the checklist safer for a channel where more than one person can invoke Hand.']},
+  {type: 'morph', lines: ['I will make the checklist safer for a channel where more than one person can invoke Morph.']},
   {type: 'tool', title: 'Plan updated', lines: ['└ Task 2 refined for shared-channel controls']},
   {type: 'tool', title: 'Read', lines: ['├ read_file docs/operations/security.md', '└ read_file docs/operations/gateway-management.md']},
   {type: 'tool', title: 'Config check', lines: ['├ gateway.authToken is configured', '├ slack signing secret is configured', '└ non-loopback HTTP mode is disabled']},
-  {type: 'hand', lines: ['Updated the checklist for a shared Slack channel:', '• Limit who can invoke Hand in the channel', '• Keep gateway auth enabled before exposing HTTP mode', '• Announce the restart window before reconnecting Slack']},
+  {type: 'morph', lines: ['Updated the checklist for a shared Slack channel:', '• Limit who can invoke Morph in the channel', '• Keep gateway auth enabled before exposing HTTP mode', '• Announce the restart window before reconnecting Slack']},
   {type: 'user', text: 'add an HTTP fallback plan'},
-  {type: 'hand', lines: ['I will add an HTTP fallback without making it the default path.']},
+  {type: 'morph', lines: ['I will add an HTTP fallback without making it the default path.']},
   {type: 'tool', title: 'Read', lines: ['└ read_file docs/guides/gateway/http.md']},
-  {type: 'tool', title: 'Run 1 shell command', lines: ['└ $ hand gateway status']},
+  {type: 'tool', title: 'Run 1 shell command', lines: ['└ $ morph gateway status']},
   {type: 'tool', title: 'Gateway result', lines: ['├ slack: ready after daemon restart', '├ http: disabled', '└ telegram: not configured']},
-  {type: 'hand', lines: ['HTTP fallback added:', '• Keep HTTP bound to loopback during rehearsal', '• Require gateway.authToken before widening the bind address', '• Prefer Slack socket mode for the shared channel launch']},
-  {type: 'hand', lines: ['Final rollout path: verify doctor, restart daemon, open Slack, confirm one channel, then keep HTTP as a guarded fallback.']},
+  {type: 'morph', lines: ['HTTP fallback added:', '• Keep HTTP bound to loopback during rehearsal', '• Require gateway.authToken before widening the bind address', '• Prefer Slack socket mode for the shared channel launch']},
+  {type: 'morph', lines: ['Final rollout path: verify doctor, restart daemon, open Slack, confirm one channel, then keep HTTP as a guarded fallback.']},
 ];
 
 const TYPE_DELAY = 18;
@@ -36,8 +36,8 @@ function wait(ms) {
 function renderEvent(event) {
   if (event.type === 'user') {
     return (
-      <div className="handTuiPreview__event handTuiPreview__eventUser" key={event.id}>
-        <span className="handDocsHome__prompt">›</span>
+      <div className="morphTuiPreview__event morphTuiPreview__eventUser" key={event.id}>
+        <span className="morphDocsHome__prompt">›</span>
         <span>{event.text}</span>
       </div>
     );
@@ -45,9 +45,9 @@ function renderEvent(event) {
 
   if (event.type === 'tool') {
     return (
-      <div className="handTuiPreview__event handTuiPreview__eventTool" key={event.id}>
-        <span className="handDocsHome__logDot"></span>
-        <div className="handTuiPreview__toolBody">
+      <div className="morphTuiPreview__event morphTuiPreview__eventTool" key={event.id}>
+        <span className="morphDocsHome__logDot"></span>
+        <div className="morphTuiPreview__toolBody">
           {event.title ? <strong>{event.title}</strong> : null}
           {event.lines.map((line, index) => (
             <span key={`${event.id}-${index}`}>{line}</span>
@@ -58,7 +58,7 @@ function renderEvent(event) {
   }
 
   return (
-    <div className="handTuiPreview__event handTuiPreview__eventHand" key={event.id}>
+    <div className="morphTuiPreview__event morphTuiPreview__eventMorph" key={event.id}>
       {event.lines.map((line, index) => (
         <span key={`${event.id}-${index}`}>{line}</span>
       ))}
@@ -66,7 +66,7 @@ function renderEvent(event) {
   );
 }
 
-export default function HandTuiPreview() {
+export default function MorphTuiPreview() {
   const [events, setEvents] = useState([]);
   const [composerText, setComposerText] = useState('');
   const viewportRef = useRef(null);
@@ -123,7 +123,7 @@ export default function HandTuiPreview() {
 
         await wait(LINE_DELAY);
       } else {
-        setEvents((current) => [...current, {id, type: 'hand', lines: []}]);
+        setEvents((current) => [...current, {id, type: 'morph', lines: []}]);
       }
 
       for (let lineIndex = 0; lineIndex < entry.lines.length; lineIndex += 1) {
@@ -176,24 +176,24 @@ export default function HandTuiPreview() {
   }, []);
 
   return (
-    <div className="handDocsHome__tui">
-      <div className="handDocsHome__tuiHeader">
-        <span>Hand TUI</span>
+    <div className="morphDocsHome__tui">
+      <div className="morphDocsHome__tuiHeader">
+        <span>Morph TUI</span>
         <span>profile: support</span>
       </div>
-      <div className="handDocsHome__tuiViewport" ref={viewportRef}>
-        <div className="handTuiPreview__transcript">
+      <div className="morphDocsHome__tuiViewport" ref={viewportRef}>
+        <div className="morphTuiPreview__transcript">
           {events.map(renderEvent)}
         </div>
       </div>
-      <div className="handDocsHome__composer">
-        <span className="handDocsHome__prompt">›</span>
-        <span className="handTuiPreview__composerText">
-          {composerText ? composerText : <span className="handTuiPreview__placeholder">Ask Hand...</span>}
-          <span className="handDocsHome__caret" aria-hidden="true"></span>
+      <div className="morphDocsHome__composer">
+        <span className="morphDocsHome__prompt">›</span>
+        <span className="morphTuiPreview__composerText">
+          {composerText ? composerText : <span className="morphTuiPreview__placeholder">Ask Morph...</span>}
+          <span className="morphDocsHome__caret" aria-hidden="true"></span>
         </span>
       </div>
-      <div className="handDocsHome__tuiStatus" aria-hidden="true">
+      <div className="morphDocsHome__tuiStatus" aria-hidden="true">
         <span>gpt-5.5</span>
         <span>enter to send</span>
         <span>ctrl+c to quit</span>

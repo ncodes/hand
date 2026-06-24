@@ -5,7 +5,7 @@ description: Authorize gateway senders safely.
 
 # Pairing and Allowlists
 
-Slack and Telegram bots can be reached by anyone who finds them. Hand uses allowlists and pairing so only trusted
+Slack and Telegram bots can be reached by anyone who finds them. Morph uses allowlists and pairing so only trusted
 senders trigger agent turns. Generic HTTP uses a shared bearer token instead — see
 [Generic HTTP](./generic-http#authentication).
 
@@ -25,19 +25,19 @@ run after that.
 
 ## How Sender Authorization Works
 
-For each inbound Slack or Telegram message, Hand:
+For each inbound Slack or Telegram message, Morph:
 
 1. Reads the **sender id** from the platform payload — Telegram's numeric user id, or Slack's member id (`U…`).
 2. Checks **allowlists** in profile config: `gateway.allowedUsers` and the platform list (`gateway.telegram.allowedUsers`
    or `gateway.slack.allowedUsers`). If listed, the agent turn runs.
 3. If not allowlisted, checks the profile database for an **approved pairing** for that source and sender id. If found,
    the turn runs.
-4. If still unknown and the chat is **pairing-eligible** (see below), Hand posts a pairing code in the chat and stops —
+4. If still unknown and the chat is **pairing-eligible** (see below), Morph posts a pairing code in the chat and stops —
    no agent turn yet.
 5. If still unknown and the chat is **not** pairing-eligible (Telegram group, Slack channel), the message is dropped
    with no reply.
 
-Pairing approves the **sender identity**, not a session. Once approved, that person can trigger Hand in every context
+Pairing approves the **sender identity**, not a session. Once approved, that person can trigger Morph in every context
 the platform allows. Session bindings are separate — keyed by conversation and thread. See
 [Sessions](../../concepts/sessions).
 
@@ -51,45 +51,45 @@ Allowlists let you skip pairing for senders you already know.
 | `gateway.telegram.allowedUsers` | Telegram only |
 | `gateway.slack.allowedUsers` | Slack only |
 
-A sender needs to appear in the global list **or** the platform list. Hand matches the exact trimmed sender id.
+A sender needs to appear in the global list **or** the platform list. Morph matches the exact trimmed sender id.
 
 ### Set allowlists in config
 
 From a terminal, on the active profile:
 
 ```bash
-hand config set gateway.allowedUsers "123456789,U01234567"
-hand config set gateway.telegram.allowedUsers "123456789,987654321"
-hand config set gateway.slack.allowedUsers "U01234567,U98765432"
+morph config set gateway.allowedUsers "123456789,U01234567"
+morph config set gateway.telegram.allowedUsers "123456789,987654321"
+morph config set gateway.slack.allowedUsers "U01234567,U98765432"
 ```
 
 The daemon restarts when config is valid. You can also set comma-separated env vars:
-`HAND_GATEWAY_ALLOWED_USERS`, `HAND_GATEWAY_TELEGRAM_ALLOWED_USERS`, `HAND_GATEWAY_SLACK_ALLOWED_USERS`.
+`MORPH_GATEWAY_ALLOWED_USERS`, `MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS`, `MORPH_GATEWAY_SLACK_ALLOWED_USERS`.
 
 ### Find a sender id
 
 **Telegram** — numeric user id, not `@username`:
 
 - Message a bot like `@userinfobot`, or
-- Have the user DM your bot once, then run `hand gateway pairing list telegram` and read the **sender id** column.
+- Have the user DM your bot once, then run `morph gateway pairing list telegram` and read the **sender id** column.
 
 **Slack** — member id starting with `U`:
 
 - Open the member's profile in Slack → **More** → **Copy member ID** (wording varies by client), or
-- Same as Telegram: after they message the app, `hand gateway pairing list slack`.
+- Same as Telegram: after they message the app, `morph gateway pairing list slack`.
 
 ## Pairing Secret
 
 Pairing codes are derived from `gateway.pairingSecret` in profile config. Set it before anyone tries to pair:
 
 ```bash
-hand config set gateway.pairingSecret "$(openssl rand -hex 32)"
+morph config set gateway.pairingSecret "$(openssl rand -hex 32)"
 ```
 
-Or export `HAND_GATEWAY_PAIRING_SECRET`. If this field is empty, Hand cannot issue codes — unlisted senders in
+Or export `MORPH_GATEWAY_PAIRING_SECRET`. If this field is empty, Morph cannot issue codes — unlisted senders in
 pairing-eligible chats see nothing useful, and logs show `gateway pairing secret is required`.
 
-Store the secret like a password (profile config or a secret manager, not git). Hand redacts it from traces and logs —
+Store the secret like a password (profile config or a secret manager, not git). Morph redacts it from traces and logs —
 see [Safety and Guardrails](../../concepts/safety-and-guardrails).
 
 Rotating the secret invalidates active codes immediately. Already-approved senders stay approved.
@@ -99,14 +99,14 @@ Rotating the secret invalidates active codes immediately. Already-approved sende
 End-to-end for one new user:
 
 1. **You:** Enable the gateway and platform ([Gateway Overview](./), then [Telegram](./telegram) or [Slack](./slack)).
-   Set `gateway.pairingSecret` and confirm the daemon is running (`hand gateway status`).
+   Set `gateway.pairingSecret` and confirm the daemon is running (`morph gateway status`).
 2. **User:** Opens a DM with your bot or Slack app (Telegram private chat; Slack `im` or group `mpim`) and sends a
    message.
-3. **Hand:** Replies in that same chat with an 8-digit code and a shell command, for example
-   `hand gateway pairing approve telegram 12345678`.
+3. **Morph:** Replies in that same chat with an 8-digit code and a shell command, for example
+   `morph gateway pairing approve telegram 12345678`.
 4. **You:** In a terminal on your machine (same profile, daemon running), run that command with the **current** code from
    the chat. Success prints `approved <source> <sender-id>`.
-5. **User:** Sends another message in the chat. Hand runs a normal agent turn.
+5. **User:** Sends another message in the chat. Morph runs a normal agent turn.
 
 Codes rotate every **30 seconds**. If approve fails, wait for a fresh code in the chat. Each pending request **expires
 after one hour**; the user can message again to get a new one.
@@ -116,7 +116,7 @@ and survive daemon restarts.
 
 ### Where pairing is offered
 
-| Platform | Hand sends a pairing code | Hand ignores silently |
+| Platform | Morph sends a pairing code | Morph ignores silently |
 | --- | --- | --- |
 | **Telegram** | Private chat with the bot | Groups and supergroups |
 | **Slack** | DM (`im`) or group DM (`mpim`) | Channels — need allowlist or prior DM pairing; use `@`-mention there |
@@ -126,15 +126,15 @@ For Telegram groups and Slack channels, allowlist senders or approve them in a p
 
 ## Manage Pairings from the CLI
 
-`hand gateway pairing` talks to the daemon over RPC (like `hand gateway status`). Start a daemon first
-(`hand daemon`, or keep `hand` open). Use `--profile` for another profile.
+`morph gateway pairing` talks to the daemon over RPC (like `morph gateway status`). Start a daemon first
+(`morph daemon`, or keep `morph` open). Use `--profile` for another profile.
 
 ### List pending and approved senders
 
 ```bash
-hand gateway pairing list
-hand gateway pairing list telegram
-hand gateway pairing list slack
+morph gateway pairing list
+morph gateway pairing list telegram
+morph gateway pairing list slack
 ```
 
 Output has two sections: **pending** (source, sender id, display name, expiry) and **approved**. Optional source
@@ -145,8 +145,8 @@ Use this to look up sender ids or confirm a pending request before approving.
 ### Approve a pairing
 
 ```bash
-hand gateway pairing approve telegram <code>
-hand gateway pairing approve slack <code>
+morph gateway pairing approve telegram <code>
+morph gateway pairing approve slack <code>
 ```
 
 `<source>` is `telegram` or `slack`. `<code>` is the 8-digit value from the user's chat — not their sender id.
@@ -158,18 +158,18 @@ expired code, clock skew, or secret changed). Rarely, two pending senders share 
 ### Revoke an approved sender
 
 ```bash
-hand gateway pairing revoke telegram <sender-id>
-hand gateway pairing revoke slack <sender-id>
+morph gateway pairing revoke telegram <sender-id>
+morph gateway pairing revoke slack <sender-id>
 ```
 
-Removes pairing approval only. Existing Hand sessions are unchanged; the sender must pair again or hit an allowlist to
+Removes pairing approval only. Existing Morph sessions are unchanged; the sender must pair again or hit an allowlist to
 trigger new turns.
 
 ### Clear pending requests
 
 ```bash
-hand gateway pairing clear-pending
-hand gateway pairing clear-pending telegram
+morph gateway pairing clear-pending
+morph gateway pairing clear-pending telegram
 ```
 
 Deletes pending requests, not approved senders. Use after testing or when you hit the **100 pending per source** limit
@@ -180,7 +180,7 @@ Deletes pending requests, not approved senders. Use after testing or when you hi
 | | What it controls | Where it lives |
 | --- | --- | --- |
 | **Pairing / allowlist** | Whether a sender may trigger turns | Profile DB (pairing tables) |
-| **Session binding** | Which Hand session continues a thread | Profile DB (`gateway_bindings`) |
+| **Session binding** | Which Morph session continues a thread | Profile DB (`gateway_bindings`) |
 
 Approving a sender does not pick or create your TUI session. Gateway traffic never changes the **current session** in
 the terminal. See [Session Guide](../sessions).
@@ -194,25 +194,25 @@ controls — see [Generic HTTP](./generic-http#authentication).
 
 ### Pairing code never arrives
 
-- Confirm `gateway.pairingSecret` is set in profile config and the gateway is running (`hand gateway status`).
+- Confirm `gateway.pairingSecret` is set in profile config and the gateway is running (`morph gateway status`).
 - Confirm the user is in a pairing-eligible chat (Telegram private; Slack `im`/`mpim`).
 - Check daemon logs for dispatch or secret errors.
 
 ### `no pending gateway pairing matched code`
 
 - Copy the **current** code from the user's chat (rotates every 30s).
-- Run `hand gateway pairing list <source>` — look for a non-expired pending row.
+- Run `morph gateway pairing list <source>` — look for a non-expired pending row.
 - After changing `gateway.pairingSecret`, restart the daemon so approve uses the same secret as the running gateway.
 
 ### Sender approved but messages still ignored
 
 - **Telegram groups / Slack channels:** no pairing prompts there — allowlist or approve in DM first.
-- Confirm the correct **source** (`telegram` vs `slack`) and sender id from `hand gateway pairing list`.
+- Confirm the correct **source** (`telegram` vs `slack`) and sender id from `morph gateway pairing list`.
 - **Slack channels:** user must `@`-mention the app; Slack app needs `app_mention` subscribed.
 
 ### Too many pending requests
 
-Run `hand gateway pairing clear-pending <source>` or wait one hour for expiry.
+Run `morph gateway pairing clear-pending <source>` or wait one hour for expiry.
 
 ### Pairing CLI cannot connect
 
@@ -229,4 +229,4 @@ Start the daemon first. Pairing commands do not start it or reload config from d
 - [Gateway Management](../../operations/gateway-management): start, stop, restart.
 - [Config Guide](../config): changing gateway settings safely.
 - [Profiles](../../concepts/profiles): where pairing state lives.
-- [Safety and Guardrails](../../concepts/safety-and-guardrails): secret handling in logs and traces.
+- [Safety and Guardrails](../../concepts/safety-and-guardrails): secret morphling in logs and traces.

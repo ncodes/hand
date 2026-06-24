@@ -1,21 +1,21 @@
 ---
 title: Safety and Guardrails
-description: How Hand limits risky context, memory, and execution behavior.
+description: How Morph limits risky context, memory, and execution behavior.
 ---
 
 # Safety and Guardrails
 
-Hand runs an agent that reads untrusted text, executes commands, touches files, reaches the network, and remembers
+Morph runs an agent that reads untrusted text, executes commands, touches files, reaches the network, and remembers
 things across sessions. Each of those is useful and each is a way for something to go wrong — a web page that tries to
 hijack the agent's instructions, a command that deletes the wrong thing, a secret that leaks into a log. Guardrails are
 the layer that keeps those capabilities useful without letting them become dangerous.
 
-This page explains Hand's safety posture and where each guardrail sits. It is a conceptual overview, not an exhaustive
+This page explains Morph's safety posture and where each guardrail sits. It is a conceptual overview, not an exhaustive
 list of rules; for exact flags and defaults, see the [Config Reference](../reference/config).
 
 ## What Guardrails Protect Against
 
-Hand's guardrails address a few distinct risks, each with its own mechanism:
+Morph's guardrails address a few distinct risks, each with its own mechanism:
 
 - **Prompt injection from untrusted content** — text the agent reads (web results, files, tool output, stored memory)
   trying to override its instructions or exfiltrate data. Handled by content scanning.
@@ -38,7 +38,7 @@ point:
 - **Your own messages** are checked before the turn runs. If a message trips the rules, the turn is refused with a
   safety message rather than executed.
 - **Loaded context** — workspace rule files and personality files — is scanned as it is read.
-- **Tool output** is scanned before it is handed back to the model. See [Tools](./tools).
+- **Tool output** is scanned before it is morphed back to the model. See [Tools](./tools).
 - **Memory** is scanned both when it is written and before it is injected into a prompt. See [Memory](./memory).
 
 There are two outcomes. Your input can be **refused** outright. Untrusted content that the agent merely reads (a file,
@@ -48,7 +48,7 @@ trace event so you can see what happened.
 
 ## Redacting Secrets and PII
 
-Separately from injection scanning, Hand redacts sensitive values so they do not surface where they should not. Secret
+Separately from injection scanning, Morph redacts sensitive values so they do not surface where they should not. Secret
 masking covers API keys, bearer tokens, provider credentials, gateway tokens, private keys, and connection-string
 passwords; PII redaction covers emails, phone numbers, payment numbers, and similar.
 
@@ -95,12 +95,12 @@ execution/filesystem/network policies. The toggles tune the model-facing scannin
 
 ## Seeing and Verifying Guardrails
 
-Guardrail activity is observable. When something is blocked or redacted, Hand records a trace event —
+Guardrail activity is observable. When something is blocked or redacted, Morph records a trace event —
 `input.safety.blocked`, `output.safety.applied`, `tool.output.safety.applied`, `loaded_content.safety.blocked`, or
 `memory.safety.blocked` — carrying the source and the rule categories that matched, but not the offending content
 itself. See [Trace Events](../reference/trace-events).
 
-For configuration-level exposure, `hand doctor`'s readiness checks report the state of the safety toggles and warn about
+For configuration-level exposure, `morph doctor`'s readiness checks report the state of the safety toggles and warn about
 risky setups — most notably a gateway bound to a non-loopback address without an auth token. See [Doctor](../operations/doctor)
 and [Security](../operations/security).
 

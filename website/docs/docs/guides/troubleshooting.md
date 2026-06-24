@@ -1,15 +1,15 @@
 ---
 title: Troubleshooting
-description: Fix common Hand setup and runtime issues.
+description: Fix common Morph setup and runtime issues.
 ---
 
 # Troubleshooting
 
-This guide collects recurring setup and runtime problems and points you to the right fix. Start with **`hand doctor`**
+This guide collects recurring setup and runtime problems and points you to the right fix. Start with **`morph doctor`**
 on the active profile — it validates config, resolves model credentials, and reports readiness for the daemon,
 gateway, search, and memory subsystems. For what each check means, see [Doctor](../operations/doctor).
 
-If you are new to Hand, the [Learning Path](../getting-started/learning-path) routes you here when something breaks
+If you are new to Morph, the [Learning Path](../getting-started/learning-path) routes you here when something breaks
 during setup.
 
 ## Start Here
@@ -17,10 +17,10 @@ during setup.
 Run diagnostics before changing random settings:
 
 ```bash
-hand doctor
+morph doctor
 ```
 
-`hand doctor` prints two layers (see [Doctor — Output formats](../operations/doctor#output-formats) for text vs
+`morph doctor` prints two layers (see [Doctor — Output formats](../operations/doctor#output-formats) for text vs
 `--json`):
 
 1. **Config diagnostics** — env/config files load and config validates. In text output, **config load** and
@@ -28,14 +28,14 @@ hand doctor
 2. **Readiness groups** — profile paths, daemon reachability, models, session, memory, search, safety, gateway, and
    web tools.
 
-Each line is **PASS**, **WARN**, or **FAIL**. Only **FAIL** makes `hand doctor` exit with an error; **WARN** is
+Each line is **PASS**, **WARN**, or **FAIL**. Only **FAIL** makes `morph doctor` exit with an error; **WARN** is
 informational (for example vector search disabled, or daemon not running yet). When a check includes a suggested
 command, run it and re-check.
 
 For machine-readable output:
 
 ```bash
-hand doctor --json
+morph doctor --json
 ```
 
 The JSON form uses the same groups as text output under `groups`; scripts should check `ok` and then inspect
@@ -44,24 +44,24 @@ The JSON form uses the same groups as text output under `groups`; scripts should
 Confirm you are on the intended [profile](../concepts/profiles):
 
 ```bash
-hand profile list
-hand --profile <name> doctor
+morph profile list
+morph --profile <name> doctor
 ```
 
 ## General Workflow
 
 When something misbehaves:
 
-1. Run `hand doctor` and fix any **FAIL** items (follow suggested commands when shown).
-2. Confirm the **daemon** is running if the feature needs it — TUI with an existing daemon, `hand daemon`, or a
-   long-lived `hand` session. See [Daemon and RPC](../concepts/daemon-and-rpc).
-3. Confirm **model auth** for the role involved (`hand auth status`, then `hand doctor` **models** group).
+1. Run `morph doctor` and fix any **FAIL** items (follow suggested commands when shown).
+2. Confirm the **daemon** is running if the feature needs it — TUI with an existing daemon, `morph daemon`, or a
+   long-lived `morph` session. See [Daemon and RPC](../concepts/daemon-and-rpc).
+3. Confirm **model auth** for the role involved (`morph auth status`, then `morph doctor` **models** group).
 4. Turn up logging if you need more detail (`log.level debug`) — see [Logging and Debug](#logging-and-debug).
 5. For gateway, search, memory, or session issues, use the focused section below or the platform guide.
 
 ## Daemon and RPC Unreachable
 
-Symptoms: `hand session`, `hand gateway`, or the TUI cannot connect; doctor **daemon** group warns or fails; stale
+Symptoms: `morph session`, `morph gateway`, or the TUI cannot connect; doctor **daemon** group warns or fails; stale
 `runtime.json`.
 
 ### Daemon not running
@@ -69,13 +69,13 @@ Symptoms: `hand session`, `hand gateway`, or the TUI cannot connect; doctor **da
 The daemon owns the agent runtime, storage, and gateways. Start it explicitly:
 
 ```bash
-hand daemon
+morph daemon
 ```
 
-Or open the TUI (`hand`) — it starts a temporary daemon if none is running. RPC commands such as `hand session list` or
-`hand gateway status` do **not** start a daemon on their own.
+Or open the TUI (`morph`) — it starts a temporary daemon if none is running. RPC commands such as `morph session list` or
+`morph gateway status` do **not** start a daemon on their own.
 
-Doctor shows **daemon runtime** as a warning when nothing is listening. After `hand daemon`, re-run `hand doctor`
+Doctor shows **daemon runtime** as a warning when nothing is listening. After `morph daemon`, re-run `morph doctor`
 — the **daemon** group should pass with the profile's RPC address and port.
 
 ### Wrong profile or endpoint
@@ -84,45 +84,45 @@ Clients resolve the daemon through profile `runtime.json` or explicit RPC settin
 or port:
 
 ```bash
-hand config get rpc.address rpc.port
-hand config set rpc.address 127.0.0.1
-hand config set rpc.port 50051
+morph config get rpc.address rpc.port
+morph config set rpc.address 127.0.0.1
+morph config set rpc.port 50051
 ```
 
-Flags and `HAND_RPC_ADDRESS` / `HAND_RPC_PORT` override config. See [Daemon and RPC](../concepts/daemon-and-rpc) and
+Flags and `MORPH_RPC_ADDRESS` / `MORPH_RPC_PORT` override config. See [Daemon and RPC](../concepts/daemon-and-rpc) and
 [Environment Variables](../reference/environment-variables).
 
 ### Stale runtime metadata
 
-If a daemon crashed or was killed, `runtime.json` may reference a dead process. Hand removes stale metadata when a
-connection fails; starting a fresh daemon (`hand daemon`) or re-opening the TUI usually clears it. If problems
+If a daemon crashed or was killed, `runtime.json` may reference a dead process. Morph removes stale metadata when a
+connection fails; starting a fresh daemon (`morph daemon`) or re-opening the TUI usually clears it. If problems
 persist, check that nothing else is bound to the RPC port.
 
 ## Provider Auth and Model Errors
 
 Symptoms: turns fail immediately; doctor **config validation** or **models** checks fail; TUI setup prompts for credentials.
 
-### Check what Hand resolved
+### Check what Morph resolved
 
 ```bash
-hand auth status
-hand auth status <provider>
-hand doctor
+morph auth status
+morph auth status <provider>
+morph doctor
 ```
 
 Doctor's **models** group reports **main**, **summary**, and **embedding** (when vector search is on) with the provider,
 model name, and credential source. Readiness failures often include the exact next command — for example
-`hand auth login openai-codex` or setting a role-specific API key.
+`morph auth login openai-codex` or setting a role-specific API key.
 
-Hand resolves credentials in order: role config → stored `auth.json` → environment → provider config. See
+Morph resolves credentials in order: role config → stored `auth.json` → environment → provider config. See
 [Provider Auth](./provider-auth).
 
 ### Common fixes
 
 | Problem | What to do |
 | --- | --- |
-| No credential for provider | `hand auth login <provider>` or `hand auth login <provider> --api-key "<key>"` |
-| Wrong provider in config | `hand config set models.main.provider …` and `models.main.name …` — see [Config Guide](./config) |
+| No credential for provider | `morph auth login <provider>` or `morph auth login <provider> --api-key "<key>"` |
+| Wrong provider in config | `morph config set models.main.provider …` and `models.main.name …` — see [Config Guide](./config) |
 | OAuth model not available on subscription | Pick a model that provider supports via OAuth, or use API key auth |
 | Summary/embedding failures | Set `models.summary` / `models.embedding` and auth for those providers — background memory and vector search depend on them |
 
@@ -130,15 +130,15 @@ Gateway turns use the same model runtime as the TUI. Fix **models** before debug
 
 ## Config Validation Failures
 
-Symptoms: `hand config set` rejects a value; doctor **config validation** fails; daemon refuses invalid config.
+Symptoms: `morph config set` rejects a value; doctor **config validation** fails; daemon refuses invalid config.
 
-`hand config set` validates the **whole** profile config before writing. A common pattern is enabling a gateway
+`morph config set` validates the **whole** profile config before writing. A common pattern is enabling a gateway
 platform without its required tokens — enable `gateway.enabled` first, then set platform tokens together. See
 [Gateway Overview](./gateway/).
 
 Other frequent validation errors:
 
-- **Log level** — must be `debug`, `info`, `warn`, or `error` (`hand config set log.level debug`).
+- **Log level** — must be `debug`, `info`, `warn`, or `error` (`morph config set log.level debug`).
 - **Gateway bind** — non-loopback `gateway.address` requires `gateway.authToken`.
 - **Slack/Telegram mode** — socket mode needs `gateway.slack.appToken`; webhook/HTTP modes need signing secrets or
   webhook secrets.
@@ -146,7 +146,7 @@ Other frequent validation errors:
 Read the error message literally — it names the missing or invalid field. Cross-check [Config Reference](../reference/config).
 
 `.env` changes are **not** picked up automatically; restart the daemon after editing `.env`. Changes to `config.yaml`
-via `hand config set` restart the daemon when valid.
+via `morph config set` restart the daemon when valid.
 
 ## SQLite FTS5 and Source Builds
 
@@ -162,7 +162,7 @@ make test
 For a focused package test:
 
 ```bash
-CGO_ENABLED=1 go test -tags sqlite_fts5 ./cmd/hand
+CGO_ENABLED=1 go test -tags sqlite_fts5 ./cmd/morph
 ```
 
 You need a C toolchain for CGO. See [Installation — Verify the runtime build](../getting-started/installation#verify-the-runtime-build)
@@ -172,11 +172,11 @@ End users who install via the script do not configure FTS5 separately.
 
 ## Gateway Issues
 
-Symptoms: `hand gateway status` shows `state=failed`; no Slack/Telegram events; webhooks return 401/404; messages ignored.
+Symptoms: `morph gateway status` shows `state=failed`; no Slack/Telegram events; webhooks return 401/404; messages ignored.
 
 ### Gateway readiness
 
-Run `hand doctor` and read the **gateway** group:
+Run `morph doctor` and read the **gateway** group:
 
 | Check | Typical issue |
 | --- | --- |
@@ -184,11 +184,11 @@ Run `hand doctor` and read the **gateway** group:
 | **telegram** | Enabled without `gateway.telegram.botToken`, or webhook mode without `gateway.telegram.webhookSecret` |
 | **slack** | Enabled without bot token, socket mode without `gateway.slack.appToken`, or HTTP mode without signing secret |
 
-Fix with `hand config set` as doctor suggests, then `hand gateway restart` after the daemon has reloaded config.
+Fix with `morph config set` as doctor suggests, then `morph gateway restart` after the daemon has reloaded config.
 
 ### No events or no reply
 
-- **Daemon/gateway running** — `hand gateway status` should show `state=running`.
+- **Daemon/gateway running** — `morph gateway status` should show `state=running`.
 - **Model auth** — gateway turns need working main model credentials.
 - **Sender authorization** — Slack/Telegram require allowlist or pairing; generic HTTP needs the bearer token. See
   [Pairing and Allowlists](./gateway/pairing-and-allowlists).
@@ -217,7 +217,7 @@ Platform guides with focused troubleshooting:
 - Confirm the platform is enabled and mode matches (Telegram `webhook`, Slack `http`).
 - URL path must be exact: `/gateway/telegram/webhook` or `/gateway/slack/webhook` on the gateway listener port
   (`gateway.address`:`gateway.port`, default `127.0.0.1:50052`).
-- Reverse proxy must route to Hand's gateway listener, not the RPC port.
+- Reverse proxy must route to Morph's gateway listener, not the RPC port.
 
 See [Gateway Routes](../reference/gateway-routes).
 
@@ -230,14 +230,14 @@ Symptoms: search returns nothing; doctor **search** or **memory** warnings; prom
 - Confirm messages were **persisted** — only stored session content is indexed.
 - **Vector search** needs `search.vector.enabled`, embedding model auth, and (when `search.vector.required` is true)
   a passing **embedding** check in doctor. Lexical BM25 search works without vectors.
-- **Stale hybrid rankings** — `hand session repair` for the affected session. See [Search and Traces](./search-and-traces).
+- **Stale hybrid rankings** — `morph session repair` for the affected session. See [Search and Traces](./search-and-traces).
 
 ### Memory
 
 Doctor's **memory** group lists effective state for pinned, retrieval, flush, episodic, reflection, promotion, and write
 paths. Common issues:
 
-- **Daemon required** — background episodic/reflection/promotion loops run in the daemon, not in one-shot `hand -c`.
+- **Daemon required** — background episodic/reflection/promotion loops run in the daemon, not in one-shot `morph -c`.
 - **Summary model** — background memory work uses `models.summary`; verify auth in doctor.
 - **Writes blocked** — safety rejection or `memory.write.enabled` / `cap.mem` off. Inspect traces for
   `memory.safety.blocked` or `memory.promotion.decision`.
@@ -258,7 +258,7 @@ If the TUI started a temporary daemon, exiting stops it; a separately started da
 ### Rendering
 
 - Use a **modern terminal** with adequate size — very narrow windows can clip the layout.
-- Disable color if your terminal mishandles ANSI: `hand config set log.noColor true`.
+- Disable color if your terminal mishandles ANSI: `morph config set log.noColor true`.
 - **Cancel a stuck turn** with **Esc**; exit with **Ctrl+C** (twice to confirm).
 
 For keybindings and slash commands, see [TUI Guide](./tui) and [Slash Commands](../reference/slash-commands).
@@ -270,11 +270,11 @@ Use logging when doctor passes but runtime behavior is still wrong.
 ### Log level and file
 
 ```bash
-hand config set log.level debug
-hand config get log.file
+morph config set log.level debug
+morph config get log.file
 ```
 
-Valid levels: `debug`, `info`, `warn`, `error`. Override with `HAND_LOG_LEVEL` or `--log.level`.
+Valid levels: `debug`, `info`, `warn`, `error`. Override with `MORPH_LOG_LEVEL` or `--log.level`.
 
 Optional file logging via `log.file` in config (with rotation settings `log.maxSizeMB`, `log.maxBackups`,
 `log.maxAgeDays`, `log.compress`). Daemon logs include gateway dispatch, memory loops, and model errors.
@@ -284,14 +284,14 @@ Optional file logging via `log.file` in config (with rotation settings `log.maxS
 For verbose provider request logging (development only — may include sensitive content):
 
 ```bash
-hand config set debug.requests true
+morph config set debug.requests true
 ```
 
 Restart the daemon after changing `debug.requests`. See [Config Guide](./config) for `log` and `debug` sections.
 
 ### Traces
 
-For turn-level detail — tool calls, memory events, timing — enable tracing and use `hand trace view` or database-backed
+For turn-level detail — tool calls, memory events, timing — enable tracing and use `morph trace view` or database-backed
 timeline hydration. See [Search and Traces](./search-and-traces).
 
 ## Where To Go Next

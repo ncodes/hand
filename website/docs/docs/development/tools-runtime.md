@@ -1,6 +1,6 @@
 ---
 title: Tools Runtime
-description: Add and maintain Hand tools.
+description: Add and maintain Morph tools.
 displayed_sidebar: null
 ---
 

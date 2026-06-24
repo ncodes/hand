@@ -5,7 +5,7 @@ description: Complete profile config key reference.
 
 # Config Reference
 
-Every Hand **profile** stores settings in `config.yaml` under the profile home (typically `~/.hand/profiles/<name>/`).
+Every Morph **profile** stores settings in `config.yaml` under the profile home (typically `~/.morph/profiles/<name>/`).
 This page lists the supported keys, value types, defaults, and validation notes.
 
 Task-oriented editing: [Config Guide](../guides/config). Env overrides: [Environment Variables](./environment-variables).
@@ -13,12 +13,12 @@ Profile layout: [Profiles and Config](../getting-started/profiles-and-config).
 
 ## How to read this reference
 
-- **Paths** use YAML tag names (camelCase). CLI: `hand config get session.maxIterations`.
+- **Paths** use YAML tag names (camelCase). CLI: `morph config get session.maxIterations`.
 - **Defaults** come from `DefaultConfig` plus normalization when a key is omitted.
 - **`*bool`** means an optional pointer; unset uses the documented default after `Normalize()`.
 - **Durations** use Go syntax (`24h`, `720h`, `10s`).
 
-Validation runs during daemon startup and `hand doctor`. Some keys require others (for example embedding model when vector
+Validation runs during daemon startup and `morph doctor`. Some keys require others (for example embedding model when vector
 search is required).
 
 :::note[Defaults vs setup state]
@@ -30,7 +30,7 @@ blank so setup can choose a provider and model; validation then tells you which 
 
 | Key | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `name` | string | `"Hand"` | Agent name in base instructions |
+| `name` | string | `"Morph"` | Agent name in base instructions |
 | `platform` | string | `"cli"` | Must be `cli` at validate |
 
 ## `models`
@@ -273,7 +273,7 @@ Built-in override defaults:
 | `memory_promotion` | `llm` |
 | `memory_reflection` | `llm` |
 
-Env JSON: `HAND_RERANKER_OVERRIDES`.
+Env JSON: `MORPH_RERANKER_OVERRIDES`.
 
 ## `compaction`
 
@@ -397,7 +397,7 @@ Events: [Trace Events](./trace-events).
 | --- | --- | --- |
 | `files` | `[]string` | `[]` |
 
-Extra workspace rule paths. Default discovery loads `agents.md` and `hand.md`.
+Extra workspace rule paths. Default discovery loads `agents.md` and `morph.md`.
 
 ## `personalities.<name>`
 
@@ -414,7 +414,7 @@ Name pattern: `[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`.
 | `tools.fs`, `tools.net`, `tools.exec` | `*bool` | nil → inherit |
 | `tools.mem` | string | `""`, `none`, `read`, or `write` |
 
-## Config paths without `HAND_*` env overrides
+## Config paths without `MORPH_*` env overrides
 
 - `personalities.*`
 - `compaction.recentSessionTail`
@@ -426,8 +426,8 @@ Full env mapping: [Environment Variables](./environment-variables).
 ## Where To Go Next
 
 - [Config Guide](../guides/config): common edits and examples
-- [Environment Variables](./environment-variables): `HAND_*` overrides
+- [Environment Variables](./environment-variables): `MORPH_*` overrides
 - [Provider Auth](../guides/provider-auth): models and web credentials
 - [Safety and Guardrails](../concepts/safety-and-guardrails): `safety`, `exec`, `fs`, `web`
 - [Doctor](../operations/doctor): validation and readiness checks
-- [CLI Reference](./cli): `hand config get/set`
+- [CLI Reference](./cli): `morph config get/set`

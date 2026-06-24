@@ -1,6 +1,6 @@
-# Hand Docs Website
+# Morph Docs Website
 
-This directory contains the Docusaurus documentation site for Hand.
+This directory contains the Docusaurus documentation site for Morph.
 
 ## Local Development
 

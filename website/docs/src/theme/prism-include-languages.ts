@@ -1,6 +1,6 @@
 import siteConfig from '@generated/docusaurus.config';
 import type * as PrismNamespace from 'prismjs';
-import type {Optional} from 'utility-types';
+import type { Optional } from 'utility-types';
 
 export default function prismIncludeLanguages(
   PrismObject: typeof PrismNamespace,
@@ -19,7 +19,7 @@ export default function prismIncludeLanguages(
     require(`prismjs/components/prism-${lang}`);
   });
 
-  addHandCommandLanguage(PrismObject);
+  addMorphCommandLanguage(PrismObject);
 
   delete (globalThis as Optional<typeof globalThis, 'Prism'>).Prism;
   if (typeof PrismBefore !== 'undefined') {
@@ -27,13 +27,13 @@ export default function prismIncludeLanguages(
   }
 }
 
-function addHandCommandLanguage(PrismObject: typeof PrismNamespace): void {
+function addMorphCommandLanguage(PrismObject: typeof PrismNamespace): void {
   const bash = PrismObject.languages.bash;
   if (!bash) {
     return;
   }
 
-  const handSubcommands = [
+  const morphSubcommands = [
     'approve',
     'auth',
     'clear-pending',
@@ -67,20 +67,20 @@ function addHandCommandLanguage(PrismObject: typeof PrismNamespace): void {
     'version',
     'view',
   ].join('|');
-  const handGlobalFlags =
+  const morphGlobalFlags =
     String.raw`(?:\s+(?:(?:--profile|-p|--config|--env-file)\s+\S+|--trace\.enabled(?:=\S+)?))*`;
 
   PrismObject.languages.insertBefore('bash', 'function', {
-    'hand-command': {
-      pattern: /(^|[|&;]\s*|\b[A-Z_][A-Z0-9_]*=\S+\s+)(?:\.\/build\/)?hand(?=\s|$)/m,
+    'morph-command': {
+      pattern: /(^|[|&;]\s*|\b[A-Z_][A-Z0-9_]*=\S+\s+)(?:\.\/build\/)?morph(?=\s|$)/m,
       lookbehind: true,
       alias: 'function',
     },
   });
   PrismObject.languages.insertBefore('bash', 'parameter', {
-    'hand-subcommand': {
+    'morph-subcommand': {
       pattern: new RegExp(
-        String.raw`((?:^|[|&;]\s*|\b[A-Z_][A-Z0-9_]*=\S+\s+)(?:\.\/build\/)?hand${handGlobalFlags}\s+)(?:(?:${handSubcommands})(?=\s|$)\s*)+`,
+        String.raw`((?:^|[|&;]\s*|\b[A-Z_][A-Z0-9_]*=\S+\s+)(?:\.\/build\/)?morph${morphGlobalFlags}\s+)(?:(?:${morphSubcommands})(?=\s|$)\s*)+`,
         'm',
       ),
       lookbehind: true,
@@ -88,6 +88,6 @@ function addHandCommandLanguage(PrismObject: typeof PrismNamespace): void {
     },
   });
 
-  PrismObject.languages.hand = bash;
+  PrismObject.languages.morph = bash;
   PrismObject.languages.console = bash;
 }

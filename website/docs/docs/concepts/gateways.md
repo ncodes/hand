@@ -5,8 +5,8 @@ description: Messaging surfaces and session bridging.
 
 # Gateways
 
-Gateways let you reach the same Hand agent from outside the terminal — from Slack, from a Telegram chat, or from your
-own service over HTTP. A gateway receives an inbound message from an external platform, routes it to a Hand
+Gateways let you reach the same Morph agent from outside the terminal — from Slack, from a Telegram chat, or from your
+own service over HTTP. A gateway receives an inbound message from an external platform, routes it to a Morph
 [session](./sessions), runs a normal agent turn, and sends the reply back to that platform. The agent, tools, memory,
 and history are exactly the same as in the TUI; only the surface differs.
 
@@ -16,15 +16,15 @@ endpoints, see [Gateway Routes](../reference/gateway-routes).
 
 ## The Three Gateways
 
-Hand ships three gateway types, all served by the same daemon:
+Morph ships three gateway types, all served by the same daemon:
 
 - **Generic HTTP** — a plain JSON endpoint (`POST /v1/respond`) for your own integrations. You send text and a
-  conversation id; Hand returns the final reply in the response body.
-- **Slack** — connects a Slack app to Hand, either over Slack's Socket Mode or its Events API webhook.
-- **Telegram** — connects a Telegram bot to Hand, either by long polling or by webhook.
+  conversation id; Morph returns the final reply in the response body.
+- **Slack** — connects a Slack app to Morph, either over Slack's Socket Mode or its Events API webhook.
+- **Telegram** — connects a Telegram bot to Morph, either by long polling or by webhook.
 
 All three are configured under a single `gateway` section of the profile config and share the same session binding,
-authorization, and message-handling machinery; only the transport and platform details differ.
+authorization, and message-morphling machinery; only the transport and platform details differ.
 
 ## Owned by the Daemon
 
@@ -36,8 +36,8 @@ disabled it simply skips this step.
 Because settings are read at daemon, applying changed gateway settings means the daemon must restart — which it
 does automatically when you edit `config.yaml` (see [Daemon and RPC](./daemon-and-rpc) for the config-reload behavior).
 
-Separately, you can control the running gateways without touching config: `hand gateway start`, `hand gateway stop`, and
-`hand gateway restart` operate them, and `hand gateway status` inspects them. These act on the daemon's current
+Separately, you can control the running gateways without touching config: `morph gateway start`, `morph gateway stop`, and
+`morph gateway restart` operate them, and `morph gateway status` inspects them. These act on the daemon's current
 configuration — they are for operational control and recovery, not for loading new file edits. See
 [Gateway Management](../operations/gateway-management).
 
@@ -59,13 +59,13 @@ webhook modes are for when you can expose an HTTP endpoint to the platform.
 
 All HTTP routes share one gateway listener: `/health`, generic HTTP at `/v1/respond`, and any Slack or Telegram webhook
 routes you enable. Slack and Telegram verify their own webhook requests with platform secrets; `gateway.authToken`
-protects the generic HTTP route. Because that route is available on the same listener, Hand requires
+protects the generic HTTP route. Because that route is available on the same listener, Morph requires
 `gateway.authToken` when the gateway binds to a non-loopback address. The full route table and request/response shapes
 are in [Gateway Routes](../reference/gateway-routes).
 
 ## Conversations Become Sessions
 
-A gateway maps each external conversation to a Hand session so that an ongoing thread keeps a continuous history. The
+A gateway maps each external conversation to a Morph session so that an ongoing thread keeps a continuous history. The
 mapping is keyed by the conversation and its thread — for Slack, the team, channel, and thread; for Telegram, the chat
 and topic; for generic HTTP, the conversation id you supply — **not** by the individual sender. Everyone in a shared
 thread therefore talks to the same session.
@@ -88,10 +88,10 @@ platform's own request verification (Slack signing secret / Telegram secret head
 - **Allowlists.** A sender is allowed immediately if they appear in the global `gateway.allowedUsers` list or the
   per-platform allowlist.
 - **Pairing.** Otherwise, a sender messaging the bot in a private chat receives a pairing challenge — a short code,
-  generated from `gateway.pairingSecret` — which an operator approves with `hand gateway pairing approve <source>
+  generated from `gateway.pairingSecret` — which an operator approves with `morph gateway pairing approve <source>
   <code>`. Once approved, the sender is remembered. Messages from unauthorized senders in non-private contexts (such as
   a public channel) are ignored rather than answered. Pending and approved pairings are managed with the
-  `hand gateway pairing` commands and stored in the profile database.
+  `morph gateway pairing` commands and stored in the profile database.
 
 For the operator workflow around allowlists and pairing, see [Pairing and Allowlists](../guides/gateway/pairing-and-allowlists).
 
@@ -102,7 +102,7 @@ The inbound path is the same for every gateway:
 1. The message arrives (webhook, socket event, or poll) and is normalized.
 2. For Slack and Telegram, the sender is authorized (allowlist or pairing); the generic endpoint checks its bearer token.
 3. The conversation is resolved to a session via its binding, creating one if needed.
-4. Hand runs a normal agent turn against that session — same tools, memory, and history as any other surface.
+4. Morph runs a normal agent turn against that session — same tools, memory, and history as any other surface.
 5. The reply is delivered back to the platform.
 
 Slack and Telegram **stream** the assistant's reply, updating the message as text arrives, while the generic HTTP

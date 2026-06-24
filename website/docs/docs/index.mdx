@@ -1,73 +1,73 @@
 ---
-title: Hand Documentation
+title: Morph Documentation
 slug: /
-description: Learn how to install, configure, operate, and extend Hand.
+description: Learn how to install, configure, operate, and extend Morph.
 displayed_sidebar: null
 hide_table_of_contents: true
 hide_title: true
 ---
 
-import {ApiIcon, SlackIcon, TelegramIcon, TerminalIcon} from '@hugeicons/core-free-icons';
-import {HugeiconsIcon} from '@hugeicons/react';
-import HandTuiPreview from '@site/src/components/HandTuiPreview';
+import { ApiIcon, SlackIcon, TelegramIcon, TerminalIcon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
+import MorphTuiPreview from '@site/src/components/MorphTuiPreview';
 
-<main className="handDocsHome">
-  <section className="handDocsHome__hero" aria-labelledby="hand-docs-title">
-    <div className="handDocsHome__heroCopy">
-      <span className="handDocsHome__eyebrow">A Personal Agent</span>
-      <h1 id="hand-docs-title">Non-human intelligence at your service</h1>
-      <div className="handDocsHome__bodyText">
-        Hand is a personal AI assistant that helps you do things, remembers what matters, work with you to figure 
+<main className="morphDocsHome">
+  <section className="morphDocsHome__hero" aria-labelledby="morph-docs-title">
+    <div className="morphDocsHome__heroCopy">
+      <span className="morphDocsHome__eyebrow">A Personal Agent</span>
+      <h1 id="morph-docs-title">Non-human intelligence at your service</h1>
+      <div className="morphDocsHome__bodyText">
+        Morph is a personal AI assistant that helps you do things, remembers what matters, work with you to figure 
         things out, and picks up where you left off.
       </div>
-      <div className="handDocsHome__actions">
-        <a className="handDocsHome__button handDocsHome__buttonPrimary" href="/docs/getting-started/quickstart">
+      <div className="morphDocsHome__actions">
+        <a className="morphDocsHome__button morphDocsHome__buttonPrimary" href="/docs/getting-started/quickstart">
           <span>Get started</span>
         </a>
-        <a className="handDocsHome__button" href="https://github.com/wandxy/hand">
+        <a className="morphDocsHome__button" href="https://github.com/wandxy/morph">
           <span>View on GitHub</span>
         </a>
       </div>
-      <div className="handDocsHome__install" aria-label="Hand install command">
-        <div className="handDocsHome__installTabs" role="tablist" aria-label="Install command options">
-          <span className="handDocsHome__installTab" role="tab" aria-selected="true">
+      <div className="morphDocsHome__install" aria-label="Morph install command">
+        <div className="morphDocsHome__installTabs" role="tablist" aria-label="Install command options">
+          <span className="morphDocsHome__installTab" role="tab" aria-selected="true">
             curl
           </span>
-          <span className="handDocsHome__installPlatform">macOS</span>
+          <span className="morphDocsHome__installPlatform">macOS</span>
         </div>
-        <div className="handDocsHome__installCommand">
-          <pre>{`curl -fsSL https://handagent.ai/install.sh | bash`}</pre>
+        <div className="morphDocsHome__installCommand">
+          <pre>{`curl -fsSL https://morphagent.ai/install.sh | bash`}</pre>
           <button
             aria-label="Copy install command"
-            className="handDocsHome__copyButton"
+            className="morphDocsHome__copyButton"
             type="button"
-            onClick={() => navigator.clipboard?.writeText('curl -fsSL https://handagent.ai/install.sh | bash')}>
-            <span aria-hidden="true" className="handDocsHome__copyIcon"></span>
+            onClick={() => navigator.clipboard?.writeText('curl -fsSL https://morphagent.ai/install.sh | bash')}>
+            <span aria-hidden="true" className="morphDocsHome__copyIcon"></span>
           </button>
         </div>
       </div>
     </div>
-    <div className="handDocsHome__tuiWrap" aria-label="Animated Hand TUI preview">
-      <HandTuiPreview />
+    <div className="morphDocsHome__tuiWrap" aria-label="Animated Morph TUI preview">
+      <MorphTuiPreview />
     </div>
   </section>
 
-  <section className="handDocsHome__featureIntro" aria-labelledby="hand-features-title">
-    <span className="handDocsHome__eyebrow">Built for everyday asks</span>
-    <h2 id="hand-features-title">Hand runs on your computer to help in your daily life.</h2>
+  <section className="morphDocsHome__featureIntro" aria-labelledby="morph-features-title">
+    <span className="morphDocsHome__eyebrow">Built for everyday asks</span>
+    <h2 id="morph-features-title">Morph runs on your computer to help in your daily life.</h2>
   </section>
 
-  <section className="handDocsHome__featureGrid" aria-label="Hand product features">
-    <article className="handDocsHome__featureCard">
-      <div className="handDocsHome__featureCopy">
-        <span className="handDocsHome__tileKicker">Memory</span>
+  <section className="morphDocsHome__featureGrid" aria-label="Morph product features">
+    <article className="morphDocsHome__featureCard">
+      <div className="morphDocsHome__featureCopy">
+        <span className="morphDocsHome__tileKicker">Memory</span>
         <h3>It remembers what matters</h3>
-        <div className="handDocsHome__tileText">
+        <div className="morphDocsHome__tileText">
           Keep preferences, plans, decisions, and unfinished threads close so every new ask starts with the right context.
         </div>
       </div>
-      <div className="handDocsHome__featureVisual handDocsHome__memoryVisual" aria-hidden="true">
-        <svg className="handDocsHome__memoryMap" viewBox="0 0 520 360" role="img">
+      <div className="morphDocsHome__featureVisual morphDocsHome__memoryVisual" aria-hidden="true">
+        <svg className="morphDocsHome__memoryMap" viewBox="0 0 520 360" role="img">
           <defs>
             <linearGradient id="memoryCardGlow" x1="0" x2="1" y1="0" y2="1">
               <stop offset="0%" stopColor="#d7f9ff" stopOpacity="0.3" />
@@ -79,19 +79,19 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
               <stop offset="100%" stopColor="#00ffb2" stopOpacity="0" />
             </radialGradient>
           </defs>
-          <path className="handDocsHome__memoryPath" d="M185 112 C218 123 238 150 260 180" />
-          <path className="handDocsHome__memoryPath" d="M335 112 C302 123 282 150 260 180" />
-          <path className="handDocsHome__memoryPath" d="M185 248 C218 237 238 210 260 180" />
-          <path className="handDocsHome__memoryPath" d="M335 248 C302 237 282 210 260 180" />
+          <path className="morphDocsHome__memoryPath" d="M185 112 C218 123 238 150 260 180" />
+          <path className="morphDocsHome__memoryPath" d="M335 112 C302 123 282 150 260 180" />
+          <path className="morphDocsHome__memoryPath" d="M185 248 C218 237 238 210 260 180" />
+          <path className="morphDocsHome__memoryPath" d="M335 248 C302 237 282 210 260 180" />
 
-          <circle className="handDocsHome__memoryHubGlow" cx="260" cy="180" r="82" />
-          <circle className="handDocsHome__memoryHubRing" cx="260" cy="180" r="48" />
-          <circle className="handDocsHome__memoryHub" cx="260" cy="180" r="26" />
-          <path className="handDocsHome__memoryHubMark" d="M246 181 L256 191 L276 168" />
+          <circle className="morphDocsHome__memoryHubGlow" cx="260" cy="180" r="82" />
+          <circle className="morphDocsHome__memoryHubRing" cx="260" cy="180" r="48" />
+          <circle className="morphDocsHome__memoryHub" cx="260" cy="180" r="26" />
+          <path className="morphDocsHome__memoryHubMark" d="M246 181 L256 191 L276 168" />
 
-          <g className="handDocsHome__memoryTile" transform="translate(72 62)">
+          <g className="morphDocsHome__memoryTile" transform="translate(72 62)">
             <rect height="88" rx="22" width="112" />
-            <g className="handDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
+            <g className="morphDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
               <path d="M8 2 V6" />
               <path d="M16 2 V6" />
               <rect height="18" rx="2.5" width="18" x="3" y="4" />
@@ -103,15 +103,15 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
               <path d="M12 18 H12.01" />
             </g>
           </g>
-          <g className="handDocsHome__memoryTile" transform="translate(336 62)">
+          <g className="morphDocsHome__memoryTile" transform="translate(336 62)">
             <rect height="88" rx="22" width="112" />
-            <g className="handDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
+            <g className="morphDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
               <path d="M19.5 12.57 L12 20 L4.5 12.57 C1.8 9.9 2.1 5.5 5.5 4.2 C7.6 3.4 10 4.2 12 6.4 C14 4.2 16.4 3.4 18.5 4.2 C21.9 5.5 22.2 9.9 19.5 12.57 Z" />
             </g>
           </g>
-          <g className="handDocsHome__memoryTile" transform="translate(72 210)">
+          <g className="morphDocsHome__memoryTile" transform="translate(72 210)">
             <rect height="88" rx="22" width="112" />
-            <g className="handDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
+            <g className="morphDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
               <path d="M9 6 H21" />
               <path d="M9 12 H21" />
               <path d="M9 18 H16" />
@@ -120,9 +120,9 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
               <path d="M3.5 18 L4.5 19 L6.5 16.8" />
             </g>
           </g>
-          <g className="handDocsHome__memoryTile" transform="translate(336 210)">
+          <g className="morphDocsHome__memoryTile" transform="translate(336 210)">
             <rect height="88" rx="22" width="112" />
-            <g className="handDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
+            <g className="morphDocsHome__memoryIcon" transform="translate(34 22) scale(1.85)">
               <circle cx="9" cy="8" r="3.4" />
               <path d="M3.5 20 C4.2 16.2 7 14.5 9 14.5 C11 14.5 13.8 16.2 14.5 20" />
               <circle cx="16.5" cy="9" r="2.9" />
@@ -133,16 +133,16 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
       </div>
     </article>
 
-    <article className="handDocsHome__featureCard">
-      <div className="handDocsHome__featureCopy">
-        <span className="handDocsHome__tileKicker">Tools</span>
+    <article className="morphDocsHome__featureCard">
+      <div className="morphDocsHome__featureCopy">
+        <span className="morphDocsHome__tileKicker">Tools</span>
         <h3>It can actually do things</h3>
-        <div className="handDocsHome__tileText">
-          Hand can inspect, search, check, write, build, and report back with the steps it took. 
+        <div className="morphDocsHome__tileText">
+          Morph can inspect, search, check, write, build, and report back with the steps it took. 
         </div>
       </div>
-      <div className="handDocsHome__featureVisual handDocsHome__toolsVisual" aria-hidden="true">
-        <svg className="handDocsHome__toolsMap" viewBox="0 0 560 360" role="img">
+      <div className="morphDocsHome__featureVisual morphDocsHome__toolsVisual" aria-hidden="true">
+        <svg className="morphDocsHome__toolsMap" viewBox="0 0 560 360" role="img">
           <defs>
             <linearGradient id="toolsCardGlow" x1="0" x2="1" y1="0" y2="1">
               <stop offset="0%" stopColor="#c6e0ff" stopOpacity="0.3" />
@@ -155,14 +155,14 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
             </radialGradient>
           </defs>
 
-          <path className="handDocsHome__toolsPath" d="M165 87 C226 88 246 128 280 180" />
-          <path className="handDocsHome__toolsPath" d="M165 180 H280" />
-          <path className="handDocsHome__toolsPath" d="M165 273 C226 272 246 232 280 180" />
-          <path className="handDocsHome__toolsPath handDocsHome__toolsPathStrong" d="M330 180 C368 180 389 180 424 180" />
+          <path className="morphDocsHome__toolsPath" d="M165 87 C226 88 246 128 280 180" />
+          <path className="morphDocsHome__toolsPath" d="M165 180 H280" />
+          <path className="morphDocsHome__toolsPath" d="M165 273 C226 272 246 232 280 180" />
+          <path className="morphDocsHome__toolsPath morphDocsHome__toolsPathStrong" d="M330 180 C368 180 389 180 424 180" />
 
-          <g className="handDocsHome__toolsSource" transform="translate(48 48)">
+          <g className="morphDocsHome__toolsSource" transform="translate(48 48)">
             <rect height="78" rx="22" width="118" />
-            <g className="handDocsHome__toolsIcon" transform="translate(41 21) scale(1.55)">
+            <g className="morphDocsHome__toolsIcon" transform="translate(41 21) scale(1.55)">
               <path d="M7 3 H14 L19 8 V21 H7 Z" />
               <path d="M14 3 V8 H19" />
               <path d="M10 13 H16" />
@@ -170,26 +170,26 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
             </g>
           </g>
 
-          <g className="handDocsHome__toolsSource" transform="translate(48 141)">
+          <g className="morphDocsHome__toolsSource" transform="translate(48 141)">
             <rect height="78" rx="22" width="118" />
-            <g className="handDocsHome__toolsIcon" transform="translate(41 21) scale(1.55)">
+            <g className="morphDocsHome__toolsIcon" transform="translate(41 21) scale(1.55)">
               <circle cx="11" cy="11" r="6.5" />
               <path d="M16 16 L21 21" />
               <path d="M8 11 H14" />
             </g>
           </g>
 
-          <g className="handDocsHome__toolsSource" transform="translate(48 234)">
+          <g className="morphDocsHome__toolsSource" transform="translate(48 234)">
             <rect height="78" rx="22" width="118" />
-            <g className="handDocsHome__toolsIcon" transform="translate(41 21) scale(1.55)">
+            <g className="morphDocsHome__toolsIcon" transform="translate(41 21) scale(1.55)">
               <path d="M5 19 L9 18 L19 8 C20.3 6.7 20.3 4.7 19 3.5 C17.8 2.3 15.8 2.3 14.5 3.6 L4.8 13.3 Z" />
               <path d="M13.5 4.7 L17.8 9" />
               <path d="M5 22 H20" />
             </g>
           </g>
 
-          <circle className="handDocsHome__toolsActionGlow" cx="304" cy="180" r="86" />
-          <g className="handDocsHome__toolsAction">
+          <circle className="morphDocsHome__toolsActionGlow" cx="304" cy="180" r="86" />
+          <g className="morphDocsHome__toolsAction">
             <circle cx="304" cy="180" r="46" />
             <path d="M286 180 H322" />
             <path d="M304 162 V198" />
@@ -197,9 +197,9 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
             <path d="M316 168 L292 192" />
           </g>
 
-          <g className="handDocsHome__toolsResult" transform="translate(424 124)">
+          <g className="morphDocsHome__toolsResult" transform="translate(424 124)">
             <rect height="112" rx="28" width="112" />
-            <g className="handDocsHome__toolsIcon" transform="translate(31 30) scale(2.08)">
+            <g className="morphDocsHome__toolsIcon" transform="translate(31 30) scale(2.08)">
               <path d="M6 12 L10 16 L19 7" />
               <path d="M5 21 H20" />
             </g>
@@ -208,22 +208,22 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
       </div>
     </article>
 
-    <article className="handDocsHome__featureCard">
-      <div className="handDocsHome__featureCopy">
-        <span className="handDocsHome__tileKicker">Everywhere</span>
+    <article className="morphDocsHome__featureCard">
+      <div className="morphDocsHome__featureCopy">
+        <span className="morphDocsHome__tileKicker">Everywhere</span>
         <h3>It follows you across surfaces</h3>
-        <div className="handDocsHome__tileText">
+        <div className="morphDocsHome__tileText">
           Start in the terminal, continue from a gateway, and bring the same agent into shared channels.
         </div>
       </div>
-      <div className="handDocsHome__featureVisual handDocsHome__gatewayVisual" aria-label="Hand surfaces">
-        <svg className="handDocsHome__gatewayMap" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <div className="morphDocsHome__featureVisual morphDocsHome__gatewayVisual" aria-label="Morph surfaces">
+        <svg className="morphDocsHome__gatewayMap" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <path d="M33.2 35.4 C39 35.4 45 43 50 50" />
           <path d="M66.8 35.4 C61 35.4 55 43 50 50" />
           <path d="M33.2 64.6 C39 64.6 45 57 50 50" />
           <path d="M66.8 64.6 C61 64.6 55 57 50 50" />
         </svg>
-        <div className="handDocsHome__gatewayHub" aria-hidden="true"></div>
+        <div className="morphDocsHome__gatewayHub" aria-hidden="true"></div>
         <span aria-label="Terminal" title="Terminal">
           <HugeiconsIcon color="currentColor" icon={TerminalIcon} size={40} strokeWidth={1.8} />
         </span>
@@ -239,17 +239,17 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
       </div>
     </article>
 
-    <article className="handDocsHome__featureCard">
-      <div className="handDocsHome__featureCopy">
-        <span className="handDocsHome__tileKicker">Control</span>
+    <article className="morphDocsHome__featureCard">
+      <div className="morphDocsHome__featureCopy">
+        <span className="morphDocsHome__tileKicker">Control</span>
         <h3>Nothing happens outside your boundaries</h3>
-        <div className="handDocsHome__tileText">
-          Give Hand scoped access, review risky actions before they run, and change the rules whenever the work
+        <div className="morphDocsHome__tileText">
+          Give Morph scoped access, review risky actions before they run, and change the rules whenever the work
           changes.
         </div>
       </div>
-      <div className="handDocsHome__featureVisual handDocsHome__controlVisual" aria-hidden="true">
-        <svg className="handDocsHome__controlMap" viewBox="0 0 560 360" role="img">
+      <div className="morphDocsHome__featureVisual morphDocsHome__controlVisual" aria-hidden="true">
+        <svg className="morphDocsHome__controlMap" viewBox="0 0 560 360" role="img">
           <defs>
             <linearGradient id="controlCardGlow" x1="0" x2="1" y1="0" y2="1">
               <stop offset="0%" stopColor="#d7f9ff" stopOpacity="0.28" />
@@ -262,13 +262,13 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
             </radialGradient>
           </defs>
 
-          <path className="handDocsHome__controlPath" d="M170 180 H248" />
-          <path className="handDocsHome__controlPath handDocsHome__controlPathApprove" d="M312 164 C352 132 374 100 420 94" />
-          <path className="handDocsHome__controlPath handDocsHome__controlPathReject" d="M312 196 C352 228 374 260 420 266" />
+          <path className="morphDocsHome__controlPath" d="M170 180 H248" />
+          <path className="morphDocsHome__controlPath morphDocsHome__controlPathApprove" d="M312 164 C352 132 374 100 420 94" />
+          <path className="morphDocsHome__controlPath morphDocsHome__controlPathReject" d="M312 196 C352 228 374 260 420 266" />
 
-          <g className="handDocsHome__controlRequest" transform="translate(58 124)">
+          <g className="morphDocsHome__controlRequest" transform="translate(58 124)">
             <rect height="112" rx="28" width="112" />
-            <g className="handDocsHome__controlIcon" transform="translate(29 31)">
+            <g className="morphDocsHome__controlIcon" transform="translate(29 31)">
               <path d="M2 14 H34" />
               <path d="M2 28 H27" />
               <path d="M2 42 H20" />
@@ -276,18 +276,18 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
             </g>
           </g>
 
-          <circle className="handDocsHome__controlHubGlow" cx="280" cy="180" r="86" />
-          <g className="handDocsHome__controlHub">
+          <circle className="morphDocsHome__controlHubGlow" cx="280" cy="180" r="86" />
+          <g className="morphDocsHome__controlHub">
             <path d="M280 117 C304 132 326 134 326 134 V174 C326 207 302 230 280 241 C258 230 234 207 234 174 V134 C234 134 256 132 280 117 Z" />
             <path d="M264 180 L276 192 L298 165" />
           </g>
 
-          <g className="handDocsHome__controlOutcome handDocsHome__controlApprove" transform="translate(420 42)">
+          <g className="morphDocsHome__controlOutcome morphDocsHome__controlApprove" transform="translate(420 42)">
             <rect height="104" rx="28" width="104" />
             <path d="M33 54 L47 68 L73 38" />
           </g>
 
-          <g className="handDocsHome__controlOutcome handDocsHome__controlReject" transform="translate(420 214)">
+          <g className="morphDocsHome__controlOutcome morphDocsHome__controlReject" transform="translate(420 214)">
             <rect height="104" rx="28" width="104" />
             <path d="M36 36 L68 68" />
             <path d="M68 36 L36 68" />
@@ -296,16 +296,16 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
       </div>
     </article>
 
-    <article className="handDocsHome__featureCard">
-      <div className="handDocsHome__featureCopy">
-        <span className="handDocsHome__tileKicker">Schedule</span>
+    <article className="morphDocsHome__featureCard">
+      <div className="morphDocsHome__featureCopy">
+        <span className="morphDocsHome__tileKicker">Schedule</span>
         <h3>It can come back at the right time</h3>
-        <div className="handDocsHome__tileText">
-          Set reminders, recurring checks, and follow-ups so Hand can wake the thread when timing matters.
+        <div className="morphDocsHome__tileText">
+          Set reminders, recurring checks, and follow-ups so Morph can wake the thread when timing matters.
         </div>
       </div>
-      <div className="handDocsHome__featureVisual handDocsHome__scheduleVisual" aria-hidden="true">
-        <svg className="handDocsHome__scheduleMap" viewBox="0 0 560 360" role="img">
+      <div className="morphDocsHome__featureVisual morphDocsHome__scheduleVisual" aria-hidden="true">
+        <svg className="morphDocsHome__scheduleMap" viewBox="0 0 560 360" role="img">
           <defs>
             <linearGradient id="scheduleCardGlow" x1="0" x2="1" y1="0" y2="1">
               <stop offset="0%" stopColor="#d7f9ff" stopOpacity="0.28" />
@@ -318,14 +318,14 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
             </radialGradient>
           </defs>
 
-          <path className="handDocsHome__scheduleOrbit" d="M156 180 C156 104 218 66 280 66 C342 66 404 104 404 180 C404 256 342 294 280 294 C218 294 156 256 156 180 Z" />
-          <path className="handDocsHome__schedulePath" d="M196 180 H234" />
-          <path className="handDocsHome__schedulePath" d="M326 180 H364" />
-          <path className="handDocsHome__schedulePath" d="M280 108 V142" />
-          <path className="handDocsHome__schedulePath" d="M280 218 V252" />
+          <path className="morphDocsHome__scheduleOrbit" d="M156 180 C156 104 218 66 280 66 C342 66 404 104 404 180 C404 256 342 294 280 294 C218 294 156 256 156 180 Z" />
+          <path className="morphDocsHome__schedulePath" d="M196 180 H234" />
+          <path className="morphDocsHome__schedulePath" d="M326 180 H364" />
+          <path className="morphDocsHome__schedulePath" d="M280 108 V142" />
+          <path className="morphDocsHome__schedulePath" d="M280 218 V252" />
 
-          <circle className="handDocsHome__scheduleHubGlow" cx="280" cy="180" r="88" />
-          <g className="handDocsHome__scheduleClock">
+          <circle className="morphDocsHome__scheduleHubGlow" cx="280" cy="180" r="88" />
+          <g className="morphDocsHome__scheduleClock">
             <circle cx="280" cy="180" r="46" />
             <path d="M280 154 V181 L300 194" />
             <path d="M280 136 V126" />
@@ -334,26 +334,26 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
             <path d="M324 180 H334" />
           </g>
 
-          <g className="handDocsHome__scheduleNode" transform="translate(88 132)">
+          <g className="morphDocsHome__scheduleNode" transform="translate(88 132)">
             <rect height="96" rx="26" width="108" />
             <path d="M34 31 H74" />
             <path d="M34 48 H66" />
             <path d="M34 65 H56" />
           </g>
 
-          <g className="handDocsHome__scheduleNode" transform="translate(364 132)">
+          <g className="morphDocsHome__scheduleNode" transform="translate(364 132)">
             <rect height="96" rx="26" width="108" />
             <path d="M34 51 L48 65 L75 34" />
           </g>
 
-          <g className="handDocsHome__scheduleNode handDocsHome__scheduleNodeSmall" transform="translate(226 30)">
+          <g className="morphDocsHome__scheduleNode morphDocsHome__scheduleNodeSmall" transform="translate(226 30)">
             <rect height="78" rx="22" width="108" />
             <path d="M34 28 H74" />
             <path d="M34 43 H62" />
             <path d="M34 58 H70" />
           </g>
 
-          <g className="handDocsHome__scheduleNode handDocsHome__scheduleNodeSmall" transform="translate(226 252)">
+          <g className="morphDocsHome__scheduleNode morphDocsHome__scheduleNodeSmall" transform="translate(226 252)">
             <rect height="78" rx="22" width="108" />
             <path d="M39 41 L50 52 L71 29" />
           </g>
@@ -361,16 +361,16 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
       </div>
     </article>
 
-    <article className="handDocsHome__featureCard">
-      <div className="handDocsHome__featureCopy">
-        <span className="handDocsHome__tileKicker">Web Browsing</span>
+    <article className="morphDocsHome__featureCard">
+      <div className="morphDocsHome__featureCopy">
+        <span className="morphDocsHome__tileKicker">Web Browsing</span>
         <h3>It can go find what changed</h3>
-        <div className="handDocsHome__tileText">
-          Hand can search, open pages, compare sources, and bring fresh web context back into the conversation.
+        <div className="morphDocsHome__tileText">
+          Morph can search, open pages, compare sources, and bring fresh web context back into the conversation.
         </div>
       </div>
-      <div className="handDocsHome__featureVisual handDocsHome__browseVisual" aria-hidden="true">
-        <svg className="handDocsHome__browseMap" viewBox="0 0 560 360" role="img">
+      <div className="morphDocsHome__featureVisual morphDocsHome__browseVisual" aria-hidden="true">
+        <svg className="morphDocsHome__browseMap" viewBox="0 0 560 360" role="img">
           <defs>
             <linearGradient id="browseCardGlow" x1="0" x2="1" y1="0" y2="1">
               <stop offset="0%" stopColor="#c6e0ff" stopOpacity="0.28" />
@@ -383,13 +383,13 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
             </radialGradient>
           </defs>
 
-          <path className="handDocsHome__browsePath" d="M184 116 C198 119 207 138 218 154" />
-          <path className="handDocsHome__browsePath" d="M184 244 C198 241 207 222 218 206" />
-          <path className="handDocsHome__browsePath" d="M390 154 C398 139 400 121 408 116" />
-          <path className="handDocsHome__browsePath" d="M390 206 C398 221 400 239 408 244" />
+          <path className="morphDocsHome__browsePath" d="M184 116 C198 119 207 138 218 154" />
+          <path className="morphDocsHome__browsePath" d="M184 244 C198 241 207 222 218 206" />
+          <path className="morphDocsHome__browsePath" d="M390 154 C398 139 400 121 408 116" />
+          <path className="morphDocsHome__browsePath" d="M390 206 C398 221 400 239 408 244" />
 
-          <circle className="handDocsHome__browseHubGlow" cx="304" cy="180" r="92" />
-          <g className="handDocsHome__browseWindow" transform="translate(218 120)">
+          <circle className="morphDocsHome__browseHubGlow" cx="304" cy="180" r="92" />
+          <g className="morphDocsHome__browseWindow" transform="translate(218 120)">
             <rect height="120" rx="24" width="172" />
             <path d="M0 38 H172" />
             <circle cx="28" cy="19" r="4" />
@@ -399,24 +399,24 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
             <path d="M98 94 L120 116" />
           </g>
 
-          <g className="handDocsHome__browseNode" transform="translate(76 76)">
+          <g className="morphDocsHome__browseNode" transform="translate(76 76)">
             <rect height="80" rx="22" width="108" />
             <path d="M32 32 H76" />
             <path d="M32 48 H66" />
           </g>
 
-          <g className="handDocsHome__browseNode" transform="translate(76 204)">
+          <g className="morphDocsHome__browseNode" transform="translate(76 204)">
             <rect height="80" rx="22" width="108" />
             <path d="M32 32 H76" />
             <path d="M32 48 H56" />
           </g>
 
-          <g className="handDocsHome__browseNode" transform="translate(408 76)">
+          <g className="morphDocsHome__browseNode" transform="translate(408 76)">
             <rect height="80" rx="22" width="108" />
             <path d="M32 40 C38 30 48 25 54 40 C60 55 70 50 76 40" />
           </g>
 
-          <g className="handDocsHome__browseNode" transform="translate(408 204)">
+          <g className="morphDocsHome__browseNode" transform="translate(408 204)">
             <rect height="80" rx="22" width="108" />
             <path d="M36 43 L47 54 L72 28" />
           </g>
@@ -425,29 +425,29 @@ import HandTuiPreview from '@site/src/components/HandTuiPreview';
     </article>
   </section>
 
-  <section className="handDocsHome__footerCta" aria-labelledby="hand-docs-next">
+  <section className="morphDocsHome__footerCta" aria-labelledby="morph-docs-next">
     <div>
-      <span className="handDocsHome__eyebrow">Ready when you are</span>
-      <h2 id="hand-docs-next">Give Hand a thread and let it carry the context</h2>
-      <div className="handDocsHome__bodyText">
+      <span className="morphDocsHome__eyebrow">Ready when you are</span>
+      <h2 id="morph-docs-next">Give Morph a thread and let it carry the context</h2>
+      <div className="morphDocsHome__bodyText">
         Install once, run a quick check, then start with the request you have been putting off.
       </div>
     </div>
-    <div className="handDocsHome__terminal handDocsHome__terminalSmall" aria-label="Hand command sequence">
-      <div className="handDocsHome__terminalBar">
-        <span>hand setup</span>
+    <div className="morphDocsHome__terminal morphDocsHome__terminalSmall" aria-label="Morph command sequence">
+      <div className="morphDocsHome__terminalBar">
+        <span>morph setup</span>
         <span>ready</span>
       </div>
-      <pre>{`$ hand doctor
+      <pre>{`$ morph doctor
 ✓ config found
 ✓ gateway ready
 
-$ hand
+$ morph
 Ask me what you want to move forward.`}</pre>
     </div>
   </section>
 
-  <nav className="handDocsHome__footerLinks" aria-label="Documentation sections">
+  <nav className="morphDocsHome__footerLinks" aria-label="Documentation sections">
     <div>
       <h2>Guide</h2>
       <a href="/docs/getting-started/quickstart">Quickstart</a>
@@ -468,8 +468,8 @@ Ask me what you want to move forward.`}</pre>
     </div>
     <div>
       <h2>Project</h2>
-      <a href="https://github.com/wandxy/hand">GitHub</a>
-      <a href="https://github.com/wandxy/hand/discussions">Discussions</a>
+      <a href="https://github.com/wandxy/morph">GitHub</a>
+      <a href="https://github.com/wandxy/morph/discussions">Discussions</a>
       <a href="/docs/contributing">Contributing</a>
     </div>
   </nav>

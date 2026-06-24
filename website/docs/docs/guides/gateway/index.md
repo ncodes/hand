@@ -1,11 +1,11 @@
 ---
 title: Gateway Overview
-description: Connect Hand to external messaging surfaces.
+description: Connect Morph to external messaging surfaces.
 ---
 
 # Gateway Overview
 
-Gateways let you talk to the same Hand agent from outside the terminal — from Slack, from a Telegram chat, or from your
+Gateways let you talk to the same Morph agent from outside the terminal — from Slack, from a Telegram chat, or from your
 own service over HTTP. A gateway receives a message, routes it to a bound [session](../../concepts/sessions), runs a
 normal agent turn, and sends the reply back. Tools, memory, and history are the same as in the TUI; only the surface
 differs.
@@ -19,8 +19,8 @@ guides below.
 Gateways run inside the [daemon](../../concepts/daemon-and-rpc) for the active [profile](../../concepts/profiles).
 Before you enable one:
 
-- A daemon must be running for the profile (`hand daemon`, or keep `hand` open).
-- Model credentials must work (`hand auth status`, `hand doctor`) — gateway turns use the same agent runtime as the TUI.
+- A daemon must be running for the profile (`morph daemon`, or keep `morph` open).
+- Model credentials must work (`morph auth status`, `morph doctor`) — gateway turns use the same agent runtime as the TUI.
 - Gateway bot tokens and signing secrets come from profile **config**, environment variables, or CLI flags — not from
   `auth.json`, which is for model providers only. See [Provider Auth](../provider-auth) for model auth and
   [Safety and Guardrails](../../concepts/safety-and-guardrails) for how gateway secrets are handled in logs and traces.
@@ -30,11 +30,11 @@ Before you enable one:
 Gateway support is off by default. Turn it on for the active profile:
 
 ```bash
-hand config set gateway.enabled true
+morph config set gateway.enabled true
 ```
 
 That opens the local HTTP listener (default `127.0.0.1:50052`) and makes the generic HTTP endpoint available. Enabling
-Slack or Telegram additionally requires their platform tokens — `hand config set` validates the whole config, so
+Slack or Telegram additionally requires their platform tokens — `morph config set` validates the whole config, so
 enabling a platform without its credentials is rejected. Set `gateway.enabled` first, then configure the platform and
 its tokens together as the platform guides describe. See [Config Guide](../config#enable-the-gateway).
 
@@ -43,7 +43,7 @@ When the daemon is running, it picks up valid `config.yaml` changes automaticall
 
 ## Choose a Surface
 
-Hand ships three gateway types, all served by the same daemon listener:
+Morph ships three gateway types, all served by the same daemon listener:
 
 | Surface | Best for | Setup guide |
 | --- | --- | --- |
@@ -70,26 +70,26 @@ Telegram must reach you over the public internet.
 
 All HTTP routes share one gateway listener: `/health`, generic HTTP at `/v1/respond`, and any Slack or Telegram webhook
 routes you enable. Slack and Telegram verify their own webhook requests with platform secrets; `gateway.authToken`
-protects the generic HTTP route. Because that route is available on the same listener, Hand requires
+protects the generic HTTP route. Because that route is available on the same listener, Morph requires
 `gateway.authToken` when the gateway binds to a non-loopback address. See [Gateway Routes](../../reference/gateway-routes).
 
 ## Manage the Running Gateway
 
-`hand gateway` commands talk to the daemon over RPC — they do not start a daemon and they do not reload config from
+`morph gateway` commands talk to the daemon over RPC — they do not start a daemon and they do not reload config from
 disk. Use `--profile` to target another profile.
 
 Check runtime state:
 
 ```bash
-hand gateway status
+morph gateway status
 ```
 
 Control the gateway without stopping the daemon:
 
 ```bash
-hand gateway start
-hand gateway stop
-hand gateway restart
+morph gateway start
+morph gateway stop
+morph gateway restart
 ```
 
 `status` prints `state`, bind address/port, configured Slack and Telegram modes, and any `last_error`. States include
@@ -97,7 +97,7 @@ hand gateway restart
 starts automatically with the daemon; `stop` halts gateway components while the daemon and RPC server keep running.
 
 These commands operate on the daemon's **current** in-memory configuration. To apply new tokens, modes, or bind
-addresses from `config.yaml`, change config and let the daemon restart — or run `hand gateway restart` after the
+addresses from `config.yaml`, change config and let the daemon restart — or run `morph gateway restart` after the
 daemon has already reloaded. See [Gateway Management](../../operations/gateway-management).
 
 ## Verify with Doctor
@@ -105,7 +105,7 @@ daemon has already reloaded. See [Gateway Management](../../operations/gateway-m
 Before exposing a gateway, confirm the profile is ready:
 
 ```bash
-hand doctor
+morph doctor
 ```
 
 The **gateway** readiness group reports listener bind/auth, Telegram mode and token status, and Slack mode and token
@@ -115,11 +115,11 @@ status. Common warnings:
 - Slack socket mode without `gateway.slack.appToken`.
 - Telegram webhook mode without `gateway.telegram.webhookSecret`.
 
-Fix issues with `hand config set` as doctor suggests, or follow the platform guide for the missing credential.
+Fix issues with `morph config set` as doctor suggests, or follow the platform guide for the missing credential.
 
 ## Sessions and Continuity
 
-Each external conversation maps to one Hand session so threads keep continuous history. Bindings are stored in the
+Each external conversation maps to one Morph session so threads keep continuous history. Bindings are stored in the
 profile database (`gateway_bindings`) and are keyed by conversation and thread — not by individual sender in a shared
 thread. Gateway traffic never changes the **current session** your TUI or CLI uses; gateway turns target their bound
 session explicitly.
@@ -138,16 +138,16 @@ Authorization differs by surface:
 Set a pairing secret before relying on pairing:
 
 ```bash
-hand config set gateway.pairingSecret "<random-secret>"
+morph config set gateway.pairingSecret "<random-secret>"
 ```
 
 Manage pairings from the CLI:
 
 ```bash
-hand gateway pairing list
-hand gateway pairing approve slack <code>
-hand gateway pairing revoke telegram <sender-id>
-hand gateway pairing clear-pending
+morph gateway pairing list
+morph gateway pairing approve slack <code>
+morph gateway pairing revoke telegram <sender-id>
+morph gateway pairing clear-pending
 ```
 
 For the full operator workflow — global and per-platform allowlists, pairing flow, and what gets approved — see
@@ -160,28 +160,28 @@ answered. Telegram follows the same allowlist-or-pair pattern for private chats.
 
 ### Gateway commands fail to connect
 
-Start a daemon first — `hand daemon`, or keep `hand` open. Gateway commands use RPC like `hand session`; they do
+Start a daemon first — `morph daemon`, or keep `morph` open. Gateway commands use RPC like `morph session`; they do
 not bootstrap a daemon on their own.
 
 ### `state=failed` or `last_error` in status
 
-Run `hand doctor` and fix missing tokens or mode-specific credentials. Then `hand gateway restart`. Check daemon logs
+Run `morph doctor` and fix missing tokens or mode-specific credentials. Then `morph gateway restart`. Check daemon logs
 for the underlying error.
 
 ### Config change did not take effect
 
-`hand gateway start/stop/restart` does not read `config.yaml`. Edit config (or run `hand config set`) and wait for the
+`morph gateway start/stop/restart` does not read `config.yaml`. Edit config (or run `morph config set`) and wait for the
 daemon to restart, or restart the daemon manually after saving valid config.
 
 ### Messages arrive but get no reply
 
-- Confirm model auth works (`hand auth status`, `hand doctor`).
-- For Slack/Telegram, confirm the sender is allowlisted or paired (`hand gateway pairing list`).
+- Confirm model auth works (`morph auth status`, `morph doctor`).
+- For Slack/Telegram, confirm the sender is allowlisted or paired (`morph gateway pairing list`).
 - For generic HTTP, confirm the bearer token matches `gateway.authToken` when one is configured.
 
 ### Cannot enable a platform in config
 
-`hand config set` validates the full config. Enable `gateway.enabled` first, then set a platform's `enabled` flag and
+`morph config set` validates the full config. Enable `gateway.enabled` first, then set a platform's `enabled` flag and
 its required tokens in the same pass the platform guide walks through.
 
 ## Where To Go Next

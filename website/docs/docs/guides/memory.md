@@ -1,19 +1,19 @@
 ---
 title: Memory Guide
-description: Use and tune Hand memory.
+description: Use and tune Morph memory.
 ---
 
 # Memory Guide
 
-Hand memory is durable knowledge that can apply across [sessions](../concepts/sessions) — preferences, decisions,
+Morph memory is durable knowledge that can apply across [sessions](../concepts/sessions) — preferences, decisions,
 procedures, and always-on context — separate from any one transcript. It lives in the active [profile](../concepts/profiles)
-store, so what Hand learns in one conversation can help in another.
+store, so what Morph learns in one conversation can help in another.
 
 This guide covers how to shape that behavior in practice: what to store, how pinned memory works, which config toggles
 control each path, and how to tell when something is not being written or retrieved. For the underlying model — item
 kinds, lifecycle, and safety — see [Memory](../concepts/memory).
 
-## What Hand Should Remember
+## What Morph Should Remember
 
 Use memory for durable, reusable context:
 
@@ -26,13 +26,13 @@ Pinned memory (`memory.md`, described below) is the right place for facts that s
 procedural items are a good fit for things the agent should recall when relevant. Episodic items are distilled from past
 conversations in the background.
 
-During a turn, Hand can also write memory directly through tools when [memory write](#agent-writes-during-a-turn) is
+During a turn, Morph can also write memory directly through tools when [memory write](#agent-writes-during-a-turn) is
 enabled — ask the agent to remember something specific and it can call `memory_add` with source links back to the
 current session.
 
-## What Hand Should Not Remember
+## What Morph Should Not Remember
 
-Hand is conservative about what becomes durable memory:
+Morph is conservative about what becomes durable memory:
 
 - **Secrets and unsafe content** — writes are safety-scanned; blocked items are rejected and recorded to traces. See
   [Safety and Guardrails](../concepts/safety-and-guardrails).
@@ -49,19 +49,19 @@ If the agent says it remembered something but you never see it again, check whet
 
 ## Pinned Workspace Memory
 
-The simplest way to give Hand always-on context is a profile-local `memory.md` file in the profile home:
+The simplest way to give Morph always-on context is a profile-local `memory.md` file in the profile home:
 
 ```text
-~/.hand/profiles/<profile>/memory.md
+~/.morph/profiles/<profile>/memory.md
 ```
 
 Find the exact path for the active profile:
 
 ```bash
-hand profile path
+morph profile path
 ```
 
-Create or edit the file with plain Markdown. Hand loads it at the start of every turn when pinned memory is enabled —
+Create or edit the file with plain Markdown. Morph loads it at the start of every turn when pinned memory is enabled —
 query-independent, unlike searched memory. You can also store active `pinned` items in the profile database, but most
 people start with the file.
 
@@ -70,12 +70,12 @@ and each item at 1000 characters (`memory.pinned.maxChars` and `memory.pinned.ma
 without disabling the rest of memory:
 
 ```bash
-hand config set memory.pinned.enabled false
+morph config set memory.pinned.enabled false
 ```
 
 ## Retrieval During a Turn
 
-When memory retrieval is on, Hand assembles memory context before the model runs:
+When memory retrieval is on, Morph assembles memory context before the model runs:
 
 1. **Pinned** memory loads regardless of your message.
 2. **Semantic search** finds relevant active semantic, episodic, and procedural items for the current message.
@@ -96,7 +96,7 @@ memory provider supports those operations. All memory tools require `cap.mem` (o
 removes memory tools from the agent's toolset without turning off background storage:
 
 ```bash
-hand config set cap.mem false
+morph config set cap.mem false
 ```
 
 See [Tools](../concepts/tools) for capability gating and tool behavior.
@@ -116,11 +116,11 @@ running.
 Typical tuning:
 
 ```bash
-hand config set memory.episodic.enabled true
-hand config set memory.episodic.idleAfter 2m
-hand config set memory.episodic.minMessages 4
-hand config set memory.reflection.enabled true
-hand config set memory.promotion.enabled true
+morph config set memory.episodic.enabled true
+morph config set memory.episodic.idleAfter 2m
+morph config set memory.episodic.minMessages 4
+morph config set memory.reflection.enabled true
+morph config set memory.promotion.enabled true
 ```
 
 Episodic extraction waits until a session has been idle for `idleAfter` and has at least `minMessages` messages. If
@@ -130,24 +130,24 @@ background memory never appears, confirm the summary model is configured and the
 
 A separate **flush** pass writes memory at key moments rather than mid-turn: before automatic
 [compaction](../concepts/sessions#summaries-and-compaction), on controlled shutdown, and when you manually compact a
-session (`hand session compact`). The flush pass is bounded in calls, output size, and time so it cannot run away.
+session (`morph session compact`). The flush pass is bounded in calls, output size, and time so it cannot run away.
 
 When memory flush is enabled, useful facts are more likely to survive before older messages leave the live context. See
 the [Session Guide](./sessions) for compaction workflows.
 
 ```bash
-hand config set memory.flush.enabled true
-hand config set memory.flush.maxCalls 2
+morph config set memory.flush.enabled true
+morph config set memory.flush.maxCalls 2
 ```
 
 ## Enable and Tune Memory
 
-Memory is enabled by default. Use `hand config get` and `hand config set` on the active profile (add `--profile
+Memory is enabled by default. Use `morph config get` and `morph config set` on the active profile (add `--profile
 <name>` for another):
 
 ```bash
-hand config get memory.enabled memory.retrieval.enabled memory.write.enabled
-hand config set memory.enabled true
+morph config get memory.enabled memory.retrieval.enabled memory.write.enabled
+morph config set memory.enabled true
 ```
 
 `config set` writes `config.yaml` and triggers a daemon restart when one is running — see [Config Guide](./config) and
@@ -165,26 +165,26 @@ hand config set memory.enabled true
 | Promotion | `memory.promotion.enabled`, `interval`, `limit` | Background candidate evaluation |
 | Capability | `cap.mem` | Whether memory tools are offered to the agent |
 
-Many keys also have `HAND_MEMORY_*` environment overrides; they follow the same precedence as other settings — see
+Many keys also have `MORPH_MEMORY_*` environment overrides; they follow the same precedence as other settings — see
 [Profiles and Config](../getting-started/profiles-and-config#config-precedence). For an exhaustive listing, see
 [Config Reference](../reference/config).
 
 Turn memory off entirely:
 
 ```bash
-hand config set memory.enabled false
+morph config set memory.enabled false
 ```
 
 ## Troubleshooting
 
 ### Check effective settings
 
-`hand doctor` prints a **memory** group with the master switch, provider, backend, and each sub-feature's effective
+`morph doctor` prints a **memory** group with the master switch, provider, backend, and each sub-feature's effective
 state (pinned, retrieval, flush, episodic, reflection, promotion, write). Use it to confirm what the running profile
 actually has enabled:
 
 ```bash
-hand doctor
+morph doctor
 ```
 
 ### Writes blocked or never promoted
@@ -207,7 +207,7 @@ hand doctor
 - Episodic extraction requires idle time and enough messages — adjust `idleAfter` and `minMessages` if sessions are
   always active.
 - Episodic, reflection, and flush call the summary model — verify `models.summary` and provider credentials with
-  `hand auth status` and `hand doctor`.
+  `morph auth status` and `morph doctor`.
 
 Trace files under the profile's `traces/` directory record memory events (`memory.retrieved`, `memory.flush.*`,
 `memory.extraction.*`, `memory.promotion.*`). See [Search and Traces](./search-and-traces) for inspecting traces.

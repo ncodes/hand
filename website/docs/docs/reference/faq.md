@@ -5,7 +5,7 @@ description: Frequently asked questions and short answers.
 
 # FAQ
 
-Short answers to recurring Hand questions. For setup walkthroughs, start with [Quickstart](../getting-started/quickstart)
+Short answers to recurring Morph questions. For setup walkthroughs, start with [Quickstart](../getting-started/quickstart)
 and the [Learning Path](../getting-started/learning-path).
 
 ## Profiles and config
@@ -13,45 +13,45 @@ and the [Learning Path](../getting-started/learning-path).
 ### How do I switch profiles?
 
 ```bash
-hand profile use work
-hand --profile work
+morph profile use work
+morph --profile work
 ```
 
-Or set `HAND_PROFILE=work` for a single command. The current profile is stored in `~/.hand/state.json`. Details:
+Or set `MORPH_PROFILE=work` for a single command. The current profile is stored in `~/.morph/state.json`. Details:
 [Profiles](../concepts/profiles), [Profiles and Config](../getting-started/profiles-and-config).
 
 ### Where does config live?
 
-Each profile has its own directory under `~/.hand/profiles/<name>/` with `config.yaml`, `.env`, `data/state.db`, and
+Each profile has its own directory under `~/.morph/profiles/<name>/` with `config.yaml`, `.env`, `data/state.db`, and
 `traces/`. See [Backups and State](../operations/backups-and-state).
 
 ### Config vs environment variables — which wins?
 
-Hand first loads the active profile's `config.yaml`. It also preloads the profile `.env` file into the process
-environment, then applies any supported `HAND_*` variables over the YAML values before defaults and normalization run.
+Morph first loads the active profile's `config.yaml`. It also preloads the profile `.env` file into the process
+environment, then applies any supported `MORPH_*` variables over the YAML values before defaults and normalization run.
 
 In practice: put durable settings in `config.yaml`, use `.env` or shell env vars for local overrides and secrets, and
-expect `HAND_*` values to win for the current command. See [Environment Variables](./environment-variables) and
+expect `MORPH_*` values to win for the current command. See [Environment Variables](./environment-variables) and
 [Config Reference](./config).
 
 ## Daemon and CLI
 
-### Does `hand gateway stop` stop the daemon?
+### Does `morph gateway stop` stop the daemon?
 
 **No.** It stops the **gateway runtime** (HTTP/Slack/Telegram ingress) inside the running daemon. The daemon and RPC
-keep serving TUI and `hand session` clients. To stop the daemon process, terminate the `hand daemon` process (Ctrl+C or
+keep serving TUI and `morph session` clients. To stop the daemon process, terminate the `morph daemon` process (Ctrl+C or
 your service manager). See [Gateway Management](../operations/gateway-management) and
 [CLI Reference](./cli#gateway--gateway-runtime-and-pairing).
 
 ### How do I start the daemon?
 
 ```bash
-hand daemon
+morph daemon
 ```
 
-Check status with `hand daemon status`. See [Daemon Operations](../operations/daemon).
+Check status with `morph daemon status`. See [Daemon Operations](../operations/daemon).
 
-### Why does `hand doctor` fail when chat still opens?
+### Why does `morph doctor` fail when chat still opens?
 
 Doctor is stricter than simply opening the TUI. It validates config, credentials, daemon metadata, and optional
 subsystems so you can see everything that is not ready yet. Fix reported `[FAIL]` items or start the daemon if the
@@ -65,7 +65,7 @@ history, cancellation, and session navigation.
 Use one-shot chat when you want a single prompt from a shell script, terminal pipeline, or quick command:
 
 ```bash
-hand --chat "summarize this profile"
+morph --chat "summarize this profile"
 ```
 
 Both modes talk to the daemon RPC path and can start a quiet local daemon if none is reachable. One-shot chat prints the
@@ -87,7 +87,7 @@ See [Slack Gateway](../guides/gateway/slack) and [Gateway Routes](./gateway-rout
 **Polling** (`gateway.telegram.mode: polling`) — daemon pulls updates; no webhook URL needed.
 
 **Webhook** (`webhook`) — Telegram POSTs to `/gateway/telegram/webhook`; requires registration via
-`hand gateway setwebhook telegram <url>` and `webhookSecret`.
+`morph gateway setwebhook telegram <url>` and `webhookSecret`.
 
 See [Telegram Gateway](../guides/gateway/telegram).
 
@@ -106,19 +106,19 @@ this store. See [Sessions](../concepts/sessions) and [Backups and State](../oper
 ### Why did the agent stop after many tool calls?
 
 The turn hit **`session.maxIterations`** (default **90**). Lower it for experiments or raise it in config. On
-exhaustion, Hand runs a summary fallback model call. See [Sessions](../concepts/sessions) and
+exhaustion, Morph runs a summary fallback model call. See [Sessions](../concepts/sessions) and
 [Config Reference](./config#session).
 
 ### Why don't web or memory tools appear?
 
 Tools are gated by **capabilities** (`cap.net`, `cap.mem`) and subsystem config (web provider credentials, memory
-enabled). Run `hand doctor` and check [Tools](../concepts/tools).
+enabled). Run `morph doctor` and check [Tools](../concepts/tools).
 
 ## API and integration
 
 ### Where is the gRPC API defined?
 
-The protobuf package is `hand.v1`. See [RPC Reference](./rpc) for the service and message summary.
+The protobuf package is `morph.v1`. See [RPC Reference](./rpc) for the service and message summary.
 
 ## Security
 
@@ -129,8 +129,8 @@ protects it. See [Security](../operations/security) and [Daemon and RPC](../conc
 
 ### Where should I put API keys?
 
-Prefer `hand auth login` and profile `auth.json` over committing keys to YAML. Env vars are supported for CI and local
-dev. See [Provider Auth](../guides/provider-auth) and [Environment Variables](./environment-variables#secret-handling).
+Prefer `morph auth login` and profile `auth.json` over committing keys to YAML. Env vars are supported for CI and local
+dev. See [Provider Auth](../guides/provider-auth) and [Environment Variables](./environment-variables#secret-morphling).
 
 ## Documentation map
 
@@ -139,7 +139,7 @@ dev. See [Provider Auth](../guides/provider-auth) and [Environment Variables](./
 | Commands and flags | [CLI Reference](./cli) |
 | TUI `/` commands | [Slash Commands](./slash-commands) |
 | Every config key | [Config Reference](./config) |
-| `HAND_*` vars | [Environment Variables](./environment-variables) |
+| `MORPH_*` vars | [Environment Variables](./environment-variables) |
 | HTTP ingress | [Gateway Routes](./gateway-routes) |
 | gRPC API | [RPC Reference](./rpc) |
 | Trace event names | [Trace Events](./trace-events) |

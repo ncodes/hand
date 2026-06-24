@@ -1,11 +1,11 @@
 ---
 title: CLI Reference
-description: Hand command-line interface reference.
+description: Morph command-line interface reference.
 ---
 
 # CLI Reference
 
-This page documents the `hand` binary: subcommands, global flags, and common invocation patterns. For task-oriented
+This page documents the `morph` binary: subcommands, global flags, and common invocation patterns. For task-oriented
 workflows, see the [TUI Guide](../guides/tui), [Profiles and Config](../getting-started/profiles-and-config), and
 [Learning Path](../getting-started/learning-path). For config keys behind the flags, see
 [Config Reference](./config) and [Environment Variables](./environment-variables).
@@ -16,28 +16,28 @@ and diagnostic workflows.
 ## Invocation
 
 ```text
-hand [global options] [command [command options] [arguments]]
-hand [global options] --chat|-c [--session ID] [--instruct TEXT] "message"
+morph [global options] [command [command options] [arguments]]
+morph [global options] --chat|-c [--session ID] [--instruct TEXT] "message"
 ```
 
-Global flags may appear before subcommands: `hand --profile work daemon`.
+Global flags may appear before subcommands: `morph --profile work daemon`.
 
 ### Default behavior
 
 | Invocation | Result |
 | --- | --- |
-| `hand` | Interactive TUI |
-| `hand --chat "…"` / `hand -c "…"` | One-shot chat over RPC; starts a quiet local daemon if none is reachable |
-| `hand --version` / `-v` | Version line |
-| `hand --help` | Help with examples |
+| `morph` | Interactive TUI |
+| `morph --chat "…"` / `morph -c "…"` | One-shot chat over RPC; starts a quiet local daemon if none is reachable |
+| `morph --version` / `-v` | Version line |
+| `morph --help` | Help with examples |
 
-Before command dispatch, Hand resolves the active profile (`--profile` / `-p` or `HAND_PROFILE`) and preloads the
+Before command dispatch, Morph resolves the active profile (`--profile` / `-p` or `MORPH_PROFILE`) and preloads the
 profile `.env` file. Commands that need config or RPC then run their own validation or readiness checks. One-shot chat
 uses the active profile's `runtime.json` when a daemon is already running; otherwise it falls back to config and starts
 a temporary daemon for the request.
 
 :::note[Doctor is explicit]
-`hand doctor` is the full readiness command. Other commands do not run the entire doctor suite before they start,
+`morph doctor` is the full readiness command. Other commands do not run the entire doctor suite before they start,
 though they may fail fast on the specific config, auth, or daemon state they require.
 :::
 
@@ -50,7 +50,7 @@ though they may fail fast on the specific config, auth, or daemon state they req
 | `--session` | | Session ID for the chat request (default: current session) |
 
 :::tip[Two `--instruct` semantics]
-Root `--chat --instruct` applies to **one request**. `hand daemon --instruct` sets a **server instruction** that
+Root `--chat --instruct` applies to **one request**. `morph daemon --instruct` sets a **server instruction** that
 persists until the daemon exits.
 :::
 
@@ -63,9 +63,9 @@ Visible flags appear in default help. Many advanced settings also exist as hidde
 
 | Flag | Alias | Env | Default | Description |
 | --- | --- | --- | --- | --- |
-| `--profile` | `-p` | `HAND_PROFILE` | active profile | Profile for config, env, and runtime |
-| `--env-file` | | `HAND_ENV_FILE` | `.env` | Env file to preload |
-| `--config` | | `HAND_CONFIG` | `config.yaml` | Profile config YAML path |
+| `--profile` | `-p` | `MORPH_PROFILE` | active profile | Profile for config, env, and runtime |
+| `--env-file` | | `MORPH_ENV_FILE` | `.env` | Env file to preload |
+| `--config` | | `MORPH_CONFIG` | `config.yaml` | Profile config YAML path |
 
 ### Agent and model
 
@@ -95,7 +95,7 @@ Visible flags appear in default help. Many advanced settings also exist as hidde
 | `--trace.enabled` | Persist per-session trace events |
 
 Hidden globals mirror most config keys: capabilities (`--cap.*`), exec rules, storage, memory, web, compaction,
-session limits, trace disk/database paths, and more. Prefer `hand config set` for durable changes; see
+session limits, trace disk/database paths, and more. Prefer `morph config set` for durable changes; see
 [Config Guide](../guides/config).
 
 ## Subcommands
@@ -104,9 +104,9 @@ session limits, trace disk/database paths, and more. Prefer `hand config set` fo
 
 | Subcommand | Usage | Notes |
 | --- | --- | --- |
-| `auth login` | `hand auth login <provider>` | `--api-key`, `--token`, `--refresh-token`, `--expires-at`, `--scope` |
-| `auth status` | `hand auth status [provider…]` | Shows credential sources |
-| `auth logout` | `hand auth logout <provider>` | Removes stored credentials |
+| `auth login` | `morph auth login <provider>` | `--api-key`, `--token`, `--refresh-token`, `--expires-at`, `--scope` |
+| `auth status` | `morph auth status [provider…]` | Shows credential sources |
+| `auth logout` | `morph auth logout <provider>` | Removes stored credentials |
 
 See [Provider Auth](../guides/provider-auth).
 
@@ -114,8 +114,8 @@ See [Provider Auth](../guides/provider-auth).
 
 | Subcommand | Usage |
 | --- | --- |
-| `config get` | `hand config get <path>…` |
-| `config set` | `hand config set <path> <value>` or `hand config set path=value …` |
+| `config get` | `morph config get <path>…` |
+| `config set` | `morph config set <path> <value>` or `morph config set path=value …` |
 
 Paths use dot notation (`session.maxIterations`). See [Config Reference](./config).
 
@@ -123,8 +123,8 @@ Paths use dot notation (`session.maxIterations`). See [Config Reference](./confi
 
 | Invocation | Behavior |
 | --- | --- |
-| `hand daemon` | Start daemon with config reload |
-| `hand daemon status` | Print health, PID, RPC address, uptime |
+| `morph daemon` | Start daemon with config reload |
+| `morph daemon status` | Print health, PID, RPC address, uptime |
 
 See [Daemon Operations](../operations/daemon).
 
@@ -136,15 +136,15 @@ See [Daemon Operations](../operations/daemon).
 
 | Subcommand | Usage | Notes |
 | --- | --- | --- |
-| `db reset` | `hand db reset --force` | Deletes SQLite DB + WAL/SHM sidecars; **requires `--force`**; `storage.backend` must be `sqlite` |
+| `db reset` | `morph db reset --force` | Deletes SQLite DB + WAL/SHM sidecars; **requires `--force`**; `storage.backend` must be `sqlite` |
 
 See [Backups and State](../operations/backups-and-state).
 
 ### `doctor` — readiness checks
 
 ```bash
-hand doctor
-hand doctor --json
+morph doctor
+morph doctor --json
 ```
 
 Exit code `1` on FAIL. Default output is human text; `--json` prints structured diagnostics. See
@@ -162,7 +162,7 @@ Exit code `1` on FAIL. Default output is human text; `--json` prints structured 
 | `gateway pairing revoke <source> <sender-id>` | Revoke an approved sender |
 | `gateway pairing clear-pending [source]` | Clear pending requests |
 
-`hand gateway stop` stops the **gateway runtime**, not the daemon. See [Gateway Management](../operations/gateway-management)
+`morph gateway stop` stops the **gateway runtime**, not the daemon. See [Gateway Management](../operations/gateway-management)
 and [Gateway Routes](./gateway-routes).
 
 ### `profile` — profile selection
@@ -209,7 +209,7 @@ Default listen: `127.0.0.1:0`. Basic auth requires both `--username` and `--pass
 ### `version`
 
 ```bash
-hand version
+morph version
 ```
 
 Prints version and commit hash.
@@ -234,30 +234,30 @@ Prints version and commit hash.
 
 ```bash
 # TUI on a named profile
-hand --profile work
+morph --profile work
 
 # Start daemon
-hand daemon
-hand --profile work daemon
+morph daemon
+morph --profile work daemon
 
 # One-shot chat
-hand --chat "summarize the failing tests"
-hand -c --session ses_abc123 --instruct "be brief" "continue"
+morph --chat "summarize the failing tests"
+morph -c --session ses_abc123 --instruct "be brief" "continue"
 
 # Config and doctor
-hand config set session.maxIterations 30
-hand doctor --json
+morph config set session.maxIterations 30
+morph doctor --json
 
 # Gateway and sessions
-hand gateway status
-hand session list
-HAND_PROFILE=work hand session compact
+morph gateway status
+morph session list
+MORPH_PROFILE=work morph session compact
 ```
 
 ## Where To Go Next
 
 - [Slash Commands](./slash-commands): in-TUI `/` commands
 - [Config Reference](./config): every config key and default
-- [Environment Variables](./environment-variables): `HAND_*` overrides
+- [Environment Variables](./environment-variables): `MORPH_*` overrides
 - [RPC Reference](./rpc): gRPC services used by CLI clients
 - [FAQ](./faq): common CLI questions

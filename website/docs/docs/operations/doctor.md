@@ -5,7 +5,7 @@ description: Understand readiness diagnostics.
 
 # Doctor
 
-`hand doctor` is the profile readiness command. It loads the active [profile](../concepts/profiles), validates config,
+`morph doctor` is the profile readiness command. It loads the active [profile](../concepts/profiles), validates config,
 resolves model credentials, probes the daemon RPC endpoint, and reports whether optional subsystems such as memory,
 search, gateway, and web tools are ready.
 
@@ -19,7 +19,7 @@ control after config is ready, see [Gateway Management](./gateway-management).
 | Situation | Why doctor helps |
 | --- | --- |
 | First install or new profile | Catches missing config, auth, and paths before you open the TUI |
-| After `hand config set` or `hand auth login` | Confirms the active profile still validates and model roles resolve credentials |
+| After `morph config set` or `morph auth login` | Confirms the active profile still validates and model roles resolve credentials |
 | RPC or gateway commands fail | **daemon** group shows whether `runtime.json` exists and RPC is reachable |
 | Gateway tokens or modes changed | **gateway** group lists missing bot tokens, webhook secrets, or auth on non-loopback binds |
 | Memory or search seems inactive | **memory** and **search** groups show effective feature flags and embedding auth |
@@ -32,19 +32,19 @@ Doctor is read-only. It does not start the daemon, reload config, or mutate prof
 On the active profile:
 
 ```bash
-hand doctor
+morph doctor
 ```
 
 On a specific profile:
 
 ```bash
-hand --profile work doctor
+morph --profile work doctor
 ```
 
 Disable terminal colors (useful in logs):
 
 ```bash
-hand --log.no-color doctor
+morph --log.no-color doctor
 ```
 
 On success, default output ends with:
@@ -59,11 +59,11 @@ does not fail the command.
 Confirm which profile you are diagnosing:
 
 ```bash
-hand profile current
-hand profile list
+morph profile current
+morph profile list
 ```
 
-To inspect profile paths without full readiness checks, use `hand profile doctor` — see
+To inspect profile paths without full readiness checks, use `morph profile doctor` — see
 [Profiles and Config](../getting-started/profiles-and-config#inspect-profiles).
 
 ## Output Formats
@@ -72,8 +72,8 @@ Doctor can print the same checks in two formats:
 
 | Format | Command | Who uses it |
 | --- | --- | --- |
-| **Text (default)** | `hand doctor` | Human-readable report at the shell — grouped sections, `[PASS]` / `[WARN]` / `[FAIL]` labels, and `fix:` lines |
-| **JSON** | `hand doctor --json` | Scripts and CI — one JSON object on stdout |
+| **Text (default)** | `morph doctor` | Human-readable report at the shell — grouped sections, `[PASS]` / `[WARN]` / `[FAIL]` labels, and `fix:` lines |
+| **JSON** | `morph doctor --json` | Scripts and CI — one JSON object on stdout |
 
 Both formats honor the same PASS / WARN / FAIL rules and exit codes:
 
@@ -147,7 +147,7 @@ in **models**.
 
 These checks come from profile paths, config load, config validation, and model credential resolution:
 
-| Check | Typical result | Text output (`hand doctor`) | `hand doctor --json` |
+| Check | Typical result | Text output (`morph doctor`) | `morph doctor --json` |
 | --- | --- | --- | --- |
 | env file | PASS if found; WARN if optional path missing | **profile** group as `env` | **profile** group as `env` |
 | config file | PASS if found; WARN if missing (continues without file values) | **profile** group as `config` | **profile** group as `config` |
@@ -157,7 +157,7 @@ These checks come from profile paths, config load, config validation, and model 
 | summary model auth | PASS when summary uses different credentials | **models** group | **models** group |
 | model / summary model base URL | Resolved as part of model auth | Folded into model readiness messages | Folded into model readiness messages |
 
-With `hand doctor --json`, read the same checks from `groups`. The top-level `safety` field repeats the safety policy
+With `morph doctor --json`, read the same checks from `groups`. The top-level `safety` field repeats the safety policy
 string (`input=…, output=…, pii=…`) for convenience; text output shows that string in the **safety** group.
 
 ### Group Order
@@ -184,7 +184,7 @@ such as `/providers` and `/models`.
 
 ### profile
 
-Confirms which profile Hand selected and whether expected paths exist:
+Confirms which profile Morph selected and whether expected paths exist:
 
 | Check | PASS | WARN | FAIL |
 | --- | --- | --- | --- |
@@ -206,15 +206,15 @@ Probes the daemon without starting it:
 | State | Status | Message (typical) | Fix |
 | --- | --- | --- | --- |
 | RPC reachable | **PASS** | `profile "…" is listening on host:port` | — |
-| No daemon yet | **WARN** | `runtime metadata is not present` | `hand daemon` |
-| Stale PID or RPC down | **WARN** | `runtime pid … is not running` or dial error | `hand daemon` |
-| Invalid metadata | **FAIL** | Parse or validation error on `runtime.json` | Fix or remove stale `runtime.json`, then `hand daemon` |
+| No daemon yet | **WARN** | `runtime metadata is not present` | `morph daemon` |
+| Stale PID or RPC down | **WARN** | `runtime pid … is not running` or dial error | `morph daemon` |
+| Invalid metadata | **FAIL** | Parse or validation error on `runtime.json` | Fix or remove stale `runtime.json`, then `morph daemon` |
 
 This is the same probe clients use before RPC calls. For startup banners, config reload, and shutdown, see
 [Daemon Operations](./daemon). For connection troubleshooting, see
 [Troubleshooting — Daemon and RPC unreachable](../guides/troubleshooting#daemon-and-rpc-unreachable).
 
-`hand daemon status` prints a short running/stopped summary; doctor adds config and subsystem context around that probe.
+`morph daemon status` prints a short running/stopped summary; doctor adds config and subsystem context around that probe.
 
 ### models
 
@@ -222,14 +222,14 @@ Resolves credentials the same way the daemon does at startup:
 
 | Check | PASS message | FAIL / actions |
 | --- | --- | --- |
-| main | `main model "…" on provider "…" using … auth` | Missing provider or auth; fix with `hand auth login`, `hand config set models.providers.…`, or TUI `/providers` |
+| main | `main model "…" on provider "…" using … auth` | Missing provider or auth; fix with `morph auth login`, `morph config set models.providers.…`, or TUI `/providers` |
 | summary | Same pattern for the summary role (falls back to main when unset) | Same fix actions for the summary provider when auth is missing |
 | embedding | Resolves when `search.vector.enabled` is true | FAIL when vector search is required and auth is missing; WARN when vector search is off but an embedding model is configured |
 
 Credential source labels in PASS lines include `token-store`, `environment`, `role-config`, `provider-config`, and
 OAuth variants. Resolution order is documented in [Provider Auth](../guides/provider-auth).
 
-`hand auth status` lists stored credentials per provider; doctor verifies they satisfy the **configured model roles**.
+`morph auth status` lists stored credentials per provider; doctor verifies they satisfy the **configured model roles**.
 
 ### session
 
@@ -263,8 +263,8 @@ run memory jobs — it only reports config. Background work still needs a runnin
 Vector **WARN** means hybrid/semantic search is off; lexical search may still work. See
 [Search and Traces](../guides/search-and-traces).
 
-When vector search is required, fix embedding auth with the same commands doctor suggests (`hand auth login …`,
-`hand config set models.providers.…`).
+When vector search is required, fix embedding auth with the same commands doctor suggests (`morph auth login …`,
+`morph config set models.providers.…`).
 
 ### safety
 
@@ -283,11 +283,11 @@ the **gateway** **listener** check. See [Safety and Guardrails](../concepts/safe
 ### gateway
 
 Static config checks — doctor does not call Telegram or Slack APIs. For runtime gateway state, use
-`hand gateway status`.
+`morph gateway status`.
 
 | Check | PASS | WARN |
 | --- | --- | --- |
-| listener | Disabled, or enabled on loopback / with auth token | Enabled on non-loopback address without `gateway.authToken` → `hand config set gateway.authToken …` |
+| listener | Disabled, or enabled on loopback / with auth token | Enabled on non-loopback address without `gateway.authToken` → `morph config set gateway.authToken …` |
 | telegram | Disabled, or enabled with bot token (and webhook secret in webhook mode) | Enabled but missing bot token or webhook secret |
 | slack | Disabled, or enabled with bot token and mode-specific token/secret | Enabled but missing bot token, app token (socket), or signing secret (HTTP) |
 
@@ -296,7 +296,7 @@ these readiness checks matter. The **WARN** rows above apply when a platform blo
 gateway switch is off, or when reading readiness alongside a validation error.
 
 Platform setup steps live in the [Gateway guides](../guides/gateway/). After fixing config, reload or restart the
-daemon and use [Gateway Management](./gateway-management) for `hand gateway restart`.
+daemon and use [Gateway Management](./gateway-management) for `morph gateway restart`.
 
 ### tools
 
@@ -308,17 +308,17 @@ Reports web search / extraction readiness with one check named **web tools**:
 | `web.provider` empty or `native` | **WARN** — native extraction only; web search needs a provider |
 | Provider without managed credentials | **WARN** |
 | Credentials configured | **PASS** with provider and source |
-| Provider selected but no API key | **WARN** with `hand config set web.provider …` / `web.apiKey` fix |
+| Provider selected but no API key | **WARN** with `morph config set web.provider …` / `web.apiKey` fix |
 
 ## How Doctor Differs From Other Commands
 
 | Command | What it tells you |
 | --- | --- |
-| `hand doctor` | Full profile readiness: config validation, auth resolution, daemon probe, subsystem flags |
-| `hand profile doctor` | Profile name and filesystem paths only — no model or daemon checks |
-| `hand auth status` | Stored provider credentials — not whether they match configured model roles |
-| `hand daemon status` | Short daemon running/stopped summary for the profile |
-| `hand gateway status` | Live gateway listener and platform connection state via RPC |
+| `morph doctor` | Full profile readiness: config validation, auth resolution, daemon probe, subsystem flags |
+| `morph profile doctor` | Profile name and filesystem paths only — no model or daemon checks |
+| `morph auth status` | Stored provider credentials — not whether they match configured model roles |
+| `morph daemon status` | Short daemon running/stopped summary for the profile |
+| `morph gateway status` | Live gateway listener and platform connection state via RPC |
 | Daemon startup banner | What the running process chose at boot (may differ until you reload config) |
 
 Doctor validates **before** you depend on RPC clients. Gateway status validates **after** the daemon is up.
@@ -329,12 +329,12 @@ If doctor passes but runtime behavior is still wrong, use daemon logs and [Troub
 
 ## Typical Workflow
 
-1. Run `hand doctor` on the intended profile.
+1. Run `morph doctor` on the intended profile.
 2. Fix every **FAIL** (use `fix:` lines and linked guides).
 3. Decide whether to address **WARN** items for your deployment.
-4. Start or restart the daemon if the **daemon** group warned: `hand daemon`.
-5. Re-run `hand doctor` until it exits cleanly.
-6. For gateways, run `hand gateway status` and platform-specific verification from the gateway guides.
+4. Start or restart the daemon if the **daemon** group warned: `morph daemon`.
+5. Re-run `morph doctor` until it exits cleanly.
+6. For gateways, run `morph gateway status` and platform-specific verification from the gateway guides.
 
 After `.env` changes, restart the daemon — doctor reads env at check time, but a running daemon may still need a
 restart. See [Daemon Operations — Config reload](./daemon#config-reload).
@@ -344,10 +344,10 @@ restart. See [Daemon Operations — Config reload](./daemon#config-reload).
 Pages that link here for readiness detail:
 
 - [Troubleshooting](../guides/troubleshooting): symptom → fix workflows starting with doctor.
-- [Quickstart](../getting-started/quickstart): first successful `hand doctor` during setup.
+- [Quickstart](../getting-started/quickstart): first successful `morph doctor` during setup.
 - [First Chat](../getting-started/first-chat): doctor before and after your first turn.
 - [Learning Path](../getting-started/learning-path): doctor when something breaks early on.
-- [Profiles and Config](../getting-started/profiles-and-config): profile layout and `hand profile doctor`.
+- [Profiles and Config](../getting-started/profiles-and-config): profile layout and `morph profile doctor`.
 - [Configuration Guide](../guides/config): keys doctor validates.
 - [Provider Auth](../guides/provider-auth): credential setup for **models** checks.
 - [Memory Guide](../guides/memory): **memory** group fields.

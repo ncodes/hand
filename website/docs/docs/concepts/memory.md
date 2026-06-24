@@ -5,9 +5,9 @@ description: Durable knowledge beyond one transcript.
 
 # Memory
 
-Hand memory is separate from session history. Session history is the raw transcript of one conversation; memory is a
+Morph memory is separate from session history. Session history is the raw transcript of one conversation; memory is a
 curated, durable store of facts, preferences, and useful context that can apply across sessions. Memory lives in the
-active profile's store, so what Hand learns in one conversation can help in another.
+active profile's store, so what Morph learns in one conversation can help in another.
 
 This page explains the memory model. For enabling and tuning memory, see the [Memory Guide](../guides/memory); for how
 it relates to a conversation's transcript, see [Sessions](./sessions).
@@ -45,7 +45,7 @@ turned off independently of the rest of memory.
 
 ## Retrieval at Turn Start
 
-Before the model runs, Hand assembles a memory context for the turn:
+Before the model runs, Morph assembles a memory context for the turn:
 
 1. **Pinned** memory is loaded regardless of the message, since it is not searched for.
 2. **Semantic retrieval** searches active `semantic`, `episodic`, and `procedural` items for ones relevant to the user's
@@ -59,7 +59,7 @@ instructions are composed.
 
 ## Episodic, Reflection, and Promotion
 
-Beyond what the agent writes directly, Hand can build memory in the background. These run as loops inside the daemon (not
+Beyond what the agent writes directly, Morph can build memory in the background. These run as loops inside the daemon (not
 per request), and each is governed by its own config; depending on configuration, the extraction loops may be off until
 you enable them.
 

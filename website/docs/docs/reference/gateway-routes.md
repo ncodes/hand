@@ -93,7 +93,7 @@ Disabled integrations return `404` with a short message (`slack events are disab
 
 **Error codes:** `bad_request`, `unauthorized`, `internal_error`
 
-Each `conversation_id` maps to a Hand session via gateway bindings in `data/state.db`. See
+Each `conversation_id` maps to a Morph session via gateway bindings in `data/state.db`. See
 [Sessions](../concepts/sessions).
 
 :::note[Generic HTTP is request/response today]
@@ -118,7 +118,7 @@ Guide: [Slack Gateway](../guides/gateway/slack).
 - **Body:** Telegram `Update` JSON, max 1 MB
 - **Mode:** only when `gateway.telegram.mode: webhook`
 - **Credentials:** `gateway.telegram.botToken`, `gateway.telegram.webhookSecret`
-- **Registration:** `hand gateway setwebhook telegram [url]`
+- **Registration:** `morph gateway setwebhook telegram [url]`
 - **HTTP response:** returns quickly after the update is verified and queued; the assistant reply is sent through the
   Telegram Bot API asynchronously
 
@@ -161,6 +161,6 @@ Full defaults: [Config Reference](./config#gateway).
 - [Gateways](../concepts/gateways): architecture and session binding
 - [RPC Reference](./rpc): `GatewayService` for start/stop/pairing
 - [Config Reference](./config): all gateway keys
-- [Environment Variables](./environment-variables): `HAND_GATEWAY_*` overrides
-- [Security](../operations/security): exposure and token handling
+- [Environment Variables](./environment-variables): `MORPH_GATEWAY_*` overrides
+- [Security](../operations/security): exposure and token morphling
 - [Troubleshooting](../guides/troubleshooting): gateway connection issues

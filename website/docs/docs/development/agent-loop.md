@@ -1,12 +1,12 @@
 ---
 title: Agent Loop
-description: How Hand turns a user message into model calls, tool steps, and a final response.
+description: How Morph turns a user message into model calls, tool steps, and a final response.
 displayed_sidebar: null
 ---
 
 # Agent Loop
 
-This page explains how Hand executes one **turn**: the path from an inbound user message through prompt assembly, model
+This page explains how Morph executes one **turn**: the path from an inbound user message through prompt assembly, model
 inference, optional tool calls, streaming events, and persistence. It is written for contributors who need to follow or
 change runtime behavior.
 
@@ -16,7 +16,7 @@ Contributor track lists this page as step two after architecture.
 
 ## Entry Points
 
-Every chat turn — RPC, TUI, gateway, or `hand --chat` — eventually calls the same method:
+Every chat turn — RPC, TUI, gateway, or `morph --chat` — eventually calls the same method:
 
 ```text
 internal/agent.Agent.Respond(ctx, message, opts)
@@ -27,9 +27,9 @@ internal/agent.Agent.Respond(ctx, message, opts)
 
 | Layer | File | Role |
 | --- | --- | --- |
-| RPC adapter | `internal/rpc/service.go` | Maps `HandService.Respond` to `Agent.Respond`; streams `RespondEvent` messages |
+| RPC adapter | `internal/rpc/service.go` | Maps `MorphService.Respond` to `Agent.Respond`; streams `RespondEvent` messages |
 | Agent service | `internal/agent/agent.go` | Validates runtime, constructs a `Turn`, runs it, optionally generates a session title |
-| Turn orchestration | `internal/agent/turn.go` | Hand-specific lifecycle hooks, model calls, safety, compaction, tool dispatch |
+| Turn orchestration | `internal/agent/turn.go` | Morph-specific lifecycle hooks, model calls, safety, compaction, tool dispatch |
 | Generic lifecycle | `pkg/agent/turn_lifecycle.go`, `pkg/agent/turn.go` | Provider-agnostic hook ordering and iteration budget consumption |
 
 The RPC handler always enables trace fanout (`TraceEvents: true`) and forwards `OnEvent` callbacks to the gRPC stream.
@@ -86,7 +86,7 @@ flowchart TD
 | `RunStep` | closure in `Run` | One model request and optional tool execution (see below) |
 | `OnExhausted` | `Turn.summaryFallback` | When the budget is spent, one final non-tool model call asks for a wrap-up summary |
 
-Hook ordering is defined in `pkg/agent/turn_lifecycle.go`. Hand-specific behavior lives in the closures wired from
+Hook ordering is defined in `pkg/agent/turn_lifecycle.go`. Morph-specific behavior lives in the closures wired from
 `internal/agent/turn.go`.
 
 :::note
@@ -120,7 +120,7 @@ fresh `runcontext.Context` for trace and tool identity.
   (default **90**, from `constants.DefaultMaxIterations`). Each `RunStep` consumes one unit before dispatch.
 - **Streaming** — defaults to profile `models.main.stream`; `RespondOptions.Stream` overrides when non-nil.
 
-Configure the limit in profile YAML or with `hand config set session.maxIterations <n>`. The [Config Reference](../reference/config)
+Configure the limit in profile YAML or with `morph config set session.maxIterations <n>`. The [Config Reference](../reference/config)
 documents the key.
 
 ## One Loop Step (`RunStep`)
@@ -208,7 +208,7 @@ model can recover. User-facing behavior is described in [Tools](../concepts/tool
 The loop in `pkg/agent/turn.go` calls `Consume()` before each `RunStep`. When the budget reaches zero, `OnExhausted`
 runs instead of another tool/model iteration.
 
-Hand's `summaryFallback`:
+Morph's `summaryFallback`:
 
 - builds a final request with `instruct.BuildSummary(remaining)` and **no tools**;
 - requires a plain-text completion (tool calls are an error);
@@ -321,7 +321,7 @@ Pages that link here for deeper reading:
 Conceptual background for turn inputs and outputs:
 
 - [Sessions](../concepts/sessions) — session identity, history, and summaries loaded at the start of each turn.
-- [Daemon and RPC](../concepts/daemon-and-rpc) — how clients reach `HandService.Respond`.
+- [Daemon and RPC](../concepts/daemon-and-rpc) — how clients reach `MorphService.Respond`.
 
 Related internals:
 
@@ -335,7 +335,7 @@ Related internals:
 
 References and operations:
 
-- [RPC Reference](../reference/rpc) — `HandService.Respond` streaming protocol.
+- [RPC Reference](../reference/rpc) — `MorphService.Respond` streaming protocol.
 - [Trace Events](../reference/trace-events) — event names emitted during turns.
 - [Config Reference](../reference/config) — `session.maxIterations`, streaming, safety, compaction.
 - [Contributing](../contributing) — workflow for changes that touch the loop.

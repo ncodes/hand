@@ -5,7 +5,7 @@ description: Preserve profile state, sessions, memory, and traces.
 
 # Backups and State
 
-Hand keeps everything durable for a [profile](../concepts/profiles) under that profile's home directory — config,
+Morph keeps everything durable for a [profile](../concepts/profiles) under that profile's home directory — config,
 credentials, conversations, memory, search indexes, gateway bindings, and traces. This page is the operator guide:
 what lives where, how to back up and restore a profile, and how to reset state without breaking setup.
 
@@ -15,12 +15,12 @@ protecting secrets inside backups, see [Security](./security).
 
 ## Two Levels Of State
 
-Hand splits machine-local selector state from profile data:
+Morph splits machine-local selector state from profile data:
 
 | Location | Scope | What it holds |
 | --- | --- | --- |
-| `~/.hand/state.json` | **Machine** | `current_profile` — which profile `hand` uses when you do not pass `--profile` |
-| `~/.hand/profiles/<name>/` | **Profile** | Config, credentials, SQLite store, traces, and runtime metadata for one context |
+| `~/.morph/state.json` | **Machine** | `current_profile` — which profile `morph` uses when you do not pass `--profile` |
+| `~/.morph/profiles/<name>/` | **Profile** | Config, credentials, SQLite store, traces, and runtime metadata for one context |
 
 Back up **profile homes** to preserve conversations and memory. Copy `state.json` only if you care about restoring which
 profile was current on that machine — it is not required to restore a profile's data.
@@ -28,25 +28,25 @@ profile was current on that machine — it is not required to restore a profile'
 Print paths:
 
 ```bash
-hand profile path
-hand profile path work
-hand profile current
-hand profile doctor
+morph profile path
+morph profile path work
+morph profile current
+morph profile doctor
 ```
 
-`hand profile doctor` lists home, config, env, and runtime paths and whether each exists — useful before a backup or
+`morph profile doctor` lists home, config, env, and runtime paths and whether each exists — useful before a backup or
 move. See [Doctor](./doctor) for full readiness checks.
 
 ## Profile Home Layout
 
-Everything below is under `~/.hand/profiles/<name>/` unless you override paths with `--config` or `--env-file` (unusual
+Everything below is under `~/.morph/profiles/<name>/` unless you override paths with `--config` or `--env-file` (unusual
 for day-to-day use):
 
 ```text
-~/.hand/profiles/<name>/
-  config.yaml              # profile settings (hand config set)
+~/.morph/profiles/<name>/
+  config.yaml              # profile settings (morph config set)
   .env                     # optional env overrides (not watched for reload)
-  auth.json                # model credentials from hand auth login
+  auth.json                # model credentials from morph auth login
   auth.json.lock           # transient lock while auth.json is updated
   runtime.json             # daemon RPC endpoint, pid, start time (not durable state)
   memory.md                # optional pinned memory file (see Memory Guide)
@@ -82,7 +82,7 @@ Gateway pairings and bindings are **not** in `config.yaml` — they live only in
 migrating or cloning a gateway profile.
 
 For search repair after restore, see [Search and Traces](../guides/search-and-traces) and
-`hand session repair` in the [Session Guide](../guides/sessions).
+`morph session repair` in the [Session Guide](../guides/sessions).
 
 ## Traces: Disk And Database
 
@@ -93,8 +93,8 @@ Traces can write to **both** sinks (defaults enable disk and database):
 | **Disk** | `trace.disk.enabled`, optional `trace.disk.dir` | `<profile>/traces/*.jsonl` by default |
 | **Database** | `trace.database.enabled`, `trace.database.maxEventsPerSession` | Rows in `state.db` |
 
-Disk JSONL files are for offline inspection (`hand trace view`). Database traces power hydrated timelines in the TUI.
-See [Search and Traces](../guides/search-and-traces#inspecting-traces-with-hand-trace-view).
+Disk JSONL files are for offline inspection (`morph trace view`). Database traces power hydrated timelines in the TUI.
+See [Search and Traces](../guides/search-and-traces#inspecting-traces-with-morph-trace-view).
 
 Back up `traces/` when disk tracing is on. Database trace rows are included when you back up `state.db`.
 
@@ -113,17 +113,17 @@ Treat backup archives like secrets — they contain `auth.json`, `.env`, message
 
 ## Backup Workflow
 
-Hand has no built-in backup command. Copy the profile directory with the daemon **stopped** so SQLite and
+Morph has no built-in backup command. Copy the profile directory with the daemon **stopped** so SQLite and
 `auth.json` are not mid-write.
 
-1. **Stop the profile's daemon** — `Ctrl+C` on `hand daemon`, or exit the TUI that owns it. See
+1. **Stop the profile's daemon** — `Ctrl+C` on `morph daemon`, or exit the TUI that owns it. See
    [Daemon Operations — Stopping](./daemon#stopping-the-daemon).
-2. **Confirm the path** — `hand profile path` (or `hand --profile work profile path`).
+2. **Confirm the path** — `morph profile path` (or `morph --profile work profile path`).
 3. **Copy the tree** — include `data/state.db` and, if present, `state.db-wal` and `state.db-shm`:
 
 ```bash
-PROFILE="$(hand profile path)"
-tar -czf "hand-$(basename "$PROFILE")-$(date +%Y%m%d).tar.gz" -C "$(dirname "$PROFILE")" "$(basename "$PROFILE")"
+PROFILE="$(morph profile path)"
+tar -czf "morph-$(basename "$PROFILE")-$(date +%Y%m%d).tar.gz" -C "$(dirname "$PROFILE")" "$(basename "$PROFILE")"
 ```
 
 Or use `rsync -a` to another disk or host. For a running system without a maintenance window, a filesystem snapshot of
@@ -131,38 +131,38 @@ the profile home is safer than copying live WAL files — but stopping the daemo
 
 4. **Optional** — include `log.file` if configured and needed for audit.
 
-5. **Verify** — extract on a test machine, `hand --profile <name> doctor`, then `hand doctor` after placing the tree
-   under `~/.hand/profiles/<name>/`.
+5. **Verify** — extract on a test machine, `morph --profile <name> doctor`, then `morph doctor` after placing the tree
+   under `~/.morph/profiles/<name>/`.
 
 ## Restore Or Move A Profile
 
 ### Same machine, new copy
 
 1. Stop any daemon using the profile.
-2. Extract or copy the profile directory to `~/.hand/profiles/<name>/`.
-3. Select it: `hand profile use <name>` (updates `~/.hand/state.json`).
-4. Run `hand doctor`, then `hand daemon`.
+2. Extract or copy the profile directory to `~/.morph/profiles/<name>/`.
+3. Select it: `morph profile use <name>` (updates `~/.morph/state.json`).
+4. Run `morph doctor`, then `morph daemon`.
 
 ### New machine
 
-1. Install Hand on the target machine.
-2. Copy the profile home into `~/.hand/profiles/<name>/` on the target.
-3. `hand profile use <name>` (or pass `--profile` on each command).
-4. Re-authenticate if credentials expired — `hand auth status`, then `hand auth login` as needed. OAuth tokens may
+1. Install Morph on the target machine.
+2. Copy the profile home into `~/.morph/profiles/<name>/` on the target.
+3. `morph profile use <name>` (or pass `--profile` on each command).
+4. Re-authenticate if credentials expired — `morph auth status`, then `morph auth login` as needed. OAuth tokens may
    need refresh; API keys in `auth.json` usually move as-is.
-5. Start the daemon and run `hand doctor`.
+5. Start the daemon and run `morph doctor`.
 
 `runtime.json` from the old host is ignored or replaced on first daemon start on the new host. RPC and gateway ports in
 `config.yaml` may need adjustment if the new environment differs.
 
 ### Rename a profile
 
-Hand does not rename profiles in place. Copy the directory to a new name under `profiles/`, then:
+Morph does not rename profiles in place. Copy the directory to a new name under `profiles/`, then:
 
 ```bash
-hand profile use newname
+morph profile use newname
 # Update config.yaml name field if you rely on it in logs:
-hand config set name newname
+morph config set name newname
 ```
 
 Remove the old directory after confirming the new profile works.
@@ -172,35 +172,35 @@ Remove the old directory after confirming the new profile works.
 To fork a profile without touching the original:
 
 ```bash
-SRC="$(hand profile path)"
-cp -a "$SRC" ~/.hand/profiles/experiment
-hand profile use experiment
-hand config set name experiment
-hand daemon
+SRC="$(morph profile path)"
+cp -a "$SRC" ~/.morph/profiles/experiment
+morph profile use experiment
+morph config set name experiment
+morph daemon
 ```
 
 Cloned `auth.json` shares credentials with the source — rotate or use separate logins if isolation matters. Gateway
-pairings in the database clone too; revoke unwanted senders with `hand gateway pairing revoke`.
+pairings in the database clone too; revoke unwanted senders with `morph gateway pairing revoke`.
 
-Prefer a fresh `hand profile init experiment --use` when you only need empty state with similar config — copy
+Prefer a fresh `morph profile init experiment --use` when you only need empty state with similar config — copy
 `config.yaml` manually instead of the whole tree.
 
 ## Reset Workflows
 
-There is no `hand profile reset` command. Stop the daemon, then delete or replace specific paths:
+There is no `morph profile reset` command. Stop the daemon, then delete or replace specific paths:
 
 | Goal | Action |
 | --- | --- |
 | **Fresh conversations, keep config and auth** | Remove `data/state.db` and sidecar WAL files; remove `traces/` if present |
 | **Clear traces only** | Remove files under `traces/`; or disable disk tracing and trim DB trace tables (simplest: delete `traces/` and rely on new turns) |
-| **Reset credentials** | `hand auth logout <provider>` or delete `auth.json` (daemon stopped) |
-| **Reset config to starter** | Replace `config.yaml` (or re-run `hand profile init` on a new name) |
-| **Remove profile entirely** | Stop daemon; delete `~/.hand/profiles/<name>/`; `hand profile use default` if it was current |
+| **Reset credentials** | `morph auth logout <provider>` or delete `auth.json` (daemon stopped) |
+| **Reset config to starter** | Replace `config.yaml` (or re-run `morph profile init` on a new name) |
+| **Remove profile entirely** | Stop daemon; delete `~/.morph/profiles/<name>/`; `morph profile use default` if it was current |
 
 Deleting `data/state.db` destroys **all** sessions, memory, gateway bindings, pairings, and database traces for that
 profile. Config and `auth.json` remain unless you delete them too.
 
-After deleting the database, start the daemon — Hand recreates an empty `state.db` on next open.
+After deleting the database, start the daemon — Morph recreates an empty `state.db` on next open.
 
 ### Archived sessions
 
@@ -223,14 +223,14 @@ consistent database.
 ## Verify After Restore
 
 ```bash
-hand profile current
-hand profile doctor
-hand doctor
-hand session list
-hand auth status
+morph profile current
+morph profile doctor
+morph doctor
+morph session list
+morph auth status
 ```
 
-For gateway profiles, also `hand gateway status` and `hand gateway pairing list`. Fix **FAIL** items from
+For gateway profiles, also `morph gateway status` and `morph gateway pairing list`. Fix **FAIL** items from
 [Doctor](./doctor) before relying on the restored profile.
 
 ## Troubleshooting
@@ -238,9 +238,9 @@ For gateway profiles, also `hand gateway status` and `hand gateway pairing list`
 | Symptom | Likely cause | What to do |
 | --- | --- | --- |
 | `database is locked` after copy | Daemon still running or incomplete WAL copy | Stop daemon; copy `state.db` + `-wal` + `-shm`; or delete WAL sidecars only after clean shutdown |
-| Empty sessions after restore | Wrong profile path or `--profile` mismatch | `hand profile path`; confirm tree is under `~/.hand/profiles/<name>/` |
+| Empty sessions after restore | Wrong profile path or `--profile` mismatch | `morph profile path`; confirm tree is under `~/.morph/profiles/<name>/` |
 | Search broken after restore | FTS5 missing in custom build | Reinstall or rebuild with FTS5 — see [Troubleshooting — SQLite FTS5](../guides/troubleshooting#sqlite-fts5-and-source-builds) |
-| Auth works but turns fail | Config not restored or wrong model keys | `hand config get models.main.*`; `hand doctor` **models** group |
+| Auth works but turns fail | Config not restored or wrong model keys | `morph config get models.main.*`; `morph doctor` **models** group |
 | Duplicate trace errors | Multiple `*-<session_id>.jsonl` files | See [Search and Traces — Ambiguous trace files](../guides/search-and-traces#ambiguous-trace-files) |
 
 ## Where To Go Next

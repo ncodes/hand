@@ -5,7 +5,7 @@ description: Trace event types and payload reference.
 
 # Trace Events
 
-Hand records **trace events** during turns, compaction, memory workflows, and tool execution. Events are sanitized and
+Morph records **trace events** during turns, compaction, memory workflows, and tool execution. Events are sanitized and
 optionally persisted to disk (JSONL) and SQLite. A display-safe subset is also streamed live to RPC/TUI clients as
 `TRACE_EVENT` respond events.
 
@@ -27,7 +27,7 @@ RPC returns the same types in `SessionService.Timeline`.
 
 :::note[Stored traces are richer than live RPC traces]
 Trace storage can include events that are too noisy or sensitive for live client display, such as model request
-metadata. Use `hand trace view` or session timeline inspection when you need the full persisted trace.
+metadata. Use `morph trace view` or session timeline inspection when you need the full persisted trace.
 :::
 
 ## Turn and chat
@@ -125,7 +125,7 @@ Policy overview: [Safety and Guardrails](../concepts/safety-and-guardrails).
 | `memory.extraction.candidate_generated` | Single candidate |
 | `memory.extraction.candidate_rejected` | Candidate rejected |
 | `memory.extraction.confidence_scored` | Confidence assigned |
-| `memory.extraction.admission_handoff` | Handoff to promotion |
+| `memory.extraction.admission_morphoff` | Morphoff to promotion |
 | `memory.extraction.memory_written` | Candidate stored |
 | `memory.extraction.duplicate_skipped` | Duplicate skipped |
 | `memory.extraction.failed` | Extraction failed |
@@ -186,7 +186,7 @@ Trace payloads are JSON objects. Common payload families:
 | `PlanEventPayload` | Plan steps and hydration |
 | `SessionFailedPayload` | Errors |
 
-CLI inspection: `hand trace view`. Config: `trace.enabled`, `trace.disk`, `trace.database` — see
+CLI inspection: `morph trace view`. Config: `trace.enabled`, `trace.disk`, `trace.database` — see
 [Config Reference](./config#trace).
 
 ## Where To Go Next

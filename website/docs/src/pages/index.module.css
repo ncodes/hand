@@ -8,7 +8,7 @@
       #ffffff 54%,
       #eef5ff 100%
     );
-  border-bottom: 1px solid var(--hand-border);
+  border-bottom: 1px solid var(--morph-border);
   overflow: hidden;
   min-height: calc(100vh - 56px);
   padding: 7rem 0;
@@ -33,7 +33,7 @@
 }
 
 .title {
-  color: var(--hand-text-strong);
+  color: var(--morph-text-strong);
   font-size: clamp(3.2rem, 8vw, 5.8rem);
   letter-spacing: 0;
   line-height: 0.95;
@@ -41,7 +41,7 @@
 }
 
 .subtitle {
-  color: var(--hand-text-muted);
+  color: var(--morph-text-muted);
   font-size: clamp(1.1rem, 2vw, 1.35rem);
   line-height: 1.7;
   max-width: 760px;

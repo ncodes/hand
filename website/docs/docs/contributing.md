@@ -5,7 +5,7 @@ title: Contributing
 
 # Contributing
 
-Hand is still moving quickly, so the best contributions are small, tested, and easy to review.
+Morph is still moving quickly, so the best contributions are small, tested, and easy to review.
 
 ## Before You Start
 

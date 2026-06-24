@@ -6,7 +6,7 @@ displayed_sidebar: null
 
 # Development Architecture
 
-This page maps the Hand Go repository for contributors: where commands live, how the daemon assembles the runtime, and
+This page maps the Morph Go repository for contributors: where commands live, how the daemon assembles the runtime, and
 which packages own sessions, memory, tools, gateways, and RPC. For the user-facing runtime model (daemon, clients,
 profiles), start with [Architecture](../concepts/architecture). For day-to-day contribution workflow, see
 [Contributing](../contributing).
@@ -22,8 +22,8 @@ config, and call the relevant internal service or RPC client.
 ## Repository Layout
 
 ```text
-hand/
-  cmd/           # urfave/cli command packages (hand, daemon, session, …)
+morph/
+  cmd/           # urfave/cli command packages (morph, daemon, session, …)
   internal/      # private application code
   pkg/           # shared libraries (agent loop, gateway helpers, TUI markdown, logging)
   website/docs/  # Docusaurus documentation
@@ -31,18 +31,18 @@ hand/
   AGENTS.md      # contributor notes (tests, naming)
 ```
 
-The single binary is built from **`cmd/hand`**. Subcommands are implemented in sibling `cmd/*` packages and registered
-in `cmd/hand/main.go`.
+The single binary is built from **`cmd/morph`**. Subcommands are implemented in sibling `cmd/*` packages and registered
+in `cmd/morph/main.go`.
 
 ## Runtime Layers
 
-Hand runs one **daemon per profile**. Clients talk to it over gRPC; the gateway is HTTP on the same process.
+Morph runs one **daemon per profile**. Clients talk to it over gRPC; the gateway is HTTP on the same process.
 
 ```mermaid
 flowchart TB
   subgraph clients [Clients cmd]
     TUI[cmd/tui]
-    CLI[cmd/session cmd/gateway cmd/hand --chat]
+    CLI[cmd/session cmd/gateway cmd/morph --chat]
   end
 
   subgraph rpc [RPC boundary]
@@ -83,7 +83,7 @@ flowchart TB
   GW --> Agent
 ```
 
-**Inbound chat path:** client → `internal/rpc/client` → `HandService.Respond` → `internal/agent` turn → model +
+**Inbound chat path:** client → `internal/rpc/client` → `MorphService.Respond` → `internal/agent` turn → model +
 tools → `internal/state` persistence → streamed events back to the client.
 
 **Gateway path:** platform HTTP → `internal/gateway` dispatch → same `Agent.Respond` / session binding code as RPC
@@ -96,16 +96,16 @@ Each command package exports `NewCommand()` (or `Run` for the root TUI) and stay
 
 | Package | Command | Role |
 | --- | --- | --- |
-| `cmd/hand` | `hand` | Root binary: registers subcommands, global flags, `--chat`, default TUI entry |
-| `cmd/daemon` | `hand daemon`, `hand daemon status` | Starts daemon lifecycle and reports daemon health |
-| `cmd/tui` | `hand` (no subcommand) | Bubble Tea UI; RPC client to daemon |
-| `cmd/session` | `hand session …` | Session RPC client |
-| `cmd/gateway` | `hand gateway …` | Gateway RPC client |
-| `cmd/auth` | `hand auth …` | Reads/writes `internal/credential` store (no RPC) |
-| `cmd/profile` | `hand profile …` | Profile selector and `profile init` |
-| `cmd/hand/configcmd` | `hand config …` | Config get/set on profile YAML |
-| `cmd/doctor` | `hand doctor` | `internal/diagnostics` + readiness |
-| `cmd/trace` | `hand trace view` | Local trace JSONL viewer (`internal/trace/inspect`) |
+| `cmd/morph` | `morph` | Root binary: registers subcommands, global flags, `--chat`, default TUI entry |
+| `cmd/daemon` | `morph daemon`, `morph daemon status` | Starts daemon lifecycle and reports daemon health |
+| `cmd/tui` | `morph` (no subcommand) | Bubble Tea UI; RPC client to daemon |
+| `cmd/session` | `morph session …` | Session RPC client |
+| `cmd/gateway` | `morph gateway …` | Gateway RPC client |
+| `cmd/auth` | `morph auth …` | Reads/writes `internal/credential` store (no RPC) |
+| `cmd/profile` | `morph profile …` | Profile selector and `profile init` |
+| `cmd/morph/configcmd` | `morph config …` | Config get/set on profile YAML |
+| `cmd/doctor` | `morph doctor` | `internal/diagnostics` + readiness |
+| `cmd/trace` | `morph trace view` | Local trace JSONL viewer (`internal/trace/inspect`) |
 
 Shared CLI behavior — profile resolution, config load, env preload, daemon bootstrap — lives in **`internal/cli`**, not
 in each `cmd/*` package. When adding a flag that affects every command, start in `internal/cli/flags.go` and
@@ -134,12 +134,12 @@ Gateway start/stop without config reload is exposed through RPC (`GatewayService
 
 ## Agent: Orchestration vs Core Loop
 
-Hand splits agent code across two packages on purpose:
+Morph splits agent code across two packages on purpose:
 
 | Package | Responsibility |
 | --- | --- |
 | **`pkg/agent`** | Provider-agnostic loop: `Respond`, iteration budget (`RunLoop`), message/session/tool types, streaming events |
-| **`internal/agent`** | Hand-specific orchestration: compaction, memory retrieval/flush, guardrails, trace recording, timeline, RPC `ServiceAPI` |
+| **`internal/agent`** | Morph-specific orchestration: compaction, memory retrieval/flush, guardrails, trace recording, timeline, RPC `ServiceAPI` |
 
 The turn implementation lives in **`internal/agent/turn.go`**. It builds prompt context
 (`internal/agent/context`), calls into **`pkg/agent`** for the model/tool loop, and persists through
@@ -155,9 +155,9 @@ Deep dive: [Agent Loop](./agent-loop) and [Prompt Assembly](./prompt-assembly).
 
 | Path | Purpose |
 | --- | --- |
-| `internal/rpc/proto/hand.proto` | gRPC service definitions |
+| `internal/rpc/proto/morph.proto` | gRPC service definitions |
 | `internal/rpc/proto/*.pb.go` | Generated messages (run `make build-proto`) |
-| `internal/rpc/server` | Registers `HandService`, `SessionService`, `ModelService`, `GatewayService` |
+| `internal/rpc/server` | Registers `MorphService`, `SessionService`, `ModelService`, `GatewayService` |
 | `internal/rpc/service.go` | Maps protobuf ↔ `internal/agent.ServiceAPI` |
 | `internal/rpc/client` | Client used by TUI, session/gateway commands, and tests |
 
@@ -180,12 +180,12 @@ Public API reference: [RPC Reference](../reference/rpc). Conceptual overview: [D
 | Package | Role |
 | --- | --- |
 | `internal/config` | YAML/env loading, normalization, validation |
-| `internal/profile` | Profile name resolution, `~/.hand/state.json`, profile home paths |
+| `internal/profile` | Profile name resolution, `~/.morph/state.json`, profile home paths |
 | `internal/credential` | `auth.json` OAuth/API key storage |
 | `internal/datadir` | Profile home paths: `data/`, `traces/`, `state.db` |
 | `internal/constants` | Defaults shared with docs and CLI |
-| `internal/diagnostics` | `hand doctor` config checks |
-| `internal/diagnostics/readiness` | `hand doctor` subsystem readiness groups |
+| `internal/diagnostics` | `morph doctor` config checks |
+| `internal/diagnostics/readiness` | `morph doctor` subsystem readiness groups |
 
 Operator docs: [Profiles and Config](../getting-started/profiles-and-config), [Doctor](../operations/doctor).
 
@@ -268,7 +268,7 @@ Deep dive: [Gateway Internals](./gateway-internals). Operator docs: [Gateway Man
 | --- | --- |
 | `internal/guardrails` | Input/output scanning and redaction |
 | `internal/trace` | Trace session factory, JSONL disk writer, event types |
-| `internal/trace/inspect` | `hand trace view` web UI |
+| `internal/trace/inspect` | `morph trace view` web UI |
 
 Traces dual-write to disk (`traces/*.jsonl`) and/or the database depending on `trace.*` config. See
 [Search and Traces](../guides/search-and-traces).
@@ -309,8 +309,8 @@ From the repository root:
 
 ```bash
 make test          # build-proto + CGO_ENABLED=1 go test -tags sqlite_fts5 ./...
-make build         # produces build/hand
-make build-proto   # regenerate gRPC stubs after hand.proto edits
+make build         # produces build/morph
+make build-proto   # regenerate gRPC stubs after morph.proto edits
 ```
 
 SQLite-backed tests require **CGO** and the **`sqlite_fts5`** build tag — the Makefile sets both. Without them, FTS5
@@ -320,7 +320,7 @@ Other useful targets:
 
 - `make test-spec` — e2e/spec tests under `internal/e2e` and selected `cmd/*` packages
 - `make lint` — golangci-lint
-- `internal/e2e` — harness for live and isolated RPC tests (see package docs and `HAND_E2E_*` env vars)
+- `internal/e2e` — harness for live and isolated RPC tests (see package docs and `MORPH_E2E_*` env vars)
 
 Use **`internal/mocks`** and package-local `mocks_test.go` files for test doubles — follow existing patterns in the
 package you are changing.
@@ -329,13 +329,13 @@ package you are changing.
 
 | Goal | Start here |
 | --- | --- |
-| New CLI subcommand | `cmd/<name>`, register in `cmd/hand/main.go`, shared flags in `internal/cli` |
+| New CLI subcommand | `cmd/<name>`, register in `cmd/morph/main.go`, shared flags in `internal/cli` |
 | New config key | `internal/config`, validation in `validation.go`, docs in reference/config |
 | New tool | `internal/tools/<tool>`, register in `internal/environment` |
 | New model provider | `internal/model/provider_*`, registry in `internal/model/provider` |
 | New gateway platform | `internal/gateway/<platform>`, dispatch hooks, docs in guides/gateway |
 | New doctor check | `internal/diagnostics/readiness` or `internal/diagnostics` |
-| RPC API change | `internal/rpc/proto/hand.proto` → `make build-proto` → `service.go` + clients |
+| RPC API change | `internal/rpc/proto/morph.proto` → `make build-proto` → `service.go` + clients |
 
 ## Where To Go Next
 
@@ -348,7 +348,7 @@ Pages that link here for implementation detail:
 - [Agent Loop](./agent-loop): turn iteration, streaming, persistence.
 - [Prompt Assembly](./prompt-assembly): system prompt and context construction.
 - [Model Providers](./model-providers): provider clients and auth resolution.
-- [Tools Runtime](./tools-runtime): registry, policies, and handlers.
+- [Tools Runtime](./tools-runtime): registry, policies, and Hands.
 - [Session Storage](./session-storage): SQLite schema, search, repair.
 - [Memory System](./memory-system): candidates, promotion, background workers.
 - [Gateway Internals](./gateway-internals): dispatch, pairing, platform adapters.

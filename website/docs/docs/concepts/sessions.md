@@ -23,13 +23,13 @@ example `ses_abc123...`). There is also one special, persistent session with the
 - The **current session** is the active selection for a profile. It is stored in the profile's state, so the TUI and CLI
   agree on which conversation is current. When nothing is selected, the current session is `default`.
 
-Selecting a session with `hand session use` only switches a target that already exists and is not archived. A one-shot
+Selecting a session with `morph session use` only switches a target that already exists and is not archived. A one-shot
 chat can target a specific session for a single request without changing the current selection.
 
 To set current session:
 
 ```bash
-hand session use <session-id>
+morph session use <session-id>
 ```
 
 
@@ -37,7 +37,7 @@ To continue a specific session from a one-shot prompt:
 
 
 ```bash
-hand --session <session-id> -c "Continue from there."
+morph --session <session-id> -c "Continue from there."
 ```
 
 ## Message History
@@ -53,12 +53,12 @@ older messages into a structured session summary while keeping the most recent m
 the gist of earlier turns without resending every message.
 
 - **Automatic compaction** is evaluated as context usage grows. When prompt size crosses a configured fraction of the
-  context window (about 85% by default, with a warning near 95%), Hand refreshes the summary using the summary model.
-- **Memory flush first.** When memory is enabled, Hand flushes durable memory before auto-compaction so useful facts are
+  context window (about 85% by default, with a warning near 95%), Morph refreshes the summary using the summary model.
+- **Memory flush first.** When memory is enabled, Morph flushes durable memory before auto-compaction so useful facts are
   written out before older messages drop out of the live context. See [Memory](./memory).
 - **History is not deleted.** Compaction summarizes and trims the *in-memory* working history to the summarized point; the
   persisted messages remain in the store and stay searchable.
-- **Manual compaction** (`hand session compact`) forces a summary regardless of the usage threshold and reports the
+- **Manual compaction** (`morph session compact`) forces a summary regardless of the usage threshold and reports the
   resulting context metrics.
 
 The summary model is configured separately from the main model; see [Provider Auth](../guides/provider-auth).
@@ -82,7 +82,7 @@ Archiving removes a session from your active list without losing its content:
 
 ## Gateway Conversations as Sessions
 
-Messaging gateways reuse the same session model. A Slack or Telegram conversation is bound to a Hand session by
+Messaging gateways reuse the same session model. A Slack or Telegram conversation is bound to a Morph session by
 conversation and thread, not by individual sender, so an ongoing channel thread keeps a continuous history. The binding
 is created the first time a conversation is seen and reused afterward. Gateway activity does not change the current
 session used by the TUI and CLI. See [Gateways](./gateways).
@@ -95,7 +95,7 @@ Because history is durable, you can find and revisit past work:
   search is configured, including across sessions. See [Search and Traces](../guides/search-and-traces).
 - **Timeline** hydrates a session for display: paginated messages together with the trace events recorded around them,
   which is how a client rebuilds a transcript view.
-- **Repair** rebuilds the vector index for a session when search results look stale or incomplete (`hand session repair`).
+- **Repair** rebuilds the vector index for a session when search results look stale or incomplete (`morph session repair`).
 
 The agent can reach this same history mid-conversation through the `session_search` and `session_messages`
 [tools](./tools), so it can look back over stored messages without you resending them.

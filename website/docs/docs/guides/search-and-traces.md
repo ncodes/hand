@@ -5,7 +5,7 @@ description: Inspect history, traces, and runtime behavior.
 
 # Search and Traces
 
-Hand keeps durable [session](../concepts/sessions) history in the active [profile](../concepts/profiles) store, so you
+Morph keeps durable [session](../concepts/sessions) history in the active [profile](../concepts/profiles) store, so you
 can find past conversations and inspect what the agent did during a turn. **Search** helps you and the agent recall
 earlier messages; **traces** record the structured event stream behind each session — model requests, tool calls,
 compaction, memory work, and safety decisions.
@@ -20,14 +20,14 @@ Every persisted message is indexed for full-text search. When you ask the agent 
 `session_id` to search everywhere except the current conversation; pass a specific id to search one session. Optional
 filters include `role` (`user`, `assistant`, `tool`) and `tool_name`.
 
-There is no standalone `hand search` CLI command. Recall happens through the agent's tools or by reading trace files
+There is no standalone `morph search` CLI command. Recall happens through the agent's tools or by reading trace files
 directly. Both `session_search` and `session_messages` require the memory capability (`cap.mem`, on by default). See
 [Tools](../concepts/tools).
 
 ### Lexical and hybrid search
 
 Search always starts with **BM25 full-text search** over indexed message content (SQLite FTS5). When vector search is
-enabled, Hand runs a **hybrid** pass: lexical candidates and vector-similarity candidates are merged, then reranked.
+enabled, Morph runs a **hybrid** pass: lexical candidates and vector-similarity candidates are merged, then reranked.
 
 Results are grouped by session, ranked by relevance (and recency when scores tie), and returned with short snippets.
 Cross-session search is useful for finding work you did in an older chat without switching sessions first.
@@ -44,32 +44,32 @@ Vector search improves recall when keywords do not match exactly — paraphrases
 It requires an **embedding** model:
 
 ```bash
-hand config set models.embedding.provider openai
-hand config set models.embedding.name text-embedding-3-small
-hand auth login openai --api-key "<key>"
+morph config set models.embedding.provider openai
+morph config set models.embedding.name text-embedding-3-small
+morph auth login openai --api-key "<key>"
 ```
 
 Vector search defaults to **on** and **required** (`search.vector.enabled` and `search.vector.required`). When
-required is true, Hand expects embedding credentials to resolve — `hand doctor` reports a failure in the **search**
+required is true, Morph expects embedding credentials to resolve — `morph doctor` reports a failure in the **search**
 group if they are missing. To run lexical-only search instead:
 
 ```bash
-hand config set search.vector.enabled false
+morph config set search.vector.enabled false
 ```
 
 Or keep vector enabled but not mandatory:
 
 ```bash
-hand config set search.vector.required false
+morph config set search.vector.required false
 ```
 
 **Reranking** reorders merged candidates. The default reranker type is `deterministic` (score-weighted fusion). You
 can switch to an LLM reranker or tune limits:
 
 ```bash
-hand config set search.enableRerank true
-hand config set reranker.type deterministic
-hand config set reranker.maxCandidates 20
+morph config set search.enableRerank true
+morph config set reranker.type deterministic
+morph config set reranker.maxCandidates 20
 ```
 
 Some memory background jobs use LLM reranking overrides regardless of the default type. See [Memory Guide](./memory) for
@@ -78,7 +78,7 @@ memory-specific retrieval.
 Check effective search settings:
 
 ```bash
-hand doctor
+morph doctor
 ```
 
 Look for the **search** readiness group (`vector`, `rerank`) and the **models** group for embedding configuration. See
@@ -90,8 +90,8 @@ Search indexes are maintained as messages are stored, but vector rows can become
 imports, or interrupted writes. Rebuild them with:
 
 ```bash
-hand session repair
-hand session repair ses_review --full
+morph session repair
+morph session repair ses_review --full
 ```
 
 By default `repair` rebuilds only missing or stale vector artifacts; `--full` rebuilds everything repairable. See the
@@ -117,36 +117,36 @@ Disk and database backends can both be enabled — events are written to every c
 need files or only need database-backed timelines:
 
 ```bash
-hand config set trace.disk.enabled true
-hand config set trace.database.enabled true
-hand config set trace.database.maxEventsPerSession 10000
+morph config set trace.disk.enabled true
+morph config set trace.database.enabled true
+morph config set trace.database.maxEventsPerSession 10000
 ```
 
 Disk trace files live under the profile home:
 
 ```text
-~/.hand/profiles/<profile>/traces/<timestamp>-<session_id>.jsonl
+~/.morph/profiles/<profile>/traces/<timestamp>-<session_id>.jsonl
 ```
 
 Each line is one JSON event (`type`, `timestamp`, `payload`). Multiple turns in the same session append to the same
-file. Use `hand profile path` to find the profile directory.
+file. Use `morph profile path` to find the profile directory.
 
-## Inspecting Traces with `hand trace view`
+## Inspecting Traces with `morph trace view`
 
 The trace viewer is a local web UI for browsing JSONL trace files. It does not require a running daemon. Use
 `--profile` to inspect another profile's traces:
 
 ```bash
-hand trace view
-hand --profile work trace view
+morph trace view
+morph --profile work trace view
 ```
 
 By default it reads from the active profile's trace directory (`trace.disk.dir`, falling back to `<profile>/traces`).
 Override the directory or bind address:
 
 ```bash
-hand trace view --trace-dir ~/.hand/profiles/work/traces
-hand trace view --listen 127.0.0.1:8787
+morph trace view --trace-dir ~/.morph/profiles/work/traces
+morph trace view --listen 127.0.0.1:8787
 ```
 
 The command prints a local URL when the server starts. Open it in a browser to browse sessions, inspect the event
@@ -158,7 +158,7 @@ it when the browser prompts:
 ```bash
 TRACE_PASSWORD="$(openssl rand -hex 16)"
 echo "Trace viewer password: $TRACE_PASSWORD"
-hand trace view --username admin --password "$TRACE_PASSWORD"
+morph trace view --username admin --password "$TRACE_PASSWORD"
 ```
 
 For local-only use on loopback, a fixed password you choose is fine too.
@@ -173,14 +173,14 @@ conversation text, and trace events supply tool-call detail, timing, and runtime
 message list alone.
 
 Database-backed traces (`trace.database.enabled`) are what populate trace events in live client timelines. Disk
-JSONL files are primarily for offline inspection through `hand trace view`. Messages still hydrate from session
+JSONL files are primarily for offline inspection through `morph trace view`. Messages still hydrate from session
 storage when database tracing is off, but trace-event detail in the TUI will be empty.
 
 See the [TUI Guide](./tui) for how the terminal client displays hydrated transcripts.
 
 ## SQLite FTS5
 
-Session message search depends on SQLite's FTS5 extension. Pre-built Hand binaries and the install script include FTS5
+Session message search depends on SQLite's FTS5 extension. Pre-built Morph binaries and the install script include FTS5
 support. If you **build from source**, compile with CGO enabled and the `sqlite_fts5` build tag — the Makefile targets
 handle this automatically:
 
@@ -206,7 +206,7 @@ End users who install via the script do not need to configure FTS5 separately.
 
 - Set `models.embedding` and authenticate the provider — see [Provider Auth](./provider-auth).
 - Or disable vector search (`search.vector.enabled false`) for lexical-only mode.
-- Run `hand doctor` and fix **search** / **models** failures before expecting hybrid results.
+- Run `morph doctor` and fix **search** / **models** failures before expecting hybrid results.
 
 ### Trace files missing or empty
 
@@ -216,12 +216,12 @@ End users who install via the script do not need to configure FTS5 separately.
 
 ### Ambiguous trace files
 
-Hand expects at most one JSONL file per session id (`*<session_id>.jsonl`). If multiple files match the same session,
+Morph expects at most one JSONL file per session id (`*<session_id>.jsonl`). If multiple files match the same session,
 disk tracing is disabled for that session to avoid corrupting output. Remove or consolidate duplicate files.
 
 ### Stale hybrid rankings
 
-Run `hand session repair` for the affected session. See [Session Guide](./sessions).
+Run `morph session repair` for the affected session. See [Session Guide](./sessions).
 
 ## Where To Go Next
 
