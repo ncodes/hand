@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/wandxy/hand/internal/constants"
+	"github.com/wandxy/morph/internal/constants"
 )
 
 const (

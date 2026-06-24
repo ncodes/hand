@@ -21,10 +21,10 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 
-	models "github.com/wandxy/hand/internal/model"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	models "github.com/wandxy/morph/internal/model"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func TestNewOpenAIClient_IncludesAPIKeyOptionWhenProvided(t *testing.T) {
@@ -211,7 +211,7 @@ func TestOpenAIClient_ChatRequiresModel(t *testing.T) {
 	client := &OpenAIClient{api: models.APIOpenAICompletions}
 
 	_, err := client.Complete(context.Background(), Request{
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model is required")
 }
@@ -227,7 +227,7 @@ func TestOpenAIClient_ChatRequiresAPI(t *testing.T) {
 	client := &OpenAIClient{}
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model API is required")
 }
@@ -236,19 +236,19 @@ func TestOpenAIClient_ChatRequiresSelectedAPIHandler(t *testing.T) {
 	client := &OpenAIClient{api: models.APIOpenAIResponses}
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model client is required")
 }
 
-func TestOpenAIClient_ChatRequiresChatCompletionsHandler(t *testing.T) {
+func TestOpenAIClient_ChatRequiresChatCompletionsHand(t *testing.T) {
 	client := &OpenAIClient{api: models.APIOpenAICompletions, createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 		return &responses.Response{}, nil
 	}}
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model client is required")
 }
@@ -258,7 +258,7 @@ func TestOpenAIClient_ChatRejectsInvalidMessageRole(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.Role("invalid"), Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.Role("invalid"), Content: "hello"}},
 	})
 	require.EqualError(t, err, "message role must be one of user, assistant, or tool; developer messages must be provided via instructions")
 }
@@ -268,7 +268,7 @@ func TestOpenAIClient_ChatRejectsEmptyMessageContent(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "   "}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "   "}},
 	})
 	require.EqualError(t, err, "message content is required")
 }
@@ -278,7 +278,7 @@ func TestOpenAIClient_ChatRejectsDeveloperMessageInConversation(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleDeveloper, Content: "system"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleDeveloper, Content: "system"}},
 	})
 	require.EqualError(t, err, "developer messages must be provided via instructions")
 }
@@ -288,7 +288,7 @@ func TestOpenAIClient_ChatRejectsBlankToolDefinitionName(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 		Tools:    []ToolDefinition{{Name: "   "}},
 	})
 	require.EqualError(t, err, "tool name is required")
@@ -306,7 +306,7 @@ func TestOpenAIClient_ChatReturnsAPIErrorChatCompletions(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.ErrorIs(t, err, expectedErr)
 }
@@ -322,7 +322,7 @@ func TestOpenAIClient_ChatRequiresChatCompletionsResponse(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model response is required")
 }
@@ -347,9 +347,9 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsChatCompletionsRequest(t *test
 		Model:        "test-model",
 		API:          models.APIOpenAICompletions,
 		Instructions: "  be concise  ",
-		Messages: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "  hello  "},
-			{Role: handmsg.RoleAssistant, Content: " previous reply "},
+		Messages: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "  hello  "},
+			{Role: morphmsg.RoleAssistant, Content: " previous reply "},
 		},
 		MaxOutputTokens: 123,
 		Temperature:     0.7,
@@ -390,7 +390,7 @@ func TestOpenAIClient_ChatBuildsChatCompletionsStructuredOutputRequest(t *testin
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 		StructuredOutput: &StructuredOutput{
 			Name:        "session_summary",
 			Description: "summary payload",
@@ -483,7 +483,7 @@ func TestOpenAIClient_ChatReturnsToolCallsFromChatCompletions(t *testing.T) {
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "what time is it?"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "what time is it?"}},
 		Tools:    []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
 	})
 	require.NoError(t, err)
@@ -508,7 +508,7 @@ func TestOpenAIClient_ChatUsesFallbackIDForChatCompletionToolCallWithoutID(t *te
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.NoError(t, err)
 	require.Equal(t, []ToolCall{{ID: "functions.time:0", Name: "time", Input: "{}"}}, resp.ToolCalls)
@@ -532,7 +532,7 @@ func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutName(t *testing.T)
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "tool call name is required")
 }
@@ -548,7 +548,7 @@ func TestOpenAIClient_ChatRejectsChatCompletionResponseWithoutChoices(t *testing
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, `chat completion response "resp_123" contained no choices`)
 }
@@ -570,7 +570,7 @@ func TestOpenAIClient_ChatRejectsEmptyChatCompletionResponse(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model returned empty response")
 }
@@ -592,7 +592,7 @@ func TestOpenAIClient_ChatUsesRefusalAsOutputText(t *testing.T) {
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.NoError(t, err)
 	require.Equal(t, &Response{ID: "resp_refusal", Model: "returned-model", OutputText: "I can't do that."}, resp)
@@ -622,10 +622,10 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T)
 		Model:        "gpt-5.1",
 		API:          models.APIOpenAIResponses,
 		Instructions: "  be concise  ",
-		Messages: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "  hello  "},
-			{Role: handmsg.RoleAssistant, Content: "calling tool", ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: " {} "}}},
-			{Role: handmsg.RoleTool, Content: `{"output":"2026-03-24T00:00:00Z"}`, ToolCallID: "call-1"},
+		Messages: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "  hello  "},
+			{Role: morphmsg.RoleAssistant, Content: "calling tool", ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "time", Input: " {} "}}},
+			{Role: morphmsg.RoleTool, Content: `{"output":"2026-03-24T00:00:00Z"}`, ToolCallID: "call-1"},
 		},
 		Tools:           []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
 		MaxOutputTokens: 111,
@@ -684,7 +684,7 @@ func TestOpenAIClient_ChatRoutesConfiguredAPIToResponses(t *testing.T) {
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.NoError(t, err)
@@ -720,7 +720,7 @@ func TestOpenAIClient_ChatBuildsResponsesStructuredOutputRequest(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 		StructuredOutput: &StructuredOutput{
 			Name:        "session_summary",
 			Description: "summary payload",
@@ -759,7 +759,7 @@ func TestOpenAIClient_ChatReturnsToolCallsFromResponses(t *testing.T) {
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "what time is it?"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "what time is it?"}},
 		Tools:    []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
 	})
 	require.NoError(t, err)
@@ -779,7 +779,7 @@ func TestOpenAIClient_ChatReturnsResponseErrorResponses(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.ErrorIs(t, err, expectedErr)
 }
@@ -795,7 +795,7 @@ func TestOpenAIClient_ChatRequiresResponsesResponse(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model response is required")
 }
@@ -811,7 +811,7 @@ func TestOpenAIClient_ChatRejectsEmptyResponsesOutput(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model response contained no text or tool calls")
 }
@@ -829,7 +829,7 @@ func TestOpenAIClient_ChatUsesFallbackIDForResponseToolCallWithoutID(t *testing.
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.NoError(t, err)
 	require.Equal(t, []ToolCall{{ID: "functions.time:0", Name: "time", Input: "{}"}}, resp.ToolCalls)
@@ -848,7 +848,7 @@ func TestOpenAIClient_ChatRejectsResponseToolCallWithoutName(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "tool call name is required")
 }
@@ -867,7 +867,7 @@ func TestOpenAIClient_ChatReturnsResponsesFailureError(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "provider failed")
 }
@@ -886,7 +886,7 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithoutUsableOutput(t *
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response incomplete: max_output_tokens")
 }
@@ -913,7 +913,7 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteSuccessWithText(t *testing.T
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.NoError(t, err)
 	require.Equal(t, "partial answer", resp.OutputText)
@@ -930,7 +930,7 @@ func TestOpenAIClient_ChatRejectsUnexpectedResponsesStatus(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response status is in_progress")
 }
@@ -946,7 +946,7 @@ func TestOpenAIClient_ChatReturnsResponsesFailureErrorWithoutProviderMessage(t *
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response failed")
 }
@@ -962,12 +962,12 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithUnknownReason(t *te
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response incomplete: unknown")
 }
 
-func TestHandleResponsesStreamEvent_ReturnsFailedTerminalResponse(t *testing.T) {
+func TestHandesponsesStreamEvent_ReturnsFailedTerminalResponse(t *testing.T) {
 	var event responses.ResponseStreamEventUnion
 	require.NoError(t, event.UnmarshalJSON([]byte(`{
 		"type":"response.failed",
@@ -989,7 +989,7 @@ func TestHandleResponsesStreamEvent_ReturnsFailedTerminalResponse(t *testing.T) 
 		}
 	}`)))
 
-	_, terminal, err := handleResponsesStreamEvent(event)
+	_, terminal, err := HandesponsesStreamEvent(event)
 
 	require.NoError(t, err)
 	require.NotNil(t, terminal)
@@ -997,7 +997,7 @@ func TestHandleResponsesStreamEvent_ReturnsFailedTerminalResponse(t *testing.T) 
 	require.Equal(t, "provider failed", terminal.Error.Message)
 }
 
-func TestHandleResponsesStreamEvent_ReturnsIncompleteTerminalResponse(t *testing.T) {
+func TestHandesponsesStreamEvent_ReturnsIncompleteTerminalResponse(t *testing.T) {
 	var event responses.ResponseStreamEventUnion
 	require.NoError(t, event.UnmarshalJSON([]byte(`{
 		"type":"response.incomplete",
@@ -1019,7 +1019,7 @@ func TestHandleResponsesStreamEvent_ReturnsIncompleteTerminalResponse(t *testing
 		}
 	}`)))
 
-	_, terminal, err := handleResponsesStreamEvent(event)
+	_, terminal, err := HandesponsesStreamEvent(event)
 
 	require.NoError(t, err)
 	require.NotNil(t, terminal)
@@ -1055,7 +1055,7 @@ func TestOpenAIClient_ChatLogsRequestDebugMetadataForChatCompletions(t *testing.
 	_, err := client.Complete(context.Background(), Request{
 		Model:         "test-model",
 		API:           models.APIOpenAICompletions,
-		Messages:      []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages:      []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 		DebugRequests: true,
 	})
 	require.NoError(t, err)
@@ -1090,7 +1090,7 @@ func TestOpenAIClient_ChatLogsRequestDebugMetadataForResponses(t *testing.T) {
 		},
 	}
 
-	_, err := client.Complete(context.Background(), Request{Model: "gpt-5.1", API: models.APIOpenAIResponses, Instructions: "be concise", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, DebugRequests: true})
+	_, err := client.Complete(context.Background(), Request{Model: "gpt-5.1", API: models.APIOpenAIResponses, Instructions: "be concise", Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}}, DebugRequests: true})
 	require.NoError(t, err)
 	output := buf.String()
 	require.Contains(t, output, "model client request started")
@@ -1125,7 +1125,7 @@ func TestOpenAIClient_ChatLogsModelClientRequestFailure(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.EqualError(t, err, "upstream down")
@@ -1165,7 +1165,7 @@ func TestOpenAIClient_ChatEnrichesAPIErrorWithResponseBody(t *testing.T) {
 	_, err = client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.Error(t, err)
@@ -1194,7 +1194,7 @@ func TestGetModelClientErrorKind_ClassifiesErrors(t *testing.T) {
 }
 
 func TestNormalizeGenerateRequestRequiresAPI(t *testing.T) {
-	_, err := normalizeGenerateRequest(Request{Model: "test-model", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}})
+	_, err := normalizeGenerateRequest(Request{Model: "test-model", Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}}})
 	require.EqualError(t, err, "model API is required")
 }
 
@@ -1221,7 +1221,7 @@ func TestNormalizeGenerateRequestAcceptsAPI(t *testing.T) {
 			normalized, err := normalizeGenerateRequest(Request{
 				Model:    "test-model",
 				API:      tt.api,
-				Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+				Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 			})
 
 			require.NoError(t, err)
@@ -1234,7 +1234,7 @@ func TestNormalizeGenerateRequestRejectsInvalidExplicitAPI(t *testing.T) {
 	_, err := normalizeGenerateRequest(Request{
 		Model:    "test-model",
 		API:      models.APIAnthropicMessages,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.EqualError(t, err, "model API must be one of: openai-completions, openai-responses")
@@ -1244,8 +1244,8 @@ func TestBuildChatCompletionsRequestIncludesPlainAssistantMessage(t *testing.T) 
 	params := buildChatCompletionsRequest(normalizedGenerateRequest{
 		Model: "test-model",
 		API:   models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{
-			Role:    handmsg.RoleAssistant,
+		Messages: []morphmsg.Message{{
+			Role:    morphmsg.RoleAssistant,
 			Content: "hello back",
 		}},
 	})
@@ -1260,10 +1260,10 @@ func TestBuildChatCompletionsRequestIncludesAssistantToolCallContent(t *testing.
 	params := buildChatCompletionsRequest(normalizedGenerateRequest{
 		Model: "test-model",
 		API:   models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{
-			Role:      handmsg.RoleAssistant,
+		Messages: []morphmsg.Message{{
+			Role:      morphmsg.RoleAssistant,
 			Content:   "calling tool",
-			ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+			ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 		}},
 	})
 
@@ -1278,9 +1278,9 @@ func TestBuildChatCompletionsRequestIncludesToolMessages(t *testing.T) {
 		Model:        "test-model",
 		API:          models.APIOpenAICompletions,
 		Instructions: "be concise",
-		Messages: []handmsg.Message{
-			{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}},
-			{Role: handmsg.RoleTool, Content: `{"output":"2026-03-24T00:00:00Z"}`, ToolCallID: "call-1"},
+		Messages: []morphmsg.Message{
+			{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}},
+			{Role: morphmsg.RoleTool, Content: `{"output":"2026-03-24T00:00:00Z"}`, ToolCallID: "call-1"},
 		},
 		Tools: []ToolDefinition{{Name: "time", Description: "Returns time", InputSchema: map[string]any{"type": "object"}}},
 	})
@@ -1375,28 +1375,28 @@ func TestNormalizeStrictJSONSchema_DropsFreeformObjectProperties(t *testing.T) {
 }
 
 func TestNormalizeMessagesAcceptsAssistantToolCallWithoutContent(t *testing.T) {
-	messages, err := normalizeMessages([]handmsg.Message{{
-		Role:      handmsg.RoleAssistant,
-		ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: " {} "}},
+	messages, err := normalizeMessages([]morphmsg.Message{{
+		Role:      morphmsg.RoleAssistant,
+		ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "time", Input: " {} "}},
 	}})
 	require.NoError(t, err)
-	require.Equal(t, []handmsg.Message{{
-		Role:      handmsg.RoleAssistant,
-		ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+	require.Equal(t, []morphmsg.Message{{
+		Role:      morphmsg.RoleAssistant,
+		ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 	}}, messages)
 }
 
 func TestNormalizeMessagesPropagatesToolCallNormalizationError(t *testing.T) {
-	_, err := normalizeMessages([]handmsg.Message{{
-		Role:      handmsg.RoleAssistant,
-		ToolCalls: []handmsg.ToolCall{{Name: "time", Input: "{}"}},
+	_, err := normalizeMessages([]morphmsg.Message{{
+		Role:      morphmsg.RoleAssistant,
+		ToolCalls: []morphmsg.ToolCall{{Name: "time", Input: "{}"}},
 	}})
 	require.EqualError(t, err, "tool call id is required")
 }
 
 func TestNormalizeMessagesTrimsName(t *testing.T) {
-	messages, err := normalizeMessages([]handmsg.Message{{
-		Role:       handmsg.RoleTool,
+	messages, err := normalizeMessages([]morphmsg.Message{{
+		Role:       morphmsg.RoleTool,
 		Content:    `{"output":"ok"}`,
 		Name:       " time ",
 		ToolCallID: "call-1",
@@ -1406,20 +1406,20 @@ func TestNormalizeMessagesTrimsName(t *testing.T) {
 }
 
 func TestNormalizeMessagesRequiresToolCallIDForToolMessages(t *testing.T) {
-	_, err := normalizeMessages([]handmsg.Message{{
-		Role:    handmsg.RoleTool,
+	_, err := normalizeMessages([]morphmsg.Message{{
+		Role:    morphmsg.RoleTool,
 		Content: `{"output":"ok"}`,
 	}})
 	require.EqualError(t, err, "tool call id is required")
 }
 
 func TestNormalizeToolCallsRejectsMissingID(t *testing.T) {
-	_, err := normalizeToolCalls([]handmsg.ToolCall{{Name: "time", Input: "{}"}})
+	_, err := normalizeToolCalls([]morphmsg.ToolCall{{Name: "time", Input: "{}"}})
 	require.EqualError(t, err, "tool call id is required")
 }
 
 func TestNormalizeToolCallsRejectsMissingName(t *testing.T) {
-	_, err := normalizeToolCalls([]handmsg.ToolCall{{ID: "call-1", Input: "{}"}})
+	_, err := normalizeToolCalls([]morphmsg.ToolCall{{ID: "call-1", Input: "{}"}})
 	require.EqualError(t, err, "tool call name is required")
 }
 
@@ -1487,7 +1487,7 @@ func chatStreamRequest() Request {
 	return Request{
 		Model:    "test-model",
 		API:      models.APIOpenAICompletions,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}
 }
 
@@ -1495,7 +1495,7 @@ func responsesStreamRequest() Request {
 	return Request{
 		Model:    "gpt-5.1",
 		API:      models.APIOpenAIResponses,
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}
 }
 
@@ -1522,13 +1522,13 @@ func TestOpenAIClient_CompleteStreamDelegatesWithStreamFlag(t *testing.T) {
 	require.Equal(t, 6, resp.TotalTokens)
 }
 
-func TestOpenAIClient_StreamRequiresResponseStreamHandler(t *testing.T) {
+func TestOpenAIClient_StreamRequiresResponseStreamHand(t *testing.T) {
 	client := &OpenAIClient{api: models.APIOpenAIResponses}
 	_, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
 	require.EqualError(t, err, "model client is required")
 }
 
-func TestOpenAIClient_StreamRequiresChatStreamHandler(t *testing.T) {
+func TestOpenAIClient_StreamRequiresChatStreamHand(t *testing.T) {
 	client := &OpenAIClient{api: models.APIOpenAICompletions}
 	_, err := client.CompleteStream(context.Background(), chatStreamRequest(), nil)
 	require.EqualError(t, err, "model client is required")
@@ -1895,40 +1895,40 @@ func TestOpenAIClient_CompleteResponsesStreamSkipsEmptyTextDeltas(t *testing.T) 
 	require.Equal(t, []StreamDelta{{Channel: models.StreamChannelAssistant, Text: "ok"}}, deltas)
 }
 
-func TestHandleResponsesStreamEvent_ReturnsOutputTextDelta(t *testing.T) {
+func TestHandesponsesStreamEvent_ReturnsOutputTextDelta(t *testing.T) {
 	var event responses.ResponseStreamEventUnion
 	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"hello"}`)))
 
-	delta, terminal, err := handleResponsesStreamEvent(event)
+	delta, terminal, err := HandesponsesStreamEvent(event)
 
 	require.NoError(t, err)
 	require.Nil(t, terminal)
 	require.Equal(t, StreamDelta{Channel: models.StreamChannelAssistant, Text: "hello"}, delta)
 }
 
-func TestHandleResponsesStreamEvent_ReturnsReasoningTextDelta(t *testing.T) {
+func TestHandesponsesStreamEvent_ReturnsReasoningTextDelta(t *testing.T) {
 	var event responses.ResponseStreamEventUnion
 	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"response.reasoning_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"thinking..."}`)))
 
-	delta, terminal, err := handleResponsesStreamEvent(event)
+	delta, terminal, err := HandesponsesStreamEvent(event)
 
 	require.NoError(t, err)
 	require.Nil(t, terminal)
 	require.Equal(t, StreamDelta{Channel: models.StreamChannelReasoning, Text: "thinking..."}, delta)
 }
 
-func TestHandleResponsesStreamEvent_ReturnsReasoningSummaryTextDelta(t *testing.T) {
+func TestHandesponsesStreamEvent_ReturnsReasoningSummaryTextDelta(t *testing.T) {
 	var event responses.ResponseStreamEventUnion
 	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"response.reasoning_summary_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"summary"}`)))
 
-	delta, terminal, err := handleResponsesStreamEvent(event)
+	delta, terminal, err := HandesponsesStreamEvent(event)
 
 	require.NoError(t, err)
 	require.Nil(t, terminal)
 	require.Equal(t, StreamDelta{Channel: models.StreamChannelReasoning, Text: "summary"}, delta)
 }
 
-func TestHandleResponsesStreamEvent_ReturnsCompletedTerminalResponse(t *testing.T) {
+func TestHandesponsesStreamEvent_ReturnsCompletedTerminalResponse(t *testing.T) {
 	var event responses.ResponseStreamEventUnion
 	require.NoError(t, event.UnmarshalJSON([]byte(`{
 		"type":"response.completed",
@@ -1949,36 +1949,36 @@ func TestHandleResponsesStreamEvent_ReturnsCompletedTerminalResponse(t *testing.
 		}
 	}`)))
 
-	_, terminal, err := handleResponsesStreamEvent(event)
+	_, terminal, err := HandesponsesStreamEvent(event)
 
 	require.NoError(t, err)
 	require.NotNil(t, terminal)
 	require.Equal(t, responses.ResponseStatusCompleted, terminal.Status)
 }
 
-func TestHandleResponsesStreamEvent_ReturnsErrorWithMessage(t *testing.T) {
+func TestHandesponsesStreamEvent_ReturnsErrorWithMessage(t *testing.T) {
 	var event responses.ResponseStreamEventUnion
 	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"error","code":"server_error","message":"something broke"}`)))
 
-	_, _, err := handleResponsesStreamEvent(event)
+	_, _, err := HandesponsesStreamEvent(event)
 
 	require.EqualError(t, err, "something broke")
 }
 
-func TestHandleResponsesStreamEvent_ReturnsErrorWithDefaultMessage(t *testing.T) {
+func TestHandesponsesStreamEvent_ReturnsErrorWithDefaultMessage(t *testing.T) {
 	var event responses.ResponseStreamEventUnion
 	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"error","code":"server_error","message":""}`)))
 
-	_, _, err := handleResponsesStreamEvent(event)
+	_, _, err := HandesponsesStreamEvent(event)
 
 	require.EqualError(t, err, "response failed")
 }
 
-func TestHandleResponsesStreamEvent_ReturnsEmptyForUnknownEvent(t *testing.T) {
+func TestHandesponsesStreamEvent_ReturnsEmptyForUnknownEvent(t *testing.T) {
 	var event responses.ResponseStreamEventUnion
 	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"response.created","sequence_number":0,"response":{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","status":"in_progress","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"text":{"format":{"type":"text"}}}}`)))
 
-	delta, terminal, err := handleResponsesStreamEvent(event)
+	delta, terminal, err := HandesponsesStreamEvent(event)
 
 	require.NoError(t, err)
 	require.Nil(t, terminal)
@@ -2118,7 +2118,7 @@ func TestOpenAIClient_StreamLogsDebugDumpForChatCompletions(t *testing.T) {
 	_, err := client.CompleteStream(context.Background(), Request{
 		Model:         "test-model",
 		API:           models.APIOpenAICompletions,
-		Messages:      []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages:      []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 		DebugRequests: true,
 	}, nil)
 	require.NoError(t, err)
@@ -2149,7 +2149,7 @@ func TestOpenAIClient_StreamLogsDebugDumpForResponses(t *testing.T) {
 	_, err := client.CompleteStream(context.Background(), Request{
 		Model:         "gpt-5.1",
 		API:           models.APIOpenAIResponses,
-		Messages:      []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages:      []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 		DebugRequests: true,
 	}, nil)
 	require.NoError(t, err)

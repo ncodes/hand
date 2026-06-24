@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/hand/internal/tui/render"
-	"github.com/wandxy/hand/pkg/termtheme"
+	"github.com/wandxy/morph/internal/tui/render"
+	"github.com/wandxy/morph/pkg/termtheme"
 )
 
 func TestAdaptTUITheme_UsesDerivedDarkPaletteForNonBlackBackground(t *testing.T) {

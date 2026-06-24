@@ -54,7 +54,7 @@ const (
 	EvtMemoryExtractionCandidateGenerated         = "memory.extraction.candidate_generated"
 	EvtMemoryExtractionCandidateRejected          = "memory.extraction.candidate_rejected"
 	EvtMemoryExtractionConfidenceScored           = "memory.extraction.confidence_scored"
-	EvtMemoryExtractionAdmissionHandoff           = "memory.extraction.admission_handoff"
+	EvtMemoryExtractionAdmissionMorphoff           = "memory.extraction.admission_morphoff"
 	EvtMemoryExtractionMemoryWritten              = "memory.extraction.memory_written"
 	EvtMemoryExtractionDuplicateSkipped           = "memory.extraction.duplicate_skipped"
 	EvtMemoryExtractionFailed                     = "memory.extraction.failed"
@@ -163,7 +163,7 @@ var allTraceEventTypes = []string{
 	EvtMemoryExtractionCandidateGenerated,
 	EvtMemoryExtractionCandidateRejected,
 	EvtMemoryExtractionConfidenceScored,
-	EvtMemoryExtractionAdmissionHandoff,
+	EvtMemoryExtractionAdmissionMorphoff,
 	EvtMemoryExtractionMemoryWritten,
 	EvtMemoryExtractionDuplicateSkipped,
 	EvtMemoryExtractionFailed,

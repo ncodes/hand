@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func TestDefaultPathUsesActiveProfile(t *testing.T) {

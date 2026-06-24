@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func stubModelProviderToken(t *testing.T, fn func(string) (StoredModelCredential, error)) {

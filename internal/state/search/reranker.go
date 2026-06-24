@@ -8,8 +8,8 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 var retrievalLog = logutils.Module("storage.retrieval")

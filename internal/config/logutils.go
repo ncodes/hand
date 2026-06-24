@@ -4,16 +4,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/datadir"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/datadir"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
 	logutils.SetConfigProvider(func() logutils.Config {
 		cfg := Get()
 		settings := logutils.Config{
-			LogFile:    filepath.Join(datadir.HomeDir(), "hand.log"),
+			LogFile:    filepath.Join(datadir.HomeDir(), "morph.log"),
 			MaxSizeMB:  constants.DefaultLogMaxSizeMB,
 			MaxBackups: constants.DefaultLogMaxBackups,
 			MaxAgeDays: constants.DefaultLogMaxAgeDays,

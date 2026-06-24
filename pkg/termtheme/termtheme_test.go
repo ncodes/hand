@@ -174,7 +174,7 @@ func TestDetectOpenTTYError(t *testing.T) {
 }
 
 func TestDetectUsesExplicitBackgroundEnvironment(t *testing.T) {
-	withEnv(t, map[string]string{"HAND_TUI_BACKGROUND": "#1e1e2e"})
+	withEnv(t, map[string]string{"MORPH_TUI_BACKGROUND": "#1e1e2e"})
 
 	res := Detect(time.Millisecond)
 	if res.Theme != "dark" || res.Background != "#1e1e2e" || res.Source != "environment" || res.Error != "" {

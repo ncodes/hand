@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/nanoid"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 var (
@@ -179,11 +179,11 @@ func TestCloneMessages(t *testing.T) {
 	require.Nil(t, CloneMessages(nil))
 
 	createdAt := time.Date(2026, 4, 2, 10, 0, 0, 0, time.UTC)
-	original := []handmsg.Message{{
-		Role:      handmsg.RoleAssistant,
+	original := []morphmsg.Message{{
+		Role:      morphmsg.RoleAssistant,
 		Content:   "reply",
 		CreatedAt: createdAt,
-		ToolCalls: []handmsg.ToolCall{{
+		ToolCalls: []morphmsg.ToolCall{{
 			ID:    "call-1",
 			Name:  "lookup",
 			Input: "{\"q\":\"hello\"}",

@@ -11,8 +11,8 @@ import (
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/shared"
 
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // chatCompletionsHandler handles chat completions requests.
@@ -130,9 +130,9 @@ func buildChatCompletionsRequest(req normalizedGenerateRequest) openai.ChatCompl
 
 	for _, message := range req.Messages {
 		switch message.Role {
-		case handmsg.RoleUser:
+		case morphmsg.RoleUser:
 			messages = append(messages, openai.UserMessage(message.Content))
-		case handmsg.RoleAssistant:
+		case morphmsg.RoleAssistant:
 			if len(message.ToolCalls) == 0 {
 				messages = append(messages, openai.AssistantMessage(message.Content))
 				continue
@@ -158,7 +158,7 @@ func buildChatCompletionsRequest(req normalizedGenerateRequest) openai.ChatCompl
 				}
 			}
 			messages = append(messages, openai.ChatCompletionMessageParamUnion{OfAssistant: &assistant})
-		case handmsg.RoleTool:
+		case morphmsg.RoleTool:
 			messages = append(messages, openai.ToolMessage(message.Content, message.ToolCallID))
 		}
 	}

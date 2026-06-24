@@ -8,26 +8,26 @@ import (
 	"strings"
 	"time"
 
-	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
-	"github.com/wandxy/hand/internal/agent/context/compaction"
-	summarizer "github.com/wandxy/hand/internal/agent/context/summary"
-	"github.com/wandxy/hand/internal/agent/runcontext"
-	"github.com/wandxy/hand/internal/config"
-	envbudget "github.com/wandxy/hand/internal/environment/budget"
-	envtypes "github.com/wandxy/hand/internal/environment/types"
-	"github.com/wandxy/hand/internal/guardrails"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	"github.com/wandxy/hand/internal/memory"
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/profile"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/internal/trace"
-	agentcore "github.com/wandxy/hand/pkg/agent"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
-	agenttool "github.com/wandxy/hand/pkg/agent/tool"
+	ctxbuilder "github.com/wandxy/morph/internal/agent/context"
+	"github.com/wandxy/morph/internal/agent/context/compaction"
+	summarizer "github.com/wandxy/morph/internal/agent/context/summary"
+	"github.com/wandxy/morph/internal/agent/runcontext"
+	"github.com/wandxy/morph/internal/config"
+	envbudget "github.com/wandxy/morph/internal/environment/budget"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/guardrails"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/internal/memory"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/profile"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/trace"
+	agentcore "github.com/wandxy/morph/pkg/agent"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agentprompt "github.com/wandxy/morph/pkg/agent/prompt"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
+	agenttool "github.com/wandxy/morph/pkg/agent/tool"
 )
 
 const requestInstructionName = "request.instruct"
@@ -110,7 +110,7 @@ type Turn struct {
 	// Plan state store keeps active plan context for the turn.
 	plans planStateStore
 
-	// env carries the Hand runtime environment for turn-scoped services.
+	// env carries the Morph runtime environment for turn-scoped services.
 	env any
 
 	// Tool invocation function for executing tool calls during runtime hooks.
@@ -129,10 +129,10 @@ type Turn struct {
 	memoryInstruction instruct.Instruction
 
 	// Persisted messages loaded before the turn starts.
-	sessionHistory []handmsg.Message
+	sessionHistory []morphmsg.Message
 
 	// Messages emitted during the current turn.
-	emittedMessages []handmsg.Message
+	emittedMessages []morphmsg.Message
 
 	// Summary state used for active context assembly.
 	summary *summarizer.State
@@ -446,7 +446,7 @@ func (t *Turn) environmentToolPolicy() (tools.Policy, bool) {
 	return policy, ok
 }
 
-// Run executes the turn's logic, handling instructions, tool actions, tracing,
+// Run executes the turn's logic, morphling instructions, tool actions, tracing,
 // safety enforcement, and returns the final assistant reply for this turn.
 func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOptions) (string, error) {
 	var traceSession trace.Session
@@ -512,14 +512,14 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 			return agentcore.InputCheck{Blocked: true, Reply: inputSafety.RefusalMessage}, nil
 		},
 		AcceptUserMessage: func(_ context.Context, msg string) error {
-			userMessage, err := handmsg.NewMessage(handmsg.RoleUser, msg)
+			userMessage, err := morphmsg.NewMessage(morphmsg.RoleUser, msg)
 			if err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return err
 			}
 			t.emittedMessages = append(t.emittedMessages, userMessage)
 
-			if err := t.appendSessionMessages([]handmsg.Message{userMessage}); err != nil {
+			if err := t.appendSessionMessages([]morphmsg.Message{userMessage}); err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return err
 			}
@@ -666,7 +666,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 			if !resp.RequiresToolCalls {
 				reply := t.applyAssistantOutputSafety(traceSession, resp.OutputText, streamingEnabled)
 
-				assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, reply)
+				assistantMessage, err := morphmsg.NewMessage(morphmsg.RoleAssistant, reply)
 				if err != nil {
 					traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 					return agentcore.LoopDecision{}, err
@@ -676,7 +676,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 				t.emittedMessages = append(t.emittedMessages, assistantMessage)
 
 				// Append assistant message to session history.
-				if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
+				if err := t.appendSessionMessages([]morphmsg.Message{assistantMessage}); err != nil {
 					traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 					return agentcore.LoopDecision{}, err
 				}
@@ -707,7 +707,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 
 			// Append assistant message to emitted messages.
 			t.emittedMessages = append(t.emittedMessages, assistantMessage)
-			if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
+			if err := t.appendSessionMessages([]morphmsg.Message{assistantMessage}); err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return agentcore.LoopDecision{}, err
 			}
@@ -755,7 +755,7 @@ func (t *Turn) trimSessionHistoryToSummary() {
 		return
 	}
 
-	t.sessionHistory = handmsg.CloneMessages(t.sessionHistory[delta:])
+	t.sessionHistory = morphmsg.CloneMessages(t.sessionHistory[delta:])
 	t.sessionHistoryOffset = targetOffset
 }
 
@@ -801,7 +801,7 @@ func (t *Turn) canCompactPersistedHistory() bool {
 }
 
 // appendSessionMessages persists new emitted messages to the session state.
-func (t *Turn) appendSessionMessages(messages []handmsg.Message) error {
+func (t *Turn) appendSessionMessages(messages []morphmsg.Message) error {
 	return t.sessionStore.AppendMessages(t.ctx, t.sessionID, messages)
 }
 
@@ -1024,11 +1024,11 @@ func (t *Turn) executeToolCalls(
 	traceSession trace.Session,
 	toolCalls []models.ToolCall,
 	definitions []models.ToolDefinition,
-) ([]handmsg.Message, error) {
+) ([]morphmsg.Message, error) {
 	return agentcore.ExecuteToolCalls(ctx, agentcore.ToolCallExecutionOptions{
 		ToolCalls:   toolCalls,
 		Definitions: definitions,
-		Execute: func(ctx context.Context, toolCall models.ToolCall) (handmsg.Message, error) {
+		Execute: func(ctx context.Context, toolCall models.ToolCall) (morphmsg.Message, error) {
 			return t.executeToolCall(ctx, traceSession, toolCall)
 		},
 	})
@@ -1038,9 +1038,9 @@ func (t *Turn) executeToolCall(
 	ctx context.Context,
 	traceSession trace.Session,
 	toolCall models.ToolCall,
-) (handmsg.Message, error) {
+) (morphmsg.Message, error) {
 	if err := ctx.Err(); err != nil {
-		return handmsg.Message{}, err
+		return morphmsg.Message{}, err
 	}
 
 	agentLog.Info().
@@ -1078,10 +1078,10 @@ func (t *Turn) executeToolCall(
 }
 
 // invokeTool executes a tool call, optionally using turn's tool invocation handler.
-func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
+func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) morphmsg.Message {
 	if t == nil {
-		return handmsg.Message{
-			Role:       handmsg.RoleTool,
+		return morphmsg.Message{
+			Role:       morphmsg.RoleTool,
 			Name:       toolCall.Name,
 			ToolCallID: toolCall.ID,
 			Content:    `{"error":"tool invocation is required"}`,
@@ -1102,8 +1102,8 @@ func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg
 		return t.invokeToolWithLegacyRuntime(ctx, registry, toolCall)
 	}
 
-	return handmsg.Message{
-		Role:       handmsg.RoleTool,
+	return morphmsg.Message{
+		Role:       morphmsg.RoleTool,
 		Name:       toolCall.Name,
 		ToolCallID: toolCall.ID,
 		Content:    `{"error":"tool invocation is required"}`,
@@ -1114,7 +1114,7 @@ func (t *Turn) invokeToolWithLegacyRuntime(
 	ctx context.Context,
 	registry environmentToolRegistry,
 	toolCall models.ToolCall,
-) handmsg.Message {
+) morphmsg.Message {
 	result := map[string]any{"name": toolCall.Name}
 	if registry == nil {
 		result["error"] = "tool registry is required"
@@ -1139,18 +1139,18 @@ func (t *Turn) invokeToolWithLegacyRuntime(
 	return toolResultMessage(toolCall, result)
 }
 
-func (t *Turn) invokeToolWithLegacyHook(ctx context.Context, toolCall models.ToolCall) (handmsg.Message, bool) {
+func (t *Turn) invokeToolWithLegacyHook(ctx context.Context, toolCall models.ToolCall) (morphmsg.Message, bool) {
 	switch invoke := t.invokeToolFn.(type) {
-	case func(context.Context, models.ToolCall) handmsg.Message:
+	case func(context.Context, models.ToolCall) morphmsg.Message:
 		return invoke(ctx, toolCall), true
 	}
 
 	value := reflect.ValueOf(t.invokeToolFn)
 	if !value.IsValid() || value.Kind() != reflect.Func || value.Type().NumIn() != 3 || value.Type().NumOut() != 1 {
-		return handmsg.Message{}, false
+		return morphmsg.Message{}, false
 	}
-	if !value.Type().Out(0).AssignableTo(reflect.TypeOf(handmsg.Message{})) {
-		return handmsg.Message{}, false
+	if !value.Type().Out(0).AssignableTo(reflect.TypeOf(morphmsg.Message{})) {
+		return morphmsg.Message{}, false
 	}
 
 	args := []reflect.Value{
@@ -1165,7 +1165,7 @@ func (t *Turn) invokeToolWithLegacyHook(ctx context.Context, toolCall models.Too
 		}
 	}
 
-	return value.Call(args)[0].Interface().(handmsg.Message), true
+	return value.Call(args)[0].Interface().(morphmsg.Message), true
 }
 
 // summaryFallback runs the fallback summary request and returns the assistant reply
@@ -1253,14 +1253,14 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 
 	reply := t.applyAssistantOutputSafety(traceSession, resp.OutputText, false)
 
-	assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, reply)
+	assistantMessage, err := morphmsg.NewMessage(morphmsg.RoleAssistant, reply)
 	if err != nil {
 		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return "", err
 	}
 
 	t.emittedMessages = append(t.emittedMessages, assistantMessage)
-	if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
+	if err := t.appendSessionMessages([]morphmsg.Message{assistantMessage}); err != nil {
 		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return "", err
 	}
@@ -1354,7 +1354,7 @@ func newRootRunContext(sessionID string) (runcontext.Context, error) {
 }
 
 // Context rebuilds prompt-visible message context for a model turn, combining summary/prefix/history/emitted.
-func (t *Turn) Context() []handmsg.Message {
+func (t *Turn) Context() []morphmsg.Message {
 	builder := t.contextBuilder
 	if builder == nil {
 		builder = ctxbuilder.New()
@@ -1393,18 +1393,18 @@ func (t *Turn) recordPostflightUsage(traceSession trace.Session, resp *models.Re
 
 // Messages returns copies of all assistant and tool messages emitted during this turn.
 // Used in testing and downstream consumers.
-func (t *Turn) Messages() []handmsg.Message {
+func (t *Turn) Messages() []morphmsg.Message {
 	if len(t.emittedMessages) == 0 {
 		return nil
 	}
 
-	messages := make([]handmsg.Message, len(t.emittedMessages))
+	messages := make([]morphmsg.Message, len(t.emittedMessages))
 	copy(messages, t.emittedMessages)
 
 	return messages
 }
 
-// normalizeTurnMessage calls handmsg.NormalizeMessage to check/standardize a turn message for correctness.
-func normalizeTurnMessage(message handmsg.Message) (handmsg.Message, error) {
-	return handmsg.NormalizeMessage(message)
+// normalizeTurnMessage calls morphmsg.NormalizeMessage to check/standardize a turn message for correctness.
+func normalizeTurnMessage(message morphmsg.Message) (morphmsg.Message, error) {
+	return morphmsg.NormalizeMessage(message)
 }

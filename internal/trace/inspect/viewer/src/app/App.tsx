@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchSession, fetchSessions } from "../api/traces";
 import { ChartsPanel } from "../components/dashboard/ChartsPanel";
@@ -15,7 +16,6 @@ import { useLocalStorageBool, useLocalStorageNumber } from "../hooks/useLocalSto
 import { useTransientScrollbars } from "../hooks/useTransientScrollbars";
 import { filterTimeline, summarize } from "../lib/traceEvents";
 import { clamp } from "../lib/utils";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 
 export function App() {
   const [selectedId, setSelectedId] = useState("");

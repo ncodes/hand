@@ -6,19 +6,19 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/wandxy/hand/internal/brand"
+	"github.com/wandxy/morph/internal/brand"
 )
 
-const handBanner = brand.Wordmark
+const morphBanner = brand.Wordmark
 
-const compactHandBanner = ` _  _              _ 
+const compactMorphBanner = ` _  _              _ 
 | || |__ _ _ _  __| |
 | __ / _` + "`" + ` | ' \/ _` + "`" + ` |
 |_||_\__,_|_||_\__,_|`
 
-const tinyHandBanner = `Hand`
+const tinyMorphBanner = `Morph`
 
-const handHeaderMark = brand.Mark
+const morphHeaderMark = brand.Mark
 
 const (
 	headerBorderHeight    = 1
@@ -62,7 +62,7 @@ func renderNoticeBarRight() string {
 	return renderNoticePanelRight(getNoticePanel(defaultWidth))
 }
 
-// renderHeaderInfoPanel renders the right-hand runtime information panel.
+// renderHeaderInfoPanel renders the right-morph runtime information panel.
 func (m model) renderHeaderInfoPanel() string {
 	return renderHeaderInfoPanel(getHeaderPanel(m, m.width))
 }
@@ -190,25 +190,25 @@ func getModelDisplayName(name string) string {
 }
 
 func getHeaderBanner(width int) string {
-	if width >= lipgloss.Width(handBanner) {
-		return handBanner
+	if width >= lipgloss.Width(morphBanner) {
+		return morphBanner
 	}
-	if width >= lipgloss.Width(compactHandBanner) {
-		return compactHandBanner
+	if width >= lipgloss.Width(compactMorphBanner) {
+		return compactMorphBanner
 	}
 
-	return tinyHandBanner
+	return tinyMorphBanner
 }
 
 func getHeaderMark(width int, banner string) string {
-	if banner != handBanner {
+	if banner != morphBanner {
 		return ""
 	}
-	if width < lipgloss.Width(handHeaderMark)+headerGapWidth+lipgloss.Width(handBanner) {
+	if width < lipgloss.Width(morphHeaderMark)+headerGapWidth+lipgloss.Width(morphBanner) {
 		return ""
 	}
 
-	return handHeaderMark
+	return morphHeaderMark
 }
 
 func getHeaderBannerGroupWidth(mark string, banner string) int {
@@ -220,16 +220,16 @@ func getHeaderBannerGroupWidth(mark string, banner string) int {
 	return lipgloss.Width(mark) + headerGapWidth + width
 }
 
-// renderHandBanner renders the generated figlet masthead.
-func renderHandBanner(banner string) string {
-	return renderHandBannerWithColors(banner, nil)
+// renderMorphBanner renders the generated figlet masthead.
+func renderMorphBanner(banner string) string {
+	return renderMorphBannerWithColors(banner, nil)
 }
 
-// getHandBannerColor returns the stable lolcat-inspired color for a banner row.
-func getHandBannerColor(index int) color.Color {
-	if index >= 0 && index < len(handBannerColors) {
-		return handBannerColors[index]
+// getMorphBannerColor returns the stable lolcat-inspired color for a banner row.
+func getMorphBannerColor(index int) color.Color {
+	if index >= 0 && index < len(morphBannerColors) {
+		return morphBannerColors[index]
 	}
 
-	return handBannerColors[len(handBannerColors)-1]
+	return morphBannerColors[len(morphBannerColors)-1]
 }

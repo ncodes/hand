@@ -14,19 +14,19 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/datadir"
-	models "github.com/wandxy/hand/internal/model"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	"github.com/wandxy/hand/internal/profile"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
-	vectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
-	storagememory "github.com/wandxy/hand/internal/state/storememory"
-	storagesqlite "github.com/wandxy/hand/internal/state/storesqlite"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/datadir"
+	models "github.com/wandxy/morph/internal/model"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/internal/profile"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	vectormemory "github.com/wandxy/morph/internal/state/search/vectorstore/memory"
+	vectorsqlite "github.com/wandxy/morph/internal/state/search/vectorstore/sqlite"
+	storagememory "github.com/wandxy/morph/internal/state/storememory"
+	storagesqlite "github.com/wandxy/morph/internal/state/storesqlite"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -89,7 +89,7 @@ func TestOpenStore_DefaultsToSQLite(t *testing.T) {
 }
 
 func TestOpenStore_ReturnsSQLiteOpenError(t *testing.T) {
-	homePath := filepath.Join(t.TempDir(), "hand-home")
+	homePath := filepath.Join(t.TempDir(), "morph-home")
 	require.NoError(t, os.WriteFile(homePath, []byte("not-a-directory"), 0o600))
 	setProfileHome(t, homePath)
 
@@ -141,8 +141,8 @@ func TestOpenStore_ConfiguresSQLiteVectorStore(t *testing.T) {
 	sessionID, err := storage.NewSessionID()
 	require.NoError(t, err)
 	require.NoError(t, store.Session().Save(context.Background(), storage.Session{ID: sessionID}))
-	require.NoError(t, store.Session().AppendMessages(context.Background(), sessionID, []handmsg.Message{{
-		Role:    handmsg.RoleUser,
+	require.NoError(t, store.Session().AppendMessages(context.Background(), sessionID, []morphmsg.Message{{
+		Role:    morphmsg.RoleUser,
 		Content: "semantic indexing text",
 	}}))
 
@@ -222,8 +222,8 @@ func TestOpenStore_ConfiguresMemoryVectorStore(t *testing.T) {
 	sessionID, err := storage.NewSessionID()
 	require.NoError(t, err)
 	require.NoError(t, store.Session().Save(context.Background(), storage.Session{ID: sessionID}))
-	require.NoError(t, store.Session().AppendMessages(context.Background(), sessionID, []handmsg.Message{{
-		Role:    handmsg.RoleUser,
+	require.NoError(t, store.Session().AppendMessages(context.Background(), sessionID, []morphmsg.Message{{
+		Role:    morphmsg.RoleUser,
 		Content: "semantic indexing text",
 	}}))
 
@@ -489,9 +489,9 @@ func TestOpenStore_VectorSearchEndToEnd(t *testing.T) {
 			sessionID := newStoreTestSessionID(t)
 
 			require.NoError(t, store.Session().Save(ctx, storage.Session{ID: sessionID}))
-			require.NoError(t, store.Session().AppendMessages(ctx, sessionID, []handmsg.Message{
-				{Role: handmsg.RoleUser, Content: "semantic target document", CreatedAt: time.Now().UTC()},
-				{Role: handmsg.RoleUser, Content: "different reference document", CreatedAt: time.Now().UTC().Add(time.Second)},
+			require.NoError(t, store.Session().AppendMessages(ctx, sessionID, []morphmsg.Message{
+				{Role: morphmsg.RoleUser, Content: "semantic target document", CreatedAt: time.Now().UTC()},
+				{Role: morphmsg.RoleUser, Content: "different reference document", CreatedAt: time.Now().UTC().Add(time.Second)},
 			}))
 			requireVectorRecordCount(t, lister, 2)
 
@@ -533,8 +533,8 @@ func TestOpenStore_VectorRowsLifecycleEndToEnd(t *testing.T) {
 				sessionID := newStoreTestSessionID(t)
 
 				require.NoError(t, store.Session().Save(ctx, storage.Session{ID: sessionID}))
-				require.NoError(t, store.Session().AppendMessages(ctx, sessionID, []handmsg.Message{{
-					Role:      handmsg.RoleUser,
+				require.NoError(t, store.Session().AppendMessages(ctx, sessionID, []morphmsg.Message{{
+					Role:      morphmsg.RoleUser,
 					Content:   "semantic target document",
 					CreatedAt: time.Now().UTC(),
 				}}))
@@ -564,8 +564,8 @@ func TestOpenStore_BM25SearchWhenVectorDisabled(t *testing.T) {
 
 			sessionID := newStoreTestSessionID(t)
 			require.NoError(t, store.Session().Save(ctx, storage.Session{ID: sessionID}))
-			require.NoError(t, store.Session().AppendMessages(ctx, sessionID, []handmsg.Message{{
-				Role:      handmsg.RoleUser,
+			require.NoError(t, store.Session().AppendMessages(ctx, sessionID, []morphmsg.Message{{
+				Role:      morphmsg.RoleUser,
 				Content:   "needle lexical result",
 				CreatedAt: time.Now().UTC(),
 			}}))
@@ -595,8 +595,8 @@ func TestOpenStore_VectorErrorRequiredSemantics(t *testing.T) {
 				sessionID := newStoreTestSessionID(t)
 
 				require.NoError(t, store.Session().Save(ctx, storage.Session{ID: sessionID}))
-				err := store.Session().AppendMessages(ctx, sessionID, []handmsg.Message{{
-					Role:      handmsg.RoleUser,
+				err := store.Session().AppendMessages(ctx, sessionID, []morphmsg.Message{{
+					Role:      morphmsg.RoleUser,
 					Content:   "semantic target document",
 					CreatedAt: time.Now().UTC(),
 				}})

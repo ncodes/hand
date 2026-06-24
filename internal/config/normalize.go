@@ -3,8 +3,8 @@ package config
 import (
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/datadir"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/datadir"
 )
 
 // normalizeFields applies trimming and defaults except default model base URL resolution.

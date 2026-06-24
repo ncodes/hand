@@ -8,25 +8,25 @@ import (
 	"strings"
 	"time"
 
-	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
-	"github.com/wandxy/hand/internal/agent/runcontext"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/environment"
-	"github.com/wandxy/hand/internal/guardrails"
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/profile"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	"github.com/wandxy/hand/internal/state/search"
-	"github.com/wandxy/hand/internal/tools"
-	webextract "github.com/wandxy/hand/internal/tools/webextract"
-	"github.com/wandxy/hand/internal/trace"
-	agentcore "github.com/wandxy/hand/pkg/agent"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	pkgcache "github.com/wandxy/hand/pkg/cache"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
-	"github.com/wandxy/hand/pkg/logutils"
+	agentsummary "github.com/wandxy/morph/internal/agent/context/summary"
+	"github.com/wandxy/morph/internal/agent/runcontext"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/environment"
+	"github.com/wandxy/morph/internal/guardrails"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/profile"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	"github.com/wandxy/morph/internal/state/search"
+	"github.com/wandxy/morph/internal/tools"
+	webextract "github.com/wandxy/morph/internal/tools/webextract"
+	"github.com/wandxy/morph/internal/trace"
+	agentcore "github.com/wandxy/morph/pkg/agent"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	pkgcache "github.com/wandxy/morph/pkg/cache"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 var jsonMarshal = json.Marshal
@@ -69,7 +69,7 @@ type Agent struct {
 	env                environment.Environment
 	stateMgr           *statemanager.Manager
 	recallSummaryCache *pkgcache.Cache[string, storage.SessionSummary]
-	turnMessages       []handmsg.Message
+	turnMessages       []morphmsg.Message
 	initialized        bool
 }
 
@@ -514,12 +514,12 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts agentcore.RespondO
 }
 
 // TurnMessages returns a defensive copy of messages emitted by the most recent turn.
-func (a *Agent) TurnMessages() []handmsg.Message {
+func (a *Agent) TurnMessages() []morphmsg.Message {
 	if a == nil || len(a.turnMessages) == 0 {
 		return nil
 	}
 
-	messages := make([]handmsg.Message, len(a.turnMessages))
+	messages := make([]morphmsg.Message, len(a.turnMessages))
 	copy(messages, a.turnMessages)
 	return messages
 }
@@ -547,7 +547,7 @@ func (a *Agent) openTraceSessionForSession(sessionID string) trace.Session {
 func (a *Agent) invokeToolWithEnvironment(
 	ctx context.Context,
 	env environment.Environment,
-	toolCall models.ToolCall) handmsg.Message {
+	toolCall models.ToolCall) morphmsg.Message {
 	return invokeToolWithEnvironment(ctx, env, toolCall, a.summaryClient, a.cfg)
 }
 
@@ -558,7 +558,7 @@ func invokeToolWithEnvironment(
 	toolCall models.ToolCall,
 	summaryClient models.Client,
 	cfg *config.Config,
-) handmsg.Message {
+) morphmsg.Message {
 	result := map[string]any{"name": toolCall.Name}
 
 	// A missing registry is represented as a tool result instead of panicking so
@@ -644,7 +644,7 @@ func recordToolOutputSafety(
 }
 
 // toolResultMessage serializes a tool result map into the assistant conversation format.
-func toolResultMessage(toolCall models.ToolCall, result map[string]any) handmsg.Message {
+func toolResultMessage(toolCall models.ToolCall, result map[string]any) morphmsg.Message {
 	raw, marshalErr := jsonMarshal(result)
 	content := ""
 	if marshalErr != nil {
@@ -653,7 +653,7 @@ func toolResultMessage(toolCall models.ToolCall, result map[string]any) handmsg.
 		content = string(raw)
 	}
 
-	return handmsg.Message{Role: handmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: content}
+	return morphmsg.Message{Role: morphmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: content}
 }
 
 // CreateSession creates or returns a named session through the state manager.
@@ -1246,9 +1246,9 @@ func modelToolDefinitionFromToolDefinition(definition tools.Definition) models.T
 }
 
 // assistantToolCallMessageFromResponse converts model tool calls into a persisted assistant message.
-func assistantToolCallMessageFromResponse(resp *models.Response) (handmsg.Message, error) {
-	return normalizeTurnMessage(handmsg.Message{
-		Role:      handmsg.RoleAssistant,
+func assistantToolCallMessageFromResponse(resp *models.Response) (morphmsg.Message, error) {
+	return normalizeTurnMessage(morphmsg.Message{
+		Role:      morphmsg.RoleAssistant,
 		Content:   strings.TrimSpace(resp.OutputText),
 		ToolCalls: modelToolCallsToContextToolCalls(resp.ToolCalls),
 	})
@@ -1272,6 +1272,6 @@ func recordModelResponse(traceSession trace.Session, resp *models.Response) {
 }
 
 // modelToolCallsToContextToolCalls converts model tool calls into session message tool calls.
-func modelToolCallsToContextToolCalls(toolCalls []models.ToolCall) []handmsg.ToolCall {
+func modelToolCallsToContextToolCalls(toolCalls []models.ToolCall) []morphmsg.ToolCall {
 	return models.ToolCallsToMessageToolCalls(toolCalls)
 }

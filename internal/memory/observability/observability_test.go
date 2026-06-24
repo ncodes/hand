@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 type recordingTraceSession struct {

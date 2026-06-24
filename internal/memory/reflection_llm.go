@@ -7,8 +7,8 @@ import (
 	"maps"
 	"strings"
 
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 const defaultReflectionMaxOutputTokens int64 = 1600
@@ -63,7 +63,7 @@ func (g *LLMReflectionGenerator) GenerateReflectionCandidates(
 		Model:            g.options.Model,
 		API:              g.options.API,
 		Instructions:     getReflectionInstructions(),
-		Messages:         []handmsg.Message{{Role: handmsg.RoleUser, Content: string(payload)}},
+		Messages:         []morphmsg.Message{{Role: morphmsg.RoleUser, Content: string(payload)}},
 		StructuredOutput: getReflectionStructuredOutput(),
 		MaxOutputTokens:  g.options.MaxOutputTokens,
 		DebugRequests:    g.options.DebugRequests,

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/hand/internal/constants"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 func TestConfig_ValidateRejectsCompactionThresholdsAboveOrEqualOne(t *testing.T) {
@@ -38,8 +38,8 @@ func TestConfig_ValidateRejectsCompactionThresholdsAboveOrEqualOne(t *testing.T)
 }
 
 func TestLoad_UsesCompactionSettingsFromConfig(t *testing.T) {
-	clearEnvKeys(t, "HAND_MODEL_CONTEXT_LENGTH", "HAND_COMPACTION_ENABLED", "HAND_COMPACTION_TRIGGER_PERCENT",
-		"HAND_COMPACTION_WARN_PERCENT")
+	clearEnvKeys(t, "MORPH_MODEL_CONTEXT_LENGTH", "MORPH_COMPACTION_ENABLED", "MORPH_COMPACTION_TRIGGER_PERCENT",
+		"MORPH_COMPACTION_WARN_PERCENT")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")

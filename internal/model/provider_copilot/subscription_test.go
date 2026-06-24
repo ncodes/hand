@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	appcredential "github.com/wandxy/hand/internal/credential"
+	appcredential "github.com/wandxy/morph/internal/credential"
 )
 
 func TestMain(m *testing.M) {
@@ -287,7 +287,7 @@ func TestGetGitHubCopilotOpenURLCommand(t *testing.T) {
 
 	name, args = getGitHubCopilotOpenURLCommand("windows", "https://example.test")
 	require.Equal(t, "rundll32", name)
-	require.Equal(t, []string{"url.dll,FileProtocolHandler", "https://example.test"}, args)
+	require.Equal(t, []string{"url.dll,FileProtocolHand", "https://example.test"}, args)
 
 	name, args = getGitHubCopilotOpenURLCommand("linux", "https://example.test")
 	require.Equal(t, "xdg-open", name)

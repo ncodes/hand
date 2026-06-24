@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	appcredential "github.com/wandxy/hand/internal/credential"
+	appcredential "github.com/wandxy/morph/internal/credential"
 )
 
 func TestMain(m *testing.M) {
@@ -39,7 +39,7 @@ func TestAnthropicSubscriptionProvider_AuthHeadersUsesBearerToken(t *testing.T) 
 	require.Equal(t, "Bearer access-secret", headers["Authorization"])
 	require.Equal(t, "claude-code-20250219,oauth-2025-04-20", headers["anthropic-beta"])
 	require.Equal(t, "true", headers["anthropic-dangerous-direct-browser-access"])
-	require.Equal(t, "claude-cli/hand", headers["user-agent"])
+	require.Equal(t, "claude-cli/morph", headers["user-agent"])
 	require.Equal(t, "cli", headers["x-app"])
 }
 
@@ -409,7 +409,7 @@ func TestGetAnthropicOpenURLCommand(t *testing.T) {
 
 	name, args = getAnthropicOpenURLCommand("windows", "https://example.test")
 	require.Equal(t, "rundll32", name)
-	require.Equal(t, []string{"url.dll,FileProtocolHandler", "https://example.test"}, args)
+	require.Equal(t, []string{"url.dll,FileProtocolHand", "https://example.test"}, args)
 
 	name, args = getAnthropicOpenURLCommand("linux", "https://example.test")
 	require.Equal(t, "xdg-open", name)

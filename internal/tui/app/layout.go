@@ -1,6 +1,6 @@
 package tui
 
-import tuilayout "github.com/wandxy/hand/internal/tui/layout"
+import tuilayout "github.com/wandxy/morph/internal/tui/layout"
 
 type tuiRect struct {
 	X      int

@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/config"
-	models "github.com/wandxy/hand/internal/model"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/config"
+	models "github.com/wandxy/morph/internal/model"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 var rpcHelperListen = net.Listen
@@ -162,7 +162,7 @@ func CombineChecks(checks ...RequestAssert) RequestAssert {
 func ToolMessagePresent(expectedID, expectedName string) RequestAssert {
 	return func(req models.Request) error {
 		for _, message := range req.Messages {
-			if message.Role != handmsg.RoleTool {
+			if message.Role != morphmsg.RoleTool {
 				continue
 			}
 			if strings.TrimSpace(message.ToolCallID) != expectedID {
@@ -210,7 +210,7 @@ func ToolOutputJSON(expectedID, expectedName string, check func(map[string]any) 
 func ToolError(expectedID, expectedName, expectedCode, expectedMessage string) RequestAssert {
 	return func(req models.Request) error {
 		for _, message := range req.Messages {
-			if message.Role != handmsg.RoleTool || strings.TrimSpace(message.ToolCallID) != expectedID {
+			if message.Role != morphmsg.RoleTool || strings.TrimSpace(message.ToolCallID) != expectedID {
 				continue
 			}
 			if strings.TrimSpace(message.Name) != expectedName {
@@ -246,7 +246,7 @@ func ToolError(expectedID, expectedName, expectedCode, expectedMessage string) R
 
 func getToolEnvelopeOutput(req models.Request, expectedID, expectedName string) (string, error) {
 	for _, message := range req.Messages {
-		if message.Role != handmsg.RoleTool || strings.TrimSpace(message.ToolCallID) != expectedID {
+		if message.Role != morphmsg.RoleTool || strings.TrimSpace(message.ToolCallID) != expectedID {
 			continue
 		}
 		if strings.TrimSpace(message.Name) != expectedName {

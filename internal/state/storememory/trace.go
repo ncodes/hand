@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	base "github.com/wandxy/hand/internal/state/core"
+	base "github.com/wandxy/morph/internal/state/core"
 )
 
 func (s *Store) AppendTraceEvent(_ context.Context, event base.TraceEvent) (base.TraceEvent, error) {

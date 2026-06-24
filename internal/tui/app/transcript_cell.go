@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 type transcriptCellKind string
@@ -96,7 +96,7 @@ func (cell assistantTranscriptCell) PlainText() string {
 		return ""
 	}
 
-	text := "Hand: " + cell.text
+	text := "Morph: " + cell.text
 	if cell.duration > 0 {
 		text += "\nWorked for " + formatToolTranscriptDuration(cell.duration)
 	}

@@ -9,7 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestTUIAction_SetViewportSizeBoundsValues(t *testing.T) {
@@ -50,7 +50,7 @@ func TestTUIAction_ReplaceTranscriptCell(t *testing.T) {
 
 	require.Len(t, state.messages, 1)
 	require.Equal(t, transcriptCellAssistant, state.messages[0].Kind())
-	require.Equal(t, "Hand: after", state.messages[0].PlainText())
+	require.Equal(t, "Morph: after", state.messages[0].PlainText())
 }
 
 func TestTUIAction_SetSessionTitleFallsBackToDefault(t *testing.T) {
@@ -198,11 +198,11 @@ func TestModelView_FullScreenLayoutSnapshot(t *testing.T) {
 	require.Contains(t, view, "░██")
 	require.Contains(t, view, "❯ hello")
 	require.Contains(t, view, "Hi")
-	require.Contains(t, view, "Ask Hand...")
+	require.Contains(t, view, "Ask Morph...")
 	require.NotContains(t, view, "minimax-m2.7")
 	require.Contains(t, view, statusReadySuffix)
-	require.Less(t, strings.Index(view, "❯ hello"), strings.Index(view, "Ask Hand..."))
-	require.Less(t, strings.Index(view, "Ask Hand..."), strings.Index(view, statusReadySuffix))
+	require.Less(t, strings.Index(view, "❯ hello"), strings.Index(view, "Ask Morph..."))
+	require.Less(t, strings.Index(view, "Ask Morph..."), strings.Index(view, statusReadySuffix))
 }
 
 func TestBubbleTeaAdapter_UpdatesInputOnlyForPlainTyping(t *testing.T) {
@@ -241,7 +241,7 @@ func TestChromePanelData_SeparatesModelStateFromRendering(t *testing.T) {
 	panel := getHeaderPanel(runModel, runModel.width)
 
 	require.Equal(t, 180, panel.Width)
-	require.Equal(t, handBanner, panel.Banner)
+	require.Equal(t, morphBanner, panel.Banner)
 	require.True(t, panel.ShowInfo)
 	require.Equal(t, "Welcome, ", panel.Notice.LeftLead)
 	require.Equal(t, "/changelog", panel.Notice.Link)
@@ -328,15 +328,15 @@ func headerInfoRowsToPlainText(rows []headerInfoRow) string {
 func TestTranscriptCellFactory_BuildsToolCellsSharedByLiveAndHydratedPaths(t *testing.T) {
 	startedAt := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
 	completedAt := startedAt.Add(5 * time.Second)
-	toolCall := handmsg.ToolCall{
+	toolCall := morphmsg.ToolCall{
 		ID:    "call_1",
 		Name:  "list_files",
 		Input: `{"path":".","recursive":false,"include_hidden":false,"max_entries":50}`,
 	}
 	started, ok := toolInvocationStartedMsgFromMessageToolCall(toolCall, startedAt)
 	require.True(t, ok)
-	completed, ok := toolInvocationCompletedMsgFromMessage(handmsg.Message{
-		Role:       handmsg.RoleTool,
+	completed, ok := toolInvocationCompletedMsgFromMessage(morphmsg.Message{
+		Role:       morphmsg.RoleTool,
 		Name:       "list_files",
 		ToolCallID: "call_1",
 		CreatedAt:  completedAt,
@@ -349,8 +349,8 @@ func TestTranscriptCellFactory_BuildsToolCellsSharedByLiveAndHydratedPaths(t *te
 	}
 	hydratedCells := []transcriptCell{
 		defaultTranscriptCellFactory.FromTimelineMessage(
-			handmsg.Message{
-				Role:       handmsg.RoleTool,
+			morphmsg.Message{
+				Role:       morphmsg.RoleTool,
 				Name:       "list_files",
 				ToolCallID: "call_1",
 				Content:    `{"output":"done"}`,
@@ -383,7 +383,7 @@ func TestModel_HandleAppEventRoutesProductBehavior(t *testing.T) {
 		Message: assistantResponseCompletedMsg{Text: "hello"},
 	})
 	require.Nil(t, cmd)
-	require.Equal(t, []string{"Hand: hello"}, transcriptCellPlainTexts(updated.messages))
+	require.Equal(t, []string{"Morph: hello"}, transcriptCellPlainTexts(updated.messages))
 }
 
 type recordingTranscriptRenderer struct {

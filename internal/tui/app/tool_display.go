@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 var runToolLegacyTimeoutPattern = regexp.MustCompile(`\s+\(([0-9]+(?:\.[0-9]+)?s)\)$`)

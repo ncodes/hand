@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/mocks"
-	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/mocks"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 func TestIsStreamableTraceEvent_IncludesLiveToolOutputSafety(t *testing.T) {

@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/constants"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 const (
@@ -150,7 +150,7 @@ func (r LLMReranker) modelRequest(req RerankRequest, candidates []Candidate, str
 		Model:           options.Model,
 		API:             options.API,
 		Instructions:    instruct.BuildRetrievalRerank(),
-		Messages:        []handmsg.Message{{Role: handmsg.RoleUser, Content: string(data)}},
+		Messages:        []morphmsg.Message{{Role: morphmsg.RoleUser, Content: string(data)}},
 		MaxOutputTokens: options.MaxOutputTokens,
 		DebugRequests:   options.DebugRequests,
 	}

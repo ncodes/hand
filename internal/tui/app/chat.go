@@ -6,8 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	tuirpc "github.com/wandxy/hand/internal/tui/rpc"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	tuirpc "github.com/wandxy/morph/internal/tui/rpc"
 )
 
 type responseEventMsg = tuirpc.ResponseEvent

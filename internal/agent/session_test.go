@@ -7,10 +7,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestNewSessionStoreImplementsAgentSessionInterfaces(t *testing.T) {
@@ -72,17 +72,17 @@ func TestSessionStoreResolveConvertsSessionShape(t *testing.T) {
 
 func TestSessionStoreGetMessagesConvertsQuery(t *testing.T) {
 	store := NewSessionStore(&sessionManagerStub{
-		GetMessagesFunc: func(_ context.Context, id string, query storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(_ context.Context, id string, query storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			require.Equal(t, "default", id)
 			require.Equal(t, storage.MessageQueryOptions{
 				Limit:  5,
 				Name:   "tool",
 				Order:  storage.MessageOrderDesc,
 				Offset: 2,
-				Role:   handmsg.RoleAssistant,
+				Role:   morphmsg.RoleAssistant,
 			}, query)
 
-			return []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}, nil
+			return []morphmsg.Message{{Role: morphmsg.RoleAssistant, Content: "hello"}}, nil
 		},
 	})
 
@@ -91,16 +91,16 @@ func TestSessionStoreGetMessagesConvertsQuery(t *testing.T) {
 		Name:   "tool",
 		Order:  agentsession.MessageOrderDesc,
 		Offset: 2,
-		Role:   handmsg.RoleAssistant,
+		Role:   morphmsg.RoleAssistant,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}, messages)
+	require.Equal(t, []morphmsg.Message{{Role: morphmsg.RoleAssistant, Content: "hello"}}, messages)
 }
 
 func TestSessionStoreAppendMessagesDelegates(t *testing.T) {
-	expected := []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}
+	expected := []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}}
 	store := NewSessionStore(&sessionManagerStub{
-		AppendMessagesFunc: func(_ context.Context, id string, messages []handmsg.Message) error {
+		AppendMessagesFunc: func(_ context.Context, id string, messages []morphmsg.Message) error {
 			require.Equal(t, "default", id)
 			require.Equal(t, expected, messages)
 			return nil

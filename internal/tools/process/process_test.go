@@ -10,12 +10,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
-	processenv "github.com/wandxy/hand/internal/environment/process"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/tools"
-	toolmocks "github.com/wandxy/hand/internal/tools/mocks"
-	"github.com/wandxy/hand/pkg/nanoid"
+	"github.com/wandxy/morph/internal/agent/runcontext"
+	processenv "github.com/wandxy/morph/internal/environment/process"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/tools"
+	toolmocks "github.com/wandxy/morph/internal/tools/mocks"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 func TestProcess_ToolRejectsInvalidJSON(t *testing.T) {

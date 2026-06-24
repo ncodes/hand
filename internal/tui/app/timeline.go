@@ -9,12 +9,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	agentapi "github.com/wandxy/hand/internal/agent"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/trace"
-	tuirpc "github.com/wandxy/hand/internal/tui/rpc"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	agentapi "github.com/wandxy/morph/internal/agent"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/trace"
+	tuirpc "github.com/wandxy/morph/internal/tui/rpc"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 type sessionTimelineLoader = tuirpc.SessionTimelineLoader
@@ -248,7 +248,7 @@ func sessionTimelineToTranscriptCells(timeline rpcclient.SessionTimeline) []tran
 	responseStartedAt := time.Time{}
 	for index, message := range timeline.Messages {
 		messageCell := timelineMessageToTranscriptCell(message.Message, toolCalls)
-		if message.Message.Role == handmsg.RoleUser {
+		if message.Message.Role == morphmsg.RoleUser {
 			responseStartedAt = message.Message.CreatedAt
 		}
 		if cell, ok := messageCell.(assistantTranscriptCell); ok && !responseStartedAt.IsZero() {
@@ -297,7 +297,7 @@ func sessionTimelineToTranscriptCells(timeline rpcclient.SessionTimeline) []tran
 	return cells
 }
 
-func timelineMessageToTranscriptCell(message handmsg.Message, toolCalls map[string]timelineToolCallDetail) transcriptCell {
+func timelineMessageToTranscriptCell(message morphmsg.Message, toolCalls map[string]timelineToolCallDetail) transcriptCell {
 	return defaultTranscriptCellFactory.FromTimelineMessage(message, toolCalls)
 }
 

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/datadir"
-	state "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/datadir"
+	state "github.com/wandxy/morph/internal/state/core"
 )
 
 const (

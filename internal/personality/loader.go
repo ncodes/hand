@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/datadir"
-	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/pkg/promptio"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/datadir"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/pkg/promptio"
 )
 
 const fileName = constants.PersonalityFileName

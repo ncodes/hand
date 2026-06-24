@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 var errSessionManagerRequired = errors.New("session manager is required")
@@ -16,8 +16,8 @@ var errSessionManagerRequired = errors.New("session manager is required")
 // agent session interfaces.
 type SessionManager interface {
 	Resolve(context.Context, string) (storage.Session, error)
-	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
-	AppendMessages(context.Context, string, []handmsg.Message) error
+	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error)
+	AppendMessages(context.Context, string, []morphmsg.Message) error
 	UpdateLastPromptTokens(context.Context, string, int) error
 	AppendTraceEvent(context.Context, storage.TraceEvent) (storage.TraceEvent, error)
 }
@@ -52,7 +52,7 @@ func (s *SessionStore) GetMessages(
 	ctx context.Context,
 	id string,
 	query agentsession.MessageQuery,
-) ([]handmsg.Message, error) {
+) ([]morphmsg.Message, error) {
 	if s == nil || s.manager == nil {
 		return nil, errSessionManagerRequired
 	}
@@ -61,7 +61,7 @@ func (s *SessionStore) GetMessages(
 }
 
 // AppendMessages persists messages emitted by the core agent loop.
-func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
+func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages []morphmsg.Message) error {
 	if s == nil || s.manager == nil {
 		return errSessionManagerRequired
 	}
@@ -102,6 +102,6 @@ func messageQueryToStorageMessageQuery(value agentsession.MessageQuery) storage.
 		Name:   value.Name,
 		Order:  value.Order,
 		Offset: value.Offset,
-		Role:   handmsg.Role(value.Role),
+		Role:   morphmsg.Role(value.Role),
 	}
 }

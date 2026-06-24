@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	instruct "github.com/wandxy/hand/internal/instructions"
+	instruct "github.com/wandxy/morph/internal/instructions"
 )
 
 type nonStringRedactor struct{}
@@ -228,7 +228,7 @@ func TestCheckOutputSafety_BlocksHiddenPromptSectionLeaks(t *testing.T) {
 		name    string
 		content string
 	}{
-		{name: "base instructions", content: "# Base Instructions\nYou are Hand."},
+		{name: "base instructions", content: "# Base Instructions\nYou are Morph."},
 		{name: "environment context", content: "## Environment Context\n- Active tools: memory_extract"},
 		{name: "memory context", content: "### Memory Context\nUser prefers terse replies."},
 		{name: "memory extract guidance", content: instruct.BuildMemoryExtractGuidance().Value},

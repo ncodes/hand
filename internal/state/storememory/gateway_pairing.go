@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 )
 
 func (s *Store) SaveGatewayPairingRequest(ctx context.Context, request pairing.PendingRequest) error {

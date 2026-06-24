@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	handtrace "github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphtrace "github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 var (
@@ -424,7 +424,7 @@ func getSessionPath(directory, id string) (string, error) {
 		return "", os.ErrNotExist
 	}
 
-	return handtrace.ResolveTraceFilePath(directory, id)
+	return morphtrace.ResolveTraceFilePath(directory, id)
 }
 
 // LoadSessionFile loads session file.
@@ -435,7 +435,7 @@ func LoadSessionFile(path string) (SessionDetail, error) {
 	}
 
 	fileStem := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	logicalID := handtrace.SessionIDFromTraceFilename(fileStem)
+	logicalID := morphtrace.SessionIDFromTraceFilename(fileStem)
 	detail := SessionDetail{
 		Summary: SessionSummary{
 			ID:          logicalID,
@@ -516,11 +516,11 @@ func LoadSessionFile(path string) (SessionDetail, error) {
 }
 
 func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEvent) {
-	typedPayload, payloadOK := handtrace.DecodePayloadJSON(event.Type, event.Payload)
+	typedPayload, payloadOK := morphtrace.DecodePayloadJSON(event.Type, event.Payload)
 
 	switch event.Type {
-	case handtrace.EvtChatStarted:
-		if payload, ok := typedPayload.(handtrace.Metadata); payloadOK && ok {
+	case morphtrace.EvtChatStarted:
+		if payload, ok := typedPayload.(morphtrace.Metadata); payloadOK && ok {
 			detail.Summary.AgentName = payload.AgentName
 			detail.Summary.Model = payload.Model
 			detail.Summary.API = payload.API
@@ -534,13 +534,13 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case handtrace.EvtUserMessageAccepted:
-		if payload, ok := typedPayload.(handtrace.UserMessageAcceptedPayload); payloadOK && ok {
+	case morphtrace.EvtUserMessageAccepted:
+		if payload, ok := typedPayload.(morphtrace.UserMessageAcceptedPayload); payloadOK && ok {
 			timelineEvent.UserMessage = &UserMessageView{Message: firstNonEmpty(payload.Message, payload.Text)}
 			detail.Summary.FinalStatus = "in_progress"
 			return
 		}
-	case handtrace.EvtModelRequest:
+	case morphtrace.EvtModelRequest:
 		if payload, ok := typedPayload.(models.Request); payloadOK && ok {
 			timelineEvent.ModelRequest = buildRequestView(payload)
 			if detail.Summary.Model == "" {
@@ -552,13 +552,13 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case handtrace.EvtModelResponse:
+	case morphtrace.EvtModelResponse:
 		if payload, ok := typedPayload.(models.Response); payloadOK && ok {
 			timelineEvent.ModelResponse = buildSessionMessagesResponseView(payload)
 			return
 		}
-	case handtrace.EvtToolInvocationStarted:
-		if payload, ok := typedPayload.(handtrace.ToolInvocationStartedPayload); payloadOK && ok {
+	case morphtrace.EvtToolInvocationStarted:
+		if payload, ok := typedPayload.(morphtrace.ToolInvocationStartedPayload); payloadOK && ok {
 			timelineEvent.ToolInvocation = &ToolInvocationView{
 				Phase: "started",
 				ID:    payload.ID,
@@ -568,8 +568,8 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case handtrace.EvtToolInvocationCompleted:
-		if payload, ok := typedPayload.(handtrace.ToolInvocationCompletedPayload); payloadOK && ok {
+	case morphtrace.EvtToolInvocationCompleted:
+		if payload, ok := typedPayload.(morphtrace.ToolInvocationCompletedPayload); payloadOK && ok {
 			timelineEvent.ToolInvocation = &ToolInvocationView{
 				Phase:      "completed",
 				Name:       payload.Name,
@@ -580,24 +580,24 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case handtrace.EvtFinalAssistantResponse:
-		if payload, ok := typedPayload.(handtrace.FinalAssistantResponsePayload); payloadOK && ok {
+	case morphtrace.EvtFinalAssistantResponse:
+		if payload, ok := typedPayload.(morphtrace.FinalAssistantResponsePayload); payloadOK && ok {
 			timelineEvent.FinalResponse = &FinalResponseView{Message: firstNonEmpty(payload.Message, payload.Text)}
 			detail.Summary.FinalStatus = "completed"
 			return
 		}
-	case handtrace.EvtSessionFailed:
-		if payload, ok := typedPayload.(handtrace.SessionFailedPayload); payloadOK && ok {
+	case morphtrace.EvtSessionFailed:
+		if payload, ok := typedPayload.(morphtrace.SessionFailedPayload); payloadOK && ok {
 			timelineEvent.Failure = &FailureView{Error: firstNonEmpty(payload.Error, payload.Message)}
 			detail.Summary.FinalStatus = "failed"
 			return
 		}
-	case handtrace.EvtSummaryFallbackStarted:
+	case morphtrace.EvtSummaryFallbackStarted:
 		timelineEvent.SummaryFallback = &SummaryFallbackView{Payload: compactJSON(event.Payload)}
 		return
-	case handtrace.EvtContextPreflight, handtrace.EvtContextCompactionTriggered,
-		handtrace.EvtContextCompactionWarning, handtrace.EvtContextPostflightUsage:
-		if payload, ok := typedPayload.(handtrace.ContextEventPayload); payloadOK && ok {
+	case morphtrace.EvtContextPreflight, morphtrace.EvtContextCompactionTriggered,
+		morphtrace.EvtContextCompactionWarning, morphtrace.EvtContextPostflightUsage:
+		if payload, ok := typedPayload.(morphtrace.ContextEventPayload); payloadOK && ok {
 			timelineEvent.ContextEvent = &ContextEventView{
 				Source:           payload.Source,
 				PromptTokens:     payload.PromptTokens,
@@ -610,10 +610,10 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case handtrace.EvtSummaryRequested, handtrace.EvtSummarySaved, handtrace.EvtSummaryFailed,
-		handtrace.EvtSummaryParseFailed, handtrace.EvtSummaryApplied,
-		handtrace.EvtRecallSummaryRequested, handtrace.EvtRecallSummarySaved, handtrace.EvtRecallSummaryFailed:
-		if payload, ok := typedPayload.(handtrace.SummaryEventPayload); payloadOK && ok {
+	case morphtrace.EvtSummaryRequested, morphtrace.EvtSummarySaved, morphtrace.EvtSummaryFailed,
+		morphtrace.EvtSummaryParseFailed, morphtrace.EvtSummaryApplied,
+		morphtrace.EvtRecallSummaryRequested, morphtrace.EvtRecallSummarySaved, morphtrace.EvtRecallSummaryFailed:
+		if payload, ok := typedPayload.(morphtrace.SummaryEventPayload); payloadOK && ok {
 			timelineEvent.SummaryEvent = &SummaryEventView{
 				SessionID:          payload.SessionID,
 				SourceEndOffset:    payload.SourceEndOffset,
@@ -624,9 +624,9 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case handtrace.EvtContextCompactionPending, handtrace.EvtContextCompactionRunning,
-		handtrace.EvtContextCompactionSucceeded, handtrace.EvtContextCompactionFailed:
-		if payload, ok := typedPayload.(handtrace.CompactionEventPayload); payloadOK && ok {
+	case morphtrace.EvtContextCompactionPending, morphtrace.EvtContextCompactionRunning,
+		morphtrace.EvtContextCompactionSucceeded, morphtrace.EvtContextCompactionFailed:
+		if payload, ok := typedPayload.(morphtrace.CompactionEventPayload); payloadOK && ok {
 			timelineEvent.CompactionEvent = &CompactionEventView{
 				SessionID:          payload.SessionID,
 				Status:             payload.Status,
@@ -642,8 +642,8 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case handtrace.EvtWorkspaceRulesTruncated:
-		if payload, ok := typedPayload.(handtrace.WorkspaceRulesTruncatedPayload); payloadOK && ok {
+	case morphtrace.EvtWorkspaceRulesTruncated:
+		if payload, ok := typedPayload.(morphtrace.WorkspaceRulesTruncatedPayload); payloadOK && ok {
 			timelineEvent.WorkspaceRules = &WorkspaceRulesView{
 				OriginalLength:   payload.OriginalLength,
 				TruncatedLength:  payload.TruncatedLength,
@@ -652,8 +652,8 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			}
 			return
 		}
-	case handtrace.EvtPlanUpdated, handtrace.EvtPlanCleared, handtrace.EvtPlanHydrated:
-		if payload, ok := typedPayload.(handtrace.PlanEventPayload); payloadOK && ok {
+	case morphtrace.EvtPlanUpdated, morphtrace.EvtPlanCleared, morphtrace.EvtPlanHydrated:
+		if payload, ok := typedPayload.(morphtrace.PlanEventPayload); payloadOK && ok {
 			timelineEvent.PlanEvent = &PlanEventView{
 				SessionID:    payload.SessionID,
 				Steps:        planStepViewsFromPayload(payload.Steps),
@@ -664,10 +664,10 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			}
 			return
 		}
-	case handtrace.EvtInputSafetyBlocked, handtrace.EvtOutputSafetyApplied,
-		handtrace.EvtToolOutputSafetyApplied, handtrace.EvtLoadedContentSafetyBlocked,
-		handtrace.EvtMemorySafetyBlocked:
-		if payload, ok := typedPayload.(handtrace.SafetyEventPayload); payloadOK && ok {
+	case morphtrace.EvtInputSafetyBlocked, morphtrace.EvtOutputSafetyApplied,
+		morphtrace.EvtToolOutputSafetyApplied, morphtrace.EvtLoadedContentSafetyBlocked,
+		morphtrace.EvtMemorySafetyBlocked:
+		if payload, ok := typedPayload.(morphtrace.SafetyEventPayload); payloadOK && ok {
 			timelineEvent.SafetyEvent = &SafetyEventView{
 				SessionID:     strings.TrimSpace(payload.SessionID),
 				Source:        strings.TrimSpace(payload.Source),
@@ -739,7 +739,7 @@ func buildSessionMessagesResponseView(payload models.Response) *ModelResponseVie
 	}
 }
 
-func planStepViewsFromPayload(steps []handtrace.PlanStepPayload) []PlanStepView {
+func planStepViewsFromPayload(steps []morphtrace.PlanStepPayload) []PlanStepView {
 	if len(steps) == 0 {
 		return nil
 	}
@@ -756,7 +756,7 @@ func planStepViewsFromPayload(steps []handtrace.PlanStepPayload) []PlanStepView 
 	return views
 }
 
-func planSummaryViewFromPayload(summary handtrace.PlanSummaryPayload) PlanSummaryView {
+func planSummaryViewFromPayload(summary morphtrace.PlanSummaryPayload) PlanSummaryView {
 	return PlanSummaryView{
 		Total:      summary.Total,
 		Pending:    summary.Pending,
@@ -783,7 +783,7 @@ func buildToolCallViews(toolCalls []models.ToolCall) []ToolCallView {
 	return views
 }
 
-func toolCallsToToolCallViews(toolCalls []handmsg.ToolCall) []ToolCallView {
+func toolCallsToToolCallViews(toolCalls []morphmsg.ToolCall) []ToolCallView {
 	if len(toolCalls) == 0 {
 		return nil
 	}

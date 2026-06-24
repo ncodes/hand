@@ -3,9 +3,9 @@ package episodic
 import (
 	"context"
 
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // Request configures episodic extraction for a session or bounded message range.
@@ -76,7 +76,7 @@ type EpisodeRecord struct {
 type StateManager interface {
 	CurrentSession(context.Context) (string, error)
 	CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error)
-	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
+	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error)
 	ListTraceEvents(context.Context, storage.TraceQuery) (storage.TraceResult, error)
 	UpdateCheckpoints(context.Context, string, storage.CheckpointPatch) error
 }

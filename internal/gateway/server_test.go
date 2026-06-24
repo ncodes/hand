@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/gateway/dispatch"
+	"github.com/wandxy/morph/internal/gateway/dispatch"
 )
 
 func TestGatewayHTTPServerHealth(t *testing.T) {

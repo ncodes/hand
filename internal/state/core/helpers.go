@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/nanoid"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 // ValidateSessionID checks that id can be used as a persisted session ID.
@@ -101,8 +101,8 @@ func NormalizeSessionTitleMetadata(title string, source string) (string, string)
 }
 
 // CloneMessages clones clone messages.
-func CloneMessages(messages []handmsg.Message) []handmsg.Message {
-	return handmsg.CloneMessages(messages)
+func CloneMessages(messages []morphmsg.Message) []morphmsg.Message {
+	return morphmsg.CloneMessages(messages)
 }
 
 // NormalizeSessionSummary normalizes session summary.

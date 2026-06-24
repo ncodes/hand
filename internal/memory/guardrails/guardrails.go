@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	coreguardrails "github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/memory"
+	coreguardrails "github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/memory"
 )
 
 // Guardrails adapts the core guardrail utilities to the memory provider

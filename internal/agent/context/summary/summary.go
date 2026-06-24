@@ -8,17 +8,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/pkg/logutils"
 
-	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
-	"github.com/wandxy/hand/internal/agent/context/compaction"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	ctxbuilder "github.com/wandxy/morph/internal/agent/context"
+	"github.com/wandxy/morph/internal/agent/context/compaction"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 var log = logutils.Module("summary")
@@ -61,7 +61,7 @@ type summaryPayload struct {
 // summaryStructuredOutput asks compatible providers for a strict summary JSON object.
 var summaryStructuredOutput = &models.StructuredOutput{
 	Name:        "session_summary",
-	Description: "Structured handoff summary for compacted conversation history.",
+	Description: "Structured morphoff summary for compacted conversation history.",
 	Strict:      true,
 	Schema: map[string]any{
 		"type":                 "object",
@@ -831,7 +831,7 @@ func (s *Service) summarizeRecallWindow(
 		Model:            s.summaryModel,
 		API:              s.api,
 		Instructions:     instructions,
-		Messages:         handmsg.CloneMessages(messages),
+		Messages:         morphmsg.CloneMessages(messages),
 		StructuredOutput: summaryStructuredOutput,
 		DebugRequests:    s.debugRequests,
 	})
@@ -888,7 +888,7 @@ func (s *Service) summarizeOversizedRecallWindow(
 	window recallWindow,
 	windowIndex int,
 	windowCount int,
-	messages []handmsg.Message,
+	messages []morphmsg.Message,
 ) (*SummaryState, error) {
 	chunks := splitRecallWindowChunks(renderRecallWindowPrompt(messages), getMaxRecallWindowChunkChars())
 	if len(chunks) == 0 {
@@ -901,7 +901,7 @@ func (s *Service) summarizeOversizedRecallWindow(
 			Model:            s.summaryModel,
 			API:              s.api,
 			Instructions:     buildRecallChunkTextInstructions(state, windowIndex, windowCount, idx+1, len(chunks)).String(),
-			Messages:         []handmsg.Message{{Role: handmsg.RoleUser, Content: chunk}},
+			Messages:         []morphmsg.Message{{Role: morphmsg.RoleUser, Content: chunk}},
 			StructuredOutput: summaryStructuredOutput,
 			DebugRequests:    s.debugRequests,
 		})
@@ -1030,8 +1030,8 @@ func (s *Service) synthesizeSummaryStates(
 				Model:        s.summaryModel,
 				API:          s.api,
 				Instructions: instructions(idx+1, len(batches)).String(),
-				Messages: []handmsg.Message{
-					{Role: handmsg.RoleUser, Content: renderRecallSummaryBatch(batch)},
+				Messages: []morphmsg.Message{
+					{Role: morphmsg.RoleUser, Content: renderRecallSummaryBatch(batch)},
 				},
 				StructuredOutput: summaryStructuredOutput,
 				DebugRequests:    s.debugRequests,
@@ -1101,8 +1101,8 @@ func getPlannedRecallSummaryBatches(state *State, summaries []*SummaryState) [][
 		for batchSize < len(remaining) && batchSize < maxRecallMergeSummaries {
 			candidateSize := batchSize + 1
 			candidate := remaining[:candidateSize]
-			if estimateSummaryTokens(instructions, []handmsg.Message{{
-				Role:    handmsg.RoleUser,
+			if estimateSummaryTokens(instructions, []morphmsg.Message{{
+				Role:    morphmsg.RoleUser,
 				Content: renderRecallSummaryBatch(candidate),
 			}}) > maxRecallMergeTokens {
 				break
@@ -1190,7 +1190,7 @@ func buildRecallChunkTextInstructions(
 //	Tool Calls:
 //	Name: search_files
 //	Input: {"query":"deployment note"}
-func renderRecallWindowPrompt(messages []handmsg.Message) string {
+func renderRecallWindowPrompt(messages []morphmsg.Message) string {
 	if len(messages) == 0 {
 		return ""
 	}
@@ -1316,7 +1316,7 @@ func parseSummaryResponse(
 }
 
 // estimateSummaryTokens estimates token usage for a summary request.
-func estimateSummaryTokens(instructions string, messages []handmsg.Message) int {
+func estimateSummaryTokens(instructions string, messages []morphmsg.Message) int {
 	return compaction.EstimateRequestRough(models.Request{
 		Instructions: instructions,
 		Messages:     messages,
@@ -1398,7 +1398,7 @@ func (s *Service) refreshSummary(
 	payload := buildSummaryTracePayload(input.SessionID, plan.TargetOffset, plan.TargetMessageCount, plan.RequestedAt)
 	input.TraceSession.Record(trace.EvtSummaryRequested, payload)
 
-	summaryMessages := make([]handmsg.Message, 0, plan.TargetOffset)
+	summaryMessages := make([]morphmsg.Message, 0, plan.TargetOffset)
 	instructions := instruct.BuildSessionSummary()
 	if summaryInstructions, ok := state.RenderSummaryInstructions(); ok {
 		instructions = instruct.New(summaryInstructions).Append(instructions...)
@@ -1420,7 +1420,7 @@ func (s *Service) refreshSummary(
 			input.TraceSession.Record(trace.EvtSummaryFailed, failedPayload)
 			return nil, err
 		}
-		summaryMessages = append(summaryMessages, handmsg.CloneMessages(messages)...)
+		summaryMessages = append(summaryMessages, morphmsg.CloneMessages(messages)...)
 	}
 	summaryMessages = ctxbuilder.New().Build(ctxbuilder.Input{SessionHistory: summaryMessages})
 

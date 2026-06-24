@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	storage "github.com/wandxy/hand/internal/state/core"
+	storage "github.com/wandxy/morph/internal/state/core"
 )
 
 func TestCheckEpisodeCandidateAdmissionRejection_RejectsExecutionDetail(t *testing.T) {

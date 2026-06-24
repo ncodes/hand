@@ -7,7 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/wordwrap"
 
-	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 type transcriptRenderer interface {

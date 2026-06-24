@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
-	envtypes "github.com/wandxy/hand/internal/environment/types"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	"github.com/wandxy/morph/internal/constants"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
 )
 
 // Number of tool messages to retrieve at a time while searching for a plan.
@@ -18,7 +18,7 @@ const planHydrationPageSize = constants.PlanHydrationPageSize
 // hydratePlanFromMessages attempts to hydrate the plan from a slice of messages.
 // It returns true if a plan was found and hydrated in the environment, otherwise false.
 // If not found, it hydrates an empty plan into the environment as a fallback.
-func (t *Turn) hydratePlanFromMessages(messages []handmsg.Message) bool {
+func (t *Turn) hydratePlanFromMessages(messages []morphmsg.Message) bool {
 	if t == nil || (t.plans == nil && t.env == nil) {
 		return false
 	}
@@ -28,7 +28,7 @@ func (t *Turn) hydratePlanFromMessages(messages []handmsg.Message) bool {
 	for _, message := range messages {
 
 		// Look for assistant "tool" messages with the plan tool name.
-		if message.Role != handmsg.RoleTool || message.Name != "plan_tool" {
+		if message.Role != morphmsg.RoleTool || message.Name != "plan_tool" {
 			continue
 		}
 
@@ -148,7 +148,7 @@ func (t *Turn) hydratePlanFromHistory(ctx context.Context, sessionID string) (bo
 	for {
 		// Load a page of tool messages that might contain a plan.
 		messages, err := t.sessionStore.GetMessages(ctx, sessionID, agentsession.MessageQuery{
-			Role:   handmsg.RoleTool,
+			Role:   morphmsg.RoleTool,
 			Name:   "plan_tool",
 			Order:  agentsession.MessageOrderDesc,
 			Limit:  planHydrationPageSize,

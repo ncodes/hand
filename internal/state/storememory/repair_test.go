@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/state/search"
-	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/state/search"
+	vectormemory "github.com/wandxy/morph/internal/state/search/vectorstore/memory"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestStore_RepairVectorStore(t *testing.T) {
@@ -85,12 +85,12 @@ func TestStore_RepairVectorStore(t *testing.T) {
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "first repair row",
 		}}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "second repair row",
 		}}))
 		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
@@ -112,8 +112,8 @@ func TestStore_RepairVectorStore(t *testing.T) {
 		store := NewStore()
 		vectorStore := vectormemory.NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "retention renewal note",
 		}}))
 		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
@@ -145,8 +145,8 @@ func TestStore_RepairVectorStore(t *testing.T) {
 	t.Run("rebuilds stale vector rows", func(t *testing.T) {
 		store := newVectorMemoryStore(t, nil)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "original text",
 		}}))
 		store.mu.Lock()
@@ -162,8 +162,8 @@ func TestStore_RepairVectorStore(t *testing.T) {
 	t.Run("skips unchanged vector rows", func(t *testing.T) {
 		store := newVectorMemoryStore(t, nil)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "unchanged text",
 		}}))
 
@@ -177,8 +177,8 @@ func TestStore_RepairVectorStore(t *testing.T) {
 	t.Run("full rebuild refreshes unchanged vector rows", func(t *testing.T) {
 		store := newVectorMemoryStore(t, nil)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "unchanged text",
 		}}))
 
@@ -196,10 +196,10 @@ func TestStore_RepairVectorStore(t *testing.T) {
 		embedder := &countingEmbedder{}
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "first"},
-			{Role: handmsg.RoleUser, Content: "second"},
-			{Role: handmsg.RoleUser, Content: "third"},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "first"},
+			{Role: morphmsg.RoleUser, Content: "second"},
+			{Role: morphmsg.RoleUser, Content: "third"},
 		}))
 		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       embedder,
@@ -220,8 +220,8 @@ func TestStore_RepairVectorStore(t *testing.T) {
 	t.Run("returns required provider errors", func(t *testing.T) {
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "needs vectors",
 		}}))
 		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
@@ -238,8 +238,8 @@ func TestStore_RepairVectorStore(t *testing.T) {
 	t.Run("continues after best effort provider errors", func(t *testing.T) {
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "needs vectors",
 		}}))
 		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
@@ -263,8 +263,8 @@ func TestStore_RepairVectorStore(t *testing.T) {
 			VectorStore:    vectorStore,
 			EmbeddingModel: "semantic-test",
 		}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "original text",
 		}}))
 		store.mu.Lock()
@@ -294,8 +294,8 @@ func TestStore_RepairVectorStore(t *testing.T) {
 		}
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "needs vectors",
 		}}))
 		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
@@ -324,8 +324,8 @@ func TestStore_RepairVectorBatch(t *testing.T) {
 	t.Run("skips messages with no indexable rows", func(t *testing.T) {
 		store := newVectorMemoryStore(t, nil)
 
-		result, err := store.repairVectorBatch(context.Background(), vectormemory.NewStore(), testSessionA, []handmsg.Message{{
-			Role: handmsg.RoleUser,
+		result, err := store.repairVectorBatch(context.Background(), vectormemory.NewStore(), testSessionA, []morphmsg.Message{{
+			Role: morphmsg.RoleUser,
 		}}, false)
 		require.NoError(t, err)
 		require.Equal(t, 1, result.MessagesScanned)
@@ -336,9 +336,9 @@ func TestStore_RepairVectorBatch(t *testing.T) {
 	t.Run("returns lister errors", func(t *testing.T) {
 		store := newVectorMemoryStore(t, nil)
 
-		result, err := store.repairVectorBatch(context.Background(), nil, testSessionA, []handmsg.Message{{
+		result, err := store.repairVectorBatch(context.Background(), nil, testSessionA, []morphmsg.Message{{
 			ID:      1,
-			Role:    handmsg.RoleUser,
+			Role:    morphmsg.RoleUser,
 			Content: "needs a list",
 		}}, false)
 		require.EqualError(t, err, "vector store record listing is required")
@@ -357,9 +357,9 @@ func TestStore_RepairVectorBatch(t *testing.T) {
 			EmbeddingModel: "semantic-test",
 		}))
 
-		result, err := store.repairVectorBatch(context.Background(), vectorStore, testSessionA, []handmsg.Message{{
+		result, err := store.repairVectorBatch(context.Background(), vectorStore, testSessionA, []morphmsg.Message{{
 			ID:      1,
-			Role:    handmsg.RoleUser,
+			Role:    morphmsg.RoleUser,
 			Content: "needs an upsert",
 		}}, false)
 		require.EqualError(t, err, "upsert failed")

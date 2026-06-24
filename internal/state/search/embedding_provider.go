@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/constants"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 const (

@@ -9,32 +9,32 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/environment"
-	"github.com/wandxy/hand/internal/mocks"
-	models "github.com/wandxy/hand/internal/model"
-	handtools "github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agenttool "github.com/wandxy/hand/pkg/agent/tool"
+	"github.com/wandxy/morph/internal/environment"
+	"github.com/wandxy/morph/internal/mocks"
+	models "github.com/wandxy/morph/internal/model"
+	morphtools "github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agenttool "github.com/wandxy/morph/pkg/agent/tool"
 )
 
 func TestToolRegistry_ResolveUsesEnvironmentPolicyAndConvertsDefinitions(t *testing.T) {
 	stub := &mocks.ToolRegistryStub{
-		Definitions: handtools.Definitions{{
+		Definitions: morphtools.Definitions{{
 			Name:         "memory_extract",
 			Description:  "Extract memory",
 			InputSchema:  map[string]any{"type": "object"},
 			ParallelSafe: true,
 			Groups:       []string{"core"},
-			Requires:     handtools.Capabilities{Memory: true},
+			Requires:     morphtools.Capabilities{Memory: true},
 			Platforms:    []string{"darwin"},
 		}},
 	}
 	env := &mocks.EnvironmentStub{
 		ToolRegistry: stub,
-		Policy: handtools.Policy{
+		Policy: morphtools.Policy{
 			GroupNames:   []string{"core"},
-			Capabilities: handtools.Capabilities{Memory: true},
+			Capabilities: morphtools.Capabilities{Memory: true},
 			Platform:     "darwin",
 		},
 	}
@@ -60,11 +60,11 @@ func TestToolRegistry_InvokeDelegatesToHostInvoker(t *testing.T) {
 	var capturedCall models.ToolCall
 	registry := NewToolRegistry(
 		env,
-		func(_ context.Context, runtimeEnv environment.Environment, toolCall models.ToolCall) handmsg.Message {
+		func(_ context.Context, runtimeEnv environment.Environment, toolCall models.ToolCall) morphmsg.Message {
 			capturedEnv = runtimeEnv
 			capturedCall = toolCall
-			return handmsg.Message{
-				Role:       handmsg.RoleTool,
+			return morphmsg.Message{
+				Role:       morphmsg.RoleTool,
 				Name:       toolCall.Name,
 				ToolCallID: toolCall.ID,
 				Content:    `{"ok":true}`,
@@ -76,7 +76,7 @@ func TestToolRegistry_InvokeDelegatesToHostInvoker(t *testing.T) {
 
 	require.Same(t, env, capturedEnv)
 	require.Equal(t, models.ToolCall{ID: "call-1", Name: "time", Input: "{}"}, capturedCall)
-	require.Equal(t, handmsg.RoleTool, message.Role)
+	require.Equal(t, morphmsg.RoleTool, message.Role)
 	require.Equal(t, "time", message.Name)
 	require.Equal(t, "call-1", message.ToolCallID)
 	require.Equal(t, `{"ok":true}`, message.Content)
@@ -92,7 +92,7 @@ func TestToolRegistry_NilAndListGroupPaths(t *testing.T) {
 	require.Equal(t, agenttool.Policy{}, ToolPolicyFromEnvironment(nil))
 
 	stub := &mocks.ToolRegistryStub{
-		Groups: []handtools.Group{{Name: "core", Tools: []string{"time"}, Includes: []string{"read"}}},
+		Groups: []morphtools.Group{{Name: "core", Tools: []string{"time"}, Includes: []string{"read"}}},
 	}
 	registry := NewToolRegistry(&mocks.EnvironmentStub{ToolRegistry: stub}, nil)
 	require.Equal(t, []agenttool.Group{{Name: "core", Tools: []string{"time"}, Includes: []string{"read"}}}, registry.ListGroups())
@@ -113,7 +113,7 @@ func TestTurn_ExecuteToolCallsParallel_AppendsResultsInModelOrder(t *testing.T) 
 	completed := make(chan string, 2)
 	secondCompleted := make(chan struct{})
 	turn := &Turn{
-		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) handmsg.Message {
+		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) morphmsg.Message {
 			switch toolCall.ID {
 			case "call-1":
 				select {
@@ -153,22 +153,22 @@ func TestAssistantToolCallMessageFromResponse_PreservesMultipleToolCalls(t *test
 		OutputText: "checking both",
 		ToolCalls: []models.ToolCall{
 			{ID: "call-1", Name: "time", Input: "{}"},
-			{ID: "call-2", Name: "web_search", Input: `{"query":"hand"}`},
+			{ID: "call-2", Name: "web_search", Input: `{"query":"morph"}`},
 		},
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, handmsg.RoleAssistant, message.Role)
+	require.Equal(t, morphmsg.RoleAssistant, message.Role)
 	require.Equal(t, "checking both", message.Content)
-	require.Equal(t, []handmsg.ToolCall{
+	require.Equal(t, []morphmsg.ToolCall{
 		{ID: "call-1", Name: "time", Input: "{}"},
-		{ID: "call-2", Name: "web_search", Input: `{"query":"hand"}`},
+		{ID: "call-2", Name: "web_search", Input: `{"query":"morph"}`},
 	}, message.ToolCalls)
 }
 
 func TestTurn_ExecuteToolCallsParallel_PreservesToolErrorPayloads(t *testing.T) {
 	turn := &Turn{
-		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) handmsg.Message {
+		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) morphmsg.Message {
 			if toolCall.ID == "call-2" {
 				return toolExecutionTestMessage(toolCall, `{"error":"blocked"}`)
 			}
@@ -196,7 +196,7 @@ func TestTurn_ExecuteToolCalls_RunsAdjacentSafeGroupsInParallel(t *testing.T) {
 	completed := make(chan string, 4)
 	fourthStarted := make(chan struct{})
 	turn := &Turn{
-		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) handmsg.Message {
+		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) morphmsg.Message {
 			switch toolCall.ID {
 			case "call-3":
 				select {
@@ -245,7 +245,7 @@ func TestTurn_ExecuteToolCallsParallel_CancelsSiblingsOnFatalError(t *testing.T)
 	cancelled := make(chan struct{})
 	var once sync.Once
 	turn := &Turn{
-		invokeToolFn: func(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
+		invokeToolFn: func(ctx context.Context, toolCall models.ToolCall) morphmsg.Message {
 			if toolCall.ID == "call-1" {
 				once.Do(func() { close(started) })
 				<-ctx.Done()
@@ -254,8 +254,8 @@ func TestTurn_ExecuteToolCallsParallel_CancelsSiblingsOnFatalError(t *testing.T)
 			}
 
 			<-started
-			return handmsg.Message{
-				Role:    handmsg.RoleTool,
+			return morphmsg.Message{
+				Role:    morphmsg.RoleTool,
 				Name:    toolCall.Name,
 				Content: `{"invalid":true}`,
 			}
@@ -286,7 +286,7 @@ func TestTurn_ExecuteToolCallsParallel_CancelsSiblingsOnFatalError(t *testing.T)
 func TestTurn_ExecuteToolCalls_UsesSequentialPathForUnsafeTools(t *testing.T) {
 	var calls []string
 	turn := &Turn{
-		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) handmsg.Message {
+		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) morphmsg.Message {
 			calls = append(calls, toolCall.ID)
 
 			return toolExecutionTestMessage(toolCall, `{"ok":true}`)
@@ -313,7 +313,7 @@ func TestTurn_ExecuteToolCalls_ReturnsCancelledContext(t *testing.T) {
 	cancel()
 
 	turn := &Turn{
-		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) handmsg.Message {
+		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) morphmsg.Message {
 			return toolExecutionTestMessage(toolCall, `{"ok":true}`)
 		},
 	}
@@ -334,7 +334,7 @@ func TestTurn_InvokeToolLegacyHookAndRuntimeFallbacks(t *testing.T) {
 	require.JSONEq(t, `{"error":"tool invocation is required"}`, message.Content)
 
 	turn := &Turn{
-		invokeToolFn: func(_ context.Context, call models.ToolCall) handmsg.Message {
+		invokeToolFn: func(_ context.Context, call models.ToolCall) morphmsg.Message {
 			return toolExecutionTestMessage(call, `{"direct":true}`)
 		},
 	}
@@ -345,7 +345,7 @@ func TestTurn_InvokeToolLegacyHookAndRuntimeFallbacks(t *testing.T) {
 	env := &mocks.EnvironmentStub{}
 	turn = &Turn{
 		env: env,
-		invokeToolFn: func(_ context.Context, runtime environment.Environment, call models.ToolCall) handmsg.Message {
+		invokeToolFn: func(_ context.Context, runtime environment.Environment, call models.ToolCall) morphmsg.Message {
 			require.Same(t, env, runtime)
 			return toolExecutionTestMessage(call, `{"reflect":true}`)
 		},
@@ -361,7 +361,7 @@ func TestTurn_InvokeToolLegacyHookAndRuntimeFallbacks(t *testing.T) {
 	message = turn.invokeTool(context.Background(), toolCall)
 	require.JSONEq(t, `{"error":"tool invocation is required"}`, message.Content)
 
-	registry := &mocks.ToolRegistryStub{Result: handtools.Result{Output: `{"ok":true}`}}
+	registry := &mocks.ToolRegistryStub{Result: morphtools.Result{Output: `{"ok":true}`}}
 	turn = &Turn{env: &mocks.EnvironmentStub{ToolRegistry: registry}}
 	message = turn.invokeTool(context.Background(), toolCall)
 	require.Equal(t, map[string]any{
@@ -377,7 +377,7 @@ func TestTurn_InvokeToolLegacyHookAndRuntimeFallbacks(t *testing.T) {
 		"error": "runtime failed",
 	}, toolExecutionTestContent(t, message))
 
-	registry = &mocks.ToolRegistryStub{Result: handtools.Result{Error: handtools.Error{Code: "tool_error", Message: "failed"}.String()}}
+	registry = &mocks.ToolRegistryStub{Result: morphtools.Result{Error: morphtools.Error{Code: "tool_error", Message: "failed"}.String()}}
 	turn = &Turn{env: &mocks.EnvironmentStub{ToolRegistry: registry}}
 	message = turn.invokeTool(context.Background(), toolCall)
 	require.Equal(t, map[string]any{

@@ -7,16 +7,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/environment"
-	"github.com/wandxy/hand/internal/mocks"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
-	agenttool "github.com/wandxy/hand/pkg/agent/tool"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/environment"
+	"github.com/wandxy/morph/internal/mocks"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agentprompt "github.com/wandxy/morph/pkg/agent/prompt"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
+	agenttool "github.com/wandxy/morph/pkg/agent/tool"
 )
 
 func TestTurnFactory_NewTurnWiresRuntimeDependencies(t *testing.T) {
@@ -41,7 +41,7 @@ func TestTurnFactory_NewTurnWiresRuntimeDependencies(t *testing.T) {
 		_ context.Context,
 		env environment.Environment,
 		toolCall models.ToolCall,
-	) handmsg.Message {
+	) morphmsg.Message {
 		capturedEnv = env
 		capturedCall = toolCall
 		return toolExecutionTestMessage(toolCall, `{"ok":true}`)

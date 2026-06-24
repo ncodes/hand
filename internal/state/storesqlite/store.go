@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	handdb "github.com/wandxy/hand/internal/db"
-	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
+	morphdb "github.com/wandxy/morph/internal/db"
+	base "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -110,7 +110,7 @@ func gormOpenSQLite(path string) (*Store, error) {
 		return nil, fmt.Errorf("failed to create session db directory: %w", err)
 	}
 
-	db, err := handdb.OpenSQLite(path)
+	db, err := morphdb.OpenSQLite(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open session db: %w", err)
 	}

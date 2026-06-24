@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/wandxy/hand/internal/instructions"
+	"github.com/wandxy/morph/internal/instructions"
 )
 
 /*
@@ -112,7 +112,7 @@ type Definition struct {
 	Groups           []string
 	Requires         Capabilities
 	Platforms        []string
-	Handler          Handler
+	Handler         Handler
 }
 
 // Definitions is a list of tool definitions with lookup helpers.

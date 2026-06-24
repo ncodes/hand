@@ -6,7 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 const autoCompactionLabel = "Automatic compaction"

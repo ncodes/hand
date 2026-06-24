@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 const defaultMaxOutputTokens int64 = 4096
@@ -12,7 +12,7 @@ const defaultMaxOutputTokens int64 = 4096
 type normalizedGenerateRequest struct {
 	Model            string
 	Instructions     string
-	Messages         []handmsg.Message
+	Messages         []morphmsg.Message
 	Tools            []ToolDefinition
 	StructuredOutput *StructuredOutput
 	MaxOutputTokens  int64
@@ -70,10 +70,10 @@ func normalizeStructuredOutput(value *StructuredOutput) *StructuredOutput {
 	}
 }
 
-func normalizeMessages(messages []handmsg.Message) ([]handmsg.Message, error) {
-	normalized := make([]handmsg.Message, 0, len(messages))
+func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) {
+	normalized := make([]morphmsg.Message, 0, len(messages))
 	for _, message := range messages {
-		role := handmsg.Role(strings.TrimSpace(strings.ToLower(string(message.Role))))
+		role := morphmsg.Role(strings.TrimSpace(strings.ToLower(string(message.Role))))
 		content := strings.TrimSpace(message.Content)
 		toolCallID := strings.TrimSpace(message.ToolCallID)
 		toolCalls, err := normalizeToolCalls(message.ToolCalls)
@@ -82,19 +82,19 @@ func normalizeMessages(messages []handmsg.Message) ([]handmsg.Message, error) {
 		}
 
 		switch role {
-		case handmsg.RoleDeveloper, handmsg.RoleUser, handmsg.RoleAssistant, handmsg.RoleTool:
+		case morphmsg.RoleDeveloper, morphmsg.RoleUser, morphmsg.RoleAssistant, morphmsg.RoleTool:
 		default:
 			return nil, errors.New("message role must be one of developer, user, assistant, or tool")
 		}
 
-		if content == "" && !(role == handmsg.RoleAssistant && len(toolCalls) > 0) {
+		if content == "" && !(role == morphmsg.RoleAssistant && len(toolCalls) > 0) {
 			return nil, errors.New("message content is required")
 		}
-		if role == handmsg.RoleTool && toolCallID == "" {
+		if role == morphmsg.RoleTool && toolCallID == "" {
 			return nil, errors.New("tool call id is required")
 		}
 
-		normalized = append(normalized, handmsg.Message{
+		normalized = append(normalized, morphmsg.Message{
 			Role:       role,
 			Content:    content,
 			Name:       strings.TrimSpace(message.Name),
@@ -129,12 +129,12 @@ func normalizeToolDefinitions(definitions []ToolDefinition) ([]ToolDefinition, e
 	return normalized, nil
 }
 
-func normalizeToolCalls(toolCalls []handmsg.ToolCall) ([]handmsg.ToolCall, error) {
+func normalizeToolCalls(toolCalls []morphmsg.ToolCall) ([]morphmsg.ToolCall, error) {
 	if len(toolCalls) == 0 {
 		return nil, nil
 	}
 
-	normalized := make([]handmsg.ToolCall, 0, len(toolCalls))
+	normalized := make([]morphmsg.ToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
 		id := strings.TrimSpace(toolCall.ID)
 		name := strings.TrimSpace(toolCall.Name)
@@ -144,7 +144,7 @@ func normalizeToolCalls(toolCalls []handmsg.ToolCall) ([]handmsg.ToolCall, error
 		if name == "" {
 			return nil, errors.New("tool call name is required")
 		}
-		normalized = append(normalized, handmsg.ToolCall{
+		normalized = append(normalized, morphmsg.ToolCall{
 			ID:    id,
 			Name:  name,
 			Input: strings.TrimSpace(toolCall.Input),

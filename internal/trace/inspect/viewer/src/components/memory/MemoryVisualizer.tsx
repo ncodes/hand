@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
 import { GitBranch, Link2, Network, ShieldCheck, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
 import { compactNumber } from "../../lib/format";
 import { buildMemoryGraph, memoryKindClass, memoryKindLabel, memoryStatusClass } from "../../lib/memoryGraph";
 import { cn } from "../../lib/utils";
@@ -90,7 +90,7 @@ export function MemoryVisualizer({ detail, selectedNodeId, onSelectNode }: Memor
             <div>
               <h3 className="text-sm font-semibold">Saved memory map</h3>
               <p className="mt-1 text-xs text-stone-500">
-                Persisted memory records returned by the Hand state manager.
+                Persisted memory records returned by the Morph state manager.
               </p>
             </div>
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-stone-400">

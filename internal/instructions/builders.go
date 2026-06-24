@@ -78,7 +78,7 @@ type EnvironmentCapabilities struct {
 func BuildBase(name string) Instructions {
 	agentName := strings.TrimSpace(name)
 	if agentName == "" {
-		agentName = "Hand"
+		agentName = "Morph"
 	}
 
 	return New(fmt.Sprintf(
@@ -349,7 +349,7 @@ func BuildMemoryExtractGuidance() Instruction {
 # Memory Extract Guidance
 
 When the user explicitly asks you to remember, capture, save, or retain durable information, call memory_extract before giving the final response.
-Use memory_extract proactively after a meaningful interaction has clearly completed and produced durable continuity value, such as an important decision, outcome, correction, preference, unresolved blocker, reflection, or handoff-relevant context.
+Use memory_extract proactively after a meaningful interaction has clearly completed and produced durable continuity value, such as an important decision, outcome, correction, preference, unresolved blocker, reflection, or morphoff-relevant context.
 Prefer bounded ranges with session_id plus offset_start and offset_end when the relevant messages are known.
 Do not use memory_extract during active task execution, for every routine turn, for speculative capture, or for low-signal conversational details.
 Treat memory_extract as a deliberate capture action: it creates source-linked durable memory and should be used sparingly.`,
@@ -441,11 +441,11 @@ Use metadata.memory_granularity as summary, episode, or execution_detail; reject
 Use metadata.canonical_group to give overlapping candidates the same durable group label so redundant small candidates can be collapsed.
 When the user gives an explicit future-work workflow, checklist, preference, or operating rule, preserve the ordered steps, triggering condition, constraints, and important examples so reflection can turn it into an actionable procedural memory.
 Use empty strings for metadata fields that are unknown, absent, or not applicable; do not use placeholder words.
-Do not emit separate candidates for routine mechanical steps, ordinary data gathering, record updates, confirmations, or successful actions unless they are consequential for a decision, failure, blocker, verification, future preference, or handoff.
+Do not emit separate candidates for routine mechanical steps, ordinary data gathering, record updates, confirmations, or successful actions unless they are consequential for a decision, failure, blocker, verification, future preference, or morphoff.
 Only use resolved_issue when the evidence shows an actual problem, failure, blocker, conflict, or misunderstanding that was resolved; routine successful completion is not a resolved issue.
 Use trace_events to verify tool execution, failures, retries, policy blocks, truncation, plan changes, memory events, and other system-side events that may not be fully narrated in messages.
 When a candidate depends on trace evidence, preserve only the trace refs or event details that directly support that candidate in metadata.
-For tool_event candidates, include safe tool name, purpose, status, and artifact or command reference as metadata.tool_name, metadata.purpose, metadata.status, and metadata.artifact_or_command_ref when present in the evidence; emit tool_event only for consequential tool use such as failures, verification, risky operations, important produced artifacts or records, external actions, or handoff-relevant references.
+For tool_event candidates, include safe tool name, purpose, status, and artifact or command reference as metadata.tool_name, metadata.purpose, metadata.status, and metadata.artifact_or_command_ref when present in the evidence; emit tool_event only for consequential tool use such as failures, verification, risky operations, important produced artifacts or records, external actions, or morphoff-relevant references.
 For decision candidates, include metadata.chosen_option, metadata.rejected_alternatives, metadata.reason, and metadata.source_range when present in the evidence.
 For outcome candidates, include metadata.requested_goal, metadata.resulting_change, metadata.verification_status, and metadata.remaining_risk when present in the evidence; requested_goal may be conversational, analytical, creative, operational, personal, or technical.
 For reflection candidates, capture durable meaning-making or emotional interpretation of an episode, not passing mood; include metadata.emotion, metadata.emotional_valence, metadata.emotional_intensity, metadata.emotion_target, metadata.life_domain, and metadata.sensitivity when present in the evidence.
@@ -474,7 +474,7 @@ func BuildSessionSummary() Instructions {
 	return New(`
 # Session Summary Task
 
-Create a structured handoff summary of the provided chat history for another assistant that will continue the work.
+Create a structured morphoff summary of the provided chat history for another assistant that will continue the work.
 
 Goal: Capture the current progress and important decisions made so far.
 Context preservation: Preserve important context, hard constraints, user preferences, and any critical examples or references needed to continue without redoing work.
@@ -516,7 +516,7 @@ func BuildRecallSessionSummaryWindow(windowIndex, windowCount int) Instructions 
 		fmt.Sprintf(`
 # Recall Session Summary Window
 
-Summarize bounded recall window %d of %d from one session into the structured handoff format.`,
+Summarize bounded recall window %d of %d from one session into the structured morphoff format.`,
 			windowIndex,
 			windowCount,
 		),
@@ -536,7 +536,7 @@ func BuildRecallSessionSummarySynthesis(batchIndex, batchCount int) Instructions
 	return New(fmt.Sprintf(`
 # Recall Session Summary Synthesis
 
-Combine bounded recall summaries batch %d of %d into one structured handoff summary.`, batchIndex, batchCount),
+Combine bounded recall summaries batch %d of %d into one structured morphoff summary.`, batchIndex, batchCount),
 	).Append(
 		BuildSessionSummary()...,
 	).Append(
@@ -553,7 +553,7 @@ func BuildRecallSessionSummaryChunk(windowIndex, windowCount, chunkIndex, chunkC
 	return New(fmt.Sprintf(`
 # Recall Session Summary Chunk
 
-Summarize chunk %d of %d from oversized recall window %d of %d into the structured handoff format.`,
+Summarize chunk %d of %d from oversized recall window %d of %d into the structured morphoff format.`,
 		chunkIndex,
 		chunkCount,
 		windowIndex,

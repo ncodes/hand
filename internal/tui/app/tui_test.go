@@ -18,25 +18,25 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
-	agentapi "github.com/wandxy/hand/internal/agent"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
-	"github.com/wandxy/hand/internal/profile"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/trace"
-	"github.com/wandxy/hand/internal/tui/render"
-	agent "github.com/wandxy/hand/pkg/agent"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	agentapi "github.com/wandxy/morph/internal/agent"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
+	"github.com/wandxy/morph/internal/profile"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/trace"
+	"github.com/wandxy/morph/internal/tui/render"
+	agent "github.com/wandxy/morph/pkg/agent"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
 )
 
 func TestMain(m *testing.M) {
 	original := promptHistoryPath
 	originalTheme := defaultTUITheme
 	originalProfile := profile.Active()
-	testProfileHome, _ := os.MkdirTemp("", "hand-tui-profile-*")
+	testProfileHome, _ := os.MkdirTemp("", "morph-tui-profile-*")
 	_ = original()
 	promptHistoryPath = func() string {
 		return ""
@@ -88,8 +88,8 @@ func TestModel_ViewRendersShellAreas(t *testing.T) {
 	require.Contains(t, content, "/changelog")
 	require.Contains(t, content, "Hi, Kennedy")
 	require.Contains(t, content, emptyUserPromptQuestion)
-	require.Contains(t, content, inputPrompt+"Ask Hand...")
-	require.Contains(t, content, "Ask Hand...")
+	require.Contains(t, content, inputPrompt+"Ask Morph...")
+	require.Contains(t, content, "Ask Morph...")
 	require.NotContains(t, content, "minimax-m2.7")
 	require.Contains(t, content, "enter to send")
 }
@@ -131,8 +131,8 @@ func TestNewModel_ShowsNamePromptForEmptyProfile(t *testing.T) {
 	require.Contains(t, content, namePromptTitle)
 	require.Contains(t, content, namePromptPlaceholder)
 	require.Contains(t, content, namePromptSubmitHint)
-	require.NotContains(t, content, inputPrompt+"Ask Hand")
-	require.NotContains(t, content, "Welcome to Hand TUI")
+	require.NotContains(t, content, inputPrompt+"Ask Morph")
+	require.NotContains(t, content, "Welcome to Morph TUI")
 }
 
 func TestNewModel_LoadsSavedProfileName(t *testing.T) {
@@ -190,7 +190,7 @@ search:
 	require.Contains(t, content, namePromptTitle)
 	require.Contains(t, content, "Nedy")
 	require.NotContains(t, content, emptyUserPromptQuestion)
-	require.NotContains(t, content, inputPrompt+"Ask Hand")
+	require.NotContains(t, content, inputPrompt+"Ask Morph")
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
@@ -239,8 +239,8 @@ search:
 	require.Contains(t, content, "/changelog")
 	require.Contains(t, content, "Hi, Nedy")
 	require.Contains(t, content, emptyUserPromptQuestion)
-	require.Contains(t, content, inputPrompt+"Ask Hand")
-	require.NotContains(t, content, "Welcome to Hand TUI")
+	require.Contains(t, content, inputPrompt+"Ask Morph")
+	require.NotContains(t, content, "Welcome to Morph TUI")
 }
 
 func TestModel_SubmitsNamePrompt(t *testing.T) {
@@ -1150,16 +1150,16 @@ func TestModel_CompleteSetupOAuthLoginIgnoresStaleMessage(t *testing.T) {
 }
 
 func TestRenderProfileModelSetupNoticeMessageStylesAuthCommand(t *testing.T) {
-	rendered := renderProfileModelSetupNoticeMessage("run hand auth login anthropic in a new terminal", 80)
+	rendered := renderProfileModelSetupNoticeMessage("run morph auth login anthropic in a new terminal", 80)
 
 	require.Contains(
 		t,
 		rendered,
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color(defaultTUITheme.MarkdownLinkForeground)).
-			Render("hand auth login anthropic"),
+			Render("morph auth login anthropic"),
 	)
-	require.Contains(t, stripANSI(rendered), "run hand auth login anthropic in a new terminal")
+	require.Contains(t, stripANSI(rendered), "run morph auth login anthropic in a new terminal")
 	require.Empty(t, renderProfileModelSetupNoticeMessage("", 80))
 	require.Empty(t, getProfileModelSetupNoticeAuthCommand("run something else"))
 }
@@ -1436,7 +1436,7 @@ func TestModel_InitLoadsExistingSessionTimeline(t *testing.T) {
 		timeline: rpcclient.SessionTimeline{
 			SessionID: "default",
 			Messages: []agentapi.SessionTimelineMessage{{
-				Message: handmsg.Message{Role: handmsg.RoleUser, Content: "older prompt"},
+				Message: morphmsg.Message{Role: morphmsg.RoleUser, Content: "older prompt"},
 			}},
 		},
 	}
@@ -1613,7 +1613,7 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 			SessionID: "default",
 			Title:     "Daily Planning",
 			Messages: []agentapi.SessionTimelineMessage{{
-				Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "older answer"},
+				Message: morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "older answer"},
 			}},
 			TraceEvents: []agentapi.SessionTimelineTraceEvent{{
 				Event: agentsession.TraceEvent{
@@ -1631,7 +1631,7 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"Automatic compaction completed", "Hand: older answer"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Automatic compaction completed", "Morph: older answer"}, transcriptCellPlainTexts(runModel.messages))
 	require.Contains(t, stripANSI(runModel.transcript.View()), "older answer")
 	require.Equal(t, defaultSessionID, runModel.sessionID)
 	require.Equal(t, "Daily Planning (default)", runModel.sessionTitle)
@@ -1865,14 +1865,14 @@ func TestGetModelDisplayName_RemovesProviderPrefix(t *testing.T) {
 	require.Equal(t, "GPT 5.5", getModelDisplayName(" GPT 5.5 "))
 }
 
-func TestGetHandBannerColor_UsesLastColorForOutOfRangeIndex(t *testing.T) {
-	require.Equal(t, handBannerColors[len(handBannerColors)-1], getHandBannerColor(-1))
-	require.Equal(t, handBannerColors[len(handBannerColors)-1], getHandBannerColor(len(handBannerColors)))
+func TestGetMorphBannerColor_UsesLastColorForOutOfRangeIndex(t *testing.T) {
+	require.Equal(t, morphBannerColors[len(morphBannerColors)-1], getMorphBannerColor(-1))
+	require.Equal(t, morphBannerColors[len(morphBannerColors)-1], getMorphBannerColor(len(morphBannerColors)))
 }
 
 func TestModel_ViewKeepsBannerFullWhenInfoPanelWouldClipIt(t *testing.T) {
 	runModel := newModel()
-	runModel.width = lipgloss.Width(handBanner) + headerGapWidth + getHeaderInfoWidth(getHeaderInfoRows(runModel)) - 1
+	runModel.width = lipgloss.Width(morphBanner) + headerGapWidth + getHeaderInfoWidth(getHeaderInfoRows(runModel)) - 1
 	runModel.resize()
 	content := stripANSI(runModel.renderHeader())
 
@@ -1882,7 +1882,7 @@ func TestModel_ViewKeepsBannerFullWhenInfoPanelWouldClipIt(t *testing.T) {
 
 func TestModel_ViewShowsHeaderMarkNextToFullBanner(t *testing.T) {
 	runModel := newModel()
-	runModel.width = lipgloss.Width(handHeaderMark) + headerGapWidth + lipgloss.Width(handBanner) + headerBodyPadding*2
+	runModel.width = lipgloss.Width(morphHeaderMark) + headerGapWidth + lipgloss.Width(morphBanner) + headerBodyPadding*2
 	runModel.resize()
 	content := stripANSI(runModel.renderHeader())
 
@@ -1894,7 +1894,7 @@ func TestModel_ViewShowsHeaderMarkNextToFullBanner(t *testing.T) {
 
 func TestModel_ViewHidesHeaderMarkWhenFullBannerWouldClip(t *testing.T) {
 	runModel := newModel()
-	runModel.width = lipgloss.Width(handHeaderMark) + headerGapWidth + lipgloss.Width(handBanner) + headerBodyPadding*2 - 1
+	runModel.width = lipgloss.Width(morphHeaderMark) + headerGapWidth + lipgloss.Width(morphBanner) + headerBodyPadding*2 - 1
 	runModel.resize()
 	content := stripANSI(runModel.renderHeader())
 
@@ -1904,7 +1904,7 @@ func TestModel_ViewHidesHeaderMarkWhenFullBannerWouldClip(t *testing.T) {
 
 func TestModel_ViewUsesCompactBannerWhenFullBannerDoesNotFit(t *testing.T) {
 	runModel := newModel()
-	runModel.width = lipgloss.Width(handBanner) - 1
+	runModel.width = lipgloss.Width(morphBanner) - 1
 	runModel.resize()
 	content := stripANSI(runModel.renderHeader())
 
@@ -1942,7 +1942,7 @@ func TestRenderHeaderBody_InsetsBannerAndInfo(t *testing.T) {
 func TestModel_ViewRendersBottomStatusPanelBelowComposer(t *testing.T) {
 	runModel := newModel()
 	content := stripANSI(runModel.View().Content)
-	inputIndex := strings.Index(content, inputPrompt+"Ask Hand...")
+	inputIndex := strings.Index(content, inputPrompt+"Ask Morph...")
 	infoIndex := strings.LastIndex(content, defaultSessionTitle)
 
 	require.NotEqual(t, -1, inputIndex)
@@ -1962,7 +1962,7 @@ func TestModel_RenderInputUsesCompleteComposerFrame(t *testing.T) {
 	require.True(t, strings.HasSuffix(strings.TrimRight(lines[0], " "), "╮"))
 	require.True(t, strings.HasPrefix(lines[1], "│"))
 	require.True(t, strings.HasSuffix(strings.TrimRight(lines[1], " "), "│"))
-	require.Contains(t, lines[1], inputPrompt+"Ask Hand...")
+	require.Contains(t, lines[1], inputPrompt+"Ask Morph...")
 	require.True(t, strings.HasPrefix(lines[2], "╰"))
 	require.True(t, strings.HasSuffix(strings.TrimRight(lines[2], " "), "╯"))
 }
@@ -2091,12 +2091,12 @@ func TestSpaceBetweenBottomStatusPanel_HandlesMissingAndNarrowSides(t *testing.T
 
 func TestCompactTranscriptSelectionBlankLines_CollapsesVisualPaddingRuns(t *testing.T) {
 	require.Equal(t,
-		"❯ first\n\nHand: second",
-		compactTranscriptSelectionBlankLines("❯ first\n\n\nHand: second"),
+		"❯ first\n\nMorph: second",
+		compactTranscriptSelectionBlankLines("❯ first\n\n\nMorph: second"),
 	)
 	require.Equal(t,
-		"❯ first\n\nHand: second",
-		compactTranscriptSelectionBlankLines("❯ first\n"+strings.Repeat("▄", 40)+"\n"+strings.Repeat("▀", 40)+"\n\nHand: second"),
+		"❯ first\n\nMorph: second",
+		compactTranscriptSelectionBlankLines("❯ first\n"+strings.Repeat("▄", 40)+"\n"+strings.Repeat("▀", 40)+"\n\nMorph: second"),
 	)
 }
 
@@ -2388,12 +2388,12 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	messages := make([]agentapi.SessionTimelineMessage, 0, 20)
 	for index := 0; index < 18; index++ {
 		messages = append(messages, agentapi.SessionTimelineMessage{
-			Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: fmt.Sprintf("older %02d", index)},
+			Message: morphmsg.Message{Role: morphmsg.RoleAssistant, Content: fmt.Sprintf("older %02d", index)},
 		})
 	}
 	messages = append(messages,
-		agentapi.SessionTimelineMessage{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hello"}},
-		agentapi.SessionTimelineMessage{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hi"}},
+		agentapi.SessionTimelineMessage{Message: morphmsg.Message{Role: morphmsg.RoleUser, Content: "hello"}},
+		agentapi.SessionTimelineMessage{Message: morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "hi"}},
 	)
 
 	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{
@@ -2412,11 +2412,11 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	require.Equal(t, "Project Planning", runModel.sessionTitle)
 	require.Equal(t, defaultStatus, runModel.status.Text())
 	require.Equal(t, "You: hello", transcriptCellPlainText(runModel.messages[len(runModel.messages)-3]))
-	require.Equal(t, "Hand: hi", transcriptCellPlainText(runModel.messages[len(runModel.messages)-2]))
+	require.Equal(t, "Morph: hi", transcriptCellPlainText(runModel.messages[len(runModel.messages)-2]))
 	require.Equal(t, transcriptCellPlainText(toolTranscriptTestCell("call_1", "read_file", "")), transcriptCellPlainText(runModel.messages[len(runModel.messages)-1]))
 	require.Contains(t, content, "❯ hello")
 	require.Contains(t, content, "hi")
-	require.NotContains(t, content, "Hand: hi")
+	require.NotContains(t, content, "Morph: hi")
 	require.Contains(t, content, "● Read")
 	require.Contains(t, content, "└ read_file")
 	require.NotContains(t, content, "older 00")
@@ -2637,7 +2637,7 @@ func TestModel_UpdateHandlesClearCommand(t *testing.T) {
 	require.Contains(t, stripANSI(runModel.View().Content), emptyUserPromptQuestion)
 	require.Contains(t, content, "Welcome, Kennedy")
 	require.NotContains(t, content, "You: stale")
-	require.NotContains(t, content, "Hand: live")
+	require.NotContains(t, content, "Morph: live")
 
 	updated, cmd = runModel.Update(statusExpiredMsg{startedAt: runModel.status.StartedAt()})
 	require.Nil(t, cmd)
@@ -2805,7 +2805,7 @@ func TestModel_UpdateEscapeClosesCommandView(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.False(t, runModel.isCommandViewVisible())
-	require.Contains(t, stripANSI(runModel.View().Content), inputPrompt+"Ask Hand")
+	require.Contains(t, stripANSI(runModel.View().Content), inputPrompt+"Ask Morph")
 }
 
 func TestCommandViewFrame_UsesProvidedTitleColorsAndContent(t *testing.T) {
@@ -3249,7 +3249,7 @@ func TestModel_UpdateKeepsSelectionWhenDraggingOutsideTranscript(t *testing.T) {
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      len("Hand"),
+		X:      len("Morph"),
 		Y:      top,
 	}))
 	require.Nil(t, cmd)
@@ -3258,7 +3258,7 @@ func TestModel_UpdateKeepsSelectionWhenDraggingOutsideTranscript(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      len("Hand: first"),
+		X:      len("Morph: first"),
 		Y:      top + runModel.transcript.Height(),
 	}))
 
@@ -3498,7 +3498,7 @@ func TestModel_UpdateReportsMouseSelectionCopyFailure(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      len("Hand"),
+		X:      len("Morph"),
 		Y:      row,
 	}))
 
@@ -3552,7 +3552,7 @@ func TestModel_TranscriptSelectionPointFromMouseMapsWrappedVisualRowsToContentLi
 	runModel.width = 24
 	runModel.height = 40
 	runModel.resize()
-	first := "Hand: " + strings.Repeat("wrapped ", 6)
+	first := "Morph: " + strings.Repeat("wrapped ", 6)
 	runModel.transcript.SetContent(first + "\nYou: next")
 	runModel.transcript.GotoTop()
 
@@ -3654,11 +3654,11 @@ func TestHighlightTranscriptSelectionUsesDisplayColumnsForWideCharacters(t *test
 }
 
 func TestGetDisplayColumnForByteOffsetHandlesWideCharacters(t *testing.T) {
-	line := "Hand: 👋 anything"
+	line := "Morph: 👋 anything"
 
 	column := getDisplayColumnForByteOffset(line, strings.Index(line, "anything"))
 
-	require.Equal(t, len("Hand: ")+2+1, column)
+	require.Equal(t, len("Morph: ")+2+1, column)
 }
 
 func TestModel_SetTranscriptContentClearsMouseSelection(t *testing.T) {
@@ -3668,7 +3668,7 @@ func TestModel_SetTranscriptContentClearsMouseSelection(t *testing.T) {
 	runModel.selection = transcriptSelection{
 		active: true,
 		start:  transcriptSelectionPoint{offset: 0},
-		end:    transcriptSelectionPoint{offset: len("Hand")},
+		end:    transcriptSelectionPoint{offset: len("Morph")},
 	}
 	runModel.applyTranscriptSelectionStyle()
 	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
@@ -3679,7 +3679,7 @@ func TestModel_SetTranscriptContentClearsMouseSelection(t *testing.T) {
 	require.False(t, runModel.selection.active)
 	require.Empty(t, runModel.selectedTranscriptText())
 	require.Contains(t, stripANSI(runModel.transcript.View()), "refreshed")
-	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: refreshed")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Morph: refreshed")
 }
 
 func TestModel_UpdateReportsUnknownCommand(t *testing.T) {
@@ -3854,7 +3854,7 @@ func TestModel_SubmitPromptStartsResponseFollowFromSettledBottom(t *testing.T) {
 	runModel = updated.(model)
 	require.True(t, runModel.transcript.AtBottom())
 	require.Contains(t, stripANSI(runModel.transcript.View()), "final")
-	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: final")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Morph: final")
 }
 
 func TestModel_SubmitPromptFollowsResponseAfterUserScrollsBackToBottom(t *testing.T) {
@@ -3992,7 +3992,7 @@ func TestModel_UpdateAppliesResponseEventsAndCompletion(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, "Hand: hello", transcriptCellPlainText(runModel.live))
+	require.Equal(t, "Morph: hello", transcriptCellPlainText(runModel.live))
 
 	updated, cmd = runModel.Update(responseCompletedMsg{ResponseID: 4, Text: "hello final"})
 
@@ -4001,7 +4001,7 @@ func TestModel_UpdateAppliesResponseEventsAndCompletion(t *testing.T) {
 	require.False(t, runModel.responding)
 	require.Nil(t, runModel.events)
 	require.Empty(t, runModel.live)
-	require.Equal(t, []string{"Hand: hello final"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Morph: hello final"}, transcriptCellPlainTexts(runModel.messages))
 }
 
 func TestModel_UpdateRendersCompletedResponseDuration(t *testing.T) {
@@ -4019,7 +4019,7 @@ func TestModel_UpdateRendersCompletedResponseDuration(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"Hand: Here's one for you.\nWorked for 6s"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Morph: Here's one for you.\nWorked for 6s"}, transcriptCellPlainTexts(runModel.messages))
 	require.Contains(t, stripANSI(runModel.transcript.GetContent()), assistantTranscriptWorkGlyph+"Worked for 6s")
 	require.True(t, runModel.responseStartedAt.IsZero())
 }
@@ -4140,7 +4140,7 @@ func TestModel_UpdateKeepsFollowingBottomWhenResponseCompletesAfterStream(t *tes
 	runModel = updated.(model)
 	require.True(t, runModel.transcript.AtBottom())
 	require.Contains(t, stripANSI(runModel.transcript.View()), "streamed")
-	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Morph: streamed")
 }
 
 func TestModel_UpdateScrollsToBottomWhenResponseCompletesWhileViewportIsAtBottom(t *testing.T) {
@@ -4164,7 +4164,7 @@ func TestModel_UpdateScrollsToBottomWhenResponseCompletesWhileViewportIsAtBottom
 	runModel = updated.(model)
 	require.True(t, runModel.transcript.AtBottom())
 	require.Contains(t, stripANSI(runModel.transcript.View()), "final")
-	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: final")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Morph: final")
 }
 
 func TestModel_UpdateDoesNotScrollToBottomWhenResponseCompletesAfterManualScroll(t *testing.T) {
@@ -4310,7 +4310,7 @@ func TestModel_UpdateDoesNotScrollToBottomWhenResponseArrivesAwayFromBottom(t *t
 	runModel = updated.(model)
 	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
 	require.False(t, runModel.transcript.AtBottom())
-	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Morph: streamed")
 }
 
 func TestModel_UpdateSurfacesRPCErrorInStatusAndTranscript(t *testing.T) {
@@ -4409,7 +4409,7 @@ func TestModel_UpdateIgnoresStaleResponseEvents(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Empty(t, runModel.live)
-	require.Equal(t, []string{"Hand: final"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Morph: final"}, transcriptCellPlainTexts(runModel.messages))
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "late delta")
 }
 
@@ -4531,7 +4531,7 @@ func TestModel_UpdateDoesNotMergeCompletedToolBeforeCurrentResponse(t *testing.T
 	require.Equal(t, []string{
 		"You: first",
 		transcriptCellPlainText(toolTranscriptTestCell("call_1", "web_extract", "")),
-		"Hand: first done",
+		"Morph: first done",
 		"You: second",
 		transcriptCellPlainText(toolTranscriptTestCell("call_1", "web_extract", "", true)),
 	}, transcriptCellPlainTexts(runModel.messages))
@@ -4830,11 +4830,11 @@ func TestModel_UpdatePreservesLiveAssistantCellDuringStreaming(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, []string{"You: hello"}, transcriptCellPlainTexts(runModel.messages))
-	require.Equal(t, "Hand: first line\npartial", transcriptCellPlainText(runModel.live))
+	require.Equal(t, "Morph: first line\npartial", transcriptCellPlainText(runModel.live))
 	content := stripANSI(runModel.transcript.View())
 	require.Contains(t, content, "❯ hello")
 	require.Contains(t, content, "first line")
-	require.NotContains(t, content, "Hand: first line")
+	require.NotContains(t, content, "Morph: first line")
 	require.Contains(t, content, "partial")
 }
 
@@ -4850,11 +4850,11 @@ func TestModel_UpdateConvertsLiveAssistantCellToHistoryAtCompletion(t *testing.T
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Empty(t, runModel.live)
-	require.Equal(t, []string{"You: hello", "Hand: first line\npartial"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"You: hello", "Morph: first line\npartial"}, transcriptCellPlainTexts(runModel.messages))
 	require.Equal(t, "", runModel.stream.Render())
 	content := stripANSI(runModel.transcript.View())
 	require.Contains(t, content, "first line")
-	require.NotContains(t, content, "Hand: first line")
+	require.NotContains(t, content, "Morph: first line")
 	require.Contains(t, content, "partial")
 }
 
@@ -4883,7 +4883,7 @@ func TestModel_UpdateRendersReasoningDeltasOutsideAssistantStream(t *testing.T) 
 	require.Equal(t, []string{
 		"You: hello",
 		"Thought: 3s",
-		"Hand: answer",
+		"Morph: answer",
 	}, transcriptCellPlainTexts(runModel.messages))
 	content := stripANSI(runModel.transcript.View())
 	require.Contains(t, content, "Thought for 3s")
@@ -4930,7 +4930,7 @@ func TestModel_UpdateReasoningCompletedCollapsesEarlierThinkingCell(t *testing.T
 		"Thought: 5s",
 		transcriptCellPlainText(toolTranscriptTestCell("call_1", "session_messages", "", true)),
 		"Thought: 17s",
-		"Hand: done",
+		"Morph: done",
 	}, transcriptCellPlainTexts(runModel.messages))
 	content := stripANSI(runModel.transcript.View())
 	require.Contains(t, content, "Thought for 5s")
@@ -4971,7 +4971,7 @@ func TestModel_UpdateUsesFinalAssistantTextAtCompletion(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Empty(t, runModel.live)
-	require.Equal(t, []string{"You: hello", "Hand: final"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"You: hello", "Morph: final"}, transcriptCellPlainTexts(runModel.messages))
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "draft")
 }
 
@@ -4983,7 +4983,7 @@ func TestModel_UpdatePreservesFinalAssistantWhitespace(t *testing.T) {
 	updated, cmd = updated.(model).Update(assistantResponseCompletedMsg{Text: "final\n\n"})
 
 	require.Nil(t, cmd)
-	require.Equal(t, []string{"Hand: final\n\n"}, transcriptCellPlainTexts(updated.(model).messages))
+	require.Equal(t, []string{"Morph: final\n\n"}, transcriptCellPlainTexts(updated.(model).messages))
 }
 
 func TestModel_UpdateIgnoresEmptyAssistantDelta(t *testing.T) {

@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	appcredential "github.com/wandxy/hand/internal/credential"
+	appcredential "github.com/wandxy/morph/internal/credential"
 )
 
 func TestMain(m *testing.M) {
@@ -43,7 +43,7 @@ func TestOpenAISubscriptionProvider_AuthHeadersUsesJWTAccountMetadata(t *testing
 	require.Equal(t, "Bearer "+token, headers["Authorization"])
 	require.Equal(t, "acct-test", headers["ChatGPT-Account-ID"])
 	require.Equal(t, "responses=experimental", headers["OpenAI-Beta"])
-	require.Equal(t, "hand", headers["Originator"])
+	require.Equal(t, "morph", headers["Originator"])
 	require.NotEmpty(t, headers["User-Agent"])
 }
 
@@ -420,7 +420,7 @@ func TestGetOpenURLCommand(t *testing.T) {
 
 	name, args = getOpenURLCommand("windows", "https://example.test")
 	require.Equal(t, "rundll32", name)
-	require.Equal(t, []string{"url.dll,FileProtocolHandler", "https://example.test"}, args)
+	require.Equal(t, []string{"url.dll,FileProtocolHand", "https://example.test"}, args)
 
 	name, args = getOpenURLCommand("linux", "https://example.test")
 	require.Equal(t, "xdg-open", name)

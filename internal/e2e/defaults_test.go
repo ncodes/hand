@@ -9,16 +9,16 @@ import (
 )
 
 func TestDefaultSpec_DefaultPaths(t *testing.T) {
-	spec := DefaultSpec("/tmp/hand-home")
+	spec := DefaultSpec("/tmp/morph-home")
 
 	require.NoError(t, spec.Validate())
 	assert.Equal(t, EntrypointDirectAgent, spec.PrimaryEntrypoint)
 	assert.Equal(t, EntrypointCommandRPC, spec.SecondaryEntrypoint)
 	assert.True(t, spec.Config.AllowInMemory)
-	assert.Equal(t, "/tmp/hand-home/workspace", spec.Isolation.WorkspaceDir)
-	assert.Equal(t, "/tmp/hand-home/data", spec.Isolation.DataDir)
-	assert.Equal(t, "/tmp/hand-home/data/state.db", spec.Isolation.StoragePath)
-	assert.Equal(t, "/tmp/hand-home/traces", spec.Isolation.TraceDir)
+	assert.Equal(t, "/tmp/morph-home/workspace", spec.Isolation.WorkspaceDir)
+	assert.Equal(t, "/tmp/morph-home/data", spec.Isolation.DataDir)
+	assert.Equal(t, "/tmp/morph-home/data/state.db", spec.Isolation.StoragePath)
+	assert.Equal(t, "/tmp/morph-home/traces", spec.Isolation.TraceDir)
 }
 
 func TestDefaultConfig_DefaultsAndOverrides(t *testing.T) {
@@ -26,7 +26,7 @@ func TestDefaultConfig_DefaultsAndOverrides(t *testing.T) {
 		cfg := DefaultConfig(ConfigOptions{})
 		require.NotNil(t, cfg)
 		require.NotNil(t, cfg.Models.Main.Stream)
-		assert.Equal(t, "Test Hand", cfg.Name)
+		assert.Equal(t, "Test Morph", cfg.Name)
 		assert.Equal(t, "test-model", cfg.Models.Main.Name)
 		assert.Equal(t, "sqlite", cfg.Storage.Backend)
 		assert.False(t, *cfg.Models.Main.Stream)
@@ -51,7 +51,7 @@ func TestDefaultConfig_DefaultsAndOverrides(t *testing.T) {
 			StorageBackend: "  ",
 		})
 		require.NotNil(t, cfg)
-		assert.Equal(t, "Test Hand", cfg.Name)
+		assert.Equal(t, "Test Morph", cfg.Name)
 		assert.Equal(t, "sqlite", cfg.Storage.Backend)
 	})
 }

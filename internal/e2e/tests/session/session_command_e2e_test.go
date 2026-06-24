@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	sessioncmd "github.com/wandxy/hand/cmd/session"
-	"github.com/wandxy/hand/internal/e2e"
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/profile"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	sessioncmd "github.com/wandxy/morph/cmd/session"
+	"github.com/wandxy/morph/internal/e2e"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/profile"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -29,7 +29,7 @@ func init() {
 func Test_E2E_SessionCommand_CreateSessionViaRPCSmoke(t *testing.T) {
 	h, err := e2e.NewDefaultRPCHarness(
 		context.Background(),
-		t.TempDir()+"/hand-home",
+		t.TempDir()+"/morph-home",
 		e2e.NewTextClient("ok"),
 		e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "memory"}),
 	)
@@ -45,7 +45,7 @@ func Test_E2E_SessionCommand_CreateSessionViaRPCSmoke(t *testing.T) {
 
 func Test_E2E_SessionCommand_CreateListUseCurrentAndChatFlow(t *testing.T) {
 	newSessionHarness := func(t *testing.T) *e2e.RPCHarness {
-		home := t.TempDir() + "/hand-home"
+		home := t.TempDir() + "/morph-home"
 		h, err := e2e.NewDefaultRPCHarness(
 			context.Background(),
 			home,
@@ -130,14 +130,14 @@ func Test_E2E_SessionCommand_CreateListUseCurrentAndChatFlow(t *testing.T) {
 		messages, err := h.Messages(context.Background(), "ses_123456789012345678902")
 		require.NoError(t, err)
 		require.Len(t, messages, 2)
-		assert.Equal(t, []handmsg.Role{handmsg.RoleUser, handmsg.RoleAssistant}, []handmsg.Role{messages[0].Role, messages[1].Role})
+		assert.Equal(t, []morphmsg.Role{morphmsg.RoleUser, morphmsg.RoleAssistant}, []morphmsg.Role{messages[0].Role, messages[1].Role})
 		assert.Equal(t, "hello from selected session", messages[0].Content)
 		assert.Equal(t, "session reply", messages[1].Content)
 	})
 }
 
 func Test_E2E_SessionCommand_DefaultSessionBehavior(t *testing.T) {
-	home := t.TempDir() + "/hand-home"
+	home := t.TempDir() + "/morph-home"
 
 	h, err := e2e.NewDefaultRPCHarness(
 		context.Background(),
@@ -165,7 +165,7 @@ func Test_E2E_SessionCommand_DefaultSessionBehavior(t *testing.T) {
 }
 
 func Test_E2E_SessionCommand_PersistenceCompactionStatusAndSummaryReuse(t *testing.T) {
-	home := t.TempDir() + "/hand-home"
+	home := t.TempDir() + "/morph-home"
 
 	modelClient := e2e.NewClient(
 		e2e.OutputTextStep("reply 1"),
@@ -217,13 +217,13 @@ func Test_E2E_SessionCommand_PersistenceCompactionStatusAndSummaryReuse(t *testi
 			if len(req.Messages) != 9 {
 				return fmt.Errorf("expected 9 messages after summary trimming, got %d", len(req.Messages))
 			}
-			if req.Messages[0].Role != handmsg.RoleUser || req.Messages[0].Content != "turn 2" {
+			if req.Messages[0].Role != morphmsg.RoleUser || req.Messages[0].Content != "turn 2" {
 				return errors.New("expected trimmed history to start at the second turn")
 			}
-			if req.Messages[7].Role != handmsg.RoleAssistant || req.Messages[7].Content != "reply 5" {
+			if req.Messages[7].Role != morphmsg.RoleAssistant || req.Messages[7].Content != "reply 5" {
 				return errors.New("expected latest retained assistant reply before follow-up")
 			}
-			if req.Messages[8].Role != handmsg.RoleUser || req.Messages[8].Content != "after restart" {
+			if req.Messages[8].Role != morphmsg.RoleUser || req.Messages[8].Content != "after restart" {
 				return errors.New("expected follow-up user message after restart")
 			}
 			return nil

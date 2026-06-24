@@ -7,10 +7,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/wandxy/hand/internal/constants"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/constants"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 const (
@@ -46,7 +46,7 @@ func Search(
 		MaxMessagesPerSession: maxSessionMatchedMessages,
 		MaxSessions:           limit,
 		Query:                 query,
-		Role:                  handmsg.Role(role),
+		Role:                  morphmsg.Role(role),
 		ToolName:              toolName,
 	})
 	if err != nil {

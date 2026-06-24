@@ -11,7 +11,7 @@ func TestFormatMarkdownV2_FormatsCommonMarkdown(t *testing.T) {
 		"# Heading",
 		"**standard bold** and *telegram bold*",
 		"_italic_ and __underlined__",
-		"[Hand](https://example.com/docs)",
+		"[Morph](https://example.com/docs)",
 		"[Nedy](tg://user?id=123456789)",
 		"`code.value`",
 		"~~gone~~ and ~deleted~ and ||secret||",
@@ -22,7 +22,7 @@ func TestFormatMarkdownV2_FormatsCommonMarkdown(t *testing.T) {
 		"*Heading*",
 		"*standard bold* and *telegram bold*",
 		"_italic_ and __underlined__",
-		"[Hand](https://example.com/docs)",
+		"[Morph](https://example.com/docs)",
 		"[Nedy](tg://user?id=123456789)",
 		"`code.value`",
 		"~gone~ and ~deleted~ and ||secret||",
@@ -58,10 +58,10 @@ func TestFormatMarkdownV2_PreservesExpandableBlockQuote(t *testing.T) {
 }
 
 func TestPlainTextFromMarkdownV2_RemovesCommonMarkdown(t *testing.T) {
-	input := "# Heading\n**bold** and *telegram bold*\n_italic_ and __underlined__\n~deleted~\n[Hand](https://example.com)\n`code`"
+	input := "# Heading\n**bold** and *telegram bold*\n_italic_ and __underlined__\n~deleted~\n[Morph](https://example.com)\n`code`"
 
 	require.Equal(t,
-		"Heading\nbold and telegram bold\nitalic and underlined\ndeleted\nHand (https://example.com)\ncode",
+		"Heading\nbold and telegram bold\nitalic and underlined\ndeleted\nMorph (https://example.com)\ncode",
 		PlainTextFromMarkdownV2(input),
 	)
 }

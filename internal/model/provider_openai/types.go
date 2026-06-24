@@ -1,6 +1,6 @@
 package provider_openai
 
-import models "github.com/wandxy/hand/internal/model"
+import models "github.com/wandxy/morph/internal/model"
 
 // Client is the provider-neutral model client contract implemented by OpenAIClient.
 type Client = models.Client

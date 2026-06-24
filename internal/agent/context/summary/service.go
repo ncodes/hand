@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/wandxy/hand/internal/agent/context/compaction"
-	"github.com/wandxy/hand/internal/config"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/agent/context/compaction"
+	"github.com/wandxy/morph/internal/config"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // SummaryStore describes the persisted session operations needed by summary
@@ -19,7 +19,7 @@ type SummaryStore interface {
 	Save(context.Context, storage.Session) error
 	GetSummary(context.Context, string) (storage.SessionSummary, bool, error)
 	SaveSummary(context.Context, storage.SessionSummary) error
-	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
+	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error)
 	CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error)
 }
 

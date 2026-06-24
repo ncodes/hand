@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/gateway/dispatch"
-	"github.com/wandxy/hand/pkg/gateway/httpjson"
-	tg "github.com/wandxy/hand/pkg/gateway/telegram"
-	gatewaytypes "github.com/wandxy/hand/pkg/gateway/types"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/gateway/dispatch"
+	"github.com/wandxy/morph/pkg/gateway/httpjson"
+	tg "github.com/wandxy/morph/pkg/gateway/telegram"
+	gatewaytypes "github.com/wandxy/morph/pkg/gateway/types"
 )
 
 const (

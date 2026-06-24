@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 func (p *MemoryProvider) recordPromotionStarted(ctx context.Context, memoryID string, operation string) {

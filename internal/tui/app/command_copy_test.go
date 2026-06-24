@@ -27,7 +27,7 @@ func TestModel_UpdateCopiesTranscriptToClipboard(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, "You: hello\n\nHand: hi", copied)
+	require.Equal(t, "You: hello\n\nMorph: hi", copied)
 	require.Equal(t, "transcript copied", runModel.status.Text())
 	require.Empty(t, runModel.input.Value())
 }
@@ -50,7 +50,7 @@ func TestModel_UpdateCopiesTranscriptWithShortcut(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, "Hand: shortcut", copied)
+	require.Equal(t, "Morph: shortcut", copied)
 	require.Equal(t, "transcript copied", runModel.status.Text())
 }
 
@@ -69,7 +69,7 @@ func TestModel_TranscriptTextIncludesLiveAssistantCell(t *testing.T) {
 	runModel.messages = []transcriptCell{userTranscriptCell{text: "hello"}}
 	runModel.live = assistantTranscriptCell{text: "streaming"}
 
-	require.Equal(t, "You: hello\n\nHand: streaming", runModel.transcriptText())
+	require.Equal(t, "You: hello\n\nMorph: streaming", runModel.transcriptText())
 }
 
 func TestModel_TranscriptTextFallsBackToViewportContent(t *testing.T) {

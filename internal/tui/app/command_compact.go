@@ -6,7 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 )
 
 type sessionCompactor interface {

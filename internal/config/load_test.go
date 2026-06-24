@@ -7,86 +7,86 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/hand/internal/constants"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
-		"HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL",
-		"HAND_LOG_FILE", "HAND_LOG_MAX_SIZE_MB", "HAND_LOG_MAX_BACKUPS", "HAND_LOG_MAX_AGE_DAYS", "HAND_LOG_COMPRESS",
-		"HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS", "HAND_CAP_NET",
-		"HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER", "HAND_MEMORY_BACKEND",
-		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+		"MORPH_MODEL_BASE_URL", "MORPH_MODEL_API", "MORPH_RPC_ADDRESS", "MORPH_RPC_PORT", "MORPH_SESSION_MAX_ITERATIONS", "MORPH_LOG_LEVEL",
+		"MORPH_LOG_FILE", "MORPH_LOG_MAX_SIZE_MB", "MORPH_LOG_MAX_BACKUPS", "MORPH_LOG_MAX_AGE_DAYS", "MORPH_LOG_COMPRESS",
+		"MORPH_LOG_NO_COLOR", "MORPH_DEBUG_REQUESTS", "MORPH_RULES_FILES", "MORPH_SESSION_INSTRUCT", "MORPH_PLATFORM", "MORPH_CAP_FS", "MORPH_CAP_NET",
+		"MORPH_CAP_EXEC", "MORPH_CAP_MEM", "MORPH_CAP_BROWSER", "MORPH_MEMORY_ENABLED", "MORPH_MEMORY_PROVIDER", "MORPH_MEMORY_BACKEND",
+		"MORPH_MEMORY_PINNED_ENABLED", "MORPH_MEMORY_PINNED_MAX_CHARS", "MORPH_MEMORY_PINNED_MAX_ITEM_CHARS")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	require.NoError(t, os.WriteFile(envPath, []byte(`
-HAND_NAME=env-agent
-HAND_MODEL=env-model
-HAND_MODEL_PROVIDER=openrouter
+MORPH_NAME=env-agent
+MORPH_MODEL=env-model
+MORPH_MODEL_PROVIDER=openrouter
 OPENAI_API_KEY=openai-env-key
 OPENROUTER_API_KEY=openrouter-env-key
-HAND_MODEL_BASE_URL=https://env.example/v1
-HAND_RPC_ADDRESS=0.0.0.0
-HAND_RPC_PORT=6000
-HAND_SESSION_MAX_ITERATIONS=45
-HAND_LOG_LEVEL=warn
-HAND_LOG_FILE=/tmp/hand.log
-HAND_LOG_MAX_SIZE_MB=25
-HAND_LOG_MAX_BACKUPS=9
-HAND_LOG_MAX_AGE_DAYS=30
-HAND_LOG_COMPRESS=false
-HAND_LOG_NO_COLOR=true
-HAND_DEBUG_REQUESTS=true
-HAND_RULES_FILES=hand.md,custom.md
-HAND_SESSION_INSTRUCT=be terse
-HAND_PLATFORM=cli
-HAND_CAP_FS=false
-HAND_CAP_NET=false
-HAND_CAP_EXEC=false
-HAND_CAP_MEM=false
-HAND_CAP_BROWSER=true
-HAND_MEMORY_ENABLED=true
-HAND_MEMORY_PROVIDER=default-memory
-HAND_MEMORY_BACKEND=memory
-HAND_MEMORY_PINNED_ENABLED=false
-HAND_MEMORY_PINNED_MAX_CHARS=2000
-HAND_MEMORY_PINNED_MAX_ITEM_CHARS=500
+MORPH_MODEL_BASE_URL=https://env.example/v1
+MORPH_RPC_ADDRESS=0.0.0.0
+MORPH_RPC_PORT=6000
+MORPH_SESSION_MAX_ITERATIONS=45
+MORPH_LOG_LEVEL=warn
+MORPH_LOG_FILE=/tmp/morph.log
+MORPH_LOG_MAX_SIZE_MB=25
+MORPH_LOG_MAX_BACKUPS=9
+MORPH_LOG_MAX_AGE_DAYS=30
+MORPH_LOG_COMPRESS=false
+MORPH_LOG_NO_COLOR=true
+MORPH_DEBUG_REQUESTS=true
+MORPH_RULES_FILES=morph.md,custom.md
+MORPH_SESSION_INSTRUCT=be terse
+MORPH_PLATFORM=cli
+MORPH_CAP_FS=false
+MORPH_CAP_NET=false
+MORPH_CAP_EXEC=false
+MORPH_CAP_MEM=false
+MORPH_CAP_BROWSER=true
+MORPH_MEMORY_ENABLED=true
+MORPH_MEMORY_PROVIDER=default-memory
+MORPH_MEMORY_BACKEND=memory
+MORPH_MEMORY_PINNED_ENABLED=false
+MORPH_MEMORY_PINNED_MAX_CHARS=2000
+MORPH_MEMORY_PINNED_MAX_ITEM_CHARS=500
 `), 0o600))
 
 	require.NoError(t, PreloadEnvFile(envPath))
-	require.Equal(t, "env-agent", os.Getenv("HAND_NAME"))
-	require.Equal(t, "env-model", os.Getenv("HAND_MODEL"))
-	require.Equal(t, "openrouter", os.Getenv("HAND_MODEL_PROVIDER"))
+	require.Equal(t, "env-agent", os.Getenv("MORPH_NAME"))
+	require.Equal(t, "env-model", os.Getenv("MORPH_MODEL"))
+	require.Equal(t, "openrouter", os.Getenv("MORPH_MODEL_PROVIDER"))
 	require.Equal(t, "openai-env-key", os.Getenv("OPENAI_API_KEY"))
 	require.Equal(t, "openrouter-env-key", os.Getenv("OPENROUTER_API_KEY"))
-	require.Equal(t, "https://env.example/v1", os.Getenv("HAND_MODEL_BASE_URL"))
-	require.Equal(t, "0.0.0.0", os.Getenv("HAND_RPC_ADDRESS"))
-	require.Equal(t, "6000", os.Getenv("HAND_RPC_PORT"))
-	require.Equal(t, "45", os.Getenv("HAND_SESSION_MAX_ITERATIONS"))
-	require.Equal(t, "warn", os.Getenv("HAND_LOG_LEVEL"))
-	require.Equal(t, "/tmp/hand.log", os.Getenv("HAND_LOG_FILE"))
-	require.Equal(t, "25", os.Getenv("HAND_LOG_MAX_SIZE_MB"))
-	require.Equal(t, "9", os.Getenv("HAND_LOG_MAX_BACKUPS"))
-	require.Equal(t, "30", os.Getenv("HAND_LOG_MAX_AGE_DAYS"))
-	require.Equal(t, "false", os.Getenv("HAND_LOG_COMPRESS"))
-	require.Equal(t, "true", os.Getenv("HAND_LOG_NO_COLOR"))
-	require.Equal(t, "true", os.Getenv("HAND_DEBUG_REQUESTS"))
-	require.Equal(t, "hand.md,custom.md", os.Getenv("HAND_RULES_FILES"))
-	require.Equal(t, "be terse", os.Getenv("HAND_SESSION_INSTRUCT"))
-	require.Equal(t, "cli", os.Getenv("HAND_PLATFORM"))
-	require.Equal(t, "false", os.Getenv("HAND_CAP_FS"))
-	require.Equal(t, "false", os.Getenv("HAND_CAP_NET"))
-	require.Equal(t, "false", os.Getenv("HAND_CAP_EXEC"))
-	require.Equal(t, "false", os.Getenv("HAND_CAP_MEM"))
-	require.Equal(t, "true", os.Getenv("HAND_CAP_BROWSER"))
-	require.Equal(t, "true", os.Getenv("HAND_MEMORY_ENABLED"))
-	require.Equal(t, "default-memory", os.Getenv("HAND_MEMORY_PROVIDER"))
-	require.Equal(t, "memory", os.Getenv("HAND_MEMORY_BACKEND"))
-	require.Equal(t, "false", os.Getenv("HAND_MEMORY_PINNED_ENABLED"))
-	require.Equal(t, "2000", os.Getenv("HAND_MEMORY_PINNED_MAX_CHARS"))
-	require.Equal(t, "500", os.Getenv("HAND_MEMORY_PINNED_MAX_ITEM_CHARS"))
+	require.Equal(t, "https://env.example/v1", os.Getenv("MORPH_MODEL_BASE_URL"))
+	require.Equal(t, "0.0.0.0", os.Getenv("MORPH_RPC_ADDRESS"))
+	require.Equal(t, "6000", os.Getenv("MORPH_RPC_PORT"))
+	require.Equal(t, "45", os.Getenv("MORPH_SESSION_MAX_ITERATIONS"))
+	require.Equal(t, "warn", os.Getenv("MORPH_LOG_LEVEL"))
+	require.Equal(t, "/tmp/morph.log", os.Getenv("MORPH_LOG_FILE"))
+	require.Equal(t, "25", os.Getenv("MORPH_LOG_MAX_SIZE_MB"))
+	require.Equal(t, "9", os.Getenv("MORPH_LOG_MAX_BACKUPS"))
+	require.Equal(t, "30", os.Getenv("MORPH_LOG_MAX_AGE_DAYS"))
+	require.Equal(t, "false", os.Getenv("MORPH_LOG_COMPRESS"))
+	require.Equal(t, "true", os.Getenv("MORPH_LOG_NO_COLOR"))
+	require.Equal(t, "true", os.Getenv("MORPH_DEBUG_REQUESTS"))
+	require.Equal(t, "morph.md,custom.md", os.Getenv("MORPH_RULES_FILES"))
+	require.Equal(t, "be terse", os.Getenv("MORPH_SESSION_INSTRUCT"))
+	require.Equal(t, "cli", os.Getenv("MORPH_PLATFORM"))
+	require.Equal(t, "false", os.Getenv("MORPH_CAP_FS"))
+	require.Equal(t, "false", os.Getenv("MORPH_CAP_NET"))
+	require.Equal(t, "false", os.Getenv("MORPH_CAP_EXEC"))
+	require.Equal(t, "false", os.Getenv("MORPH_CAP_MEM"))
+	require.Equal(t, "true", os.Getenv("MORPH_CAP_BROWSER"))
+	require.Equal(t, "true", os.Getenv("MORPH_MEMORY_ENABLED"))
+	require.Equal(t, "default-memory", os.Getenv("MORPH_MEMORY_PROVIDER"))
+	require.Equal(t, "memory", os.Getenv("MORPH_MEMORY_BACKEND"))
+	require.Equal(t, "false", os.Getenv("MORPH_MEMORY_PINNED_ENABLED"))
+	require.Equal(t, "2000", os.Getenv("MORPH_MEMORY_PINNED_MAX_CHARS"))
+	require.Equal(t, "500", os.Getenv("MORPH_MEMORY_PINNED_MAX_ITEM_CHARS"))
 }
 
 func TestPreloadEnvFile_DoesNotOverrideShellEnv(t *testing.T) {
@@ -185,26 +185,26 @@ func TestSaveYAML_ReturnsValidationErrors(t *testing.T) {
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
 		"OPENROUTER_API_KEY",
-		"HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS",
-		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR",
-		"HAND_MODEL_MAX_RETRIES",
-		"HAND_WEB_PROVIDER", "HAND_WEB_API_KEY", "HAND_WEB_BASE_URL", "HAND_WEB_MAX_CHAR_PER_RESULT",
-		"HAND_WEB_MAX_EXTRACT_CHAR_PER_RESULT", "HAND_WEB_MAX_EXTRACT_RESPONSE_BYTES",
-		"HAND_WEB_CACHE_TTL", "HAND_WEB_BLOCKED_DOMAINS_ENABLED", "HAND_WEB_BLOCKED_DOMAINS",
-		"HAND_WEB_BLOCKED_DOMAIN_FILES", "HAND_WEB_NATIVE_ALLOWED_HOSTS", "HAND_WEB_NATIVE_BLOCKED_HOSTS",
-		"HAND_WEB_NATIVE_ALLOWED_HOST_FILES", "HAND_WEB_NATIVE_BLOCKED_HOST_FILES",
-		"HAND_WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "HAND_WEB_EXTRACT_MAX_SUMMARY_CHARS",
-		"HAND_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "HAND_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
-		"HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS",
-		"HAND_CAP_NET", "HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER",
-		"HAND_MEMORY_BACKEND",
-		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS",
-		"HAND_MEMORY_REFLECTION_ENABLED", "HAND_MEMORY_REFLECTION_INTERVAL",
-		"HAND_MEMORY_REFLECTION_LIMIT", "HAND_MEMORY_REFLECTION_RELATED_LIMIT",
-		"HAND_MEMORY_PROMOTION_ENABLED", "HAND_MEMORY_PROMOTION_INTERVAL",
-		"HAND_MEMORY_PROMOTION_LIMIT")
+		"MORPH_MODEL_BASE_URL", "MORPH_MODEL_API", "MORPH_RPC_ADDRESS", "MORPH_RPC_PORT", "MORPH_SESSION_MAX_ITERATIONS",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR",
+		"MORPH_MODEL_MAX_RETRIES",
+		"MORPH_WEB_PROVIDER", "MORPH_WEB_API_KEY", "MORPH_WEB_BASE_URL", "MORPH_WEB_MAX_CHAR_PER_RESULT",
+		"MORPH_WEB_MAX_EXTRACT_CHAR_PER_RESULT", "MORPH_WEB_MAX_EXTRACT_RESPONSE_BYTES",
+		"MORPH_WEB_CACHE_TTL", "MORPH_WEB_BLOCKED_DOMAINS_ENABLED", "MORPH_WEB_BLOCKED_DOMAINS",
+		"MORPH_WEB_BLOCKED_DOMAIN_FILES", "MORPH_WEB_NATIVE_ALLOWED_HOSTS", "MORPH_WEB_NATIVE_BLOCKED_HOSTS",
+		"MORPH_WEB_NATIVE_ALLOWED_HOST_FILES", "MORPH_WEB_NATIVE_BLOCKED_HOST_FILES",
+		"MORPH_WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "MORPH_WEB_EXTRACT_MAX_SUMMARY_CHARS",
+		"MORPH_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "MORPH_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
+		"MORPH_DEBUG_REQUESTS", "MORPH_RULES_FILES", "MORPH_SESSION_INSTRUCT", "MORPH_PLATFORM", "MORPH_CAP_FS",
+		"MORPH_CAP_NET", "MORPH_CAP_EXEC", "MORPH_CAP_MEM", "MORPH_CAP_BROWSER", "MORPH_MEMORY_ENABLED", "MORPH_MEMORY_PROVIDER",
+		"MORPH_MEMORY_BACKEND",
+		"MORPH_MEMORY_PINNED_ENABLED", "MORPH_MEMORY_PINNED_MAX_CHARS", "MORPH_MEMORY_PINNED_MAX_ITEM_CHARS",
+		"MORPH_MEMORY_REFLECTION_ENABLED", "MORPH_MEMORY_REFLECTION_INTERVAL",
+		"MORPH_MEMORY_REFLECTION_LIMIT", "MORPH_MEMORY_REFLECTION_RELATED_LIMIT",
+		"MORPH_MEMORY_PROMOTION_ENABLED", "MORPH_MEMORY_PROMOTION_INTERVAL",
+		"MORPH_MEMORY_PROMOTION_LIMIT")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -259,7 +259,7 @@ memory:
     limit: 7
 log:
   level: error
-  file: /tmp/config-hand.log
+  file: /tmp/config-morph.log
   noColor: true
 debug:
   requests: true
@@ -292,7 +292,7 @@ web:
   extractRefusalThresholdChars: 180000
 rules:
   files:
-    - hand.md
+    - morph.md
     - custom.md
 `), 0o600))
 
@@ -309,7 +309,7 @@ rules:
 	require.Equal(t, 6000, cfg.RPC.Port)
 	require.Equal(t, 45, cfg.Session.MaxIterations)
 	require.Equal(t, "error", cfg.Log.Level)
-	require.Equal(t, "/tmp/config-hand.log", cfg.Log.File)
+	require.Equal(t, "/tmp/config-morph.log", cfg.Log.File)
 	require.True(t, cfg.Log.NoColor)
 	require.True(t, cfg.Debug.Requests)
 	require.Equal(t, "exa", cfg.Web.Provider)
@@ -330,7 +330,7 @@ rules:
 	require.Equal(t, 3000, cfg.Web.ExtractMaxSummaryChars)
 	require.Equal(t, 60000, cfg.Web.ExtractMaxSummaryChunkChars)
 	require.Equal(t, 180000, cfg.Web.ExtractRefusalThresholdChars)
-	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.Rules.Files)
+	require.Equal(t, []string{"morph.md", "custom.md"}, cfg.Rules.Files)
 	require.Equal(t, "be terse", cfg.Session.Instruct)
 	require.Equal(t, "cli", cfg.Platform)
 	require.True(t, cfg.MemoryEnabled())
@@ -390,9 +390,9 @@ log:
 }
 
 func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
-		"OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_MODEL_MAX_RETRIES",
-		"HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
+		"OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_MODEL_API", "MORPH_MODEL_MAX_RETRIES",
+		"MORPH_RPC_ADDRESS", "MORPH_RPC_PORT", "MORPH_SESSION_MAX_ITERATIONS", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_DEBUG_REQUESTS")
 
 	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
 
@@ -413,7 +413,7 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 }
 
 func TestLoad_DefaultsOmittedMainAPIToSelectedProvider(t *testing.T) {
-	clearEnvKeys(t, "HAND_MODEL_API", "HAND_MODEL_PROVIDER", "HAND_MODEL_BASE_URL")
+	clearEnvKeys(t, "MORPH_MODEL_API", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -467,7 +467,7 @@ func TestLoadStrictRejectsMissingGatewayCredentials(t *testing.T) {
 	_, err := LoadStrict("", configPath)
 
 	require.EqualError(t, err, "gateway telegram bot token is required when telegram gateway is enabled; "+
-		"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
+		"set MORPH_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
 }
 
 func TestLoadRelaxedSkipsMissingGatewayCredentials(t *testing.T) {
@@ -485,9 +485,9 @@ func TestLoadRelaxedSkipsMissingGatewayCredentials(t *testing.T) {
 }
 
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
-		"OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_MODEL_MAX_RETRIES",
-		"HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
+		"OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_MODEL_API", "MORPH_MODEL_MAX_RETRIES",
+		"MORPH_RPC_ADDRESS", "MORPH_RPC_PORT", "MORPH_SESSION_MAX_ITERATIONS", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")

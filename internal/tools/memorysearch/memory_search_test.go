@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/tools"
-	toolmocks "github.com/wandxy/hand/internal/tools/mocks"
+	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/tools"
+	toolmocks "github.com/wandxy/morph/internal/tools/mocks"
 )
 
 func TestMemorySearch_DefinitionSearchesRuntimeWithFilters(t *testing.T) {

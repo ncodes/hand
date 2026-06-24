@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/state/search/vectorstore"
-	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
-	vectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
+	"github.com/wandxy/morph/internal/state/search/vectorstore"
+	vectormemory "github.com/wandxy/morph/internal/state/search/vectorstore/memory"
+	vectorsqlite "github.com/wandxy/morph/internal/state/search/vectorstore/sqlite"
 )
 
 func TestVectorStoreContract(t *testing.T) {

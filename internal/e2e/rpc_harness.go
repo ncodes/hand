@@ -8,11 +8,11 @@ import (
 	"strings"
 	"sync"
 
-	handagent "github.com/wandxy/hand/internal/agent"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	morphagent "github.com/wandxy/morph/internal/agent"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	"google.golang.org/grpc"
 
-	"github.com/wandxy/hand/internal/rpc/server"
+	"github.com/wandxy/morph/internal/rpc/server"
 )
 
 var rpcListen = net.Listen
@@ -51,7 +51,7 @@ func NewRPCHarness(ctx context.Context, opts HarnessOptions) (*RPCHarness, error
 		return nil, errors.New("e2e rpc listener must be tcp")
 	}
 
-	serviceAPI, ok := base.agent.(handagent.ServiceAPI)
+	serviceAPI, ok := base.agent.(morphagent.ServiceAPI)
 	if !ok {
 		_ = lis.Close()
 		_ = base.Close()

@@ -10,10 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	base "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -147,8 +147,8 @@ func TestStore_AppendMessages(t *testing.T) {
 			Required:       true,
 		}))
 
-		err := store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		err := store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "needle",
 		}})
 		require.EqualError(t, err, "upsert failed")
@@ -165,8 +165,8 @@ func TestStore_ClearMessages(t *testing.T) {
 			EmbeddingModel: "semantic-test",
 			Required:       true,
 		}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "needle",
 		}}))
 
@@ -177,22 +177,22 @@ func TestStore_ClearMessages(t *testing.T) {
 
 func TestFindMessageByID(t *testing.T) {
 	t.Run("returns false when id is missing", func(t *testing.T) {
-		_, ok := getMessageByID([]handmsg.Message{{ID: 1}}, 2)
+		_, ok := getMessageByID([]morphmsg.Message{{ID: 1}}, 2)
 		require.False(t, ok)
 	})
 }
 
 func TestMessageMatchesSearchOptions(t *testing.T) {
 	t.Run("rejects mismatched session id", func(t *testing.T) {
-		require.False(t, checkMessageMatchesSearchOptions(testSessionA, handmsg.Message{Role: handmsg.RoleUser}, testSessionB, base.SearchMessageOptions{}))
+		require.False(t, checkMessageMatchesSearchOptions(testSessionA, morphmsg.Message{Role: morphmsg.RoleUser}, testSessionB, base.SearchMessageOptions{}))
 	})
 
 	t.Run("rejects ignored session id", func(t *testing.T) {
-		require.False(t, checkMessageMatchesSearchOptions(testSessionA, handmsg.Message{Role: handmsg.RoleUser}, "", base.SearchMessageOptions{IgnoreSessionID: testSessionA}))
+		require.False(t, checkMessageMatchesSearchOptions(testSessionA, morphmsg.Message{Role: morphmsg.RoleUser}, "", base.SearchMessageOptions{IgnoreSessionID: testSessionA}))
 	})
 
 	t.Run("rejects mismatched role", func(t *testing.T) {
-		require.False(t, checkMessageMatchesSearchOptions(testSessionA, handmsg.Message{Role: handmsg.RoleUser}, "", base.SearchMessageOptions{Role: handmsg.RoleAssistant}))
+		require.False(t, checkMessageMatchesSearchOptions(testSessionA, morphmsg.Message{Role: morphmsg.RoleUser}, "", base.SearchMessageOptions{Role: morphmsg.RoleAssistant}))
 	})
 }
 
@@ -232,7 +232,7 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 				HasVector:   true,
 				VectorScore: 1,
 			},
-			Message: handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "body a", CreatedAt: now},
+			Message: morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "body a", CreatedAt: now},
 		}, {
 			CandidateMatch: search.CandidateMatch{
 				SessionID:   testSessionB,
@@ -240,7 +240,7 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 				HasVector:   true,
 				VectorScore: 0.8,
 			},
-			Message: handmsg.Message{ID: 2, Role: handmsg.RoleUser, Content: "body b", CreatedAt: older},
+			Message: morphmsg.Message{ID: 2, Role: morphmsg.RoleUser, Content: "body b", CreatedAt: older},
 		}}, base.SearchMessageOptions{
 			MaxSessions:           1,
 			MaxMessagesPerSession: 1,
@@ -253,10 +253,10 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 	t.Run("result ordering prefers newest session match when scores tie", func(t *testing.T) {
 		results := searchCandidatesToSearchResults([]*searchCandidate{{
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionB, FusedScore: 1},
-			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "newer", CreatedAt: now},
+			Message:        morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "newer", CreatedAt: now},
 		}, {
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
-			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "older", CreatedAt: older},
+			Message:        morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "older", CreatedAt: older},
 		}}, base.SearchMessageOptions{})
 		require.Equal(t, testSessionB, results[0].SessionID)
 	})
@@ -264,10 +264,10 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 	t.Run("result ordering uses session id as final tie break", func(t *testing.T) {
 		results := searchCandidatesToSearchResults([]*searchCandidate{{
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
-			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "a", CreatedAt: now},
+			Message:        morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "a", CreatedAt: now},
 		}, {
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionB, FusedScore: 1},
-			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "b", CreatedAt: now},
+			Message:        morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "b", CreatedAt: now},
 		}}, base.SearchMessageOptions{})
 		require.Equal(t, testSessionA, results[0].SessionID)
 	})
@@ -275,10 +275,10 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 	t.Run("message limit preserves total match count", func(t *testing.T) {
 		results := searchCandidatesToSearchResults([]*searchCandidate{{
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 2},
-			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "newer", CreatedAt: now},
+			Message:        morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "newer", CreatedAt: now},
 		}, {
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
-			Message:        handmsg.Message{ID: 2, Role: handmsg.RoleUser, Content: "older", CreatedAt: older},
+			Message:        morphmsg.Message{ID: 2, Role: morphmsg.RoleUser, Content: "older", CreatedAt: older},
 		}}, base.SearchMessageOptions{MaxMessagesPerSession: 1})
 		require.Len(t, results[0].Messages, 1)
 		require.Equal(t, 2, results[0].MatchCount)
@@ -291,40 +291,40 @@ func TestCompareSearchCandidates(t *testing.T) {
 	older := now.Add(-time.Minute)
 
 	t.Run("orders message ids descending", func(t *testing.T) {
-		left := &searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}}
-		right := &searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 2, CreatedAt: now}}
+		left := &searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: morphmsg.Message{ID: 1, CreatedAt: now}}
+		right := &searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: morphmsg.Message{ID: 2, CreatedAt: now}}
 		require.Greater(t, compareSearchCandidates(left, right), 0)
 		require.Less(t, compareSearchCandidates(right, left), 0)
 	})
 
 	t.Run("covers score time session and equality ties", func(t *testing.T) {
 		require.Equal(t, 0, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: morphmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: morphmsg.Message{ID: 1, CreatedAt: now}},
 		))
 		require.Less(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 2}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, Message: handmsg.Message{ID: 2, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 2}, Message: morphmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, Message: morphmsg.Message{ID: 2, CreatedAt: now}},
 		), 0)
 		require.Greater(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 2}, Message: handmsg.Message{ID: 2, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, Message: morphmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 2}, Message: morphmsg.Message{ID: 2, CreatedAt: now}},
 		), 0)
 		require.Greater(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: older}},
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 2, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: morphmsg.Message{ID: 1, CreatedAt: older}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: morphmsg.Message{ID: 2, CreatedAt: now}},
 		), 0)
 		require.Less(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 2, CreatedAt: older}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: morphmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: morphmsg.Message{ID: 2, CreatedAt: older}},
 		), 0)
 		require.Less(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionB}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: morphmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionB}, Message: morphmsg.Message{ID: 1, CreatedAt: now}},
 		), 0)
 		require.Greater(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionB}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionB}, Message: morphmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: morphmsg.Message{ID: 1, CreatedAt: now}},
 		), 0)
 	})
 }
@@ -333,7 +333,7 @@ func TestRetrievalCandidateFromSearchCandidate(t *testing.T) {
 	t.Run("falls back to message content", func(t *testing.T) {
 		candidate := searchCandidateToRetrievalCandidate(&searchCandidate{
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
-			Message:        handmsg.Message{ID: 3, Role: handmsg.RoleUser, Content: "fallback text", CreatedAt: time.Now().UTC()},
+			Message:        morphmsg.Message{ID: 3, Role: morphmsg.RoleUser, Content: "fallback text", CreatedAt: time.Now().UTC()},
 		})
 		require.Equal(t, "fallback text", candidate.Text)
 	})
@@ -346,12 +346,12 @@ func TestStore_SearchMessagesLexicalCandidates(t *testing.T) {
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{ID: 1, Role: handmsg.RoleUser, Content: "needle one", CreatedAt: now},
-			{ID: 2, Role: handmsg.RoleUser, Content: "needle two", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{ID: 1, Role: morphmsg.RoleUser, Content: "needle one", CreatedAt: now},
+			{ID: 2, Role: morphmsg.RoleUser, Content: "needle two", CreatedAt: now},
 		}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-			{ID: 3, Role: handmsg.RoleUser, Content: "needle three", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+			{ID: 3, Role: morphmsg.RoleUser, Content: "needle three", CreatedAt: now},
 		}))
 
 		candidates := store.searchMessagesLexicalCandidates(testSessionA, base.SearchMessageOptions{Query: "needle"}, "needle", 1)
@@ -363,12 +363,12 @@ func TestStore_SearchMessagesLexicalCandidates(t *testing.T) {
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{ID: 1, Role: handmsg.RoleUser, Content: "needle one", CreatedAt: now},
-			{ID: 2, Role: handmsg.RoleUser, Content: "needle two", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{ID: 1, Role: morphmsg.RoleUser, Content: "needle one", CreatedAt: now},
+			{ID: 2, Role: morphmsg.RoleUser, Content: "needle two", CreatedAt: now},
 		}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-			{ID: 3, Role: handmsg.RoleUser, Content: "needle three", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+			{ID: 3, Role: morphmsg.RoleUser, Content: "needle three", CreatedAt: now},
 		}))
 
 		candidates := store.searchMessagesLexicalCandidates("", base.SearchMessageOptions{Query: "needle"}, "needle", 1)
@@ -381,9 +381,9 @@ func TestStore_SearchMessagesLexicalCandidates(t *testing.T) {
 	t.Run("lexical candidates prefer newer messages", func(t *testing.T) {
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{ID: 1, Role: handmsg.RoleUser, Content: "needle older", CreatedAt: now.Add(-time.Minute)},
-			{ID: 2, Role: handmsg.RoleUser, Content: "needle newer", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{ID: 1, Role: morphmsg.RoleUser, Content: "needle older", CreatedAt: now.Add(-time.Minute)},
+			{ID: 2, Role: morphmsg.RoleUser, Content: "needle newer", CreatedAt: now},
 		}))
 
 		candidates := store.searchMessagesLexicalCandidates(testSessionA, base.SearchMessageOptions{Query: "needle"}, "needle", 1)
@@ -400,9 +400,9 @@ func TestStore_VectorMatchesToCandidates(t *testing.T) {
 
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
 			ID:        1,
-			Role:      handmsg.RoleUser,
+			Role:      morphmsg.RoleUser,
 			Content:   "body",
 			CreatedAt: now,
 		}}))
@@ -462,10 +462,10 @@ func TestStore_IndexVectors(t *testing.T) {
 			Required:       true,
 		}))
 
-		require.NoError(t, store.indexVectors(context.Background(), testSessionA, []handmsg.Message{{
-			Role: handmsg.RoleUser,
+		require.NoError(t, store.indexVectors(context.Background(), testSessionA, []morphmsg.Message{{
+			Role: morphmsg.RoleUser,
 		}}))
-		require.NoError(t, (*Store)(nil).indexVectors(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "body"}}))
+		require.NoError(t, (*Store)(nil).indexVectors(context.Background(), testSessionA, []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "body"}}))
 	})
 
 	t.Run("returns embedder errors", func(t *testing.T) {
@@ -477,8 +477,8 @@ func TestStore_IndexVectors(t *testing.T) {
 			Required:       true,
 		}))
 
-		require.EqualError(t, store.indexVectors(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.EqualError(t, store.indexVectors(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "body",
 		}}), "embed failed")
 	})
@@ -492,8 +492,8 @@ func TestStore_IndexVectors(t *testing.T) {
 			Required:       true,
 		}))
 
-		require.EqualError(t, store.indexVectors(context.Background(), testSessionA, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		require.EqualError(t, store.indexVectors(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "body",
 		}}), "embedding result count must match input count")
 	})
@@ -538,7 +538,7 @@ func TestSearchCandidateSet_Merge(t *testing.T) {
 		require.Empty(t, getSearchCandidateKey(nil))
 		candidates.Merge([]*searchCandidate{nil, {
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
-			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "vector"},
+			Message:        morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "vector"},
 		}}, getSearchCandidateKey)
 		require.Len(t, candidates, 1)
 	})
@@ -547,7 +547,7 @@ func TestSearchCandidateSet_Merge(t *testing.T) {
 		candidates := searchCandidateSet{
 			search.SourceIDForMessage(testSessionA, 1): {
 				CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
-				Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "lexical"},
+				Message:        morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "lexical"},
 			},
 		}
 		candidates.Merge([]*searchCandidate{{
@@ -558,7 +558,7 @@ func TestSearchCandidateSet_Merge(t *testing.T) {
 				VectorRank:      1,
 				HasVector:       true,
 			},
-			Message: handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "vector"},
+			Message: morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "vector"},
 		}}, getSearchCandidateKey)
 		require.Equal(t, "vector text", candidates[search.SourceIDForMessage(testSessionA, 1)].MatchedText)
 	})
@@ -569,11 +569,11 @@ func TestSearchCandidatesToSearchResults_LimitsSessions(t *testing.T) {
 	results := searchCandidatesToSearchResults([]*searchCandidate{
 		{
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 0.9},
-			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "first", CreatedAt: now},
+			Message:        morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "first", CreatedAt: now},
 		},
 		{
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionB, FusedScore: 0.8},
-			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "second", CreatedAt: now.Add(time.Second)},
+			Message:        morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "second", CreatedAt: now.Add(time.Second)},
 		},
 	}, base.SearchMessageOptions{MaxSessions: 1})
 
@@ -586,7 +586,7 @@ func TestStore_RerankSearchCandidates(t *testing.T) {
 		candidates := searchCandidateSet{
 			search.SourceIDForMessage(testSessionA, 1): {
 				CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
-				Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "lexical"},
+				Message:        morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "lexical"},
 			},
 		}
 		store := NewStore()
@@ -613,7 +613,7 @@ func TestStore_RerankSearchCandidates(t *testing.T) {
 		candidates := searchCandidateSet{
 			search.SourceIDForMessage(testSessionA, 1): {
 				CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
-				Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "first"},
+				Message:        morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, Content: "first"},
 			},
 			search.SourceIDForMessage(testSessionA, 2): {
 				CandidateMatch: search.CandidateMatch{
@@ -621,7 +621,7 @@ func TestStore_RerankSearchCandidates(t *testing.T) {
 					VectorRank: 2,
 					HasVector:  true,
 				},
-				Message: handmsg.Message{ID: 2, Role: handmsg.RoleUser, Content: "second"},
+				Message: morphmsg.Message{ID: 2, Role: morphmsg.RoleUser, Content: "second"},
 			},
 		}
 
@@ -649,7 +649,7 @@ func TestStore_RerankSearchCandidates(t *testing.T) {
 					LexicalRank:  1,
 					HasLexical:   true,
 				},
-				Message: handmsg.Message{ID: 3, Role: handmsg.RoleUser, Content: "bad"},
+				Message: morphmsg.Message{ID: 3, Role: morphmsg.RoleUser, Content: "bad"},
 			},
 		}
 
@@ -679,7 +679,7 @@ func TestStore_LogSearchEvent(t *testing.T) {
 			MaxMessagesPerSession: 2,
 			MaxSessions:           3,
 			Query:                 "needle",
-			Role:                  handmsg.RoleUser,
+			Role:                  morphmsg.RoleUser,
 			ToolName:              "search files",
 		})
 	})
@@ -704,7 +704,7 @@ func TestStore_LogCandidateDiagnostics(t *testing.T) {
 				VectorRank:      2,
 				HasRerank:       true,
 			},
-			Message: handmsg.Message{ID: 1},
+			Message: morphmsg.Message{ID: 1},
 		}})
 	})
 }

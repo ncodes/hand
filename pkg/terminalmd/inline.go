@@ -89,7 +89,7 @@ func (r *Renderer) renderInline(node goldast.Node, source []byte) string {
 
 // renderInlineMarkdown parses a short markdown fragment and returns only its
 // inline content. It is used for table cells and TextBlock nodes that need inline
-// emphasis/link/code handling without becoming a full block.
+// emphasis/link/code morphling without becoming a full block.
 func (r *Renderer) renderInlineMarkdown(markdown string) string {
 	source := []byte(markdown)
 	document := r.md.Parser().Parse(text.NewReader(source))

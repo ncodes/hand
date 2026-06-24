@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestNewDefaultRPCHarness_UsesDefaultSpecAndConfig(t *testing.T) {
-	home := filepath.Join(t.TempDir(), "hand-home")
+	home := filepath.Join(t.TempDir(), "morph-home")
 
 	h, err := NewDefaultRPCHarness(context.Background(), home, NewTextClient("hello"), nil)
 	require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestReserveRPCPort(t *testing.T) {
 
 func TestWaitForRPC(t *testing.T) {
 	t.Run("returns client when rpc becomes ready", func(t *testing.T) {
-		home := filepath.Join(t.TempDir(), "hand-home")
+		home := filepath.Join(t.TempDir(), "morph-home")
 
 		h, err := NewDefaultRPCHarness(context.Background(), home, NewTextClient("hello"), nil)
 		require.NoError(t, err)
@@ -182,11 +182,11 @@ func TestCombineChecks(t *testing.T) {
 
 func TestToolMessagePresent(t *testing.T) {
 	assert.NoError(t, ToolMessagePresent("call-1", "time")(models.Request{
-		Messages: []handmsg.Message{{Role: handmsg.RoleTool, Name: "time", ToolCallID: "call-1"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleTool, Name: "time", ToolCallID: "call-1"}},
 	}))
 
 	err := ToolMessagePresent("call-1", "time")(models.Request{
-		Messages: []handmsg.Message{{Role: handmsg.RoleTool, Name: "clock", ToolCallID: "call-1"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleTool, Name: "clock", ToolCallID: "call-1"}},
 	})
 	require.Error(t, err)
 	assert.EqualError(t, err, `expected tool message name "time"`)
@@ -196,9 +196,9 @@ func TestToolMessagePresent(t *testing.T) {
 	assert.EqualError(t, err, `expected tool message for tool call "call-1"`)
 
 	err = ToolMessagePresent("call-1", "time")(models.Request{
-		Messages: []handmsg.Message{
-			{Role: handmsg.RoleAssistant, Name: "time", ToolCallID: "call-1"},
-			{Role: handmsg.RoleTool, Name: "time", ToolCallID: "other-call"},
+		Messages: []morphmsg.Message{
+			{Role: morphmsg.RoleAssistant, Name: "time", ToolCallID: "call-1"},
+			{Role: morphmsg.RoleTool, Name: "time", ToolCallID: "other-call"},
 		},
 	})
 	require.Error(t, err)
@@ -212,8 +212,8 @@ func TestToolOutputString(t *testing.T) {
 		}
 		return nil
 	})(models.Request{
-		Messages: []handmsg.Message{{
-			Role:       handmsg.RoleTool,
+		Messages: []morphmsg.Message{{
+			Role:       morphmsg.RoleTool,
 			Name:       "time",
 			ToolCallID: "call-1",
 			Content:    `{"name":"time","output":"2026-01-01T00:00:00Z"}`,
@@ -221,8 +221,8 @@ func TestToolOutputString(t *testing.T) {
 	}))
 
 	err := ToolOutputString("call-1", "time", func(string) error { return errors.New("bad output") })(models.Request{
-		Messages: []handmsg.Message{{
-			Role:       handmsg.RoleTool,
+		Messages: []morphmsg.Message{{
+			Role:       morphmsg.RoleTool,
 			Name:       "time",
 			ToolCallID: "call-1",
 			Content:    `{"name":"time","output":"2026-01-01T00:00:00Z"}`,
@@ -239,8 +239,8 @@ func TestToolOutputJSON(t *testing.T) {
 		}
 		return nil
 	})(models.Request{
-		Messages: []handmsg.Message{{
-			Role:       handmsg.RoleTool,
+		Messages: []morphmsg.Message{{
+			Role:       morphmsg.RoleTool,
 			Name:       "write_file",
 			ToolCallID: "call-1",
 			Content:    `{"name":"write_file","output":"{\"path\":\"drafts/out.txt\",\"created\":true}"}`,
@@ -248,8 +248,8 @@ func TestToolOutputJSON(t *testing.T) {
 	}))
 
 	err := ToolOutputJSON("call-1", "write_file", func(map[string]any) error { return nil })(models.Request{
-		Messages: []handmsg.Message{{
-			Role:       handmsg.RoleTool,
+		Messages: []morphmsg.Message{{
+			Role:       morphmsg.RoleTool,
 			Name:       "write_file",
 			ToolCallID: "call-1",
 			Content:    `{"name":"write_file","output":"{"}`,
@@ -260,8 +260,8 @@ func TestToolOutputJSON(t *testing.T) {
 
 func TestToolError(t *testing.T) {
 	assert.NoError(t, ToolError("call-1", "read_file", "path_outside_roots", "path is outside allowed roots")(models.Request{
-		Messages: []handmsg.Message{{
-			Role:       handmsg.RoleTool,
+		Messages: []morphmsg.Message{{
+			Role:       morphmsg.RoleTool,
 			Name:       "read_file",
 			ToolCallID: "call-1",
 			Content:    `{"name":"read_file","error":{"code":"path_outside_roots","message":"path is outside allowed roots"}}`,
@@ -269,8 +269,8 @@ func TestToolError(t *testing.T) {
 	}))
 
 	err := ToolError("call-1", "read_file", "path_outside_roots", "path is outside allowed roots")(models.Request{
-		Messages: []handmsg.Message{{
-			Role:       handmsg.RoleTool,
+		Messages: []morphmsg.Message{{
+			Role:       morphmsg.RoleTool,
 			Name:       "clock",
 			ToolCallID: "call-1",
 			Content:    `{"name":"clock","error":{"code":"path_outside_roots","message":"path is outside allowed roots"}}`,
@@ -280,8 +280,8 @@ func TestToolError(t *testing.T) {
 	assert.EqualError(t, err, `expected tool message name "read_file"`)
 
 	err = ToolError("call-1", "read_file", "path_outside_roots", "path is outside allowed roots")(models.Request{
-		Messages: []handmsg.Message{{
-			Role:       handmsg.RoleTool,
+		Messages: []morphmsg.Message{{
+			Role:       morphmsg.RoleTool,
 			Name:       "read_file",
 			ToolCallID: "call-1",
 			Content:    `{`,
@@ -290,8 +290,8 @@ func TestToolError(t *testing.T) {
 	require.Error(t, err)
 
 	err = ToolError("call-1", "read_file", "path_outside_roots", "path is outside allowed roots")(models.Request{
-		Messages: []handmsg.Message{{
-			Role:       handmsg.RoleTool,
+		Messages: []morphmsg.Message{{
+			Role:       morphmsg.RoleTool,
 			Name:       "read_file",
 			ToolCallID: "call-1",
 			Content:    `{"name":"wrong","error":{"code":"path_outside_roots","message":"path is outside allowed roots"}}`,
@@ -301,8 +301,8 @@ func TestToolError(t *testing.T) {
 	assert.EqualError(t, err, `expected tool payload name "read_file"`)
 
 	err = ToolError("call-1", "read_file", "path_outside_roots", "path is outside allowed roots")(models.Request{
-		Messages: []handmsg.Message{{
-			Role:       handmsg.RoleTool,
+		Messages: []morphmsg.Message{{
+			Role:       morphmsg.RoleTool,
 			Name:       "read_file",
 			ToolCallID: "call-1",
 			Content:    `{"name":"read_file","error":{"code":"wrong","message":"path is outside allowed roots"}}`,
@@ -312,8 +312,8 @@ func TestToolError(t *testing.T) {
 	assert.EqualError(t, err, `expected tool error code "path_outside_roots", got "wrong"`)
 
 	err = ToolError("call-1", "read_file", "path_outside_roots", "path is outside allowed roots")(models.Request{
-		Messages: []handmsg.Message{{
-			Role:       handmsg.RoleTool,
+		Messages: []morphmsg.Message{{
+			Role:       morphmsg.RoleTool,
 			Name:       "read_file",
 			ToolCallID: "call-1",
 			Content:    `{"name":"read_file","error":{"code":"path_outside_roots","message":"wrong"}}`,
@@ -327,9 +327,9 @@ func TestToolError(t *testing.T) {
 	assert.EqualError(t, err, `expected tool error for tool call "call-1"`)
 
 	err = ToolError("call-1", "read_file", "path_outside_roots", "path is outside allowed roots")(models.Request{
-		Messages: []handmsg.Message{
-			{Role: handmsg.RoleAssistant, Name: "read_file", ToolCallID: "call-1"},
-			{Role: handmsg.RoleTool, Name: "read_file", ToolCallID: "other-call", Content: `{"name":"read_file","error":{"code":"path_outside_roots","message":"path is outside allowed roots"}}`},
+		Messages: []morphmsg.Message{
+			{Role: morphmsg.RoleAssistant, Name: "read_file", ToolCallID: "call-1"},
+			{Role: morphmsg.RoleTool, Name: "read_file", ToolCallID: "other-call", Content: `{"name":"read_file","error":{"code":"path_outside_roots","message":"path is outside allowed roots"}}`},
 		},
 	})
 	require.Error(t, err)

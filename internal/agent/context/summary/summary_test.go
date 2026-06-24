@@ -10,15 +10,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	"github.com/wandxy/hand/internal/mocks"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	storagemock "github.com/wandxy/hand/internal/state/mock"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/config"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/internal/mocks"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	storagemock "github.com/wandxy/morph/internal/state/mock"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -94,7 +94,7 @@ func TestService_MaybeRefreshSummary_DoesNotTransitionCompactionWhenRefreshIsNot
 	cases := []struct {
 		name    string
 		cfg     *config.Config
-		history []handmsg.Message
+		history []morphmsg.Message
 		memory  *State
 		request models.Request
 	}{
@@ -421,7 +421,7 @@ func TestService_MaybeRefreshSummary_RecordsFailureWhenModelCallFails(t *testing
 func TestService_MaybeRefreshSummary_RecordsFailureWhenLoadingSummaryMessagesFails(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	store := summaryTestStore(summaryTestHistory(10))
-	store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+	store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 		return nil, errors.New("get messages failed")
 	}
 	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
@@ -851,14 +851,14 @@ func TestService_MaybeRefreshSummary_SanitizesToolCallGroups(t *testing.T) {
 		}},
 	}
 	history := summaryTestHistory(10)
-	history[0] = handmsg.Message{
-		Role: handmsg.RoleAssistant,
-		ToolCalls: []handmsg.ToolCall{{
+	history[0] = morphmsg.Message{
+		Role: morphmsg.RoleAssistant,
+		ToolCalls: []morphmsg.ToolCall{{
 			ID:   "call-1",
 			Name: "time",
 		}},
 	}
-	history[1] = handmsg.Message{Role: handmsg.RoleUser, Content: "next turn"}
+	history[1] = morphmsg.Message{Role: morphmsg.RoleUser, Content: "next turn"}
 	service := summaryTestService(summaryTestConfig(true), client, summaryTestStore(history))
 
 	err := service.MaybeRefreshSummary(context.Background(), &State{}, RefreshInput{
@@ -869,11 +869,11 @@ func TestService_MaybeRefreshSummary_SanitizesToolCallGroups(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, client.Requests, 1)
 	require.Len(t, client.Requests[0].Messages, 3)
-	require.Equal(t, handmsg.RoleAssistant, client.Requests[0].Messages[0].Role)
-	require.Equal(t, handmsg.RoleTool, client.Requests[0].Messages[1].Role)
+	require.Equal(t, morphmsg.RoleAssistant, client.Requests[0].Messages[0].Role)
+	require.Equal(t, morphmsg.RoleTool, client.Requests[0].Messages[1].Role)
 	require.Equal(t, "call-1", client.Requests[0].Messages[1].ToolCallID)
 	require.Contains(t, client.Requests[0].Messages[1].Content, "Tool result unavailable")
-	require.Equal(t, handmsg.RoleUser, client.Requests[0].Messages[2].Role)
+	require.Equal(t, morphmsg.RoleUser, client.Requests[0].Messages[2].Role)
 }
 
 func TestService_MaybeRefreshSummary_MarksCompactionFailedAndRetries(t *testing.T) {
@@ -1214,13 +1214,13 @@ func TestService_RecallSessionSummary_WindowsLargeRecallByMessageCap(t *testing.
 	setRecallLimitsForTest(t, 2, 10000, 8, 10000)
 
 	traceSession := &mocks.TraceSessionStub{}
-	history := []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "m1"},
-		{Role: handmsg.RoleUser, Content: "m2"},
-		{Role: handmsg.RoleUser, Content: "m3"},
-		{Role: handmsg.RoleUser, Content: "m4"},
-		{Role: handmsg.RoleUser, Content: "m5"},
-		{Role: handmsg.RoleUser, Content: "m6"},
+	history := []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "m1"},
+		{Role: morphmsg.RoleUser, Content: "m2"},
+		{Role: morphmsg.RoleUser, Content: "m3"},
+		{Role: morphmsg.RoleUser, Content: "m4"},
+		{Role: morphmsg.RoleUser, Content: "m5"},
+		{Role: morphmsg.RoleUser, Content: "m6"},
 	}
 	client := &mocks.ModelClientStub{
 		Responses: []*models.Response{
@@ -1261,10 +1261,10 @@ func TestService_RecallSessionSummary_WindowsLargeRecallByTokenBudget(t *testing
 	setRecallLimitsForTest(t, 4, 260, 8, 10000)
 
 	traceSession := &mocks.TraceSessionStub{}
-	history := []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: strings.Repeat("a", 400)},
-		{Role: handmsg.RoleUser, Content: strings.Repeat("b", 400)},
-		{Role: handmsg.RoleUser, Content: strings.Repeat("c", 400)},
+	history := []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: strings.Repeat("a", 400)},
+		{Role: morphmsg.RoleUser, Content: strings.Repeat("b", 400)},
+		{Role: morphmsg.RoleUser, Content: strings.Repeat("c", 400)},
 	}
 	client := &mocks.ModelClientStub{
 		Responses: []*models.Response{
@@ -1289,8 +1289,8 @@ func TestService_RecallSessionSummary_ChunksOversizedSingleRecallWindow(t *testi
 	setRecallLimitsForTest(t, 4, 120, 8, 10000)
 
 	traceSession := &mocks.TraceSessionStub{}
-	history := []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: strings.Repeat("oversized ", 120)},
+	history := []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: strings.Repeat("oversized ", 120)},
 	}
 	responses := make([]*models.Response, 0, 10)
 	for idx := 0; idx < 9; idx++ {
@@ -1326,10 +1326,10 @@ func TestService_RecallSessionSummary_BatchesRecallSynthesis(t *testing.T) {
 	setRecallLimitsForTest(t, 1, 10000, 2, 10000)
 
 	traceSession := &mocks.TraceSessionStub{}
-	history := []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "m1"},
-		{Role: handmsg.RoleUser, Content: "m2"},
-		{Role: handmsg.RoleUser, Content: "m3"},
+	history := []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "m1"},
+		{Role: morphmsg.RoleUser, Content: "m2"},
+		{Role: morphmsg.RoleUser, Content: "m3"},
 	}
 	client := &mocks.ModelClientStub{
 		Responses: []*models.Response{
@@ -1392,7 +1392,7 @@ func TestService_planRecallSummary_ErrorsWhenStartOffsetCoversHistoryButSummaryI
 
 func TestService_planRecallSummary_PropagatesWindowPlanningError(t *testing.T) {
 	store := summaryTestStore(summaryTestHistory(3))
-	store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+	store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 		return nil, errors.New("get messages failed")
 	}
 	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
@@ -1410,7 +1410,7 @@ func TestService_planRecallWindows_Errors(t *testing.T) {
 
 	t.Run("store_error", func(t *testing.T) {
 		store := summaryTestStore(summaryTestHistory(2))
-		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			return nil, errors.New("get messages failed")
 		}
 		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
@@ -1420,7 +1420,7 @@ func TestService_planRecallWindows_Errors(t *testing.T) {
 
 	t.Run("empty_messages", func(t *testing.T) {
 		store := summaryTestStore(summaryTestHistory(2))
-		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			return nil, nil
 		}
 		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
@@ -1478,7 +1478,7 @@ func TestService_refreshRecallSummary_LeavesStateNilWhenInputStateIsNil(t *testi
 	client := &mocks.ModelClientStub{
 		Responses: []*models.Response{{OutputText: `{"session_summary":"final","current_task":"t","discoveries":["d"],"open_questions":["q"],"next_actions":["n"]}`}},
 	}
-	svc := summaryTestService(summaryTestConfig(true), client, summaryTestStore([]handmsg.Message{{Role: handmsg.RoleUser, Content: "m1"}}))
+	svc := summaryTestService(summaryTestConfig(true), client, summaryTestStore([]morphmsg.Message{{Role: morphmsg.RoleUser, Content: "m1"}}))
 
 	out, err := svc.refreshRecallSummary(context.Background(), nil, RefreshInput{
 		SessionID:    storage.DefaultSessionID,
@@ -1502,9 +1502,9 @@ func TestService_refreshRecallSummary_PropagatesSynthesisError(t *testing.T) {
 			{OutputText: "```"},
 		},
 	}
-	store := summaryTestStore([]handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "m1"},
-		{Role: handmsg.RoleUser, Content: "m2"},
+	store := summaryTestStore([]morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "m1"},
+		{Role: morphmsg.RoleUser, Content: "m2"},
 	})
 	svc := summaryTestService(summaryTestConfig(true), client, store)
 
@@ -1527,7 +1527,7 @@ func TestService_refreshRecallSummary_PropagatesSynthesisError(t *testing.T) {
 func TestService_summarizeRecallWindow_Errors(t *testing.T) {
 	t.Run("store_error", func(t *testing.T) {
 		store := summaryTestStore(summaryTestHistory(1))
-		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			return nil, errors.New("get messages failed")
 		}
 		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
@@ -1537,7 +1537,7 @@ func TestService_summarizeRecallWindow_Errors(t *testing.T) {
 
 	t.Run("empty_messages", func(t *testing.T) {
 		store := summaryTestStore(summaryTestHistory(1))
-		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			return nil, nil
 		}
 		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
@@ -1560,8 +1560,8 @@ func TestService_summarizeOversizedRecallWindow_PropagatesChunkErrors(t *testing
 		_, err := svc.summarizeOversizedRecallWindow(context.Background(), nil, storage.DefaultSessionID, recallPlan{
 			RequestedAt:        time.Date(2026, 4, 21, 15, 6, 0, 0, time.UTC),
 			TargetMessageCount: 1,
-		}, recallWindow{EndOffset: 1}, 1, 1, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		}, recallWindow{EndOffset: 1}, 1, 1, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: strings.Repeat("oversized ", 120),
 		}})
 		require.EqualError(t, err, "chunk failed")
@@ -1575,8 +1575,8 @@ func TestService_summarizeOversizedRecallWindow_PropagatesChunkErrors(t *testing
 		_, err := svc.summarizeOversizedRecallWindow(context.Background(), nil, storage.DefaultSessionID, recallPlan{
 			RequestedAt:        time.Date(2026, 4, 21, 15, 7, 0, 0, time.UTC),
 			TargetMessageCount: 1,
-		}, recallWindow{EndOffset: 1}, 1, 1, []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		}, recallWindow{EndOffset: 1}, 1, 1, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: strings.Repeat("oversized ", 120),
 		}})
 		require.EqualError(t, err, "summary response is empty")
@@ -1652,12 +1652,12 @@ func TestRecallInstructionBuilders_WorkWithoutExistingSummary(t *testing.T) {
 func TestRenderRecallWindowPrompt(t *testing.T) {
 	require.Empty(t, renderRecallWindowPrompt(nil))
 
-	prompt := renderRecallWindowPrompt([]handmsg.Message{{
-		Role:       handmsg.RoleAssistant,
+	prompt := renderRecallWindowPrompt([]morphmsg.Message{{
+		Role:       morphmsg.RoleAssistant,
 		Name:       "assistant-name",
 		ToolCallID: "tool-call-id",
 		Content:    "assistant content",
-		ToolCalls: []handmsg.ToolCall{{
+		ToolCalls: []morphmsg.ToolCall{{
 			Name:  "search_files",
 			Input: `{"pattern":"needle"}`,
 		}},
@@ -2084,18 +2084,18 @@ func summaryTestRecentTail() int {
 func summaryTriggerRequest() models.Request {
 	return models.Request{
 		Instructions: "summary",
-		Messages: []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		Messages: []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz",
 		}},
 	}
 }
 
-func summaryTestHistory(count int) []handmsg.Message {
-	history := make([]handmsg.Message, 0, count)
+func summaryTestHistory(count int) []morphmsg.Message {
+	history := make([]morphmsg.Message, 0, count)
 	for range count {
-		history = append(history, handmsg.Message{
-			Role:      handmsg.RoleUser,
+		history = append(history, morphmsg.Message{
+			Role:      morphmsg.RoleUser,
 			Content:   "history",
 			CreatedAt: time.Now().UTC(),
 		})
@@ -2129,7 +2129,7 @@ func setRecallLimitsForTest(t *testing.T, windowMessages, windowTokens, mergeSum
 	})
 }
 
-func summaryTestStore(history []handmsg.Message) *storagemock.Store {
+func summaryTestStore(history []morphmsg.Message) *storagemock.Store {
 	session := storage.Session{ID: storage.DefaultSessionID}
 	return &storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
@@ -2142,7 +2142,7 @@ func summaryTestStore(history []handmsg.Message) *storagemock.Store {
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return len(history), nil
 		},
-		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			offset := max(opts.Offset, 0)
 			if offset >= len(history) {
 				return nil, nil
@@ -2151,7 +2151,7 @@ func summaryTestStore(history []handmsg.Message) *storagemock.Store {
 			if opts.Limit > 0 && offset+opts.Limit < end {
 				end = offset + opts.Limit
 			}
-			return append([]handmsg.Message(nil), history[offset:end]...), nil
+			return append([]morphmsg.Message(nil), history[offset:end]...), nil
 		},
 	}
 }

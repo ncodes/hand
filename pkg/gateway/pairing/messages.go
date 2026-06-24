@@ -13,7 +13,7 @@ func ChallengeMessage(challenge Challenge) string {
 	}
 
 	return fmt.Sprintf(
-		"Pair this %s chat with Hand by running:\n\n```shell\nhand gateway pairing approve %s %s\n```\n\nThis code expires soon.",
+		"Pair this %s chat with Morph by running:\n\n```shell\nmorph gateway pairing approve %s %s\n```\n\nThis code expires soon.",
 		source,
 		source,
 		code,

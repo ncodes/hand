@@ -12,12 +12,12 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
-	agentapi "github.com/wandxy/hand/internal/agent"
-	"github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	agentapi "github.com/wandxy/morph/internal/agent"
+	"github.com/wandxy/morph/internal/rpc/client"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
 )
 
 func transcriptCellPlainText(cell transcriptCell) string {
@@ -313,7 +313,7 @@ func TestModel_HydrateSessionTimelineRendersCurrentSessionInChrome(t *testing.T)
 		SessionID: "session-current",
 		Title:     "Current Session",
 		Messages: []agentapi.SessionTimelineMessage{{
-			Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "loaded"},
+			Message: morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "loaded"},
 		}},
 	})
 
@@ -342,37 +342,37 @@ func TestModel_RefreshSessionTitleRendersCurrentSessionInChrome(t *testing.T) {
 func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
 	cases := []struct {
 		name    string
-		message handmsg.Message
+		message morphmsg.Message
 		want    string
 	}{
 		{
 			name:    "user",
-			message: handmsg.Message{Role: handmsg.RoleUser, Content: "hello"},
+			message: morphmsg.Message{Role: morphmsg.RoleUser, Content: "hello"},
 			want:    "You: hello",
 		},
 		{
 			name:    "assistant",
-			message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hi"},
-			want:    "Hand: hi",
+			message: morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "hi"},
+			want:    "Morph: hi",
 		},
 		{
 			name:    "tool",
-			message: handmsg.Message{Role: handmsg.RoleTool, Name: "read_file", Content: "done"},
+			message: morphmsg.Message{Role: morphmsg.RoleTool, Name: "read_file", Content: "done"},
 			want:    transcriptCellPlainText(toolTranscriptTestCell("", "read_file", "", true)),
 		},
 		{
 			name:    "tool fallback",
-			message: handmsg.Message{Role: handmsg.RoleTool, Content: "done"},
+			message: morphmsg.Message{Role: morphmsg.RoleTool, Content: "done"},
 			want:    transcriptCellPlainText(toolTranscriptTestCell("", "tool", "", true)),
 		},
 		{
 			name:    "unknown",
-			message: handmsg.Message{Role: "system", Content: "note"},
+			message: morphmsg.Message{Role: "system", Content: "note"},
 			want:    "system: note",
 		},
 		{
 			name:    "empty content",
-			message: handmsg.Message{Role: handmsg.RoleUser, Content: " "},
+			message: morphmsg.Message{Role: morphmsg.RoleUser, Content: " "},
 			want:    "",
 		},
 	}
@@ -386,8 +386,8 @@ func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
 
 func TestGetTimelineToolCallDetailsIgnoresBlankToolCallIDs(t *testing.T) {
 	details := getTimelineToolCallDetails([]agentapi.SessionTimelineMessage{{
-		Message: handmsg.Message{
-			ToolCalls: []handmsg.ToolCall{
+		Message: morphmsg.Message{
+			ToolCalls: []morphmsg.ToolCall{
 				{ID: " ", Name: "read_file"},
 				{ID: "call_1", Name: "read_file", Input: `{"path":"README.md"}`},
 			},
@@ -439,9 +439,9 @@ func TestTUIMessageToTranscriptCell_MapsLiveDisplayMessages(t *testing.T) {
 		want string
 	}{
 		{name: "user", msg: userMessageAcceptedMsg{Text: "hello"}, want: "You: hello"},
-		{name: "assistant delta", msg: assistantTextDeltaMsg{Text: "hi"}, want: "Hand: hi"},
+		{name: "assistant delta", msg: assistantTextDeltaMsg{Text: "hi"}, want: "Morph: hi"},
 		{name: "reasoning delta", msg: assistantTextDeltaMsg{Channel: "reasoning", Text: "thinking"}, want: "Reasoning: thinking"},
-		{name: "assistant complete", msg: assistantResponseCompletedMsg{Text: "done"}, want: "Hand: done"},
+		{name: "assistant complete", msg: assistantResponseCompletedMsg{Text: "done"}, want: "Morph: done"},
 		{name: "tool started", msg: toolInvocationStartedMsg{Name: "read_file"}, want: transcriptCellPlainText(toolTranscriptTestCell("", "read_file", ""))},
 		{name: "tool completed", msg: toolInvocationCompletedMsg{Name: "read_file"}, want: transcriptCellPlainText(toolTranscriptTestCell("", "read_file", "", true))},
 		{name: "safety", msg: safetyEventMsg{Action: "blocked", FindingIDs: []string{"prompt_exfiltration"}}, want: "Safety: blocked: prompt_exfiltration"},
@@ -485,7 +485,7 @@ func TestTranscriptCells_ExposeTypedCellContract(t *testing.T) {
 			name:       "assistant",
 			cell:       assistantTranscriptCell{text: "hi"},
 			kind:       transcriptCellAssistant,
-			plainText:  "Hand: hi",
+			plainText:  "Morph: hi",
 			renderText: "hi",
 		},
 		{
@@ -581,7 +581,7 @@ func TestTranscriptCells_ReportEmptyState(t *testing.T) {
 
 func TestRenderTranscriptCell_StylesCanonicalCells(t *testing.T) {
 	rendered := renderTranscriptCells([]transcriptCell{
-		timelineMessageToTranscriptCell(handmsg.Message{Role: handmsg.RoleUser, Content: "hello"}, nil),
+		timelineMessageToTranscriptCell(morphmsg.Message{Role: morphmsg.RoleUser, Content: "hello"}, nil),
 		tuiMessageToTranscriptCell(assistantResponseCompletedMsg{Text: "hi"}),
 		tuiMessageToTranscriptCell(toolInvocationStartedMsg{Name: "read_file"}),
 		tuiMessageToTranscriptCell(safetyEventMsg{Action: "blocked"}),
@@ -594,7 +594,7 @@ func TestRenderTranscriptCell_StylesCanonicalCells(t *testing.T) {
 	require.NotContains(t, plain, "│ ❯ hello")
 	require.NotContains(t, plain, "You: hello")
 	require.Contains(t, plain, "hi")
-	require.NotContains(t, plain, "Hand: hi")
+	require.NotContains(t, plain, "Morph: hi")
 	require.Contains(t, plain, "● Read")
 	require.Contains(t, plain, "└ read_file")
 	require.Contains(t, plain, "Safety: blocked")
@@ -1143,8 +1143,8 @@ func TestTimelineMessageToTranscriptCell_MergesPlanOutputState(t *testing.T) {
 	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
 	completedAt := startedAt.Add(4 * time.Second)
 	cell := timelineMessageToTranscriptCell(
-		handmsg.Message{
-			Role:       handmsg.RoleTool,
+		morphmsg.Message{
+			Role:       morphmsg.RoleTool,
 			Name:       "plan_tool",
 			ToolCallID: "call_1",
 			Content: `{
@@ -1459,8 +1459,8 @@ func TestSessionTimelineToTranscriptCells_SkipsMessageBackedTraceDuplicates(t *t
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		Messages: []agentapi.SessionTimelineMessage{
-			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hello there", CreatedAt: now}},
-			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hello back", CreatedAt: now.Add(time.Second)}},
+			{Message: morphmsg.Message{Role: morphmsg.RoleUser, Content: "hello there", CreatedAt: now}},
+			{Message: morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "hello back", CreatedAt: now.Add(time.Second)}},
 		},
 		TraceEvents: []agentapi.SessionTimelineTraceEvent{
 			{Event: agentsession.TraceEvent{
@@ -1478,7 +1478,7 @@ func TestSessionTimelineToTranscriptCells_SkipsMessageBackedTraceDuplicates(t *t
 
 	require.Equal(t, []string{
 		"You: hello there",
-		"Hand: hello back\nWorked for 1s",
+		"Morph: hello back\nWorked for 1s",
 		transcriptCellPlainText(toolTranscriptTestCellWithTiming("", "read_file", "", now.Add(2*time.Second), time.Time{}, false)),
 	}, transcriptCellPlainTexts(cells))
 }
@@ -1488,10 +1488,10 @@ func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTim
 
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		Messages: []agentapi.SessionTimelineMessage{
-			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "older prompt", CreatedAt: now}},
-			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "older answer", CreatedAt: now.Add(time.Second)}},
-			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "Hi", CreatedAt: now.Add(10 * time.Second)}},
-			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "Hi there", CreatedAt: now.Add(11 * time.Second)}},
+			{Message: morphmsg.Message{Role: morphmsg.RoleUser, Content: "older prompt", CreatedAt: now}},
+			{Message: morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "older answer", CreatedAt: now.Add(time.Second)}},
+			{Message: morphmsg.Message{Role: morphmsg.RoleUser, Content: "Hi", CreatedAt: now.Add(10 * time.Second)}},
+			{Message: morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "Hi there", CreatedAt: now.Add(11 * time.Second)}},
 		},
 		TraceEvents: []agentapi.SessionTimelineTraceEvent{
 			{Event: agentsession.TraceEvent{
@@ -1509,11 +1509,11 @@ func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTim
 
 	require.Equal(t, []string{
 		"You: older prompt",
-		"Hand: older answer\nWorked for 1s",
+		"Morph: older answer\nWorked for 1s",
 		transcriptCellPlainText(toolTranscriptTestCellWithTiming("", "web_search", "", now.Add(2*time.Second), time.Time{}, false)),
 		transcriptCellPlainText(toolTranscriptTestCellWithTiming("", "web_search", "", time.Time{}, now.Add(3*time.Second), true)),
 		"You: Hi",
-		"Hand: Hi there\nWorked for 1s",
+		"Morph: Hi there\nWorked for 1s",
 	}, transcriptCellPlainTexts(cells))
 }
 
@@ -1522,27 +1522,27 @@ func TestSessionTimelineToTranscriptCells_HydratesAssistantWorkedDurationAcrossT
 
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		Messages: []agentapi.SessionTimelineMessage{
-			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "search then answer", CreatedAt: now}},
-			{Message: handmsg.Message{
-				Role:      handmsg.RoleAssistant,
+			{Message: morphmsg.Message{Role: morphmsg.RoleUser, Content: "search then answer", CreatedAt: now}},
+			{Message: morphmsg.Message{
+				Role:      morphmsg.RoleAssistant,
 				CreatedAt: now.Add(time.Second),
-				ToolCalls: []handmsg.ToolCall{{
+				ToolCalls: []morphmsg.ToolCall{{
 					ID:   "call_1",
 					Name: "web_search",
 				}},
 			}},
-			{Message: handmsg.Message{
-				Role:       handmsg.RoleTool,
+			{Message: morphmsg.Message{
+				Role:       morphmsg.RoleTool,
 				Name:       "web_search",
 				ToolCallID: "call_1",
 				Content:    "results",
 				CreatedAt:  now.Add(3 * time.Second),
 			}},
-			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "final answer", CreatedAt: now.Add(6 * time.Second)}},
+			{Message: morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "final answer", CreatedAt: now.Add(6 * time.Second)}},
 		},
 	})
 
-	require.Contains(t, transcriptCellPlainTexts(cells), "Hand: final answer\nWorked for 6s")
+	require.Contains(t, transcriptCellPlainTexts(cells), "Morph: final answer\nWorked for 6s")
 	require.Contains(t, stripANSI(renderTranscriptCells(cells)), assistantTranscriptWorkGlyph+"Worked for 6s")
 }
 
@@ -1551,8 +1551,8 @@ func TestSessionTimelineToTranscriptCells_SkipsUserStoppedSessionErrors(t *testi
 
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		Messages: []agentapi.SessionTimelineMessage{
-			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hi", CreatedAt: now}},
-			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hello", CreatedAt: now.Add(2 * time.Second)}},
+			{Message: morphmsg.Message{Role: morphmsg.RoleUser, Content: "hi", CreatedAt: now}},
+			{Message: morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "hello", CreatedAt: now.Add(2 * time.Second)}},
 		},
 		TraceEvents: []agentapi.SessionTimelineTraceEvent{{
 			Event: agentsession.TraceEvent{
@@ -1565,7 +1565,7 @@ func TestSessionTimelineToTranscriptCells_SkipsUserStoppedSessionErrors(t *testi
 
 	require.Equal(t, []string{
 		"You: hi",
-		"Hand: hello\nWorked for 2s",
+		"Morph: hello\nWorked for 2s",
 	}, transcriptCellPlainTexts(cells))
 }
 
@@ -1574,8 +1574,8 @@ func TestSessionTimelineToTranscriptCells_RendersPersistedThoughtSummary(t *test
 
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		Messages: []agentapi.SessionTimelineMessage{
-			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "think", CreatedAt: now}},
-			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "done", CreatedAt: now.Add(2 * time.Second)}},
+			{Message: morphmsg.Message{Role: morphmsg.RoleUser, Content: "think", CreatedAt: now}},
+			{Message: morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "done", CreatedAt: now.Add(2 * time.Second)}},
 		},
 		TraceEvents: []agentapi.SessionTimelineTraceEvent{{
 			Event: agentsession.TraceEvent{
@@ -1589,7 +1589,7 @@ func TestSessionTimelineToTranscriptCells_RendersPersistedThoughtSummary(t *test
 	require.Equal(t, []string{
 		"You: think",
 		"Thought: 2s",
-		"Hand: done\nWorked for 2s",
+		"Morph: done\nWorked for 2s",
 	}, transcriptCellPlainTexts(cells))
 }
 
@@ -1598,13 +1598,13 @@ func TestSessionTimelineToTranscriptCells_UsesPersistedToolCallInputForToolDetai
 
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		Messages: []agentapi.SessionTimelineMessage{
-			{Message: handmsg.Message{
-				Role:      handmsg.RoleAssistant,
-				ToolCalls: []handmsg.ToolCall{{ID: "call_1", Name: "run_command", Input: `{"command":"sleep 10","timeout_seconds":30}`}},
+			{Message: morphmsg.Message{
+				Role:      morphmsg.RoleAssistant,
+				ToolCalls: []morphmsg.ToolCall{{ID: "call_1", Name: "run_command", Input: `{"command":"sleep 10","timeout_seconds":30}`}},
 				CreatedAt: now,
 			}},
-			{Message: handmsg.Message{
-				Role:       handmsg.RoleTool,
+			{Message: morphmsg.Message{
+				Role:       morphmsg.RoleTool,
 				Name:       "run_command",
 				ToolCallID: "call_1",
 				Content:    `{"output":"done"}`,
@@ -1634,13 +1634,13 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedRunCommandLikeLiveTrace
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		Messages: []agentapi.SessionTimelineMessage{
-			{Message: handmsg.Message{
-				Role:      handmsg.RoleAssistant,
-				ToolCalls: []handmsg.ToolCall{{ID: "call_1", Name: "run_command", Input: `{"command":"sleep 10","timeout_seconds":30}`}},
+			{Message: morphmsg.Message{
+				Role:      morphmsg.RoleAssistant,
+				ToolCalls: []morphmsg.ToolCall{{ID: "call_1", Name: "run_command", Input: `{"command":"sleep 10","timeout_seconds":30}`}},
 				CreatedAt: now,
 			}},
-			{Message: handmsg.Message{
-				Role:       handmsg.RoleTool,
+			{Message: morphmsg.Message{
+				Role:       morphmsg.RoleTool,
 				Name:       "run_command",
 				ToolCallID: "call_1",
 				Content:    `{"output":"done"}`,
@@ -1686,13 +1686,13 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedListFilesLikeLiveTrace(
 	detail := "list_files(include_hidden=false max_entries=50 path=. recursive=false)"
 	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		Messages: []agentapi.SessionTimelineMessage{
-			{Message: handmsg.Message{
-				Role:      handmsg.RoleAssistant,
-				ToolCalls: []handmsg.ToolCall{{ID: "call_1", Name: "list_files", Input: `{"path":".","recursive":false,"include_hidden":false,"max_entries":50}`}},
+			{Message: morphmsg.Message{
+				Role:      morphmsg.RoleAssistant,
+				ToolCalls: []morphmsg.ToolCall{{ID: "call_1", Name: "list_files", Input: `{"path":".","recursive":false,"include_hidden":false,"max_entries":50}`}},
 				CreatedAt: now,
 			}},
-			{Message: handmsg.Message{
-				Role:       handmsg.RoleTool,
+			{Message: morphmsg.Message{
+				Role:       morphmsg.RoleTool,
 				Name:       "list_files",
 				ToolCallID: "call_1",
 				Content:    `{"output":"done"}`,
@@ -1734,17 +1734,17 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedSessionMessagesLikeLive
 	detail := "session_messages(anchor_message_id=42 before=2 after=3 max_chars=1200)"
 	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		Messages: []agentapi.SessionTimelineMessage{
-			{Message: handmsg.Message{
-				Role: handmsg.RoleAssistant,
-				ToolCalls: []handmsg.ToolCall{{
+			{Message: morphmsg.Message{
+				Role: morphmsg.RoleAssistant,
+				ToolCalls: []morphmsg.ToolCall{{
 					ID:    "call_1",
 					Name:  "session_messages",
 					Input: `{"anchor_message_id":42,"before":2,"after":3,"max_chars":1200}`,
 				}},
 				CreatedAt: now,
 			}},
-			{Message: handmsg.Message{
-				Role:       handmsg.RoleTool,
+			{Message: morphmsg.Message{
+				Role:       morphmsg.RoleTool,
 				Name:       "session_messages",
 				ToolCallID: "call_1",
 				Content:    `{"messages":[]}`,
@@ -1786,9 +1786,9 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedFileToolsLikeLiveTrace(
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		Messages: []agentapi.SessionTimelineMessage{
-			{Message: handmsg.Message{
-				Role: handmsg.RoleAssistant,
-				ToolCalls: []handmsg.ToolCall{
+			{Message: morphmsg.Message{
+				Role: morphmsg.RoleAssistant,
+				ToolCalls: []morphmsg.ToolCall{
 					{
 						ID:    "call_1",
 						Name:  "write_file",
@@ -1807,22 +1807,22 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedFileToolsLikeLiveTrace(
 				},
 				CreatedAt: now,
 			}},
-			{Message: handmsg.Message{
-				Role:       handmsg.RoleTool,
+			{Message: morphmsg.Message{
+				Role:       morphmsg.RoleTool,
 				Name:       "write_file",
 				ToolCallID: "call_1",
 				Content:    `{"output":"done"}`,
 				CreatedAt:  now.Add(30 * time.Second),
 			}},
-			{Message: handmsg.Message{
-				Role:       handmsg.RoleTool,
+			{Message: morphmsg.Message{
+				Role:       morphmsg.RoleTool,
 				Name:       "patch",
 				ToolCallID: "call_2",
 				Content:    `{"output":"done"}`,
 				CreatedAt:  now.Add(30 * time.Second),
 			}},
-			{Message: handmsg.Message{
-				Role:       handmsg.RoleTool,
+			{Message: morphmsg.Message{
+				Role:       morphmsg.RoleTool,
 				Name:       "read_file",
 				ToolCallID: "call_3",
 				Content:    `{"output":"done"}`,

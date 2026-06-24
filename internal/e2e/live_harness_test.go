@@ -12,13 +12,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	models "github.com/wandxy/hand/internal/model"
-	modelclient "github.com/wandxy/hand/internal/model/client"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	models "github.com/wandxy/morph/internal/model"
+	modelclient "github.com/wandxy/morph/internal/model/client"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	provider_openai "github.com/wandxy/morph/internal/model/provider_openai"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 type liveModelClientFactoryStub struct {
@@ -268,7 +268,7 @@ storage:
 	t.Run("new live harness loads config", func(t *testing.T) {
 		envPath, configPath := writeConfig(t)
 
-		h, err := NewLiveHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), envPath, configPath)
+		h, err := NewLiveHarness(context.Background(), filepath.Join(t.TempDir(), "morph-home"), envPath, configPath)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, h.Close())
@@ -281,7 +281,7 @@ storage:
 	t.Run("new live rpc harness loads config", func(t *testing.T) {
 		envPath, configPath := writeConfig(t)
 
-		h, err := NewLiveRPCHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), envPath, configPath)
+		h, err := NewLiveRPCHarness(context.Background(), filepath.Join(t.TempDir(), "morph-home"), envPath, configPath)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, h.Close())
@@ -296,7 +296,7 @@ storage:
 			return nil, errors.New("load failed")
 		}
 
-		_, err := NewLiveHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), "", "config.yaml")
+		_, err := NewLiveHarness(context.Background(), filepath.Join(t.TempDir(), "morph-home"), "", "config.yaml")
 		require.Error(t, err)
 		assert.EqualError(t, err, "load failed")
 	})
@@ -321,7 +321,7 @@ storage:
 			},
 		}
 
-		_, err := NewLiveHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), "", "config.yaml")
+		_, err := NewLiveHarness(context.Background(), filepath.Join(t.TempDir(), "morph-home"), "", "config.yaml")
 		require.Error(t, err)
 		assert.EqualError(t, err, "client failed")
 	})
@@ -336,7 +336,7 @@ storage:
 			return nil, errors.New("harness failed")
 		}
 
-		_, err := NewLiveHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), "", "config.yaml")
+		_, err := NewLiveHarness(context.Background(), filepath.Join(t.TempDir(), "morph-home"), "", "config.yaml")
 		require.Error(t, err)
 		assert.EqualError(t, err, "harness failed")
 	})
@@ -351,7 +351,7 @@ storage:
 			return nil, errors.New("rpc harness failed")
 		}
 
-		_, err := NewLiveRPCHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), "", "config.yaml")
+		_, err := NewLiveRPCHarness(context.Background(), filepath.Join(t.TempDir(), "morph-home"), "", "config.yaml")
 		require.Error(t, err)
 		assert.EqualError(t, err, "rpc harness failed")
 	})
@@ -361,7 +361,7 @@ storage:
 			return nil, errors.New("load failed")
 		}
 
-		_, err := NewLiveRPCHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), "", "config.yaml")
+		_, err := NewLiveRPCHarness(context.Background(), filepath.Join(t.TempDir(), "morph-home"), "", "config.yaml")
 		require.Error(t, err)
 		assert.EqualError(t, err, "load failed")
 	})
@@ -371,7 +371,7 @@ storage:
 			return &config.Config{Models: config.ModelsConfig{Main: config.MainModelConfig{Provider: "openrouter"}}}, nil
 		}
 
-		_, err := NewLiveRPCHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), "", "config.yaml")
+		_, err := NewLiveRPCHarness(context.Background(), filepath.Join(t.TempDir(), "morph-home"), "", "config.yaml")
 		require.Error(t, err)
 	})
 }
@@ -379,7 +379,7 @@ storage:
 func TestDefaultLiveArtifactDir(t *testing.T) {
 	dir := DefaultLiveArtifactDir("")
 	require.NotEmpty(t, dir)
-	assert.Contains(t, dir, "hand-live-artifacts")
+	assert.Contains(t, dir, "morph-live-artifacts")
 
 	assert.Equal(t, "/tmp/custom-artifacts", DefaultLiveArtifactDir(" /tmp/custom-artifacts "))
 }

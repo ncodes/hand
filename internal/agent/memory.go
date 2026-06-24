@@ -1,8 +1,8 @@
 package agent
 
 import (
-	"github.com/wandxy/hand/internal/environment"
-	"github.com/wandxy/hand/internal/memory"
+	"github.com/wandxy/morph/internal/environment"
+	"github.com/wandxy/morph/internal/memory"
 )
 
 // MemorySource exposes the environment memory provider to agent turn code.

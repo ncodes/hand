@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/constants"
-	state "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/morph/internal/constants"
+	state "github.com/wandxy/morph/internal/state/core"
 )
 
 const (

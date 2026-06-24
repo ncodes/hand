@@ -15,11 +15,11 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	storagevectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	base "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	storagevectorsqlite "github.com/wandxy/morph/internal/state/search/vectorstore/sqlite"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func TestSQLiteStore_SearchMessagesSupportsVectorOnlyResults(t *testing.T) {
@@ -27,8 +27,8 @@ func TestSQLiteStore_SearchMessagesSupportsVectorOnlyResults(t *testing.T) {
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-		Role:      handmsg.RoleUser,
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+		Role:      morphmsg.RoleUser,
 		Content:   "semantic sqlite storage details",
 		CreatedAt: now,
 	}}))
@@ -53,9 +53,9 @@ func TestSQLiteStore_SearchMessagesHybridMergesLexicalAndVectorEvidence(t *testi
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "needle exact lexical", CreatedAt: now},
-		{Role: handmsg.RoleUser, Content: "semantic database details", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "needle exact lexical", CreatedAt: now},
+		{Role: morphmsg.RoleUser, Content: "semantic database details", CreatedAt: now.Add(time.Second)},
 	}))
 	require.Len(t, vectorStore.upserts, 1)
 	require.Len(t, vectorStore.upserts[0], 2)
@@ -84,11 +84,11 @@ func TestSQLiteStore_SearchMessagesHybridRanksSessionsByFusedScoreBeforeRecency(
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "older semantic context", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "older semantic context", CreatedAt: now},
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "newer semantic context", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "newer semantic context", CreatedAt: now.Add(time.Second)},
 	}))
 
 	vectorStore.searchMatches = []search.VectorSearchMatch{
@@ -112,11 +112,11 @@ func TestSQLiteStore_SearchMessagesRerankerChangesOrderBeforeLimits(t *testing.T
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "older semantic context", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "older semantic context", CreatedAt: now},
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "newer semantic context", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "newer semantic context", CreatedAt: now.Add(time.Second)},
 	}))
 
 	sessionARecord := vectorStore.upserts[0][0]
@@ -151,11 +151,11 @@ func TestSQLiteStore_SearchMessagesRerankerCanBeDisabled(t *testing.T) {
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "older semantic context", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "older semantic context", CreatedAt: now},
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "newer semantic context", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "newer semantic context", CreatedAt: now.Add(time.Second)},
 	}))
 
 	sessionARecord := vectorStore.upserts[0][0]
@@ -185,8 +185,8 @@ func TestSQLiteStore_SearchMessagesDiagnosticsAreInternal(t *testing.T) {
 	store, vectorStore := sqliteVectorStoreTestStore(t)
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-		Role:      handmsg.RoleUser,
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+		Role:      morphmsg.RoleUser,
 		Content:   "semantic context private-token-123",
 		CreatedAt: now,
 	}}))
@@ -254,9 +254,9 @@ func TestSQLiteStore_SearchMessagesRerankerBoundsCandidateInput(t *testing.T) {
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "first semantic context", CreatedAt: now},
-		{Role: handmsg.RoleUser, Content: "second semantic context", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "first semantic context", CreatedAt: now},
+		{Role: morphmsg.RoleUser, Content: "second semantic context", CreatedAt: now.Add(time.Second)},
 	}))
 
 	vectorStore.searchMatches = []search.VectorSearchMatch{
@@ -276,10 +276,10 @@ func TestSQLiteStore_SearchMessagesHybridPushesAndAppliesFilters(t *testing.T) {
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-		Role:    handmsg.RoleAssistant,
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+		Role:    morphmsg.RoleAssistant,
 		Content: "assistant summary",
-		ToolCalls: []handmsg.ToolCall{{
+		ToolCalls: []morphmsg.ToolCall{{
 			ID:    "call-1",
 			Name:  "process",
 			Input: `{"action":"start"}`,
@@ -315,11 +315,11 @@ func TestSQLiteStore_SearchMessagesHybridPushesIgnoredSessionFilter(t *testing.T
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "ignored semantic context", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "ignored semantic context", CreatedAt: now},
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "kept semantic context", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "kept semantic context", CreatedAt: now.Add(time.Second)},
 	}))
 
 	vectorStore.searchMatches = []search.VectorSearchMatch{
@@ -344,10 +344,10 @@ func TestSQLiteStore_SearchMessagesHybridCollapsesDuplicateVectorRows(t *testing
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-		Role:    handmsg.RoleAssistant,
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+		Role:    morphmsg.RoleAssistant,
 		Content: "assistant summary",
-		ToolCalls: []handmsg.ToolCall{
+		ToolCalls: []morphmsg.ToolCall{
 			{ID: "call-1", Name: "process", Input: `{"action":"start"}`},
 			{ID: "call-2", Name: "search", Input: `{"query":"needle"}`},
 		},
@@ -373,8 +373,8 @@ func TestSQLiteStore_SearchMessagesHybridReturnsVectorError(t *testing.T) {
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-		Role:      handmsg.RoleUser,
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+		Role:      morphmsg.RoleUser,
 		Content:   "needle lexical match",
 		CreatedAt: now,
 	}}))
@@ -397,19 +397,19 @@ func TestSQLiteStore_SearchMessagesHybridEdgeCases(t *testing.T) {
 	t.Run("passes structured filters to vector search", func(t *testing.T) {
 		store, vectorStore := sqliteVectorStoreTestStore(t)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now},
 		}))
 
 		results, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 			Query: "semantic",
-			Role:  handmsg.RoleTool,
+			Role:  morphmsg.RoleTool,
 		})
 		require.NoError(t, err)
 		require.Nil(t, results)
 		require.Len(t, vectorStore.searches, 1)
 		require.Equal(t, testSessionA, vectorStore.searches[0].Filter.SessionID)
-		require.Equal(t, string(handmsg.RoleTool), vectorStore.searches[0].Filter.Role)
+		require.Equal(t, string(morphmsg.RoleTool), vectorStore.searches[0].Filter.Role)
 		require.Empty(t, vectorStore.searches[0].Filter.SourceIDs)
 	})
 
@@ -423,8 +423,8 @@ func TestSQLiteStore_SearchMessagesHybridEdgeCases(t *testing.T) {
 			EmbeddingModel: "text-embedding-test",
 		}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "needle lexical match", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "needle lexical match", CreatedAt: now},
 		}))
 
 		_, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{Query: "needle"})
@@ -447,8 +447,8 @@ func TestSQLiteStore_SearchMessagesHybridEdgeCases(t *testing.T) {
 			EmbeddingModel: "text-embedding-test",
 		}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "needle lexical match", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "needle lexical match", CreatedAt: now},
 		}))
 
 		_, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{Query: "needle"})
@@ -777,8 +777,8 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 		}))
 		require.False(t, checkVectorRecordMatchesOptions(messageModel{
 			SessionID: testSessionA,
-			Role:      string(handmsg.RoleUser),
-		}, "", SearchMessageOptions{Role: handmsg.RoleAssistant}))
+			Role:      string(morphmsg.RoleUser),
+		}, "", SearchMessageOptions{Role: morphmsg.RoleAssistant}))
 	})
 
 	t.Run("rejects vector row ids that cannot map to a search row", func(t *testing.T) {
@@ -787,14 +787,14 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 		_, ok = vectorRecordToSearchRow(messageModel{
 			ID:        1,
 			SessionID: testSessionA,
-			Role:      string(handmsg.RoleUser),
+			Role:      string(morphmsg.RoleUser),
 			Content:   "hello",
 		}, "bad")
 		require.False(t, ok)
 		_, ok = vectorRecordToSearchRow(messageModel{
 			ID:        1,
 			SessionID: testSessionA,
-			Role:      string(handmsg.RoleUser),
+			Role:      string(morphmsg.RoleUser),
 			Content:   "hello",
 		}, "session_message:ses_test:1:row:abc")
 		require.False(t, ok)
@@ -805,8 +805,8 @@ func TestSQLiteStore_HybridVectorCandidateErrorPaths(t *testing.T) {
 	store, vectorStore := sqliteVectorStoreTestStore(t)
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now},
 	}))
 	vectorStore.searchMatches = []search.VectorSearchMatch{{
 		Record: vectorStore.upserts[0][0],
@@ -819,8 +819,8 @@ func TestSQLiteStore_HybridVectorCandidateErrorPaths(t *testing.T) {
 
 	store, vectorStore = sqliteVectorStoreTestStore(t)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now},
 	}))
 	ref, ok := sourceIDToMessageRef(vectorStore.upserts[0][0].SourceID)
 	require.True(t, ok)
@@ -881,10 +881,10 @@ func TestSQLiteStore_VectorStoreAppendAndRebuild(t *testing.T) {
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
-		Role:    handmsg.RoleAssistant,
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+		Role:    morphmsg.RoleAssistant,
 		Content: "assistant summary",
-		ToolCalls: []handmsg.ToolCall{
+		ToolCalls: []morphmsg.ToolCall{
 			{ID: "call-1", Name: "process", Input: `{"action":"start"}`},
 			{ID: "call-2", Name: "search", Input: `{"query":"needle"}`},
 		},
@@ -908,7 +908,7 @@ func TestSQLiteStore_VectorStoreAppendAndRebuild(t *testing.T) {
 	require.Equal(t, sourceID, vectorStore.upserts[0][1].SourceID)
 	require.Equal(t, sourceID, vectorStore.upserts[0][2].SourceID)
 	require.Equal(t, testSessionA, vectorStore.upserts[0][0].SessionID)
-	require.Equal(t, string(handmsg.RoleAssistant), vectorStore.upserts[0][0].Role)
+	require.Equal(t, string(morphmsg.RoleAssistant), vectorStore.upserts[0][0].Role)
 	require.Empty(t, vectorStore.upserts[0][0].ToolName)
 	require.Equal(t, "process", vectorStore.upserts[0][1].ToolName)
 	require.Equal(t, "search", vectorStore.upserts[0][2].ToolName)
@@ -927,8 +927,8 @@ func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
 	t.Run("clear messages deletes vectors", func(t *testing.T) {
 		store, vectorStore := sqliteVectorStoreTestStore(t)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now},
 		}))
 
 		require.NoError(t, store.ClearMessages(context.Background(), testSessionA))
@@ -942,8 +942,8 @@ func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
 	t.Run("delete session deletes vectors", func(t *testing.T) {
 		store, vectorStore := sqliteVectorStoreTestStore(t)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now},
 		}))
 
 		require.NoError(t, store.Delete(context.Background(), testSessionA))
@@ -957,8 +957,8 @@ func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
 	t.Run("archive session keeps source vectors", func(t *testing.T) {
 		store, vectorStore := sqliteVectorStoreTestStore(t)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now},
 		}))
 
 		_, err := store.Archive(context.Background(), testSessionA, base.SessionArchiveRequest{
@@ -972,7 +972,7 @@ func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
 }
 
 func TestSQLiteStore_VectorStoreUsesSharedSQLiteVectorStore(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "hand.db")))
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "morph.db")))
 	require.NoError(t, err)
 
 	store, err := NewStoreFromDB(db)
@@ -988,8 +988,8 @@ func TestSQLiteStore_VectorStoreUsesSharedSQLiteVectorStore(t *testing.T) {
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "shared sqlite vector", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "shared sqlite vector", CreatedAt: now},
 	}))
 
 	embedRes, err := provider.Embed(context.Background(), search.EmbeddingRequest{
@@ -1042,8 +1042,8 @@ func TestSQLiteStore_VectorStoreBestEffortAndRequiredErrors(t *testing.T) {
 		VectorStore:    &sqliteTestVectorStore{},
 		EmbeddingModel: "text-embedding-test",
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "best effort", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "best effort", CreatedAt: now},
 	}))
 
 	requiredStore, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
@@ -1055,8 +1055,8 @@ func TestSQLiteStore_VectorStoreBestEffortAndRequiredErrors(t *testing.T) {
 		EmbeddingModel: "text-embedding-test",
 		Required:       true,
 	}))
-	err = requiredStore.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "required", CreatedAt: now},
+	err = requiredStore.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "required", CreatedAt: now},
 	})
 	require.ErrorIs(t, err, embedErr)
 }
@@ -1119,8 +1119,8 @@ func TestSQLiteStore_VectorStoreMutationDatabaseErrors(t *testing.T) {
 		store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "clear db error", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "clear db error", CreatedAt: now},
 		}))
 
 		deleteErr := errors.New("delete message failed")
@@ -1150,8 +1150,8 @@ func TestSQLiteStore_VectorStorePostMutationErrors(t *testing.T) {
 			Required:       true,
 		}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "delete vector", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "delete vector", CreatedAt: now},
 		}))
 
 		vectorStore.deleteErr = deleteErr
@@ -1167,8 +1167,8 @@ func TestSQLiteStore_VectorStorePostMutationErrors(t *testing.T) {
 			Required:       true,
 		}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "clear vector", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "clear vector", CreatedAt: now},
 		}))
 
 		vectorStore.deleteErr = deleteErr
@@ -1200,8 +1200,8 @@ func TestSQLiteStore_VectorStoreSkipsEmptySearchRows(t *testing.T) {
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, CreatedAt: now},
 	}))
 	require.Empty(t, provider.requests)
 }
@@ -1226,8 +1226,8 @@ func TestSQLiteStore_VectorStoreRejectsInvalidEmbeddings(t *testing.T) {
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	err = store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "bad embedding", CreatedAt: now},
+	err = store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "bad embedding", CreatedAt: now},
 	})
 	require.EqualError(t, err, "embedding content hash must match input text")
 }

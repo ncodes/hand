@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/hand/internal/constants"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 func TestConfig_ValidateRequiresProvider(t *testing.T) {
@@ -46,7 +46,7 @@ func TestConfig_ValidateRelaxedAllowsMissingGatewayCredentials(t *testing.T) {
 
 	require.NoError(t, cfg.ValidateRelaxed())
 	require.EqualError(t, cfg.Validate(), "gateway telegram bot token is required when telegram gateway is enabled; "+
-		"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
+		"set MORPH_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
 }
 
 func TestConfig_ValidateGatewayChecksOnlyGatewaySettings(t *testing.T) {
@@ -58,7 +58,7 @@ func TestConfig_ValidateGatewayChecksOnlyGatewaySettings(t *testing.T) {
 
 	cfg.Gateway.Telegram.BotToken = ""
 	require.EqualError(t, cfg.ValidateGateway(), "gateway telegram bot token is required when telegram gateway is enabled; "+
-		"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
+		"set MORPH_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
 }
 
 func TestConfig_ValidateGatewayRejectsNilConfig(t *testing.T) {
@@ -157,7 +157,7 @@ func TestConfig_ValidateRejectsGatewayNonLoopbackWithoutAuthToken(t *testing.T) 
 	err := cfg.Validate()
 
 	require.EqualError(t, err, "gateway auth token is required for non-loopback binds; set "+
-		"HAND_GATEWAY_AUTH_TOKEN, provide it in config, or use --gateway.auth-token")
+		"MORPH_GATEWAY_AUTH_TOKEN, provide it in config, or use --gateway.auth-token")
 }
 
 func TestConfig_ValidateAcceptsGatewayNonLoopbackWithAuthToken(t *testing.T) {
@@ -171,7 +171,7 @@ func TestConfig_ValidateRejectsNegativeGatewayPort(t *testing.T) {
 	cfg := validGatewayConfig()
 	cfg.Gateway.Port = -1
 
-	require.EqualError(t, cfg.Validate(), "gateway port must be non-negative; set HAND_GATEWAY_PORT, provide it in config, "+
+	require.EqualError(t, cfg.Validate(), "gateway port must be non-negative; set MORPH_GATEWAY_PORT, provide it in config, "+
 		"or use --gateway.port")
 }
 
@@ -179,7 +179,7 @@ func TestConfig_ValidateGatewaySettingsRejectsEmptyAddress(t *testing.T) {
 	cfg := validGatewayConfig()
 	cfg.Gateway.Address = ""
 
-	require.EqualError(t, cfg.validateGatewaySettings(), "gateway address is required; set HAND_GATEWAY_ADDRESS, "+
+	require.EqualError(t, cfg.validateGatewaySettings(), "gateway address is required; set MORPH_GATEWAY_ADDRESS, "+
 		"provide it in config, or use --gateway.address")
 }
 
@@ -212,7 +212,7 @@ func TestConfig_ValidateRejectsMissingGatewayChannelSecrets(t *testing.T) {
 				cfg.Gateway.Telegram.BotToken = ""
 			},
 			want: "gateway telegram bot token is required when telegram gateway is enabled; " +
-				"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token",
+				"set MORPH_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token",
 		},
 		{
 			name: "telegram webhook secret",
@@ -221,7 +221,7 @@ func TestConfig_ValidateRejectsMissingGatewayChannelSecrets(t *testing.T) {
 				cfg.Gateway.Telegram.WebhookSecret = ""
 			},
 			want: "gateway telegram webhook secret is required in webhook mode; " +
-				"set HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET, provide it in config, or use --gateway.telegram.webhook-secret",
+				"set MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET, provide it in config, or use --gateway.telegram.webhook-secret",
 		},
 		{
 			name: "slack bot token",
@@ -229,7 +229,7 @@ func TestConfig_ValidateRejectsMissingGatewayChannelSecrets(t *testing.T) {
 				cfg.Gateway.Slack.BotToken = ""
 			},
 			want: "gateway slack bot token is required when slack gateway is enabled; " +
-				"set HAND_GATEWAY_SLACK_BOT_TOKEN, provide it in config, or use --gateway.slack.bot-token",
+				"set MORPH_GATEWAY_SLACK_BOT_TOKEN, provide it in config, or use --gateway.slack.bot-token",
 		},
 		{
 			name: "slack app token",
@@ -237,7 +237,7 @@ func TestConfig_ValidateRejectsMissingGatewayChannelSecrets(t *testing.T) {
 				cfg.Gateway.Slack.AppToken = ""
 			},
 			want: "gateway slack app token is required in socket mode; " +
-				"set HAND_GATEWAY_SLACK_APP_TOKEN, provide it in config, or use --gateway.slack.app-token",
+				"set MORPH_GATEWAY_SLACK_APP_TOKEN, provide it in config, or use --gateway.slack.app-token",
 		},
 		{
 			name: "slack signing secret",
@@ -246,7 +246,7 @@ func TestConfig_ValidateRejectsMissingGatewayChannelSecrets(t *testing.T) {
 				cfg.Gateway.Slack.SigningSecret = ""
 			},
 			want: "gateway slack signing secret is required in http mode; " +
-				"set HAND_GATEWAY_SLACK_SIGNING_SECRET, provide it in config, or use --gateway.slack.signing-secret",
+				"set MORPH_GATEWAY_SLACK_SIGNING_SECRET, provide it in config, or use --gateway.slack.signing-secret",
 		},
 	}
 
@@ -405,20 +405,20 @@ func validGatewayConfig() *Config {
 			Enabled:   true,
 			Address:   constants.DefaultRPCAddress,
 			Port:      constants.DefaultGatewayPort,
-			AuthToken: "HAND_GATEWAY_AUTH_TOKEN",
+			AuthToken: "MORPH_GATEWAY_AUTH_TOKEN",
 			Telegram: GatewayTelegramConfig{
 				Enabled:       true,
 				Mode:          GatewayTelegramModePolling,
-				BotToken:      "HAND_GATEWAY_TELEGRAM_BOT_TOKEN",
-				WebhookSecret: "HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET",
+				BotToken:      "MORPH_GATEWAY_TELEGRAM_BOT_TOKEN",
+				WebhookSecret: "MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET",
 			},
 			Slack: GatewaySlackConfig{
 				Enabled:       true,
 				Mode:          GatewaySlackModeSocket,
 				ResponseMode:  GatewaySlackResponseModeThread,
-				BotToken:      "HAND_GATEWAY_SLACK_BOT_TOKEN",
-				AppToken:      "HAND_GATEWAY_SLACK_APP_TOKEN",
-				SigningSecret: "HAND_GATEWAY_SLACK_SIGNING_SECRET",
+				BotToken:      "MORPH_GATEWAY_SLACK_BOT_TOKEN",
+				AppToken:      "MORPH_GATEWAY_SLACK_APP_TOKEN",
+				SigningSecret: "MORPH_GATEWAY_SLACK_SIGNING_SECRET",
 			},
 		},
 		Log: LogConfig{Level: "info"},

@@ -12,9 +12,9 @@ import (
 
 	"gorm.io/gorm"
 
-	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	base "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 const currentSessionStateKey = "current_session"
@@ -497,7 +497,7 @@ func (s *Store) deleteSessions(ctx context.Context, ids []string) ([]string, err
 }
 
 // AppendMessages appends messages to a session and updates lexical/vector search indexes.
-func (s *Store) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
+func (s *Store) AppendMessages(ctx context.Context, id string, messages []morphmsg.Message) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
@@ -557,7 +557,7 @@ func (s *Store) GetMessages(
 	ctx context.Context,
 	id string,
 	opts MessageQueryOptions,
-) ([]handmsg.Message, error) {
+) ([]morphmsg.Message, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("store is required")
 	}
@@ -947,27 +947,27 @@ func (s *Store) GetMessage(
 	ctx context.Context,
 	id string,
 	index int,
-) (handmsg.Message, bool, error) {
+) (morphmsg.Message, bool, error) {
 	if s == nil || s.db == nil {
-		return handmsg.Message{}, false, errors.New("store is required")
+		return morphmsg.Message{}, false, errors.New("store is required")
 	}
 
 	id = strings.TrimSpace(id)
 	if id == "" || index < 0 {
-		return handmsg.Message{}, false, nil
+		return morphmsg.Message{}, false, nil
 	}
 
 	if err := base.ValidateSessionID(id); err != nil {
-		return handmsg.Message{}, false, err
+		return morphmsg.Message{}, false, err
 	}
 
 	var record messageModel
 	if err := s.db.WithContext(ctx).Where("session_id = ? AND sequence = ?", id, index).
 		First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return handmsg.Message{}, false, nil
+			return morphmsg.Message{}, false, nil
 		}
-		return handmsg.Message{}, false, err
+		return morphmsg.Message{}, false, err
 	}
 
 	return messageModels([]messageModel{record}).messages()[0], true, nil
@@ -1411,11 +1411,11 @@ func sessionModelToSession(record sessionModel) (Session, error) {
 	return session, nil
 }
 
-func messagesToMessageModels(sessionID string, messages []handmsg.Message) []messageModel {
+func messagesToMessageModels(sessionID string, messages []morphmsg.Message) []messageModel {
 	return messagesToMessageModelsWithOffset(sessionID, messages, 0)
 }
 
-func messagesToMessageModelsWithOffset(sessionID string, messages []handmsg.Message, offset int) []messageModel {
+func messagesToMessageModelsWithOffset(sessionID string, messages []morphmsg.Message, offset int) []messageModel {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -1439,16 +1439,16 @@ func messagesToMessageModelsWithOffset(sessionID string, messages []handmsg.Mess
 }
 
 // messages converts active message models to domain messages.
-func (records messageModels) messages() []handmsg.Message {
+func (records messageModels) messages() []morphmsg.Message {
 	if len(records) == 0 {
 		return nil
 	}
 
-	messages := make([]handmsg.Message, 0, len(records))
+	messages := make([]morphmsg.Message, 0, len(records))
 	for _, record := range records {
-		messages = append(messages, handmsg.Message{
+		messages = append(messages, morphmsg.Message{
 			ID:         record.ID,
-			Role:       handmsg.Role(record.Role),
+			Role:       morphmsg.Role(record.Role),
 			Name:       record.Name,
 			Content:    record.Content,
 			ToolCalls:  jsonToToolCalls(record.ToolCalls),
@@ -1500,9 +1500,9 @@ func searchMessageResultRowsToResults(records []searchSessionResultRow) []base.S
 
 		results[index].Messages = append(results[index].Messages, base.SearchMessageHit{
 			SessionID: record.SessionID,
-			Message: handmsg.Message{
+			Message: morphmsg.Message{
 				ID:         record.ID,
-				Role:       handmsg.Role(record.Role),
+				Role:       morphmsg.Role(record.Role),
 				Name:       record.Name,
 				Content:    record.Content,
 				ToolCalls:  jsonToToolCalls(record.ToolCalls),
@@ -1531,7 +1531,7 @@ func getSearchSessionResultTime(value string) time.Time {
 	return parsed.UTC()
 }
 
-func toolCallsToJSON(toolCalls []handmsg.ToolCall) string {
+func toolCallsToJSON(toolCalls []morphmsg.ToolCall) string {
 	if len(toolCalls) == 0 {
 		return ""
 	}
@@ -1565,13 +1565,13 @@ func jsonToStrings(value string) []string {
 	return values
 }
 
-func jsonToToolCalls(value string) []handmsg.ToolCall {
+func jsonToToolCalls(value string) []morphmsg.ToolCall {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil
 	}
 
-	var toolCalls []handmsg.ToolCall
+	var toolCalls []morphmsg.ToolCall
 	if err := json.Unmarshal([]byte(value), &toolCalls); err != nil {
 		return nil
 	}
@@ -1655,9 +1655,9 @@ func (records messageModels) searchRows() searchRows {
 }
 
 func messageModelToSearchRows(record messageModel) searchRows {
-	rows := search.MessageIndexRowsFromMessage(record.SessionID, handmsg.Message{
+	rows := search.MessageIndexRowsFromMessage(record.SessionID, morphmsg.Message{
 		ID:         record.ID,
-		Role:       handmsg.Role(strings.TrimSpace(record.Role)),
+		Role:       morphmsg.Role(strings.TrimSpace(record.Role)),
 		Content:    record.Content,
 		Name:       record.Name,
 		ToolCallID: record.ToolCallID,

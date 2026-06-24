@@ -13,9 +13,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/wandxy/hand/internal/state/search"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/state/search"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -27,8 +27,8 @@ func TestSQLiteStore_RebuildVectorStoreContinuesAfterBestEffortDeleteError(t *te
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	sqliteRepairSaveMessages(t, store, testSessionA, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "repair me", CreatedAt: now},
+	sqliteRepairSaveMessages(t, store, testSessionA, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "repair me", CreatedAt: now},
 	})
 
 	vectorStore.deleteErr = errors.New("delete failed")
@@ -48,10 +48,10 @@ func TestSQLiteStore_RebuildVectorStoreBatchesMessages(t *testing.T) {
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	sqliteRepairSaveMessages(t, store, testSessionA, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "first", CreatedAt: now},
-		{ID: 2, Role: handmsg.RoleUser, Content: "second", CreatedAt: now.Add(time.Second)},
-		{ID: 3, Role: handmsg.RoleUser, Content: "third", CreatedAt: now.Add(2 * time.Second)},
+	sqliteRepairSaveMessages(t, store, testSessionA, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "first", CreatedAt: now},
+		{ID: 2, Role: morphmsg.RoleUser, Content: "second", CreatedAt: now.Add(time.Second)},
+		{ID: 3, Role: morphmsg.RoleUser, Content: "third", CreatedAt: now.Add(2 * time.Second)},
 	})
 
 	provider.requests = nil
@@ -105,8 +105,8 @@ func TestSQLiteStore_RebuildVectorStoreValidationAndErrorPaths(t *testing.T) {
 		Required:       true,
 	}))
 	require.NoError(t, requiredDeleteStore.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	sqliteRepairSaveMessages(t, requiredDeleteStore, testSessionA, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "delete required", CreatedAt: now},
+	sqliteRepairSaveMessages(t, requiredDeleteStore, testSessionA, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "delete required", CreatedAt: now},
 	})
 	vectorStore.deleteErr = deleteErr
 	require.ErrorIs(t, requiredDeleteStore.RebuildVectorStore(context.Background(), testSessionA), deleteErr)
@@ -121,8 +121,8 @@ func TestSQLiteStore_RebuildVectorStoreValidationAndErrorPaths(t *testing.T) {
 		Required:       true,
 	}))
 	require.NoError(t, upsertStore.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	sqliteRepairSaveMessages(t, upsertStore, testSessionA, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "upsert required", CreatedAt: now},
+	sqliteRepairSaveMessages(t, upsertStore, testSessionA, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "upsert required", CreatedAt: now},
 	})
 	upsertVectorStore.upsertErr = upsertErr
 	require.ErrorIs(t, upsertStore.RebuildVectorStore(context.Background(), testSessionA), upsertErr)
@@ -181,11 +181,11 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 		store, provider, vectorStore := sqliteRepairTestStore(t)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-		sqliteRepairSaveMessages(t, store, testSessionA, []handmsg.Message{
-			{ID: 1, Role: handmsg.RoleUser, Content: "alpha repair", CreatedAt: now},
+		sqliteRepairSaveMessages(t, store, testSessionA, []morphmsg.Message{
+			{ID: 1, Role: morphmsg.RoleUser, Content: "alpha repair", CreatedAt: now},
 		})
-		sqliteRepairSaveMessages(t, store, testSessionB, []handmsg.Message{
-			{ID: 2, Role: handmsg.RoleUser, Content: "beta repair", CreatedAt: now},
+		sqliteRepairSaveMessages(t, store, testSessionB, []morphmsg.Message{
+			{ID: 2, Role: morphmsg.RoleUser, Content: "beta repair", CreatedAt: now},
 		})
 
 		result, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{})
@@ -205,8 +205,8 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 	t.Run("skips unchanged rows", func(t *testing.T) {
 		store, provider, vectorStore := sqliteRepairTestStore(t)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		records := sqliteRepairSaveMessages(t, store, testSessionA, []handmsg.Message{
-			{ID: 1, Role: handmsg.RoleUser, Content: "already indexed", CreatedAt: now},
+		records := sqliteRepairSaveMessages(t, store, testSessionA, []morphmsg.Message{
+			{ID: 1, Role: morphmsg.RoleUser, Content: "already indexed", CreatedAt: now},
 		})
 		vectorRecords, err := store.vectorRecordsForMessages(context.Background(), records)
 		require.NoError(t, err)
@@ -229,8 +229,8 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 	t.Run("full repair rebuilds unchanged rows", func(t *testing.T) {
 		store, provider, vectorStore := sqliteRepairTestStore(t)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		records := sqliteRepairSaveMessages(t, store, testSessionA, []handmsg.Message{
-			{ID: 1, Role: handmsg.RoleUser, Content: "force rebuild", CreatedAt: now},
+		records := sqliteRepairSaveMessages(t, store, testSessionA, []morphmsg.Message{
+			{ID: 1, Role: morphmsg.RoleUser, Content: "force rebuild", CreatedAt: now},
 		})
 		vectorRecords, err := store.vectorRecordsForMessages(context.Background(), records)
 		require.NoError(t, err)
@@ -257,8 +257,8 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 	t.Run("continues after best effort list errors", func(t *testing.T) {
 		store, _, vectorStore := sqliteRepairTestStore(t)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		sqliteRepairSaveMessages(t, store, testSessionA, []handmsg.Message{
-			{ID: 1, Role: handmsg.RoleUser, Content: "list failure", CreatedAt: now},
+		sqliteRepairSaveMessages(t, store, testSessionA, []morphmsg.Message{
+			{ID: 1, Role: morphmsg.RoleUser, Content: "list failure", CreatedAt: now},
 		})
 		vectorStore.listErr = errors.New("list failed")
 
@@ -279,8 +279,8 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 			Required:       true,
 		}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		sqliteRepairSaveMessages(t, store, testSessionA, []handmsg.Message{
-			{ID: 1, Role: handmsg.RoleUser, Content: "required list failure", CreatedAt: now},
+		sqliteRepairSaveMessages(t, store, testSessionA, []morphmsg.Message{
+			{ID: 1, Role: morphmsg.RoleUser, Content: "required list failure", CreatedAt: now},
 		})
 		vectorStore.listErr = errors.New("list failed")
 
@@ -304,8 +304,8 @@ func TestSQLiteStore_RepairVectorBatch(t *testing.T) {
 
 	t.Run("skips messages without indexable rows", func(t *testing.T) {
 		store, _, vectorStore := sqliteRepairTestStore(t)
-		records := messagesToMessageModelsWithOffset(testSessionA, []handmsg.Message{
-			{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
+		records := messagesToMessageModelsWithOffset(testSessionA, []morphmsg.Message{
+			{ID: 1, Role: morphmsg.RoleUser, CreatedAt: now},
 		}, 0)
 
 		result, err := store.repairVectorBatch(context.Background(), vectorStore, records, false)
@@ -323,8 +323,8 @@ func TestSQLiteStore_RepairVectorBatch(t *testing.T) {
 			VectorStore:    vectorStore,
 			EmbeddingModel: "text-embedding-test",
 		}))
-		records := messagesToMessageModelsWithOffset(testSessionA, []handmsg.Message{
-			{ID: 1, Role: handmsg.RoleUser, Content: "embed failure", CreatedAt: now},
+		records := messagesToMessageModelsWithOffset(testSessionA, []morphmsg.Message{
+			{ID: 1, Role: morphmsg.RoleUser, Content: "embed failure", CreatedAt: now},
 		}, 0)
 
 		result, err := store.repairVectorBatch(context.Background(), vectorStore, records, false)
@@ -387,7 +387,7 @@ func sqliteRepairSaveMessages(
 	t *testing.T,
 	store *Store,
 	sessionID string,
-	messages []handmsg.Message,
+	messages []morphmsg.Message,
 ) []messageModel {
 	t.Helper()
 

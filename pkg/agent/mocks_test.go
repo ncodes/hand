@@ -4,11 +4,11 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/agent/model"
-	"github.com/wandxy/hand/pkg/agent/prompt"
-	"github.com/wandxy/hand/pkg/agent/session"
-	"github.com/wandxy/hand/pkg/agent/tool"
+	"github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/agent/model"
+	"github.com/wandxy/morph/pkg/agent/prompt"
+	"github.com/wandxy/morph/pkg/agent/session"
+	"github.com/wandxy/morph/pkg/agent/tool"
 )
 
 type stubSessionStore struct {

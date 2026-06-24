@@ -3,7 +3,7 @@ package provider
 import (
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
+	"github.com/wandxy/morph/internal/constants"
 )
 
 func defaultModels() []ModelDefinition {

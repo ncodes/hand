@@ -1,4 +1,4 @@
-// Package memory is the provider layer for Hand's durable memory system.
+// Package memory is the provider layer for Morph's durable memory system.
 //
 // The package sits between the agent/tools and the state stores. It owns the
 // policy decisions that should not leak into storage: guardrail validation,

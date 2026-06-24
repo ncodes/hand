@@ -7,19 +7,19 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/pkg/logutils"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/gateway/dispatch"
-	gatewaysession "github.com/wandxy/hand/internal/gateway/session"
-	slackprovider "github.com/wandxy/hand/internal/gateway/slack"
-	telegramprovider "github.com/wandxy/hand/internal/gateway/telegram"
-	storage "github.com/wandxy/hand/internal/state/core"
-	agentcore "github.com/wandxy/hand/pkg/agent"
-	gatewayauth "github.com/wandxy/hand/pkg/gateway/auth"
-	"github.com/wandxy/hand/pkg/gateway/bindings"
-	"github.com/wandxy/hand/pkg/gateway/httpjson"
-	gatewaytypes "github.com/wandxy/hand/pkg/gateway/types"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/gateway/dispatch"
+	gatewaysession "github.com/wandxy/morph/internal/gateway/session"
+	slackprovider "github.com/wandxy/morph/internal/gateway/slack"
+	telegramprovider "github.com/wandxy/morph/internal/gateway/telegram"
+	storage "github.com/wandxy/morph/internal/state/core"
+	agentcore "github.com/wandxy/morph/pkg/agent"
+	gatewayauth "github.com/wandxy/morph/pkg/gateway/auth"
+	"github.com/wandxy/morph/pkg/gateway/bindings"
+	"github.com/wandxy/morph/pkg/gateway/httpjson"
+	gatewaytypes "github.com/wandxy/morph/pkg/gateway/types"
 )
 
 const maxGenericRespondBodyBytes = 1 << 20 // 1MB

@@ -3,9 +3,9 @@ package agent
 import (
 	"context"
 
-	"github.com/wandxy/hand/internal/environment"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
+	"github.com/wandxy/morph/internal/environment"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	agentprompt "github.com/wandxy/morph/pkg/agent/prompt"
 )
 
 // PromptProvider adapts environment instructions into the core agent prompt

@@ -261,7 +261,7 @@ func TestManager_StartHandlesNilContextAndStartFailure(t *testing.T) {
 	}, 5*time.Second, 20*time.Millisecond)
 
 	_, err = manager.Start(context.Background(), testSessionID, StartRequest{
-		Command: "command-that-does-not-exist-hand",
+		Command: "command-that-does-not-exist-morph",
 		Args:    []string{"arg"},
 	})
 	require.Error(t, err)
@@ -272,18 +272,18 @@ func TestManager_StartAppliesEnvOverrides(t *testing.T) {
 
 	req := StartRequest{
 		Command: "sh",
-		Args:    []string{"-lc", "printf %s \"$HAND_PROCESS_TEST_VALUE\""},
+		Args:    []string{"-lc", "printf %s \"$MORPH_PROCESS_TEST_VALUE\""},
 		Env: map[string]string{
-			"HAND_PROCESS_TEST_VALUE": "hello",
+			"MORPH_PROCESS_TEST_VALUE": "hello",
 		},
 		OutputBufferBytes: 32,
 	}
 	if runtime.GOOS == "windows" {
 		req = StartRequest{
 			Command: "cmd",
-			Args:    []string{"/C", "set /p =%HAND_PROCESS_TEST_VALUE%<nul"},
+			Args:    []string{"/C", "set /p =%MORPH_PROCESS_TEST_VALUE%<nul"},
 			Env: map[string]string{
-				"HAND_PROCESS_TEST_VALUE": "hello",
+				"MORPH_PROCESS_TEST_VALUE": "hello",
 			},
 			OutputBufferBytes: 32,
 		}

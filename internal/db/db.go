@@ -13,8 +13,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/datadir"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/datadir"
 )
 
 const sqliteBusyTimeout = 10 * time.Second
@@ -52,7 +52,7 @@ func OpenSQLite(path string) (*gorm.DB, error) {
 	return db, nil
 }
 
-// ConfigureSQLite applies SQLite pragmas used by Hand stores.
+// ConfigureSQLite applies SQLite pragmas used by Morph stores.
 func ConfigureSQLite(db *gorm.DB) error {
 	if db == nil {
 		return errors.New("sqlite db is required")

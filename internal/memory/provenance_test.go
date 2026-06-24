@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
-	"github.com/wandxy/hand/pkg/nanoid"
+	"github.com/wandxy/morph/internal/agent/runcontext"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 func TestApplyRunProvenance_AddsLineageMetadataAndSourceLinks(t *testing.T) {

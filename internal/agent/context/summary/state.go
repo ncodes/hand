@@ -3,9 +3,9 @@ package summary
 import (
 	"strings"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 var summaryLog = logutils.Module("agent.summary")
@@ -19,8 +19,8 @@ type State struct {
 // Recall contains the message slices used when building a recall-only summary
 // view without changing the persisted session summary.
 type Recall struct {
-	PrefixMessages []handmsg.Message
-	SessionHistory []handmsg.Message
+	PrefixMessages []morphmsg.Message
+	SessionHistory []morphmsg.Message
 }
 
 // Summary returns the current summary as a storage record suitable for callers
@@ -74,9 +74,9 @@ func (s *State) RenderSummaryInstructions() (string, bool) {
 }
 
 // Recall prepares cloned session history for temporary recall summarization.
-func (s *State) Recall(sessionHistory []handmsg.Message) Recall {
+func (s *State) Recall(sessionHistory []morphmsg.Message) Recall {
 	return Recall{
 		PrefixMessages: nil,
-		SessionHistory: handmsg.CloneMessages(sessionHistory),
+		SessionHistory: morphmsg.CloneMessages(sessionHistory),
 	}
 }

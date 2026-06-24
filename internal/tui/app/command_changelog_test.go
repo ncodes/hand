@@ -34,5 +34,5 @@ func TestModel_UpdateHandlesChangelogCommand(t *testing.T) {
 	require.NotContains(t, content, "## Unreleased")
 	require.NotContains(t, content, "- Added")
 	require.Contains(t, content, "esc to close")
-	require.NotContains(t, content, inputPrompt+"Ask Hand")
+	require.NotContains(t, content, inputPrompt+"Ask Morph")
 }

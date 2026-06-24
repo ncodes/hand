@@ -8,20 +8,20 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	statemock "github.com/wandxy/hand/internal/state/mock"
-	storememory "github.com/wandxy/hand/internal/state/storememory"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	statemock "github.com/wandxy/morph/internal/state/mock"
+	storememory "github.com/wandxy/morph/internal/state/storememory"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestService_RunBackgroundProcessesEligibleSessionsWithBoundedWindows(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-	messages := []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "Remember this completed task."},
-		{ID: 2, Role: handmsg.RoleAssistant, Content: "Done."},
+	messages := []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "Remember this completed task."},
+		{ID: 2, Role: morphmsg.RoleAssistant, Content: "Done."},
 	}
 	store := &statemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
@@ -33,7 +33,7 @@ func TestService_RunBackgroundProcessesEligibleSessionsWithBoundedWindows(t *tes
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return len(messages), nil
 		},
-		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			end := min(opts.Offset+opts.Limit, len(messages))
 			return messages[opts.Offset:end], nil
 		},
@@ -82,8 +82,8 @@ func TestService_RunBackgroundSkipsIneligibleSessions(t *testing.T) {
 		ID:        storage.DefaultSessionID,
 		UpdatedAt: now,
 	}))
-	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "too fresh"},
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "too fresh"},
 	}))
 
 	result, err := service.RunBackground(ctx, BackgroundRequest{
@@ -115,7 +115,7 @@ func TestService_RunBackgroundSkipsExistingSourceRangeBeforeLoadingMessages(t *t
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 1, nil
 		},
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			loads++
 			return nil, errors.New("existing episode window should not load messages")
 		},
@@ -149,11 +149,11 @@ func TestService_RunBackgroundSkipsExistingSourceRangeBeforeLoadingMessages(t *t
 func TestService_RunBackgroundResumesFromSessionCheckpoint(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-	messages := []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "already processed"},
-		{ID: 2, Role: handmsg.RoleAssistant, Content: "also processed"},
-		{ID: 3, Role: handmsg.RoleUser, Content: "remember resume here"},
-		{ID: 4, Role: handmsg.RoleAssistant, Content: "next run"},
+	messages := []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "already processed"},
+		{ID: 2, Role: morphmsg.RoleAssistant, Content: "also processed"},
+		{ID: 3, Role: morphmsg.RoleUser, Content: "remember resume here"},
+		{ID: 4, Role: morphmsg.RoleAssistant, Content: "next run"},
 	}
 	var offsets []int
 	var checkpoints []int
@@ -175,7 +175,7 @@ func TestService_RunBackgroundResumesFromSessionCheckpoint(t *testing.T) {
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return len(messages), nil
 		},
-		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			offsets = append(offsets, opts.Offset)
 			end := min(opts.Offset+opts.Limit, len(messages))
 			return messages[opts.Offset:end], nil
@@ -231,7 +231,7 @@ func TestService_RunBackgroundSkipsCompletedCheckpoint(t *testing.T) {
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 2, nil
 		},
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			loads++
 			return nil, nil
 		},
@@ -267,12 +267,12 @@ func TestService_RunBackgroundRetriesFailedWindows(t *testing.T) {
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 1, nil
 		},
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			loads++
 			if loads == 1 {
 				return nil, errors.New("temporary load failure")
 			}
-			return []handmsg.Message{{ID: 1, Role: handmsg.RoleUser, Content: "remember retry works"}}, nil
+			return []morphmsg.Message{{ID: 1, Role: morphmsg.RoleUser, Content: "remember retry works"}}, nil
 		},
 	}
 	manager := testManager(t, store)
@@ -341,7 +341,7 @@ func TestService_RunBackgroundRecordsFailureAfterRetries(t *testing.T) {
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 1, nil
 		},
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			return nil, errors.New("load failed")
 		},
 	}
@@ -463,7 +463,7 @@ func (sourceManagerStub) CountMessages(context.Context, string, storage.MessageQ
 	return 0, nil
 }
 
-func (sourceManagerStub) GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+func (sourceManagerStub) GetMessages(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 	return nil, nil
 }
 

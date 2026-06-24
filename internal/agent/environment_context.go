@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/guardrails"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/tools"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
-	agenttool "github.com/wandxy/hand/pkg/agent/tool"
+	"github.com/wandxy/morph/internal/guardrails"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/tools"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
+	agenttool "github.com/wandxy/morph/pkg/agent/tool"
 )
 
 var (

@@ -8,11 +8,11 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/constants"
-	models "github.com/wandxy/hand/internal/model"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	provider_anthropic "github.com/wandxy/hand/internal/model/provider_anthropic"
-	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
+	"github.com/wandxy/morph/internal/constants"
+	models "github.com/wandxy/morph/internal/model"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	provider_anthropic "github.com/wandxy/morph/internal/model/provider_anthropic"
+	provider_openai "github.com/wandxy/morph/internal/model/provider_openai"
 )
 
 func TestClientFactory_ResolveUsesRegistryDefaults(t *testing.T) {

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	envtypes "github.com/wandxy/hand/internal/environment/types"
-	"github.com/wandxy/hand/internal/instructions"
-	"github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/internal/tools/common"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/tools/common"
 )
 
 type input struct {

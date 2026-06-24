@@ -13,14 +13,14 @@ func TestResolve_DefaultProfile(t *testing.T) {
 	resolved, err := Resolve(ResolveOptions{UserHomeDir: "/Users/me"})
 	require.NoError(t, err)
 
-	home := filepath.Join("/Users/me", ".hand", "profiles", "default")
+	home := filepath.Join("/Users/me", ".morph", "profiles", "default")
 	require.Equal(t, Profile{
 		Name:        DefaultName,
 		HomeDir:     home,
 		ConfigPath:  filepath.Join(home, "config.yaml"),
 		EnvPath:     filepath.Join(home, ".env"),
 		RuntimePath: filepath.Join(home, "runtime.json"),
-		PIDPath:     filepath.Join(home, "hand.pid"),
+		PIDPath:     filepath.Join(home, "morph.pid"),
 	}, resolved)
 }
 
@@ -30,7 +30,7 @@ func TestActive(t *testing.T) {
 		SetActive(original)
 	})
 
-	profile := Profile{Name: "work", HomeDir: "/Users/me/.hand/profiles/work"}
+	profile := Profile{Name: "work", HomeDir: "/Users/me/.morph/profiles/work"}
 
 	SetActive(profile)
 
@@ -38,31 +38,31 @@ func TestActive(t *testing.T) {
 }
 
 func TestWithMetadataPaths_FillsEmptyPathsFromHomeDir(t *testing.T) {
-	home := filepath.Join("/Users/me", ".hand", "profiles", "work")
+	home := filepath.Join("/Users/me", ".morph", "profiles", "work")
 
 	resolved := WithMetadataPaths(Profile{Name: "work", HomeDir: home})
 
 	require.Equal(t, filepath.Join(home, "config.yaml"), resolved.ConfigPath)
 	require.Equal(t, filepath.Join(home, ".env"), resolved.EnvPath)
 	require.Equal(t, filepath.Join(home, "runtime.json"), resolved.RuntimePath)
-	require.Equal(t, filepath.Join(home, "hand.pid"), resolved.PIDPath)
+	require.Equal(t, filepath.Join(home, "morph.pid"), resolved.PIDPath)
 }
 
 func TestWithMetadataPaths_KeepsExplicitPaths(t *testing.T) {
-	home := filepath.Join("/Users/me", ".hand", "profiles", "work")
+	home := filepath.Join("/Users/me", ".morph", "profiles", "work")
 	resolved := WithMetadataPaths(Profile{
 		Name:        "work",
 		HomeDir:     home,
 		ConfigPath:  "/tmp/config.yaml",
 		EnvPath:     "/tmp/.env",
 		RuntimePath: "/tmp/runtime.json",
-		PIDPath:     "/tmp/hand.pid",
+		PIDPath:     "/tmp/morph.pid",
 	})
 
 	require.Equal(t, "/tmp/config.yaml", resolved.ConfigPath)
 	require.Equal(t, "/tmp/.env", resolved.EnvPath)
 	require.Equal(t, "/tmp/runtime.json", resolved.RuntimePath)
-	require.Equal(t, "/tmp/hand.pid", resolved.PIDPath)
+	require.Equal(t, "/tmp/morph.pid", resolved.PIDPath)
 }
 
 func TestWithMetadataPaths_ReturnsProfileWhenHomeDirEmpty(t *testing.T) {
@@ -79,7 +79,7 @@ func TestResolve_UsesExplicitProfileBeforeEnv(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "work", resolved.Name)
-	require.Equal(t, filepath.Join("/Users/me", ".hand", "profiles", "work"), resolved.HomeDir)
+	require.Equal(t, filepath.Join("/Users/me", ".morph", "profiles", "work"), resolved.HomeDir)
 }
 
 func TestResolve_UsesEnvProfile(t *testing.T) {
@@ -90,7 +90,7 @@ func TestResolve_UsesEnvProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "research_01", resolved.Name)
-	require.Equal(t, filepath.Join("/Users/me", ".hand", "profiles", "research_01"), resolved.HomeDir)
+	require.Equal(t, filepath.Join("/Users/me", ".morph", "profiles", "research_01"), resolved.HomeDir)
 }
 
 func TestResolve_UsesStoredCurrentProfile(t *testing.T) {
@@ -102,7 +102,7 @@ func TestResolve_UsesStoredCurrentProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "work", resolved.Name)
-	require.Equal(t, filepath.Join(home, ".hand", "profiles", "work"), resolved.HomeDir)
+	require.Equal(t, filepath.Join(home, ".morph", "profiles", "work"), resolved.HomeDir)
 }
 
 func TestResolve_ExplicitProfileOverridesStoredCurrentProfile(t *testing.T) {
@@ -114,7 +114,7 @@ func TestResolve_ExplicitProfileOverridesStoredCurrentProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "desk", resolved.Name)
-	require.Equal(t, filepath.Join(home, ".hand", "profiles", "desk"), resolved.HomeDir)
+	require.Equal(t, filepath.Join(home, ".morph", "profiles", "desk"), resolved.HomeDir)
 }
 
 func TestResolve_EnvProfileOverridesStoredCurrentProfile(t *testing.T) {
@@ -129,7 +129,7 @@ func TestResolve_EnvProfileOverridesStoredCurrentProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "desk", resolved.Name)
-	require.Equal(t, filepath.Join(home, ".hand", "profiles", "desk"), resolved.HomeDir)
+	require.Equal(t, filepath.Join(home, ".morph", "profiles", "desk"), resolved.HomeDir)
 }
 
 func TestResolve_ReturnsInvalidStoredCurrentProfileError(t *testing.T) {
@@ -150,7 +150,7 @@ func TestResolve_UsesProcessEnvProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "desk", resolved.Name)
-	require.Equal(t, filepath.Join("/Users/me", ".hand", "profiles", "desk"), resolved.HomeDir)
+	require.Equal(t, filepath.Join("/Users/me", ".morph", "profiles", "desk"), resolved.HomeDir)
 }
 
 func TestResolve_ReturnsInvalidProfileNameError(t *testing.T) {
@@ -173,7 +173,7 @@ func TestResolve_UsesUserHomeDirWhenHomeDirEmpty(t *testing.T) {
 	resolved, err := Resolve(ResolveOptions{Name: "desk"})
 	require.NoError(t, err)
 
-	require.Equal(t, filepath.Join("/Users/from-home", ".hand", "profiles", "desk"), resolved.HomeDir)
+	require.Equal(t, filepath.Join("/Users/from-home", ".morph", "profiles", "desk"), resolved.HomeDir)
 }
 
 func TestResolve_ReturnsUserHomeDirError(t *testing.T) {
@@ -234,7 +234,7 @@ func TestCurrentPath(t *testing.T) {
 	path, err := CurrentPath(home)
 	require.NoError(t, err)
 
-	require.Equal(t, filepath.Join(home, ".hand", "state.json"), path)
+	require.Equal(t, filepath.Join(home, ".morph", "state.json"), path)
 }
 
 func TestCurrentPath_ReturnsHomeDirError(t *testing.T) {
@@ -288,7 +288,7 @@ func TestLoadCurrentName_ReturnsFalseWhenStateFileNull(t *testing.T) {
 
 func TestLoadCurrentName_IgnoresLegacyCurrentProfileFile(t *testing.T) {
 	home := t.TempDir()
-	legacyPath := filepath.Join(home, ".hand", "current-profile")
+	legacyPath := filepath.Join(home, ".morph", "current-profile")
 	require.NoError(t, os.MkdirAll(filepath.Dir(legacyPath), 0o700))
 	require.NoError(t, os.WriteFile(legacyPath, []byte("Work\n"), 0o600))
 
@@ -397,7 +397,7 @@ func TestStoreCurrentName_RejectsInvalidName(t *testing.T) {
 
 func TestStoreCurrentName_ReturnsCreateDirError(t *testing.T) {
 	home := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".hand"), []byte("file"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".morph"), []byte("file"), 0o600))
 
 	_, err := StoreCurrentName("work", home)
 	require.ErrorContains(t, err, "create profile selector dir:")
@@ -436,7 +436,7 @@ func TestInit_CreatesProfileDir(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "work", resolved.Name)
-	require.DirExists(t, filepath.Join(home, ".hand", "profiles", "work"))
+	require.DirExists(t, filepath.Join(home, ".morph", "profiles", "work"))
 }
 
 func TestInit_IsIdempotent(t *testing.T) {

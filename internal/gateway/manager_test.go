@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/morph/internal/config"
 )
 
 func TestManager_StartDisabledKeepsDisabledState(t *testing.T) {

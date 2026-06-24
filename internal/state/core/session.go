@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
-	"github.com/wandxy/hand/pkg/nanoid"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 // DefaultSessionID is the package-level default session id constant.
@@ -158,10 +158,10 @@ type CurrentSessionStore interface {
 
 // SessionMessageStore defines persisted session message operations.
 type SessionMessageStore interface {
-	AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error
+	AppendMessages(ctx context.Context, id string, messages []morphmsg.Message) error
 	CountMessages(ctx context.Context, id string, opts MessageQueryOptions) (int, error)
-	GetMessage(ctx context.Context, id string, index int) (handmsg.Message, bool, error)
-	GetMessages(ctx context.Context, id string, opts MessageQueryOptions) ([]handmsg.Message, error)
+	GetMessage(ctx context.Context, id string, index int) (morphmsg.Message, bool, error)
+	GetMessages(ctx context.Context, id string, opts MessageQueryOptions) ([]morphmsg.Message, error)
 	GetMessagesByIDs(ctx context.Context, id string, messageIDs []uint) ([]MessageRecord, error)
 	GetMessageWindow(ctx context.Context, id string, anchorMessageID uint, before int, after int) ([]MessageRecord, error)
 	SearchMessages(ctx context.Context, id string, opts SearchMessageOptions) ([]SearchMessageResult, error)

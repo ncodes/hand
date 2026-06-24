@@ -8,16 +8,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	handagent "github.com/wandxy/hand/internal/agent"
-	models "github.com/wandxy/hand/internal/model"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	morphagent "github.com/wandxy/morph/internal/agent"
+	models "github.com/wandxy/morph/internal/model"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 type adapterHarness struct {
 	adapter       RootChatAdapter
 	createSession func(context.Context, string) error
-	messages      func(context.Context, string) ([]handmsg.Message, error)
+	messages      func(context.Context, string) ([]morphmsg.Message, error)
 	close         func() error
 }
 
@@ -33,7 +33,7 @@ func TestRPCAdapter_HappyPathMatchesDirectHarness(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			service, ok := h.agent.(handagent.ServiceAPI)
+			service, ok := h.agent.(morphagent.ServiceAPI)
 			require.True(t, ok)
 
 			return adapterHarness{
@@ -111,7 +111,7 @@ func TestRPCAdapter_ExplicitSessionMatchesDirectHarness(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			service, ok := h.agent.(handagent.ServiceAPI)
+			service, ok := h.agent.(morphagent.ServiceAPI)
 			require.True(t, ok)
 
 			return adapterHarness{
@@ -177,7 +177,7 @@ func TestRPCAdapter_ExplicitSessionMatchesDirectHarness(t *testing.T) {
 			messages, err := adapter.messages(context.Background(), sessionID)
 			require.NoError(t, err)
 			require.Len(t, messages, 2)
-			assert.Equal(t, []handmsg.Role{handmsg.RoleUser, handmsg.RoleAssistant}, []handmsg.Role{messages[0].Role, messages[1].Role})
+			assert.Equal(t, []morphmsg.Role{morphmsg.RoleUser, morphmsg.RoleAssistant}, []morphmsg.Role{messages[0].Role, messages[1].Role})
 		})
 	}
 }

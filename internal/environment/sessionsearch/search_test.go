@@ -10,12 +10,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	storagemock "github.com/wandxy/hand/internal/state/mock"
-	memorystore "github.com/wandxy/hand/internal/state/storememory"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/nanoid"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	storagemock "github.com/wandxy/morph/internal/state/mock"
+	memorystore "github.com/wandxy/morph/internal/state/storememory"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 var sessionSearchTestSessionID = nanoid.MustFromSeed(storage.SessionIDPrefix, "session-search", "EnvironmentSearchTestSeed")
@@ -27,9 +27,9 @@ func TestSearch_FindsAssistantToolCallsAndPlainText(t *testing.T) {
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
 
 	now := time.Now().UTC()
-	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello plain text", CreatedAt: now},
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "search_files", Input: `{"pattern":"needle"}`}}, CreatedAt: now.Add(time.Second)},
+	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello plain text", CreatedAt: now},
+		{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "search_files", Input: `{"pattern":"needle"}`}}, CreatedAt: now.Add(time.Second)},
 	}))
 
 	results, err := Search(context.Background(), manager, SessionSearchRequest{
@@ -61,10 +61,10 @@ func TestSearch_AssistantToolNameFilterDoesNotMatchOtherToolCallPayloads(t *test
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
 
-	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []handmsg.Message{
+	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []morphmsg.Message{
 		{
-			Role: handmsg.RoleAssistant,
-			ToolCalls: []handmsg.ToolCall{
+			Role: morphmsg.RoleAssistant,
+			ToolCalls: []morphmsg.ToolCall{
 				{ID: "call-1", Name: "process", Input: `{"action":"start"}`},
 				{ID: "call-2", Name: "search_files", Input: `{"pattern":"needle"}`},
 			},
@@ -90,8 +90,8 @@ func TestSearch_FiltersAndClampsResults(t *testing.T) {
 	for i := 0; i < 25; i++ {
 		sessionID := nanoid.MustFromSeed(storage.SessionIDPrefix, fmt.Sprintf("session-search-%d", i), "EnvironmentSearchTestSeed")
 		require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionID}))
-		require.NoError(t, manager.AppendMessages(context.Background(), sessionID, []handmsg.Message{{
-			Role:       handmsg.RoleTool,
+		require.NoError(t, manager.AppendMessages(context.Background(), sessionID, []morphmsg.Message{{
+			Role:       morphmsg.RoleTool,
 			Name:       "process",
 			Content:    `{"status":"running"}`,
 			ToolCallID: "call-1",
@@ -114,8 +114,8 @@ func TestSearch_BuildsRuneSafeSnippet(t *testing.T) {
 	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
-	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []handmsg.Message{{
-		Role:      handmsg.RoleUser,
+	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []morphmsg.Message{{
+		Role:      morphmsg.RoleUser,
 		Content:   "AéB needle C",
 		CreatedAt: time.Now().UTC(),
 	}}))
@@ -136,8 +136,8 @@ func TestSearch_ReportsMatchIndexFromOriginalText(t *testing.T) {
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
 
 	text := "İx needle"
-	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []handmsg.Message{{
-		Role:      handmsg.RoleUser,
+	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []morphmsg.Message{{
+		Role:      morphmsg.RoleUser,
 		Content:   text,
 		CreatedAt: time.Now().UTC(),
 	}}))
@@ -171,13 +171,13 @@ func TestSearch_OmitsOriginSessionWhenSessionIDIsBlank(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: storage.DefaultSessionID}))
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
-	require.NoError(t, manager.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{{
-		Role:      handmsg.RoleUser,
+	require.NoError(t, manager.AppendMessages(context.Background(), storage.DefaultSessionID, []morphmsg.Message{{
+		Role:      morphmsg.RoleUser,
 		Content:   "other needle",
 		CreatedAt: time.Now().UTC(),
 	}}))
-	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []handmsg.Message{{
-		Role:      handmsg.RoleUser,
+	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []morphmsg.Message{{
+		Role:      morphmsg.RoleUser,
 		Content:   "origin needle",
 		CreatedAt: time.Now().UTC(),
 	}}))
@@ -203,9 +203,9 @@ func TestSearch_ReturnsStoreErrorsAndSkipsEmptyDerivedSearchText(t *testing.T) {
 	require.Error(t, err)
 
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
-	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []handmsg.Message{{
-		Role:      handmsg.RoleAssistant,
-		ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "process", Input: "{bad json"}},
+	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []morphmsg.Message{{
+		Role:      morphmsg.RoleAssistant,
+		ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "process", Input: "{bad json"}},
 		CreatedAt: time.Now().UTC(),
 	}}))
 
@@ -224,7 +224,7 @@ func TestSearch_ForwardsCanonicalSearchOptions(t *testing.T) {
 			require.Empty(t, id)
 			require.Equal(t, storage.DefaultSessionID, opts.IgnoreSessionID)
 			require.Equal(t, "needle", opts.Query)
-			require.Equal(t, handmsg.RoleAssistant, opts.Role)
+			require.Equal(t, morphmsg.RoleAssistant, opts.Role)
 			require.Equal(t, "process", opts.ToolName)
 			require.Equal(t, 2, opts.MaxSessions)
 			require.Equal(t, maxSessionMatchedMessages, opts.MaxMessagesPerSession)
@@ -234,10 +234,10 @@ func TestSearch_ForwardsCanonicalSearchOptions(t *testing.T) {
 				MatchCount: 1,
 				Messages: []storage.SearchMessageHit{{
 					SessionID: sessionSearchTestSessionID,
-					Message: handmsg.Message{
+					Message: morphmsg.Message{
 						ID:   200,
-						Role: handmsg.RoleAssistant,
-						ToolCalls: []handmsg.ToolCall{{
+						Role: morphmsg.RoleAssistant,
+						ToolCalls: []morphmsg.ToolCall{{
 							ID:    "call-1",
 							Name:  "process",
 							Input: `{"pattern":"needle"}`,
@@ -285,9 +285,9 @@ func TestSearch_ShapesResultsFromStorageMatchedMetadata(t *testing.T) {
 				MatchCount: 1,
 				Messages: []storage.SearchMessageHit{{
 					SessionID: sessionSearchTestSessionID,
-					Message: handmsg.Message{
+					Message: morphmsg.Message{
 						ID:        1,
-						Role:      handmsg.RoleAssistant,
+						Role:      morphmsg.RoleAssistant,
 						Content:   "original message without query text",
 						CreatedAt: now,
 					},
@@ -336,7 +336,7 @@ func TestSearch_SkipsEmptyHitsAndMissingSessions(t *testing.T) {
 					MatchCount: 1,
 					Messages: []storage.SearchMessageHit{{
 						SessionID:   "ses_empty",
-						Message:     handmsg.Message{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
+						Message:     morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, CreatedAt: now},
 						MatchedText: "   ",
 					}},
 				},
@@ -345,7 +345,7 @@ func TestSearch_SkipsEmptyHitsAndMissingSessions(t *testing.T) {
 					MatchCount: 1,
 					Messages: []storage.SearchMessageHit{{
 						SessionID:   "ses_missing",
-						Message:     handmsg.Message{ID: 2, Role: handmsg.RoleUser, CreatedAt: now},
+						Message:     morphmsg.Message{ID: 2, Role: morphmsg.RoleUser, CreatedAt: now},
 						MatchedText: "needle missing",
 					}},
 				},
@@ -354,7 +354,7 @@ func TestSearch_SkipsEmptyHitsAndMissingSessions(t *testing.T) {
 					MatchCount: 1,
 					Messages: []storage.SearchMessageHit{{
 						SessionID:   sessionSearchTestSessionID,
-						Message:     handmsg.Message{ID: 3, Role: handmsg.RoleUser, CreatedAt: now},
+						Message:     morphmsg.Message{ID: 3, Role: morphmsg.RoleUser, CreatedAt: now},
 						MatchedText: "needle found",
 					}},
 				},
@@ -393,7 +393,7 @@ func TestSearch_SkipsEmptyMatchedMessagesInGroupedResult(t *testing.T) {
 				MatchCount: 1,
 				Messages: []storage.SearchMessageHit{{
 					SessionID:   sessionSearchTestSessionID,
-					Message:     handmsg.Message{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
+					Message:     morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, CreatedAt: now},
 					MatchedText: "   ",
 				}},
 			}}, nil
@@ -426,7 +426,7 @@ func TestSearch_ReturnsSessionLookupErrors(t *testing.T) {
 					MatchCount: 1,
 					Messages: []storage.SearchMessageHit{{
 						SessionID:   sessionSearchTestSessionID,
-						Message:     handmsg.Message{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
+						Message:     morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, CreatedAt: now},
 						MatchedText: "needle",
 					}},
 				}}, nil
@@ -449,7 +449,7 @@ func TestSearch_ReturnsSessionLookupErrors(t *testing.T) {
 					MatchCount: 1,
 					Messages: []storage.SearchMessageHit{{
 						SessionID:   sessionSearchTestSessionID,
-						Message:     handmsg.Message{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
+						Message:     morphmsg.Message{ID: 1, Role: morphmsg.RoleUser, CreatedAt: now},
 						MatchedText: "needle",
 					}},
 				}}, nil
@@ -484,17 +484,17 @@ func TestSearch_LimitsAndSortsGroupedResultsDeterministically(t *testing.T) {
 				Messages: []storage.SearchMessageHit{
 					{
 						SessionID:   sessionA,
-						Message:     handmsg.Message{ID: 30, Role: handmsg.RoleUser, CreatedAt: now},
+						Message:     morphmsg.Message{ID: 30, Role: morphmsg.RoleUser, CreatedAt: now},
 						MatchedText: "needle A tie higher id",
 					},
 					{
 						SessionID:   sessionA,
-						Message:     handmsg.Message{ID: 20, Role: handmsg.RoleUser, CreatedAt: now},
+						Message:     morphmsg.Message{ID: 20, Role: morphmsg.RoleUser, CreatedAt: now},
 						MatchedText: "needle A newest",
 					},
 					{
 						SessionID:   sessionA,
-						Message:     handmsg.Message{ID: 15, Role: handmsg.RoleUser, CreatedAt: now.Add(-time.Second)},
+						Message:     morphmsg.Message{ID: 15, Role: morphmsg.RoleUser, CreatedAt: now.Add(-time.Second)},
 						MatchedText: "needle A older",
 					},
 				},

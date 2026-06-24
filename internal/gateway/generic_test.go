@@ -10,10 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	storage "github.com/wandxy/hand/internal/state/core"
-	agentcore "github.com/wandxy/hand/pkg/agent"
-	gatewaytypes "github.com/wandxy/hand/pkg/gateway/types"
+	"github.com/wandxy/morph/internal/config"
+	storage "github.com/wandxy/morph/internal/state/core"
+	agentcore "github.com/wandxy/morph/pkg/agent"
+	gatewaytypes "github.com/wandxy/morph/pkg/gateway/types"
 )
 
 func TestGenericRespondRejectsMissingAndInvalidBearerToken(t *testing.T) {

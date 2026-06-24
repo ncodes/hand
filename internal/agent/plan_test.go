@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	envtypes "github.com/wandxy/hand/internal/environment/types"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
 )
 
 func TestPlanHelpersDecodeRenderAndSummarize(t *testing.T) {
@@ -75,9 +75,9 @@ func TestTurn_HydratePlanFromMessagesAndHistory(t *testing.T) {
 	plans := &planStoreStub{}
 	turn := &Turn{plans: plans, sessionID: "session-1"}
 
-	ok := turn.hydratePlanFromMessages([]handmsg.Message{
-		{Role: handmsg.RoleTool, Name: "other", Content: "{}"},
-		{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"steps":[{"id":"one","content":"first","status":"in_progress"}]}`},
+	ok := turn.hydratePlanFromMessages([]morphmsg.Message{
+		{Role: morphmsg.RoleTool, Name: "other", Content: "{}"},
+		{Role: morphmsg.RoleTool, Name: "plan_tool", Content: `{"steps":[{"id":"one","content":"first","status":"in_progress"}]}`},
 	})
 
 	require.True(t, ok)
@@ -85,9 +85,9 @@ func TestTurn_HydratePlanFromMessagesAndHistory(t *testing.T) {
 	require.Len(t, plans.plan.Steps, 1)
 
 	store := &sessionStoreStub{
-		messagesByOffset: map[int][]handmsg.Message{
-			0: {{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"bad":true}`}},
-			1: {{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"steps":[{"id":"two","content":"second","status":"in_progress"}]}`}},
+		messagesByOffset: map[int][]morphmsg.Message{
+			0: {{Role: morphmsg.RoleTool, Name: "plan_tool", Content: `{"bad":true}`}},
+			1: {{Role: morphmsg.RoleTool, Name: "plan_tool", Content: `{"steps":[{"id":"two","content":"second","status":"in_progress"}]}`}},
 		},
 	}
 	turn = &Turn{plans: plans, sessionStore: store}

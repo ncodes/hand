@@ -3,10 +3,10 @@ package storememory
 import (
 	"sync"
 
-	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	base "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 )
 
 // Store keeps sessions, messages, memory, and traces in process memory.
@@ -15,7 +15,7 @@ type Store struct {
 	memoryReranker  search.Reranker
 	mu              sync.RWMutex
 	sessions        map[string]Session
-	messages        map[string][]handmsg.Message
+	messages        map[string][]morphmsg.Message
 	summaries       map[string]SessionSummary
 	gatewayBindings map[string]base.GatewayBinding
 	pairingRequests map[string]pairing.PendingRequest
@@ -32,7 +32,7 @@ type Store struct {
 func NewStore() *Store {
 	return &Store{
 		sessions:        make(map[string]Session),
-		messages:        make(map[string][]handmsg.Message),
+		messages:        make(map[string][]morphmsg.Message),
 		summaries:       make(map[string]SessionSummary),
 		gatewayBindings: make(map[string]base.GatewayBinding),
 		pairingRequests: make(map[string]pairing.PendingRequest),

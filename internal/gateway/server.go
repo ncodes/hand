@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/gateway/dispatch"
-	slackprovider "github.com/wandxy/hand/internal/gateway/slack"
-	telegramprovider "github.com/wandxy/hand/internal/gateway/telegram"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/gateway/dispatch"
+	slackprovider "github.com/wandxy/morph/internal/gateway/slack"
+	telegramprovider "github.com/wandxy/morph/internal/gateway/telegram"
 )
 
 type HTTPServer interface {

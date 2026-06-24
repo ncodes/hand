@@ -14,8 +14,8 @@ import (
 	sqliteDriver "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"github.com/wandxy/hand/internal/state/search/vectorstore"
-	storagesqlite "github.com/wandxy/hand/internal/state/storesqlite"
+	"github.com/wandxy/morph/internal/state/search/vectorstore"
+	storagesqlite "github.com/wandxy/morph/internal/state/storesqlite"
 )
 
 func TestStore_NewStoreValidationAndSchema(t *testing.T) {
@@ -105,7 +105,7 @@ func TestWithSQLiteBusyRetry_DoesNotRetryNonBusyErrors(t *testing.T) {
 }
 
 func TestStore_SharesSessionDatabase(t *testing.T) {
-	db, err := gorm.Open(sqliteDriver.Open(filepath.Join(t.TempDir(), "hand.db")))
+	db, err := gorm.Open(sqliteDriver.Open(filepath.Join(t.TempDir(), "morph.db")))
 	require.NoError(t, err)
 
 	_, err = storagesqlite.NewStoreFromDB(db)

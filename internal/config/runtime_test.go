@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/hand/internal/constants"
+	"github.com/wandxy/morph/internal/constants"
 )
 
 func TestConfig_ValidateRejectsInvalidLogLevel(t *testing.T) {
@@ -76,7 +76,7 @@ func TestConfig_ValidateRejectsEmptyRPCAddress(t *testing.T) {
 		Log:    LogConfig{Level: "info"},
 	}
 
-	require.EqualError(t, cfg.Validate(), "rpc address is required; set HAND_RPC_ADDRESS, provide it in config, or use --rpc.address")
+	require.EqualError(t, cfg.Validate(), "rpc address is required; set MORPH_RPC_ADDRESS, provide it in config, or use --rpc.address")
 }
 
 func TestConfig_ValidateRejectsInvalidRPCPort(t *testing.T) {
@@ -87,7 +87,7 @@ func TestConfig_ValidateRejectsInvalidRPCPort(t *testing.T) {
 		Log:    LogConfig{Level: "info"},
 	}
 
-	require.EqualError(t, cfg.Validate(), "rpc port must be non-negative; set HAND_RPC_PORT, provide it in config, or use --rpc.port")
+	require.EqualError(t, cfg.Validate(), "rpc port must be non-negative; set MORPH_RPC_PORT, provide it in config, or use --rpc.port")
 }
 
 func TestConfig_ValidateAllowsZeroRPCPortForDynamicBind(t *testing.T) {
@@ -111,11 +111,11 @@ func TestConfig_ValidateRejectsInvalidMaxIterations(t *testing.T) {
 	}
 
 	require.EqualError(t, cfg.Validate(), "max iterations must be greater than zero; set "+
-		"HAND_SESSION_MAX_ITERATIONS, provide it in config, or use --max-iterations")
+		"MORPH_SESSION_MAX_ITERATIONS, provide it in config, or use --max-iterations")
 }
 
 func TestLoad_UsesFilesystemRootsAndExecRulesFromConfig(t *testing.T) {
-	clearEnvKeys(t, "HAND_FS_ROOTS", "HAND_EXEC_ALLOW", "HAND_EXEC_ASK", "HAND_EXEC_DENY")
+	clearEnvKeys(t, "MORPH_FS_ROOTS", "MORPH_EXEC_ALLOW", "MORPH_EXEC_ASK", "MORPH_EXEC_DENY")
 	configDir := t.TempDir()
 	workingDir := t.TempDir()
 	t.Chdir(workingDir)
@@ -160,7 +160,7 @@ exec:
 }
 
 func TestLoad_DefaultsNoProfileAccessToTrueWhenOmitted(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG")
+	clearEnvKeys(t, "MORPH_CONFIG")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
@@ -174,7 +174,7 @@ name: config-agent
 }
 
 func TestLoad_AllowsNoProfileAccessOverrideFromConfig(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG")
+	clearEnvKeys(t, "MORPH_CONFIG")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
@@ -190,12 +190,12 @@ fs:
 }
 
 func TestLoad_UsesFilesystemRootsAndExecRulesFromEnv(t *testing.T) {
-	clearEnvKeys(t, "HAND_FS_ROOTS", "HAND_EXEC_ALLOW", "HAND_EXEC_ASK", "HAND_EXEC_DENY")
+	clearEnvKeys(t, "MORPH_FS_ROOTS", "MORPH_EXEC_ALLOW", "MORPH_EXEC_ASK", "MORPH_EXEC_DENY")
 	dir := t.TempDir()
 	t.Chdir(dir)
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
-	require.NoError(t, os.WriteFile(envPath, []byte("HAND_FS_ROOTS=.,./nested\nHAND_EXEC_ALLOW=git status\nHAND_EXEC_ASK=git push\nHAND_EXEC_DENY=git reset --hard\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("MORPH_FS_ROOTS=.,./nested\nMORPH_EXEC_ALLOW=git status\nMORPH_EXEC_ASK=git push\nMORPH_EXEC_DENY=git reset --hard\n"), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:

@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/datadir"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/datadir"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func TestOpen_ValidatesConfigAndBackend(t *testing.T) {

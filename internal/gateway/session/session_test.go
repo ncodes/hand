@@ -8,13 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/mocks/gatewaysessionstub"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	"github.com/wandxy/hand/internal/state/storememory"
-	"github.com/wandxy/hand/pkg/gateway/bindings"
-	"github.com/wandxy/hand/pkg/nanoid"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/mocks/gatewaysessionstub"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	"github.com/wandxy/morph/internal/state/storememory"
+	"github.com/wandxy/morph/pkg/gateway/bindings"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 var (

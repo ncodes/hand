@@ -3,8 +3,8 @@ package agent
 import (
 	"context"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/environment"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/environment"
 )
 
 // EnvironmentFactory creates the runtime environment for an Agent.

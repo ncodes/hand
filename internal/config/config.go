@@ -7,11 +7,11 @@ import (
 
 	"github.com/joho/godotenv"
 
-	appcredential "github.com/wandxy/hand/internal/credential"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	appcredential "github.com/wandxy/morph/internal/credential"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
-// Config is the root runtime configuration for Hand.
+// Config is the root runtime configuration for Morph.
 type Config struct {
 	Name          string                       `yaml:"name"`
 	Platform      string                       `yaml:"platform"`

@@ -9,18 +9,18 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	e2e "github.com/wandxy/hand/internal/e2e"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/config"
+	e2e "github.com/wandxy/morph/internal/e2e"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestLiveMemoryFlushRunsBeforeCompaction(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("HAND_E2E_LIVE")) != "1" {
-		t.Skip("set HAND_E2E_LIVE=1 to run live LLM e2e tests")
+	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
@@ -49,8 +49,8 @@ func TestLiveMemoryFlushRunsBeforeCompaction(t *testing.T) {
 }
 
 func TestLiveMemoryFlushCanProduceMemoryBeforeCompaction(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("HAND_E2E_LIVE")) != "1" {
-		t.Skip("set HAND_E2E_LIVE=1 to run live LLM e2e tests")
+	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
@@ -81,8 +81,8 @@ func TestLiveMemoryFlushCanProduceMemoryBeforeCompaction(t *testing.T) {
 }
 
 func TestLiveMemoryFlushDoesNotRunBeforeSessionSwitch(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("HAND_E2E_LIVE")) != "1" {
-		t.Skip("set HAND_E2E_LIVE=1 to run live LLM e2e tests")
+	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
@@ -113,8 +113,8 @@ func TestLiveMemoryFlushDoesNotRunBeforeSessionSwitch(t *testing.T) {
 }
 
 func TestLiveMemoryFlushRunsBeforeAgentClose(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("HAND_E2E_LIVE")) != "1" {
-		t.Skip("set HAND_E2E_LIVE=1 to run live LLM e2e tests")
+	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
@@ -199,20 +199,20 @@ func seedLiveMemoryFlushHistory(
 	session, err := manager.Resolve(ctx, sessionID)
 	require.NoError(t, err)
 
-	messages := []handmsg.Message{
+	messages := []morphmsg.Message{
 		{
-			Role: handmsg.RoleUser,
+			Role: morphmsg.RoleUser,
 			Content: strings.Join([]string{
 				"For the Orion dashboard refresh, let's use " + codename + " as the launch codename in status updates.",
 				"The API rollout stays separate, but the dashboard refresh should use that name.",
 			}, " "),
 		},
-		{Role: handmsg.RoleAssistant, Content: "Got it. I will use " + codename + " for the Orion dashboard refresh."},
+		{Role: morphmsg.RoleAssistant, Content: "Got it. I will use " + codename + " for the Orion dashboard refresh."},
 	}
 	for range 8 {
 		messages = append(messages,
-			handmsg.Message{Role: handmsg.RoleUser, Content: "We checked one more rollout note and kept the dashboard plan unchanged."},
-			handmsg.Message{Role: handmsg.RoleAssistant, Content: "Noted. The dashboard plan is unchanged."},
+			morphmsg.Message{Role: morphmsg.RoleUser, Content: "We checked one more rollout note and kept the dashboard plan unchanged."},
+			morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "Noted. The dashboard plan is unchanged."},
 		)
 	}
 
@@ -234,20 +234,20 @@ func seedLiveMemoryFlushOutcomeHistory(
 	session, err := manager.Resolve(ctx, sessionID)
 	require.NoError(t, err)
 
-	messages := []handmsg.Message{
+	messages := []morphmsg.Message{
 		{
-			Role: handmsg.RoleUser,
+			Role: morphmsg.RoleUser,
 			Content: strings.Join([]string{
 				"Going forward, in monthly operations notes, label the long-running enterprise beta segment " + label + ".",
 				"Use the label only for that segment; the self-serve beta group keeps its current name.",
 			}, " "),
 		},
-		{Role: handmsg.RoleAssistant, Content: "Understood. Monthly operations notes will use " + label + " for the enterprise beta segment."},
+		{Role: morphmsg.RoleAssistant, Content: "Understood. Monthly operations notes will use " + label + " for the enterprise beta segment."},
 	}
 	for range 8 {
 		messages = append(messages,
-			handmsg.Message{Role: handmsg.RoleUser, Content: "We reviewed another operations note and left the segment naming decision unchanged."},
-			handmsg.Message{Role: handmsg.RoleAssistant, Content: "Noted. The segment naming decision remains unchanged."},
+			morphmsg.Message{Role: morphmsg.RoleUser, Content: "We reviewed another operations note and left the segment naming decision unchanged."},
+			morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "Noted. The segment naming decision remains unchanged."},
 		)
 	}
 

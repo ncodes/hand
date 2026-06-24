@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 )
 
 // Store records state-store calls for tests.
@@ -27,10 +27,10 @@ type Store struct {
 	SetCurrentFunc            func(context.Context, string) error
 	CurrentFunc               func(context.Context) (string, bool, error)
 	ClearCurrentFunc          func(context.Context) error
-	AppendMessagesFunc        func(context.Context, string, []handmsg.Message) error
+	AppendMessagesFunc        func(context.Context, string, []morphmsg.Message) error
 	CountMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) (int, error)
-	GetMessageFunc            func(context.Context, string, int) (handmsg.Message, bool, error)
-	GetMessagesFunc           func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
+	GetMessageFunc            func(context.Context, string, int) (morphmsg.Message, bool, error)
+	GetMessagesFunc           func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error)
 	GetMessagesByIDsFunc      func(context.Context, string, []uint) ([]storage.MessageRecord, error)
 	GetMessageWindowFunc      func(context.Context, string, uint, int, int) ([]storage.MessageRecord, error)
 	SearchMessagesFunc        func(context.Context, string, storage.SearchMessageOptions) ([]storage.SearchMessageResult, error)
@@ -249,7 +249,7 @@ func (s *Store) ClearCurrent(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
+func (s *Store) AppendMessages(ctx context.Context, id string, messages []morphmsg.Message) error {
 	if s.AppendMessagesFunc != nil {
 		return s.AppendMessagesFunc(ctx, id, messages)
 	}
@@ -265,15 +265,15 @@ func (s *Store) CountMessages(ctx context.Context, id string, opts storage.Messa
 	return 0, nil
 }
 
-func (s *Store) GetMessage(ctx context.Context, id string, index int) (handmsg.Message, bool, error) {
+func (s *Store) GetMessage(ctx context.Context, id string, index int) (morphmsg.Message, bool, error) {
 	if s.GetMessageFunc != nil {
 		return s.GetMessageFunc(ctx, id, index)
 	}
 
-	return handmsg.Message{}, false, nil
+	return morphmsg.Message{}, false, nil
 }
 
-func (s *Store) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+func (s *Store) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 	if s.GetMessagesFunc != nil {
 		return s.GetMessagesFunc(ctx, id, opts)
 	}

@@ -7,12 +7,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/memory/episodic"
-	pinnedmemory "github.com/wandxy/hand/internal/memory/pinned"
-	models "github.com/wandxy/hand/internal/model"
-	statecore "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/memory/episodic"
+	pinnedmemory "github.com/wandxy/morph/internal/memory/pinned"
+	models "github.com/wandxy/morph/internal/model"
+	statecore "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // ProviderDefaultMemory is the package-level provider default memory constant.
@@ -58,7 +58,7 @@ type StateManager interface {
 	DeleteMemory(context.Context, DeleteRequest) error
 	CurrentSession(context.Context) (string, error)
 	CountMessages(context.Context, string, statecore.MessageQueryOptions) (int, error)
-	GetMessages(context.Context, string, statecore.MessageQueryOptions) ([]handmsg.Message, error)
+	GetMessages(context.Context, string, statecore.MessageQueryOptions) ([]morphmsg.Message, error)
 	ListTraceEvents(context.Context, statecore.TraceQuery) (statecore.TraceResult, error)
 	UpdateCheckpoints(context.Context, string, statecore.CheckpointPatch) error
 }

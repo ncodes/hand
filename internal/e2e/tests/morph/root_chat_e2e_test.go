@@ -1,4 +1,4 @@
-package hand
+package morph
 
 import (
 	"bytes"
@@ -19,50 +19,50 @@ import (
 	"github.com/stretchr/testify/require"
 	urfavecli "github.com/urfave/cli/v3"
 
-	daemoncmd "github.com/wandxy/hand/cmd/daemon"
-	doctorcmd "github.com/wandxy/hand/cmd/doctor"
-	configcmd "github.com/wandxy/hand/cmd/hand/configcmd"
-	profilecmd "github.com/wandxy/hand/cmd/profile"
-	sessioncmd "github.com/wandxy/hand/cmd/session"
-	tracecmd "github.com/wandxy/hand/cmd/trace"
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/e2e"
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/profile"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	daemoncmd "github.com/wandxy/morph/cmd/daemon"
+	doctorcmd "github.com/wandxy/morph/cmd/doctor"
+	configcmd "github.com/wandxy/morph/cmd/morph/configcmd"
+	profilecmd "github.com/wandxy/morph/cmd/profile"
+	sessioncmd "github.com/wandxy/morph/cmd/session"
+	tracecmd "github.com/wandxy/morph/cmd/trace"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/e2e"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/profile"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
 	logutils.SetOutput(io.Discard)
 }
 
-func Test_E2E_HandRootChat_SimpleAnswer(t *testing.T) {
+func Test_E2E_MorphRootChat_SimpleAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("hello back"), nil)
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewTextClient("hello back"), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "hello", "world")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "hello", "world")
 	require.NoError(t, err)
 	assert.Equal(t, "hello back\n", output)
 
 	messages, err := h.Messages(context.Background(), "")
 	require.NoError(t, err)
 	require.Len(t, messages, 2)
-	assert.Equal(t, handmsg.RoleUser, messages[0].Role)
+	assert.Equal(t, morphmsg.RoleUser, messages[0].Role)
 	assert.Equal(t, "hello world", messages[0].Content)
-	assert.Equal(t, handmsg.RoleAssistant, messages[1].Role)
+	assert.Equal(t, morphmsg.RoleAssistant, messages[1].Role)
 	assert.Equal(t, "hello back", messages[1].Content)
 }
 
-func Test_E2E_HandRootChat_StreamingAnswer(t *testing.T) {
+func Test_E2E_MorphRootChat_StreamingAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(e2e.Step{
 		Response: &models.Response{OutputText: "answer"},
 		Stream: []models.StreamDelta{
 			{Channel: models.StreamChannelReasoning, Text: "thinking"},
@@ -74,16 +74,16 @@ func Test_E2E_HandRootChat_StreamingAnswer(t *testing.T) {
 		Stream: true,
 	})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "hello")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "hello")
 	require.NoError(t, err)
 	assert.Equal(t, "\x1b[90mthinking\x1b[0manswer\n", output)
 }
 
-func Test_E2E_HandRootChat_ExplicitSession(t *testing.T) {
+func Test_E2E_MorphRootChat_ExplicitSession(t *testing.T) {
 	resetRootChatE2E(t)
 
 	sessionID := "ses_123456789012345678901"
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("session reply"), nil)
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewTextClient("session reply"), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 	client, err := h.Client(context.Background())
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func Test_E2E_HandRootChat_ExplicitSession(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "--session", sessionID, "hello")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "--session", sessionID, "hello")
 	require.NoError(t, err)
 	assert.Equal(t, "session reply\n", output)
 
@@ -109,10 +109,10 @@ func Test_E2E_HandRootChat_ExplicitSession(t *testing.T) {
 	assert.Equal(t, "session reply", messages[1].Content)
 }
 
-func Test_E2E_HandRootChat_RequestInstruct(t *testing.T) {
+func Test_E2E_MorphRootChat_RequestInstruct(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(e2e.Step{
 		Check: func(req models.Request) error {
 			if !strings.Contains(req.Instructions, "be brief") {
 				return errors.New("request instruct missing from model instructions")
@@ -123,28 +123,28 @@ func Test_E2E_HandRootChat_RequestInstruct(t *testing.T) {
 	}), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "--instruct", "be brief", "hello")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "--instruct", "be brief", "hello")
 	require.NoError(t, err)
 	assert.Equal(t, "brief\n", output)
 }
 
-func Test_E2E_HandRootChat_MultiTurnContinuity(t *testing.T) {
+func Test_E2E_MorphRootChat_MultiTurnContinuity(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(
 		e2e.OutputTextStep("first reply"),
 		e2e.Step{
 			Check: func(req models.Request) error {
 				if len(req.Messages) != 3 {
 					return fmt.Errorf("expected 3 messages in follow-up request, got %d", len(req.Messages))
 				}
-				if req.Messages[0].Role != handmsg.RoleUser || req.Messages[0].Content != "first turn" {
+				if req.Messages[0].Role != morphmsg.RoleUser || req.Messages[0].Content != "first turn" {
 					return errors.New("missing first user message in follow-up request")
 				}
-				if req.Messages[1].Role != handmsg.RoleAssistant || req.Messages[1].Content != "first reply" {
+				if req.Messages[1].Role != morphmsg.RoleAssistant || req.Messages[1].Content != "first reply" {
 					return errors.New("missing first assistant reply in follow-up request")
 				}
-				if req.Messages[2].Role != handmsg.RoleUser || req.Messages[2].Content != "second turn" {
+				if req.Messages[2].Role != morphmsg.RoleUser || req.Messages[2].Content != "second turn" {
 					return errors.New("missing second user message in follow-up request")
 				}
 				return nil
@@ -154,62 +154,62 @@ func Test_E2E_HandRootChat_MultiTurnContinuity(t *testing.T) {
 	), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	firstOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "first", "turn")
+	firstOutput, err := runRootChatCommand(t, "morph", "--config", configPath, "first", "turn")
 	require.NoError(t, err)
 	assert.Equal(t, "first reply\n", firstOutput)
 
-	secondOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "second", "turn")
+	secondOutput, err := runRootChatCommand(t, "morph", "--config", configPath, "second", "turn")
 	require.NoError(t, err)
 	assert.Equal(t, "second reply\n", secondOutput)
 
 	messages, err := h.Messages(context.Background(), "")
 	require.NoError(t, err)
 	require.Len(t, messages, 4)
-	assert.Equal(t, []handmsg.Role{
-		handmsg.RoleUser,
-		handmsg.RoleAssistant,
-		handmsg.RoleUser,
-		handmsg.RoleAssistant,
-	}, []handmsg.Role{messages[0].Role, messages[1].Role, messages[2].Role, messages[3].Role})
+	assert.Equal(t, []morphmsg.Role{
+		morphmsg.RoleUser,
+		morphmsg.RoleAssistant,
+		morphmsg.RoleUser,
+		morphmsg.RoleAssistant,
+	}, []morphmsg.Role{messages[0].Role, messages[1].Role, messages[2].Role, messages[3].Role})
 	assert.Equal(t, "first turn", messages[0].Content)
 	assert.Equal(t, "first reply", messages[1].Content)
 	assert.Equal(t, "second turn", messages[2].Content)
 	assert.Equal(t, "second reply", messages[3].Content)
 }
 
-func Test_E2E_HandRootChat_ConfigPrecedenceYAML(t *testing.T) {
+func Test_E2E_MorphRootChat_ConfigPrecedenceYAML(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("yaml reply"), nil)
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewTextClient("yaml reply"), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "hello")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "hello")
 	require.NoError(t, err)
 	assert.Equal(t, "yaml reply\n", output)
 }
 
-func Test_E2E_HandRootChat_ConfigPrecedenceEnvOverridesYAML(t *testing.T) {
+func Test_E2E_MorphRootChat_ConfigPrecedenceEnvOverridesYAML(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("env reply"), nil)
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewTextClient("env reply"), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
-	envPath := writeRootChatEnv(t, "HAND_NAME=env-agent\n")
+	envPath := writeRootChatEnv(t, "MORPH_NAME=env-agent\n")
 
-	output, err := runRootChatCommand(t, "hand", "--env-file", envPath, "--config", configPath, "hello")
+	output, err := runRootChatCommand(t, "morph", "--env-file", envPath, "--config", configPath, "hello")
 	require.NoError(t, err)
 	assert.Equal(t, "env reply\n", output)
 }
 
-func Test_E2E_HandRootChat_ConfigPrecedenceCLIOverridesEnvAndYAML(t *testing.T) {
+func Test_E2E_MorphRootChat_ConfigPrecedenceCLIOverridesEnvAndYAML(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("cli reply"), nil)
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewTextClient("cli reply"), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
-	envPath := writeRootChatEnv(t, "HAND_NAME=env-agent\n")
+	envPath := writeRootChatEnv(t, "MORPH_NAME=env-agent\n")
 
 	output, err := runRootChatCommand(
 		t,
-		"hand",
+		"morph",
 		"--env-file", envPath,
 		"--config", configPath,
 		"--name", "cli-agent",
@@ -219,7 +219,7 @@ func Test_E2E_HandRootChat_ConfigPrecedenceCLIOverridesEnvAndYAML(t *testing.T) 
 	assert.Equal(t, "cli reply\n", output)
 }
 
-func Test_E2E_HandRootChat_StartsDaemonAndReturnsModelErrorWhenUnconfigured(t *testing.T) {
+func Test_E2E_MorphRootChat_StartsDaemonAndReturnsModelErrorWhenUnconfigured(t *testing.T) {
 	resetRootChatE2E(t)
 
 	port, err := strconv.Atoi(nextTestPort(t))
@@ -229,13 +229,13 @@ func Test_E2E_HandRootChat_StartsDaemonAndReturnsModelErrorWhenUnconfigured(t *t
 		Name: "yaml-agent",
 	})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "hello")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "hello")
 	require.Error(t, err)
 	assert.Empty(t, output)
 	assert.Contains(t, err.Error(), "model is required")
 }
 
-func Test_E2E_HandStartup_InvalidConfigBlocksStartup(t *testing.T) {
+func Test_E2E_MorphStartup_InvalidConfigBlocksStartup(t *testing.T) {
 	resetRootChatE2E(t)
 
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
@@ -252,12 +252,12 @@ log:
   level: trace
 `), 0o600))
 
-	_, err := runRootChatCommand(t, "hand", "--config", configPath, "--rpc.port", nextTestPort(t), "daemon")
+	_, err := runRootChatCommand(t, "morph", "--config", configPath, "--rpc.port", nextTestPort(t), "daemon")
 	require.Error(t, err)
 	require.ErrorContains(t, err, "log level must be one of debug, info, warn, or error")
 }
 
-func Test_E2E_HandRootChat_FileGuardrailFailureReturnsCoherentAnswer(t *testing.T) {
+func Test_E2E_MorphRootChat_FileGuardrailFailureReturnsCoherentAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
 	outsidePath := filepath.Join(t.TempDir(), "outside.txt")
@@ -277,15 +277,15 @@ func Test_E2E_HandRootChat_FileGuardrailFailureReturnsCoherentAnswer(t *testing.
 		},
 	)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), client, e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"}))
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), client, e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"}))
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "read the file outside the workspace")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "read the file outside the workspace")
 	require.NoError(t, err)
 	assert.Equal(t, "I can't read that path because it is outside the allowed workspace.\n", output)
 }
 
-func Test_E2E_HandRootChat_CommandDeniedReturnsCoherentAnswer(t *testing.T) {
+func Test_E2E_MorphRootChat_CommandDeniedReturnsCoherentAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
@@ -305,15 +305,15 @@ func Test_E2E_HandRootChat_CommandDeniedReturnsCoherentAnswer(t *testing.T) {
 		},
 	)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), client, cfg)
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), client, cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "push the current branch")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "push the current branch")
 	require.NoError(t, err)
 	assert.Equal(t, "I can't run that command because command execution policy denies it.\n", output)
 }
 
-func Test_E2E_HandRootChat_CommandApprovalRequiredReturnsCoherentAnswer(t *testing.T) {
+func Test_E2E_MorphRootChat_CommandApprovalRequiredReturnsCoherentAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
@@ -333,19 +333,19 @@ func Test_E2E_HandRootChat_CommandApprovalRequiredReturnsCoherentAnswer(t *testi
 		},
 	)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), client, cfg)
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), client, cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "push the current branch")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "push the current branch")
 	require.NoError(t, err)
 	assert.Equal(t, "That command requires approval before I can run it.\n", output)
 }
 
-func Test_E2E_HandRootChat_TimeToolSynthesizesFinalAnswer(t *testing.T) {
+func Test_E2E_MorphRootChat_TimeToolSynthesizesFinalAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
 	toolCall := models.ToolCall{ID: "call-1", Name: "time", Input: "{}"}
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(
 		e2e.ToolStep(toolCall),
 		e2e.Step{
 			Check: e2e.CombineChecks(
@@ -363,15 +363,15 @@ func Test_E2E_HandRootChat_TimeToolSynthesizesFinalAnswer(t *testing.T) {
 	), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "what time is it?")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "what time is it?")
 	require.NoError(t, err)
 	assert.Equal(t, "The current time has been retrieved.\n", output)
 }
 
-func Test_E2E_HandRootChat_ReadFileToolSynthesizesFinalAnswer(t *testing.T) {
+func Test_E2E_MorphRootChat_ReadFileToolSynthesizesFinalAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
-	home := filepath.Join(t.TempDir(), "hand-home")
+	home := filepath.Join(t.TempDir(), "morph-home")
 	workspace := filepath.Join(home, "workspace")
 	require.NoError(t, os.MkdirAll(workspace, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(workspace, "notes.txt"), []byte("hello from file"), 0o600))
@@ -399,15 +399,15 @@ func Test_E2E_HandRootChat_ReadFileToolSynthesizesFinalAnswer(t *testing.T) {
 	), cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "read notes.txt and summarize it")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "read notes.txt and summarize it")
 	require.NoError(t, err)
 	assert.Equal(t, "The file says hello from file.\n", output)
 }
 
-func Test_E2E_HandRootChat_WriteFileToolSynthesizesFinalAnswer(t *testing.T) {
+func Test_E2E_MorphRootChat_WriteFileToolSynthesizesFinalAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
-	home := filepath.Join(t.TempDir(), "hand-home")
+	home := filepath.Join(t.TempDir(), "morph-home")
 	workspace := filepath.Join(home, "workspace")
 	require.NoError(t, os.MkdirAll(workspace, 0o755))
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
@@ -445,15 +445,15 @@ func Test_E2E_HandRootChat_WriteFileToolSynthesizesFinalAnswer(t *testing.T) {
 	), cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "write drafts/out.txt with the requested content")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "write drafts/out.txt with the requested content")
 	require.NoError(t, err)
 	assert.Equal(t, "I wrote the requested file.\n", output)
 }
 
-func Test_E2E_HandRootChat_RunCommandToolSynthesizesFinalAnswer(t *testing.T) {
+func Test_E2E_MorphRootChat_RunCommandToolSynthesizesFinalAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
-	home := filepath.Join(t.TempDir(), "hand-home")
+	home := filepath.Join(t.TempDir(), "morph-home")
 	workspace := filepath.Join(home, "workspace")
 	require.NoError(t, os.MkdirAll(workspace, 0o755))
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
@@ -485,12 +485,12 @@ func Test_E2E_HandRootChat_RunCommandToolSynthesizesFinalAnswer(t *testing.T) {
 	), cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "run pwd and tell me where you are")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "run pwd and tell me where you are")
 	require.NoError(t, err)
 	assert.Equal(t, "The command ran successfully in the workspace.\n", output)
 }
 
-func Test_E2E_HandRootChat_PlanToolPersistsAcrossLaterTurn(t *testing.T) {
+func Test_E2E_MorphRootChat_PlanToolPersistsAcrossLaterTurn(t *testing.T) {
 	resetRootChatE2E(t)
 
 	toolCall := models.ToolCall{
@@ -501,7 +501,7 @@ func Test_E2E_HandRootChat_PlanToolPersistsAcrossLaterTurn(t *testing.T) {
 			`"explanation":"track the current work"}`,
 	}
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(
 		e2e.ToolStep(toolCall),
 		e2e.Step{
 			Check: e2e.CombineChecks(
@@ -540,16 +540,16 @@ func Test_E2E_HandRootChat_PlanToolPersistsAcrossLaterTurn(t *testing.T) {
 	), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	firstOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "create a plan for this task")
+	firstOutput, err := runRootChatCommand(t, "morph", "--config", configPath, "create a plan for this task")
 	require.NoError(t, err)
 	assert.Equal(t, "Plan saved.\n", firstOutput)
 
-	secondOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "what is the current plan?")
+	secondOutput, err := runRootChatCommand(t, "morph", "--config", configPath, "what is the current plan?")
 	require.NoError(t, err)
 	assert.Equal(t, "I still have the saved plan in context.\n", secondOutput)
 }
 
-func Test_E2E_HandRootChat_SessionSearchRetrievesPriorContextDuringTask(t *testing.T) {
+func Test_E2E_MorphRootChat_SessionSearchRetrievesPriorContextDuringTask(t *testing.T) {
 	resetRootChatE2E(t)
 
 	toolCall := models.ToolCall{
@@ -558,7 +558,7 @@ func Test_E2E_HandRootChat_SessionSearchRetrievesPriorContextDuringTask(t *testi
 		Input: fmt.Sprintf(`{"session_id":%q,"query":"ORION","role":"user","max_results":3}`, storage.DefaultSessionID),
 	}
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(
 		e2e.OutputTextStep("Stored the ORION codename for later."),
 		e2e.ToolStep(toolCall),
 		e2e.Step{
@@ -597,16 +597,16 @@ func Test_E2E_HandRootChat_SessionSearchRetrievesPriorContextDuringTask(t *testi
 	), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	firstOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "Remember the project codename ORION.")
+	firstOutput, err := runRootChatCommand(t, "morph", "--config", configPath, "Remember the project codename ORION.")
 	require.NoError(t, err)
 	assert.Equal(t, "Stored the ORION codename for later.\n", firstOutput)
 
-	secondOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "What codename did I mention earlier?")
+	secondOutput, err := runRootChatCommand(t, "morph", "--config", configPath, "What codename did I mention earlier?")
 	require.NoError(t, err)
 	assert.Equal(t, "The earlier codename was ORION.\n", secondOutput)
 }
 
-func Test_E2E_HandRootChat_SessionSearchFilteringInfluencesFinalAnswer(t *testing.T) {
+func Test_E2E_MorphRootChat_SessionSearchFilteringInfluencesFinalAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
 	toolCall := models.ToolCall{
@@ -615,7 +615,7 @@ func Test_E2E_HandRootChat_SessionSearchFilteringInfluencesFinalAnswer(t *testin
 		Input: fmt.Sprintf(`{"session_id":%q,"query":"keyword","role":"user","max_results":5}`, storage.DefaultSessionID),
 	}
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(
 		e2e.OutputTextStep("The keyword is ASSISTANT-ONLY."),
 		e2e.ToolStep(toolCall),
 		e2e.Step{
@@ -658,22 +658,22 @@ func Test_E2E_HandRootChat_SessionSearchFilteringInfluencesFinalAnswer(t *testin
 	), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	firstOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "The keyword is USER-ONLY.")
+	firstOutput, err := runRootChatCommand(t, "morph", "--config", configPath, "The keyword is USER-ONLY.")
 	require.NoError(t, err)
 	assert.Equal(t, "The keyword is ASSISTANT-ONLY.\n", firstOutput)
 
-	secondOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "Which keyword did I provide earlier?")
+	secondOutput, err := runRootChatCommand(t, "morph", "--config", configPath, "Which keyword did I provide earlier?")
 	require.NoError(t, err)
 	assert.Equal(t, "The user-side keyword was USER-ONLY.\n", secondOutput)
 }
 
-func Test_E2E_HandRootChat_DisabledFilesystemCapabilityOmitsFileTools(t *testing.T) {
+func Test_E2E_MorphRootChat_DisabledFilesystemCapabilityOmitsFileTools(t *testing.T) {
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
 	cfg.Cap.Filesystem = new(false)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(e2e.Step{
 		Check: e2e.MissingTools("list_files", "read_file", "search_files", "write_file", "patch"),
 		Response: &models.Response{
 			OutputText: "Filesystem access is unavailable in this run.",
@@ -681,18 +681,18 @@ func Test_E2E_HandRootChat_DisabledFilesystemCapabilityOmitsFileTools(t *testing
 	}), cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "list the workspace files")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "list the workspace files")
 	require.NoError(t, err)
 	assert.Equal(t, "Filesystem access is unavailable in this run.\n", output)
 }
 
-func Test_E2E_HandRootChat_DisabledExecCapabilityOmitsExecTools(t *testing.T) {
+func Test_E2E_MorphRootChat_DisabledExecCapabilityOmitsExecTools(t *testing.T) {
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
 	cfg.Cap.Exec = new(false)
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(e2e.Step{
 		Check: e2e.MissingTools("run_command", "process"),
 		Response: &models.Response{
 			OutputText: "Command execution is unavailable in this run.",
@@ -700,12 +700,12 @@ func Test_E2E_HandRootChat_DisabledExecCapabilityOmitsExecTools(t *testing.T) {
 	}), cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "run git status")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "run git status")
 	require.NoError(t, err)
 	assert.Equal(t, "Command execution is unavailable in this run.\n", output)
 }
 
-func Test_E2E_HandRootChat_DisabledNetworkCapabilityOmitsWebTools(t *testing.T) {
+func Test_E2E_MorphRootChat_DisabledNetworkCapabilityOmitsWebTools(t *testing.T) {
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
@@ -713,7 +713,7 @@ func Test_E2E_HandRootChat_DisabledNetworkCapabilityOmitsWebTools(t *testing.T) 
 	cfg.Web.Provider = "firecrawl"
 	cfg.Web.APIKey = "test-key"
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(e2e.Step{
 		Check: e2e.MissingTools("web_search", "web_extract"),
 		Response: &models.Response{
 			OutputText: "Network-backed web tools are unavailable in this run.",
@@ -721,19 +721,19 @@ func Test_E2E_HandRootChat_DisabledNetworkCapabilityOmitsWebTools(t *testing.T) 
 	}), cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "search the web for recent news")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "search the web for recent news")
 	require.NoError(t, err)
 	assert.Equal(t, "Network-backed web tools are unavailable in this run.\n", output)
 }
 
-func Test_E2E_HandRootChat_WebToolsAppearWhenProviderConfigured(t *testing.T) {
+func Test_E2E_MorphRootChat_WebToolsAppearWhenProviderConfigured(t *testing.T) {
 	resetRootChatE2E(t)
 
 	provider := e2e.NewProvider(e2e.ProviderResponse{Body: `{"data":{"web":[]}}`})
 	t.Cleanup(provider.Close)
 
 	cfg := newWebConfig(provider.URL())
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(e2e.Step{
 		Check: func(req models.Request) error {
 			foundSearch := false
 			foundExtract := false
@@ -755,12 +755,12 @@ func Test_E2E_HandRootChat_WebToolsAppearWhenProviderConfigured(t *testing.T) {
 	}), cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "search the web for docs")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "search the web for docs")
 	require.NoError(t, err)
 	assert.Equal(t, "Web tools are available.\n", output)
 }
 
-func Test_E2E_HandRootChat_WebExtractBlockedDomainIsEnforced(t *testing.T) {
+func Test_E2E_MorphRootChat_WebExtractBlockedDomainIsEnforced(t *testing.T) {
 	resetRootChatE2E(t)
 
 	provider := e2e.NewProvider(e2e.ProviderResponse{
@@ -777,7 +777,7 @@ func Test_E2E_HandRootChat_WebExtractBlockedDomainIsEnforced(t *testing.T) {
 		Name:  "web_extract",
 		Input: `{"urls":["https://blocked.example/page"],"format":"markdown"}`,
 	}
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(
 		e2e.ToolStep(toolCall),
 		e2e.Step{
 			Check: e2e.CombineChecks(
@@ -807,13 +807,13 @@ func Test_E2E_HandRootChat_WebExtractBlockedDomainIsEnforced(t *testing.T) {
 	), cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "extract https://blocked.example/page")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "extract https://blocked.example/page")
 	require.NoError(t, err)
 	assert.Equal(t, "That domain is blocked by policy.\n", output)
 	assert.Empty(t, provider.Requests())
 }
 
-func Test_E2E_HandRootChat_WebSearchCachedProviderPathRemainsCorrect(t *testing.T) {
+func Test_E2E_MorphRootChat_WebSearchCachedProviderPathRemainsCorrect(t *testing.T) {
 	resetRootChatE2E(t)
 
 	provider := e2e.NewProvider(e2e.ProviderResponse{
@@ -829,7 +829,7 @@ func Test_E2E_HandRootChat_WebSearchCachedProviderPathRemainsCorrect(t *testing.
 		Name:  "web_search",
 		Input: `{"query":"cached docs","count":1}`,
 	}
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(
 		e2e.ToolStep(toolCall),
 		e2e.Step{
 			Check: e2e.CombineChecks(
@@ -870,11 +870,11 @@ func Test_E2E_HandRootChat_WebSearchCachedProviderPathRemainsCorrect(t *testing.
 	), cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	firstOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "search for cached docs")
+	firstOutput, err := runRootChatCommand(t, "morph", "--config", configPath, "search for cached docs")
 	require.NoError(t, err)
 	assert.Equal(t, "Cached docs found.\n", firstOutput)
 
-	secondOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "search for cached docs again")
+	secondOutput, err := runRootChatCommand(t, "morph", "--config", configPath, "search for cached docs again")
 	require.NoError(t, err)
 	assert.Equal(t, "Cached docs found again.\n", secondOutput)
 
@@ -883,7 +883,7 @@ func Test_E2E_HandRootChat_WebSearchCachedProviderPathRemainsCorrect(t *testing.
 	assert.Equal(t, "/v2/search", requests[0].Path)
 }
 
-func Test_E2E_HandRootChat_LargeWebExtractSummarizationPathRemainsCorrect(t *testing.T) {
+func Test_E2E_MorphRootChat_LargeWebExtractSummarizationPathRemainsCorrect(t *testing.T) {
 	resetRootChatE2E(t)
 
 	provider := e2e.NewProvider(e2e.ProviderResponse{
@@ -958,7 +958,7 @@ func Test_E2E_HandRootChat_LargeWebExtractSummarizationPathRemainsCorrect(t *tes
 		},
 	)
 
-	home := filepath.Join(t.TempDir(), "hand-home")
+	home := filepath.Join(t.TempDir(), "morph-home")
 	h, err := e2e.NewRPCHarness(context.Background(), e2e.HarnessOptions{
 		Spec:          e2e.DefaultSpec(home),
 		Config:        cfg,
@@ -972,18 +972,18 @@ func Test_E2E_HandRootChat_LargeWebExtractSummarizationPathRemainsCorrect(t *tes
 
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "extract and summarize the long article")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "extract and summarize the long article")
 	require.NoError(t, err)
 	assert.Equal(t, "Here is the condensed extract summary.\n", output)
 }
 
-func Test_E2E_HandRootChat_IterationBudgetExhaustionFallsBackCoherently(t *testing.T) {
+func Test_E2E_MorphRootChat_IterationBudgetExhaustionFallsBackCoherently(t *testing.T) {
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
 	cfg.Session.MaxIterations = 1
 
-	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), e2e.NewClient(
 		e2e.ToolStep(models.ToolCall{ID: "call-1", Name: "time", Input: "{}"}),
 		e2e.Step{
 			Check: func(req models.Request) error {
@@ -1002,12 +1002,12 @@ func Test_E2E_HandRootChat_IterationBudgetExhaustionFallsBackCoherently(t *testi
 	), cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
-	output, err := runRootChatCommand(t, "hand", "--config", configPath, "what time is it?")
+	output, err := runRootChatCommand(t, "morph", "--config", configPath, "what time is it?")
 	require.NoError(t, err)
 	assert.Equal(t, "I hit the iteration limit before finishing, so I am returning a summary instead.\n", output)
 }
 
-func Test_E2E_HandLiveHarness_OneTurnDirectAnswer(t *testing.T) {
+func Test_E2E_MorphLiveHarness_OneTurnDirectAnswer(t *testing.T) {
 	ctx := newLiveRootChatContext(t)
 	sessionID := createLiveSession(t, ctx.harness, "ses_123456789012345678901")
 
@@ -1016,7 +1016,7 @@ func Test_E2E_HandLiveHarness_OneTurnDirectAnswer(t *testing.T) {
 		"Reply with the token ALPHA-42 and nothing else.",
 		ctx.artifactDir,
 		func(prompt string) (string, error) {
-			return runRootChatCommand(t, "hand", "--config", ctx.configFile, "--session", sessionID, prompt)
+			return runRootChatCommand(t, "morph", "--config", ctx.configFile, "--session", sessionID, prompt)
 		},
 		func(output string) error {
 			if !strings.Contains(strings.ToUpper(output), "ALPHA-42") {
@@ -1028,7 +1028,7 @@ func Test_E2E_HandLiveHarness_OneTurnDirectAnswer(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func Test_E2E_HandLiveHarness_ToolUsing(t *testing.T) {
+func Test_E2E_MorphLiveHarness_ToolUsing(t *testing.T) {
 	ctx := newLiveRootChatContext(t)
 	ctx.skipIfNonPersistentStorage(t)
 	sessionID := createLiveSession(t, ctx.harness, "ses_123456789012345678902")
@@ -1038,7 +1038,7 @@ func Test_E2E_HandLiveHarness_ToolUsing(t *testing.T) {
 		"Use tools to inspect the configured filesystem roots and tell me whether "+ctx.markerPath+" exists. Reply with FOUND or MISSING only.",
 		ctx.artifactDir,
 		func(prompt string) (string, error) {
-			return runRootChatCommand(t, "hand", "--config", ctx.configFile, "--session", sessionID, prompt)
+			return runRootChatCommand(t, "morph", "--config", ctx.configFile, "--session", sessionID, prompt)
 		},
 		func(output string) error {
 			if !strings.Contains(strings.ToUpper(output), "FOUND") {
@@ -1051,7 +1051,7 @@ func Test_E2E_HandLiveHarness_ToolUsing(t *testing.T) {
 			}
 
 			for _, message := range messages {
-				if message.Role != handmsg.RoleTool {
+				if message.Role != morphmsg.RoleTool {
 					continue
 				}
 				switch strings.TrimSpace(message.Name) {
@@ -1066,7 +1066,7 @@ func Test_E2E_HandLiveHarness_ToolUsing(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func Test_E2E_HandLiveHarness_MultiTurnContinuity(t *testing.T) {
+func Test_E2E_MorphLiveHarness_MultiTurnContinuity(t *testing.T) {
 	ctx := newLiveRootChatContext(t)
 	sessionID := createLiveSession(t, ctx.harness, "ses_123456789012345678903")
 
@@ -1077,7 +1077,7 @@ func Test_E2E_HandLiveHarness_MultiTurnContinuity(t *testing.T) {
 		func(string) (string, error) {
 			firstOutput, err := runRootChatCommand(
 				t,
-				"hand",
+				"morph",
 				"--config", ctx.configFile,
 				"--session", sessionID,
 				"Remember the token BRAVO-77 for this session. Reply with STORED only.",
@@ -1091,7 +1091,7 @@ func Test_E2E_HandLiveHarness_MultiTurnContinuity(t *testing.T) {
 
 			return runRootChatCommand(
 				t,
-				"hand",
+				"morph",
 				"--config", ctx.configFile,
 				"--session", sessionID,
 				"What token did I ask you to remember for this session? Reply with the token only.",
@@ -1107,7 +1107,7 @@ func Test_E2E_HandLiveHarness_MultiTurnContinuity(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func Test_E2E_HandLiveHarness_MemorySensitive(t *testing.T) {
+func Test_E2E_MorphLiveHarness_MemorySensitive(t *testing.T) {
 	ctx := newLiveRootChatContext(t)
 	sessionID := createLiveSession(t, ctx.harness, "ses_123456789012345678904")
 
@@ -1118,7 +1118,7 @@ func Test_E2E_HandLiveHarness_MemorySensitive(t *testing.T) {
 		func(string) (string, error) {
 			firstOutput, err := runRootChatCommand(
 				t,
-				"hand",
+				"morph",
 				"--config", ctx.configFile,
 				"--session", sessionID,
 				"Store these mappings for this session: ALDER=17, BIRCH=29, CEDAR=43. Reply with STORED only.",
@@ -1132,7 +1132,7 @@ func Test_E2E_HandLiveHarness_MemorySensitive(t *testing.T) {
 
 			return runRootChatCommand(
 				t,
-				"hand",
+				"morph",
 				"--config", ctx.configFile,
 				"--session", sessionID,
 				"What number is paired with BIRCH? Reply with BIRCH=29 only.",
@@ -1168,14 +1168,14 @@ func resetRootChatE2E(t *testing.T) {
 
 	clearEnvKeys(
 		t,
-		"HAND_NAME",
-		"HAND_MODEL_STREAM",
-		"HAND_SESSION_INSTRUCT",
-		"HAND_LOG_NO_COLOR",
-		"HAND_RPC_ADDRESS",
-		"HAND_RPC_PORT",
-		"HAND_CONFIG",
-		"HAND_ENV_FILE",
+		"MORPH_NAME",
+		"MORPH_MODEL_STREAM",
+		"MORPH_SESSION_INSTRUCT",
+		"MORPH_LOG_NO_COLOR",
+		"MORPH_RPC_ADDRESS",
+		"MORPH_RPC_PORT",
+		"MORPH_CONFIG",
+		"MORPH_ENV_FILE",
 	)
 }
 
@@ -1245,10 +1245,10 @@ func newRootChatCommand(output io.Writer) *urfavecli.Command {
 	configFile := "config.yaml"
 
 	return &urfavecli.Command{
-		Name:        "hand",
-		Usage:       "Run and manage your Hand daemon",
-		Description: handcli.AppDescription,
-		Flags:       append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
+		Name:        "morph",
+		Usage:       "Run and manage your Morph daemon",
+		Description: morphcli.AppDescription,
+		Flags:       append(morphcli.RootFlags(&envFile, &configFile), morphcli.RequestInstructFlag()),
 		Commands: []*urfavecli.Command{
 			doctorcmd.NewCommand(),
 			configcmd.NewCommand(output),
@@ -1257,7 +1257,7 @@ func newRootChatCommand(output io.Writer) *urfavecli.Command {
 			tracecmd.NewCommand(),
 			daemoncmd.NewCommand(),
 		},
-		Action: handcli.NewMainAction(handcli.MainActionOptions{
+		Action: morphcli.NewMainAction(morphcli.MainActionOptions{
 			Output: output,
 		}),
 	}
@@ -1283,11 +1283,11 @@ func newLiveRootChatContext(t *testing.T) liveRootChatContext {
 	t.Helper()
 	resetRootChatE2E(t)
 
-	if strings.TrimSpace(os.Getenv("HAND_E2E_LIVE")) != "1" {
-		t.Skip("set HAND_E2E_LIVE=1 to run live harness e2e")
+	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+		t.Skip("set MORPH_E2E_LIVE=1 to run live harness e2e")
 	}
 
-	home := filepath.Join(t.TempDir(), "hand-home")
+	home := filepath.Join(t.TempDir(), "morph-home")
 	workspace := filepath.Join(home, "workspace")
 
 	configPath, envPath := resolveLiveInputs(t)
@@ -1317,7 +1317,7 @@ func newLiveRootChatContext(t *testing.T) liveRootChatContext {
 	return liveRootChatContext{
 		harness:        h,
 		configFile:     writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "live-agent"}),
-		artifactDir:    e2e.DefaultLiveArtifactDir(os.Getenv("HAND_E2E_LIVE_ARTIFACT_DIR")),
+		artifactDir:    e2e.DefaultLiveArtifactDir(os.Getenv("MORPH_E2E_LIVE_ARTIFACT_DIR")),
 		markerPath:     markerPath,
 		storageBackend: strings.TrimSpace(strings.ToLower(cfg.Storage.Backend)),
 	}
@@ -1338,7 +1338,7 @@ func (ctx liveRootChatContext) skipIfNonPersistentStorage(t *testing.T) {
 func resolveLiveInputs(t *testing.T) (string, string) {
 	t.Helper()
 
-	configPath := strings.TrimSpace(os.Getenv("HAND_E2E_LIVE_CONFIG"))
+	configPath := strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE_CONFIG"))
 	if configPath == "" {
 		candidate := filepath.Join(repoRoot(t), "config.yaml")
 		if _, err := os.Stat(candidate); err == nil {
@@ -1346,10 +1346,10 @@ func resolveLiveInputs(t *testing.T) (string, string) {
 		}
 	}
 	if configPath == "" {
-		t.Skip("set HAND_E2E_LIVE_CONFIG or provide config.yaml at the repo root to run live harness e2e")
+		t.Skip("set MORPH_E2E_LIVE_CONFIG or provide config.yaml at the repo root to run live harness e2e")
 	}
 
-	envPath := strings.TrimSpace(os.Getenv("HAND_E2E_LIVE_ENV_FILE"))
+	envPath := strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE_ENV_FILE"))
 	if envPath == "" {
 		candidate := filepath.Join(repoRoot(t), ".env")
 		if _, err := os.Stat(candidate); err == nil {

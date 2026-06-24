@@ -8,8 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	storage "github.com/wandxy/morph/internal/state/core"
 )
 
 const (

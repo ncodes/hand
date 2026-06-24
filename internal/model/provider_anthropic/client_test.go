@@ -15,9 +15,9 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/stretchr/testify/require"
 
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -121,7 +121,7 @@ func TestNewAnthropicClient_UsesBearerAuthWithoutAPIKey(t *testing.T) {
 
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.NoError(t, err)
@@ -176,20 +176,20 @@ func TestAnthropicClient_CompleteBuildsMessagesRequest(t *testing.T) {
 	resp, err := client.Complete(context.Background(), Request{
 		Model:        "claude-sonnet-4-5",
 		Instructions: "base instructions",
-		Messages: []handmsg.Message{
-			{Role: handmsg.RoleDeveloper, Content: "developer guidance"},
-			{Role: handmsg.RoleUser, Content: "hello"},
+		Messages: []morphmsg.Message{
+			{Role: morphmsg.RoleDeveloper, Content: "developer guidance"},
+			{Role: morphmsg.RoleUser, Content: "hello"},
 			{
-				Role:    handmsg.RoleAssistant,
+				Role:    morphmsg.RoleAssistant,
 				Content: "I'll read it",
-				ToolCalls: []handmsg.ToolCall{{
+				ToolCalls: []morphmsg.ToolCall{{
 					ID:    "call_1",
 					Name:  "read_file",
 					Input: `{"path":"README.md"}`,
 				}},
 			},
-			{Role: handmsg.RoleTool, ToolCallID: "call_1", Content: "contents"},
-			{Role: handmsg.RoleUser, Content: "summarize"},
+			{Role: morphmsg.RoleTool, ToolCallID: "call_1", Content: "contents"},
+			{Role: morphmsg.RoleUser, Content: "summarize"},
 		},
 		Tools: []ToolDefinition{{
 			Name:        "read_file",
@@ -225,7 +225,7 @@ func TestAnthropicClient_CompleteAddsSubscriptionIdentitySystemPrompt(t *testing
 	resp, err := client.Complete(context.Background(), Request{
 		Model:        "claude-sonnet-4-5",
 		Instructions: "base instructions",
-		Messages:     []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages:     []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.NoError(t, err)
@@ -275,7 +275,7 @@ func TestAnthropicClient_CompleteUsesDefaultMaxOutputTokens(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.NoError(t, err)
@@ -286,7 +286,7 @@ func TestAnthropicClient_CompleteRejectsNilClient(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.EqualError(t, err, "model client is required")
@@ -297,7 +297,7 @@ func TestAnthropicClient_CompleteRejectsMissingCaller(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.EqualError(t, err, "model client is required")
@@ -313,7 +313,7 @@ func TestAnthropicClient_CompleteReturnsCallerError(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.ErrorIs(t, err, wantErr)
@@ -328,7 +328,7 @@ func TestAnthropicClient_CompleteRejectsNilResponse(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.EqualError(t, err, "model response is required")
@@ -343,7 +343,7 @@ func TestAnthropicClient_CompleteLogsDebugMetadata(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:         "claude-sonnet-4-5",
-		Messages:      []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages:      []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 		DebugRequests: true,
 	})
 
@@ -359,7 +359,7 @@ func TestAnthropicClient_CompleteExtractsToolCallsAndUsage(t *testing.T) {
 
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.NoError(t, err)
@@ -438,9 +438,9 @@ func TestAnthropicClient_CompleteRejectsInvalidAssistantToolInput(t *testing.T) 
 
 	_, err := client.Complete(context.Background(), Request{
 		Model: "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{
-			Role:      handmsg.RoleAssistant,
-			ToolCalls: []handmsg.ToolCall{{ID: "call_1", Name: "read_file", Input: "{bad json"}},
+		Messages: []morphmsg.Message{{
+			Role:      morphmsg.RoleAssistant,
+			ToolCalls: []morphmsg.ToolCall{{ID: "call_1", Name: "read_file", Input: "{bad json"}},
 		}},
 	})
 
@@ -457,7 +457,7 @@ func TestAnthropicClient_CompleteRejectsDeveloperOnlyMessages(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleDeveloper, Content: "developer guidance"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleDeveloper, Content: "developer guidance"}},
 	})
 
 	require.EqualError(t, err, "messages must include at least one user, assistant, or tool message")
@@ -478,7 +478,7 @@ func TestAnthropicClient_CompleteRejectsInvalidRequests(t *testing.T) {
 	}{
 		{
 			name:    "missing model",
-			req:     Request{Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}},
+			req:     Request{Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}}},
 			wantErr: "model is required",
 		},
 		{
@@ -490,7 +490,7 @@ func TestAnthropicClient_CompleteRejectsInvalidRequests(t *testing.T) {
 			name: "invalid role",
 			req: Request{
 				Model:    "claude-sonnet-4-5",
-				Messages: []handmsg.Message{{Role: handmsg.Role("system"), Content: "hello"}},
+				Messages: []morphmsg.Message{{Role: morphmsg.Role("system"), Content: "hello"}},
 			},
 			wantErr: "message role must be one of developer, user, assistant, or tool",
 		},
@@ -498,7 +498,7 @@ func TestAnthropicClient_CompleteRejectsInvalidRequests(t *testing.T) {
 			name: "empty content",
 			req: Request{
 				Model:    "claude-sonnet-4-5",
-				Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: " "}},
+				Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: " "}},
 			},
 			wantErr: "message content is required",
 		},
@@ -506,7 +506,7 @@ func TestAnthropicClient_CompleteRejectsInvalidRequests(t *testing.T) {
 			name: "tool missing call id",
 			req: Request{
 				Model:    "claude-sonnet-4-5",
-				Messages: []handmsg.Message{{Role: handmsg.RoleTool, Content: "result"}},
+				Messages: []morphmsg.Message{{Role: morphmsg.RoleTool, Content: "result"}},
 			},
 			wantErr: "tool call id is required",
 		},
@@ -514,7 +514,7 @@ func TestAnthropicClient_CompleteRejectsInvalidRequests(t *testing.T) {
 			name: "tool definition missing name",
 			req: Request{
 				Model:    "claude-sonnet-4-5",
-				Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+				Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 				Tools:    []ToolDefinition{{Name: " "}},
 			},
 			wantErr: "tool name is required",
@@ -523,9 +523,9 @@ func TestAnthropicClient_CompleteRejectsInvalidRequests(t *testing.T) {
 			name: "tool call missing id",
 			req: Request{
 				Model: "claude-sonnet-4-5",
-				Messages: []handmsg.Message{{
-					Role:      handmsg.RoleAssistant,
-					ToolCalls: []handmsg.ToolCall{{Name: "read_file", Input: `{}`}},
+				Messages: []morphmsg.Message{{
+					Role:      morphmsg.RoleAssistant,
+					ToolCalls: []morphmsg.ToolCall{{Name: "read_file", Input: `{}`}},
 				}},
 			},
 			wantErr: "tool call id is required",
@@ -534,9 +534,9 @@ func TestAnthropicClient_CompleteRejectsInvalidRequests(t *testing.T) {
 			name: "tool call missing name",
 			req: Request{
 				Model: "claude-sonnet-4-5",
-				Messages: []handmsg.Message{{
-					Role:      handmsg.RoleAssistant,
-					ToolCalls: []handmsg.ToolCall{{ID: "call_1", Input: `{}`}},
+				Messages: []morphmsg.Message{{
+					Role:      morphmsg.RoleAssistant,
+					ToolCalls: []morphmsg.ToolCall{{ID: "call_1", Input: `{}`}},
 				}},
 			},
 			wantErr: "tool call name is required",
@@ -560,9 +560,9 @@ func TestAnthropicClient_CompleteAllowsAssistantToolCallWithoutContent(t *testin
 
 	_, err := client.Complete(context.Background(), Request{
 		Model: "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{
-			Role:      handmsg.RoleAssistant,
-			ToolCalls: []handmsg.ToolCall{{ID: "call_1", Name: "read_file", Input: ""}},
+		Messages: []morphmsg.Message{{
+			Role:      morphmsg.RoleAssistant,
+			ToolCalls: []morphmsg.ToolCall{{ID: "call_1", Name: "read_file", Input: ""}},
 		}},
 	})
 
@@ -631,7 +631,7 @@ func TestAnthropicClient_CompleteStreamSendsTextAndThinkingDeltas(t *testing.T) 
 	var deltas []StreamDelta
 	resp, err := client.CompleteStream(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}, func(delta StreamDelta) {
 		deltas = append(deltas, delta)
 	})
@@ -684,7 +684,7 @@ func TestAnthropicClient_CompleteStreamAccumulatesToolCalls(t *testing.T) {
 
 	resp, err := client.CompleteStream(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}, nil)
 
 	require.NoError(t, err)
@@ -701,7 +701,7 @@ func TestAnthropicClient_CompleteStreamRejectsMissingCaller(t *testing.T) {
 
 	_, err := client.CompleteStream(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}, nil)
 
 	require.EqualError(t, err, "model client is required")
@@ -716,7 +716,7 @@ func TestAnthropicClient_CompleteStreamRejectsNilStream(t *testing.T) {
 
 	_, err := client.CompleteStream(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}, nil)
 
 	require.EqualError(t, err, "model response is required")
@@ -741,7 +741,7 @@ func TestAnthropicClient_CompleteStreamReturnsStreamError(t *testing.T) {
 
 	_, err = client.CompleteStream(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}, nil)
 
 	require.ErrorContains(t, err, "stream failed")
@@ -766,7 +766,7 @@ func TestAnthropicClient_CompleteStreamReturnsAccumulatorError(t *testing.T) {
 
 	_, err = client.CompleteStream(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}, nil)
 
 	require.ErrorContains(t, err, "there was no content block")
@@ -791,7 +791,7 @@ func TestAnthropicClient_CompleteStreamRejectsEmptyResponse(t *testing.T) {
 
 	_, err = client.CompleteStream(context.Background(), Request{
 		Model:    "claude-sonnet-4-5",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}, nil)
 
 	require.EqualError(t, err, "model response is required")

@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/morph/internal/config"
 )
 
 var (

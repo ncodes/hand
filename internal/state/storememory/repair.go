@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	state "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	messages "github.com/wandxy/hand/pkg/agent/message"
+	state "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	messages "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func (s *Store) RepairVectorStore(

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 type Option struct {

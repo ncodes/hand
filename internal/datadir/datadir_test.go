@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func TestHomeDir_UsesActiveProfile(t *testing.T) {
@@ -15,11 +15,11 @@ func TestHomeDir_UsesActiveProfile(t *testing.T) {
 
 	profile.SetActive(profile.Profile{
 		Name:    "work",
-		HomeDir: filepath.Join("/Users/me", ".hand", "profiles", "work"),
+		HomeDir: filepath.Join("/Users/me", ".morph", "profiles", "work"),
 	})
 
-	require.Equal(t, filepath.Join("/Users/me", ".hand", "profiles", "work"), ProjectHomeDir())
-	require.Equal(t, filepath.Join("/Users/me", ".hand", "profiles", "work"), HomeDir())
+	require.Equal(t, filepath.Join("/Users/me", ".morph", "profiles", "work"), ProjectHomeDir())
+	require.Equal(t, filepath.Join("/Users/me", ".morph", "profiles", "work"), HomeDir())
 }
 
 func TestHomeDir_ResolvesDefaultProfile(t *testing.T) {
@@ -35,7 +35,7 @@ func TestHomeDir_ResolvesDefaultProfile(t *testing.T) {
 		userHomeDir = originalUserHomeDir
 	}()
 
-	require.Equal(t, filepath.Join("/Users/me", ".hand", "profiles", "default"), ProjectHomeDir())
+	require.Equal(t, filepath.Join("/Users/me", ".morph", "profiles", "default"), ProjectHomeDir())
 	require.Equal(t, profile.DefaultName, profile.Active().Name)
 }
 
@@ -57,7 +57,7 @@ func TestHomeDir_ResolvesEnvProfile(t *testing.T) {
 		userHomeDir = originalUserHomeDir
 	}()
 
-	require.Equal(t, filepath.Join("/Users/me", ".hand", "profiles", "research"), ProjectHomeDir())
+	require.Equal(t, filepath.Join("/Users/me", ".morph", "profiles", "research"), ProjectHomeDir())
 	require.Equal(t, "research", profile.Active().Name)
 }
 
@@ -74,7 +74,7 @@ func TestHomeDir_FallsBackWhenUserHomeFails(t *testing.T) {
 		userHomeDir = originalUserHomeDir
 	}()
 
-	require.Equal(t, filepath.Join(".hand", "profiles", "default"), ProjectHomeDir())
+	require.Equal(t, filepath.Join(".morph", "profiles", "default"), ProjectHomeDir())
 }
 
 func TestHomeDir_FallsBackWhenEnvProfileIsInvalid(t *testing.T) {
@@ -95,14 +95,14 @@ func TestHomeDir_FallsBackWhenEnvProfileIsInvalid(t *testing.T) {
 		userHomeDir = originalUserHomeDir
 	}()
 
-	require.Equal(t, filepath.Join(".hand", "profiles", "default"), ProjectHomeDir())
+	require.Equal(t, filepath.Join(".morph", "profiles", "default"), ProjectHomeDir())
 	require.Empty(t, profile.Active().HomeDir)
 }
 
 func TestProjectPaths_DeriveFromActiveProfileHome(t *testing.T) {
 	resetProfile(t)
 
-	profileHome := filepath.Join("/Users/me", ".hand", "profiles", "work")
+	profileHome := filepath.Join("/Users/me", ".morph", "profiles", "work")
 	profile.SetActive(profile.Profile{Name: "work", HomeDir: profileHome})
 
 	require.Equal(t, profileHome, HomeDir())
@@ -115,8 +115,8 @@ func TestProjectPaths_DeriveFromActiveProfileHome(t *testing.T) {
 func TestProjectPaths_IsolateProfiles(t *testing.T) {
 	resetProfile(t)
 
-	workHome := filepath.Join("/Users/me", ".hand", "profiles", "work")
-	personalHome := filepath.Join("/Users/me", ".hand", "profiles", "personal")
+	workHome := filepath.Join("/Users/me", ".morph", "profiles", "work")
+	personalHome := filepath.Join("/Users/me", ".morph", "profiles", "personal")
 
 	profile.SetActive(profile.Profile{Name: "work", HomeDir: workHome})
 	require.Equal(t, filepath.Join(workHome, "data", "state.db"), StateDBPath())

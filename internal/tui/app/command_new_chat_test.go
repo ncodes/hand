@@ -7,8 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	storage "github.com/wandxy/morph/internal/state/core"
 )
 
 func TestModel_UpdateHandlesNewChatCommand(t *testing.T) {
@@ -126,7 +126,7 @@ func TestModel_UpdateReportsNewChatFailure(t *testing.T) {
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, "new chat failed", runModel.status.Text())
-	require.Equal(t, []string{"Hand: old transcript"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Morph: old transcript"}, transcriptCellPlainTexts(runModel.messages))
 }
 
 func TestModel_UpdateReportsNewChatFailureForEmptySessionID(t *testing.T) {

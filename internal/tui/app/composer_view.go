@@ -21,7 +21,7 @@ const (
 // newInputComposer creates the multiline prompt editor.
 func newInputComposer() textarea.Model {
 	input := textarea.New()
-	input.Placeholder = "Ask Hand..."
+	input.Placeholder = "Ask Morph..."
 	input.SetPromptFunc(lipgloss.Width(inputPrompt), renderInputPrompt)
 	input.ShowLineNumbers = false
 	setInputTransparentStyles(&input)

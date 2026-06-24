@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/datadir/files"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/datadir/files"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func TestLoadLastSessionIDReturnsEmptyWhenUnset(t *testing.T) {
@@ -119,12 +119,12 @@ func TestLastSessionIDIsStoredPerActiveProfile(t *testing.T) {
 	root := t.TempDir()
 	setActiveProfileForLastSessionTest(t, profile.Profile{
 		Name:    "default",
-		HomeDir: filepath.Join(root, ".hand", "profiles", "default"),
+		HomeDir: filepath.Join(root, ".morph", "profiles", "default"),
 	})
 	require.NoError(t, saveLastSessionID("session-default"))
 	setActiveProfileForLastSessionTest(t, profile.Profile{
 		Name:    "work",
-		HomeDir: filepath.Join(root, ".hand", "profiles", "work"),
+		HomeDir: filepath.Join(root, ".morph", "profiles", "work"),
 	})
 	require.NoError(t, saveLastSessionID("session-work"))
 
@@ -133,7 +133,7 @@ func TestLastSessionIDIsStoredPerActiveProfile(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "session-work", id)
 
-	data, err := os.ReadFile(filepath.Join(root, ".hand", files.StateFilename))
+	data, err := os.ReadFile(filepath.Join(root, ".morph", files.StateFilename))
 	require.NoError(t, err)
 	var state appTUIState
 	require.NoError(t, json.Unmarshal(data, &state))

@@ -171,7 +171,7 @@ func defaultOpenExternalLink(raw string) error {
 	case "darwin":
 		return exec.Command("open", raw).Start()
 	case "windows":
-		return exec.Command("rundll32", "url.dll,FileProtocolHandler", raw).Start()
+		return exec.Command("rundll32", "url.dll,FileProtocolHand", raw).Start()
 	default:
 		return exec.Command("xdg-open", raw).Start()
 	}

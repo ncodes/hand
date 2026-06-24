@@ -10,4 +10,4 @@ const (
 )
 
 // WorkspaceDefaultInstructionFiles are the default workspace instruction file names.
-var WorkspaceDefaultInstructionFiles = []string{"agents.md", "hand.md"}
+var WorkspaceDefaultInstructionFiles = []string{"agents.md", "morph.md"}

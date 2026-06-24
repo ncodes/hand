@@ -3,7 +3,7 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 
-	changelog "github.com/wandxy/hand"
+	changelog "github.com/wandxy/morph"
 )
 
 func (m *model) showChangelogCommand() tea.Cmd {

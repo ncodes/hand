@@ -6,8 +6,8 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/wandxy/hand/internal/trace"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/trace"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 var extractionLog = logutils.Module("memory.extraction")

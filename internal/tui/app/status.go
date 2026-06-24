@@ -5,8 +5,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	tuistatus "github.com/wandxy/hand/internal/tui/status"
+	storage "github.com/wandxy/morph/internal/state/core"
+	tuistatus "github.com/wandxy/morph/internal/tui/status"
 )
 
 const (

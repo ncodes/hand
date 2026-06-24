@@ -9,19 +9,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
-	"github.com/wandxy/hand/internal/environment/planstore"
-	"github.com/wandxy/hand/internal/environment/process"
-	"github.com/wandxy/hand/internal/environment/sessionmessages"
-	"github.com/wandxy/hand/internal/environment/sessionsearch"
-	"github.com/wandxy/hand/internal/guardrails"
-	handmemory "github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/memory/episodic"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	memory "github.com/wandxy/hand/internal/state/storememory"
-	messages "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/nanoid"
+	"github.com/wandxy/morph/internal/agent/runcontext"
+	"github.com/wandxy/morph/internal/environment/planstore"
+	"github.com/wandxy/morph/internal/environment/process"
+	"github.com/wandxy/morph/internal/environment/sessionmessages"
+	"github.com/wandxy/morph/internal/environment/sessionsearch"
+	"github.com/wandxy/morph/internal/guardrails"
+	morphmemory "github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/memory/episodic"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	memory "github.com/wandxy/morph/internal/state/storememory"
+	messages "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 var runtimeSearchSessionID = nanoid.MustFromSeed(storage.SessionIDPrefix, "runtime-search", "EnvironmentRuntimeTestSeed")
@@ -391,7 +391,7 @@ func TestRuntime_SearchMemoryHandlesUnavailableProviders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := tt.runtime.SearchMemory(context.Background(), handmemory.SearchQuery{Text: "hello"})
+			result, err := tt.runtime.SearchMemory(context.Background(), morphmemory.SearchQuery{Text: "hello"})
 
 			require.EqualError(t, err, tt.message)
 			require.Empty(t, result)
@@ -401,13 +401,13 @@ func TestRuntime_SearchMemoryHandlesUnavailableProviders(t *testing.T) {
 
 func TestRuntime_SearchMemorySearchesProvider(t *testing.T) {
 	provider := &memorySearchProviderStub{
-		caps: handmemory.Capabilities{SupportsSearch: true},
-		searchResult: handmemory.SearchResult{Hits: []handmemory.SearchHit{{
-			Item: handmemory.MemoryItem{ID: "mem_123", Status: handmemory.StatusActive, Text: "hello"},
+		caps: morphmemory.Capabilities{SupportsSearch: true},
+		searchResult: morphmemory.SearchResult{Hits: []morphmemory.SearchHit{{
+			Item: morphmemory.MemoryItem{ID: "mem_123", Status: morphmemory.StatusActive, Text: "hello"},
 		}}},
 	}
 	runtime := &Runtime{memory: provider}
-	query := handmemory.SearchQuery{Text: "hello", Limit: 3}
+	query := morphmemory.SearchQuery{Text: "hello", Limit: 3}
 
 	result, err := runtime.SearchMemory(context.Background(), query)
 
@@ -419,7 +419,7 @@ func TestRuntime_SearchMemorySearchesProvider(t *testing.T) {
 func TestRuntime_ExtractEpisodesRejectsUnsupportedProviders(t *testing.T) {
 	provider := &memoryExtractionProviderStub{
 		memorySearchProviderStub: memorySearchProviderStub{
-			caps: handmemory.Capabilities{SupportsSearch: true},
+			caps: morphmemory.Capabilities{SupportsSearch: true},
 		},
 	}
 	runtime := &Runtime{
@@ -440,7 +440,7 @@ func TestRuntime_ExtractEpisodesValidatesDependenciesAndCapabilities(t *testing.
 	_, err = runtime.ExtractEpisodes(context.Background(), episodic.Request{})
 	require.EqualError(t, err, "memory provider is required")
 
-	runtime.memory = &memorySearchProviderStub{caps: handmemory.Capabilities{SupportsEpisodeRecording: true}}
+	runtime.memory = &memorySearchProviderStub{caps: morphmemory.Capabilities{SupportsEpisodeRecording: true}}
 	_, err = runtime.ExtractEpisodes(context.Background(), episodic.Request{})
 	require.EqualError(t, err, "memory extraction is not supported by provider")
 
@@ -458,7 +458,7 @@ func TestRuntime_ExtractEpisodesRunsExtractor(t *testing.T) {
 	store := memory.NewStore()
 	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
-	provider, err := handmemory.NewFromManager(manager, handmemory.Options{
+	provider, err := morphmemory.NewFromManager(manager, morphmemory.Options{
 		ModelClient: environmentEpisodicModelClientStub(),
 		Model:       "test-model",
 	})
@@ -487,42 +487,42 @@ func TestRuntime_MemoryWriteValidatesDependenciesAndCapabilities(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, supported)
 
-	_, err = (*Runtime)(nil).RecordSemanticMemory(context.Background(), handmemory.SemanticRecord{})
+	_, err = (*Runtime)(nil).RecordSemanticMemory(context.Background(), morphmemory.SemanticRecord{})
 	require.EqualError(t, err, "memory write is not configured")
 
 	runtime := &Runtime{}
-	_, err = runtime.RecordSemanticMemory(context.Background(), handmemory.SemanticRecord{})
+	_, err = runtime.RecordSemanticMemory(context.Background(), morphmemory.SemanticRecord{})
 	require.EqualError(t, err, "memory write is not configured")
 
-	runtime.memory = &memorySearchProviderStub{caps: handmemory.Capabilities{SupportsWrite: true}}
-	_, err = runtime.RecordSemanticMemory(context.Background(), handmemory.SemanticRecord{})
+	runtime.memory = &memorySearchProviderStub{caps: morphmemory.Capabilities{SupportsWrite: true}}
+	_, err = runtime.RecordSemanticMemory(context.Background(), morphmemory.SemanticRecord{})
 	require.EqualError(t, err, "semantic memory write is not supported by provider")
 
-	_, err = runtime.RecordProceduralMemory(context.Background(), handmemory.ProceduralRecord{})
+	_, err = runtime.RecordProceduralMemory(context.Background(), morphmemory.ProceduralRecord{})
 	require.EqualError(t, err, "procedural memory write is not supported by provider")
 
 	runtime.memory = &memorySearchProviderStub{
-		caps: handmemory.Capabilities{SupportsWrite: true, SupportsSemanticRecording: true},
+		caps: morphmemory.Capabilities{SupportsWrite: true, SupportsSemanticRecording: true},
 	}
-	_, err = runtime.RecordSemanticMemory(context.Background(), handmemory.SemanticRecord{})
+	_, err = runtime.RecordSemanticMemory(context.Background(), morphmemory.SemanticRecord{})
 	require.EqualError(t, err, "semantic memory write is not supported by provider")
 
 	runtime.memory = &memorySearchProviderStub{
-		caps: handmemory.Capabilities{SupportsWrite: true, SupportsProceduralRecording: true},
+		caps: morphmemory.Capabilities{SupportsWrite: true, SupportsProceduralRecording: true},
 	}
-	_, err = runtime.RecordProceduralMemory(context.Background(), handmemory.ProceduralRecord{})
+	_, err = runtime.RecordProceduralMemory(context.Background(), morphmemory.ProceduralRecord{})
 	require.EqualError(t, err, "procedural memory write is not supported by provider")
 
-	_, err = (*Runtime)(nil).RecordProceduralMemory(context.Background(), handmemory.ProceduralRecord{})
+	_, err = (*Runtime)(nil).RecordProceduralMemory(context.Background(), morphmemory.ProceduralRecord{})
 	require.EqualError(t, err, "memory write is not configured")
 
-	_, err = runtime.PromoteMemoryCandidate(context.Background(), handmemory.PromotionRequest{})
+	_, err = runtime.PromoteMemoryCandidate(context.Background(), morphmemory.PromotionRequest{})
 	require.EqualError(t, err, "memory write is not supported by provider")
 
-	_, err = runtime.UpdateMemory(context.Background(), handmemory.UpdateRequest{})
+	_, err = runtime.UpdateMemory(context.Background(), morphmemory.UpdateRequest{})
 	require.EqualError(t, err, "memory write is not supported by provider")
 
-	_, err = (*Runtime)(nil).PromoteMemoryCandidate(context.Background(), handmemory.PromotionRequest{})
+	_, err = (*Runtime)(nil).PromoteMemoryCandidate(context.Background(), morphmemory.PromotionRequest{})
 	require.EqualError(t, err, "memory write is not configured")
 
 	runtime.memory = &memoryWriteProviderStub{
@@ -532,13 +532,13 @@ func TestRuntime_MemoryWriteValidatesDependenciesAndCapabilities(t *testing.T) {
 			},
 		},
 	}
-	err = runtime.DeleteMemory(context.Background(), handmemory.DeleteRequest{})
+	err = runtime.DeleteMemory(context.Background(), morphmemory.DeleteRequest{})
 	require.EqualError(t, err, "capability failed")
 
-	_, err = runtime.RecordSemanticMemory(context.Background(), handmemory.SemanticRecord{})
+	_, err = runtime.RecordSemanticMemory(context.Background(), morphmemory.SemanticRecord{})
 	require.EqualError(t, err, "capability failed")
 
-	_, err = runtime.RecordProceduralMemory(context.Background(), handmemory.ProceduralRecord{})
+	_, err = runtime.RecordProceduralMemory(context.Background(), morphmemory.ProceduralRecord{})
 	require.EqualError(t, err, "capability failed")
 }
 
@@ -546,7 +546,7 @@ func TestRuntime_MemoryWriteCallsProvider(t *testing.T) {
 	provider := &memoryWriteProviderStub{
 		memoryExtractionProviderStub: memoryExtractionProviderStub{
 			memorySearchProviderStub: memorySearchProviderStub{
-				caps: handmemory.Capabilities{
+				caps: morphmemory.Capabilities{
 					SupportsWrite:               true,
 					SupportsDelete:              true,
 					SupportsSemanticRecording:   true,
@@ -556,27 +556,27 @@ func TestRuntime_MemoryWriteCallsProvider(t *testing.T) {
 		},
 	}
 	runtime := &Runtime{memory: provider}
-	item := handmemory.MemoryItem{ID: "mem_candidate", Kind: handmemory.KindSemantic}
+	item := morphmemory.MemoryItem{ID: "mem_candidate", Kind: morphmemory.KindSemantic}
 
-	_, err := runtime.RecordSemanticMemory(context.Background(), handmemory.SemanticRecord{Item: item})
+	_, err := runtime.RecordSemanticMemory(context.Background(), morphmemory.SemanticRecord{Item: item})
 	require.NoError(t, err)
 	require.Equal(t, item, provider.semanticRecord.Item)
 
-	procedural := handmemory.MemoryItem{ID: "mem_procedural_candidate", Kind: handmemory.KindProcedural}
-	_, err = runtime.RecordProceduralMemory(context.Background(), handmemory.ProceduralRecord{Item: procedural})
+	procedural := morphmemory.MemoryItem{ID: "mem_procedural_candidate", Kind: morphmemory.KindProcedural}
+	_, err = runtime.RecordProceduralMemory(context.Background(), morphmemory.ProceduralRecord{Item: procedural})
 	require.NoError(t, err)
 	require.Equal(t, procedural, provider.proceduralRecord.Item)
 
-	_, err = runtime.PromoteMemoryCandidate(context.Background(), handmemory.PromotionRequest{ID: item.ID})
+	_, err = runtime.PromoteMemoryCandidate(context.Background(), morphmemory.PromotionRequest{ID: item.ID})
 	require.NoError(t, err)
 	require.Equal(t, item.ID, provider.promotionRequest.ID)
 
-	_, err = runtime.UpdateMemory(context.Background(), handmemory.UpdateRequest{ID: "mem_old", Replacement: item})
+	_, err = runtime.UpdateMemory(context.Background(), morphmemory.UpdateRequest{ID: "mem_old", Replacement: item})
 	require.NoError(t, err)
 	require.Equal(t, "mem_old", provider.updateRequest.ID)
 	require.Equal(t, item, provider.updateRequest.Replacement)
 
-	err = runtime.DeleteMemory(context.Background(), handmemory.DeleteRequest{ID: item.ID})
+	err = runtime.DeleteMemory(context.Background(), morphmemory.DeleteRequest{ID: item.ID})
 	require.NoError(t, err)
 	require.Equal(t, item.ID, provider.deleteRequest.ID)
 }
@@ -585,7 +585,7 @@ func TestRuntime_MemoryWriteAppliesSessionLineage(t *testing.T) {
 	provider := &memoryWriteProviderStub{
 		memoryExtractionProviderStub: memoryExtractionProviderStub{
 			memorySearchProviderStub: memorySearchProviderStub{
-				caps: handmemory.Capabilities{
+				caps: morphmemory.Capabilities{
 					SupportsWrite:               true,
 					SupportsDelete:              true,
 					SupportsSemanticRecording:   true,
@@ -608,30 +608,30 @@ func TestRuntime_MemoryWriteAppliesSessionLineage(t *testing.T) {
 	})
 	require.NoError(t, err)
 	ctx := runcontext.WithContext(context.Background(), child)
-	item := handmemory.MemoryItem{
+	item := morphmemory.MemoryItem{
 		ID: "mem_candidate",
 		Metadata: map[string]string{
-			handmemory.MemoryMetadataTrigger: "episodic_extraction",
+			morphmemory.MemoryMetadataTrigger: "episodic_extraction",
 		},
-		SourceLinks: []handmemory.SourceLink{{SessionID: parentID, MessageIDs: []uint{1}}},
+		SourceLinks: []morphmemory.SourceLink{{SessionID: parentID, MessageIDs: []uint{1}}},
 	}
 
-	_, err = runtime.RecordSemanticMemory(ctx, handmemory.SemanticRecord{Item: item})
+	_, err = runtime.RecordSemanticMemory(ctx, morphmemory.SemanticRecord{Item: item})
 	require.NoError(t, err)
-	require.Equal(t, childID, provider.semanticRecord.Item.Metadata[handmemory.MemoryMetadataEffectiveSessionID])
-	require.Equal(t, parentID, provider.semanticRecord.Item.Metadata[handmemory.MemoryMetadataParentSessionID])
-	require.Equal(t, "episodic_extraction", provider.semanticRecord.Item.Metadata[handmemory.MemoryMetadataTrigger])
+	require.Equal(t, childID, provider.semanticRecord.Item.Metadata[morphmemory.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, parentID, provider.semanticRecord.Item.Metadata[morphmemory.MemoryMetadataParentSessionID])
+	require.Equal(t, "episodic_extraction", provider.semanticRecord.Item.Metadata[morphmemory.MemoryMetadataTrigger])
 	require.Equal(t, childID, provider.semanticRecord.Item.SourceLinks[0].ChildSessionID)
 
-	_, err = runtime.RecordProceduralMemory(ctx, handmemory.ProceduralRecord{Item: item})
+	_, err = runtime.RecordProceduralMemory(ctx, morphmemory.ProceduralRecord{Item: item})
 	require.NoError(t, err)
-	require.Equal(t, childID, provider.proceduralRecord.Item.Metadata[handmemory.MemoryMetadataEffectiveSessionID])
-	require.Equal(t, parentID, provider.proceduralRecord.Item.Metadata[handmemory.MemoryMetadataParentSessionID])
-	require.Equal(t, "episodic_extraction", provider.proceduralRecord.Item.Metadata[handmemory.MemoryMetadataTrigger])
+	require.Equal(t, childID, provider.proceduralRecord.Item.Metadata[morphmemory.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, parentID, provider.proceduralRecord.Item.Metadata[morphmemory.MemoryMetadataParentSessionID])
+	require.Equal(t, "episodic_extraction", provider.proceduralRecord.Item.Metadata[morphmemory.MemoryMetadataTrigger])
 	require.Equal(t, childID, provider.proceduralRecord.Item.SourceLinks[0].ChildSessionID)
 
-	_, err = runtime.UpdateMemory(ctx, handmemory.UpdateRequest{ID: "mem_old", Replacement: item})
+	_, err = runtime.UpdateMemory(ctx, morphmemory.UpdateRequest{ID: "mem_old", Replacement: item})
 	require.NoError(t, err)
-	require.Equal(t, childID, provider.updateRequest.Replacement.Metadata[handmemory.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, childID, provider.updateRequest.Replacement.Metadata[morphmemory.MemoryMetadataEffectiveSessionID])
 	require.Equal(t, parentID, provider.updateRequest.Replacement.SourceLinks[0].ParentSessionID)
 }

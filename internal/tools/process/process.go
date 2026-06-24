@@ -7,11 +7,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/rs/zerolog"
-	processenv "github.com/wandxy/hand/internal/environment/process"
-	envtypes "github.com/wandxy/hand/internal/environment/types"
-	"github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/internal/tools/common"
-	"github.com/wandxy/hand/pkg/logutils"
+	processenv "github.com/wandxy/morph/internal/environment/process"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/tools/common"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 var processLog = logutils.Module("tool.process")
@@ -108,7 +108,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return handleStatus(ctx, runtime, action, req, logEvent), nil
 
 			case "read":
-				return handleRead(ctx, runtime, action, req, logEvent), nil
+				return Handead(ctx, runtime, action, req, logEvent), nil
 
 			case "stop":
 				return handleStop(ctx, runtime, action, req, logEvent), nil
@@ -191,7 +191,7 @@ func handleStatus(ctx context.Context, runtime envtypes.Runtime, action string, 
 	return encodeProcessOutput(map[string]any{"process": info})
 }
 
-func handleRead(ctx context.Context, runtime envtypes.Runtime, action string, req input, logEvent anyLogEvent) tools.Result {
+func Handead(ctx context.Context, runtime envtypes.Runtime, action string, req input, logEvent anyLogEvent) tools.Result {
 	sessionID := normalizeSessionID(ctx)
 	logEvent.
 		Str("session_id", sessionID).

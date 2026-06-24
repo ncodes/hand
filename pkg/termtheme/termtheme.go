@@ -66,7 +66,7 @@ func Detect(timeout time.Duration) Result {
 }
 
 func detectExplicitEnvironment() (Result, bool) {
-	if value, ok := lookupEnv("HAND_TUI_BACKGROUND"); ok {
+	if value, ok := lookupEnv("MORPH_TUI_BACKGROUND"); ok {
 		background := strings.TrimSpace(strings.ToLower(value))
 		if _, err := parseHexBackground(background); err == nil {
 			return Result{

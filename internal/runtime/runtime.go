@@ -14,9 +14,9 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 // RPC describes a daemon RPC endpoint.
@@ -25,7 +25,7 @@ type RPC struct {
 	Port    int    `json:"port"`
 }
 
-// Metadata describes the running Hand daemon endpoint for one profile.
+// Metadata describes the running Morph daemon endpoint for one profile.
 type Metadata struct {
 	Profile   string    `json:"profile"`
 	PID       int       `json:"pid"`
@@ -204,7 +204,7 @@ func hasExplicitRPC(cmd *cli.Command, cfg *config.Config) bool {
 	if cmd != nil && (cmd.IsSet("rpc.address") || cmd.IsSet("rpc.port")) {
 		return true
 	}
-	if strings.TrimSpace(os.Getenv("HAND_RPC_ADDRESS")) != "" || strings.TrimSpace(os.Getenv("HAND_RPC_PORT")) != "" {
+	if strings.TrimSpace(os.Getenv("MORPH_RPC_ADDRESS")) != "" || strings.TrimSpace(os.Getenv("MORPH_RPC_PORT")) != "" {
 		return true
 	}
 

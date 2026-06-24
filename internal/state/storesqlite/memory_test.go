@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	statememory "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
+	statememory "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -43,7 +43,7 @@ func TestSQLiteMemoryStore_MigrationSearchWriteDeleteAndSourceLinks(t *testing.T
 		CreatedAt:            createdAt,
 		PromotionEvaluatedAt: evaluatedAt,
 		Reflected:            true,
-		Metadata:             map[string]string{"project": "hand"},
+		Metadata:             map[string]string{"project": "morph"},
 		SourceLinks: []statememory.MemorySourceLink{{
 			SessionID:     "session",
 			MessageIDs:    []uint{1},

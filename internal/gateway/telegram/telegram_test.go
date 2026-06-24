@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
-	tg "github.com/wandxy/hand/pkg/gateway/telegram"
+	"github.com/wandxy/morph/internal/config"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
+	tg "github.com/wandxy/morph/pkg/gateway/telegram"
 )
 
 func TestTelegramAdapter_DispatchUpdateResolvesSessionAndStreamsReply(t *testing.T) {
@@ -144,7 +144,7 @@ func TestTelegramAdapter_UnknownPrivateSenderGetsPairingChallenge(t *testing.T) 
 	require.True(t, handled)
 	require.False(t, responder.called)
 	require.Len(t, api.callsOfMethod("sendMessage"), 1)
-	require.Contains(t, api.callsOfMethod("sendMessage")[0].text, "hand gateway pairing approve telegram")
+	require.Contains(t, api.callsOfMethod("sendMessage")[0].text, "morph gateway pairing approve telegram")
 	requests, err := responder.ListGatewayPairingRequests(context.Background(), "telegram")
 	require.NoError(t, err)
 	require.Len(t, requests, 1)

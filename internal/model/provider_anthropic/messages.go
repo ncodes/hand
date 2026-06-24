@@ -9,8 +9,8 @@ import (
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func buildMessagesRequest(req normalizedGenerateRequest) (anthropic.MessageNewParams, error) {
@@ -27,17 +27,17 @@ func buildMessagesRequest(req normalizedGenerateRequest) (anthropic.MessageNewPa
 
 	for _, message := range req.Messages {
 		switch message.Role {
-		case handmsg.RoleDeveloper:
+		case morphmsg.RoleDeveloper:
 			system = append(system, anthropic.TextBlockParam{Text: message.Content})
-		case handmsg.RoleUser:
+		case morphmsg.RoleUser:
 			messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(message.Content)))
-		case handmsg.RoleAssistant:
+		case morphmsg.RoleAssistant:
 			blocks, err := assistantMessageToAnthropicBlocks(message)
 			if err != nil {
 				return anthropic.MessageNewParams{}, err
 			}
 			messages = append(messages, anthropic.NewAssistantMessage(blocks...))
-		case handmsg.RoleTool:
+		case morphmsg.RoleTool:
 			messages = append(messages, anthropic.NewUserMessage(anthropic.NewToolResultBlock(
 				message.ToolCallID,
 				message.Content,
@@ -75,7 +75,7 @@ func buildMessagesRequest(req normalizedGenerateRequest) (anthropic.MessageNewPa
 	return params, nil
 }
 
-func assistantMessageToAnthropicBlocks(message handmsg.Message) ([]anthropic.ContentBlockParamUnion, error) {
+func assistantMessageToAnthropicBlocks(message morphmsg.Message) ([]anthropic.ContentBlockParamUnion, error) {
 	blocks := make([]anthropic.ContentBlockParamUnion, 0, len(message.ToolCalls)+1)
 	if message.Content != "" {
 		blocks = append(blocks, anthropic.NewTextBlock(message.Content))

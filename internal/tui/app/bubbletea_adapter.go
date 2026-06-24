@@ -67,7 +67,7 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 		return next, cmd, true
 	case responseEventMsg:
-		next, cmd := m.handleResponseEvent(msg)
+		next, cmd := m.HandesponseEvent(msg)
 		return next, cmd, true
 	case responseEventsClosedMsg:
 		if !m.isActiveResponse(msg.ResponseID) {
@@ -250,7 +250,7 @@ func (m model) handleTerminalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-func (m model) handleResponseEvent(msg responseEventMsg) (tea.Model, tea.Cmd) {
+func (m model) HandesponseEvent(msg responseEventMsg) (tea.Model, tea.Cmd) {
 	if !m.isActiveResponse(msg.ResponseID) {
 		return m, nil
 	}

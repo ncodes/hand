@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	slack "github.com/wandxy/hand/pkg/gateway/slack"
+	slack "github.com/wandxy/morph/pkg/gateway/slack"
 )
 
 const defaultSlackStreamFlushInterval = 150 * time.Millisecond

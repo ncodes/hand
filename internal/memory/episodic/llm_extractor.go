@@ -6,9 +6,9 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/wandxy/hand/internal/instructions"
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/instructions"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 const defaultLLMExtractorMaxOutputTokens int64 = 1600
@@ -46,7 +46,7 @@ func (e *LLMExtractor) ExtractCandidates(ctx context.Context, req CandidateReque
 		Model:            e.options.Model,
 		API:              e.options.API,
 		Instructions:     instructions.BuildEpisodicExtractionInstructions(),
-		Messages:         []handmsg.Message{{Role: handmsg.RoleUser, Content: string(payload)}},
+		Messages:         []morphmsg.Message{{Role: morphmsg.RoleUser, Content: string(payload)}},
 		StructuredOutput: getLLMExtractorStructuredOutput(),
 		MaxOutputTokens:  e.options.MaxOutputTokens,
 		DebugRequests:    e.options.DebugRequests,

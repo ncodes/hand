@@ -3,14 +3,14 @@ package agent
 import (
 	"context"
 
-	"github.com/wandxy/hand/internal/environment"
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/environment"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func (a *Agent) newTurn(
 	runtimeEnv environment.Environment,
-	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message,
+	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) morphmsg.Message,
 ) *Turn {
 	if invokeToolFn == nil {
 		invokeToolFn = a.invokeToolWithEnvironment
@@ -21,7 +21,7 @@ func (a *Agent) newTurn(
 		ctx context.Context,
 		env environment.Environment,
 		toolCall models.ToolCall,
-	) handmsg.Message {
+	) morphmsg.Message {
 		return invokeToolFn(ctx, env, toolCall)
 	})
 
@@ -41,7 +41,7 @@ func (a *Agent) newTurn(
 		runtimeEnv,
 		runtimeEnv,
 		runtimeEnv,
-		func(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
+		func(ctx context.Context, toolCall models.ToolCall) morphmsg.Message {
 			return invokeToolFn(ctx, runtimeEnv, toolCall)
 		},
 	)

@@ -11,9 +11,9 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/gateway/dispatch"
-	slack "github.com/wandxy/hand/pkg/gateway/slack"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/gateway/dispatch"
+	slack "github.com/wandxy/morph/pkg/gateway/slack"
 )
 
 const (

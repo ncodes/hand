@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 )
 
 func TestGatewayPairing_SaveListDeleteRequestAndSender(t *testing.T) {

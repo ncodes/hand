@@ -185,7 +185,7 @@ func TestModule_LevelMethodsAddModuleField(t *testing.T) {
 func TestConfigureLogger_UsesConfiguredLogFile(t *testing.T) {
 	restoreLogger(t)
 
-	path := filepath.Join(t.TempDir(), "hand-test.log")
+	path := filepath.Join(t.TempDir(), "morph-test.log")
 	setTestLogConfig(Config{LogFile: path})
 	defaultFileEnabled = func() bool { return true }
 
@@ -246,7 +246,7 @@ func TestConfigureLogger_ReopensWhenLogRotationSettingsChange(t *testing.T) {
 	restoreLogger(t)
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "hand.log")
+	path := filepath.Join(dir, "morph.log")
 	setTestLogConfig(Config{
 		LogFile:    path,
 		MaxSizeMB:  11,
@@ -294,7 +294,7 @@ func TestConfigureLogger_FallsBackWhenLogDirectoryCannotBeCreated(t *testing.T) 
 
 	console := &bytes.Buffer{}
 	SetOutput(console)
-	setTestLogConfig(Config{LogFile: filepath.Join(t.TempDir(), "hand.log")})
+	setTestLogConfig(Config{LogFile: filepath.Join(t.TempDir(), "morph.log")})
 	defaultFileEnabled = func() bool { return true }
 	mkdirAll = func(string, os.FileMode) error {
 		return errors.New("mkdir failed")
@@ -311,7 +311,7 @@ func TestConfigureLogger_FallsBackWhenLogFileCannotBeOpened(t *testing.T) {
 
 	console := &bytes.Buffer{}
 	SetOutput(console)
-	setTestLogConfig(Config{LogFile: filepath.Join(t.TempDir(), "hand.log")})
+	setTestLogConfig(Config{LogFile: filepath.Join(t.TempDir(), "morph.log")})
 	defaultFileEnabled = func() bool { return true }
 	newLogFileWriter = func(logFileSettings) (io.WriteCloser, error) {
 		return nil, errors.New("open failed")
@@ -429,15 +429,15 @@ func consoleModuleANSIColor(t *testing.T, formatted string) int {
 }
 
 func TestEnsureLogModule_AddsFallbackModuleOnlyWhenMissing(t *testing.T) {
-	withModule := ensureLogModule([]byte(`{"level":"info","module":"daemon","message":"hello"}`+"\n"), "hand")
+	withModule := ensureLogModule([]byte(`{"level":"info","module":"daemon","message":"hello"}`+"\n"), "morph")
 	require.JSONEq(t, `{"level":"info","module":"daemon","message":"hello"}`, strings.TrimSpace(string(withModule)))
 	require.True(t, bytes.HasSuffix(withModule, []byte("\n")))
 
-	withoutModule := ensureLogModule([]byte(`{"level":"info","message":"hello"}`), "hand")
-	require.JSONEq(t, `{"level":"info","module":"hand","message":"hello"}`, string(withoutModule))
+	withoutModule := ensureLogModule([]byte(`{"level":"info","message":"hello"}`), "morph")
+	require.JSONEq(t, `{"level":"info","module":"morph","message":"hello"}`, string(withoutModule))
 
 	invalid := []byte("not-json\n")
-	require.Equal(t, invalid, ensureLogModule(invalid, "hand"))
+	require.Equal(t, invalid, ensureLogModule(invalid, "morph"))
 }
 
 func TestCurrentNoColorSetting_UsesConfig(t *testing.T) {

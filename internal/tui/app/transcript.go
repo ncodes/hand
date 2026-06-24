@@ -83,7 +83,7 @@ func (m *model) renderTranscriptContent() string {
 		return m.renderEmptyUserPromptContent()
 	}
 	if len(cells) == 0 && m.showIntro {
-		cells = append(cells, systemTranscriptCell{text: "Welcome to Hand TUI.\n\nThe interactive shell is ready."})
+		cells = append(cells, systemTranscriptCell{text: "Welcome to Morph TUI.\n\nThe interactive shell is ready."})
 	}
 	if len(cells) > 0 {
 		m.showIntro = false

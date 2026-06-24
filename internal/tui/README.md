@@ -1,6 +1,6 @@
 # TUI Package
 
-This package contains Hand's interactive terminal UI. It is built with Bubble
+This package contains Morph's interactive terminal UI. It is built with Bubble
 Tea, so the main mental model is:
 
 ```text
@@ -19,7 +19,7 @@ let `View` redraw the screen from that state.
 
 The CLI command is outside this package:
 
-- `cmd/tui/tui.go` exposes the root TUI runner used by `hand`.
+- `cmd/tui/tui.go` exposes the root TUI runner used by `morph`.
 - `cmd/tui/program.go` loads config, creates the RPC client, builds the TUI
   model, and starts Bubble Tea.
 
@@ -27,7 +27,7 @@ The root app model is in `app/model.go`.
 
 ## Main Directories
 
-- `app`: the interactive app, rendering, input handling, chat streaming, and
+- `app`: the interactive app, rendering, input morphling, chat streaming, and
   transcript behavior.
 - `composer`: parsing and history helpers for prompt input.
 - `events`: small typed app events used inside the TUI.
@@ -59,7 +59,7 @@ Input:
 ```text
 keyboard/mouse/window message
   -> app/bubbletea_adapter.go Update
-  -> handleKeyPressMsg or mouse handler
+  -> handleKeyPressMsg or mouse Hand
   -> handleAppEvent
   -> action or effect
 ```

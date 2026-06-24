@@ -4,10 +4,10 @@ import (
 	"strings"
 	"time"
 
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/trace"
-	agent "github.com/wandxy/hand/pkg/agent"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/trace"
+	agent "github.com/wandxy/morph/pkg/agent"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 type userMessageAcceptedMsg struct {
@@ -184,7 +184,7 @@ func toolCallPayloadToTUIMessage(payload any) (any, bool) {
 			return nil, false
 		}
 		return msg, true
-	case handmsg.ToolCall:
+	case morphmsg.ToolCall:
 		msg, ok := toolInvocationStartedMsgFromMessageToolCall(value, time.Time{})
 		if !ok {
 			return nil, false
@@ -213,7 +213,7 @@ func toolCallPayloadToTUIMessage(payload any) (any, bool) {
 
 func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 	switch value := payload.(type) {
-	case handmsg.Message:
+	case morphmsg.Message:
 		msg, ok := toolInvocationCompletedMsgFromMessage(value, time.Time{})
 		if !ok {
 			return nil, false

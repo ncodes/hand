@@ -6,7 +6,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 	"gorm.io/gorm"
 )
 

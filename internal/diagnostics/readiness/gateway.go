@@ -5,7 +5,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/morph/internal/config"
 )
 
 func buildGatewayGroup(cfg *config.Config) Group {
@@ -31,7 +31,7 @@ func buildGatewayListenerCheck(cfg config.GatewayConfig) Check {
 			"listener",
 			StatusWarn,
 			fmt.Sprintf("enabled on %s:%d without gateway auth token", address, cfg.Port),
-			commandAction("hand config set gateway.authToken <token>", "set gateway auth token for non-loopback binds"),
+			commandAction("morph config set gateway.authToken <token>", "set gateway auth token for non-loopback binds"),
 		)
 	}
 
@@ -55,7 +55,7 @@ func buildGatewayTelegramCheck(cfg config.GatewayConfig) Check {
 			StatusWarn,
 			fmt.Sprintf("enabled in %s mode without bot token", mode),
 			commandAction(
-				"hand config set gateway.telegram.botToken <bot-token>",
+				"morph config set gateway.telegram.botToken <bot-token>",
 				"configure Telegram bot token",
 			),
 		)
@@ -66,7 +66,7 @@ func buildGatewayTelegramCheck(cfg config.GatewayConfig) Check {
 			StatusWarn,
 			"enabled in webhook mode without webhook secret",
 			commandAction(
-				"hand config set gateway.telegram.webhookSecret <secret-token>",
+				"morph config set gateway.telegram.webhookSecret <secret-token>",
 				"configure Telegram webhook secret token",
 			),
 		)
@@ -87,7 +87,7 @@ func buildGatewaySlackCheck(cfg config.GatewayConfig) Check {
 			"slack",
 			StatusWarn,
 			fmt.Sprintf("enabled in %s mode without bot token", mode),
-			commandAction("hand config set gateway.slack.botToken <bot-token>", "configure Slack bot token"),
+			commandAction("morph config set gateway.slack.botToken <bot-token>", "configure Slack bot token"),
 		)
 	}
 	switch mode {
@@ -97,7 +97,7 @@ func buildGatewaySlackCheck(cfg config.GatewayConfig) Check {
 				"slack",
 				StatusWarn,
 				"enabled in socket mode without app token",
-				commandAction("hand config set gateway.slack.appToken <app-token>", "configure Slack app token"),
+				commandAction("morph config set gateway.slack.appToken <app-token>", "configure Slack app token"),
 			)
 		}
 	case config.GatewaySlackModeHTTP:
@@ -107,7 +107,7 @@ func buildGatewaySlackCheck(cfg config.GatewayConfig) Check {
 				StatusWarn,
 				"enabled in http mode without signing secret",
 				commandAction(
-					"hand config set gateway.slack.signingSecret <signing-secret>",
+					"morph config set gateway.slack.signingSecret <signing-secret>",
 					"configure Slack signing secret",
 				),
 			)

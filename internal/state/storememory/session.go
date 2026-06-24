@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	base "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	base "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // Session aliases base.Session at this package boundary.
@@ -271,7 +271,7 @@ func (s *Store) deleteSessions(ctx context.Context, ids []string) ([]string, err
 	return deletedSessionIDs, nil
 }
 
-func (s *Store) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
+func (s *Store) AppendMessages(ctx context.Context, id string, messages []morphmsg.Message) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
@@ -312,7 +312,7 @@ func (s *Store) GetMessages(
 	_ context.Context,
 	id string,
 	opts MessageQueryOptions,
-) ([]handmsg.Message, error) {
+) ([]morphmsg.Message, error) {
 	if s == nil {
 		return nil, errors.New("store is required")
 	}
@@ -379,7 +379,7 @@ func (s *Store) GetMessagesByIDs(
 
 		records = append(records, base.MessageRecord{
 			Offset:  idx,
-			Message: cloneMessages([]handmsg.Message{message})[0],
+			Message: cloneMessages([]morphmsg.Message{message})[0],
 		})
 	}
 
@@ -429,7 +429,7 @@ func (s *Store) GetMessageWindow(
 	for idx := start; idx < end; idx++ {
 		records = append(records, base.MessageRecord{
 			Offset:  idx,
-			Message: cloneMessages([]handmsg.Message{messages[idx]})[0],
+			Message: cloneMessages([]morphmsg.Message{messages[idx]})[0],
 		})
 	}
 
@@ -500,7 +500,7 @@ func (s *Store) SearchMessages(
 
 func searchMessageResults(
 	sessionID string,
-	messages []handmsg.Message,
+	messages []morphmsg.Message,
 	query string,
 	opts base.SearchMessageOptions,
 ) []base.SearchMessageResult {
@@ -536,7 +536,7 @@ func searchMessageResults(
 
 func getMatchingMessageHits(
 	sessionID string,
-	messages []handmsg.Message,
+	messages []morphmsg.Message,
 	query string,
 	opts base.SearchMessageOptions,
 ) []base.SearchMessageHit {
@@ -554,7 +554,7 @@ func getMatchingMessageHits(
 
 func getMatchedMessageHit(
 	sessionID string,
-	message handmsg.Message,
+	message morphmsg.Message,
 	query string,
 	opts base.SearchMessageOptions,
 ) (base.SearchMessageHit, bool) {
@@ -580,19 +580,19 @@ func getMatchedMessageHit(
 	}
 
 	switch message.Role {
-	case handmsg.RoleAssistant:
+	case morphmsg.RoleAssistant:
 		if opts.ToolName != "" {
 			for _, toolCall := range message.ToolCalls {
 				if !strings.EqualFold(strings.TrimSpace(toolCall.Name), opts.ToolName) {
 					continue
 				}
-				return makeHit(handmsg.ToolCallSearchText(toolCall), toolCall.Name)
+				return makeHit(morphmsg.ToolCallSearchText(toolCall), toolCall.Name)
 			}
 			return base.SearchMessageHit{}, false
 		}
 
 		for _, toolCall := range message.ToolCalls {
-			if hit, ok := makeHit(handmsg.ToolCallSearchText(toolCall), toolCall.Name); ok {
+			if hit, ok := makeHit(morphmsg.ToolCallSearchText(toolCall), toolCall.Name); ok {
 				return hit, true
 			}
 		}
@@ -602,11 +602,11 @@ func getMatchedMessageHit(
 		}
 
 		return base.SearchMessageHit{}, false
-	case handmsg.RoleTool:
+	case morphmsg.RoleTool:
 		if opts.ToolName != "" && !strings.EqualFold(strings.TrimSpace(message.Name), opts.ToolName) {
 			return base.SearchMessageHit{}, false
 		}
-		if hit, ok := makeHit(handmsg.MessageSearchText(message), message.Name); ok {
+		if hit, ok := makeHit(morphmsg.MessageSearchText(message), message.Name); ok {
 			return hit, true
 		}
 		return makeHit(message.Content, message.Name)
@@ -642,18 +642,18 @@ func (s *Store) CountMessages(_ context.Context, id string, opts MessageQueryOpt
 	return len(filterMessages(s.messages[id], opts)), nil
 }
 
-func (s *Store) GetMessage(_ context.Context, id string, index int) (handmsg.Message, bool, error) {
+func (s *Store) GetMessage(_ context.Context, id string, index int) (morphmsg.Message, bool, error) {
 	if s == nil {
-		return handmsg.Message{}, false, errors.New("store is required")
+		return morphmsg.Message{}, false, errors.New("store is required")
 	}
 
 	id = strings.TrimSpace(id)
 	if id == "" || index < 0 {
-		return handmsg.Message{}, false, nil
+		return morphmsg.Message{}, false, nil
 	}
 
 	if err := base.ValidateSessionID(id); err != nil {
-		return handmsg.Message{}, false, err
+		return morphmsg.Message{}, false, err
 	}
 
 	s.mu.RLock()
@@ -661,7 +661,7 @@ func (s *Store) GetMessage(_ context.Context, id string, index int) (handmsg.Mes
 
 	messages := s.messages[id]
 	if index >= len(messages) {
-		return handmsg.Message{}, false, nil
+		return morphmsg.Message{}, false, nil
 	}
 
 	return cloneMessages(messages[index : index+1])[0], true, nil
@@ -889,7 +889,7 @@ func (s *Store) ClearCurrent(_ context.Context) error {
 	return nil
 }
 
-func cloneMessages(messages []handmsg.Message) []handmsg.Message {
+func cloneMessages(messages []morphmsg.Message) []morphmsg.Message {
 	return base.CloneMessages(messages)
 }
 
@@ -901,7 +901,7 @@ func cloneSearchMessageHits(hits []base.SearchMessageHit) []base.SearchMessageHi
 	cloned := make([]base.SearchMessageHit, len(hits))
 	for i, hit := range hits {
 		cloned[i] = hit
-		cloned[i].Message = base.CloneMessages([]handmsg.Message{hit.Message})[0]
+		cloned[i].Message = base.CloneMessages([]morphmsg.Message{hit.Message})[0]
 	}
 
 	return cloned
@@ -921,7 +921,7 @@ func cloneSearchMessageResults(results []base.SearchMessageResult) []base.Search
 	return cloned
 }
 
-func getMessagesForQuery(messages []handmsg.Message, opts MessageQueryOptions) []handmsg.Message {
+func getMessagesForQuery(messages []morphmsg.Message, opts MessageQueryOptions) []morphmsg.Message {
 	filtered := filterMessages(messages, opts)
 	if getMessageQueryOrder(opts) == base.MessageOrderDesc {
 		filtered = reverseMessages(filtered)
@@ -939,12 +939,12 @@ func getMessagesForQuery(messages []handmsg.Message, opts MessageQueryOptions) [
 	return cloneMessages(filtered[offset:end])
 }
 
-func reverseMessages(messages []handmsg.Message) []handmsg.Message {
+func reverseMessages(messages []morphmsg.Message) []morphmsg.Message {
 	if len(messages) == 0 {
 		return nil
 	}
 
-	reversed := make([]handmsg.Message, len(messages))
+	reversed := make([]morphmsg.Message, len(messages))
 	for idx := range messages {
 		reversed[len(messages)-1-idx] = messages[idx]
 	}
@@ -952,14 +952,14 @@ func reverseMessages(messages []handmsg.Message) []handmsg.Message {
 	return reversed
 }
 
-func filterMessages(messages []handmsg.Message, opts MessageQueryOptions) []handmsg.Message {
-	role := handmsg.Role(strings.TrimSpace(string(opts.Role)))
+func filterMessages(messages []morphmsg.Message, opts MessageQueryOptions) []morphmsg.Message {
+	role := morphmsg.Role(strings.TrimSpace(string(opts.Role)))
 	name := strings.TrimSpace(opts.Name)
 	if role == "" && name == "" {
 		return messages
 	}
 
-	filtered := make([]handmsg.Message, 0, len(messages))
+	filtered := make([]morphmsg.Message, 0, len(messages))
 	for _, message := range messages {
 		if role != "" && message.Role != role {
 			continue

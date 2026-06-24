@@ -9,14 +9,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	e2e "github.com/wandxy/hand/internal/e2e"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
+	e2e "github.com/wandxy/morph/internal/e2e"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
 )
 
 func TestLiveMemoryAddToolCreatesActiveSemanticMemory(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("HAND_E2E_LIVE")) != "1" {
-		t.Skip("set HAND_E2E_LIVE=1 to run live LLM e2e tests")
+	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

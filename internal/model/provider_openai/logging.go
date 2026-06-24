@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 var modelLog = logutils.Module("model.openai")

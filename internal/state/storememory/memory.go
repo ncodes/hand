@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	statememory "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	"github.com/wandxy/hand/pkg/nanoid"
+	statememory "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearchQuery) (statememory.MemorySearchResult, error) {

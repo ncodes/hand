@@ -8,10 +8,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	envtypes "github.com/wandxy/hand/internal/environment/types"
-	"github.com/wandxy/hand/internal/instructions"
-	"github.com/wandxy/hand/internal/tools"
-	toolmocks "github.com/wandxy/hand/internal/tools/mocks"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/internal/tools"
+	toolmocks "github.com/wandxy/morph/internal/tools/mocks"
 )
 
 func TestSessionSearch_DefinitionIncludesUsageInstruction(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 var statPath = os.Stat

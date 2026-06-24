@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/pkg/nanoid"
+	base "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 func TestGatewayBinding_SaveAndGet(t *testing.T) {

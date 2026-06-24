@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandxy/hand/internal/datadir/files"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/datadir/files"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 type appTUIState struct {

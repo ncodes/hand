@@ -4,15 +4,15 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/wandxy/hand/internal/config"
-	handdb "github.com/wandxy/hand/internal/db"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
-	vectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
-	storagememory "github.com/wandxy/hand/internal/state/storememory"
-	storagesqlite "github.com/wandxy/hand/internal/state/storesqlite"
+	"github.com/wandxy/morph/internal/config"
+	morphdb "github.com/wandxy/morph/internal/db"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	vectormemory "github.com/wandxy/morph/internal/state/search/vectorstore/memory"
+	vectorsqlite "github.com/wandxy/morph/internal/state/search/vectorstore/sqlite"
+	storagememory "github.com/wandxy/morph/internal/state/storememory"
+	storagesqlite "github.com/wandxy/morph/internal/state/storesqlite"
 	"gorm.io/gorm"
 )
 
@@ -61,7 +61,7 @@ func OpenStoreWithRerankerClient(
 			return nil, err
 		}
 
-		db, err := handdb.Open(cfg)
+		db, err := morphdb.Open(cfg)
 		if err != nil {
 			return nil, err
 		}

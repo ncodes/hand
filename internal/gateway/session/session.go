@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	agentcore "github.com/wandxy/hand/pkg/agent"
-	"github.com/wandxy/hand/pkg/gateway/bindings"
+	storage "github.com/wandxy/morph/internal/state/core"
+	agentcore "github.com/wandxy/morph/pkg/agent"
+	"github.com/wandxy/morph/pkg/gateway/bindings"
 )
 
 type Service interface {

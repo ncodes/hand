@@ -8,10 +8,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
 )
 
 func TestTimelineHelpersValidateLimitAndConvertTrace(t *testing.T) {
@@ -59,10 +59,10 @@ func TestTimelineHelpersValidateLimitAndConvertTrace(t *testing.T) {
 func TestAgent_TimelineLoadsRecentTailAndTraceFlags(t *testing.T) {
 	store := &stateStoreStub{
 		session: storage.Session{ID: storage.DefaultSessionID, Title: "Title"},
-		messages: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "one"},
-			{Role: handmsg.RoleAssistant, Content: "two"},
-			{Role: handmsg.RoleUser, Content: "three"},
+		messages: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "one"},
+			{Role: morphmsg.RoleAssistant, Content: "two"},
+			{Role: morphmsg.RoleUser, Content: "three"},
 		},
 		traceEvents: []storage.TraceEvent{
 			{ID: 1, SessionID: storage.DefaultSessionID, Sequence: 2, Type: "two"},
@@ -98,7 +98,7 @@ func TestAgent_TimelineHandlesUnsupportedTraceStoreAndErrors(t *testing.T) {
 
 	store := &stateStoreStub{
 		session:  storage.Session{ID: storage.DefaultSessionID},
-		messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "one"}},
+		messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "one"}},
 		traceErr: storage.ErrTraceStoreUnsupported,
 	}
 	manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
@@ -144,9 +144,9 @@ func TestAgent_TimelinePropagatesResolveMessageAndTruncationErrors(t *testing.T)
 }
 
 func TestAgent_TimelineDefaultTailAndValidationBranches(t *testing.T) {
-	messages := make([]handmsg.Message, 0, defaultSessionTimelineLimit+1)
+	messages := make([]morphmsg.Message, 0, defaultSessionTimelineLimit+1)
 	for i := 0; i < defaultSessionTimelineLimit+1; i++ {
-		messages = append(messages, handmsg.Message{Role: handmsg.RoleUser, Content: "message"})
+		messages = append(messages, morphmsg.Message{Role: morphmsg.RoleUser, Content: "message"})
 	}
 	store := &stateStoreStub{
 		session:  storage.Session{ID: storage.DefaultSessionID},

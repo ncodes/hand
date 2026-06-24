@@ -8,13 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	storagemock "github.com/wandxy/hand/internal/state/mock"
-	memorystore "github.com/wandxy/hand/internal/state/storememory"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
-	"github.com/wandxy/hand/pkg/nanoid"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	storagemock "github.com/wandxy/morph/internal/state/mock"
+	memorystore "github.com/wandxy/morph/internal/state/storememory"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 var testSessionID = nanoid.MustFromSeed(storage.SessionIDPrefix, "session-messages", "Seed")
@@ -82,8 +82,8 @@ func TestGet_UsesDefaultSessionWhenSessionIDIsOmittedAndNoCurrentSessionExists(t
 	require.NoError(t, err)
 	_, err = manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
-	require.NoError(t, manager.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "default"},
+	require.NoError(t, manager.AppendMessages(context.Background(), storage.DefaultSessionID, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "default"},
 	}))
 
 	response, err := Get(context.Background(), manager, SessionMessagesRequest{
@@ -141,13 +141,13 @@ func TestGet_PreservesExactStoredContentWhenNotTruncated(t *testing.T) {
 	manager, err := statemanager.NewManager(memorystore.NewStore(), time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: testSessionID}))
-	require.NoError(t, manager.AppendMessages(context.Background(), testSessionID, []handmsg.Message{
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionID, []morphmsg.Message{
 		{
 			ID:        7,
-			Role:      handmsg.RoleAssistant,
+			Role:      morphmsg.RoleAssistant,
 			Content:   "  keep exact spacing  \n",
 			CreatedAt: time.Now().UTC(),
-			ToolCalls: []handmsg.ToolCall{
+			ToolCalls: []morphmsg.ToolCall{
 				{ID: "call-7", Name: "write_file", Input: "  {\"path\":\" spaced \"}  \n"},
 			},
 		},
@@ -187,7 +187,7 @@ func TestGet_ReturnsOffsetRangeError(t *testing.T) {
 	offsetStart := 0
 	offsetEnd := 2
 	manager, err := statemanager.NewManager(&storagemock.Store{
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			return nil, errors.New("offset range failed")
 		},
 	}, time.Minute, time.Hour)
@@ -204,7 +204,7 @@ func TestGet_ReturnsOffsetRangeError(t *testing.T) {
 
 func TestGet_UsesDirectMessageIDLookupInsteadOfFullTranscriptLoad(t *testing.T) {
 	manager, err := statemanager.NewManager(&storagemock.Store{
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			return nil, errors.New("full transcript load should not be used")
 		},
 		GetMessagesByIDsFunc: func(_ context.Context, id string, messageIDs []uint) ([]storage.MessageRecord, error) {
@@ -212,7 +212,7 @@ func TestGet_UsesDirectMessageIDLookupInsteadOfFullTranscriptLoad(t *testing.T) 
 			require.Equal(t, []uint{7}, messageIDs)
 			return []storage.MessageRecord{{
 				Offset:  3,
-				Message: handmsg.Message{ID: 7, Role: handmsg.RoleAssistant, Content: "exact"},
+				Message: morphmsg.Message{ID: 7, Role: morphmsg.RoleAssistant, Content: "exact"},
 			}}, nil
 		},
 	}, time.Minute, time.Hour)
@@ -245,7 +245,7 @@ func TestGet_ReturnsMessageIDLookupError(t *testing.T) {
 
 func TestGet_UsesDirectAnchorWindowLookupInsteadOfFullTranscriptLoad(t *testing.T) {
 	manager, err := statemanager.NewManager(&storagemock.Store{
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			return nil, errors.New("full transcript load should not be used")
 		},
 		GetMessageWindowFunc: func(_ context.Context, id string, anchorMessageID uint, before int, after int) ([]storage.MessageRecord, error) {
@@ -255,7 +255,7 @@ func TestGet_UsesDirectAnchorWindowLookupInsteadOfFullTranscriptLoad(t *testing.
 			require.Equal(t, 1, after)
 			return []storage.MessageRecord{{
 				Offset:  4,
-				Message: handmsg.Message{ID: 9, Role: handmsg.RoleUser, Content: "anchor"},
+				Message: morphmsg.Message{ID: 9, Role: morphmsg.RoleUser, Content: "anchor"},
 			}}, nil
 		},
 	}, time.Minute, time.Hour)
@@ -311,16 +311,16 @@ func newSessionMessagesTestManager(t *testing.T) *statemanager.Manager {
 	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: testSessionID}))
-	require.NoError(t, manager.AppendMessages(context.Background(), testSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "alpha", CreatedAt: time.Now().UTC()},
-		{Role: handmsg.RoleAssistant, Content: "beta", CreatedAt: time.Now().UTC().Add(time.Second)},
-		{Role: handmsg.RoleTool, Name: "process", ToolCallID: "call-1", Content: "process-running", CreatedAt: time.Now().UTC().Add(2 * time.Second)},
-		{Role: handmsg.RoleAssistant, Content: "delta", CreatedAt: time.Now().UTC().Add(3 * time.Second)},
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "alpha", CreatedAt: time.Now().UTC()},
+		{Role: morphmsg.RoleAssistant, Content: "beta", CreatedAt: time.Now().UTC().Add(time.Second)},
+		{Role: morphmsg.RoleTool, Name: "process", ToolCallID: "call-1", Content: "process-running", CreatedAt: time.Now().UTC().Add(2 * time.Second)},
+		{Role: morphmsg.RoleAssistant, Content: "delta", CreatedAt: time.Now().UTC().Add(3 * time.Second)},
 		{
-			Role:      handmsg.RoleAssistant,
+			Role:      morphmsg.RoleAssistant,
 			Content:   "",
 			CreatedAt: time.Now().UTC().Add(4 * time.Second),
-			ToolCalls: []handmsg.ToolCall{
+			ToolCalls: []morphmsg.ToolCall{
 				{ID: "call-2", Name: "search_files", Input: `{"pattern":"needle"}`},
 				{ID: "call-3", Name: "read_file", Input: `{"path":"README.md"}`},
 			},

@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/context/compaction"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/mocks"
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/agent/context/compaction"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/mocks"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 func TestPreflightCompactionTraceRecordsWarningAndTrigger(t *testing.T) {

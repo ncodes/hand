@@ -12,10 +12,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/wandxy/hand/internal/constants"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/constants"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 const (
@@ -227,7 +227,7 @@ func (s Service) extractWindow(
 		}
 		recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateGenerated, getTracePayload(windowReq, traceFields))
 		recordTrace(req.Trace, trace.EvtMemoryExtractionConfidenceScored, getTracePayload(windowReq, traceFields))
-		recordTrace(req.Trace, trace.EvtMemoryExtractionAdmissionHandoff, getTracePayload(windowReq, traceFields))
+		recordTrace(req.Trace, trace.EvtMemoryExtractionAdmissionMorphoff, getTracePayload(windowReq, traceFields))
 		logExtraction("generated episodic candidate proposal", windowReq, traceFields)
 	}
 
@@ -438,7 +438,7 @@ func (s Service) candidatesFromMessages(
 	ctx context.Context,
 	req normalizedRequest,
 	window sourceWindow,
-	messages []handmsg.Message,
+	messages []morphmsg.Message,
 ) ([]storage.MemoryItem, []candidateRejection, error) {
 	evidence := getEvidenceFromMessages(window, messages)
 	if len(evidence.Lines) == 0 {
@@ -586,7 +586,7 @@ func getTraceEvidenceRefs(events []taskTraceEvidence) []string {
 	return refs
 }
 
-func getEvidenceFromMessages(window sourceWindow, messages []handmsg.Message) messageEvidence {
+func getEvidenceFromMessages(window sourceWindow, messages []morphmsg.Message) messageEvidence {
 	messageIDs := make([]uint, 0, len(messages))
 	offsets := make([]int, 0, len(messages))
 	lines := make([]string, 0, len(messages))
@@ -717,7 +717,7 @@ func (r normalizedRequest) getWindowCharLimit() int {
 	return limit
 }
 
-func messageToLine(message handmsg.Message) string {
+func messageToLine(message morphmsg.Message) string {
 	parts := make([]string, 0, 2+len(message.ToolCalls))
 	if content := strings.TrimSpace(sanitizeUTF8(message.Content)); content != "" {
 		parts = append(parts, content)
@@ -738,7 +738,7 @@ func messageToLine(message handmsg.Message) string {
 	if role == "" {
 		role = "message"
 	}
-	if toolName := strings.TrimSpace(message.Name); message.Role == handmsg.RoleTool && toolName != "" {
+	if toolName := strings.TrimSpace(message.Name); message.Role == morphmsg.RoleTool && toolName != "" {
 		role += ":" + toolName
 	}
 	return role + ": " + strings.Join(parts, " ")

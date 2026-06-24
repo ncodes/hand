@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/morph/internal/tools"
 )
 
 func TestDefinition_DeclaresObjectInputSchema(t *testing.T) {
@@ -22,7 +22,7 @@ func TestDefinition_DeclaresObjectInputSchema(t *testing.T) {
 	}, definition.InputSchema)
 }
 
-func TestDefinition_HandlerReturnsRFC3339Time(t *testing.T) {
+func TestDefinition_HandReturnsRFC3339Time(t *testing.T) {
 	originalNow := now
 	t.Cleanup(func() {
 		now = originalNow

@@ -12,18 +12,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/profile"
-	storage "github.com/wandxy/hand/internal/state/core"
-	agent "github.com/wandxy/hand/pkg/agent"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/profile"
+	storage "github.com/wandxy/morph/internal/state/core"
+	agent "github.com/wandxy/morph/pkg/agent"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestNewHarness_InMemoryConfigSmoke(t *testing.T) {
 	spec := testHarnessSpec(t)
-	client := NewTextClient("hello from hand")
+	client := NewTextClient("hello from morph")
 
 	harness, err := NewHarness(context.Background(), HarnessOptions{
 		Spec:        spec,
@@ -37,28 +37,28 @@ func TestNewHarness_InMemoryConfigSmoke(t *testing.T) {
 
 	result, err := harness.Send(context.Background(), RootChatRequest{Message: "hello"})
 	require.NoError(t, err)
-	assert.Equal(t, "hello from hand", result.Reply)
+	assert.Equal(t, "hello from morph", result.Reply)
 	assert.NotEmpty(t, result.SessionID)
 	assert.Empty(t, result.Events)
 
 	messages, err := harness.Messages(context.Background(), result.SessionID)
 	require.NoError(t, err)
 	require.Len(t, messages, 2)
-	assert.Equal(t, handmsg.RoleUser, messages[0].Role)
+	assert.Equal(t, morphmsg.RoleUser, messages[0].Role)
 	assert.Equal(t, "hello", messages[0].Content)
-	assert.Equal(t, handmsg.RoleAssistant, messages[1].Role)
-	assert.Equal(t, "hello from hand", messages[1].Content)
+	assert.Equal(t, morphmsg.RoleAssistant, messages[1].Role)
+	assert.Equal(t, "hello from morph", messages[1].Content)
 
 	cfg := harness.Config()
 	require.NotNil(t, cfg)
-	assert.Equal(t, "Test Hand", cfg.Name)
+	assert.Equal(t, "Test Morph", cfg.Name)
 }
 
 func TestNewHarness_RealConfigLoadAndEnvOverride(t *testing.T) {
 	spec := testHarnessSpec(t)
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(""+
-		"name: File Hand\n"+
+		"name: File Morph\n"+
 		"models:\n"+
 		"  main:\n"+
 		"    name: test-model\n"+
@@ -71,9 +71,9 @@ func TestNewHarness_RealConfigLoadAndEnvOverride(t *testing.T) {
 	spec.Config = ConfigInput{
 		ConfigFilePath: configPath,
 		Env: map[string]string{
-			"HAND_NAME":          "Env Hand",
+			"MORPH_NAME":          "Env Morph",
 			"OPENROUTER_API_KEY": "env-key",
-			"HAND_MODEL_STREAM":  "false",
+			"MORPH_MODEL_STREAM":  "false",
 		},
 	}
 
@@ -88,7 +88,7 @@ func TestNewHarness_RealConfigLoadAndEnvOverride(t *testing.T) {
 
 	cfg := harness.Config()
 	require.NotNil(t, cfg)
-	assert.Equal(t, "Env Hand", cfg.Name)
+	assert.Equal(t, "Env Morph", cfg.Name)
 	require.NotNil(t, cfg.Models.Main.Stream)
 	assert.False(t, *cfg.Models.Main.Stream)
 
@@ -125,13 +125,13 @@ func TestNewHarness_ToolCallModelDoubleSmoke(t *testing.T) {
 	messages, err := harness.Messages(context.Background(), result.SessionID)
 	require.NoError(t, err)
 	require.Len(t, messages, 4)
-	assert.Equal(t, handmsg.RoleUser, messages[0].Role)
-	assert.Equal(t, handmsg.RoleAssistant, messages[1].Role)
+	assert.Equal(t, morphmsg.RoleUser, messages[0].Role)
+	assert.Equal(t, morphmsg.RoleAssistant, messages[1].Role)
 	assert.Len(t, messages[1].ToolCalls, 1)
 	assert.Equal(t, "call-1", messages[1].ToolCalls[0].ID)
-	assert.Equal(t, handmsg.RoleTool, messages[2].Role)
+	assert.Equal(t, morphmsg.RoleTool, messages[2].Role)
 	assert.Equal(t, "call-1", messages[2].ToolCallID)
-	assert.Equal(t, handmsg.RoleAssistant, messages[3].Role)
+	assert.Equal(t, morphmsg.RoleAssistant, messages[3].Role)
 	assert.Equal(t, "time handled", messages[3].Content)
 }
 
@@ -325,7 +325,7 @@ func TestHarnessSendAndMessagesErrors(t *testing.T) {
 	t.Run("messages current session lookup", func(t *testing.T) {
 		h := &Harness{
 			agent:        harnessAgentStub{current: "ses_current"},
-			inspectStore: &storageStoreStub{messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}},
+			inspectStore: &storageStoreStub{messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}}},
 		}
 		messages, err := h.Messages(context.Background(), "")
 		require.NoError(t, err)
@@ -364,9 +364,9 @@ func TestHarnessSendAndMessagesErrors(t *testing.T) {
 	})
 
 	t.Run("turn messages delegates to agent", func(t *testing.T) {
-		expected := []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "hello"},
-			{Role: handmsg.RoleAssistant, Content: "ok"},
+		expected := []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "hello"},
+			{Role: morphmsg.RoleAssistant, Content: "ok"},
 		}
 		h := &Harness{agent: &harnessAgentStub{turnMessages: expected}}
 
@@ -467,16 +467,16 @@ func TestOpenInspectStoreAndHelpers(t *testing.T) {
 	})
 
 	t.Run("capture env restore", func(t *testing.T) {
-		require.NoError(t, os.Setenv("HAND_E2E_CAPTURE_ENV", "old"))
+		require.NoError(t, os.Setenv("MORPH_E2E_CAPTURE_ENV", "old"))
 		restore := captureEnv(map[string]string{
-			"HAND_E2E_CAPTURE_ENV": "new",
-			"HAND_E2E_CAPTURE_NEW": "x",
+			"MORPH_E2E_CAPTURE_ENV": "new",
+			"MORPH_E2E_CAPTURE_NEW": "x",
 		})
-		require.NoError(t, os.Setenv("HAND_E2E_CAPTURE_ENV", "new"))
-		require.NoError(t, os.Setenv("HAND_E2E_CAPTURE_NEW", "x"))
+		require.NoError(t, os.Setenv("MORPH_E2E_CAPTURE_ENV", "new"))
+		require.NoError(t, os.Setenv("MORPH_E2E_CAPTURE_NEW", "x"))
 		restore()
-		assert.Equal(t, "old", os.Getenv("HAND_E2E_CAPTURE_ENV"))
-		assert.Empty(t, os.Getenv("HAND_E2E_CAPTURE_NEW"))
+		assert.Equal(t, "old", os.Getenv("MORPH_E2E_CAPTURE_ENV"))
+		assert.Empty(t, os.Getenv("MORPH_E2E_CAPTURE_NEW"))
 	})
 
 	t.Run("apply env with explicit profile", func(t *testing.T) {
@@ -507,7 +507,7 @@ func TestOpenInspectStoreAndHelpers(t *testing.T) {
 
 func TestStorageStoreStub_NoOpMethods(t *testing.T) {
 	store := &storageStoreStub{
-		messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}
 
 	require.NoError(t, store.Save(context.Background(), storage.Session{}))
@@ -540,7 +540,7 @@ func TestStorageStoreStub_NoOpMethods(t *testing.T) {
 	message, found, err := store.GetMessage(context.Background(), "ses_test", 0)
 	require.NoError(t, err)
 	assert.False(t, found)
-	assert.Equal(t, handmsg.Message{}, message)
+	assert.Equal(t, morphmsg.Message{}, message)
 
 	records, err := store.GetMessagesByIDs(context.Background(), "ses_test", []uint{1})
 	require.NoError(t, err)
@@ -582,7 +582,7 @@ func TestStorageStoreStub_NoOpMethods(t *testing.T) {
 
 func testHarnessSpec(t *testing.T) HarnessSpec {
 	t.Helper()
-	return DefaultSpec(filepath.Join(t.TempDir(), "hand-home"))
+	return DefaultSpec(filepath.Join(t.TempDir(), "morph-home"))
 }
 
 func testHarnessConfig() *config.Config {

@@ -13,8 +13,8 @@ import (
 	"github.com/openai/openai-go/v3/packages/ssestream"
 	"github.com/openai/openai-go/v3/responses"
 
-	models "github.com/wandxy/hand/internal/model"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	models "github.com/wandxy/morph/internal/model"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 // OpenAIClient sends normalized model requests through OpenAI-compatible APIs.
@@ -223,7 +223,7 @@ func truncateProviderErrorDetail(detail string) string {
 	return detail[:maxProviderErrorDetailChars] + "...[truncated]"
 }
 
-// getProviderModelID converts Hand's neutral model ID to the provider's routed ID.
+// getProviderModelID converts Morph's neutral model ID to the provider's routed ID.
 func (c *OpenAIClient) getProviderModelID(model string) string {
 	model = strings.TrimSpace(model)
 	if normalizeProvider(c.provider) == "openai" {

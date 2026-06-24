@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/guardrails"
 )
 
 type State string

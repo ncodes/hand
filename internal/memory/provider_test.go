@@ -12,13 +12,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/profile"
-	statecore "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	storagememory "github.com/wandxy/hand/internal/state/storememory"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/profile"
+	statecore "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	storagememory "github.com/wandxy/morph/internal/state/storememory"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -206,8 +206,8 @@ func TestMemoryProvider_ExtractEpisodes(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, manager.Save(ctx, statecore.Session{ID: statecore.DefaultSessionID}))
-	require.NoError(t, manager.AppendMessages(ctx, statecore.DefaultSessionID, []handmsg.Message{{
-		Role:    handmsg.RoleUser,
+	require.NoError(t, manager.AppendMessages(ctx, statecore.DefaultSessionID, []morphmsg.Message{{
+		Role:    morphmsg.RoleUser,
 		Content: "Remember provider-owned extraction.",
 	}}))
 
@@ -236,8 +236,8 @@ func TestMemoryProvider_ExtractEpisodesPassesMaxOutputTokensOption(t *testing.T)
 	require.NoError(t, err)
 
 	require.NoError(t, manager.Save(ctx, statecore.Session{ID: statecore.DefaultSessionID}))
-	require.NoError(t, manager.AppendMessages(ctx, statecore.DefaultSessionID, []handmsg.Message{{
-		Role:    handmsg.RoleUser,
+	require.NoError(t, manager.AppendMessages(ctx, statecore.DefaultSessionID, []morphmsg.Message{{
+		Role:    morphmsg.RoleUser,
 		Content: "Remember provider-owned extraction.",
 	}}))
 
@@ -331,8 +331,8 @@ func TestMemoryProvider_StartBackgroundRunsEpisodicLoop(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(ctx, statecore.Session{ID: statecore.DefaultSessionID}))
-	require.NoError(t, manager.AppendMessages(ctx, statecore.DefaultSessionID, []handmsg.Message{{
-		Role:    handmsg.RoleUser,
+	require.NoError(t, manager.AppendMessages(ctx, statecore.DefaultSessionID, []morphmsg.Message{{
+		Role:    morphmsg.RoleUser,
 		Content: "background loop",
 	}}))
 

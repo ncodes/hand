@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandxy/hand/internal/datadir/files"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/datadir/files"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 const StateFilename = files.StateFilename
@@ -16,12 +16,12 @@ var (
 	userHomeDir = os.UserHomeDir
 )
 
-// ProjectHomeDir returns the per-project Hand data directory.
+// ProjectHomeDir returns the per-project Morph data directory.
 func ProjectHomeDir() string {
 	return HomeDir()
 }
 
-// HomeDir returns the configured Hand home directory.
+// HomeDir returns the configured Morph home directory.
 func HomeDir() string {
 	if active := profile.Active(); strings.TrimSpace(active.HomeDir) != "" {
 		return active.HomeDir
@@ -29,7 +29,7 @@ func HomeDir() string {
 
 	userHome := loadUserHomeDir()
 	if userHome == "" {
-		return filepath.Join(".hand", "profiles", profile.DefaultName)
+		return filepath.Join(".morph", "profiles", profile.DefaultName)
 	}
 
 	resolved, err := profile.Resolve(profile.ResolveOptions{
@@ -37,7 +37,7 @@ func HomeDir() string {
 		UserHomeDir: userHome,
 	})
 	if err != nil {
-		return filepath.Join(".hand", "profiles", profile.DefaultName)
+		return filepath.Join(".morph", "profiles", profile.DefaultName)
 	}
 
 	profile.SetActive(resolved)
@@ -53,7 +53,7 @@ func loadUserHomeDir() string {
 	return home
 }
 
-// DataDir returns the directory used for persistent Hand data.
+// DataDir returns the directory used for persistent Morph data.
 func DataDir() string {
 	return filepath.Join(HomeDir(), "data")
 }

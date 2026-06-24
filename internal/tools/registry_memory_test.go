@@ -25,7 +25,7 @@ func TestInMemoryRegistry_RegisterAndGet(t *testing.T) {
 	require.Nil(t, loaded.Groups)
 }
 
-func TestInMemoryRegistry_InvokeCallsHandler(t *testing.T) {
+func TestInMemoryRegistry_InvokeCallsHand(t *testing.T) {
 	registry := NewInMemoryRegistry()
 	require.NoError(t, registry.Register(Definition{
 		Name: "echo",

@@ -8,11 +8,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/nanoid"
+	base "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	vectormemory "github.com/wandxy/morph/internal/state/search/vectorstore/memory"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 const DefaultSessionID = base.DefaultSessionID
@@ -47,8 +47,8 @@ func TestMemoryStore_SaveAndGet(t *testing.T) {
 
 	require.Same(t, store, store.Session())
 	require.NoError(t, store.Save(context.Background(), session))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Now().UTC()},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: time.Now().UTC()},
 	}))
 
 	loaded, ok, err := store.Get(context.Background(), testSessionOne, base.SessionGetOptions{})
@@ -59,7 +59,7 @@ func TestMemoryStore_SaveAndGet(t *testing.T) {
 	messages, err := store.GetMessages(context.Background(), testSessionOne, MessageQueryOptions{})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
-	require.Equal(t, handmsg.RoleUser, messages[0].Role)
+	require.Equal(t, morphmsg.RoleUser, messages[0].Role)
 	message, ok, err := store.GetMessage(context.Background(), testSessionOne, 0)
 	require.NoError(t, err)
 	require.True(t, ok)
@@ -166,22 +166,22 @@ func TestMemoryStore_GetAndCountMessagesSupportRoleAndNameFilters(t *testing.T) 
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
-		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-1", ToolCallID: "call-1", CreatedAt: now},
-		{Role: handmsg.RoleTool, Name: "other_tool", Content: "other", ToolCallID: "call-2", CreatedAt: now},
-		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-2", ToolCallID: "call-3", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now},
+		{Role: morphmsg.RoleTool, Name: "plan_tool", Content: "plan-1", ToolCallID: "call-1", CreatedAt: now},
+		{Role: morphmsg.RoleTool, Name: "other_tool", Content: "other", ToolCallID: "call-2", CreatedAt: now},
+		{Role: morphmsg.RoleTool, Name: "plan_tool", Content: "plan-2", ToolCallID: "call-3", CreatedAt: now},
 	}))
 
 	count, err := store.CountMessages(context.Background(), testSessionOne, MessageQueryOptions{
-		Role: handmsg.RoleTool,
+		Role: morphmsg.RoleTool,
 		Name: "plan_tool",
 	})
 	require.NoError(t, err)
 	require.Equal(t, 2, count)
 
 	messages, err := store.GetMessages(context.Background(), testSessionOne, MessageQueryOptions{
-		Role:   handmsg.RoleTool,
+		Role:   morphmsg.RoleTool,
 		Name:   "plan_tool",
 		Offset: 1,
 		Limit:  1,
@@ -197,10 +197,10 @@ func TestMemoryStore_GetMessagesByIDsReturnsTranscriptOrderedRecords(t *testing.
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "m1", CreatedAt: now},
-		{Role: handmsg.RoleAssistant, Content: "m2", CreatedAt: now.Add(time.Second)},
-		{Role: handmsg.RoleTool, Name: "process", ToolCallID: "call-1", Content: "m3", CreatedAt: now.Add(2 * time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "m1", CreatedAt: now},
+		{Role: morphmsg.RoleAssistant, Content: "m2", CreatedAt: now.Add(time.Second)},
+		{Role: morphmsg.RoleTool, Name: "process", ToolCallID: "call-1", Content: "m3", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
 	records, err := store.GetMessagesByIDs(context.Background(), testSessionOne, []uint{3, 1})
@@ -215,11 +215,11 @@ func TestMemoryStore_GetMessageWindowReturnsBoundedAnchorContext(t *testing.T) {
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "m1", CreatedAt: now},
-		{Role: handmsg.RoleAssistant, Content: "m2", CreatedAt: now.Add(time.Second)},
-		{Role: handmsg.RoleTool, Name: "process", ToolCallID: "call-1", Content: "m3", CreatedAt: now.Add(2 * time.Second)},
-		{Role: handmsg.RoleAssistant, Content: "m4", CreatedAt: now.Add(3 * time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "m1", CreatedAt: now},
+		{Role: morphmsg.RoleAssistant, Content: "m2", CreatedAt: now.Add(time.Second)},
+		{Role: morphmsg.RoleTool, Name: "process", ToolCallID: "call-1", Content: "m3", CreatedAt: now.Add(2 * time.Second)},
+		{Role: morphmsg.RoleAssistant, Content: "m4", CreatedAt: now.Add(3 * time.Second)},
 	}))
 
 	records, err := store.GetMessageWindow(context.Background(), testSessionOne, 3, 1, 1)
@@ -234,13 +234,13 @@ func TestMemoryStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello plain text", CreatedAt: now},
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello plain text", CreatedAt: now},
+		{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{
 			{ID: "call-1", Name: "process", Input: `{"action":"start"}`},
 			{ID: "call-2", Name: "search_files", Input: `{"pattern":"needle"}`},
 		}, CreatedAt: now.Add(time.Second)},
-		{Role: handmsg.RoleTool, Name: "process", Content: `{"status":"running"}`, ToolCallID: "call-3", CreatedAt: now.Add(2 * time.Second)},
+		{Role: morphmsg.RoleTool, Name: "process", Content: `{"status":"running"}`, ToolCallID: "call-3", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
@@ -251,8 +251,8 @@ func TestMemoryStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T
 	require.Equal(t, testSessionOne, results[0].SessionID)
 	require.Equal(t, 1, results[0].MatchCount)
 	require.Len(t, results[0].Messages, 1)
-	require.Equal(t, handmsg.RoleAssistant, results[0].Messages[0].Message.Role)
-	require.Equal(t, handmsg.ToolCallSearchText(handmsg.ToolCall{
+	require.Equal(t, morphmsg.RoleAssistant, results[0].Messages[0].Message.Role)
+	require.Equal(t, morphmsg.ToolCallSearchText(morphmsg.ToolCall{
 		ID:    "call-2",
 		Name:  "search_files",
 		Input: `{"pattern":"needle"}`,
@@ -269,7 +269,7 @@ func TestMemoryStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T
 	results, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
 		Query:    "running",
 		ToolName: "process",
-		Role:     handmsg.RoleTool,
+		Role:     morphmsg.RoleTool,
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -283,10 +283,10 @@ func TestMemoryStore_SearchMessagesPrefersAssistantToolHitMetadataOverContent(t 
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{{
-		Role:    handmsg.RoleAssistant,
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []morphmsg.Message{{
+		Role:    morphmsg.RoleAssistant,
 		Content: "needle summary",
-		ToolCalls: []handmsg.ToolCall{
+		ToolCalls: []morphmsg.ToolCall{
 			{ID: "call-1", Name: "search_files", Input: `{"pattern":"needle"}`},
 		},
 		CreatedAt: now,
@@ -299,7 +299,7 @@ func TestMemoryStore_SearchMessagesPrefersAssistantToolHitMetadataOverContent(t 
 	require.Len(t, results, 1)
 	require.Len(t, results[0].Messages, 1)
 	require.Equal(t, "search_files", results[0].Messages[0].MatchedToolName)
-	require.Equal(t, handmsg.ToolCallSearchText(handmsg.ToolCall{
+	require.Equal(t, morphmsg.ToolCallSearchText(morphmsg.ToolCall{
 		ID:    "call-1",
 		Name:  "search_files",
 		Input: `{"pattern":"needle"}`,
@@ -312,11 +312,11 @@ func TestMemoryStore_SearchMessagesSupportsGroupedCrossSessionScope(t *testing.T
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "origin needle", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "origin needle", CreatedAt: now},
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "other needle", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "other needle", CreatedAt: now.Add(time.Second)},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
@@ -353,11 +353,11 @@ func TestMemoryStore_SearchMessagesSupportsMaxSessionsAndTieBreaks(t *testing.T)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
 
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "shared needle a", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "shared needle a", CreatedAt: now},
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "shared needle b", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "shared needle b", CreatedAt: now},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
@@ -376,11 +376,11 @@ func TestMemoryStore_SearchMessagesCrossSessionOrdersBySessionIDWhenMessageKeysT
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "shared needle a", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "shared needle a", CreatedAt: now},
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "shared needle b", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "shared needle b", CreatedAt: now},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{Query: "needle"})
@@ -423,10 +423,10 @@ func TestMemoryStore_SearchMessagesSupportsMaxMessagesPerSessionAndRoleFiltering
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello zero", CreatedAt: now},
-		{Role: handmsg.RoleAssistant, Content: "hello one", CreatedAt: now.Add(time.Second)},
-		{Role: handmsg.RoleUser, Content: "hello two", CreatedAt: now.Add(2 * time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello zero", CreatedAt: now},
+		{Role: morphmsg.RoleAssistant, Content: "hello one", CreatedAt: now.Add(time.Second)},
+		{Role: morphmsg.RoleUser, Content: "hello two", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
@@ -442,12 +442,12 @@ func TestMemoryStore_SearchMessagesSupportsMaxMessagesPerSessionAndRoleFiltering
 
 	results, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
 		Query: "hello",
-		Role:  handmsg.RoleAssistant,
+		Role:  morphmsg.RoleAssistant,
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Len(t, results[0].Messages, 1)
-	require.Equal(t, handmsg.RoleAssistant, results[0].Messages[0].Message.Role)
+	require.Equal(t, morphmsg.RoleAssistant, results[0].Messages[0].Message.Role)
 
 	results, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
 		Query:    "hello",
@@ -462,10 +462,10 @@ func TestMemoryStore_SearchMessagesSupportsGroupedResultsAndCloning(t *testing.T
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "needle zero", CreatedAt: now},
-		{Role: handmsg.RoleAssistant, Content: "needle one", CreatedAt: now.Add(time.Second)},
-		{Role: handmsg.RoleUser, Content: "needle two", CreatedAt: now.Add(2 * time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "needle zero", CreatedAt: now},
+		{Role: morphmsg.RoleAssistant, Content: "needle one", CreatedAt: now.Add(time.Second)},
+		{Role: morphmsg.RoleUser, Content: "needle two", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
@@ -498,11 +498,11 @@ func TestMemoryStore_SearchMessagesSupportsCrossSessionScope(t *testing.T) {
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "needle alpha", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "needle alpha", CreatedAt: now},
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "needle beta", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "needle beta", CreatedAt: now.Add(time.Second)},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
@@ -528,11 +528,11 @@ func TestMemoryStore_SearchMessagesOrdersBySessionIDWhenLastMatchedAtTies(t *tes
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "needle alpha", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "needle alpha", CreatedAt: now},
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "needle beta", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "needle beta", CreatedAt: now},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{Query: "needle"})
@@ -582,9 +582,9 @@ func TestMemoryStore_SearchMessagesOrdersSessionMessagesByTimestampAndID(t *test
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "needle one", CreatedAt: now},
-		{ID: 2, Role: handmsg.RoleUser, Content: "needle two", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "needle one", CreatedAt: now},
+		{ID: 2, Role: morphmsg.RoleUser, Content: "needle two", CreatedAt: now},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
@@ -604,8 +604,8 @@ func TestMemoryStore_VectorSearchReturnsSemanticHits(t *testing.T) {
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "The retention playbook focuses on renewal risk scoring.", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "The retention playbook focuses on renewal risk scoring.", CreatedAt: now},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
@@ -623,8 +623,8 @@ func TestMemoryStore_VectorSearchMergesLexicalAndVectorCandidates(t *testing.T) 
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "needle plus retention context", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "needle plus retention context", CreatedAt: now},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
@@ -643,25 +643,25 @@ func TestMemoryStore_VectorSearchAppliesScopeRoleAndToolFilters(t *testing.T) {
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "The retention playbook is user-visible.", CreatedAt: now},
-		{Role: handmsg.RoleTool, Name: "session_search", Content: "The retention playbook came from tool output.", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "The retention playbook is user-visible.", CreatedAt: now},
+		{Role: morphmsg.RoleTool, Name: "session_search", Content: "The retention playbook came from tool output.", CreatedAt: now.Add(time.Second)},
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "The retention playbook is in another session.", CreatedAt: now.Add(2 * time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "The retention playbook is in another session.", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
 		IgnoreSessionID: testSessionB,
 		Query:           "customer cancellation prevention strategy",
-		Role:            handmsg.RoleTool,
+		Role:            morphmsg.RoleTool,
 		ToolName:        "session_search",
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Equal(t, testSessionA, results[0].SessionID)
 	require.Len(t, results[0].Messages, 1)
-	require.Equal(t, handmsg.RoleTool, results[0].Messages[0].Message.Role)
+	require.Equal(t, morphmsg.RoleTool, results[0].Messages[0].Message.Role)
 	require.Equal(t, "session_search", results[0].Messages[0].MatchedToolName)
 }
 
@@ -671,8 +671,8 @@ func TestMemoryStore_VectorLifecycleRemovesRows(t *testing.T) {
 		now := time.Now().UTC()
 
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "The retention playbook should disappear.", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "The retention playbook should disappear.", CreatedAt: now},
 		}))
 		require.NoError(t, store.Delete(context.Background(), testSessionA))
 
@@ -688,8 +688,8 @@ func TestMemoryStore_VectorLifecycleRemovesRows(t *testing.T) {
 		now := time.Now().UTC()
 
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "The retention playbook should be cleared.", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "The retention playbook should be cleared.", CreatedAt: now},
 		}))
 		require.NoError(t, store.ClearMessages(context.Background(), testSessionA))
 
@@ -705,8 +705,8 @@ func TestMemoryStore_VectorLifecycleRemovesRows(t *testing.T) {
 		now := time.Now().UTC()
 
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "The retention playbook should be archived.", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "The retention playbook should be archived.", CreatedAt: now},
 		}))
 		requireArchiveSession(t, store, testSessionA, now, now.Add(time.Hour))
 
@@ -723,8 +723,8 @@ func TestMemoryStore_VectorLifecycleRemovesRows(t *testing.T) {
 		now := time.Now().UTC()
 
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "The retention playbook should expire.", CreatedAt: now},
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "The retention playbook should expire.", CreatedAt: now},
 		}))
 		requireArchiveSession(t, store, testSessionA, now.Add(-2*time.Hour), now.Add(-time.Hour))
 		require.NoError(t, store.DeleteExpiredArchives(context.Background(), now))
@@ -750,9 +750,9 @@ func TestMemoryStore_VectorSearchUsesConfiguredReranker(t *testing.T) {
 	}))
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "The retention playbook is related.", CreatedAt: now},
-		{Role: handmsg.RoleUser, Content: "Billing invoice notes are unrelated.", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "The retention playbook is related.", CreatedAt: now},
+		{Role: morphmsg.RoleUser, Content: "Billing invoice notes are unrelated.", CreatedAt: now.Add(time.Second)},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
@@ -765,22 +765,22 @@ func TestMemoryStore_VectorSearchUsesConfiguredReranker(t *testing.T) {
 }
 
 func TestMatchedMessageHit_EdgeCases(t *testing.T) {
-	_, ok := getMatchedMessageHit(testSessionOne, handmsg.Message{
-		Role:    handmsg.RoleAssistant,
+	_, ok := getMatchedMessageHit(testSessionOne, morphmsg.Message{
+		Role:    morphmsg.RoleAssistant,
 		Content: "",
 	}, "needle", base.SearchMessageOptions{})
 	require.False(t, ok)
 
-	_, ok = getMatchedMessageHit(testSessionOne, handmsg.Message{
-		Role: handmsg.RoleAssistant,
-		ToolCalls: []handmsg.ToolCall{
+	_, ok = getMatchedMessageHit(testSessionOne, morphmsg.Message{
+		Role: morphmsg.RoleAssistant,
+		ToolCalls: []morphmsg.ToolCall{
 			{ID: "call-1", Name: "search_files", Input: `{"pattern":"needle"}`},
 		},
 	}, "needle", base.SearchMessageOptions{ToolName: "process"})
 	require.False(t, ok)
 
-	_, ok = getMatchedMessageHit(testSessionOne, handmsg.Message{
-		Role:    handmsg.RoleTool,
+	_, ok = getMatchedMessageHit(testSessionOne, morphmsg.Message{
+		Role:    morphmsg.RoleTool,
 		Name:    "process",
 		Content: `{"status":"running"}`,
 	}, "running", base.SearchMessageOptions{ToolName: "search_files"})
@@ -869,13 +869,13 @@ func TestMemoryStore_GetMessagesSupportsDescendingOrder(t *testing.T) {
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
-		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-1", ToolCallID: "call-1", CreatedAt: now},
-		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-2", ToolCallID: "call-2", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []morphmsg.Message{
+		{Role: morphmsg.RoleTool, Name: "plan_tool", Content: "plan-1", ToolCallID: "call-1", CreatedAt: now},
+		{Role: morphmsg.RoleTool, Name: "plan_tool", Content: "plan-2", ToolCallID: "call-2", CreatedAt: now},
 	}))
 
 	messages, err := store.GetMessages(context.Background(), testSessionOne, MessageQueryOptions{
-		Role:  handmsg.RoleTool,
+		Role:  morphmsg.RoleTool,
 		Name:  "plan_tool",
 		Order: "desc",
 		Limit: 1,
@@ -933,8 +933,8 @@ func TestMemoryStore_GetAndListFilterByArchiveState(t *testing.T) {
 	live := false
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "archived", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "archived", CreatedAt: now},
 	}))
 	requireArchiveSession(t, store, testSessionA, now, now.Add(time.Hour))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now.Add(time.Minute)}))
@@ -984,8 +984,8 @@ func TestMemoryStore_Delete(t *testing.T) {
 	require.EqualError(t, store.Delete(context.Background(), testMissingSession), "session not found")
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now},
 	}))
 	require.NoError(t, store.SetCurrent(context.Background(), testSessionA))
 	require.NoError(t, store.Delete(context.Background(), testSessionA))
@@ -1164,7 +1164,7 @@ func TestMemoryStore_NilReceiverErrors(t *testing.T) {
 	require.EqualError(t, store.Save(context.Background(), Session{ID: "session-1"}), "store is required")
 	require.EqualError(t, store.UpdateCheckpoints(context.Background(), "session-1", CheckpointPatch{}), "store is required")
 	require.EqualError(t, store.Delete(context.Background(), "session-1"), "store is required")
-	require.EqualError(t, store.AppendMessages(context.Background(), "session-1", []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}), "store is required")
+	require.EqualError(t, store.AppendMessages(context.Background(), "session-1", []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}}), "store is required")
 
 	loaded, ok, err := store.Get(context.Background(), "session-1", base.SessionGetOptions{})
 	require.EqualError(t, err, "store is required")
@@ -1188,7 +1188,7 @@ func TestMemoryStore_NilReceiverErrors(t *testing.T) {
 	message, ok, err := store.GetMessage(context.Background(), DefaultSessionID, 0)
 	require.EqualError(t, err, "store is required")
 	require.False(t, ok)
-	require.Equal(t, handmsg.Message{}, message)
+	require.Equal(t, morphmsg.Message{}, message)
 	count, err := store.CountMessages(context.Background(), DefaultSessionID, MessageQueryOptions{})
 	require.EqualError(t, err, "store is required")
 	require.Zero(t, count)
@@ -1209,13 +1209,13 @@ func TestMemoryStore_ArchiveLifecycleAndFiltering(t *testing.T) {
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID}))
-	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "old", CreatedAt: now.Add(-2 * time.Hour)},
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "old", CreatedAt: now.Add(-2 * time.Hour)},
 	}))
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleAssistant, Content: "new", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleAssistant, Content: "new", CreatedAt: now},
 	}))
 	require.NoError(t, store.SetCurrent(context.Background(), testSessionA))
 
@@ -1241,7 +1241,7 @@ func TestMemoryStore_ArchiveLifecycleAndFiltering(t *testing.T) {
 	message, ok, err = store.GetMessage(context.Background(), testSessionA, 1)
 	require.NoError(t, err)
 	require.False(t, ok)
-	require.Equal(t, handmsg.Message{}, message)
+	require.Equal(t, morphmsg.Message{}, message)
 
 	defaultSession, ok, err := store.Get(context.Background(), DefaultSessionID, base.SessionGetOptions{})
 	require.NoError(t, err)
@@ -1290,8 +1290,8 @@ func TestMemoryStore_UnarchiveRestoresSessionVisibility(t *testing.T) {
 		TitleSource:                base.SessionTitleSourceManual,
 		UpdatedAt:                  now,
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now},
 	}))
 	require.NoError(t, store.SaveSummary(context.Background(), summary))
 	requireArchiveSession(t, store, testSessionA, now, now.Add(time.Hour))
@@ -1353,8 +1353,8 @@ func TestMemoryStore_DeleteExpiredArchivesDeletesExpiredArchivedSessions(t *test
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "preserved", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "preserved", CreatedAt: now},
 	}))
 	requireArchiveSession(t, store, testSessionA, now.Add(-2*time.Hour), now.Add(-time.Hour))
 	store.currentSession = testSessionA
@@ -1387,11 +1387,11 @@ func TestMemoryStore_DeleteExpiredArchivesDeletesExpiredArchivedSessions(t *test
 
 func TestMemoryStore_SetCurrentAndCloneMessages(t *testing.T) {
 	store := NewStore()
-	message := handmsg.Message{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)}
+	message := morphmsg.Message{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)}
 	session := Session{ID: testSessionA}
 
 	require.NoError(t, store.Save(context.Background(), session))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{message}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{message}))
 	message.Content = "mutated-after-save"
 
 	loaded, ok, err := store.Get(context.Background(), testSessionA, base.SessionGetOptions{})
@@ -1445,74 +1445,74 @@ func TestMemoryStore_HelperFunctions(t *testing.T) {
 	require.Equal(t, base.MessageOrderAsc, getMessageQueryOrder(MessageQueryOptions{}))
 	require.Equal(t, base.MessageOrderAsc, getMessageQueryOrder(MessageQueryOptions{Order: "bogus"}))
 
-	searchText, toolName := handmsg.SearchableMessageText(handmsg.Message{
-		Role:    handmsg.RoleAssistant,
+	searchText, toolName := morphmsg.SearchableMessageText(morphmsg.Message{
+		Role:    morphmsg.RoleAssistant,
 		Content: "assistant plain text",
 	}, "")
 	require.Equal(t, "assistant plain text", searchText)
 	require.Empty(t, toolName)
 
-	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
-		Role:    handmsg.RoleAssistant,
+	searchText, toolName = morphmsg.SearchableMessageText(morphmsg.Message{
+		Role:    morphmsg.RoleAssistant,
 		Content: "assistant plain text",
 	}, "process")
 	require.Empty(t, searchText)
 	require.Empty(t, toolName)
 
-	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
-		Role:      handmsg.RoleAssistant,
-		ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
+	searchText, toolName = morphmsg.SearchableMessageText(morphmsg.Message{
+		Role:      morphmsg.RoleAssistant,
+		ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
 	}, "process")
 	require.Contains(t, searchText, "tool_name process")
 	require.Equal(t, "process", toolName)
 
-	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
-		Role:      handmsg.RoleAssistant,
-		ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
+	searchText, toolName = morphmsg.SearchableMessageText(morphmsg.Message{
+		Role:      morphmsg.RoleAssistant,
+		ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
 	}, "search_files")
 	require.Empty(t, searchText)
 	require.Empty(t, toolName)
 
-	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
-		Role:      handmsg.RoleAssistant,
-		ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
+	searchText, toolName = morphmsg.SearchableMessageText(morphmsg.Message{
+		Role:      morphmsg.RoleAssistant,
+		ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
 	}, "")
 	require.Contains(t, searchText, "tool_name process")
 	require.Equal(t, "process", toolName)
 
-	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
-		Role:    handmsg.RoleTool,
+	searchText, toolName = morphmsg.SearchableMessageText(morphmsg.Message{
+		Role:    morphmsg.RoleTool,
 		Name:    "process",
 		Content: `{"status":"running"}`,
 	}, "process")
 	require.Contains(t, searchText, "status running")
 	require.Equal(t, "process", toolName)
 
-	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
-		Role:    handmsg.RoleTool,
+	searchText, toolName = morphmsg.SearchableMessageText(morphmsg.Message{
+		Role:    morphmsg.RoleTool,
 		Name:    "process",
 		Content: `{"status":"running"}`,
 	}, "")
 	require.Contains(t, searchText, "status running")
 	require.Equal(t, "process", toolName)
 
-	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
-		Role:    handmsg.RoleTool,
+	searchText, toolName = morphmsg.SearchableMessageText(morphmsg.Message{
+		Role:    morphmsg.RoleTool,
 		Name:    "process",
 		Content: `{"status":"running"}`,
 	}, "search_files")
 	require.Empty(t, searchText)
 	require.Empty(t, toolName)
 
-	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
-		Role:    handmsg.RoleUser,
+	searchText, toolName = morphmsg.SearchableMessageText(morphmsg.Message{
+		Role:    morphmsg.RoleUser,
 		Content: "user plain text",
 	}, "")
 	require.Equal(t, "user plain text", searchText)
 	require.Empty(t, toolName)
 
-	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
-		Role:    handmsg.RoleUser,
+	searchText, toolName = morphmsg.SearchableMessageText(morphmsg.Message{
+		Role:    morphmsg.RoleUser,
 		Content: "user plain text",
 	}, "process")
 	require.Empty(t, searchText)
@@ -1553,8 +1553,8 @@ func TestMemoryStore_SessionArchiveLifecycle(t *testing.T) {
 		TitleSource: base.SessionTitleSourceManual,
 		UpdatedAt:   now,
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "preserve me", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "preserve me", CreatedAt: now},
 	}))
 
 	archived, err := store.Archive(context.Background(), "  "+testSessionA+"  ", base.SessionArchiveRequest{
@@ -1608,9 +1608,9 @@ func TestMemoryStore_MessageEdgeCases(t *testing.T) {
 	store := NewStore()
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
-	require.EqualError(t, store.AppendMessages(context.Background(), "", []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}), "session id is required")
+	require.EqualError(t, store.AppendMessages(context.Background(), "", []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now}}), "session id is required")
 	require.NoError(t, store.AppendMessages(context.Background(), testMissingSession, nil))
-	require.EqualError(t, store.AppendMessages(context.Background(), testMissingSession, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}), "session not found")
+	require.EqualError(t, store.AppendMessages(context.Background(), testMissingSession, []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now}}), "session not found")
 
 	messages, err := store.GetMessages(context.Background(), "", MessageQueryOptions{})
 	require.NoError(t, err)
@@ -1619,19 +1619,19 @@ func TestMemoryStore_MessageEdgeCases(t *testing.T) {
 	message, ok, err := store.GetMessage(context.Background(), "", 0)
 	require.NoError(t, err)
 	require.False(t, ok)
-	require.Equal(t, handmsg.Message{}, message)
+	require.Equal(t, morphmsg.Message{}, message)
 
 	message, ok, err = store.GetMessage(context.Background(), testMissingSession, -1)
 	require.NoError(t, err)
 	require.False(t, ok)
-	require.Equal(t, handmsg.Message{}, message)
+	require.Equal(t, morphmsg.Message{}, message)
 
 	require.EqualError(t, store.ClearMessages(context.Background(), ""), "session id is required")
 	require.EqualError(t, store.ClearMessages(context.Background(), testMissingSession), "session not found")
 	require.EqualError(t, store.ClearMessages(context.Background(), testSessionA), "session not found")
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now}}))
 	requireArchiveSession(t, store, testSessionA, now, now.Add(time.Hour))
 	require.NoError(t, store.ClearMessages(context.Background(), testSessionA))
 
@@ -1691,12 +1691,12 @@ func TestMemoryStore_MessageQueryEdgeCases(t *testing.T) {
 	message, ok, err := store.GetMessage(context.Background(), testSessionA, 0)
 	require.NoError(t, err)
 	require.False(t, ok)
-	require.Equal(t, handmsg.Message{}, message)
+	require.Equal(t, morphmsg.Message{}, message)
 
 	message, ok, err = store.GetMessage(context.Background(), testMissingSession, 0)
 	require.NoError(t, err)
 	require.False(t, ok)
-	require.Equal(t, handmsg.Message{}, message)
+	require.Equal(t, morphmsg.Message{}, message)
 
 	records, err = store.GetMessagesByIDs(context.Background(), "", []uint{1})
 	require.NoError(t, err)
@@ -1714,9 +1714,9 @@ func TestMemoryStore_MessageQueryEdgeCases(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, records)
 
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "one", CreatedAt: now},
-		{Role: handmsg.RoleAssistant, Content: "two", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "one", CreatedAt: now},
+		{Role: morphmsg.RoleAssistant, Content: "two", CreatedAt: now.Add(time.Second)},
 	}))
 
 	records, err = store.GetMessagesByIDs(context.Background(), testSessionA, []uint{2})
@@ -1917,7 +1917,7 @@ func TestMemoryStore_ClearsCompactionMetadataWhenLiveHistoryIsCleared(t *testing
 		},
 		UpdatedAt: now,
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now}}))
 	require.NoError(t, store.SaveSummary(context.Background(), SessionSummary{
 		SessionID:      testSessionA,
 		SessionSummary: "Older work",
@@ -1944,7 +1944,7 @@ func TestMemoryStore_ArchiveRejectsDefaultSessionAndPreservesMetadata(t *testing
 		},
 		UpdatedAt: now,
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now}}))
 	require.NoError(t, store.SaveSummary(context.Background(), SessionSummary{
 		SessionID:      DefaultSessionID,
 		SessionSummary: "Older work",
@@ -1984,8 +1984,8 @@ func TestMemoryStore_ArchiveRejectsDefaultSessionAndPreservesTitle(t *testing.T)
 		TitleSource: base.SessionTitleSourceGenerated,
 		UpdatedAt:   now,
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now},
 	}))
 
 	_, err := store.Archive(context.Background(), DefaultSessionID, base.SessionArchiveRequest{
@@ -2011,8 +2011,8 @@ func TestMemoryStore_ArchiveMarksNonDefaultSessionAndPreservesTitle(t *testing.T
 		TitleSource: base.SessionTitleSourceGenerated,
 		UpdatedAt:   now,
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now},
 	}))
 
 	requireArchiveSession(t, store, testSessionA, now, now.Add(time.Hour))
@@ -2070,8 +2070,8 @@ func TestMemoryStore_CountMessagesRejectsInvalidOrder(t *testing.T) {
 func TestMemoryStore_GetMessagesUsesSessionIDForArchivedLookup(t *testing.T) {
 	store := NewStore()
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleAssistant, Content: "archived"},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleAssistant, Content: "archived"},
 	}))
 	requireArchiveSession(t, store, testSessionA, time.Time{}, time.Now().UTC().Add(time.Hour))
 
@@ -2087,11 +2087,11 @@ func TestMemoryStore_GetMessagesSupportsOffsetAndLimit(t *testing.T) {
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "one", CreatedAt: now},
-		{Role: handmsg.RoleUser, Content: "two", CreatedAt: now},
-		{Role: handmsg.RoleUser, Content: "three", CreatedAt: now},
-		{Role: handmsg.RoleUser, Content: "four", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "one", CreatedAt: now},
+		{Role: morphmsg.RoleUser, Content: "two", CreatedAt: now},
+		{Role: morphmsg.RoleUser, Content: "three", CreatedAt: now},
+		{Role: morphmsg.RoleUser, Content: "four", CreatedAt: now},
 	}))
 
 	messages, err := store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{Offset: 1, Limit: 2})
@@ -2127,10 +2127,10 @@ func TestMemoryStore_CountMessagesSupportsLiveAndArchivedQueries(t *testing.T) {
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "one", CreatedAt: now},
-		{Role: handmsg.RoleUser, Content: "two", CreatedAt: now},
-		{Role: handmsg.RoleUser, Content: "three", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "one", CreatedAt: now},
+		{Role: morphmsg.RoleUser, Content: "two", CreatedAt: now},
+		{Role: morphmsg.RoleUser, Content: "three", CreatedAt: now},
 	}))
 
 	count, err := store.CountMessages(context.Background(), testSessionA, MessageQueryOptions{Offset: 1, Limit: 1})
@@ -2167,14 +2167,14 @@ func TestMemoryStore_GetMessageRejectsInvalidLiveID(t *testing.T) {
 
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 	require.False(t, ok)
-	require.Equal(t, handmsg.Message{}, message)
+	require.Equal(t, morphmsg.Message{}, message)
 }
 
 func TestMemoryStore_GetMessageUsesSessionIDForArchivedLookup(t *testing.T) {
 	store := NewStore()
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleAssistant, Content: "archived"},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleAssistant, Content: "archived"},
 	}))
 	requireArchiveSession(t, store, testSessionA, time.Time{}, time.Now().UTC().Add(time.Hour))
 
@@ -2195,7 +2195,7 @@ func TestMemoryStore_ArchiveMessageLookupsRejectInvalidIDs(t *testing.T) {
 	message, ok, err := store.GetMessage(context.Background(), "archive_invalid", 0)
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 	require.False(t, ok)
-	require.Equal(t, handmsg.Message{}, message)
+	require.Equal(t, morphmsg.Message{}, message)
 
 	require.EqualError(t, store.ClearMessages(context.Background(), "archive_invalid"), "session id must be a valid ses_ nanoid")
 }
@@ -2208,8 +2208,8 @@ func TestMemoryStore_ClearMessagesClearsLiveMessagesAndRefreshesUpdatedAt(t *tes
 		ID:        testSessionA,
 		UpdatedAt: originalUpdatedAt,
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Now().UTC()},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: time.Now().UTC()},
 	}))
 
 	require.NoError(t, store.ClearMessages(context.Background(), testSessionA))
@@ -2263,7 +2263,7 @@ func TestMemoryStore_SummaryRoundTripAndCleanup(t *testing.T) {
 	require.False(t, ok)
 
 	require.NoError(t, store.SaveSummary(context.Background(), summary))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: now}}))
 	requireArchiveSession(t, store, testSessionA, now, now.Add(time.Hour))
 
 	_, ok, err = store.GetSummary(context.Background(), testSessionA)

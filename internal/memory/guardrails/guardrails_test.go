@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/memory"
+	"github.com/wandxy/morph/internal/memory"
 )
 
 type nonStringRedactor struct{}

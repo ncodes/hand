@@ -3,7 +3,7 @@ package guardrails
 import (
 	"net/netip"
 
-	"github.com/wandxy/hand/pkg/netpolicy"
+	"github.com/wandxy/morph/pkg/netpolicy"
 )
 
 var DefaultBlockedAddressPrefixes = netpolicy.DefaultBlockedAddressPrefixes

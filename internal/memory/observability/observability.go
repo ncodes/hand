@@ -6,8 +6,8 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 // Observability adapts zerolog and trace.Session to the provider-local

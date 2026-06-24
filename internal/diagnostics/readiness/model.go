@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
 )
 
 func buildModelGroup(cfg *config.Config) Group {
@@ -118,7 +118,7 @@ func isMissingAuthError(err error) bool {
 
 	message := strings.ToLower(strings.TrimSpace(err.Error()))
 	return strings.Contains(message, "api key is required") ||
-		strings.Contains(message, "hand auth login")
+		strings.Contains(message, "morph auth login")
 }
 
 func missingAuthActions(provider string) []Action {
@@ -129,7 +129,7 @@ func missingAuthActions(provider string) []Action {
 	switch provider {
 	case constants.ModelProviderOpenAI, constants.ModelProviderOpenAICodex,
 		constants.ModelProviderAnthropic, constants.ModelProviderGitHubCopilot:
-		return []Action{commandAction("hand auth login "+provider, "store OAuth credentials for this provider")}
+		return []Action{commandAction("morph auth login "+provider, "store OAuth credentials for this provider")}
 	default:
 		return providerAPIKeyActions(provider)
 	}
@@ -143,11 +143,11 @@ func providerAPIKeyActions(provider string) []Action {
 
 	return []Action{
 		commandAction(
-			fmt.Sprintf("hand auth login %s --api-key <api-key>", provider),
+			fmt.Sprintf("morph auth login %s --api-key <api-key>", provider),
 			"store a provider API key",
 		),
 		commandAction(
-			fmt.Sprintf("hand config set models.providers.%s.apiKey <api-key>", provider),
+			fmt.Sprintf("morph config set models.providers.%s.apiKey <api-key>", provider),
 			"write the provider API key to the profile config",
 		),
 	}

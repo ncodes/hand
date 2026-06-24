@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	processenv "github.com/wandxy/hand/internal/environment/process"
-	envsessionmessages "github.com/wandxy/hand/internal/environment/sessionmessages"
-	envtypes "github.com/wandxy/hand/internal/environment/types"
-	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/memory/episodic"
-	"github.com/wandxy/hand/internal/tools"
+	processenv "github.com/wandxy/morph/internal/environment/process"
+	envsessionmessages "github.com/wandxy/morph/internal/environment/sessionmessages"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/memory/episodic"
+	"github.com/wandxy/morph/internal/tools"
 )
 
 // Runtime exposes environment-backed services to tools.

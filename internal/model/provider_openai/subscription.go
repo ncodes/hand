@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
 )
 
 const (
@@ -29,7 +29,7 @@ const (
 	openAISubscriptionFallbackPort = 1457
 	openAISubscriptionCallbackPath = "/auth/callback"
 	openAISubscriptionScope        = "openid profile email offline_access api.connectors.read api.connectors.invoke"
-	openAISubscriptionOriginator   = "hand"
+	openAISubscriptionOriginator   = "morph"
 )
 
 var (
@@ -148,7 +148,7 @@ func (p OpenAISubscriptionProvider) AuthHeaders(
 		"ChatGPT-Account-ID": accountID,
 		"OpenAI-Beta":        "responses=experimental",
 		"Originator":         openAISubscriptionOriginator,
-		"User-Agent":         "Hand",
+		"User-Agent":         "Morph",
 	}, nil
 }
 
@@ -222,7 +222,7 @@ func (p OpenAISubscriptionProvider) startCallbackServer(
 			return
 		}
 
-		_, _ = io.WriteString(w, "OpenAI authentication complete. You can return to Hand.\n")
+		_, _ = io.WriteString(w, "OpenAI authentication complete. You can return to Morph.\n")
 		codeCh <- code
 	})
 
@@ -386,7 +386,7 @@ func getOpenURLCommand(goos string, rawURL string) (string, []string) {
 	case "darwin":
 		return "open", []string{rawURL}
 	case "windows":
-		return "rundll32", []string{"url.dll,FileProtocolHandler", rawURL}
+		return "rundll32", []string{"url.dll,FileProtocolHand", rawURL}
 	default:
 		return "xdg-open", []string{rawURL}
 	}

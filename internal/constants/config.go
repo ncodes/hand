@@ -4,7 +4,7 @@ import "time"
 
 const (
 	// DefaultName is the fallback application instance name.
-	DefaultName = "Hand"
+	DefaultName = "Morph"
 	// DefaultModel is the fallback model identifier.
 	DefaultModel = "gpt-4o-mini"
 	// DefaultProfileModel is the starter profile model identifier.

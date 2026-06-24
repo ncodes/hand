@@ -15,8 +15,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	handdb "github.com/wandxy/hand/internal/db"
-	"github.com/wandxy/hand/internal/state/search/vectorstore"
+	morphdb "github.com/wandxy/morph/internal/db"
+	"github.com/wandxy/morph/internal/state/search/vectorstore"
 )
 
 const (
@@ -88,7 +88,7 @@ func NewStore(path string) (*Store, error) {
 		return nil, fmt.Errorf("failed to create vector db directory: %w", err)
 	}
 
-	db, err := handdb.OpenSQLite(path)
+	db, err := morphdb.OpenSQLite(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open vector db: %w", err)
 	}

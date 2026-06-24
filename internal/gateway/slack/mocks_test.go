@@ -11,10 +11,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	agentcore "github.com/wandxy/hand/pkg/agent"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
-	pkgslack "github.com/wandxy/hand/pkg/gateway/slack"
+	storage "github.com/wandxy/morph/internal/state/core"
+	agentcore "github.com/wandxy/morph/pkg/agent"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
+	pkgslack "github.com/wandxy/morph/pkg/gateway/slack"
 )
 
 var errSlackTest = errors.New("slack test error")

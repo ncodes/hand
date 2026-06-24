@@ -1,4 +1,4 @@
-// Package profile resolves the active Hand profile identity and metadata paths.
+// Package profile resolves the active Morph profile identity and metadata paths.
 package profile
 
 import (
@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wandxy/hand/internal/datadir/files"
+	"github.com/wandxy/morph/internal/datadir/files"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 	DefaultName = "default"
 
 	// EnvName is the environment variable used to select the active profile.
-	EnvName = "HAND_PROFILE"
+	EnvName = "MORPH_PROFILE"
 )
 
 const namePattern = `[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`
@@ -64,18 +64,18 @@ func Resolve(opts ResolveOptions) (Profile, error) {
 		return Profile{}, err
 	}
 
-	profileHome := filepath.Join(homeDir, ".hand", "profiles", name)
+	profileHome := filepath.Join(homeDir, ".morph", "profiles", name)
 	return WithMetadataPaths(Profile{Name: name, HomeDir: profileHome}), nil
 }
 
-// RootDir returns the machine-local Hand root for profile selectors and profiles.
+// RootDir returns the machine-local Morph root for profile selectors and profiles.
 func RootDir(homeDir string) (string, error) {
 	homeDir, err := resolveHomeDir(homeDir)
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(homeDir, ".hand"), nil
+	return filepath.Join(homeDir, ".morph"), nil
 }
 
 // ProfilesDir returns the directory containing profile homes.
@@ -241,7 +241,7 @@ func WithMetadataPaths(profile Profile) Profile {
 		profile.RuntimePath = filepath.Join(homeDir, "runtime.json")
 	}
 	if strings.TrimSpace(profile.PIDPath) == "" {
-		profile.PIDPath = filepath.Join(homeDir, "hand.pid")
+		profile.PIDPath = filepath.Join(homeDir, "morph.pid")
 	}
 
 	return profile

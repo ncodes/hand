@@ -13,12 +13,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/profile"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	statemock "github.com/wandxy/hand/internal/state/mock"
-	handtrace "github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/profile"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	statemock "github.com/wandxy/morph/internal/state/mock"
+	morphtrace "github.com/wandxy/morph/internal/trace"
 )
 
 func TestConfigureStateProvider_NoopsWhenMissingInputs(t *testing.T) {
@@ -218,9 +218,9 @@ func writeTraceSession(t *testing.T, dir, id string) {
 	require.NoError(t, err)
 	defer file.Close()
 
-	require.NoError(t, json.NewEncoder(file).Encode(handtrace.Event{
+	require.NoError(t, json.NewEncoder(file).Encode(morphtrace.Event{
 		SessionID: id,
-		Type:      handtrace.EvtChatStarted,
+		Type:      morphtrace.EvtChatStarted,
 		Timestamp: time.Now().UTC(),
 	}))
 }

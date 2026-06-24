@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 const (
@@ -18,13 +18,13 @@ type MessageQueryOptions struct {
 	Name   string
 	Order  string
 	Offset int
-	Role   handmsg.Role
+	Role   morphmsg.Role
 }
 
 // MessageRecord pairs a message with its sequence offset.
 type MessageRecord struct {
 	Offset  int
-	Message handmsg.Message
+	Message morphmsg.Message
 }
 
 // NormalizeMessageQueryOrder validates and canonicalizes message query order.

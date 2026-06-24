@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 type transcriptCellFactory struct{}
@@ -141,7 +141,7 @@ func (factory transcriptCellFactory) FromTUIMessage(msg any) transcriptCell {
 }
 
 func (factory transcriptCellFactory) FromTimelineMessage(
-	message handmsg.Message,
+	message morphmsg.Message,
 	toolCalls map[string]timelineToolCallDetail,
 ) transcriptCell {
 	content := strings.TrimSpace(message.Content)
@@ -150,11 +150,11 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 	}
 
 	switch message.Role {
-	case handmsg.RoleUser:
+	case morphmsg.RoleUser:
 		return factory.User(content)
-	case handmsg.RoleAssistant:
+	case morphmsg.RoleAssistant:
 		return factory.Assistant(content)
-	case handmsg.RoleTool:
+	case morphmsg.RoleTool:
 		name := strings.TrimSpace(message.Name)
 		if name == "" {
 			name = "tool"

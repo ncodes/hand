@@ -3,7 +3,7 @@ package readiness
 import (
 	"fmt"
 
-	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/morph/internal/config"
 )
 
 func buildSessionGroup(cfg *config.Config) Group {

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"unicode"
 
-	instruct "github.com/wandxy/hand/internal/instructions"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 const maxSessionTitleRunes = 80
@@ -75,7 +75,7 @@ func (a *Agent) generateSessionTitle(ctx context.Context, contextText string) st
 		Model:           a.cfg.SummaryModelEffective(),
 		API:             a.cfg.SummaryModelAPIEffective(),
 		Instructions:    instruct.BuildSessionTitle().String(),
-		Messages:        []handmsg.Message{{Role: handmsg.RoleUser, Content: contextText}},
+		Messages:        []morphmsg.Message{{Role: morphmsg.RoleUser, Content: contextText}},
 		MaxOutputTokens: a.cfg.SummaryModelMaxOutputTokensEffective(24),
 		Temperature:     0,
 		DebugRequests:   a.cfg.Debug.Requests,
@@ -88,7 +88,7 @@ func (a *Agent) generateSessionTitle(ctx context.Context, contextText string) st
 }
 
 // getSessionTitleContext builds a compact title prompt from early user/assistant messages.
-func getSessionTitleContext(messages []handmsg.Message) (string, string) {
+func getSessionTitleContext(messages []morphmsg.Message) (string, string) {
 	userText := ""
 	assistantText := ""
 	for _, message := range messages {
@@ -98,11 +98,11 @@ func getSessionTitleContext(messages []handmsg.Message) (string, string) {
 		}
 
 		switch message.Role {
-		case handmsg.RoleUser:
+		case morphmsg.RoleUser:
 			if userText == "" {
 				userText = content
 			}
-		case handmsg.RoleAssistant:
+		case morphmsg.RoleAssistant:
 			if assistantText == "" {
 				assistantText = content
 			}

@@ -10,11 +10,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/gateway/dispatch"
-	storage "github.com/wandxy/hand/internal/state/core"
-	tg "github.com/wandxy/hand/pkg/gateway/telegram"
-	gatewaytypes "github.com/wandxy/hand/pkg/gateway/types"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/gateway/dispatch"
+	storage "github.com/wandxy/morph/internal/state/core"
+	tg "github.com/wandxy/morph/pkg/gateway/telegram"
+	gatewaytypes "github.com/wandxy/morph/pkg/gateway/types"
 )
 
 func TestTelegramWebhookRejectsUnauthorizedRequestsBeforeDispatch(t *testing.T) {

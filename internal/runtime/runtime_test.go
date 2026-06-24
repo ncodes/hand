@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func TestWriteAndLoadActive(t *testing.T) {
@@ -246,13 +246,13 @@ func TestResolveRPC_KeepsExplicitRPCFlags(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, cmd.Run(context.Background(), []string{"hand", "--rpc.port", "50051"}))
+	require.NoError(t, cmd.Run(context.Background(), []string{"morph", "--rpc.port", "50051"}))
 }
 
 func TestResolveRPC_KeepsExplicitRPCEnv(t *testing.T) {
 	resetRuntimeHooks(t)
 	setRuntimeProfile(t, "work", t.TempDir())
-	t.Setenv("HAND_RPC_PORT", "50051")
+	t.Setenv("MORPH_RPC_PORT", "50051")
 	cfg := defaultRuntimeConfig()
 
 	endpoint, err := ResolveRPC(context.Background(), nil, cfg)
@@ -436,8 +436,8 @@ func TestDialRuntimeEndpoint(t *testing.T) {
 
 func resetRuntimeHooks(t *testing.T) {
 	t.Helper()
-	t.Setenv("HAND_RPC_ADDRESS", "")
-	t.Setenv("HAND_RPC_PORT", "")
+	t.Setenv("MORPH_RPC_ADDRESS", "")
+	t.Setenv("MORPH_RPC_PORT", "")
 
 	originalNow := now
 	originalPID := processPID

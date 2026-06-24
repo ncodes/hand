@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/hand/internal/constants"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 func TestConfig_NormalizeLeavesRulesFilesEmptyWhenUnset(t *testing.T) {
@@ -16,9 +16,9 @@ func TestConfig_NormalizeLeavesRulesFilesEmptyWhenUnset(t *testing.T) {
 }
 
 func TestConfig_NormalizeNormalizesRulesFiles(t *testing.T) {
-	cfg := &Config{Rules: RulesConfig{Files: []string{" ./Hand.md ", "custom.md", "Hand.md", ""}}}
+	cfg := &Config{Rules: RulesConfig{Files: []string{" ./Morph.md ", "custom.md", "Morph.md", ""}}}
 	cfg.Normalize()
-	require.Equal(t, []string{"Hand.md", "custom.md"}, cfg.Rules.Files)
+	require.Equal(t, []string{"Morph.md", "custom.md"}, cfg.Rules.Files)
 }
 
 func TestConfig_NormalizeTrimsInstruct(t *testing.T) {

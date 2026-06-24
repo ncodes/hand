@@ -12,8 +12,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	storage "github.com/wandxy/morph/internal/state/core"
 )
 
 func TestModel_UpdateHandlesChatsCommand(t *testing.T) {
@@ -64,7 +64,7 @@ func TestModel_UpdateHandlesChatsCommand(t *testing.T) {
 	require.Contains(t, content, "4d ago")
 	require.Contains(t, content, "Another title and more")
 	require.Contains(t, content, "1h ago")
-	require.NotContains(t, content, inputPrompt+"Ask Hand")
+	require.NotContains(t, content, inputPrompt+"Ask Morph")
 	require.Contains(t, runModel.renderCommandView(), "48;")
 }
 

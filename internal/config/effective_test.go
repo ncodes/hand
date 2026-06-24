@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 func TestConfig_SafetyDefaultsAndValidation(t *testing.T) {

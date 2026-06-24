@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/diagnostics"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/diagnostics"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 type Status = diagnostics.Status

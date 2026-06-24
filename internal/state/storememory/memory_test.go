@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	statememory "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
+	statememory "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	vectormemory "github.com/wandxy/morph/internal/state/search/vectorstore/memory"
 )
 
 func TestMemoryStore_SearchWriteDeleteAndSourceLinks(t *testing.T) {
@@ -28,7 +28,7 @@ func TestMemoryStore_SearchWriteDeleteAndSourceLinks(t *testing.T) {
 		CreatedAt:            createdAt,
 		PromotionEvaluatedAt: createdAt.Add(time.Hour),
 		Reflected:            true,
-		Metadata:             map[string]string{"project": "hand"},
+		Metadata:             map[string]string{"project": "morph"},
 		SourceLinks: []statememory.MemorySourceLink{{
 			SessionID:     "session",
 			MessageIDs:    []uint{1},
@@ -909,7 +909,7 @@ func TestMemoryStore_UpdatePreservesCreatedAtAndClonesItems(t *testing.T) {
 		Status:    statememory.MemoryStatusActive,
 		Title:     "first",
 		Tags:      []string{"old"},
-		Metadata:  map[string]string{"project": "hand"},
+		Metadata:  map[string]string{"project": "morph"},
 		CreatedAt: createdAt,
 		SourceLinks: []statememory.MemorySourceLink{{
 			MessageIDs: []uint{1},

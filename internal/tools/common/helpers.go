@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/tools"
 )
 
 var (

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestSourceIDForMessage(t *testing.T) {
@@ -17,7 +17,7 @@ func TestSourceIDsFromMessages(t *testing.T) {
 	require.Equal(t, []string{
 		SourceIDForMessage("ses_a", 1),
 		SourceIDForMessage("ses_a", 2),
-	}, SourceIDsFromMessages("ses_a", []handmsg.Message{{ID: 1}, {ID: 2}}))
+	}, SourceIDsFromMessages("ses_a", []morphmsg.Message{{ID: 1}, {ID: 2}}))
 	require.Nil(t, SourceIDsFromMessages("ses_a", nil))
 }
 

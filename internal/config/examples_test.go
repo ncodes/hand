@@ -33,8 +33,8 @@ func TestConfigExamples_EnvFilesListSupportedEnvironmentKeys(t *testing.T) {
 			for _, match := range regexp.MustCompile(`(?m)^#?\s*([A-Z][A-Z0-9_]*)=`).FindAllStringSubmatch(content, -1) {
 				require.Truef(
 					t,
-					strings.HasPrefix(match[1], "HAND_") || hasNativeProviderEnvKey(match[1]),
-					"env key %q must use HAND_ prefix or be a provider-native credential key",
+					strings.HasPrefix(match[1], "MORPH_") || hasNativeProviderEnvKey(match[1]),
+					"env key %q must use MORPH_ prefix or be a provider-native credential key",
 					match[1],
 				)
 			}

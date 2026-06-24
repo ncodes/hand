@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestBuilder_BuildReturnsSessionHistoryThenEmittedMessages(t *testing.T) {
@@ -14,24 +14,24 @@ func TestBuilder_BuildReturnsSessionHistoryThenEmittedMessages(t *testing.T) {
 	now := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
 
 	messages := builder.Build(Input{
-		SessionHistory:  []handmsg.Message{{Role: handmsg.RoleUser, Content: "before", CreatedAt: now}},
-		EmittedMessages: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "after", CreatedAt: now.Add(time.Second)}},
+		SessionHistory:  []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "before", CreatedAt: now}},
+		EmittedMessages: []morphmsg.Message{{Role: morphmsg.RoleAssistant, Content: "after", CreatedAt: now.Add(time.Second)}},
 	})
 
-	require.Equal(t, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "before", CreatedAt: now},
-		{Role: handmsg.RoleAssistant, Content: "after", CreatedAt: now.Add(time.Second)},
+	require.Equal(t, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "before", CreatedAt: now},
+		{Role: morphmsg.RoleAssistant, Content: "after", CreatedAt: now.Add(time.Second)},
 	}, messages)
 }
 
 func TestBuilder_BuildClonesReturnedMessages(t *testing.T) {
 	builder := New()
 	input := Input{
-		SessionHistory: []handmsg.Message{{
-			Role:      handmsg.RoleAssistant,
-			ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+		SessionHistory: []morphmsg.Message{{
+			Role:      morphmsg.RoleAssistant,
+			ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 		}},
-		EmittedMessages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		EmittedMessages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}
 
 	messages := builder.Build(input)
@@ -45,31 +45,31 @@ func TestBuilder_BuildClonesReturnedMessages(t *testing.T) {
 func TestBuilder_BuildReturnsOnlyEmittedMessagesWhenHistoryEmpty(t *testing.T) {
 	builder := New()
 	messages := builder.Build(Input{
-		EmittedMessages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		EmittedMessages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
-	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, messages)
+	require.Equal(t, []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}}, messages)
 }
 
 func TestBuilder_BuildReturnsOnlySessionHistoryWhenEmittedMessagesEmpty(t *testing.T) {
 	builder := New()
 	messages := builder.Build(Input{
-		SessionHistory: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}},
+		SessionHistory: []morphmsg.Message{{Role: morphmsg.RoleAssistant, Content: "hello"}},
 	})
-	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}, messages)
+	require.Equal(t, []morphmsg.Message{{Role: morphmsg.RoleAssistant, Content: "hello"}}, messages)
 }
 
 func TestBuilder_BuildIncludesPrefixMessages(t *testing.T) {
 	builder := New()
 	messages := builder.Build(Input{
-		PrefixMessages:  []handmsg.Message{{Role: handmsg.RoleDeveloper, Content: "summary"}},
-		SessionHistory:  []handmsg.Message{{Role: handmsg.RoleUser, Content: "history"}},
-		EmittedMessages: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "emitted"}},
+		PrefixMessages:  []morphmsg.Message{{Role: morphmsg.RoleDeveloper, Content: "summary"}},
+		SessionHistory:  []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "history"}},
+		EmittedMessages: []morphmsg.Message{{Role: morphmsg.RoleAssistant, Content: "emitted"}},
 	})
 
-	require.Equal(t, []handmsg.Message{
-		{Role: handmsg.RoleDeveloper, Content: "summary"},
-		{Role: handmsg.RoleUser, Content: "history"},
-		{Role: handmsg.RoleAssistant, Content: "emitted"},
+	require.Equal(t, []morphmsg.Message{
+		{Role: morphmsg.RoleDeveloper, Content: "summary"},
+		{Role: morphmsg.RoleUser, Content: "history"},
+		{Role: morphmsg.RoleAssistant, Content: "emitted"},
 	}, messages)
 }
 
@@ -82,41 +82,41 @@ func TestBuilder_BuildAddsUnavailableToolResultForMissingToolCallResponse(t *tes
 	builder := New()
 
 	messages := builder.Build(Input{
-		SessionHistory: []handmsg.Message{
+		SessionHistory: []morphmsg.Message{
 			{
-				Role: handmsg.RoleAssistant,
-				ToolCalls: []handmsg.ToolCall{{
+				Role: morphmsg.RoleAssistant,
+				ToolCalls: []morphmsg.ToolCall{{
 					ID:   "call-1",
 					Name: "session_search",
 				}},
 			},
-			{Role: handmsg.RoleUser, Content: "next turn"},
+			{Role: morphmsg.RoleUser, Content: "next turn"},
 		},
 	})
 
 	require.Len(t, messages, 3)
-	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
-	require.Equal(t, handmsg.RoleTool, messages[1].Role)
+	require.Equal(t, morphmsg.RoleAssistant, messages[0].Role)
+	require.Equal(t, morphmsg.RoleTool, messages[1].Role)
 	require.Equal(t, "call-1", messages[1].ToolCallID)
 	require.Equal(t, "session_search", messages[1].Name)
 	require.Contains(t, messages[1].Content, "Tool result unavailable")
-	require.Equal(t, handmsg.RoleUser, messages[2].Role)
+	require.Equal(t, morphmsg.RoleUser, messages[2].Role)
 }
 
 func TestBuilder_BuildDropsOrphanToolMessages(t *testing.T) {
 	builder := New()
 
 	messages := builder.Build(Input{
-		SessionHistory: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "hello"},
-			{Role: handmsg.RoleTool, ToolCallID: "orphan", Name: "time", Content: "12:00"},
-			{Role: handmsg.RoleAssistant, Content: "hi"},
+		SessionHistory: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "hello"},
+			{Role: morphmsg.RoleTool, ToolCallID: "orphan", Name: "time", Content: "12:00"},
+			{Role: morphmsg.RoleAssistant, Content: "hi"},
 		},
 	})
 
-	require.Equal(t, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello"},
-		{Role: handmsg.RoleAssistant, Content: "hi"},
+	require.Equal(t, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello"},
+		{Role: morphmsg.RoleAssistant, Content: "hi"},
 	}, messages)
 }
 
@@ -124,22 +124,22 @@ func TestBuilder_BuildKeepsToolResultsImmediatelyAfterAssistantToolCalls(t *test
 	builder := New()
 
 	messages := builder.Build(Input{
-		SessionHistory: []handmsg.Message{
+		SessionHistory: []morphmsg.Message{
 			{
-				Role: handmsg.RoleAssistant,
-				ToolCalls: []handmsg.ToolCall{
+				Role: morphmsg.RoleAssistant,
+				ToolCalls: []morphmsg.ToolCall{
 					{ID: "call-1", Name: "read_file"},
 					{ID: "call-2", Name: "write_file"},
 				},
 			},
-			{Role: handmsg.RoleTool, ToolCallID: "call-2", Name: "write_file", Content: "wrote"},
-			{Role: handmsg.RoleTool, ToolCallID: "call-1", Name: "read_file", Content: "read"},
-			{Role: handmsg.RoleAssistant, Content: "done"},
+			{Role: morphmsg.RoleTool, ToolCallID: "call-2", Name: "write_file", Content: "wrote"},
+			{Role: morphmsg.RoleTool, ToolCallID: "call-1", Name: "read_file", Content: "read"},
+			{Role: morphmsg.RoleAssistant, Content: "done"},
 		},
 	})
 
 	require.Len(t, messages, 4)
-	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
+	require.Equal(t, morphmsg.RoleAssistant, messages[0].Role)
 	require.Equal(t, "call-1", messages[1].ToolCallID)
 	require.Equal(t, "read", messages[1].Content)
 	require.Equal(t, "call-2", messages[2].ToolCallID)

@@ -7,9 +7,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // Get returns session messages selected by offset, message ID, or anchor window.
@@ -106,7 +106,7 @@ func buildSessionMessagesResponse(
 	return response
 }
 
-func messagesToMessageRecords(start int, messages []handmsg.Message) []storage.MessageRecord {
+func messagesToMessageRecords(start int, messages []morphmsg.Message) []storage.MessageRecord {
 	records := make([]storage.MessageRecord, 0, len(messages))
 	for idx, message := range messages {
 		records = append(records, storage.MessageRecord{
@@ -117,8 +117,8 @@ func messagesToMessageRecords(start int, messages []handmsg.Message) []storage.M
 	return records
 }
 
-func getMessageToolName(message handmsg.Message) string {
-	if message.Role == handmsg.RoleTool {
+func getMessageToolName(message morphmsg.Message) string {
+	if message.Role == morphmsg.RoleTool {
 		return strings.TrimSpace(message.Name)
 	}
 	if len(message.ToolCalls) == 1 {
@@ -127,7 +127,7 @@ func getMessageToolName(message handmsg.Message) string {
 	return ""
 }
 
-func buildToolCallRecords(toolCalls []handmsg.ToolCall, maxChars int) []SessionToolCallRecord {
+func buildToolCallRecords(toolCalls []morphmsg.ToolCall, maxChars int) []SessionToolCallRecord {
 	if len(toolCalls) == 0 {
 		return nil
 	}

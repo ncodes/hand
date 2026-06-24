@@ -10,10 +10,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/wandxy/hand/internal/config"
-	modelcatalog "github.com/wandxy/hand/internal/model"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	"github.com/wandxy/morph/internal/config"
+	modelcatalog "github.com/wandxy/morph/internal/model"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 )
 
 type modelSelector interface {
@@ -738,7 +738,7 @@ func getModelSelectionLoginCommand(err error) string {
 	}
 
 	message := err.Error()
-	index := strings.Index(message, "hand auth login ")
+	index := strings.Index(message, "morph auth login ")
 	if index < 0 {
 		return ""
 	}

@@ -7,11 +7,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/pkg/gateway/bindings"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
-	pkgslack "github.com/wandxy/hand/pkg/gateway/slack"
+	"github.com/wandxy/morph/internal/config"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/pkg/gateway/bindings"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
+	pkgslack "github.com/wandxy/morph/pkg/gateway/slack"
 )
 
 func TestAdapter_DispatchesAllowedSenderAndCreatesSessionBinding(t *testing.T) {
@@ -139,7 +139,7 @@ func TestAdapter_SendsPairingChallengeForUnknownDirectMessageSender(t *testing.T
 	require.Equal(t, "postMessage", call.method)
 	require.Equal(t, inbound.Target, call.target)
 	require.Contains(t, call.text, "pair")
-	require.Contains(t, call.text, "hand gateway pairing approve slack")
+	require.Contains(t, call.text, "morph gateway pairing approve slack")
 }
 
 func TestAdapter_SendsPairingChallengeAsNewMessageWhenConfigured(t *testing.T) {
@@ -160,7 +160,7 @@ func TestAdapter_SendsPairingChallengeAsNewMessageWhenConfigured(t *testing.T) {
 	call := api.allCalls()[0]
 	require.Equal(t, "postMessage", call.method)
 	require.Equal(t, responseTarget, call.target)
-	require.Contains(t, call.text, "hand gateway pairing approve slack")
+	require.Contains(t, call.text, "morph gateway pairing approve slack")
 }
 
 func TestAdapter_SendsPairingChallengeInThreadWhenConfiguredForMessageAndInboundIsThreadReply(t *testing.T) {
@@ -182,7 +182,7 @@ func TestAdapter_SendsPairingChallengeInThreadWhenConfiguredForMessageAndInbound
 	call := api.allCalls()[0]
 	require.Equal(t, "postMessage", call.method)
 	require.Equal(t, inbound.Target, call.target)
-	require.Contains(t, call.text, "hand gateway pairing approve slack")
+	require.Contains(t, call.text, "morph gateway pairing approve slack")
 }
 
 func TestAdapter_IgnoresUnknownChannelSender(t *testing.T) {

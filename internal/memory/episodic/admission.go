@@ -3,7 +3,7 @@ package episodic
 import (
 	"strings"
 
-	storage "github.com/wandxy/hand/internal/state/core"
+	storage "github.com/wandxy/morph/internal/state/core"
 )
 
 // admitCandidateItems applies deterministic admission after model extraction

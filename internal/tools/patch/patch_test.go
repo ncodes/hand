@@ -11,9 +11,9 @@ import (
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/tools"
-	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/tools"
+	nativemocks "github.com/wandxy/morph/internal/tools/mocks"
 )
 
 func TestPatch_ToolAppliesUnifiedDiff(t *testing.T) {

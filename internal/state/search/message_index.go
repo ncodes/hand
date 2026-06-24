@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	state "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	state "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // MessageIndexRow is one searchable text row derived from a session message.
@@ -21,7 +21,7 @@ type MessageIndexRow struct {
 }
 
 // MessageIndexRowsFromMessage converts a message into the text rows used by lexical and vector search.
-func MessageIndexRowsFromMessage(sessionID string, message handmsg.Message) []MessageIndexRow {
+func MessageIndexRowsFromMessage(sessionID string, message morphmsg.Message) []MessageIndexRow {
 	baseRow := MessageIndexRow{
 		CreatedAt: message.CreatedAt,
 		UpdatedAt: message.CreatedAt,
@@ -32,7 +32,7 @@ func MessageIndexRowsFromMessage(sessionID string, message handmsg.Message) []Me
 
 	body := strings.TrimSpace(message.Content)
 	switch message.Role {
-	case handmsg.RoleAssistant:
+	case morphmsg.RoleAssistant:
 		rows := make([]MessageIndexRow, 0, len(message.ToolCalls)+1)
 		if body != "" {
 			row := baseRow
@@ -40,7 +40,7 @@ func MessageIndexRowsFromMessage(sessionID string, message handmsg.Message) []Me
 			rows = append(rows, row)
 		}
 		for _, toolCall := range message.ToolCalls {
-			toolBody := strings.TrimSpace(handmsg.ToolCallSearchText(toolCall))
+			toolBody := strings.TrimSpace(morphmsg.ToolCallSearchText(toolCall))
 			if toolBody == "" {
 				continue
 			}
@@ -53,7 +53,7 @@ func MessageIndexRowsFromMessage(sessionID string, message handmsg.Message) []Me
 			return nil
 		}
 		return rows
-	case handmsg.RoleTool:
+	case morphmsg.RoleTool:
 		if body == "" {
 			return nil
 		}

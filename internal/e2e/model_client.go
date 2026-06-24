@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // RequestAssert validates a scripted model request in e2e tests.
@@ -23,7 +23,7 @@ type Step struct {
 	Check    RequestAssert
 }
 
-// Client wraps a gRPC connection to the Hand service.
+// Client wraps a gRPC connection to the Morph service.
 type Client struct {
 	mu       sync.Mutex
 	steps    []Step
@@ -95,14 +95,14 @@ func AssertToolRoundTrip(toolCall models.ToolCall) RequestAssert {
 			return errors.New("expected tool round-trip request messages")
 		}
 
-		var assistantMessage *handmsg.Message
-		var toolMessage *handmsg.Message
+		var assistantMessage *morphmsg.Message
+		var toolMessage *morphmsg.Message
 		for i := range req.Messages {
 			message := req.Messages[i]
 			switch {
-			case message.Role == handmsg.RoleAssistant && len(message.ToolCalls) > 0:
+			case message.Role == morphmsg.RoleAssistant && len(message.ToolCalls) > 0:
 				assistantMessage = &message
-			case message.Role == handmsg.RoleTool && strings.TrimSpace(message.ToolCallID) == expectedID:
+			case message.Role == morphmsg.RoleTool && strings.TrimSpace(message.ToolCallID) == expectedID:
 				toolMessage = &message
 			}
 		}
@@ -202,7 +202,7 @@ func (d *Client) complete(
 func cloneRequest(req models.Request) models.Request {
 	cloned := req
 	if len(req.Messages) > 0 {
-		cloned.Messages = handmsg.CloneMessages(req.Messages)
+		cloned.Messages = morphmsg.CloneMessages(req.Messages)
 	}
 	if len(req.Tools) > 0 {
 		cloned.Tools = append([]models.ToolDefinition(nil), req.Tools...)

@@ -8,9 +8,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/pkg/promptio"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/pkg/promptio"
 )
 
 const maxContentLength = constants.WorkspaceMaxContentLength

@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestNewLLMExtractor_ValidatesOptions(t *testing.T) {
@@ -76,7 +76,7 @@ func TestLLMExtractor_ExtractCandidatesUsesStructuredRequestAndParsesResponse(t 
 	require.NotNil(t, client.requests[0].StructuredOutput)
 	require.Contains(t, client.requests[0].Instructions, "Do not store raw transcript windows")
 	require.Len(t, client.requests[0].Messages, 1)
-	require.Equal(t, handmsg.RoleUser, client.requests[0].Messages[0].Role)
+	require.Equal(t, morphmsg.RoleUser, client.requests[0].Messages[0].Role)
 	require.Contains(t, client.requests[0].Messages[0].Content, `"session_id":"session"`)
 	require.Contains(t, client.requests[0].Messages[0].Content, `"trace_events"`)
 	require.Contains(t, client.requests[0].Messages[0].Content, `"ref":"trace:2"`)

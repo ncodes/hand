@@ -70,7 +70,7 @@ func (a *App) Handler() http.Handler {
 			mux.ServeHTTP(w, r)
 			return
 		}
-		w.Header().Set("WWW-Authenticate", `Basic realm="Hand Trace Viewer", charset="UTF-8"`)
+		w.Header().Set("WWW-Authenticate", `Basic realm="Morph Trace Viewer", charset="UTF-8"`)
 		writeError(w, http.StatusUnauthorized, "authentication required")
 	})
 }

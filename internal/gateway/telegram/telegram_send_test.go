@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	tg "github.com/wandxy/hand/pkg/gateway/telegram"
+	tg "github.com/wandxy/morph/pkg/gateway/telegram"
 )
 
 func TestTelegramHTTPClientSetWebhookSendsURLAndSecret(t *testing.T) {

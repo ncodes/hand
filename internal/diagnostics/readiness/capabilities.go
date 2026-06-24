@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
 )
 
 var resolveWebAPIKeySource = func(cfg *config.Config) (config.WebCredentialSource, error) {
@@ -59,7 +59,7 @@ func webAuthAction(provider string) Action {
 	}
 
 	return commandAction(
-		fmt.Sprintf("hand config set web.provider %s && hand config set web.apiKey <api-key>", provider),
+		fmt.Sprintf("morph config set web.provider %s && morph config set web.apiKey <api-key>", provider),
 		"configure web provider credentials",
 	)
 }

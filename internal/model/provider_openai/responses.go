@@ -10,8 +10,8 @@ import (
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
 
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // responsesHandler handles responses requests.
@@ -73,7 +73,7 @@ func (c *OpenAIClient) completeResponsesStream(
 		} else if ok {
 			streamToolCalls = append(streamToolCalls, toolCall)
 		}
-		if textDelta, terminalResponse, err := handleResponsesStreamEvent(event); err != nil {
+		if textDelta, terminalResponse, err := HandesponsesStreamEvent(event); err != nil {
 			return nil, err
 		} else {
 			if textDelta.Text != "" {
@@ -174,7 +174,7 @@ func getResponseOutputItemToolCall(item responses.ResponseOutputItemUnion, idx i
 	}, true, nil
 }
 
-func handleResponsesStreamEvent(event responses.ResponseStreamEventUnion) (StreamDelta, *responses.Response, error) {
+func HandesponsesStreamEvent(event responses.ResponseStreamEventUnion) (StreamDelta, *responses.Response, error) {
 	switch event.Type {
 	case "response.output_text.delta":
 		return StreamDelta{
@@ -218,7 +218,7 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 
 	for _, message := range req.Messages {
 		switch message.Role {
-		case handmsg.RoleDeveloper, handmsg.RoleUser:
+		case morphmsg.RoleDeveloper, morphmsg.RoleUser:
 			items = append(items, responses.ResponseInputItemParamOfInputMessage(
 				responses.ResponseInputMessageContentListParam{
 					{
@@ -227,7 +227,7 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 				},
 				string(message.Role),
 			))
-		case handmsg.RoleAssistant:
+		case morphmsg.RoleAssistant:
 			if message.Content != "" {
 				assistantIndex++
 				items = append(items, responses.ResponseInputItemParamOfOutputMessage(
@@ -244,7 +244,7 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 			for _, toolCall := range message.ToolCalls {
 				items = append(items, responses.ResponseInputItemParamOfFunctionCall(toolCall.Input, toolCall.ID, toolCall.Name))
 			}
-		case handmsg.RoleTool:
+		case morphmsg.RoleTool:
 			items = append(items, responses.ResponseInputItemParamOfFunctionCallOutput(message.ToolCallID, message.Content))
 		}
 	}

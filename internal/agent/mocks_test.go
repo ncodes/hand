@@ -8,21 +8,21 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
-	"github.com/wandxy/hand/internal/config"
-	envbudget "github.com/wandxy/hand/internal/environment/budget"
-	envtypes "github.com/wandxy/hand/internal/environment/types"
-	"github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/mocks"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	handtools "github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
-	agenttool "github.com/wandxy/hand/pkg/agent/tool"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	"github.com/wandxy/morph/internal/agent/runcontext"
+	"github.com/wandxy/morph/internal/config"
+	envbudget "github.com/wandxy/morph/internal/environment/budget"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/mocks"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphtools "github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agentprompt "github.com/wandxy/morph/pkg/agent/prompt"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
+	agenttool "github.com/wandxy/morph/pkg/agent/tool"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 )
 
 type stateStoreStub struct {
@@ -30,7 +30,7 @@ type stateStoreStub struct {
 	sessions        map[string]storage.Session
 	summaries       map[string]storage.SessionSummary
 	current         string
-	messages        []handmsg.Message
+	messages        []morphmsg.Message
 	traceEvents     []storage.TraceEvent
 	traceErr        error
 	traceErrAt      int
@@ -138,7 +138,7 @@ func (s *stateStoreStub) ClearCurrent(context.Context) error {
 	return nil
 }
 
-func (s *stateStoreStub) AppendMessages(context.Context, string, []handmsg.Message) error {
+func (s *stateStoreStub) AppendMessages(context.Context, string, []morphmsg.Message) error {
 	return s.appendErr
 }
 
@@ -153,19 +153,19 @@ func (s *stateStoreStub) GetMessage(
 	context.Context,
 	string,
 	int,
-) (handmsg.Message, bool, error) {
-	return handmsg.Message{}, false, nil
+) (morphmsg.Message, bool, error) {
+	return morphmsg.Message{}, false, nil
 }
 
 func (s *stateStoreStub) GetMessages(
 	_ context.Context,
 	_ string,
 	opts storage.MessageQueryOptions,
-) ([]handmsg.Message, error) {
+) ([]morphmsg.Message, error) {
 	if s.messagesErr != nil {
 		return nil, s.messagesErr
 	}
-	messages := append([]handmsg.Message(nil), s.messages...)
+	messages := append([]morphmsg.Message(nil), s.messages...)
 	start := opts.Offset
 	if start > len(messages) {
 		start = len(messages)
@@ -441,7 +441,7 @@ var _ storage.Store = (*stateStoreStub)(nil)
 var _ storage.TraceStore = (*stateStoreStub)(nil)
 
 type sessionStoreStub struct {
-	messagesByOffset map[int][]handmsg.Message
+	messagesByOffset map[int][]morphmsg.Message
 	err              error
 	errAtGet         int
 	getCalls         int
@@ -467,7 +467,7 @@ func (s *sessionStoreStub) GetMessages(
 	_ context.Context,
 	_ string,
 	query agentsession.MessageQuery,
-) ([]handmsg.Message, error) {
+) ([]morphmsg.Message, error) {
 	s.getCalls++
 	if s.errAtGet > 0 && s.getCalls == s.errAtGet {
 		return nil, s.err
@@ -478,7 +478,7 @@ func (s *sessionStoreStub) GetMessages(
 	return s.messagesByOffset[query.Offset], nil
 }
 
-func (s *sessionStoreStub) AppendMessages(context.Context, string, []handmsg.Message) error {
+func (s *sessionStoreStub) AppendMessages(context.Context, string, []morphmsg.Message) error {
 	s.appendCalls++
 	if s.appendErrAt > 0 && s.appendCalls != s.appendErrAt {
 		return nil
@@ -492,8 +492,8 @@ func (s *sessionStoreStub) UpdateLastPromptTokens(context.Context, string, int) 
 
 type sessionManagerStub struct {
 	ResolveFunc                func(context.Context, string) (storage.Session, error)
-	GetMessagesFunc            func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
-	AppendMessagesFunc         func(context.Context, string, []handmsg.Message) error
+	GetMessagesFunc            func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error)
+	AppendMessagesFunc         func(context.Context, string, []morphmsg.Message) error
 	UpdateLastPromptTokensFunc func(context.Context, string, int) error
 	AppendTraceEventFunc       func(context.Context, storage.TraceEvent) (storage.TraceEvent, error)
 }
@@ -506,11 +506,11 @@ func (s *sessionManagerStub) GetMessages(
 	ctx context.Context,
 	id string,
 	query storage.MessageQueryOptions,
-) ([]handmsg.Message, error) {
+) ([]morphmsg.Message, error) {
 	return s.GetMessagesFunc(ctx, id, query)
 }
 
-func (s *sessionManagerStub) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
+func (s *sessionManagerStub) AppendMessages(ctx context.Context, id string, messages []morphmsg.Message) error {
 	return s.AppendMessagesFunc(ctx, id, messages)
 }
 
@@ -609,7 +609,7 @@ type toolGroupRegistryStub struct {
 	groups      []agenttool.Group
 	definitions []agenttool.Definition
 	resolveErr  error
-	invoke      func(context.Context, agenttool.Call) handmsg.Message
+	invoke      func(context.Context, agenttool.Call) morphmsg.Message
 }
 
 func (s *toolGroupRegistryStub) Resolve(agenttool.Policy) ([]agenttool.Definition, error) {
@@ -619,11 +619,11 @@ func (s *toolGroupRegistryStub) Resolve(agenttool.Policy) ([]agenttool.Definitio
 	return s.definitions, nil
 }
 
-func (s *toolGroupRegistryStub) Invoke(ctx context.Context, call agenttool.Call) handmsg.Message {
+func (s *toolGroupRegistryStub) Invoke(ctx context.Context, call agenttool.Call) morphmsg.Message {
 	if s.invoke != nil {
 		return s.invoke(ctx, call)
 	}
-	return handmsg.Message{}
+	return morphmsg.Message{}
 }
 
 func (s *toolGroupRegistryStub) ListGroups() []agenttool.Group {
@@ -642,34 +642,34 @@ func (s *memoryFlushToolRegistryStub) Resolve(agenttool.Policy) ([]agenttool.Def
 	return s.definitions, nil
 }
 
-func (s *memoryFlushToolRegistryStub) Invoke(context.Context, agenttool.Call) handmsg.Message {
-	return handmsg.Message{}
+func (s *memoryFlushToolRegistryStub) Invoke(context.Context, agenttool.Call) morphmsg.Message {
+	return morphmsg.Message{}
 }
 
 type environmentToolRegistryStub struct {
-	invoke func(context.Context, handtools.Call) (handtools.Result, error)
+	invoke func(context.Context, morphtools.Call) (morphtools.Result, error)
 }
 
-func (s *environmentToolRegistryStub) GetGroup(string) (handtools.Group, bool) {
-	return handtools.Group{}, false
+func (s *environmentToolRegistryStub) GetGroup(string) (morphtools.Group, bool) {
+	return morphtools.Group{}, false
 }
 
-func (s *environmentToolRegistryStub) List() handtools.Definitions {
+func (s *environmentToolRegistryStub) List() morphtools.Definitions {
 	return nil
 }
 
-func (s *environmentToolRegistryStub) ListGroups() []handtools.Group {
+func (s *environmentToolRegistryStub) ListGroups() []morphtools.Group {
 	return nil
 }
 
-func (s *environmentToolRegistryStub) Resolve(handtools.Policy) (handtools.Definitions, error) {
+func (s *environmentToolRegistryStub) Resolve(morphtools.Policy) (morphtools.Definitions, error) {
 	return nil, nil
 }
 
 func (s *environmentToolRegistryStub) Invoke(
 	ctx context.Context,
-	call handtools.Call,
-) (handtools.Result, error) {
+	call morphtools.Call,
+) (morphtools.Result, error) {
 	return s.invoke(ctx, call)
 }
 
@@ -727,7 +727,7 @@ func newTurnRunTestSubject(
 	budget envbudget.IterationBudget,
 ) *Turn {
 	if sessionStore == nil {
-		sessionStore = &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}}
+		sessionStore = &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}}
 	}
 	if registry == nil {
 		registry = &toolGroupRegistryStub{}
@@ -756,7 +756,7 @@ func newTurnRunTestSubject(
 	)
 }
 
-func toolExecutionTestContent(t *testing.T, message handmsg.Message) map[string]any {
+func toolExecutionTestContent(t *testing.T, message morphmsg.Message) map[string]any {
 	t.Helper()
 
 	var content map[string]any
@@ -764,16 +764,16 @@ func toolExecutionTestContent(t *testing.T, message handmsg.Message) map[string]
 	return content
 }
 
-func toolExecutionTestMessage(toolCall models.ToolCall, content string) handmsg.Message {
-	return handmsg.Message{
-		Role:       handmsg.RoleTool,
+func toolExecutionTestMessage(toolCall models.ToolCall, content string) morphmsg.Message {
+	return morphmsg.Message{
+		Role:       morphmsg.RoleTool,
 		Name:       toolCall.Name,
 		ToolCallID: toolCall.ID,
 		Content:    content,
 	}
 }
 
-func toolExecutionTestMessageIDs(messages []handmsg.Message) []string {
+func toolExecutionTestMessageIDs(messages []morphmsg.Message) []string {
 	ids := make([]string, 0, len(messages))
 	for _, message := range messages {
 		ids = append(ids, message.ToolCallID)

@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
 )
 
 // WebCredentialSource describes web credential provenance without exposing values.
@@ -103,15 +103,15 @@ func IsWebCredentialProvider(provider string) bool {
 func WebProviderAPIKeyEnv(provider string) []string {
 	switch strings.TrimSpace(strings.ToLower(provider)) {
 	case constants.WebProviderFirecrawl:
-		return []string{"HAND_FIRECRAWL_API_KEY", "FIRECRAWL_API_KEY", "HAND_WEB_API_KEY"}
+		return []string{"MORPH_FIRECRAWL_API_KEY", "FIRECRAWL_API_KEY", "MORPH_WEB_API_KEY"}
 	case constants.WebProviderParallel:
-		return []string{"HAND_PARALLEL_API_KEY", "PARALLEL_API_KEY", "HAND_WEB_API_KEY"}
+		return []string{"MORPH_PARALLEL_API_KEY", "PARALLEL_API_KEY", "MORPH_WEB_API_KEY"}
 	case constants.WebProviderTavily:
-		return []string{"HAND_TAVILY_API_KEY", "TAVILY_API_KEY", "HAND_WEB_API_KEY"}
+		return []string{"MORPH_TAVILY_API_KEY", "TAVILY_API_KEY", "MORPH_WEB_API_KEY"}
 	case constants.WebProviderExa:
-		return []string{"HAND_EXA_API_KEY", "EXA_API_KEY", "HAND_WEB_API_KEY"}
+		return []string{"MORPH_EXA_API_KEY", "EXA_API_KEY", "MORPH_WEB_API_KEY"}
 	default:
-		return []string{"HAND_WEB_API_KEY"}
+		return []string{"MORPH_WEB_API_KEY"}
 	}
 }
 

@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	pkgslack "github.com/wandxy/hand/pkg/gateway/slack"
+	pkgslack "github.com/wandxy/morph/pkg/gateway/slack"
 )
 
 func TestHTTPClient_PostMessageSendsSlackRequest(t *testing.T) {

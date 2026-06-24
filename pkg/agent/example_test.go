@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/agent/model"
-	"github.com/wandxy/hand/pkg/agent/session"
-	"github.com/wandxy/hand/pkg/agent/tool"
+	"github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/agent/model"
+	"github.com/wandxy/morph/pkg/agent/session"
+	"github.com/wandxy/morph/pkg/agent/tool"
 )
 
 func ExampleAgent_Respond() {

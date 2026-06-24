@@ -4,10 +4,10 @@ import (
 	"strings"
 	"time"
 
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
-	tuistate "github.com/wandxy/hand/internal/tui/state"
-	tuitranscript "github.com/wandxy/hand/internal/tui/transcript"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	storage "github.com/wandxy/morph/internal/state/core"
+	tuistate "github.com/wandxy/morph/internal/tui/state"
+	tuitranscript "github.com/wandxy/morph/internal/tui/transcript"
 )
 
 type tuiAction interface {

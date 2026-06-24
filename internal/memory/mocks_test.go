@@ -3,8 +3,8 @@ package memory
 import (
 	"context"
 
-	statecore "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	statecore "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 type fakeLogger struct {
@@ -142,7 +142,7 @@ func (s fakeMemoryManager) CountMessages(context.Context, string, statecore.Mess
 	return 0, nil
 }
 
-func (s fakeMemoryManager) GetMessages(context.Context, string, statecore.MessageQueryOptions) ([]handmsg.Message, error) {
+func (s fakeMemoryManager) GetMessages(context.Context, string, statecore.MessageQueryOptions) ([]morphmsg.Message, error) {
 	return nil, nil
 }
 

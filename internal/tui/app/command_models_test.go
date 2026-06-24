@@ -10,8 +10,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/constants"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	"github.com/wandxy/morph/internal/constants"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 )
 
 func TestModel_StartModelsCommandLoadsModels(t *testing.T) {
@@ -751,7 +751,7 @@ func TestModel_ProviderAPIKeyPromptEdgeCases(t *testing.T) {
 func TestModel_ModelSelectionReportsOAuthLoginCommand(t *testing.T) {
 	runModel := newModel()
 	updated, cmd := runModel.completeSelectModel(modelSelectedMsg{
-		Err: errors.New(`model API key is required for provider "openai-codex"; set a provider API key, provider env var, role apiKey, or run hand auth login openai-codex`),
+		Err: errors.New(`model API key is required for provider "openai-codex"; set a provider API key, provider env var, role apiKey, or run morph auth login openai-codex`),
 	})
 
 	require.NotNil(t, cmd)
@@ -759,7 +759,7 @@ func TestModel_ModelSelectionReportsOAuthLoginCommand(t *testing.T) {
 	require.Equal(t, "model authentication required", runModel.status.Text())
 	require.Equal(
 		t,
-		[]string{"Error: run hand auth login openai-codex in a new terminal"},
+		[]string{"Error: run morph auth login openai-codex in a new terminal"},
 		transcriptCellPlainTexts(runModel.messages),
 	)
 	require.Contains(
@@ -770,7 +770,7 @@ func TestModel_ModelSelectionReportsOAuthLoginCommand(t *testing.T) {
 	require.Contains(
 		t,
 		stripANSI(runModel.transcript.GetContent()),
-		"hand auth login openai-codex",
+		"morph auth login openai-codex",
 	)
 	require.Contains(
 		t,
@@ -780,7 +780,7 @@ func TestModel_ModelSelectionReportsOAuthLoginCommand(t *testing.T) {
 	require.NotContains(
 		t,
 		stripANSI(runModel.transcript.GetContent()),
-		"run hand auth login openai-codex in a new terminal",
+		"run morph auth login openai-codex in a new terminal",
 	)
 	require.NotContains(
 		t,

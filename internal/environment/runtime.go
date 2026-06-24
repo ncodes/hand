@@ -6,15 +6,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
-	"github.com/wandxy/hand/internal/environment/planstore"
-	"github.com/wandxy/hand/internal/environment/process"
-	"github.com/wandxy/hand/internal/environment/sessionmessages"
-	"github.com/wandxy/hand/internal/environment/sessionsearch"
-	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/memory/episodic"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
+	"github.com/wandxy/morph/internal/agent/runcontext"
+	"github.com/wandxy/morph/internal/environment/planstore"
+	"github.com/wandxy/morph/internal/environment/process"
+	"github.com/wandxy/morph/internal/environment/sessionmessages"
+	"github.com/wandxy/morph/internal/environment/sessionsearch"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/memory/episodic"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
 )
 
 var getwd = os.Getwd

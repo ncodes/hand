@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	statecore "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/trace"
+	statecore "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 const (

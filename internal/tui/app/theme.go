@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	tuirender "github.com/wandxy/hand/internal/tui/render"
-	"github.com/wandxy/hand/pkg/termtheme"
+	tuirender "github.com/wandxy/morph/internal/tui/render"
+	"github.com/wandxy/morph/pkg/termtheme"
 )
 
 type tuiTheme = tuirender.Theme

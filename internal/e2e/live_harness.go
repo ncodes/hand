@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/config"
-	models "github.com/wandxy/hand/internal/model"
-	modelclient "github.com/wandxy/hand/internal/model/client"
+	"github.com/wandxy/morph/internal/config"
+	models "github.com/wandxy/morph/internal/model"
+	modelclient "github.com/wandxy/morph/internal/model/client"
 )
 
 type liveModelClientFactory interface {
@@ -139,7 +139,7 @@ func DefaultLiveArtifactDir(override string) string {
 		return strings.TrimSpace(override)
 	}
 
-	return filepath.Join(os.TempDir(), "hand-live-artifacts")
+	return filepath.Join(os.TempDir(), "morph-live-artifacts")
 }
 
 // RunLiveScenario runs live scenario.

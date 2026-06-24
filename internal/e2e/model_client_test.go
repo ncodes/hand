@@ -8,15 +8,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestNewTextClient_ReturnsSingleResponse(t *testing.T) {
 	client := NewTextClient(" hello ")
 
 	resp, err := client.Complete(context.Background(), models.Request{
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "ping"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "ping"}},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -29,7 +29,7 @@ func TestNewToolClient_ValidatesToolRoundTrip(t *testing.T) {
 	client := NewToolClient(models.ToolCall{ID: "call-1", Name: "time", Input: "{}"}, "done")
 
 	first, err := client.Complete(context.Background(), models.Request{
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "what time"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "what time"}},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, first)
@@ -38,10 +38,10 @@ func TestNewToolClient_ValidatesToolRoundTrip(t *testing.T) {
 	assert.Equal(t, "time", first.ToolCalls[0].Name)
 
 	second, err := client.Complete(context.Background(), models.Request{
-		Messages: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "what time"},
-			{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}},
-			{Role: handmsg.RoleTool, Name: "time", ToolCallID: "call-1", Content: "12:00 UTC"},
+		Messages: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "what time"},
+			{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}},
+			{Role: morphmsg.RoleTool, Name: "time", ToolCallID: "call-1", Content: "12:00 UTC"},
 		},
 	})
 	require.NoError(t, err)
@@ -124,9 +124,9 @@ func TestClient_ValidationPaths(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := client.Complete(context.Background(), models.Request{
-			Messages: []handmsg.Message{
-				{Role: handmsg.RoleUser, Content: "what time"},
-				{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}},
+			Messages: []morphmsg.Message{
+				{Role: morphmsg.RoleUser, Content: "what time"},
+				{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}},
 			},
 		})
 		require.Error(t, err)
@@ -137,10 +137,10 @@ func TestClient_ValidationPaths(t *testing.T) {
 	t.Run("tool round trip missing assistant", func(t *testing.T) {
 		check := AssertToolRoundTrip(models.ToolCall{ID: "call-1", Name: "time"})
 		err := check(models.Request{
-			Messages: []handmsg.Message{
-				{Role: handmsg.RoleUser, Content: "what time"},
-				{Role: handmsg.RoleTool, Name: "time", ToolCallID: "call-1", Content: "12:00 UTC"},
-				{Role: handmsg.RoleAssistant, Content: "plain"},
+			Messages: []morphmsg.Message{
+				{Role: morphmsg.RoleUser, Content: "what time"},
+				{Role: morphmsg.RoleTool, Name: "time", ToolCallID: "call-1", Content: "12:00 UTC"},
+				{Role: morphmsg.RoleAssistant, Content: "plain"},
 			},
 		})
 		require.Error(t, err)
@@ -150,10 +150,10 @@ func TestClient_ValidationPaths(t *testing.T) {
 	t.Run("tool round trip missing matching tool message", func(t *testing.T) {
 		check := AssertToolRoundTrip(models.ToolCall{ID: "call-1", Name: "time"})
 		err := check(models.Request{
-			Messages: []handmsg.Message{
-				{Role: handmsg.RoleUser, Content: "what time"},
-				{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time"}}},
-				{Role: handmsg.RoleTool, Name: "time", ToolCallID: "other-call", Content: "12:00 UTC"},
+			Messages: []morphmsg.Message{
+				{Role: morphmsg.RoleUser, Content: "what time"},
+				{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "time"}}},
+				{Role: morphmsg.RoleTool, Name: "time", ToolCallID: "other-call", Content: "12:00 UTC"},
 			},
 		})
 		require.Error(t, err)
@@ -164,43 +164,43 @@ func TestClient_ValidationPaths(t *testing.T) {
 		check := AssertToolRoundTrip(models.ToolCall{ID: "call-1", Name: "time"})
 
 		err := check(models.Request{
-			Messages: []handmsg.Message{
-				{Role: handmsg.RoleUser, Content: "what time"},
-				{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{
+			Messages: []morphmsg.Message{
+				{Role: morphmsg.RoleUser, Content: "what time"},
+				{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{
 					{ID: "call-1", Name: "time"},
 					{ID: "call-2", Name: "time"},
 				}},
-				{Role: handmsg.RoleTool, Name: "time", ToolCallID: "call-1", Content: "12:00 UTC"},
+				{Role: morphmsg.RoleTool, Name: "time", ToolCallID: "call-1", Content: "12:00 UTC"},
 			},
 		})
 		require.Error(t, err)
 		assert.EqualError(t, err, "expected exactly one assistant tool call")
 
 		err = check(models.Request{
-			Messages: []handmsg.Message{
-				{Role: handmsg.RoleUser, Content: "what time"},
-				{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "wrong", Name: "time"}}},
-				{Role: handmsg.RoleTool, Name: "time", ToolCallID: "call-1", Content: "12:00 UTC"},
+			Messages: []morphmsg.Message{
+				{Role: morphmsg.RoleUser, Content: "what time"},
+				{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{ID: "wrong", Name: "time"}}},
+				{Role: morphmsg.RoleTool, Name: "time", ToolCallID: "call-1", Content: "12:00 UTC"},
 			},
 		})
 		require.Error(t, err)
 		assert.EqualError(t, err, `expected assistant tool call id "call-1"`)
 
 		err = check(models.Request{
-			Messages: []handmsg.Message{
-				{Role: handmsg.RoleUser, Content: "what time"},
-				{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "clock"}}},
-				{Role: handmsg.RoleTool, Name: "time", ToolCallID: "call-1", Content: "12:00 UTC"},
+			Messages: []morphmsg.Message{
+				{Role: morphmsg.RoleUser, Content: "what time"},
+				{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "clock"}}},
+				{Role: morphmsg.RoleTool, Name: "time", ToolCallID: "call-1", Content: "12:00 UTC"},
 			},
 		})
 		require.Error(t, err)
 		assert.EqualError(t, err, `expected assistant tool call name "time"`)
 
 		err = check(models.Request{
-			Messages: []handmsg.Message{
-				{Role: handmsg.RoleUser, Content: "what time"},
-				{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time"}}},
-				{Role: handmsg.RoleTool, Name: "clock", ToolCallID: "call-1", Content: "12:00 UTC"},
+			Messages: []morphmsg.Message{
+				{Role: morphmsg.RoleUser, Content: "what time"},
+				{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{ID: "call-1", Name: "time"}}},
+				{Role: morphmsg.RoleTool, Name: "clock", ToolCallID: "call-1", Content: "12:00 UTC"},
 			},
 		})
 		require.Error(t, err)
@@ -210,7 +210,7 @@ func TestClient_ValidationPaths(t *testing.T) {
 	t.Run("request cloning protects captured requests", func(t *testing.T) {
 		client := NewTextClient("ok")
 		req := models.Request{
-			Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+			Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 			Tools:    []models.ToolDefinition{{Name: "time"}},
 		}
 

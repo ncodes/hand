@@ -10,15 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	handagent "github.com/wandxy/hand/internal/agent"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/datadir"
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/profile"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	agentcore "github.com/wandxy/hand/pkg/agent"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	morphagent "github.com/wandxy/morph/internal/agent"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/datadir"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/profile"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	agentcore "github.com/wandxy/morph/pkg/agent"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 var setHarnessEnv = os.Setenv
@@ -53,7 +53,7 @@ type harnessSessionAgent interface {
 }
 
 type harnessTurnMessagesAgent interface {
-	TurnMessages() []handmsg.Message
+	TurnMessages() []morphmsg.Message
 }
 
 type harnessCompactionAgent interface {
@@ -87,7 +87,7 @@ func NewHarness(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 	}
 
 	runCtx, cancel := context.WithCancel(normalizeHarnessContext(ctx))
-	ag := handagent.NewAgent(runCtx, cfg, opts.ModelClient, opts.SummaryClient)
+	ag := morphagent.NewAgent(runCtx, cfg, opts.ModelClient, opts.SummaryClient)
 	if err := ag.Start(runCtx); err != nil {
 		cancel()
 		restoreEnv()
@@ -236,7 +236,7 @@ func (h *Harness) Send(ctx context.Context, req RootChatRequest) (RootChatResult
 	}, nil
 }
 
-func (h *Harness) Messages(ctx context.Context, sessionID string) ([]handmsg.Message, error) {
+func (h *Harness) Messages(ctx context.Context, sessionID string) ([]morphmsg.Message, error) {
 	if h == nil {
 		return nil, errors.New("e2e harness is required")
 	}
@@ -258,7 +258,7 @@ func (h *Harness) Messages(ctx context.Context, sessionID string) ([]handmsg.Mes
 }
 
 // TurnMessages returns the messages emitted by the most recent harness turn.
-func (h *Harness) TurnMessages() ([]handmsg.Message, error) {
+func (h *Harness) TurnMessages() ([]morphmsg.Message, error) {
 	if h == nil || h.agent == nil {
 		return nil, errors.New("e2e harness is required")
 	}

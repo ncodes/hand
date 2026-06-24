@@ -9,13 +9,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	storagemock "github.com/wandxy/hand/internal/state/mock"
-	"github.com/wandxy/hand/internal/state/search"
-	storagememory "github.com/wandxy/hand/internal/state/storememory"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
-	"github.com/wandxy/hand/pkg/nanoid"
+	storage "github.com/wandxy/morph/internal/state/core"
+	storagemock "github.com/wandxy/morph/internal/state/mock"
+	"github.com/wandxy/morph/internal/state/search"
+	storagememory "github.com/wandxy/morph/internal/state/storememory"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 var (
@@ -320,8 +320,8 @@ func TestManager_RunMaintenancePreservesExpiredDefaultMessages(t *testing.T) {
 		CreatedAt: expiredAt.Add(-time.Hour),
 		UpdatedAt: expiredAt,
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
+	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
 	}))
 	defaultSession, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
@@ -355,8 +355,8 @@ func TestManager_RunMaintenancePreservesDefaultSessionCompactionMetadata(t *test
 		CreatedAt: expiredAt.Add(-time.Hour),
 		UpdatedAt: expiredAt,
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
+	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
 	}))
 	defaultSession, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
@@ -544,7 +544,7 @@ func TestManager_GetMessagesByIDs_ForwardsToStore(t *testing.T) {
 		GetMessagesByIDsFunc: func(_ context.Context, id string, messageIDs []uint) ([]storage.MessageRecord, error) {
 			capturedID = id
 			capturedMessageIDs = append([]uint(nil), messageIDs...)
-			return []storage.MessageRecord{{Offset: 3, Message: handmsg.Message{ID: 7}}}, nil
+			return []storage.MessageRecord{{Offset: 3, Message: morphmsg.Message{ID: 7}}}, nil
 		},
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -567,7 +567,7 @@ func TestManager_GetMessageWindow_ForwardsToStore(t *testing.T) {
 			capturedAnchor = anchorMessageID
 			capturedBefore = before
 			capturedAfter = after
-			return []storage.MessageRecord{{Offset: 2, Message: handmsg.Message{ID: anchorMessageID}}}, nil
+			return []storage.MessageRecord{{Offset: 2, Message: morphmsg.Message{ID: anchorMessageID}}}, nil
 		},
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -726,8 +726,8 @@ func TestManager_CreateSaveListAndResolveNonDefaultSession(t *testing.T) {
 	require.False(t, created.CreatedAt.IsZero())
 
 	require.EqualError(t, manager.AppendMessages(context.Background(), "", nil), "session id is required")
-	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
 	}))
 
 	resolved, err := manager.Resolve(context.Background(), testSessionA)
@@ -825,8 +825,8 @@ func TestManager_AppendMessagesCreatesDefaultSession(t *testing.T) {
 	manager, err := NewManager(store, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
-	require.NoError(t, manager.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello default", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
+	require.NoError(t, manager.AppendMessages(context.Background(), storage.DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello default", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
 	}))
 
 	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
@@ -1021,16 +1021,16 @@ func TestManager_ArchivedSessionsRejectActiveOperationsAndUnarchiveRestores(t *t
 
 	_, err = manager.CreateSession(context.Background(), testSessionA)
 	require.NoError(t, err)
-	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)},
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)},
 	}))
 	require.NoError(t, manager.ArchiveSession(context.Background(), testSessionA))
 
 	_, err = manager.Resolve(context.Background(), testSessionA)
 	require.EqualError(t, err, "session is archived")
 	require.EqualError(t, manager.UseSession(context.Background(), testSessionA), "session is archived")
-	require.EqualError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "after archive"},
+	require.EqualError(t, manager.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "after archive"},
 	}), "session is archived")
 	_, err = manager.RenameSession(context.Background(), testSessionA, "Archived Rename")
 	require.EqualError(t, err, "session is archived")
@@ -1044,8 +1044,8 @@ func TestManager_ArchivedSessionsRejectActiveOperationsAndUnarchiveRestores(t *t
 	renamed, err := manager.RenameSession(context.Background(), testSessionA, "Restored")
 	require.NoError(t, err)
 	require.Equal(t, "Restored", renamed.Title)
-	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleAssistant, Content: "restored"},
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleAssistant, Content: "restored"},
 	}))
 
 	messages, err := manager.GetMessages(context.Background(), testSessionA, storage.MessageQueryOptions{})
@@ -1061,8 +1061,8 @@ func TestManager_DeleteSessionRemovesArchivedSession(t *testing.T) {
 
 	_, err = manager.CreateSession(context.Background(), testSessionA)
 	require.NoError(t, err)
-	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
 	}))
 	_, err = store.Archive(context.Background(), testSessionA, storage.SessionArchiveRequest{
 		ArchivedAt: time.Date(2026, 3, 30, 13, 0, 0, 0, time.UTC),
@@ -1088,8 +1088,8 @@ func TestManager_ArchiveSessionMarksSessionArchived(t *testing.T) {
 
 	_, err = manager.CreateSession(context.Background(), testSessionA)
 	require.NoError(t, err)
-	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "archive this", CreatedAt: now.Add(-time.Minute)},
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "archive this", CreatedAt: now.Add(-time.Minute)},
 	}))
 	require.NoError(t, manager.UseSession(context.Background(), testSessionA))
 
@@ -1126,8 +1126,8 @@ func TestManager_ResolveDefaultSessionKeepsActiveMessagesBeforeExpiry(t *testing
 	store := storagememory.NewStore()
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), storage.Session{ID: storage.DefaultSessionID, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "still-active", CreatedAt: now.Add(-5 * time.Minute)},
+	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "still-active", CreatedAt: now.Add(-5 * time.Minute)},
 	}))
 	require.NoError(t, store.Save(context.Background(), storage.Session{ID: storage.DefaultSessionID, UpdatedAt: now}))
 
@@ -1149,8 +1149,8 @@ func TestManager_ResolveChatSessionDoesNotRunMaintenance(t *testing.T) {
 	store := storagememory.NewStore()
 	expiredAt := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), storage.Session{ID: storage.DefaultSessionID, UpdatedAt: expiredAt}))
-	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
+	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
 	}))
 	require.NoError(t, store.Save(context.Background(), storage.Session{ID: storage.DefaultSessionID, UpdatedAt: expiredAt}))
 
@@ -1176,8 +1176,8 @@ func TestManager_StartRunsMaintenance(t *testing.T) {
 		CreatedAt: expiredAt.Add(-time.Hour),
 		UpdatedAt: expiredAt,
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
+	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
 	}))
 	defaultSession, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
@@ -1375,8 +1375,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		}, time.Hour, 24*time.Hour)
 		require.NoError(t, err)
 
-		err = manager.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "hello"},
+		err = manager.AppendMessages(context.Background(), storage.DefaultSessionID, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "hello"},
 		})
 		require.EqualError(t, err, "get failed")
 	})

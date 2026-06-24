@@ -3,7 +3,7 @@ package message
 import (
 	"strings"
 
-	"github.com/wandxy/hand/pkg/jsonterms"
+	"github.com/wandxy/morph/pkg/jsonterms"
 )
 
 func MessageSearchText(message Message) string {

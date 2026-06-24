@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestVectorInputsFromIndexRows(t *testing.T) {
@@ -16,14 +16,14 @@ func TestVectorInputsFromIndexRows(t *testing.T) {
 		UpdatedAt: now,
 		MessageID: 1,
 		SessionID: "ses_a",
-		Role:      string(handmsg.RoleUser),
+		Role:      string(morphmsg.RoleUser),
 		Body:      "first",
 	}, {
 		CreatedAt: now,
 		UpdatedAt: now,
 		MessageID: 1,
 		SessionID: "ses_a",
-		Role:      string(handmsg.RoleUser),
+		Role:      string(morphmsg.RoleUser),
 		ToolName:  "process",
 		Body:      "second",
 	}}

@@ -1,6 +1,6 @@
 package events
 
-import rpcclient "github.com/wandxy/hand/internal/rpc/client"
+import rpcclient "github.com/wandxy/morph/internal/rpc/client"
 
 // Event is implemented by messages that flow through the TUI update loop.
 type Event interface {
@@ -34,7 +34,7 @@ type InsertInputNewlineEvent struct{}
 // DeleteInputLineEvent requests deleting the current composer line.
 type DeleteInputLineEvent struct{}
 
-// ApplyTUIMessageEvent wraps an incoming Bubble Tea message for app handling.
+// ApplyTUIMessageEvent wraps an incoming Bubble Tea message for app morphling.
 type ApplyTUIMessageEvent struct {
 	Message any
 }

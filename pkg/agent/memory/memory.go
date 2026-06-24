@@ -3,8 +3,8 @@ package memory
 import (
 	"context"
 
-	"github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/agent/prompt"
+	"github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/agent/prompt"
 )
 
 type Provider interface {

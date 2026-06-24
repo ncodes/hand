@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/hand/internal/constants"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func TestLoad_PersonalitiesParseNormalizeAndResolveSoulPaths(t *testing.T) {

@@ -1,9 +1,9 @@
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { formatTime } from "../../lib/format";
 import { cn } from "../../lib/utils";
 import type { TraceSessionSummary } from "../../types/trace";
 import { Button } from "../ui/button";
 import { StatusBadge } from "../ui/status-badge";
-import type { PointerEvent as ReactPointerEvent } from "react";
 
 type SessionSidebarProps = {
   sessions: TraceSessionSummary[];
@@ -36,7 +36,7 @@ export function SessionSidebar({ sessions, loading, selectedId, collapsed, drawe
         <div className={cn(collapsed ? "px-2 py-4" : "p-4", "h-full overflow-auto transition-[padding] duration-150 ease-out max-[880px]:p-4")}>
           <div className={cn(collapsed ? "p-2" : "p-4", "mb-4 rounded-lg border border-white/10 bg-white/[0.03] transition-[padding] duration-150 ease-out")}>
             <div className="flex items-start justify-between gap-2">
-              <div className={cn(collapsed ? "hidden max-[880px]:block" : "", "text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300")}>Hand</div>
+              <div className={cn(collapsed ? "hidden max-[880px]:block" : "", "text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300")}>Morph</div>
               <Button
                 onClick={onToggleCollapsed}
                 className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-white/10 bg-white/[0.04] text-sm text-stone-300 transition hover:border-cyan-300/40 hover:text-cyan-100 max-[880px]:hidden"

@@ -176,7 +176,7 @@ func validateConfigYAML(
 		return fmt.Errorf("create config dir: %w", err)
 	}
 
-	tempFile, err := os.CreateTemp(filepath.Dir(configPath), ".hand-config-edit-*.yaml")
+	tempFile, err := os.CreateTemp(filepath.Dir(configPath), ".morph-config-edit-*.yaml")
 	if err != nil {
 		return fmt.Errorf("create validation config: %w", err)
 	}

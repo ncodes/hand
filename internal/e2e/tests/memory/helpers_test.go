@@ -10,15 +10,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	handdb "github.com/wandxy/hand/internal/db"
-	e2e "github.com/wandxy/hand/internal/e2e"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	"github.com/wandxy/hand/internal/state/search"
-	vectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/config"
+	morphdb "github.com/wandxy/morph/internal/db"
+	e2e "github.com/wandxy/morph/internal/e2e"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	"github.com/wandxy/morph/internal/state/search"
+	vectorsqlite "github.com/wandxy/morph/internal/state/search/vectorstore/sqlite"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 type liveMemoryStore interface {
@@ -126,7 +126,7 @@ func loadLiveMemoryStateManager(
 func loadLiveMemoryVectorIndex(t *testing.T, cfg *config.Config) liveMemoryVectorIndex {
 	t.Helper()
 
-	db, err := handdb.Open(cfg)
+	db, err := morphdb.Open(cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		sqlDB, err := db.DB()
@@ -156,7 +156,7 @@ func requireNoLiveMemoryToolUsage(
 		for _, call := range message.ToolCalls {
 			require.Falsef(t, isLiveMemoryToolName(call.Name), "unexpected memory tool call %q", call.Name)
 		}
-		if message.Role == handmsg.RoleTool {
+		if message.Role == morphmsg.RoleTool {
 			require.Falsef(t, isLiveMemoryToolName(message.Name), "unexpected memory tool result %q", message.Name)
 		}
 	}

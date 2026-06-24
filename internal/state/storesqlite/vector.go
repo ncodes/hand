@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/constants"
-	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
+	"github.com/wandxy/morph/internal/constants"
+	base "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
 )
 
 const defaultVectorStoreRebuildBatchSize = constants.DefaultVectorStoreRebuildBatchSize

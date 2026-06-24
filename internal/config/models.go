@@ -3,7 +3,7 @@ package config
 import (
 	"strings"
 
-	appcredential "github.com/wandxy/hand/internal/credential"
+	appcredential "github.com/wandxy/morph/internal/credential"
 )
 
 type ModelCredentialSourceKind string

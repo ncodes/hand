@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/pkg/logutils"
 
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/guardrails"
-	webprovider "github.com/wandxy/hand/internal/providers/web"
-	"github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/internal/tools/common"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/guardrails"
+	webprovider "github.com/wandxy/morph/internal/providers/web"
+	"github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/tools/common"
 )
 
 const maxURLs = constants.WebExtractToolMaxURLs

@@ -20,16 +20,16 @@ import (
 	"github.com/muesli/reflow/wordwrap"
 	"gopkg.in/yaml.v3"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
-	modelcatalog "github.com/wandxy/hand/internal/model"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	_ "github.com/wandxy/hand/internal/model/provider_anthropic"
-	_ "github.com/wandxy/hand/internal/model/provider_copilot"
-	_ "github.com/wandxy/hand/internal/model/provider_openai"
-	"github.com/wandxy/hand/internal/profile"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
+	modelcatalog "github.com/wandxy/morph/internal/model"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	_ "github.com/wandxy/morph/internal/model/provider_anthropic"
+	_ "github.com/wandxy/morph/internal/model/provider_copilot"
+	_ "github.com/wandxy/morph/internal/model/provider_openai"
+	"github.com/wandxy/morph/internal/profile"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 )
 
 const (
@@ -232,7 +232,7 @@ func (m model) renderNamePrompt() string {
 		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground)).
 		Bold(true).
 		Render(namePromptTitle)
-	mark := renderHandBanner(handHeaderMark)
+	mark := renderMorphBanner(morphHeaderMark)
 	inputBox := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(defaultTUITheme.InputFrameBorder)).
@@ -1349,7 +1349,7 @@ func (m model) renderProfileModelSetupFrameWithHint(title string, hint string, b
 	mark := lipgloss.NewStyle().
 		Width(boxWidth).
 		Align(lipgloss.Center).
-		Render(renderHandBanner(handHeaderMark))
+		Render(renderMorphBanner(morphHeaderMark))
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
 		mark,
@@ -1369,7 +1369,7 @@ func (m model) renderProfileModelSetupFrameWithTitleContent(titleContent string,
 	mark := lipgloss.NewStyle().
 		Width(boxWidth + 2).
 		Align(lipgloss.Center).
-		Render(renderHandBanner(handHeaderMark))
+		Render(renderMorphBanner(morphHeaderMark))
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
 		mark,
@@ -1634,7 +1634,7 @@ func renderProfileModelSetupNoticeMessageLine(line string) string {
 func getProfileModelSetupNoticeAuthCommand(line string) string {
 	fields := strings.Fields(line)
 	for index := 0; index+3 < len(fields); index++ {
-		if fields[index] == "hand" && fields[index+1] == "auth" && fields[index+2] == "login" {
+		if fields[index] == "morph" && fields[index+1] == "auth" && fields[index+2] == "login" {
 			return strings.Join(fields[index:index+4], " ")
 		}
 	}
@@ -1685,7 +1685,7 @@ func (m model) getProfileModelSetupBoxWidth() int {
 func (m model) getProfileModelSetupListFirstRow() int {
 	height := max(m.transcript.Height(), 1)
 	listHeight := m.getProfileModelSetupRenderedListHeight()
-	markHeight := lipgloss.Height(renderHandBanner(handHeaderMark))
+	markHeight := lipgloss.Height(renderMorphBanner(morphHeaderMark))
 	contentHeight := markHeight + listHeight + 6
 	top := max((height-contentHeight)/2, 0)
 
@@ -1753,7 +1753,7 @@ func isEmbeddingSetupError(err error) bool {
 }
 
 func getEmbeddingSetupInstruction() string {
-	return "embedding setup required; configure models.embedding or run hand config set search.vector.enabled false"
+	return "embedding setup required; configure models.embedding or run morph config set search.vector.enabled false"
 }
 
 func (m model) profileModelSetupMissing() bool {

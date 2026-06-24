@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {

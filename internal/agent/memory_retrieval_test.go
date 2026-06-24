@@ -7,12 +7,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/guardrails"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	"github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/mocks"
-	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/guardrails"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/mocks"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 func TestMemoryRetrievalHelpersFilterSanitizeAndRender(t *testing.T) {

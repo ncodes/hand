@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/wandxy/hand/internal/profile"
-	handruntime "github.com/wandxy/hand/internal/runtime"
+	"github.com/wandxy/morph/internal/profile"
+	morphruntime "github.com/wandxy/morph/internal/runtime"
 )
 
 func buildRuntimeGroup(ctx context.Context, active profile.Profile) Group {
-	result := handruntime.Probe(ctx, active)
+	result := morphruntime.Probe(ctx, active)
 	if result.Err == nil {
 		return Group{
 			Name: "daemon",
@@ -30,7 +30,7 @@ func buildRuntimeGroup(ctx context.Context, active profile.Profile) Group {
 
 	status := StatusWarn
 	message := result.Err.Error()
-	if result.State == handruntime.ProbeStateInvalid {
+	if result.State == morphruntime.ProbeStateInvalid {
 		status = StatusFail
 	}
 
@@ -41,7 +41,7 @@ func buildRuntimeGroup(ctx context.Context, active profile.Profile) Group {
 				"runtime",
 				status,
 				message,
-				commandAction("hand daemon", "start the daemon for this profile"),
+				commandAction("morph daemon", "start the daemon for this profile"),
 			),
 		},
 	}

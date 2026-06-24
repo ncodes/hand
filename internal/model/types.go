@@ -1,6 +1,6 @@
 package model
 
-import agentmodel "github.com/wandxy/hand/pkg/agent/model"
+import agentmodel "github.com/wandxy/morph/pkg/agent/model"
 
 const (
 	APIOpenAICompletions = agentmodel.APIOpenAICompletions

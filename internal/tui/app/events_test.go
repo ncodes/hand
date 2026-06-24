@@ -7,12 +7,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/guardrails"
-	models "github.com/wandxy/hand/internal/model"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	"github.com/wandxy/hand/internal/trace"
-	agent "github.com/wandxy/hand/pkg/agent"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/guardrails"
+	models "github.com/wandxy/morph/internal/model"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/internal/trace"
+	agent "github.com/wandxy/morph/pkg/agent"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestAgentEventToTUIMessage_ConvertsAssistantDelta(t *testing.T) {
@@ -169,7 +169,7 @@ func TestTraceEventToTUIMessage_ConvertsStreamedPlanInvocationStarted(t *testing
 }
 
 func TestToolCallPayloadToTUIMessage_ConvertsMessageToolCall(t *testing.T) {
-	msg, ok := toolCallPayloadToTUIMessage(handmsg.ToolCall{
+	msg, ok := toolCallPayloadToTUIMessage(morphmsg.ToolCall{
 		ID:    " call_1 ",
 		Name:  " read_file ",
 		Input: `{"path":"notes.txt"}`,
@@ -254,7 +254,7 @@ func TestToolCallPayloadToTUIMessage_ShortensLongListFilesPath(t *testing.T) {
 	msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
 		ID:    "call_1",
 		Name:  "list_files",
-		Input: `{"path":"/Users/nedy/projects/wandxy/hand/internal/tools/listfiles","recursive":true}`,
+		Input: `{"path":"/Users/nedy/projects/wandxy/morph/internal/tools/listfiles","recursive":true}`,
 	})
 
 	require.True(t, ok)
@@ -378,8 +378,8 @@ func TestToolCallPayloadToTUIMessage_ExtractsPlanDetail(t *testing.T) {
 }
 
 func TestToolMessagePayloadToTUIMessage_ExtractsPlanDetail(t *testing.T) {
-	msg, ok := toolMessagePayloadToTUIMessage(handmsg.Message{
-		Role:       handmsg.RoleTool,
+	msg, ok := toolMessagePayloadToTUIMessage(morphmsg.Message{
+		Role:       morphmsg.RoleTool,
 		Name:       "plan_tool",
 		ToolCallID: "call_1",
 		Content: `{
@@ -427,7 +427,7 @@ func TestToolCallPayloadToTUIMessage_IgnoresPayloadWithoutIdentity(t *testing.T)
 func TestTraceEventToTUIMessage_ConvertsToolInvocationCompleted(t *testing.T) {
 	msg, ok := traceEventToTUIMessage(trace.Event{
 		Type: trace.EvtToolInvocationCompleted,
-		Payload: handmsg.Message{
+		Payload: morphmsg.Message{
 			Name:       "read_file",
 			ToolCallID: "call_1",
 			Content:    "SECRET=example",

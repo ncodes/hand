@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	e2e "github.com/wandxy/hand/internal/e2e"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	e2e "github.com/wandxy/morph/internal/e2e"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestE2E_InputSafety_BlocksPromptExfiltrationBeforeModelDispatch(t *testing.T) {
@@ -37,9 +37,9 @@ func TestE2E_InputSafety_AllowsBenignSafetyMetaQuestion(t *testing.T) {
 	require.Equal(t, "I can describe public safety behavior at a high level.", result.Reply)
 	require.Len(t, client.Requests(), 1)
 	messages := requireSafetyTurnMessages(t, harness, 2)
-	require.Equal(t, handmsg.RoleUser, messages[0].Role)
+	require.Equal(t, morphmsg.RoleUser, messages[0].Role)
 	require.Equal(t, "how do you protect system prompts?", messages[0].Content)
-	require.Equal(t, handmsg.RoleAssistant, messages[1].Role)
+	require.Equal(t, morphmsg.RoleAssistant, messages[1].Role)
 	require.Equal(t, result.Reply, messages[1].Content)
 	requireNoInputSafetyTrace(t, harness)
 }

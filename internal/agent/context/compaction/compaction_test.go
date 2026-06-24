@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestEstimateTextRough_ReturnsZeroWhenEmpty(t *testing.T) {
@@ -26,8 +26,8 @@ func TestEstimateCharsFromTokensRough_UsesFourCharsPerToken(t *testing.T) {
 func TestEstimateRequestRough_IncludesInstructionsMessagesAndTools(t *testing.T) {
 	req := models.Request{
 		Instructions: "follow the instructions",
-		Messages: []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		Messages: []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "hello world",
 		}},
 		Tools: []models.ToolDefinition{{
@@ -57,8 +57,8 @@ func TestEvaluator_UsesActualPromptTokensWhenAvailable(t *testing.T) {
 func TestEvaluator_FallsBackToEstimatedPromptTokens(t *testing.T) {
 	evaluator := NewEvaluator(100, 0.5, 0.6)
 	req := models.Request{
-		Messages: []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		Messages: []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: "abcdefgh",
 		}},
 	}
@@ -72,8 +72,8 @@ func TestEvaluator_UsesEstimatedPromptTokensWhenCurrentRequestExceedsStoredActua
 	evaluator := NewEvaluator(1000, 0.5, 0.6)
 	req := models.Request{
 		Instructions: strings.Repeat("a", 600),
-		Messages: []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		Messages: []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: strings.Repeat("b", 600),
 		}},
 	}

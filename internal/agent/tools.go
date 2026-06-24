@@ -3,15 +3,15 @@ package agent
 import (
 	"context"
 
-	"github.com/wandxy/hand/internal/environment"
-	models "github.com/wandxy/hand/internal/model"
-	handtools "github.com/wandxy/hand/internal/tools"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agenttool "github.com/wandxy/hand/pkg/agent/tool"
+	"github.com/wandxy/morph/internal/environment"
+	models "github.com/wandxy/morph/internal/model"
+	morphtools "github.com/wandxy/morph/internal/tools"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agenttool "github.com/wandxy/morph/pkg/agent/tool"
 )
 
 // ToolInvoker executes a model tool call against the prepared environment.
-type ToolInvoker func(context.Context, environment.Environment, models.ToolCall) handmsg.Message
+type ToolInvoker func(context.Context, environment.Environment, models.ToolCall) morphmsg.Message
 
 // ToolRegistry adapts the environment tool registry into the core agent tool
 // interface.
@@ -67,10 +67,10 @@ func (r *ToolRegistry) ListGroups() []agenttool.Group {
 }
 
 // Invoke executes a model tool call and returns the resulting tool message.
-func (r *ToolRegistry) Invoke(ctx context.Context, call agenttool.Call) handmsg.Message {
+func (r *ToolRegistry) Invoke(ctx context.Context, call agenttool.Call) morphmsg.Message {
 	if r == nil || r.invoke == nil {
-		return handmsg.Message{
-			Role:       handmsg.RoleTool,
+		return morphmsg.Message{
+			Role:       morphmsg.RoleTool,
 			Name:       call.Name,
 			ToolCallID: call.ID,
 			Content:    `{"error":"tool invocation is required"}`,
@@ -90,7 +90,7 @@ func ToolPolicyFromEnvironment(env environment.Environment) agenttool.Policy {
 	return agentPolicyFromToolsPolicy(env.ToolPolicy())
 }
 
-func agentPolicyFromToolsPolicy(policy handtools.Policy) agenttool.Policy {
+func agentPolicyFromToolsPolicy(policy morphtools.Policy) agenttool.Policy {
 	return agenttool.Policy{
 		GroupNames:   append([]string(nil), policy.GroupNames...),
 		Capabilities: agentCapabilitiesFromToolsCapabilities(policy.Capabilities),
@@ -98,15 +98,15 @@ func agentPolicyFromToolsPolicy(policy handtools.Policy) agenttool.Policy {
 	}
 }
 
-func toolsPolicyFromAgentPolicy(policy agenttool.Policy) handtools.Policy {
-	return handtools.Policy{
+func toolsPolicyFromAgentPolicy(policy agenttool.Policy) morphtools.Policy {
+	return morphtools.Policy{
 		GroupNames:   append([]string(nil), policy.GroupNames...),
 		Capabilities: toolsCapabilitiesFromAgentCapabilities(policy.Capabilities),
 		Platform:     policy.Platform,
 	}
 }
 
-func agentDefinitionsFromToolsDefinitions(definitions handtools.Definitions) []agenttool.Definition {
+func agentDefinitionsFromToolsDefinitions(definitions morphtools.Definitions) []agenttool.Definition {
 	if len(definitions) == 0 {
 		return nil
 	}
@@ -119,7 +119,7 @@ func agentDefinitionsFromToolsDefinitions(definitions handtools.Definitions) []a
 	return result
 }
 
-func agentDefinitionFromToolsDefinition(definition handtools.Definition) agenttool.Definition {
+func agentDefinitionFromToolsDefinition(definition morphtools.Definition) agenttool.Definition {
 	return agenttool.Definition{
 		Name:         definition.Name,
 		Description:  definition.Description,
@@ -131,7 +131,7 @@ func agentDefinitionFromToolsDefinition(definition handtools.Definition) agentto
 	}
 }
 
-func agentCapabilitiesFromToolsCapabilities(capabilities handtools.Capabilities) agenttool.Capabilities {
+func agentCapabilitiesFromToolsCapabilities(capabilities morphtools.Capabilities) agenttool.Capabilities {
 	return agenttool.Capabilities{
 		Filesystem: capabilities.Filesystem,
 		Network:    capabilities.Network,
@@ -141,8 +141,8 @@ func agentCapabilitiesFromToolsCapabilities(capabilities handtools.Capabilities)
 	}
 }
 
-func toolsCapabilitiesFromAgentCapabilities(capabilities agenttool.Capabilities) handtools.Capabilities {
-	return handtools.Capabilities{
+func toolsCapabilitiesFromAgentCapabilities(capabilities agenttool.Capabilities) morphtools.Capabilities {
+	return morphtools.Capabilities{
 		Filesystem: capabilities.Filesystem,
 		Network:    capabilities.Network,
 		Exec:       capabilities.Exec,

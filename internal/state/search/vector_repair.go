@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
-	state "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/constants"
+	state "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // DefaultVectorRepairBatchSize is the package-level default vector repair batch size constant.
@@ -146,7 +146,7 @@ func DirtyVectorSources(
 }
 
 // MessagesBySourceID returns messages whose stable source IDs are present in sourceIDs.
-func MessagesBySourceID(sessionID string, messages []handmsg.Message, sourceIDs []string) []handmsg.Message {
+func MessagesBySourceID(sessionID string, messages []morphmsg.Message, sourceIDs []string) []morphmsg.Message {
 	sourceSet := make(map[string]struct{}, len(sourceIDs))
 	for _, sourceID := range sourceIDs {
 		sourceID = strings.TrimSpace(sourceID)
@@ -158,7 +158,7 @@ func MessagesBySourceID(sessionID string, messages []handmsg.Message, sourceIDs 
 		return nil
 	}
 
-	selected := make([]handmsg.Message, 0, len(messages))
+	selected := make([]morphmsg.Message, 0, len(messages))
 	for _, message := range messages {
 		if _, ok := sourceSet[SourceIDForMessage(sessionID, message.ID)]; ok {
 			selected = append(selected, message)

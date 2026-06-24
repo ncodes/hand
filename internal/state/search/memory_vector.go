@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	statememory "github.com/wandxy/hand/internal/state/core"
+	statememory "github.com/wandxy/morph/internal/state/core"
 )
 
 // MemoryVectorTags builds vector tags for a memory item.

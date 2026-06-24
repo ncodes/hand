@@ -8,10 +8,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func TestResolveOptions_UsesExplicitConfig(t *testing.T) {
@@ -114,7 +114,7 @@ func TestResolveOptions_UsesProviderEnvWhenConfigAndStoredKeyAreMissing(t *testi
 
 func TestResolveOptions_UsesGenericWebEnvWhenConfigStoredAndProviderEnvAreMissing(t *testing.T) {
 	setWebAuthTestProfile(t)
-	t.Setenv("HAND_WEB_API_KEY", "generic-web-key")
+	t.Setenv("MORPH_WEB_API_KEY", "generic-web-key")
 
 	opts, err := ResolveOptions(&config.Config{
 		Web: config.WebConfig{
@@ -163,15 +163,15 @@ func setWebAuthTestProfile(t *testing.T) string {
 	t.Helper()
 
 	for _, key := range []string{
-		"HAND_FIRECRAWL_API_KEY",
+		"MORPH_FIRECRAWL_API_KEY",
 		"FIRECRAWL_API_KEY",
-		"HAND_PARALLEL_API_KEY",
+		"MORPH_PARALLEL_API_KEY",
 		"PARALLEL_API_KEY",
-		"HAND_TAVILY_API_KEY",
+		"MORPH_TAVILY_API_KEY",
 		"TAVILY_API_KEY",
-		"HAND_EXA_API_KEY",
+		"MORPH_EXA_API_KEY",
 		"EXA_API_KEY",
-		"HAND_WEB_API_KEY",
+		"MORPH_WEB_API_KEY",
 	} {
 		t.Setenv(key, "")
 	}

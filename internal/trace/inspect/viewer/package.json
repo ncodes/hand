@@ -1,5 +1,5 @@
 {
-  "name": "@hand/trace-viewer",
+  "name": "@morph/trace-viewer",
   "private": true,
   "version": "0.0.0",
   "type": "module",

@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 type validationOptions struct {
@@ -100,11 +100,11 @@ func (c *Config) validate(options validationOptions) error {
 	}
 
 	if strings.TrimSpace(c.RPC.Address) == "" {
-		return errors.New("rpc address is required; set HAND_RPC_ADDRESS, provide it in config, or use --rpc.address")
+		return errors.New("rpc address is required; set MORPH_RPC_ADDRESS, provide it in config, or use --rpc.address")
 	}
 
 	if c.RPC.Port < 0 {
-		return errors.New("rpc port must be non-negative; set HAND_RPC_PORT, provide it in config, or use --rpc.port")
+		return errors.New("rpc port must be non-negative; set MORPH_RPC_PORT, provide it in config, or use --rpc.port")
 	}
 
 	if err := c.validateGatewaySettings(gatewayValidationOptions{
@@ -114,7 +114,7 @@ func (c *Config) validate(options validationOptions) error {
 	}
 
 	if c.Session.MaxIterations <= 0 {
-		return errors.New("max iterations must be greater than zero; set HAND_SESSION_MAX_ITERATIONS, provide it in config, " +
+		return errors.New("max iterations must be greater than zero; set MORPH_SESSION_MAX_ITERATIONS, provide it in config, " +
 			"or use --max-iterations")
 	}
 	if c.ModelMaxRetriesEffective() < 0 {
@@ -169,10 +169,10 @@ func (c *Config) validateGatewaySettings(options ...gatewayValidationOptions) er
 	}
 
 	if strings.TrimSpace(c.Gateway.Address) == "" {
-		return errors.New("gateway address is required; set HAND_GATEWAY_ADDRESS, provide it in config, or use --gateway.address")
+		return errors.New("gateway address is required; set MORPH_GATEWAY_ADDRESS, provide it in config, or use --gateway.address")
 	}
 	if c.Gateway.Port < 0 {
-		return errors.New("gateway port must be non-negative; set HAND_GATEWAY_PORT, provide it in config, or use --gateway.port")
+		return errors.New("gateway port must be non-negative; set MORPH_GATEWAY_PORT, provide it in config, or use --gateway.port")
 	}
 	if !c.Gateway.Enabled {
 		return nil
@@ -181,7 +181,7 @@ func (c *Config) validateGatewaySettings(options ...gatewayValidationOptions) er
 		return validateGatewayChannelModes(c.Gateway)
 	}
 	if !isLoopbackGatewayAddress(c.Gateway.Address) && strings.TrimSpace(c.Gateway.AuthToken) == "" {
-		return errors.New("gateway auth token is required for non-loopback binds; set HAND_GATEWAY_AUTH_TOKEN, " +
+		return errors.New("gateway auth token is required for non-loopback binds; set MORPH_GATEWAY_AUTH_TOKEN, " +
 			"provide it in config, or use --gateway.auth-token")
 	}
 	if err := validateGatewayTelegramSettings(c.Gateway.Telegram); err != nil {
@@ -226,11 +226,11 @@ func validateGatewayTelegramSettings(cfg GatewayTelegramConfig) error {
 	}
 	if strings.TrimSpace(cfg.BotToken) == "" {
 		return errors.New("gateway telegram bot token is required when telegram gateway is enabled; " +
-			"set HAND_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
+			"set MORPH_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
 	}
 	if cfg.Mode == GatewayTelegramModeWebhook && strings.TrimSpace(cfg.WebhookSecret) == "" {
 		return errors.New("gateway telegram webhook secret is required in webhook mode; " +
-			"set HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET, provide it in config, or use --gateway.telegram.webhook-secret")
+			"set MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET, provide it in config, or use --gateway.telegram.webhook-secret")
 	}
 	if cfg.Mode == GatewayTelegramModeWebhook && !isValidTelegramWebhookSecret(cfg.WebhookSecret) {
 		return errors.New("gateway telegram webhook secret must be 1-256 characters and contain only " +
@@ -296,18 +296,18 @@ func validateGatewaySlackSettings(cfg GatewaySlackConfig) error {
 	}
 	if strings.TrimSpace(cfg.BotToken) == "" {
 		return errors.New("gateway slack bot token is required when slack gateway is enabled; " +
-			"set HAND_GATEWAY_SLACK_BOT_TOKEN, provide it in config, or use --gateway.slack.bot-token")
+			"set MORPH_GATEWAY_SLACK_BOT_TOKEN, provide it in config, or use --gateway.slack.bot-token")
 	}
 	switch cfg.Mode {
 	case GatewaySlackModeSocket:
 		if strings.TrimSpace(cfg.AppToken) == "" {
 			return errors.New("gateway slack app token is required in socket mode; " +
-				"set HAND_GATEWAY_SLACK_APP_TOKEN, provide it in config, or use --gateway.slack.app-token")
+				"set MORPH_GATEWAY_SLACK_APP_TOKEN, provide it in config, or use --gateway.slack.app-token")
 		}
 	case GatewaySlackModeHTTP:
 		if strings.TrimSpace(cfg.SigningSecret) == "" {
 			return errors.New("gateway slack signing secret is required in http mode; " +
-				"set HAND_GATEWAY_SLACK_SIGNING_SECRET, provide it in config, or use --gateway.slack.signing-secret")
+				"set MORPH_GATEWAY_SLACK_SIGNING_SECRET, provide it in config, or use --gateway.slack.signing-secret")
 		}
 	}
 

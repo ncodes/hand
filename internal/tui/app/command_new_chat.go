@@ -6,7 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	storage "github.com/wandxy/hand/internal/state/core"
+	storage "github.com/wandxy/morph/internal/state/core"
 )
 
 type sessionCreator interface {

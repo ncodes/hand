@@ -7,7 +7,7 @@
   - `CGO_ENABLED=1`
   - `-tags sqlite_fts5`
 - If you need a focused package test, mirror the Makefile flags, for example:
-  - `CGO_ENABLED=1 go test -tags sqlite_fts5 ./cmd/hand`
+  - `CGO_ENABLED=1 go test -tags sqlite_fts5 ./cmd/morph`
 - Missing those flags can cause sqlite-backed tests to fail with `no such module: fts5`.
 
 ## Naming

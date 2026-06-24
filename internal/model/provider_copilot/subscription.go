@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
 )
 
 const (
@@ -459,7 +459,7 @@ func getGitHubCopilotOpenURLCommand(goos string, rawURL string) (string, []strin
 	case "darwin":
 		return "open", []string{rawURL}
 	case "windows":
-		return "rundll32", []string{"url.dll,FileProtocolHandler", rawURL}
+		return "rundll32", []string{"url.dll,FileProtocolHand", rawURL}
 	default:
 		return "xdg-open", []string{rawURL}
 	}

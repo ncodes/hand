@@ -7,8 +7,8 @@ import (
 
 	"gorm.io/gorm"
 
-	state "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
+	state "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
 )
 
 // RebuildVectorStore refreshes all vector rows for one active session in batches.

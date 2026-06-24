@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
 )
 
 func TestConfig_WebAPIKeyEffective_UsesConfigBeforeStoredAndEnvironment(t *testing.T) {
@@ -57,7 +57,7 @@ func TestConfig_WebAPIKeyEffective_UsesStoredKeyBeforeEnvironment(t *testing.T) 
 }
 
 func TestConfig_WebAPIKeyEffective_UsesProviderEnvironmentBeforeGenericEnvironment(t *testing.T) {
-	t.Setenv("HAND_WEB_API_KEY", "generic-key")
+	t.Setenv("MORPH_WEB_API_KEY", "generic-key")
 	t.Setenv("EXA_API_KEY", "provider-key")
 	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
 		require.Equal(t, constants.WebProviderExa, provider)
@@ -75,7 +75,7 @@ func TestConfig_WebAPIKeyEffective_UsesProviderEnvironmentBeforeGenericEnvironme
 }
 
 func TestConfig_WebAPIKeyEffective_UsesGenericEnvironmentWhenProviderEnvironmentMissing(t *testing.T) {
-	t.Setenv("HAND_WEB_API_KEY", "generic-key")
+	t.Setenv("MORPH_WEB_API_KEY", "generic-key")
 	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
 		require.Equal(t, constants.WebProviderTavily, provider)
 		return StoredModelCredential{}, nil
@@ -160,7 +160,7 @@ func TestConfig_WebCredentialHelpersCoverFallbackBranches(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, source.Configured)
 
-	t.Setenv("HAND_WEB_API_KEY", "generic-key")
+	t.Setenv("MORPH_WEB_API_KEY", "generic-key")
 	value, err = ResolveWebProviderAPIKey("custom", "")
 	require.NoError(t, err)
 	require.Equal(t, "generic-key", value)
@@ -173,21 +173,21 @@ func TestConfig_WebCredentialHelpersCoverFallbackBranches(t *testing.T) {
 	}, WebCredentialProviderIDs())
 	require.True(t, IsWebCredentialProvider(" EXA "))
 	require.False(t, IsWebCredentialProvider("native"))
-	require.Equal(t, []string{"HAND_WEB_API_KEY"}, WebProviderAPIKeyEnv("custom"))
-	require.Equal(t, []string{"HAND_EXA_API_KEY", "EXA_API_KEY", "HAND_WEB_API_KEY"}, WebProviderAPIKeyEnv(" EXA "))
+	require.Equal(t, []string{"MORPH_WEB_API_KEY"}, WebProviderAPIKeyEnv("custom"))
+	require.Equal(t, []string{"MORPH_EXA_API_KEY", "EXA_API_KEY", "MORPH_WEB_API_KEY"}, WebProviderAPIKeyEnv(" EXA "))
 	require.Equal(
 		t,
-		[]string{"HAND_FIRECRAWL_API_KEY", "FIRECRAWL_API_KEY", "HAND_WEB_API_KEY"},
+		[]string{"MORPH_FIRECRAWL_API_KEY", "FIRECRAWL_API_KEY", "MORPH_WEB_API_KEY"},
 		WebProviderAPIKeyEnv(constants.WebProviderFirecrawl),
 	)
 	require.Equal(
 		t,
-		[]string{"HAND_PARALLEL_API_KEY", "PARALLEL_API_KEY", "HAND_WEB_API_KEY"},
+		[]string{"MORPH_PARALLEL_API_KEY", "PARALLEL_API_KEY", "MORPH_WEB_API_KEY"},
 		WebProviderAPIKeyEnv(constants.WebProviderParallel),
 	)
 	require.Equal(
 		t,
-		[]string{"HAND_TAVILY_API_KEY", "TAVILY_API_KEY", "HAND_WEB_API_KEY"},
+		[]string{"MORPH_TAVILY_API_KEY", "TAVILY_API_KEY", "MORPH_WEB_API_KEY"},
 		WebProviderAPIKeyEnv(constants.WebProviderTavily),
 	)
 

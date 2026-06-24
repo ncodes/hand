@@ -4,7 +4,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/wandxy/hand/internal/constants"
+	"github.com/wandxy/morph/internal/constants"
 )
 
 var DefaultConfig = Config{

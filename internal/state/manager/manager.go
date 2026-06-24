@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 )
 
 // Manager manages manager.
@@ -254,7 +254,7 @@ func (m *Manager) startMaintenanceWorker(ctx context.Context, interval time.Dura
 	return nil
 }
 
-func (m *Manager) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
+func (m *Manager) AppendMessages(ctx context.Context, id string, messages []morphmsg.Message) error {
 	if m == nil {
 		return errors.New("state manager is required")
 	}
@@ -294,7 +294,7 @@ func (m *Manager) GetMessages(
 	ctx context.Context,
 	id string,
 	opts storage.MessageQueryOptions,
-) ([]handmsg.Message, error) {
+) ([]morphmsg.Message, error) {
 	if m == nil {
 		return nil, errors.New("state manager is required")
 	}
@@ -379,9 +379,9 @@ func (m *Manager) GetMessage(
 	ctx context.Context,
 	id string,
 	index int,
-) (handmsg.Message, bool, error) {
+) (morphmsg.Message, bool, error) {
 	if m == nil {
-		return handmsg.Message{}, false, errors.New("state manager is required")
+		return morphmsg.Message{}, false, errors.New("state manager is required")
 	}
 
 	return m.sessions().GetMessage(ctx, strings.TrimSpace(id), index)

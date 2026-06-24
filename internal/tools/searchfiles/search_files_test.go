@@ -13,9 +13,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/tools"
-	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/tools"
+	nativemocks "github.com/wandxy/morph/internal/tools/mocks"
 )
 
 func TestSearchFiles_ToolUsesGoFallback(t *testing.T) {

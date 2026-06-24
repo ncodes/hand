@@ -3,8 +3,8 @@ package compaction
 import (
 	"encoding/json"
 
-	"github.com/wandxy/hand/internal/constants"
-	models "github.com/wandxy/hand/internal/model"
+	"github.com/wandxy/morph/internal/constants"
+	models "github.com/wandxy/morph/internal/model"
 )
 
 const (

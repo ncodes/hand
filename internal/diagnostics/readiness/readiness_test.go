@@ -13,9 +13,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func TestReport_HasFailuresAndSummary(t *testing.T) {
@@ -75,7 +75,7 @@ func TestBuild_ReportsProfileAndMissingDaemonWithoutFailure(t *testing.T) {
 	daemon := findReadinessCheck(t, report, "daemon", "runtime")
 	require.Equal(t, StatusWarn, daemon.Status)
 	require.Contains(t, daemon.Message, "runtime metadata is not present")
-	require.Equal(t, "hand daemon", daemon.Actions[0].Command)
+	require.Equal(t, "morph daemon", daemon.Actions[0].Command)
 }
 
 func TestBuild_ReportsModelAuthWithoutLeakingCredentials(t *testing.T) {
@@ -175,7 +175,7 @@ func TestBuild_ReportsMissingWebCredentialAsWarning(t *testing.T) {
 	web := findReadinessCheck(t, report, "tools", "web tools")
 	require.Equal(t, StatusWarn, web.Status)
 	require.Contains(t, web.Message, "exa web credentials are not configured")
-	require.Equal(t, "hand config set web.provider exa && hand config set web.apiKey <api-key>", web.Actions[0].Command)
+	require.Equal(t, "morph config set web.provider exa && morph config set web.apiKey <api-key>", web.Actions[0].Command)
 }
 
 func TestBuild_DoesNotEmitAnsi(t *testing.T) {
@@ -210,13 +210,13 @@ func TestBuild_CoversModelAndCapabilityBranches(t *testing.T) {
 	require.True(t, report.HasFailures())
 	embedding := findReadinessCheck(t, report, "models", "embedding")
 	require.Equal(t, StatusFail, embedding.Status)
-	require.Equal(t, "hand auth login openai --api-key <api-key>", embedding.Actions[0].Command)
-	require.Equal(t, "hand config set models.providers.openai.apiKey <api-key>", embedding.Actions[1].Command)
+	require.Equal(t, "morph auth login openai --api-key <api-key>", embedding.Actions[0].Command)
+	require.Equal(t, "morph config set models.providers.openai.apiKey <api-key>", embedding.Actions[1].Command)
 	vector := findReadinessCheck(t, report, "search", "vector")
 	require.Equal(t, StatusFail, vector.Status)
 	require.Contains(t, vector.Message, `auth=missing for provider "openai"`)
-	require.Equal(t, "hand auth login openai --api-key <api-key>", vector.Actions[0].Command)
-	require.Equal(t, "hand config set models.providers.openai.apiKey <api-key>", vector.Actions[1].Command)
+	require.Equal(t, "morph auth login openai --api-key <api-key>", vector.Actions[0].Command)
+	require.Equal(t, "morph config set models.providers.openai.apiKey <api-key>", vector.Actions[1].Command)
 	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "memory", "status").Status)
 	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "memory", "retrieval").Status)
 	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "search", "rerank").Status)
@@ -273,7 +273,7 @@ func TestBuild_CoversWebCredentialBranches(t *testing.T) {
 	require.Equal(t, StatusWarn, nativeWeb.Status)
 	require.Equal(t, "native web extraction is configured; web search requires a configured web provider", nativeWeb.Message)
 
-	require.Equal(t, "hand config set web.provider exa && hand config set web.apiKey <api-key>", webAuthAction("").Command)
+	require.Equal(t, "morph config set web.provider exa && morph config set web.apiKey <api-key>", webAuthAction("").Command)
 }
 
 func TestBuild_ReportsDisabledGatewayAsInformational(t *testing.T) {
@@ -299,7 +299,7 @@ func TestBuild_WarnsWhenGatewayExternalBindMissingAuth(t *testing.T) {
 	listener := findReadinessCheck(t, report, "gateway", "listener")
 	require.Equal(t, StatusWarn, listener.Status)
 	require.Contains(t, listener.Message, "without gateway auth token")
-	require.Equal(t, "hand config set gateway.authToken <token>", listener.Actions[0].Command)
+	require.Equal(t, "morph config set gateway.authToken <token>", listener.Actions[0].Command)
 }
 
 func TestBuild_PassesGatewayExternalBindWithAuth(t *testing.T) {
@@ -327,7 +327,7 @@ func TestBuild_WarnsWhenTelegramPollingMissingBotToken(t *testing.T) {
 	telegram := findReadinessCheck(t, report, "gateway", "telegram")
 	require.Equal(t, StatusWarn, telegram.Status)
 	require.Equal(t, "enabled in polling mode without bot token", telegram.Message)
-	require.Equal(t, "hand config set gateway.telegram.botToken <bot-token>", telegram.Actions[0].Command)
+	require.Equal(t, "morph config set gateway.telegram.botToken <bot-token>", telegram.Actions[0].Command)
 }
 
 func TestBuild_WarnsWhenTelegramWebhookMissingSecrets(t *testing.T) {
@@ -349,7 +349,7 @@ func TestBuild_WarnsWhenTelegramWebhookMissingSecrets(t *testing.T) {
 	telegram = findReadinessCheck(t, report, "gateway", "telegram")
 	require.Equal(t, StatusWarn, telegram.Status)
 	require.Equal(t, "enabled in webhook mode without webhook secret", telegram.Message)
-	require.Equal(t, "hand config set gateway.telegram.webhookSecret <secret-token>", telegram.Actions[0].Command)
+	require.Equal(t, "morph config set gateway.telegram.webhookSecret <secret-token>", telegram.Actions[0].Command)
 	require.NotContains(t, telegram.Message, "telegram-token")
 }
 
@@ -364,7 +364,7 @@ func TestBuild_WarnsWhenSlackSocketMissingTokens(t *testing.T) {
 	slack := findReadinessCheck(t, report, "gateway", "slack")
 	require.Equal(t, StatusWarn, slack.Status)
 	require.Equal(t, "enabled in socket mode without bot token", slack.Message)
-	require.Equal(t, "hand config set gateway.slack.botToken <bot-token>", slack.Actions[0].Command)
+	require.Equal(t, "morph config set gateway.slack.botToken <bot-token>", slack.Actions[0].Command)
 
 	cfg.Gateway.Slack.BotToken = "slack-bot-token"
 	cfg.Gateway.Slack.AppToken = ""
@@ -373,7 +373,7 @@ func TestBuild_WarnsWhenSlackSocketMissingTokens(t *testing.T) {
 	slack = findReadinessCheck(t, report, "gateway", "slack")
 	require.Equal(t, StatusWarn, slack.Status)
 	require.Equal(t, "enabled in socket mode without app token", slack.Message)
-	require.Equal(t, "hand config set gateway.slack.appToken <app-token>", slack.Actions[0].Command)
+	require.Equal(t, "morph config set gateway.slack.appToken <app-token>", slack.Actions[0].Command)
 	require.NotContains(t, slack.Message, "slack-bot-token")
 }
 
@@ -389,7 +389,7 @@ func TestBuild_WarnsWhenSlackHTTPMissingSigningSecret(t *testing.T) {
 	slack := findReadinessCheck(t, report, "gateway", "slack")
 	require.Equal(t, StatusWarn, slack.Status)
 	require.Equal(t, "enabled in http mode without signing secret", slack.Message)
-	require.Equal(t, "hand config set gateway.slack.signingSecret <signing-secret>", slack.Actions[0].Command)
+	require.Equal(t, "morph config set gateway.slack.signingSecret <signing-secret>", slack.Actions[0].Command)
 	require.NotContains(t, slack.Message, "slack-bot-token")
 }
 
@@ -507,12 +507,12 @@ func TestBuild_CoversRerankDisabledBySearch(t *testing.T) {
 
 func TestMissingAuthActionAndCredentialSourceFormatting(t *testing.T) {
 	modelMissingAuthActions := modelErrorActions(constants.ModelProviderOpenRouter, errors.New("model API key is required for provider"))
-	require.Equal(t, "hand auth login openrouter --api-key <api-key>", modelMissingAuthActions[0].Command)
-	require.Equal(t, "hand config set models.providers.openrouter.apiKey <api-key>", modelMissingAuthActions[1].Command)
+	require.Equal(t, "morph auth login openrouter --api-key <api-key>", modelMissingAuthActions[0].Command)
+	require.Equal(t, "morph config set models.providers.openrouter.apiKey <api-key>", modelMissingAuthActions[1].Command)
 
 	embeddingMissingAuthActions := embeddingModelErrorActions(constants.ModelProviderOpenAI, errors.New("embedding API key is required for provider"))
-	require.Equal(t, "hand auth login openai --api-key <api-key>", embeddingMissingAuthActions[0].Command)
-	require.Equal(t, "hand config set models.providers.openai.apiKey <api-key>", embeddingMissingAuthActions[1].Command)
+	require.Equal(t, "morph auth login openai --api-key <api-key>", embeddingMissingAuthActions[0].Command)
+	require.Equal(t, "morph config set models.providers.openai.apiKey <api-key>", embeddingMissingAuthActions[1].Command)
 
 	modelSelectionActions := modelErrorActions(constants.ModelProviderOpenRouter, errors.New("model provider must be one of: openrouter"))
 	require.Len(t, modelSelectionActions, 2)
@@ -520,15 +520,15 @@ func TestMissingAuthActionAndCredentialSourceFormatting(t *testing.T) {
 	require.Equal(t, "/models", modelSelectionActions[1].Command)
 
 	require.False(t, isMissingAuthError(nil))
-	require.Equal(t, "hand auth login openai", missingAuthActions(constants.ModelProviderOpenAI)[0].Command)
+	require.Equal(t, "morph auth login openai", missingAuthActions(constants.ModelProviderOpenAI)[0].Command)
 	require.Equal(
 		t,
-		"hand auth login openrouter --api-key <api-key>",
+		"morph auth login openrouter --api-key <api-key>",
 		missingAuthActions(constants.ModelProviderOpenRouter)[0].Command,
 	)
 	require.Equal(
 		t,
-		"hand config set models.providers.openrouter.apiKey <api-key>",
+		"morph config set models.providers.openrouter.apiKey <api-key>",
 		missingAuthActions(constants.ModelProviderOpenRouter)[1].Command,
 	)
 	require.Empty(t, missingAuthActions(""))
@@ -591,15 +591,15 @@ func clearWebCredentialEnv(t *testing.T) {
 	t.Helper()
 
 	for _, key := range []string{
-		"HAND_EXA_API_KEY",
+		"MORPH_EXA_API_KEY",
 		"EXA_API_KEY",
-		"HAND_FIRECRAWL_API_KEY",
+		"MORPH_FIRECRAWL_API_KEY",
 		"FIRECRAWL_API_KEY",
-		"HAND_PARALLEL_API_KEY",
+		"MORPH_PARALLEL_API_KEY",
 		"PARALLEL_API_KEY",
-		"HAND_TAVILY_API_KEY",
+		"MORPH_TAVILY_API_KEY",
 		"TAVILY_API_KEY",
-		"HAND_WEB_API_KEY",
+		"MORPH_WEB_API_KEY",
 	} {
 		t.Setenv(key, "")
 	}

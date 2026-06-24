@@ -7,22 +7,22 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
-	"github.com/wandxy/hand/internal/mocks"
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/profile"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
+	"github.com/wandxy/morph/internal/mocks"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/profile"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestSessionTitleHelpersNormalizeAndFallback(t *testing.T) {
-	contextText, fallback := getSessionTitleContext([]handmsg.Message{
-		{Role: handmsg.RoleUser, Content: " "},
-		{Role: handmsg.RoleUser, Content: "  Help me fix parallel tools, please! "},
-		{Role: handmsg.RoleAssistant, Content: "Sure."},
+	contextText, fallback := getSessionTitleContext([]morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: " "},
+		{Role: morphmsg.RoleUser, Content: "  Help me fix parallel tools, please! "},
+		{Role: morphmsg.RoleAssistant, Content: "Sure."},
 	})
 
 	require.Equal(t, "User: Help me fix parallel tools, please!\nAssistant: Sure.", contextText)
@@ -45,9 +45,9 @@ func TestSessionTitleHelpersNormalizeAndFallback(t *testing.T) {
 func TestAgent_MaybeGenerateSessionTitleUsesSummaryModel(t *testing.T) {
 	store := &stateStoreStub{
 		session: storage.Session{ID: "default"},
-		messages: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "please help me test title generation"},
-			{Role: handmsg.RoleAssistant, Content: "I can help."},
+		messages: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "please help me test title generation"},
+			{Role: morphmsg.RoleAssistant, Content: "I can help."},
 		},
 	}
 	manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
@@ -78,8 +78,8 @@ func TestAgent_MaybeGenerateSessionTitleUsesSummaryModel(t *testing.T) {
 func TestAgent_MaybeGenerateSessionTitleFallsBackWhenModelTitleInvalid(t *testing.T) {
 	store := &stateStoreStub{
 		session: storage.Session{ID: "default"},
-		messages: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "fix memory flush before compaction please"},
+		messages: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "fix memory flush before compaction please"},
 		},
 	}
 	manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
@@ -126,7 +126,7 @@ func TestSessionTitleGenerationSkipsInvalidInputs(t *testing.T) {
 		cfg:           &config.Config{},
 		summaryClient: &mocks.ModelClientStub{Responses: []*models.Response{nil}},
 	}).generateSessionTitle(context.Background(), "context"))
-	require.Empty(t, getSessionTitleContextStringFallbackOnly([]handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}))
+	require.Empty(t, getSessionTitleContextStringFallbackOnly([]morphmsg.Message{{Role: morphmsg.RoleAssistant, Content: "hello"}}))
 }
 
 func TestAgent_MaybeGenerateSessionTitleSkipsExistingMissingAndMessageErrors(t *testing.T) {
@@ -140,8 +140,8 @@ func TestAgent_MaybeGenerateSessionTitleSkipsExistingMissingAndMessageErrors(t *
 		{name: "get error", store: &stateStoreStub{session: storage.Session{ID: "default"}, getErr: context.Canceled}},
 		{name: "messages error", store: &stateStoreStub{session: storage.Session{ID: "default"}, messagesErr: context.Canceled}},
 		{name: "no messages", store: &stateStoreStub{session: storage.Session{ID: "default"}}},
-		{name: "no user", store: &stateStoreStub{session: storage.Session{ID: "default"}, messages: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}}},
-		{name: "save error", store: &stateStoreStub{session: storage.Session{ID: "default"}, messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, saveErr: context.Canceled}},
+		{name: "no user", store: &stateStoreStub{session: storage.Session{ID: "default"}, messages: []morphmsg.Message{{Role: morphmsg.RoleAssistant, Content: "hello"}}}},
+		{name: "save error", store: &stateStoreStub{session: storage.Session{ID: "default"}, messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}}, saveErr: context.Canceled}},
 	}
 
 	for _, test := range tests {
@@ -187,7 +187,7 @@ func TestAgent_GenerateSessionTitleOmitsMaxOutputTokensForOpenAISubscription(t *
 	require.Zero(t, summaryClient.Requests[0].MaxOutputTokens)
 }
 
-func getSessionTitleContextStringFallbackOnly(messages []handmsg.Message) string {
+func getSessionTitleContextStringFallbackOnly(messages []morphmsg.Message) string {
 	_, fallback := getSessionTitleContext(messages)
 	return fallback
 }

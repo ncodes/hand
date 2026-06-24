@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wandxy/hand/internal/constants"
-	envtypes "github.com/wandxy/hand/internal/environment/types"
-	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/internal/tools/common"
+	"github.com/wandxy/morph/internal/constants"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/tools/common"
 )
 
 const (

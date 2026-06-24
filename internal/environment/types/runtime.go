@@ -3,13 +3,13 @@ package types
 import (
 	"context"
 
-	planstore "github.com/wandxy/hand/internal/environment/planstore"
-	"github.com/wandxy/hand/internal/environment/process"
-	sesmsg "github.com/wandxy/hand/internal/environment/sessionmessages"
-	sessrc "github.com/wandxy/hand/internal/environment/sessionsearch"
-	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/memory/episodic"
+	planstore "github.com/wandxy/morph/internal/environment/planstore"
+	"github.com/wandxy/morph/internal/environment/process"
+	sesmsg "github.com/wandxy/morph/internal/environment/sessionmessages"
+	sessrc "github.com/wandxy/morph/internal/environment/sessionsearch"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/memory/episodic"
 )
 
 // Runtime exposes environment services needed by tool implementations.

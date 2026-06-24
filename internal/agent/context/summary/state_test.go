@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	storage "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/config"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestNewService_LogsWhenSummaryProviderAndAPIDifferFromMain(t *testing.T) {
@@ -94,9 +94,9 @@ func TestState_RenderSummaryInstructions_ReturnsFalseWhenUnavailable(t *testing.
 }
 
 func TestState_Recall(t *testing.T) {
-	history := []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "old"},
-		{Role: handmsg.RoleAssistant, Content: "recent"},
+	history := []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "old"},
+		{Role: morphmsg.RoleAssistant, Content: "recent"},
 	}
 
 	recall := (&State{Current: &SummaryState{
@@ -109,7 +109,7 @@ func TestState_Recall(t *testing.T) {
 }
 
 func TestState_Recall_DefaultsForNilAndPreservesHistoryWithSummary(t *testing.T) {
-	history := []handmsg.Message{{Role: handmsg.RoleUser, Content: "history"}}
+	history := []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "history"}}
 
 	recall := (*State)(nil).Recall(history)
 	require.Empty(t, recall.PrefixMessages)

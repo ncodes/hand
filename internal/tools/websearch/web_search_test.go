@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/guardrails"
-	webintegration "github.com/wandxy/hand/internal/providers/web"
-	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/morph/internal/guardrails"
+	webintegration "github.com/wandxy/morph/internal/providers/web"
+	"github.com/wandxy/morph/internal/tools"
 )
 
 type stubProvider struct {

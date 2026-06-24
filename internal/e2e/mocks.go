@@ -6,11 +6,11 @@ import (
 	"net"
 	"time"
 
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
-	agent "github.com/wandxy/hand/pkg/agent"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	storage "github.com/wandxy/morph/internal/state/core"
+	agent "github.com/wandxy/morph/pkg/agent"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 )
 
 type harnessAgentStub struct {
@@ -25,7 +25,7 @@ type harnessAgentStub struct {
 	useErr       error
 	compact      agent.CompactSessionResult
 	compactErr   error
-	turnMessages []handmsg.Message
+	turnMessages []morphmsg.Message
 }
 
 func (s harnessAgentStub) Respond(_ context.Context, _ string, opts agent.RespondOptions) (string, error) {
@@ -85,12 +85,12 @@ func (s *harnessAgentStub) CompactSession(context.Context, string) (agent.Compac
 	return s.compact, nil
 }
 
-func (s *harnessAgentStub) TurnMessages() []handmsg.Message {
+func (s *harnessAgentStub) TurnMessages() []morphmsg.Message {
 	return s.turnMessages
 }
 
 type storageStoreStub struct {
-	messages []handmsg.Message
+	messages []morphmsg.Message
 }
 
 func (s *storageStoreStub) Save(context.Context, storage.Session) error { return nil }
@@ -107,10 +107,10 @@ func (s *storageStoreStub) Rename(context.Context, storage.SessionRenameRequest)
 func (s *storageStoreStub) UpdateCheckpoints(context.Context, string, storage.CheckpointPatch) error {
 	return nil
 }
-func (s *storageStoreStub) AppendMessages(context.Context, string, []handmsg.Message) error {
+func (s *storageStoreStub) AppendMessages(context.Context, string, []morphmsg.Message) error {
 	return nil
 }
-func (s *storageStoreStub) GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+func (s *storageStoreStub) GetMessages(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 	return s.messages, nil
 }
 func (s *storageStoreStub) SearchMessages(context.Context, string, storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
@@ -119,8 +119,8 @@ func (s *storageStoreStub) SearchMessages(context.Context, string, storage.Searc
 func (s *storageStoreStub) CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error) {
 	return 0, nil
 }
-func (s *storageStoreStub) GetMessage(context.Context, string, int) (handmsg.Message, bool, error) {
-	return handmsg.Message{}, false, nil
+func (s *storageStoreStub) GetMessage(context.Context, string, int) (morphmsg.Message, bool, error) {
+	return morphmsg.Message{}, false, nil
 }
 func (s *storageStoreStub) GetMessagesByIDs(context.Context, string, []uint) ([]storage.MessageRecord, error) {
 	return nil, nil

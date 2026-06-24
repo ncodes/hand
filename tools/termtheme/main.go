@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/wandxy/hand/pkg/termtheme"
+	"github.com/wandxy/morph/pkg/termtheme"
 )
 
 func main() {

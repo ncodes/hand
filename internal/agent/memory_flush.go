@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wandxy/hand/internal/config"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/internal/trace"
-	agentcore "github.com/wandxy/hand/pkg/agent"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/config"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/trace"
+	agentcore "github.com/wandxy/morph/pkg/agent"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 const memoryFlushTriggerCompression = "compression"
@@ -139,8 +139,8 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 
 	// Seed the flush model with the same context the next model request would
 	// have seen, plus an explicit request to extract durable memory.
-	messages := append(handmsg.CloneMessages(t.Context()), handmsg.Message{
-		Role:    handmsg.RoleUser,
+	messages := append(morphmsg.CloneMessages(t.Context()), morphmsg.Message{
+		Role:    morphmsg.RoleUser,
 		Content: instruct.BuildMemoryFlushRequest(trigger),
 	})
 	agentLog.Debug().
@@ -261,8 +261,8 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 	return nil
 }
 
-func getMemoryFlushToolError(message handmsg.Message) error {
-	if message.Role != handmsg.RoleTool {
+func getMemoryFlushToolError(message morphmsg.Message) error {
+	if message.Role != morphmsg.RoleTool {
 		return nil
 	}
 
@@ -324,7 +324,7 @@ func getToolErrorStringText(value string) string {
 }
 
 // invokeFlushTool uses the turn's tool boundary so memory flush follows normal tool behavior.
-func (t *Turn) invokeFlushTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
+func (t *Turn) invokeFlushTool(ctx context.Context, toolCall models.ToolCall) morphmsg.Message {
 	if t == nil {
 		return invokeToolWithEnvironment(ctx, nil, toolCall, nil, nil)
 	}

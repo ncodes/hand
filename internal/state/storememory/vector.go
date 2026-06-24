@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	messages "github.com/wandxy/hand/pkg/agent/message"
+	base "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	messages "github.com/wandxy/morph/pkg/agent/message"
 )
 
 type searchCandidate struct {

@@ -8,16 +8,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/context/summary"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/mocks"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	"github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agenttool "github.com/wandxy/hand/pkg/agent/tool"
+	"github.com/wandxy/morph/internal/agent/context/summary"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/mocks"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	"github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agenttool "github.com/wandxy/morph/pkg/agent/tool"
 )
 
 func TestTurn_AvailableMemoryFlushToolDefinitionsExcludesMemoryExtract(t *testing.T) {
@@ -57,8 +57,8 @@ func TestTurn_AvailableMemoryFlushToolDefinitionsExcludesMemoryExtract(t *testin
 }
 
 func TestGetMemoryFlushToolError_ReturnsNilForSuccessfulToolPayload(t *testing.T) {
-	err := getMemoryFlushToolError(handmsg.Message{
-		Role:    handmsg.RoleTool,
+	err := getMemoryFlushToolError(morphmsg.Message{
+		Role:    morphmsg.RoleTool,
 		Name:    "memory_add",
 		Content: `{"name":"memory_add","output":"ok"}`,
 	})
@@ -67,8 +67,8 @@ func TestGetMemoryFlushToolError_ReturnsNilForSuccessfulToolPayload(t *testing.T
 }
 
 func TestGetMemoryFlushToolError_ReturnsStructuredToolError(t *testing.T) {
-	err := getMemoryFlushToolError(handmsg.Message{
-		Role:    handmsg.RoleTool,
+	err := getMemoryFlushToolError(morphmsg.Message{
+		Role:    morphmsg.RoleTool,
 		Name:    "memory_extract",
 		Content: `{"name":"memory_extract","error":{"code":"tool_error","message":"context deadline exceeded"}}`,
 	})
@@ -77,8 +77,8 @@ func TestGetMemoryFlushToolError_ReturnsStructuredToolError(t *testing.T) {
 }
 
 func TestGetMemoryFlushToolError_ReturnsEncodedToolError(t *testing.T) {
-	err := getMemoryFlushToolError(handmsg.Message{
-		Role:    handmsg.RoleTool,
+	err := getMemoryFlushToolError(morphmsg.Message{
+		Role:    morphmsg.RoleTool,
 		Name:    "memory_extract",
 		Content: `{"name":"memory_extract","error":"{\"code\":\"tool_error\",\"message\":\"context deadline exceeded\"}"}`,
 	})
@@ -102,14 +102,14 @@ func TestMemoryFlushHelpersRecordAndInvoke(t *testing.T) {
 	require.Equal(t, "code", getToolErrorText(map[string]any{"code": "code"}))
 	require.Equal(t, "plain", getToolErrorStringText(" plain "))
 	require.Empty(t, getToolErrorStringText(" "))
-	require.EqualError(t, getMemoryFlushToolError(handmsg.Message{
-		Role:    handmsg.RoleTool,
+	require.EqualError(t, getMemoryFlushToolError(morphmsg.Message{
+		Role:    morphmsg.RoleTool,
 		Content: `{"error":{"code":"tool_error"}}`,
 	}), "memory flush tool unknown failed: tool_error")
-	require.NoError(t, getMemoryFlushToolError(handmsg.Message{Role: handmsg.RoleAssistant, Content: "{}"}))
-	require.NoError(t, getMemoryFlushToolError(handmsg.Message{Role: handmsg.RoleTool, Content: "not-json"}))
-	require.EqualError(t, getMemoryFlushToolError(handmsg.Message{
-		Role:    handmsg.RoleTool,
+	require.NoError(t, getMemoryFlushToolError(morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "{}"}))
+	require.NoError(t, getMemoryFlushToolError(morphmsg.Message{Role: morphmsg.RoleTool, Content: "not-json"}))
+	require.EqualError(t, getMemoryFlushToolError(morphmsg.Message{
+		Role:    morphmsg.RoleTool,
 		Content: `{"error":{}}`,
 	}), "memory flush tool unknown failed: tool failed")
 	require.Empty(t, getToolErrorText(42))
@@ -144,8 +144,8 @@ func TestTurn_FlushMemoryBeforeContextLossCompletesNoOpAndToolCall(t *testing.T)
 		ToolCalls:         []models.ToolCall{{ID: "call", Name: "memory_add", Input: "{}"}},
 	}}}
 	turn.summaryClient = client
-	turn.invokeToolFn = func(_ context.Context, toolCall models.ToolCall) handmsg.Message {
-		return handmsg.Message{Role: handmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: `{"output":"ok"}`}
+	turn.invokeToolFn = func(_ context.Context, toolCall models.ToolCall) morphmsg.Message {
+		return morphmsg.Message{Role: morphmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: `{"output":"ok"}`}
 	}
 	traceSession.Events = nil
 
@@ -185,7 +185,7 @@ func TestTurn_ShouldFlushMemoryBeforeCompactionPrerequisites(t *testing.T) {
 	}
 
 	require.True(t, turn.shouldFlushMemoryBeforeCompaction(models.Request{
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "this is enough text to trigger"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "this is enough text to trigger"}},
 	}))
 	require.False(t, (*Turn)(nil).shouldFlushMemoryBeforeCompaction(models.Request{}))
 	require.False(t, (&Turn{cfg: cfg}).shouldFlushMemoryBeforeCompaction(models.Request{}))
@@ -207,7 +207,7 @@ func TestTurn_MaybeFlushMemoryBeforeCompactionRecordsFailure(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 
 	turn.maybeFlushMemoryBeforeCompaction(context.Background(), models.Request{
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "this is enough text to trigger"}},
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "this is enough text to trigger"}},
 	}, traceSession)
 
 	require.Equal(t, trace.EvtMemoryFlushFailed, traceSession.Events[len(traceSession.Events)-1].Type)
@@ -266,8 +266,8 @@ func TestTurn_FlushMemoryBeforeContextLossReturnsValidationErrors(t *testing.T) 
 		RequiresToolCalls: true,
 		ToolCalls:         []models.ToolCall{{ID: "call", Name: "memory_add"}},
 	}}}
-	turn.invokeToolFn = func(_ context.Context, toolCall models.ToolCall) handmsg.Message {
-		return handmsg.Message{Role: handmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: `{"error":"failed"}`}
+	turn.invokeToolFn = func(_ context.Context, toolCall models.ToolCall) morphmsg.Message {
+		return morphmsg.Message{Role: morphmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: `{"error":"failed"}`}
 	}
 	require.EqualError(t, turn.flushMemoryBeforeContextLoss(context.Background(), "compression", trace.NoopSession()), "memory flush tool memory_add failed: failed")
 
@@ -275,8 +275,8 @@ func TestTurn_FlushMemoryBeforeContextLossReturnsValidationErrors(t *testing.T) 
 		RequiresToolCalls: true,
 		ToolCalls:         []models.ToolCall{{ID: "call", Name: "memory_add"}},
 	}}}
-	turn.invokeToolFn = func(_ context.Context, toolCall models.ToolCall) handmsg.Message {
-		return handmsg.Message{Role: handmsg.RoleTool, Name: toolCall.Name, Content: "{}"}
+	turn.invokeToolFn = func(_ context.Context, toolCall models.ToolCall) morphmsg.Message {
+		return morphmsg.Message{Role: morphmsg.RoleTool, Name: toolCall.Name, Content: "{}"}
 	}
 	require.EqualError(t, turn.flushMemoryBeforeContextLoss(context.Background(), "compression", trace.NoopSession()), "tool call id is required")
 
@@ -306,7 +306,7 @@ func TestAgent_MaybeFlushMemoryBeforeContextLossRecordsFlushError(t *testing.T) 
 	cfg.Memory.Flush.MaxCalls = 1
 	store := &stateStoreStub{
 		session:  storage.Session{ID: storage.DefaultSessionID},
-		messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	}
 	manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
 	require.NoError(t, err)

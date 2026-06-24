@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	models "github.com/wandxy/hand/internal/model"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // SessionFailedPayload is the trace payload for session failed.
@@ -367,7 +367,7 @@ func DecodePayload(eventType string, payload any) (any, bool) {
 		EvtMemoryExtractionCandidateGenerated,
 		EvtMemoryExtractionCandidateRejected,
 		EvtMemoryExtractionConfidenceScored,
-		EvtMemoryExtractionAdmissionHandoff,
+		EvtMemoryExtractionAdmissionMorphoff,
 		EvtMemoryExtractionMemoryWritten,
 		EvtMemoryExtractionDuplicateSkipped,
 		EvtMemoryExtractionFailed,
@@ -427,7 +427,7 @@ func ToolInvocationStartedPayloadFrom(payload any) (ToolInvocationStartedPayload
 			Name:  strings.TrimSpace(value.Name),
 			Input: value.Input,
 		}, strings.TrimSpace(value.ID) != "" || strings.TrimSpace(value.Name) != ""
-	case handmsg.ToolCall:
+	case morphmsg.ToolCall:
 		return ToolInvocationStartedPayload{
 			ID:    strings.TrimSpace(value.ID),
 			Name:  strings.TrimSpace(value.Name),
@@ -457,7 +457,7 @@ func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPay
 	switch value := payload.(type) {
 	case ToolInvocationCompletedPayload:
 		return value, value.ToolCallID != "" || value.Name != ""
-	case handmsg.Message:
+	case morphmsg.Message:
 		return ToolInvocationCompletedPayload{
 			ToolCallID: strings.TrimSpace(value.ToolCallID),
 			Name:       strings.TrimSpace(value.Name),

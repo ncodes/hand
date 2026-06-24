@@ -11,13 +11,13 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	statemock "github.com/wandxy/hand/internal/state/mock"
-	storememory "github.com/wandxy/hand/internal/state/storememory"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	statemock "github.com/wandxy/morph/internal/state/mock"
+	storememory "github.com/wandxy/morph/internal/state/storememory"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 type recordingTrace struct {
@@ -68,10 +68,10 @@ func TestService_ExtractWritesSourceLinkedEpisode(t *testing.T) {
 	recorder := &recordingTrace{}
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
-	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "Remember the workshop checklist."},
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "note_lookup", Input: `{"topic":"workshop"}`}}},
-		{Role: handmsg.RoleTool, Name: "note_lookup", ToolCallID: "call_1", Content: "Confirm venue before sending invitations."},
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "Remember the workshop checklist."},
+		{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{Name: "note_lookup", Input: `{"topic":"workshop"}`}}},
+		{Role: morphmsg.RoleTool, Name: "note_lookup", ToolCallID: "call_1", Content: "Confirm venue before sending invitations."},
 	}))
 
 	service := newTestServiceWithCandidates(t, manager, provider, []episodeCandidate{{
@@ -125,9 +125,9 @@ func TestService_ExtractWritesDistinctSameKindCandidatesInWindow(t *testing.T) {
 	provider := testProvider(t, store)
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
-	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "calendar_lookup", Input: `{"date":"Friday"}`}}},
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "vendor_search", Input: `{"category":"catering"}`}}},
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{Name: "calendar_lookup", Input: `{"date":"Friday"}`}}},
+		{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{Name: "vendor_search", Input: `{"category":"catering"}`}}},
 	}))
 
 	service := newTestServiceWithCandidates(t, manager, provider, []episodeCandidate{
@@ -141,7 +141,7 @@ func TestService_ExtractWritesDistinctSameKindCandidatesInWindow(t *testing.T) {
 		{
 			Kind:       episodeKindToolEvent,
 			Title:      "Tool event: vendor_search",
-			Text:       "Compared catering vendors before handoff.",
+			Text:       "Compared catering vendors before morphoff.",
 			Confidence: 0.84,
 			Metadata:   map[string]string{"tool_name": "vendor_search", "status": "success"},
 		},
@@ -176,8 +176,8 @@ func TestService_ExtractDedupesIdenticalSameKindCandidatesInWindow(t *testing.T)
 	recorder := &recordingTrace{}
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
-	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "calendar_lookup", Input: `{"date":"Friday"}`}}},
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{Name: "calendar_lookup", Input: `{"date":"Friday"}`}}},
 	}))
 
 	candidate := episodeCandidate{
@@ -209,9 +209,9 @@ func TestService_ExtractSkipsDuplicateSourceRange(t *testing.T) {
 	provider := testProvider(t, store)
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
-	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "Use the Lagos venue for this workshop."},
-		{Role: handmsg.RoleAssistant, Content: "I will remember that."},
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "Use the Lagos venue for this workshop."},
+		{Role: morphmsg.RoleAssistant, Content: "I will remember that."},
 	}))
 
 	req := Request{
@@ -249,9 +249,9 @@ func TestService_ExtractRejectsDuplicateEpisodicMemoryAcrossOverlappingWindows(t
 	recorder := &recordingTrace{}
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
-	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "Always prefer concise commit messages."},
-		{ID: 2, Role: handmsg.RoleAssistant, Content: "I will keep commit messages concise."},
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "Always prefer concise commit messages."},
+		{ID: 2, Role: morphmsg.RoleAssistant, Content: "I will keep commit messages concise."},
 	}))
 
 	candidates := []episodeCandidate{{
@@ -305,9 +305,9 @@ func TestService_ExtractRecordsRelatedMemoryDetailsForSimilarRejection(t *testin
 	recorder := &recordingTrace{}
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
-	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{{
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []morphmsg.Message{{
 		ID:      1,
-		Role:    handmsg.RoleUser,
+		Role:    morphmsg.RoleUser,
 		Content: "Remember this daemon log review workflow.",
 	}}))
 
@@ -362,7 +362,7 @@ func TestService_ExtractChecksDuplicateBySourceRangeTag(t *testing.T) {
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 1, nil
 		},
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			return nil, errors.New("messages should not be loaded for completed checkpoint")
 		},
 	}
@@ -387,25 +387,25 @@ func TestService_ExtractChecksDuplicateBySourceRangeTag(t *testing.T) {
 
 func TestService_ExtractLoadsBoundedWindows(t *testing.T) {
 	ctx := context.Background()
-	messages := []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "one"},
-		{ID: 2, Role: handmsg.RoleAssistant, Content: "two"},
-		{ID: 3, Role: handmsg.RoleUser, Content: "three"},
-		{ID: 4, Role: handmsg.RoleAssistant, Content: "four"},
-		{ID: 5, Role: handmsg.RoleUser, Content: "five"},
+	messages := []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "one"},
+		{ID: 2, Role: morphmsg.RoleAssistant, Content: "two"},
+		{ID: 3, Role: morphmsg.RoleUser, Content: "three"},
+		{ID: 4, Role: morphmsg.RoleAssistant, Content: "four"},
+		{ID: 5, Role: morphmsg.RoleUser, Content: "five"},
 	}
 	var loads []storage.MessageQueryOptions
 	store := &statemock.Store{
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return len(messages), nil
 		},
-		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			loads = append(loads, opts)
 			end := opts.Offset + opts.Limit
 			if end > len(messages) {
 				end = len(messages)
 			}
-			return append([]handmsg.Message(nil), messages[opts.Offset:end]...), nil
+			return append([]morphmsg.Message(nil), messages[opts.Offset:end]...), nil
 		},
 	}
 	manager := testManager(t, store)
@@ -433,8 +433,8 @@ func TestService_ExtractReturnsBackgroundCheckpointUpdateError(t *testing.T) {
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 1, nil
 		},
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
-			return []handmsg.Message{{ID: 1, Role: handmsg.RoleUser, Content: "remember"}}, nil
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
+			return []morphmsg.Message{{ID: 1, Role: morphmsg.RoleUser, Content: "remember"}}, nil
 		},
 		UpdateCheckpointsFunc: func(context.Context, string, storage.CheckpointPatch) error {
 			return checkpointErr
@@ -461,9 +461,9 @@ func TestService_ExtractDoesNotPrecomputeLargeSessionWindows(t *testing.T) {
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 1_000_000_000, nil
 		},
-		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			loads = append(loads, opts)
-			return []handmsg.Message{{ID: uint(len(loads)), Role: handmsg.RoleUser, Content: "remember this"}}, nil
+			return []morphmsg.Message{{ID: uint(len(loads)), Role: morphmsg.RoleUser, Content: "remember this"}}, nil
 		},
 	}
 	manager := testManager(t, store)
@@ -496,7 +496,7 @@ func TestService_ExtractHandlesEmptyAndShortSessions(t *testing.T) {
 	require.Empty(t, result.Windows)
 	require.Zero(t, result.WriteCount)
 
-	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{{Role: handmsg.RoleUser}}))
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []morphmsg.Message{{Role: morphmsg.RoleUser}}))
 
 	result, err = newTestService(t, manager, provider).Extract(ctx, Request{
 		SessionID: storage.DefaultSessionID,
@@ -512,8 +512,8 @@ func TestService_ExtractBoundsEpisodeTextByTokenEstimate(t *testing.T) {
 	provider := testProvider(t, store)
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
-	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{{
-		Role:    handmsg.RoleUser,
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []morphmsg.Message{{
+		Role:    morphmsg.RoleUser,
 		Content: "Remember abcdefghijklmnopqrstuvwxyz",
 	}}))
 
@@ -543,8 +543,8 @@ func TestService_ExtractCapsDirectBudgetInputs(t *testing.T) {
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 1, nil
 		},
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
-			return []handmsg.Message{{ID: 1, Role: handmsg.RoleUser, Content: "remember"}}, nil
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
+			return []morphmsg.Message{{ID: 1, Role: morphmsg.RoleUser, Content: "remember"}}, nil
 		},
 	}
 	manager := testManager(t, store)
@@ -708,7 +708,7 @@ func TestService_ExtractReturnsWindowErrorsWithTrace(t *testing.T) {
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 1, nil
 		},
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 			return nil, errors.New("load failed")
 		},
 	}
@@ -730,8 +730,8 @@ func TestService_ExtractReturnsSearchAndWriteErrors(t *testing.T) {
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 1, nil
 		},
-		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
-			return []handmsg.Message{{ID: 1, Role: handmsg.RoleUser, Content: "remember this"}}, nil
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
+			return []morphmsg.Message{{ID: 1, Role: morphmsg.RoleUser, Content: "remember this"}}, nil
 		},
 	}
 	manager := testManager(t, store)
@@ -760,12 +760,12 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 		Trigger:         "command",
 	}
 	window := sourceWindow{Start: 0, End: 5}
-	messages := []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "We should host the workshop in person instead of running it as a webinar."},
-		{ID: 2, Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "calendar_lookup", Input: `{"venue":"community hall"}`}}},
-		{ID: 3, Role: handmsg.RoleTool, Name: "calendar_lookup", Content: "error: venue unavailable on the original date"},
-		{ID: 4, Role: handmsg.RoleAssistant, Content: "Moved the workshop date and verified the venue is available."},
-		{ID: 5, Role: handmsg.RoleUser, Content: "Prefer in-person planning when the venue is available."},
+	messages := []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "We should host the workshop in person instead of running it as a webinar."},
+		{ID: 2, Role: morphmsg.RoleAssistant, ToolCalls: []morphmsg.ToolCall{{Name: "calendar_lookup", Input: `{"venue":"community hall"}`}}},
+		{ID: 3, Role: morphmsg.RoleTool, Name: "calendar_lookup", Content: "error: venue unavailable on the original date"},
+		{ID: 4, Role: morphmsg.RoleAssistant, Content: "Moved the workshop date and verified the venue is available."},
+		{ID: 5, Role: morphmsg.RoleUser, Content: "Prefer in-person planning when the venue is available."},
 	}
 
 	service := Service{extractor: fakeCandidateExtractor{result: CandidateResult{Candidates: representativeEpisodeCandidates()}}}
@@ -842,9 +842,9 @@ func TestService_CandidatesFromMessages_AppliesModelAdmissionSignals(t *testing.
 		Trigger:         "background",
 	}
 	window := sourceWindow{Start: 20, End: 22}
-	messages := []handmsg.Message{
-		{ID: 21, Role: handmsg.RoleUser, Content: "Plan the community workshop."},
-		{ID: 22, Role: handmsg.RoleAssistant, Content: "Confirmed venue availability, checked catering options, shortlisted speakers, and completed the workshop plan."},
+	messages := []morphmsg.Message{
+		{ID: 21, Role: morphmsg.RoleUser, Content: "Plan the community workshop."},
+		{ID: 22, Role: morphmsg.RoleAssistant, Content: "Confirmed venue availability, checked catering options, shortlisted speakers, and completed the workshop plan."},
 	}
 	service := Service{extractor: fakeCandidateExtractor{result: CandidateResult{Candidates: []episodeCandidate{
 		{
@@ -862,7 +862,7 @@ func TestService_CandidatesFromMessages_AppliesModelAdmissionSignals(t *testing.
 		{
 			Kind:       episodeKindMilestone,
 			Title:      "Community Workshop Plan Completed",
-			Text:       "Community workshop planning completed with venue, catering, and speaker options ready for handoff.",
+			Text:       "Community workshop planning completed with venue, catering, and speaker options ready for morphoff.",
 			Confidence: 0.9,
 			Metadata: map[string]string{
 				"memory_importance":  "high",
@@ -983,8 +983,8 @@ func TestService_CandidatesFromMessages_IncludesTaskTraceEvidence(t *testing.T) 
 		MaxWindowChars:  1000,
 		MaxWindowTokens: 250,
 		Trigger:         "command",
-	}, sourceWindow{Start: 0, End: 1}, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleAssistant, Content: "I checked the venue calendar and Friday is available."},
+	}, sourceWindow{Start: 0, End: 1}, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleAssistant, Content: "I checked the venue calendar and Friday is available."},
 	})
 
 	require.NoError(t, err)
@@ -1008,8 +1008,8 @@ func TestService_CandidatesFromMessages_ReturnsTraceLoadError(t *testing.T) {
 		SessionID:       storage.DefaultSessionID,
 		MaxWindowChars:  1000,
 		MaxWindowTokens: 250,
-	}, sourceWindow{Start: 0, End: 1}, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "remember"},
+	}, sourceWindow{Start: 0, End: 1}, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "remember"},
 	})
 
 	require.ErrorIs(t, err, traceErr)
@@ -1051,16 +1051,16 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorRejections(t *testing.T)
 		Rejections: []candidateRejection{{Kind: "window", Reason: "low_signal"}},
 	}}}
 
-	items, rejections, err := service.candidatesFromMessages(context.Background(), req, sourceWindow{Start: 0, End: 1}, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "hi"},
+	items, rejections, err := service.candidatesFromMessages(context.Background(), req, sourceWindow{Start: 0, End: 1}, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "hi"},
 	})
 	require.NoError(t, err)
 	require.Empty(t, items)
 	require.Equal(t, []candidateRejection{{Kind: "window", Reason: "low_signal"}}, rejections)
 
 	service.extractor = fakeCandidateExtractor{err: errors.New("extract failed")}
-	items, rejections, err = service.candidatesFromMessages(context.Background(), req, sourceWindow{Start: 0, End: 1}, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "Maybe someday there could be another interface."},
+	items, rejections, err = service.candidatesFromMessages(context.Background(), req, sourceWindow{Start: 0, End: 1}, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "Maybe someday there could be another interface."},
 	})
 	require.EqualError(t, err, "extract failed")
 	require.Empty(t, items)
@@ -1071,13 +1071,13 @@ func TestService_CandidatesFromMessages_CoversEmptyAndInvalidCandidatePaths(t *t
 	req := normalizedRequest{SessionID: storage.DefaultSessionID, MaxWindowChars: 1000, MaxWindowTokens: 250}
 	window := sourceWindow{Start: 0, End: 1}
 
-	items, rejections, err := (Service{}).candidatesFromMessages(context.Background(), req, window, []handmsg.Message{{}})
+	items, rejections, err := (Service{}).candidatesFromMessages(context.Background(), req, window, []morphmsg.Message{{}})
 	require.NoError(t, err)
 	require.Empty(t, items)
 	require.Equal(t, []candidateRejection{{Kind: "window", Reason: "empty_window"}}, rejections)
 
-	_, _, err = (Service{}).candidatesFromMessages(context.Background(), req, window, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "This needs extraction."},
+	_, _, err = (Service{}).candidatesFromMessages(context.Background(), req, window, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "This needs extraction."},
 	})
 	require.EqualError(t, err, "memory episode extractor is required")
 
@@ -1085,8 +1085,8 @@ func TestService_CandidatesFromMessages_CoversEmptyAndInvalidCandidatePaths(t *t
 		{Kind: "unknown", Title: "Unknown", Text: "Unknown candidate", Confidence: 0.5},
 		{Kind: episodeKindDecision, Title: "   ", Text: "   ", Confidence: 0.5},
 	}}}}
-	items, rejections, err = service.candidatesFromMessages(context.Background(), req, window, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "This candidate should be rejected after validation."},
+	items, rejections, err = service.candidatesFromMessages(context.Background(), req, window, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "This candidate should be rejected after validation."},
 	})
 	require.NoError(t, err)
 	require.Empty(t, items)
@@ -1096,8 +1096,8 @@ func TestService_CandidatesFromMessages_CoversEmptyAndInvalidCandidatePaths(t *t
 	}, rejections)
 
 	service.extractor = fakeCandidateExtractor{result: CandidateResult{}}
-	items, rejections, err = service.candidatesFromMessages(context.Background(), req, window, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "The model returned no decision."},
+	items, rejections, err = service.candidatesFromMessages(context.Background(), req, window, []morphmsg.Message{
+		{ID: 1, Role: morphmsg.RoleUser, Content: "The model returned no decision."},
 	})
 	require.NoError(t, err)
 	require.Empty(t, items)
@@ -1164,10 +1164,10 @@ func TestMemoryItemFromEpisodeCandidate_PreservesOutcomeStatusVariants(t *testin
 }
 
 func TestMessageLineHandlesInsanitizeUTF8AndFallbackRole(t *testing.T) {
-	line := messageToLine(handmsg.Message{Content: string([]byte{0xff, 'o', 'k'})})
+	line := messageToLine(morphmsg.Message{Content: string([]byte{0xff, 'o', 'k'})})
 
 	require.Equal(t, "message: ok", line)
-	require.Empty(t, messageToLine(handmsg.Message{ToolCalls: []handmsg.ToolCall{{}}}))
+	require.Empty(t, messageToLine(morphmsg.Message{ToolCalls: []morphmsg.ToolCall{{}}}))
 }
 
 func TestHelpersCoverEdgeBranches(t *testing.T) {
@@ -1365,7 +1365,7 @@ func representativeEpisodeCandidates() []episodeCandidate {
 		{
 			Kind:       episodeKindMilestone,
 			Title:      "Milestone: workshop planning",
-			Text:       "Milestone: workshop planning reached a partial handoff-ready state.",
+			Text:       "Milestone: workshop planning reached a partial morphoff-ready state.",
 			Confidence: 0.81,
 			Metadata: map[string]string{
 				"milestone":       "workshop_planning",
@@ -1424,7 +1424,7 @@ func (m traceErrorManager) CountMessages(context.Context, string, storage.Messag
 	return 0, nil
 }
 
-func (m traceErrorManager) GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+func (m traceErrorManager) GetMessages(context.Context, string, storage.MessageQueryOptions) ([]morphmsg.Message, error) {
 	return nil, nil
 }
 

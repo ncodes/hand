@@ -15,32 +15,32 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
-	"github.com/wandxy/hand/internal/datadir"
-	envbudget "github.com/wandxy/hand/internal/environment/budget"
-	envplanstore "github.com/wandxy/hand/internal/environment/planstore"
-	envsessionmessages "github.com/wandxy/hand/internal/environment/sessionmessages"
-	envsessionsearch "github.com/wandxy/hand/internal/environment/sessionsearch"
-	"github.com/wandxy/hand/internal/guardrails"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	"github.com/wandxy/hand/internal/memory"
-	models "github.com/wandxy/hand/internal/model"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	"github.com/wandxy/hand/internal/personality"
-	"github.com/wandxy/hand/internal/profile"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	memorystore "github.com/wandxy/hand/internal/state/storememory"
-	"github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/internal/tools/memorywrite"
-	"github.com/wandxy/hand/internal/trace"
-	"github.com/wandxy/hand/internal/workspace"
-	messages "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/logutils"
-	"github.com/wandxy/hand/pkg/nanoid"
+	"github.com/wandxy/morph/internal/agent/runcontext"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
+	"github.com/wandxy/morph/internal/datadir"
+	envbudget "github.com/wandxy/morph/internal/environment/budget"
+	envplanstore "github.com/wandxy/morph/internal/environment/planstore"
+	envsessionmessages "github.com/wandxy/morph/internal/environment/sessionmessages"
+	envsessionsearch "github.com/wandxy/morph/internal/environment/sessionsearch"
+	"github.com/wandxy/morph/internal/guardrails"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/internal/memory"
+	models "github.com/wandxy/morph/internal/model"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/internal/personality"
+	"github.com/wandxy/morph/internal/profile"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	memorystore "github.com/wandxy/morph/internal/state/storememory"
+	"github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/tools/memorywrite"
+	"github.com/wandxy/morph/internal/trace"
+	"github.com/wandxy/morph/internal/workspace"
+	messages "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 func init() {
@@ -473,7 +473,7 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(files ...string) (workspace.Result, error) {
-		require.Equal(t, []string{"hand.md"}, files)
+		require.Equal(t, []string{"morph.md"}, files)
 		return workspace.Result{
 			Found:   true,
 			Content: "## AGENTS.md\nrepo rules",
@@ -484,7 +484,7 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	cfg := &config.Config{
 		Name:  "Test Agent",
 		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}},
-		Rules: config.RulesConfig{Files: []string{"hand.md"}},
+		Rules: config.RulesConfig{Files: []string{"morph.md"}},
 	}
 	env := NewEnvironment(gctx.Background(), cfg)
 
@@ -740,7 +740,7 @@ func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
 
 	instructions := env.Instructions()
 	require.Equal(t, instruct.PlanningPolicyInstructionName, instructions[0].Name)
-	require.Contains(t, instructions[1].Value, "Hand is the user's personal agent")
+	require.Contains(t, instructions[1].Value, "Morph is the user's personal agent")
 }
 
 func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
@@ -1986,7 +1986,7 @@ func TestEnvironment_NewTraceSessionRecordsWorkspaceRuleTruncation(t *testing.T)
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
 		return workspace.Result{
 			Found:            true,
-			Content:          "## AGENTS.md\nrepo rules\n\n[... workspace rules truncated ...]\n\n## pkg/hand.md\nmore",
+			Content:          "## AGENTS.md\nrepo rules\n\n[... workspace rules truncated ...]\n\n## pkg/morph.md\nmore",
 			Truncated:        true,
 			MaxContentLength: 15000,
 			OriginalLength:   24000,

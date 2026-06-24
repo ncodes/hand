@@ -3,7 +3,7 @@ package core
 import (
 	"time"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // SearchMessageOptions controls session message search filtering and limits.
@@ -12,14 +12,14 @@ type SearchMessageOptions struct {
 	MaxMessagesPerSession int
 	MaxSessions           int
 	Query                 string
-	Role                  handmsg.Role
+	Role                  morphmsg.Role
 	ToolName              string
 }
 
 // SearchMessageHit is one matching message returned from session search.
 type SearchMessageHit struct {
 	SessionID       string
-	Message         handmsg.Message
+	Message         morphmsg.Message
 	MatchedText     string
 	MatchedToolName string
 }

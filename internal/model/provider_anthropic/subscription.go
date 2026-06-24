@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
+	"github.com/wandxy/morph/internal/constants"
+	appcredential "github.com/wandxy/morph/internal/credential"
 )
 
 const (
@@ -138,7 +138,7 @@ func (p AnthropicSubscriptionProvider) AuthHeaders(
 		"Authorization":  "Bearer " + token,
 		"anthropic-beta": strings.Join([]string{anthropicClaudeCodeBeta, anthropicOAuthBeta}, ","),
 		"anthropic-dangerous-direct-browser-access": "true",
-		"user-agent": "claude-cli/hand",
+		"user-agent": "claude-cli/morph",
 		"x-app":      "cli",
 	}, nil
 }
@@ -210,7 +210,7 @@ func (p AnthropicSubscriptionProvider) startCallbackServer(
 			return
 		}
 
-		_, _ = io.WriteString(w, "Anthropic authentication complete. You can return to Hand.\n")
+		_, _ = io.WriteString(w, "Anthropic authentication complete. You can return to Morph.\n")
 		codeCh <- code
 	})
 
@@ -356,7 +356,7 @@ func getAnthropicOpenURLCommand(goos string, rawURL string) (string, []string) {
 	case "darwin":
 		return "open", []string{rawURL}
 	case "windows":
-		return "rundll32", []string{"url.dll,FileProtocolHandler", rawURL}
+		return "rundll32", []string{"url.dll,FileProtocolHand", rawURL}
 	default:
 		return "xdg-open", []string{rawURL}
 	}

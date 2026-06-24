@@ -10,12 +10,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	e2e "github.com/wandxy/hand/internal/e2e"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/nanoid"
+	"github.com/wandxy/morph/internal/config"
+	e2e "github.com/wandxy/morph/internal/e2e"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/nanoid"
 )
 
 func TestE2E_ToolOutputSafety_BlocksReadFilePromptInjection(t *testing.T) {
@@ -375,14 +375,14 @@ func requireToolMessageInRequest(
 	client *e2e.Client,
 	index int,
 	toolCall models.ToolCall,
-) handmsg.Message {
+) morphmsg.Message {
 	t.Helper()
 
 	requests := client.Requests()
 	require.Greater(t, len(requests), index)
 
 	for _, message := range requests[index].Messages {
-		if message.Role == handmsg.RoleTool &&
+		if message.Role == morphmsg.RoleTool &&
 			message.Name == toolCall.Name &&
 			message.ToolCallID == toolCall.ID {
 			return message
@@ -390,5 +390,5 @@ func requireToolMessageInRequest(
 	}
 
 	require.Failf(t, "missing tool message", "request %d does not include tool %s/%s", index, toolCall.Name, toolCall.ID)
-	return handmsg.Message{}
+	return morphmsg.Message{}
 }

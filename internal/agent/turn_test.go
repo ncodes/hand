@@ -10,30 +10,30 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/context/summary"
-	"github.com/wandxy/hand/internal/config"
-	envbudget "github.com/wandxy/hand/internal/environment/budget"
-	envtypes "github.com/wandxy/hand/internal/environment/types"
-	"github.com/wandxy/hand/internal/guardrails"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	"github.com/wandxy/hand/internal/mocks"
-	models "github.com/wandxy/hand/internal/model"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
-	handtools "github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/internal/trace"
-	agentcore "github.com/wandxy/hand/pkg/agent"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
-	agenttool "github.com/wandxy/hand/pkg/agent/tool"
+	"github.com/wandxy/morph/internal/agent/context/summary"
+	"github.com/wandxy/morph/internal/config"
+	envbudget "github.com/wandxy/morph/internal/environment/budget"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/guardrails"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/internal/mocks"
+	models "github.com/wandxy/morph/internal/model"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	storage "github.com/wandxy/morph/internal/state/core"
+	statemanager "github.com/wandxy/morph/internal/state/manager"
+	morphtools "github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/trace"
+	agentcore "github.com/wandxy/morph/pkg/agent"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agentprompt "github.com/wandxy/morph/pkg/agent/prompt"
+	agenttool "github.com/wandxy/morph/pkg/agent/tool"
 )
 
 func TestTurn_LoadInitializesSessionState(t *testing.T) {
 	store := &stateStoreStub{
 		session: storage.Session{ID: storage.DefaultSessionID, LastPromptTokens: 12},
-		messages: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "hello"},
+		messages: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "hello"},
 		},
 	}
 	manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
@@ -93,7 +93,7 @@ func TestTurn_LoadValidatesRequiredDependencies(t *testing.T) {
 				cfg:          &config.Config{},
 				modelClient:  &mocks.ModelClientStub{},
 				env:          &mocks.EnvironmentStub{},
-				sessionStore: &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}},
+				sessionStore: &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}},
 			},
 			err: "summary store is required",
 		},
@@ -142,8 +142,8 @@ func TestTurn_LoadPropagatesSessionSummaryHistoryAndPlanErrors(t *testing.T) {
 	require.ErrorIs(t, turn.load(context.Background(), agentcore.RespondOptions{}), expected)
 
 	store = &sessionStoreStub{
-		messagesByOffset: map[int][]handmsg.Message{
-			4: {{Role: handmsg.RoleUser, Content: "after summary"}},
+		messagesByOffset: map[int][]morphmsg.Message{
+			4: {{Role: morphmsg.RoleUser, Content: "after summary"}},
 		},
 	}
 	summaryStore = &stateStoreStub{summaries: map[string]storage.SessionSummary{
@@ -166,7 +166,7 @@ func TestTurn_LoadPropagatesSessionSummaryHistoryAndPlanErrors(t *testing.T) {
 	require.Len(t, turn.sessionHistory, 1)
 
 	store = &sessionStoreStub{
-		messagesByOffset: map[int][]handmsg.Message{},
+		messagesByOffset: map[int][]morphmsg.Message{},
 		err:              expected,
 		errAtGet:         2,
 	}
@@ -238,8 +238,8 @@ func TestTurn_RunExecutesToolLoop(t *testing.T) {
 	}}
 	registry := &toolGroupRegistryStub{
 		definitions: []agenttool.Definition{{Name: "time", ParallelSafe: true}},
-		invoke: func(_ context.Context, call agenttool.Call) handmsg.Message {
-			return handmsg.Message{Role: handmsg.RoleTool, Name: call.Name, ToolCallID: call.ID, Content: `{"ok":true}`}
+		invoke: func(_ context.Context, call agenttool.Call) morphmsg.Message {
+			return morphmsg.Message{Role: morphmsg.RoleTool, Name: call.Name, ToolCallID: call.ID, Content: `{"ok":true}`}
 		},
 	}
 	turn := NewTurnWithSessionStore(
@@ -315,7 +315,7 @@ func TestTurn_RunPropagatesModelAssistantAndToolErrors(t *testing.T) {
 			name:   "append user",
 			client: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "unused"}}},
 			sessionStore: &sessionStoreStub{
-				messagesByOffset: map[int][]handmsg.Message{},
+				messagesByOffset: map[int][]morphmsg.Message{},
 				appendErr:        errors.New("append user failed"),
 				appendErrAt:      1,
 			},
@@ -324,39 +324,39 @@ func TestTurn_RunPropagatesModelAssistantAndToolErrors(t *testing.T) {
 		{
 			name:         "available tools",
 			client:       &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "unused"}}},
-			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}},
+			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}},
 			registry:     &toolGroupRegistryStub{resolveErr: errors.New("resolve failed")},
 			err:          "resolve failed",
 		},
 		{
 			name:         "model error",
 			client:       &mocks.ModelClientStub{Err: context.Canceled},
-			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}},
+			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}},
 			err:          "context canceled",
 		},
 		{
 			name:         "nil response",
 			client:       &mocks.ModelClientStub{Responses: []*models.Response{nil}},
-			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}},
+			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}},
 			err:          "model response is required",
 		},
 		{
 			name:         "postflight usage",
 			client:       &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "ok", PromptTokens: 1}}},
-			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}, updateErr: errors.New("usage failed")},
+			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}, updateErr: errors.New("usage failed")},
 			err:          "usage failed",
 		},
 		{
 			name:         "empty assistant",
 			client:       &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: ""}}},
-			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}},
+			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}},
 			err:          "message content is required",
 		},
 		{
 			name:   "append assistant",
 			client: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "ok"}}},
 			sessionStore: &sessionStoreStub{
-				messagesByOffset: map[int][]handmsg.Message{},
+				messagesByOffset: map[int][]morphmsg.Message{},
 				appendErr:        errors.New("append assistant failed"),
 				appendErrAt:      2,
 			},
@@ -365,20 +365,20 @@ func TestTurn_RunPropagatesModelAssistantAndToolErrors(t *testing.T) {
 		{
 			name:         "tool calls missing",
 			client:       &mocks.ModelClientStub{Responses: []*models.Response{{RequiresToolCalls: true}}},
-			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}},
+			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}},
 			err:          "model requested tool execution without tool calls",
 		},
 		{
 			name:         "invalid assistant tool call",
 			client:       &mocks.ModelClientStub{Responses: []*models.Response{{RequiresToolCalls: true, ToolCalls: []models.ToolCall{{ID: "call"}}}}},
-			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}},
+			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}},
 			err:          "tool call name is required",
 		},
 		{
 			name:   "append assistant tool call",
 			client: &mocks.ModelClientStub{Responses: []*models.Response{{RequiresToolCalls: true, ToolCalls: []models.ToolCall{{ID: "call", Name: "time"}}}}},
 			sessionStore: &sessionStoreStub{
-				messagesByOffset: map[int][]handmsg.Message{},
+				messagesByOffset: map[int][]morphmsg.Message{},
 				appendErr:        errors.New("append tool call failed"),
 				appendErrAt:      2,
 			},
@@ -387,9 +387,9 @@ func TestTurn_RunPropagatesModelAssistantAndToolErrors(t *testing.T) {
 		{
 			name:         "tool execution",
 			client:       &mocks.ModelClientStub{Responses: []*models.Response{{RequiresToolCalls: true, ToolCalls: []models.ToolCall{{ID: "call", Name: "time"}}}}},
-			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}},
-			registry: &toolGroupRegistryStub{invoke: func(context.Context, agenttool.Call) handmsg.Message {
-				return handmsg.Message{Role: handmsg.RoleTool, Content: "{}"}
+			sessionStore: &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}},
+			registry: &toolGroupRegistryStub{invoke: func(context.Context, agenttool.Call) morphmsg.Message {
+				return morphmsg.Message{Role: morphmsg.RoleTool, Content: "{}"}
 			}},
 			err: "tool call id is required",
 		},
@@ -397,7 +397,7 @@ func TestTurn_RunPropagatesModelAssistantAndToolErrors(t *testing.T) {
 			name:   "append tool result",
 			client: &mocks.ModelClientStub{Responses: []*models.Response{{RequiresToolCalls: true, ToolCalls: []models.ToolCall{{ID: "call", Name: "time"}}}}},
 			sessionStore: &sessionStoreStub{
-				messagesByOffset: map[int][]handmsg.Message{},
+				messagesByOffset: map[int][]morphmsg.Message{},
 				appendErr:        errors.New("append tool result failed"),
 				appendErrAt:      3,
 			},
@@ -411,8 +411,8 @@ func TestTurn_RunPropagatesModelAssistantAndToolErrors(t *testing.T) {
 			if registry == nil {
 				registry = &toolGroupRegistryStub{
 					definitions: []agenttool.Definition{{Name: "time"}},
-					invoke: func(_ context.Context, call agenttool.Call) handmsg.Message {
-						return handmsg.Message{Role: handmsg.RoleTool, Name: call.Name, ToolCallID: call.ID, Content: "{}"}
+					invoke: func(_ context.Context, call agenttool.Call) morphmsg.Message {
+						return morphmsg.Message{Role: morphmsg.RoleTool, Name: call.Name, ToolCallID: call.ID, Content: "{}"}
 					},
 				}
 			}
@@ -427,8 +427,8 @@ func TestTurn_RunPropagatesModelAssistantAndToolErrors(t *testing.T) {
 
 func TestTurn_RunCoversPlanHydrationStreamingAndSummaryFallbackBranches(t *testing.T) {
 	stream := true
-	store := &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{
-		0: {{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"steps":[{"id":"one","content":"do","status":"in_progress"}],"explanation":"plan"}`}},
+	store := &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{
+		0: {{Role: morphmsg.RoleTool, Name: "plan_tool", Content: `{"steps":[{"id":"one","content":"do","status":"in_progress"}],"explanation":"plan"}`}},
 	}}
 	client := &mocks.ModelClientStub{
 		Responses: []*models.Response{{OutputText: "done"}},
@@ -445,14 +445,14 @@ func TestTurn_RunCoversPlanHydrationStreamingAndSummaryFallbackBranches(t *testi
 	require.NoError(t, err)
 	require.Equal(t, "done", reply)
 
-	turn = newTurnRunTestSubject(&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "fallback"}}}, &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}}, &toolGroupRegistryStub{}, envbudget.New(0))
+	turn = newTurnRunTestSubject(&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "fallback"}}}, &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}}, &toolGroupRegistryStub{}, envbudget.New(0))
 	turn.env = nil
 	turn.iterationBudgets = &turnRuntimeSourceStub{iterationBudget: envbudget.New(0)}
 	reply, err = turn.Run(context.Background(), "hello", agentcore.RespondOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "fallback", reply)
 
-	turn = newTurnRunTestSubject(&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "done"}}}, &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}}, &toolGroupRegistryStub{}, envbudget.New(1))
+	turn = newTurnRunTestSubject(&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "done"}}}, &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}}, &toolGroupRegistryStub{}, envbudget.New(1))
 	disabled := false
 	turn.cfg.Safety.Input = &disabled
 	stream = false
@@ -462,14 +462,14 @@ func TestTurn_RunCoversPlanHydrationStreamingAndSummaryFallbackBranches(t *testi
 }
 
 func TestTurn_RunRejectsInvalidUserMessageAndCancelledContext(t *testing.T) {
-	turn := newTurnRunTestSubject(&mocks.ModelClientStub{}, &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}}, &toolGroupRegistryStub{}, envbudget.New(1))
+	turn := newTurnRunTestSubject(&mocks.ModelClientStub{}, &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}}, &toolGroupRegistryStub{}, envbudget.New(1))
 
 	_, err := turn.Run(context.Background(), " ", agentcore.RespondOptions{})
 	require.EqualError(t, err, "message content is required")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	turn = newTurnRunTestSubject(&mocks.ModelClientStub{}, &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}}, &toolGroupRegistryStub{}, envbudget.New(1))
+	turn = newTurnRunTestSubject(&mocks.ModelClientStub{}, &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}}, &toolGroupRegistryStub{}, envbudget.New(1))
 
 	_, err = turn.Run(ctx, "hello", agentcore.RespondOptions{})
 	require.ErrorIs(t, err, context.Canceled)
@@ -533,7 +533,7 @@ func TestTurn_RunStreamsReasoningAndTraceEvents(t *testing.T) {
 }
 
 func TestTurn_MessagesReturnsCopy(t *testing.T) {
-	turn := &Turn{emittedMessages: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}}
+	turn := &Turn{emittedMessages: []morphmsg.Message{{Role: morphmsg.RoleAssistant, Content: "hello"}}}
 
 	messages := turn.Messages()
 	messages[0].Content = "changed"
@@ -547,7 +547,7 @@ func TestTurn_HelperPaths(t *testing.T) {
 	originalNow := environmentContextNow
 	originalGetwd := environmentContextGetwd
 	environmentContextNow = func() time.Time { return now }
-	environmentContextGetwd = func() (string, error) { return "/tmp/hand", nil }
+	environmentContextGetwd = func() (string, error) { return "/tmp/morph", nil }
 	t.Cleanup(func() {
 		environmentContextNow = originalNow
 		environmentContextGetwd = originalGetwd
@@ -568,9 +568,9 @@ func TestTurn_HelperPaths(t *testing.T) {
 			SourceEndOffset: 1,
 			SessionSummary:  "summary",
 		}},
-		sessionHistory: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "old"},
-			{Role: handmsg.RoleAssistant, Content: "new"},
+		sessionHistory: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "old"},
+			{Role: morphmsg.RoleAssistant, Content: "new"},
 		},
 		instructions:       instruct.Instructions{{Name: instruct.PlanningPolicyInstructionName, Value: "plan policy"}},
 		memoryInstruction:  instruct.Instruction{Name: "memory", Value: "memory"},
@@ -601,8 +601,8 @@ memory
 - Timezone: WAT
 - OS: %s
 - Architecture: %s
-- Working directory: /tmp/hand
-- Filesystem roots: /tmp/hand
+- Working directory: /tmp/morph
+- Filesystem roots: /tmp/morph
 - Model: openai/gpt-4o-mini
 - Model provider: openrouter
 - API: openai-responses
@@ -620,7 +620,7 @@ request`, runtime.GOOS, runtime.GOARCH), turn.buildRequestInstructions(nil))
 	require.Equal(t, &trace.ProcessToolState{ProcessID: "p1", Command: "ls", Status: "running"}, getProcessToolOutputState("process", `{"process":{"id":"p1","command":"ls","status":"running"}}`))
 	require.Nil(t, getPlanToolInputState("time", "{}"))
 	require.Equal(t, "default", turn.getStateSessionID())
-	require.Equal(t, "default", handtools.SessionIDFromContext(turn.getToolContext(context.Background())))
+	require.Equal(t, "default", morphtools.SessionIDFromContext(turn.getToolContext(context.Background())))
 	require.Equal(t, "plain", turn.getOutputRedactor().Sanitize("plain"))
 	require.Equal(t, "plain", (*Turn)(nil).getOutputRedactor().Sanitize("plain"))
 }
@@ -638,9 +638,9 @@ func TestTurn_HelperBranchEdges(t *testing.T) {
 
 	turn := &Turn{
 		summary: &summary.State{Current: &summary.SummaryState{SourceEndOffset: 4}},
-		sessionHistory: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "one"},
-			{Role: handmsg.RoleUser, Content: "two"},
+		sessionHistory: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "one"},
+			{Role: morphmsg.RoleUser, Content: "two"},
 		},
 	}
 	turn.trimSessionHistoryToSummary()
@@ -655,13 +655,13 @@ func TestTurn_HelperBranchEdges(t *testing.T) {
 	turn = &Turn{summaryService: summary.NewService(&config.Config{}, nil, nil, nil)}
 	turn.maybeRefreshSummary(context.Background(), models.Request{}, trace.NoopSession())
 	turn.summary = &summary.State{Current: &summary.SummaryState{SourceEndOffset: 1}}
-	turn.sessionHistory = []handmsg.Message{{Role: handmsg.RoleUser, Content: "old"}}
+	turn.sessionHistory = []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "old"}}
 	turn.lastPromptTokens = 10
-	turn.maybeRefreshSummary(context.Background(), models.Request{Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "new"}}}, trace.NoopSession())
+	turn.maybeRefreshSummary(context.Background(), models.Request{Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "new"}}}, trace.NoopSession())
 	require.Zero(t, turn.lastPromptTokens)
 
 	require.Equal(t, storage.DefaultSessionID, (*Turn)(nil).getStateSessionID())
-	require.Empty(t, handtools.SessionIDFromContext((*Turn)(nil).getToolContext(context.Background())))
+	require.Empty(t, morphtools.SessionIDFromContext((*Turn)(nil).getToolContext(context.Background())))
 	definitions, err := (*Turn)(nil).availableToolDefinitions()
 	require.NoError(t, err)
 	require.Nil(t, definitions)
@@ -742,7 +742,7 @@ func TestTurn_RecordModelReasoningCompletedBranches(t *testing.T) {
 
 func TestTurn_RecordPostflightUsageAndSafety(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
-	store := &sessionStoreStub{messagesByOffset: map[int][]handmsg.Message{}}
+	store := &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}}
 	turn := &Turn{
 		cfg:          &config.Config{},
 		ctx:          context.Background(),
@@ -891,7 +891,7 @@ func TestTurn_BuildRequestInstructionsNilTurn(t *testing.T) {
 }
 
 func TestTurn_NormalizeTurnMessageAndAssistantToolCall(t *testing.T) {
-	message, err := normalizeTurnMessage(handmsg.Message{Role: handmsg.RoleAssistant, Content: "hello"})
+	message, err := normalizeTurnMessage(morphmsg.Message{Role: morphmsg.RoleAssistant, Content: "hello"})
 	require.NoError(t, err)
 	require.Equal(t, "hello", message.Content)
 
@@ -900,9 +900,9 @@ func TestTurn_NormalizeTurnMessageAndAssistantToolCall(t *testing.T) {
 		ToolCalls:  []models.ToolCall{{ID: "call", Name: "time", Input: "{}"}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, handmsg.RoleAssistant, toolMessage.Role)
+	require.Equal(t, morphmsg.RoleAssistant, toolMessage.Role)
 	require.Equal(t, "checking", toolMessage.Content)
-	require.Equal(t, []handmsg.ToolCall{{ID: "call", Name: "time", Input: "{}"}}, toolMessage.ToolCalls)
+	require.Equal(t, []morphmsg.ToolCall{{ID: "call", Name: "time", Input: "{}"}}, toolMessage.ToolCalls)
 }
 
 func TestTurn_InvokeToolReturnsContextCancellation(t *testing.T) {

@@ -4,13 +4,13 @@ import (
 	"context"
 	"strings"
 
-	agentapi "github.com/wandxy/hand/internal/agent"
-	models "github.com/wandxy/hand/internal/model"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
-	agent "github.com/wandxy/hand/pkg/agent"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	agentapi "github.com/wandxy/morph/internal/agent"
+	models "github.com/wandxy/morph/internal/model"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
+	agent "github.com/wandxy/morph/pkg/agent"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 )
 
 // AgentServiceStub is a test stub for agent service.

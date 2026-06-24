@@ -8,9 +8,9 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/profile"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/profile"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 )
 
 const (

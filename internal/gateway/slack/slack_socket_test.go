@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/websocket"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/gateway/dispatch"
-	pkgslack "github.com/wandxy/hand/pkg/gateway/slack"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/gateway/dispatch"
+	pkgslack "github.com/wandxy/morph/pkg/gateway/slack"
 )
 
 func TestStartSocketWithClient_DispatchesSocketEvents(t *testing.T) {
@@ -388,7 +388,7 @@ func TestSocketClient_RunReturnsDialAndOpenErrors(t *testing.T) {
 	})
 }
 
-func TestSocketClient_RunAcksBeforeHandlingEnvelope(t *testing.T) {
+func TestSocketClient_RunAcksBeforeMorphlingEnvelope(t *testing.T) {
 	conn := newFakeSocketConn(slackSocketEnvelopeBytes(t))
 	client := socketClientWithConn(t, conn)
 	ctx, cancel := context.WithCancel(context.Background())

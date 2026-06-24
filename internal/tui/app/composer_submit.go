@@ -3,7 +3,7 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 
-	tuicomposer "github.com/wandxy/hand/internal/tui/composer"
+	tuicomposer "github.com/wandxy/morph/internal/tui/composer"
 )
 
 const (
@@ -41,7 +41,7 @@ func normalizeComposerPaste(value string) string {
 	return tuicomposer.NormalizePaste(value)
 }
 
-// submitPrompt routes a non-empty composer value to prompt or command handling.
+// submitPrompt routes a non-empty composer value to prompt or command morphling.
 func (m *model) submitPrompt() tea.Cmd {
 	input := m.parseComposerInputForSubmit()
 

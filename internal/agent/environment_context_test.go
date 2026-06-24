@@ -8,13 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	"github.com/wandxy/hand/internal/mocks"
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	handtools "github.com/wandxy/hand/internal/tools"
-	agenttool "github.com/wandxy/hand/pkg/agent/tool"
+	"github.com/wandxy/morph/internal/config"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/internal/mocks"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphtools "github.com/wandxy/morph/internal/tools"
+	agenttool "github.com/wandxy/morph/pkg/agent/tool"
 )
 
 func TestEnvironmentContextHelpersNormalizeStableValues(t *testing.T) {
@@ -49,7 +49,7 @@ func TestTurn_BuildEnvironmentContextInstructionUsesConfigAndToolPolicy(t *testi
 	originalNow := environmentContextNow
 	originalGetwd := environmentContextGetwd
 	environmentContextNow = func() time.Time { return now }
-	environmentContextGetwd = func() (string, error) { return "/tmp/hand", nil }
+	environmentContextGetwd = func() (string, error) { return "/tmp/morph", nil }
 	t.Cleanup(func() {
 		environmentContextNow = originalNow
 		environmentContextGetwd = originalGetwd
@@ -71,12 +71,12 @@ func TestTurn_BuildEnvironmentContextInstructionUsesConfigAndToolPolicy(t *testi
 			ThreadID:       "7",
 		},
 		env: &mocks.EnvironmentStub{
-			Policy: handtools.Policy{
+			Policy: morphtools.Policy{
 				Platform:     "linux",
-				Capabilities: handtools.Capabilities{Filesystem: true, Network: true},
+				Capabilities: morphtools.Capabilities{Filesystem: true, Network: true},
 			},
 			ToolRegistry: &mocks.ToolRegistryStub{
-				Groups: []handtools.Group{{Name: "core"}, {Name: "search"}},
+				Groups: []morphtools.Group{{Name: "core"}, {Name: "search"}},
 			},
 		},
 	}
@@ -95,8 +95,8 @@ func TestTurn_BuildEnvironmentContextInstructionUsesConfigAndToolPolicy(t *testi
 - OS: %s
 - Architecture: %s
 - Platform: darwin
-- Working directory: /tmp/hand
-- Filesystem roots: /tmp/hand
+- Working directory: /tmp/morph
+- Filesystem roots: /tmp/morph
 - Capabilities: filesystem=true, network=true, exec=false, memory=false, browser=false
 - Active tool groups: core, search
 - Active tools: time, web_search

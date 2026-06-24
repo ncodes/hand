@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/mocks"
+	"github.com/wandxy/morph/internal/mocks"
 )
 
 func TestMemorySource_ReturnsEnvironmentMemoryProvider(t *testing.T) {

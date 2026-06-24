@@ -9,7 +9,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-const defaultLogFilename = "hand.log"
+const defaultLogFilename = "morph.log"
 const defaultLogMaxSizeMB = 10
 const defaultLogMaxBackups = 5
 const defaultLogMaxAgeDays = 14
@@ -106,7 +106,7 @@ func getLogFilePath() string {
 		return defaultLogFilename
 	}
 
-	return filepath.Join(home, ".hand", defaultLogFilename)
+	return filepath.Join(home, ".morph", defaultLogFilename)
 }
 
 func closeFileLocked() {

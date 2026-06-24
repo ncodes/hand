@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 // fanoutTraceSession writes trace records to a primary session and mirrors

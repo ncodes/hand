@@ -5,14 +5,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	agentsession "github.com/wandxy/morph/pkg/agent/session"
 )
 
 func TestTimelineTypes_CarryMessagesAndTraceEvents(t *testing.T) {
 	timeline := SessionTimeline{
 		SessionID:          "session",
-		Messages:           []SessionTimelineMessage{{Offset: 3, Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hello"}}},
+		Messages:           []SessionTimelineMessage{{Offset: 3, Message: morphmsg.Message{Role: morphmsg.RoleUser, Content: "hello"}}},
 		TraceEvents:        []SessionTimelineTraceEvent{{Event: agentsession.TraceEvent{Sequence: 7, Type: "event"}}},
 		FirstTraceSequence: 7,
 		LastTraceSequence:  7,

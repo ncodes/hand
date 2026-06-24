@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	base "github.com/wandxy/hand/internal/state/core"
+	base "github.com/wandxy/morph/internal/state/core"
 )
 
 func TestMemoryStore_TraceAppendListAndPrune(t *testing.T) {

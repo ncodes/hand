@@ -54,7 +54,7 @@ Event type strings are defined as constants in `events.go` (e.g. `EvtChatStarted
 | Constant                     | Type string                 | Meaning                                                                              |
 | ---------------------------- | --------------------------- | ------------------------------------------------------------------------------------ |
 | `EvtToolInvocationStarted`   | `tool.invocation.started`   | A tool call is starting. Payload: `models.ToolCall`.                                 |
-| `EvtToolInvocationCompleted` | `tool.invocation.completed` | Tool result message. Payload: `handmsg.Message` (name, content, tool call ID, etc.). |
+| `EvtToolInvocationCompleted` | `tool.invocation.completed` | Tool result message. Payload: `morphmsg.Message` (name, content, tool call ID, etc.). |
 
 
 ### Summary fallback (iterations)

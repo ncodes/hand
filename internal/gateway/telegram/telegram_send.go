@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	tg "github.com/wandxy/hand/pkg/gateway/telegram"
+	tg "github.com/wandxy/morph/pkg/gateway/telegram"
 )
 
 const defaultTelegramAPIBase = "https://api.telegram.org"

@@ -16,7 +16,7 @@ type lipglossChromeRenderer struct{}
 
 var defaultChromeRenderer chromeRenderer = lipglossChromeRenderer{}
 
-var handBannerColors = []color.Color{
+var morphBannerColors = []color.Color{
 	lipgloss.Color("38"),
 	lipgloss.Color("44"),
 	lipgloss.Color("49"),
@@ -122,12 +122,12 @@ func renderHeaderBody(panel headerPanel) string {
 }
 
 func renderHeaderBannerGroup(panel headerPanel) string {
-	banner := renderHandBannerWithColors(panel.Banner, panel.BannerRows)
+	banner := renderMorphBannerWithColors(panel.Banner, panel.BannerRows)
 	if panel.Mark == "" {
 		return banner
 	}
 
-	mark := renderHandBannerWithColors(panel.Mark, panel.BannerRows)
+	mark := renderMorphBannerWithColors(panel.Mark, panel.BannerRows)
 	return lipgloss.JoinHorizontal(lipgloss.Top, mark, strings.Repeat(" ", headerGapWidth), banner)
 }
 
@@ -205,9 +205,9 @@ func renderHeaderInfoCell(row headerInfoRow, width int) string {
 		Render(key + ": " + row.value)
 }
 
-func renderHandBannerWithColors(banner string, colors []color.Color) string {
+func renderMorphBannerWithColors(banner string, colors []color.Color) string {
 	if len(colors) == 0 {
-		colors = handBannerColors
+		colors = morphBannerColors
 	}
 
 	lines := strings.Split(banner, "\n")

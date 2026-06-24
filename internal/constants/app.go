@@ -1,7 +1,7 @@
 package constants
 
 // AppDescription is the CLI application description shown in help output.
-const AppDescription = "Hand is a personal assistant that works and exists for you."
+const AppDescription = "Morph is a personal assistant that works and exists for you."
 
 // AppVersion is the CLI application version.
 var AppVersion = "dev"

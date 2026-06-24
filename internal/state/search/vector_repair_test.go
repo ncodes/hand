@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestVectorRepairResult_Add(t *testing.T) {
@@ -112,14 +112,14 @@ func TestDirtyVectorSources(t *testing.T) {
 }
 
 func TestMessagesBySourceID(t *testing.T) {
-	messages := []handmsg.Message{
+	messages := []morphmsg.Message{
 		{ID: 1, Content: "one"},
 		{ID: 2, Content: "two"},
 	}
 
 	require.Nil(t, MessagesBySourceID("ses_a", messages, nil))
 	require.Nil(t, MessagesBySourceID("ses_a", messages, []string{" "}))
-	require.Equal(t, []handmsg.Message{{ID: 2, Content: "two"}}, MessagesBySourceID(
+	require.Equal(t, []morphmsg.Message{{ID: 2, Content: "two"}}, MessagesBySourceID(
 		"ses_a",
 		messages,
 		[]string{SourceIDForMessage("ses_a", 2)},

@@ -15,9 +15,9 @@ import (
 	"unicode/utf8"
 
 	readability "codeberg.org/readeck/go-readability/v2"
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/pkg/fetch"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/pkg/fetch"
 	"golang.org/x/net/html"
 )
 

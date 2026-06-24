@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 func isValidModelID(value string) bool {

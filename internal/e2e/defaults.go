@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/morph/internal/config"
 )
 
 // ConfigOptions customizes the default e2e config.
@@ -39,7 +39,7 @@ func DefaultConfig(opts ConfigOptions) *config.Config {
 
 	name := strings.TrimSpace(opts.Name)
 	if name == "" {
-		name = "Test Hand"
+		name = "Test Morph"
 	}
 
 	storageBackend := strings.TrimSpace(opts.StorageBackend)

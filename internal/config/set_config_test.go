@@ -9,11 +9,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func TestSetConfigValue_UpdatesTypedValues(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -51,7 +51,7 @@ func TestSetConfigValue_UpdatesTypedValues(t *testing.T) {
 }
 
 func TestGetConfigValues_ReadsTypedValues(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -79,7 +79,7 @@ func TestGetConfigValues_ReadsTypedValues(t *testing.T) {
 }
 
 func TestSetConfigValues_UpdatesMultipleFieldsAtomically(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -102,7 +102,7 @@ func TestSetConfigValues_UpdatesMultipleFieldsAtomically(t *testing.T) {
 }
 
 func TestSetConfigValuesRelaxed_AllowsMissingGatewayCredentials(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
@@ -140,7 +140,7 @@ search:
 }
 
 func TestSetConfigValues_RewritesFlowMappingsAsBlockYAML(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
@@ -171,7 +171,7 @@ storage:
 }
 
 func TestSetConfigValue_RejectsInvalidPathOrValue(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -195,7 +195,7 @@ func TestSetConfigValue_RejectsInvalidPathOrValue(t *testing.T) {
 }
 
 func TestSetConfigValues_DoesNotWritePartialBatchOnInvalidValue(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -228,7 +228,7 @@ func resetSetConfigProfileState(t *testing.T) {
 func writeSetConfigProfileConfig(t *testing.T, home string, name string) string {
 	t.Helper()
 
-	profileHome := filepath.Join(home, ".hand", "profiles", strings.ToLower(name))
+	profileHome := filepath.Join(home, ".morph", "profiles", strings.ToLower(name))
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
 	configPath := filepath.Join(profileHome, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`

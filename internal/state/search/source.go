@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wandxy/hand/internal/state/search/vectorstore"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/state/search/vectorstore"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // StableSessionMessageID returns the stable vector source ID for a session message.
@@ -39,7 +39,7 @@ func SourceIDForMessage(sessionID string, messageID uint) string {
 }
 
 // SourceIDsFromMessages returns vector source IDs for session messages.
-func SourceIDsFromMessages(sessionID string, messages []handmsg.Message) []string {
+func SourceIDsFromMessages(sessionID string, messages []morphmsg.Message) []string {
 	if len(messages) == 0 {
 		return nil
 	}

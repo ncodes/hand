@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	pkgslack "github.com/wandxy/hand/pkg/gateway/slack"
+	pkgslack "github.com/wandxy/morph/pkg/gateway/slack"
 )
 
 func TestSender_StreamTurnUsesNativeSlackStream(t *testing.T) {
@@ -36,7 +36,7 @@ func TestSender_StreamTurnNormalizesSlackStreamingStrikethrough(t *testing.T) {
 	target := slackTestTarget()
 
 	err := sender.StreamTurn(context.Background(), target, func(onDelta func(string)) (string, error) {
-		onDelta("**bold** and ~gone~ and ~~already gone~~ and [Hand](https://example.com)")
+		onDelta("**bold** and ~gone~ and ~~already gone~~ and [Morph](https://example.com)")
 		return "final", nil
 	})
 
@@ -46,7 +46,7 @@ func TestSender_StreamTurnNormalizesSlackStreamingStrikethrough(t *testing.T) {
 		{
 			method: "appendStream",
 			stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"},
-			text:   "**bold** and ~~gone~~ and ~~already gone~~ and [Hand](https://example.com)",
+			text:   "**bold** and ~~gone~~ and ~~already gone~~ and [Morph](https://example.com)",
 		},
 		{method: "stopStream", stream: pkgslack.Stream{ChannelID: "C1", TS: "stream-ts"}},
 	}, api.allCalls())
@@ -381,11 +381,11 @@ func TestSender_SendFinalFormatsSlackMrkdwn(t *testing.T) {
 	sender := NewSender(api)
 	target := slackTestTarget()
 
-	err := sender.SendFinal(context.Background(), target, "**bold** and [Hand](https://example.com)")
+	err := sender.SendFinal(context.Background(), target, "**bold** and [Morph](https://example.com)")
 
 	require.NoError(t, err)
 	require.Equal(t, []slackAPICall{
-		{method: "postMessage", target: target, text: "*bold* and <https://example.com|Hand>"},
+		{method: "postMessage", target: target, text: "*bold* and <https://example.com|Morph>"},
 	}, api.allCalls())
 }
 

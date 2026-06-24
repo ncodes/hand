@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	"github.com/wandxy/hand/pkg/logutils"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/pkg/logutils"
 	"google.golang.org/grpc"
 )
 

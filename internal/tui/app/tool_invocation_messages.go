@@ -4,9 +4,9 @@ import (
 	"strings"
 	"time"
 
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func newToolInvocationStartedMsg(
@@ -100,7 +100,7 @@ func toolInvocationStartedMsgFromModelToolCall(
 }
 
 func toolInvocationStartedMsgFromMessageToolCall(
-	toolCall handmsg.ToolCall,
+	toolCall morphmsg.ToolCall,
 	startedAt time.Time,
 ) (toolInvocationStartedMsg, bool) {
 	return newToolInvocationStartedMsgWithState(
@@ -114,7 +114,7 @@ func toolInvocationStartedMsgFromMessageToolCall(
 }
 
 func toolInvocationCompletedMsgFromMessage(
-	message handmsg.Message,
+	message morphmsg.Message,
 	completedAt time.Time,
 ) (toolInvocationCompletedMsg, bool) {
 	return newToolInvocationCompletedMsgWithState(

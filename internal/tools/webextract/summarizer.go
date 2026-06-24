@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wandxy/hand/internal/config"
-	instruct "github.com/wandxy/hand/internal/instructions"
-	models "github.com/wandxy/hand/internal/model"
-	webprovider "github.com/wandxy/hand/internal/providers/web"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/morph/internal/config"
+	instruct "github.com/wandxy/morph/internal/instructions"
+	models "github.com/wandxy/morph/internal/model"
+	webprovider "github.com/wandxy/morph/internal/providers/web"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 // Summarizer produces a concise summary for extracted web content.
@@ -134,8 +134,8 @@ func (s ExtractSummarizer) completeSummary(
 		Model:        s.Model,
 		API:          s.API,
 		Instructions: instructions,
-		Messages: []handmsg.Message{{
-			Role:    handmsg.RoleUser,
+		Messages: []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
 			Content: prompt,
 		}},
 		MaxOutputTokens: getMaxSummaryOutputTokens(maxSummaryChars),

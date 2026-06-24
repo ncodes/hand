@@ -10,8 +10,8 @@ import (
 
 	"gorm.io/gorm"
 
-	base "github.com/wandxy/hand/internal/state/core"
-	handtrace "github.com/wandxy/hand/internal/trace"
+	base "github.com/wandxy/morph/internal/state/core"
+	morphtrace "github.com/wandxy/morph/internal/trace"
 )
 
 type traceEventModel struct {
@@ -161,7 +161,7 @@ func traceModelToEvent(record traceEventModel) (base.TraceEvent, error) {
 		Type:      record.Type,
 		Timestamp: record.Timestamp.UTC(),
 	}
-	if payload, ok := handtrace.DecodePayloadJSON(record.Type, json.RawMessage(record.PayloadJSON)); ok {
+	if payload, ok := morphtrace.DecodePayloadJSON(record.Type, json.RawMessage(record.PayloadJSON)); ok {
 		event.Payload = payload
 		return event, nil
 	}

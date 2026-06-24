@@ -12,7 +12,7 @@ import (
 
 	"github.com/coder/hnsw"
 
-	"github.com/wandxy/hand/internal/state/search/vectorstore"
+	"github.com/wandxy/morph/internal/state/search/vectorstore"
 )
 
 // Record aliases vectorstore.Record at this package boundary.

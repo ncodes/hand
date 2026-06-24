@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 	urfavecli "github.com/urfave/cli/v3"
 
-	daemoncmd "github.com/wandxy/hand/cmd/daemon"
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/e2e"
-	"github.com/wandxy/hand/internal/profile"
-	"github.com/wandxy/hand/pkg/logutils"
+	daemoncmd "github.com/wandxy/morph/cmd/daemon"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/e2e"
+	"github.com/wandxy/morph/internal/profile"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -46,13 +46,13 @@ rpc:
 `, port)), 0o600))
 
 	envPath := filepath.Join(t.TempDir(), ".env")
-	require.NoError(t, os.WriteFile(envPath, []byte("HAND_NAME=env-up\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("MORPH_NAME=env-up\n"), 0o600))
 
 	envFile := ""
 	configFile := ""
 	rootCmd := &urfavecli.Command{
-		Name:  "hand",
-		Flags: handcli.RootFlags(&envFile, &configFile),
+		Name:  "morph",
+		Flags: morphcli.RootFlags(&envFile, &configFile),
 		Commands: []*urfavecli.Command{
 			daemoncmd.NewCommand(),
 		},
@@ -62,7 +62,7 @@ rpc:
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- rootCmd.Run(runCtx, []string{
-			"hand",
+			"morph",
 			"--env-file", envPath,
 			"--config", configPath,
 			"--name", "cli-up",
@@ -97,7 +97,7 @@ func resetDaemonCommandE2E(t *testing.T) {
 
 	t.Setenv("HOME", t.TempDir())
 	clearDaemonCommandEnv(t,
-		"HAND_NAME",
+		"MORPH_NAME",
 		"OPENAI_API_KEY",
 		"OPENROUTER_API_KEY",
 		"ANTHROPIC_API_KEY",

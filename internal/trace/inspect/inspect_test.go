@@ -17,44 +17,44 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	models "github.com/wandxy/hand/internal/model"
-	storage "github.com/wandxy/hand/internal/state/core"
-	handtrace "github.com/wandxy/hand/internal/trace"
-	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/morph/internal/model"
+	storage "github.com/wandxy/morph/internal/state/core"
+	morphtrace "github.com/wandxy/morph/internal/trace"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "20260329T002738.170520000Z-4fca4857", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "4fca4857",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171258000, time.UTC),
-			Payload: handtrace.Metadata{
+			Payload: morphtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "qwen/qwen3.5-27b",
 				API:       "openai-completions",
 				Source:    "agent",
-				TraceDir:  ".hand/traces",
+				TraceDir:  ".morph/traces",
 			},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "4fca4857",
-			Type:      handtrace.EvtUserMessageAccepted,
+			Type:      morphtrace.EvtUserMessageAccepted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171671000, time.UTC),
 			Payload:   map[string]any{"message": "List files in the root"},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "4fca4857",
-			Type:      handtrace.EvtModelRequest,
+			Type:      morphtrace.EvtModelRequest,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171759000, time.UTC),
 			Payload: models.Request{
 				Model:        "qwen/qwen3.5-27b",
 				API:          "openai-completions",
 				Instructions: "Daemon is the user's personal agent.",
-				Messages: []handmsg.Message{
+				Messages: []morphmsg.Message{
 					{
-						Role:      handmsg.RoleUser,
+						Role:      morphmsg.RoleUser,
 						Content:   "List files in the root",
 						CreatedAt: time.Date(2026, 3, 29, 0, 27, 38, 171668000, time.UTC),
 					},
@@ -64,9 +64,9 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 				},
 			},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "4fca4857",
-			Type:      handtrace.EvtModelResponse,
+			Type:      morphtrace.EvtModelResponse,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 41, 430260000, time.UTC),
 			Payload: models.Response{
 				ID:                "gen-1",
@@ -75,20 +75,20 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 				ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "list_files", Input: "{}"}},
 			},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "4fca4857",
-			Type:      handtrace.EvtModelRequest,
+			Type:      morphtrace.EvtModelRequest,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 45, 171759000, time.UTC),
 			Payload: models.Request{
 				Model:       "qwen/qwen3.5-27b",
 				API:         "openai-completions",
-				Messages:    []handmsg.Message{{Role: handmsg.RoleTool, Content: `{"entries":[]}`}},
+				Messages:    []morphmsg.Message{{Role: morphmsg.RoleTool, Content: `{"entries":[]}`}},
 				Temperature: 0,
 			},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "4fca4857",
-			Type:      handtrace.EvtModelResponse,
+			Type:      morphtrace.EvtModelResponse,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 46, 430260000, time.UTC),
 			Payload: models.Response{
 				ID:         "gen-2",
@@ -96,47 +96,47 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 				OutputText: "Here are the files and directories in the root.",
 			},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "4fca4857",
-			Type:      handtrace.EvtToolInvocationStarted,
+			Type:      morphtrace.EvtToolInvocationStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 41, 430685000, time.UTC),
 			Payload:   models.ToolCall{ID: "call-1", Name: "list_files", Input: "{}"},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "4fca4857",
-			Type:      handtrace.EvtToolInvocationCompleted,
+			Type:      morphtrace.EvtToolInvocationCompleted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 41, 447625000, time.UTC),
-			Payload: handmsg.Message{
-				Role:       handmsg.RoleTool,
+			Payload: morphmsg.Message{
+				Role:       morphmsg.RoleTool,
 				Name:       "list_files",
 				ToolCallID: "call-1",
 				Content:    `{"name":"list_files","output":"{\"entries\":[]}"}`,
 				CreatedAt:  time.Date(2026, 3, 29, 0, 27, 41, 447625000, time.UTC),
 			},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "4fca4857",
-			Type:      handtrace.EvtFinalAssistantResponse,
+			Type:      morphtrace.EvtFinalAssistantResponse,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 47, 273707000, time.UTC),
 			Payload:   map[string]any{"message": "Here are the files and directories in the root."},
 		},
 	})
 
 	writeTraceFile(t, dir, "20260330T002738.170520000Z-failed", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "failed",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 30, 0, 27, 38, 171258000, time.UTC),
-			Payload: handtrace.Metadata{
+			Payload: morphtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "qwen/qwen3.5-27b",
 				API:       "openai-completions",
 				Source:    "agent",
 			},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "failed",
-			Type:      handtrace.EvtSessionFailed,
+			Type:      morphtrace.EvtSessionFailed,
 			Timestamp: time.Date(2026, 3, 30, 0, 27, 39, 171258000, time.UTC),
 			Payload:   map[string]any{"error": "tool failed"},
 		},
@@ -180,9 +180,9 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 func Test_Store_GetSession_BuildsSafetyEventWithoutRawContent(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "20260515T002738.170520000Z-default", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "default",
-			Type:      handtrace.EvtOutputSafetyApplied,
+			Type:      morphtrace.EvtOutputSafetyApplied,
 			Timestamp: time.Date(2026, 5, 15, 0, 27, 38, 171258000, time.UTC),
 			Payload: map[string]any{
 				"session_id":     "default",
@@ -224,10 +224,10 @@ func Test_Store_ListSessions_SortsTiesByIDDescending(t *testing.T) {
 	dir := t.TempDir()
 	timestamp := time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC)
 	writeTraceFile(t, dir, "aaa", []any{
-		handtrace.Event{SessionID: "aaa", Type: handtrace.EvtChatStarted, Timestamp: timestamp, Payload: handtrace.Metadata{AgentName: "A"}},
+		morphtrace.Event{SessionID: "aaa", Type: morphtrace.EvtChatStarted, Timestamp: timestamp, Payload: morphtrace.Metadata{AgentName: "A"}},
 	})
 	writeTraceFile(t, dir, "zzz", []any{
-		handtrace.Event{SessionID: "zzz", Type: handtrace.EvtChatStarted, Timestamp: timestamp, Payload: handtrace.Metadata{AgentName: "Z"}},
+		morphtrace.Event{SessionID: "zzz", Type: morphtrace.EvtChatStarted, Timestamp: timestamp, Payload: morphtrace.Metadata{AgentName: "Z"}},
 	})
 
 	summaries, err := NewStore(dir).ListSessions()
@@ -240,20 +240,20 @@ func Test_Store_ListSessions_SortsTiesByIDDescending(t *testing.T) {
 func Test_Store_GetSession_DecodesWorkspaceRulesTruncatedEvent(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "rules", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "rules",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 4, 7, 0, 0, 0, 0, time.UTC),
-			Payload: handtrace.Metadata{
+			Payload: morphtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "openai/gpt-4o-mini",
 				API:       "openai-responses",
 				Source:    "agent",
 			},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "rules",
-			Type:      handtrace.EvtWorkspaceRulesTruncated,
+			Type:      morphtrace.EvtWorkspaceRulesTruncated,
 			Timestamp: time.Date(2026, 4, 7, 0, 0, 1, 0, time.UTC),
 			Payload: map[string]any{
 				"original_length":    24000,
@@ -277,15 +277,15 @@ func Test_Store_GetSession_DecodesWorkspaceRulesTruncatedEvent(t *testing.T) {
 func Test_Store_GetSession_DecodesPlanEvents(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "plan", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "plan",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 4, 7, 0, 0, 0, 0, time.UTC),
-			Payload:   handtrace.Metadata{AgentName: "Daemon", Model: "test-model", API: "openai-responses"},
+			Payload:   morphtrace.Metadata{AgentName: "Daemon", Model: "test-model", API: "openai-responses"},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "plan",
-			Type:      handtrace.EvtPlanHydrated,
+			Type:      morphtrace.EvtPlanHydrated,
 			Timestamp: time.Date(2026, 4, 7, 0, 0, 1, 0, time.UTC),
 			Payload: map[string]any{
 				"session_id":     "plan",
@@ -311,13 +311,13 @@ func Test_Store_GetSession_DecodesPlanEvents(t *testing.T) {
 func Test_Store_ListSessions_SortsOlderSessionsAfterNewerOnComparatorReversePath(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "older", []any{
-		handtrace.Event{SessionID: "older", Type: handtrace.EvtChatStarted, Timestamp: time.Date(2026, 3, 28, 0, 0, 0, 0, time.UTC), Payload: handtrace.Metadata{AgentName: "Older"}},
+		morphtrace.Event{SessionID: "older", Type: morphtrace.EvtChatStarted, Timestamp: time.Date(2026, 3, 28, 0, 0, 0, 0, time.UTC), Payload: morphtrace.Metadata{AgentName: "Older"}},
 	})
 	writeTraceFile(t, dir, "newer", []any{
-		handtrace.Event{SessionID: "newer", Type: handtrace.EvtChatStarted, Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC), Payload: handtrace.Metadata{AgentName: "Newer"}},
+		morphtrace.Event{SessionID: "newer", Type: morphtrace.EvtChatStarted, Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC), Payload: morphtrace.Metadata{AgentName: "Newer"}},
 	})
 	writeTraceFile(t, dir, "newest", []any{
-		handtrace.Event{SessionID: "newest", Type: handtrace.EvtChatStarted, Timestamp: time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC), Payload: handtrace.Metadata{AgentName: "Newest"}},
+		morphtrace.Event{SessionID: "newest", Type: morphtrace.EvtChatStarted, Timestamp: time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC), Payload: morphtrace.Metadata{AgentName: "Newest"}},
 	})
 
 	permutations := [][]string{
@@ -353,29 +353,29 @@ func Test_Store_ListSessions_OrdersByLastActivityNotSessionStart(t *testing.T) {
 	dir := t.TempDir()
 	// Started earlier but last event is newer — should sort above the session that started later.
 	writeTraceFile(t, dir, "a-long-session", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "a-long-session",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
-			Payload:   handtrace.Metadata{AgentName: "A"},
+			Payload:   morphtrace.Metadata{AgentName: "A"},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "a-long-session",
-			Type:      handtrace.EvtUserMessageAccepted,
+			Type:      morphtrace.EvtUserMessageAccepted,
 			Timestamp: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC),
 			Payload:   map[string]any{"message": "still going"},
 		},
 	})
 	writeTraceFile(t, dir, "b-recent-start", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "b-recent-start",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC),
-			Payload:   handtrace.Metadata{AgentName: "B"},
+			Payload:   morphtrace.Metadata{AgentName: "B"},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "b-recent-start",
-			Type:      handtrace.EvtFinalAssistantResponse,
+			Type:      morphtrace.EvtFinalAssistantResponse,
 			Timestamp: time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC),
 			Payload:   map[string]any{"message": "done"},
 		},
@@ -405,9 +405,9 @@ func Test_LoadSessionFile_SurfacesMalformedJSONAsLoadError(t *testing.T) {
 func Test_LoadSessionFile_RecordsSessionIDMismatchAndSummaryFallback(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "mismatch", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "different",
-			Type:      handtrace.EvtSummaryFallbackStarted,
+			Type:      morphtrace.EvtSummaryFallbackStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
 			Payload:   map[string]any{"remaining": 0},
 		},
@@ -424,13 +424,13 @@ func Test_LoadSessionFile_RecordsSessionIDMismatchAndSummaryFallback(t *testing.
 func Test_LoadSessionFile_HandlesGenericPayloadsAndInvalidStructuredPayloads(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "generic", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "generic",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
 			Payload:   map[string]any{"agent_name": 99},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "generic",
 			Type:      "mystery.event",
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 1, 0, time.UTC),
@@ -449,15 +449,15 @@ func Test_LoadSessionFile_HandlesGenericPayloadsAndInvalidStructuredPayloads(t *
 func Test_LoadSessionFile_FinalStatusInProgressWhenUserMessageAfterCompletedTurn(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "20260101T000000.000000000Z-ses_turn", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "ses_turn",
-			Type:      handtrace.EvtFinalAssistantResponse,
+			Type:      morphtrace.EvtFinalAssistantResponse,
 			Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 			Payload:   map[string]any{"message": "first reply"},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "ses_turn",
-			Type:      handtrace.EvtUserMessageAccepted,
+			Type:      morphtrace.EvtUserMessageAccepted,
 			Timestamp: time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC),
 			Payload:   map[string]any{"message": "second turn"},
 		},
@@ -471,15 +471,15 @@ func Test_LoadSessionFile_FinalStatusInProgressWhenUserMessageAfterCompletedTurn
 func Test_LoadSessionFile_FinalStatusCompletedWhenTurnEndsWithFinalResponse(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "20260101T000000.000000000Z-ses_done", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "ses_done",
-			Type:      handtrace.EvtUserMessageAccepted,
+			Type:      morphtrace.EvtUserMessageAccepted,
 			Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 			Payload:   map[string]any{"message": "hello"},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "ses_done",
-			Type:      handtrace.EvtFinalAssistantResponse,
+			Type:      morphtrace.EvtFinalAssistantResponse,
 			Timestamp: time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC),
 			Payload:   map[string]any{"message": "hi"},
 		},
@@ -494,9 +494,9 @@ func Test_LoadSessionFile_ParsesContextSummaryAndCompactionEvents(t *testing.T) 
 	dir := t.TempDir()
 	now := time.Date(2026, 4, 4, 10, 0, 0, 0, time.UTC)
 	writeTraceFile(t, dir, "memory-events", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "memory-events",
-			Type:      handtrace.EvtContextPreflight,
+			Type:      morphtrace.EvtContextPreflight,
 			Timestamp: now,
 			Payload: map[string]any{
 				"source":            "estimate",
@@ -506,9 +506,9 @@ func Test_LoadSessionFile_ParsesContextSummaryAndCompactionEvents(t *testing.T) 
 				"warn_threshold":    650,
 			},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "memory-events",
-			Type:      handtrace.EvtSummaryParseFailed,
+			Type:      morphtrace.EvtSummaryParseFailed,
 			Timestamp: now.Add(time.Second),
 			Payload: map[string]any{
 				"session_id":           "memory-events",
@@ -518,9 +518,9 @@ func Test_LoadSessionFile_ParsesContextSummaryAndCompactionEvents(t *testing.T) 
 				"error":                "summary requested tool calls",
 			},
 		},
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "memory-events",
-			Type:      handtrace.EvtContextCompactionRunning,
+			Type:      morphtrace.EvtContextCompactionRunning,
 			Timestamp: now.Add(2 * time.Second),
 			Payload: map[string]any{
 				"session_id":           "memory-events",
@@ -562,14 +562,14 @@ func Test_LoadSessionFile_ParsesContextSummaryAndCompactionEvents(t *testing.T) 
 	require.Empty(t, detail.Timeline[2].GenericPayloadRaw)
 }
 
-func Test_App_Handler_ServesIndexAndSessionEndpoints(t *testing.T) {
+func Test_App_Hand_ServesIndexAndSessionEndpoints(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "session", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "session",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
-			Payload: handtrace.Metadata{
+			Payload: morphtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "model",
 				API:       "openai-completions",
@@ -607,14 +607,14 @@ func Test_App_Handler_ServesIndexAndSessionEndpoints(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
-func Test_App_Handler_RequiresBasicAuthWhenConfigured(t *testing.T) {
+func Test_App_Hand_RequiresBasicAuthWhenConfigured(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "session", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "session",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
-			Payload: handtrace.Metadata{
+			Payload: morphtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "model",
 				API:       "openai-completions",
@@ -640,14 +640,14 @@ func Test_App_Handler_RequiresBasicAuthWhenConfigured(t *testing.T) {
 	require.Contains(t, authorizedRec.Body.String(), "\"sessions\"")
 }
 
-func Test_App_Handler_AttachesProviderMemoriesForSession(t *testing.T) {
+func Test_App_Hand_AttachesProviderMemoriesForSession(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "session", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "session",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
-			Payload:   handtrace.Metadata{AgentName: "Daemon", Model: "model", API: "openai-completions"},
+			Payload:   morphtrace.Metadata{AgentName: "Daemon", Model: "model", API: "openai-completions"},
 		},
 	})
 
@@ -759,11 +759,11 @@ func Test_Store_ListSessions_IgnoresNonJSONLAndGetSessionErrors(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "note.txt"), []byte("ignore"), 0o600))
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "subdir"), 0o755))
 	writeTraceFile(t, dir, "session", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "session",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
-			Payload: handtrace.Metadata{
+			Payload: morphtrace.Metadata{
 				AgentName: "Daemon",
 			},
 		},
@@ -838,7 +838,7 @@ func Test_Utility_Helpers(t *testing.T) {
 		ID:    "call-1",
 		Name:  "list_files",
 		Input: "{}",
-	}}, toolCallsToToolCallViews([]handmsg.ToolCall{{
+	}}, toolCallsToToolCallViews([]morphmsg.ToolCall{{
 		ID:    "call-1",
 		Name:  "list_files",
 		Input: "{}",
@@ -895,7 +895,7 @@ func Test_App_AndAuth_Helpers(t *testing.T) {
 	require.NoError(t, NewApp(t.TempDir()).Validate())
 }
 
-func Test_App_Handler_ErrorPaths(t *testing.T) {
+func Test_App_Hand_ErrorPaths(t *testing.T) {
 	missingDir := filepath.Join(t.TempDir(), "missing")
 	app := NewApp(missingDir)
 	handler := app.Handler()
@@ -1026,7 +1026,7 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 	require.NoError(t, err)
 
 	applyEvent(&detail, &timelineEvent, rawEvent{
-		Type:    handtrace.EvtModelRequest,
+		Type:    morphtrace.EvtModelRequest,
 		Payload: requestPayload,
 	})
 	require.Equal(t, "existing-model", detail.Summary.Model)
@@ -1035,7 +1035,7 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 
 	timelineEvent = TimelineEvent{}
 	applyEvent(&detail, &timelineEvent, rawEvent{
-		Type:    handtrace.EvtFinalAssistantResponse,
+		Type:    morphtrace.EvtFinalAssistantResponse,
 		Payload: []byte(`{"message":1}`),
 	})
 	require.Nil(t, timelineEvent.FinalResponse)
@@ -1044,21 +1044,21 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 	detail = SessionDetail{Summary: SessionSummary{FinalStatus: "incomplete"}}
 	timelineEvent = TimelineEvent{}
 	applyEvent(&detail, &timelineEvent, rawEvent{
-		Type:    handtrace.EvtModelRequest,
+		Type:    morphtrace.EvtModelRequest,
 		Payload: requestPayload,
 	})
 	require.Equal(t, "new-model", detail.Summary.Model)
 	require.Equal(t, "openai-completions", detail.Summary.API)
 }
 
-func Test_App_Handler_HandleSessionPermissionAndInternalErrors(t *testing.T) {
+func Test_App_Hand_HandleSessionPermissionAndInternalErrors(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "session", []any{
-		handtrace.Event{
+		morphtrace.Event{
 			SessionID: "session",
-			Type:      handtrace.EvtChatStarted,
+			Type:      morphtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
-			Payload: handtrace.Metadata{
+			Payload: morphtrace.Metadata{
 				AgentName: "Daemon",
 			},
 		},
