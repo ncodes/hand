@@ -17,11 +17,11 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	clidaemon "github.com/wandxy/hand/internal/cli/daemon"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/profile"
-	handruntime "github.com/wandxy/hand/internal/runtime"
-	"github.com/wandxy/hand/pkg/logutils"
+	clidaemon "github.com/wandxy/morph/internal/cli/daemon"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/profile"
+	morphruntime "github.com/wandxy/morph/internal/runtime"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func TestEnsureDaemonRunning_ReturnsConfigError(t *testing.T) {
@@ -87,7 +87,7 @@ func TestDaemonDependenciesAdaptCLIConfigInputs(t *testing.T) {
 	var gotSummary string
 
 	cmd := &urfavecli.Command{
-		Name:  "hand",
+		Name:  "morph",
 		Flags: RootFlags(nil, &configFile),
 		Action: func(_ context.Context, cmd *urfavecli.Command) error {
 			cfg, inputs, err := deps.LoadConfig(cmd)
@@ -103,7 +103,7 @@ func TestDaemonDependenciesAdaptCLIConfigInputs(t *testing.T) {
 		},
 	}
 
-	err := cmd.Run(context.Background(), []string{"hand", "--config", configPath, "--name", "flag-agent"})
+	err := cmd.Run(context.Background(), []string{"morph", "--config", configPath, "--name", "flag-agent"})
 
 	require.NoError(t, err)
 	require.Equal(t, configPath, gotConfigPath)
@@ -130,13 +130,13 @@ func TestGetDaemonStatus_ReturnsRunningStatus(t *testing.T) {
 	daemonStatusNow = func() time.Time {
 		return startedAt.Add(90 * time.Second)
 	}
-	probeActiveRuntime = func(context.Context, profile.Profile) handruntime.ProbeResult {
-		return handruntime.ProbeResult{
-			State: handruntime.ProbeStateReady,
-			Metadata: handruntime.Metadata{
+	probeActiveRuntime = func(context.Context, profile.Profile) morphruntime.ProbeResult {
+		return morphruntime.ProbeResult{
+			State: morphruntime.ProbeStateReady,
+			Metadata: morphruntime.Metadata{
 				Profile:   "work",
 				PID:       1234,
-				RPC:       handruntime.RPC{Address: "127.0.0.1", Port: 50051},
+				RPC:       morphruntime.RPC{Address: "127.0.0.1", Port: 50051},
 				StartedAt: startedAt,
 			},
 		}
@@ -165,8 +165,8 @@ func TestGetDaemonStatus_ReturnsProbeError(t *testing.T) {
 	defer restore()
 
 	expectedErr := errors.New("runtime metadata is not present")
-	probeActiveRuntime = func(context.Context, profile.Profile) handruntime.ProbeResult {
-		return handruntime.ProbeResult{State: handruntime.ProbeStateMissing, Err: expectedErr}
+	probeActiveRuntime = func(context.Context, profile.Profile) morphruntime.ProbeResult {
+		return morphruntime.ProbeResult{State: morphruntime.ProbeStateMissing, Err: expectedErr}
 	}
 	checkDaemonHealth = func(context.Context, string, int) (string, error) {
 		t.Fatal("health should not be checked when runtime probe fails")
@@ -184,8 +184,8 @@ func TestGetDaemonStatus_ReturnsProbeStateWithoutError(t *testing.T) {
 	restore := replaceDaemonBootstrapHooks(t)
 	defer restore()
 
-	probeActiveRuntime = func(context.Context, profile.Profile) handruntime.ProbeResult {
-		return handruntime.ProbeResult{State: handruntime.ProbeStateStale}
+	probeActiveRuntime = func(context.Context, profile.Profile) morphruntime.ProbeResult {
+		return morphruntime.ProbeResult{State: morphruntime.ProbeStateStale}
 	}
 	checkDaemonHealth = func(context.Context, string, int) (string, error) {
 		t.Fatal("health should not be checked when runtime probe is stale")
@@ -203,11 +203,11 @@ func TestGetDaemonStatus_ReturnsHealthError(t *testing.T) {
 	defer restore()
 
 	expectedErr := errors.New("connection refused")
-	probeActiveRuntime = func(context.Context, profile.Profile) handruntime.ProbeResult {
-		return handruntime.ProbeResult{
-			State: handruntime.ProbeStateReady,
-			Metadata: handruntime.Metadata{
-				RPC: handruntime.RPC{Address: "127.0.0.1", Port: 50051},
+	probeActiveRuntime = func(context.Context, profile.Profile) morphruntime.ProbeResult {
+		return morphruntime.ProbeResult{
+			State: morphruntime.ProbeStateReady,
+			Metadata: morphruntime.Metadata{
+				RPC: morphruntime.RPC{Address: "127.0.0.1", Port: 50051},
 			},
 		}
 	}
@@ -509,7 +509,7 @@ func TestStartDaemonRuntimeImpl_DisablesConsoleLoggingAndKeepsFileLogging(t *tes
 	logutils.SetOutput(consoleOutput)
 	logutils.SetFileOutput(fileOutput)
 	logutils.SetConsoleEnabled(true)
-	_ = logutils.ConfigureLogger("hand", true)
+	_ = logutils.ConfigureLogger("morph", true)
 
 	started := make(chan struct{})
 	done := make(chan struct{})
@@ -541,7 +541,7 @@ func TestStartDaemonRuntimeImpl_DisablesConsoleLoggingAndKeepsFileLogging(t *tes
 		t.Fatal("daemon run did not stop")
 	}
 
-	logutils.Module("hand").Info().Msg("console restored")
+	logutils.Module("morph").Info().Msg("console restored")
 	require.Contains(t, consoleOutput.String(), "console restored")
 }
 

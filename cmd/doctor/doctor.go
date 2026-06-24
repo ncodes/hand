@@ -13,10 +13,10 @@ import (
 	"github.com/charmbracelet/x/term"
 	cli "github.com/urfave/cli/v3"
 
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/diagnostics"
-	"github.com/wandxy/hand/internal/diagnostics/readiness"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/diagnostics"
+	"github.com/wandxy/morph/internal/diagnostics/readiness"
 )
 
 var doctorOutput io.Writer = os.Stdout
@@ -57,16 +57,16 @@ func NewCommand() *cli.Command {
 			&cli.BoolFlag{Name: "json", Usage: "Print diagnostics and readiness as JSON"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			cfg, inputs, err := handcli.LoadConfig(cmd)
+			cfg, inputs, err := morphcli.LoadConfig(cmd)
 			if err == nil {
-				handcli.ApplyConfigOverrides(cmd, cfg)
-				handcli.AddStartupFilesystemRoots(cfg, inputs)
+				morphcli.ApplyConfigOverrides(cmd, cfg)
+				morphcli.AddStartupFilesystemRoots(cfg, inputs)
 			}
 
 			report := diagnostics.Build(inputs.EnvPath, inputs.ConfigPath, cfg, err)
 			safety := ""
 			if cfg != nil {
-				safety = handcli.SafetySummary(cfg)
+				safety = morphcli.SafetySummary(cfg)
 			}
 			var readinessReport readiness.Report
 			if cfg != nil {

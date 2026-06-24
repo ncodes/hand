@@ -15,16 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 
-	daemoncmd "github.com/wandxy/hand/cmd/daemon"
-	doctorcmd "github.com/wandxy/hand/cmd/doctor"
-	profilecmd "github.com/wandxy/hand/cmd/profile"
-	tuicmd "github.com/wandxy/hand/cmd/tui"
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/datadir"
-	"github.com/wandxy/hand/internal/profile"
-	"github.com/wandxy/hand/pkg/logutils"
+	daemoncmd "github.com/wandxy/morph/cmd/daemon"
+	doctorcmd "github.com/wandxy/morph/cmd/doctor"
+	profilecmd "github.com/wandxy/morph/cmd/profile"
+	tuicmd "github.com/wandxy/morph/cmd/tui"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/datadir"
+	"github.com/wandxy/morph/internal/profile"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -45,7 +45,7 @@ func TestNewCommand_RegistersDaemonCommand(t *testing.T) {
 }
 
 func TestNewCommand_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -73,7 +73,7 @@ search:
 
 	cmd := newCommand()
 	err := cmd.Run(canceledContext(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
 		"daemon",
@@ -91,7 +91,7 @@ search:
 }
 
 func TestNewCommand_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -99,13 +99,13 @@ func TestNewCommand_UsesEnvOverConfigFile(t *testing.T) {
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(envPath, []byte(`
-HAND_NAME=env-agent
-HAND_MODEL=openai/gpt-4o-mini
-HAND_MODEL_PROVIDER=openrouter
+MORPH_NAME=env-agent
+MORPH_MODEL=openai/gpt-4o-mini
+MORPH_MODEL_PROVIDER=openrouter
 OPENROUTER_API_KEY=env-key
-HAND_MODEL_BASE_URL=`+serverURL+`
-HAND_LOG_LEVEL=warn
-HAND_LOG_NO_COLOR=false
+MORPH_MODEL_BASE_URL=`+serverURL+`
+MORPH_LOG_LEVEL=warn
+MORPH_LOG_NO_COLOR=false
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -129,7 +129,7 @@ search:
 
 	cmd := newCommand()
 	err := cmd.Run(canceledContext(), []string{
-		"hand",
+		"morph",
 		"--env-file", envPath,
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
@@ -151,7 +151,7 @@ search:
 }
 
 func TestNewCommand_DaemonStartsWhenProviderEmpty(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -172,7 +172,7 @@ search:
 
 	cmd := newCommand()
 	err := cmd.Run(canceledContext(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
 		"daemon",
@@ -181,7 +181,7 @@ search:
 }
 
 func TestNewCommand_UsesMappedBaseURLWhenProviderSetAndBaseURLUnset(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -203,7 +203,7 @@ storage:
 
 	cmd := newCommand()
 	err := cmd.Run(canceledContext(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
 		"daemon",
@@ -216,7 +216,7 @@ storage:
 }
 
 func TestNewCommand_UsesMappedBaseURLWhenOpenAIProviderSetAndBaseURLUnset(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -238,7 +238,7 @@ storage:
 
 	cmd := newCommand()
 	err := cmd.Run(canceledContext(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
 		"--model.provider", "openrouter",
@@ -252,7 +252,7 @@ storage:
 }
 
 func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {
-	clearEnvKeys(t, "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -261,13 +261,13 @@ func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {
 	configPath := filepath.Join(dir, "config.yaml")
 
 	require.NoError(t, os.WriteFile(envPath, []byte(`
-HAND_NAME=env-agent
-HAND_MODEL=openai/gpt-4o-mini
-HAND_MODEL_PROVIDER=openrouter
+MORPH_NAME=env-agent
+MORPH_MODEL=openai/gpt-4o-mini
+MORPH_MODEL_PROVIDER=openrouter
 OPENROUTER_API_KEY=env-key
-HAND_MODEL_BASE_URL=`+serverURL+`
-HAND_LOG_LEVEL=warn
-HAND_LOG_NO_COLOR=false
+MORPH_MODEL_BASE_URL=`+serverURL+`
+MORPH_LOG_LEVEL=warn
+MORPH_LOG_NO_COLOR=false
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -288,7 +288,7 @@ storage:
 
 	cmd := newCommand()
 	err := cmd.Run(canceledContext(), []string{
-		"hand",
+		"morph",
 		"--env-file", envPath,
 		"--config", configPath,
 		"--name", "flag-agent",
@@ -314,7 +314,7 @@ storage:
 }
 
 func TestNewCommand_RunsUpCommandExplicitly(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -354,119 +354,119 @@ storage:
 }
 
 func TestResolveEnvFilePrefersFlag(t *testing.T) {
-	clearEnvKeys(t, "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_ENV_FILE")
 	resetGlobals(t)
-	require.Equal(t, "/tmp/test.env", getEnvFile([]string{"hand", "--env-file", "/tmp/test.env"}))
-	require.Equal(t, "/tmp/test2.env", getEnvFile([]string{"hand", "--env-file=/tmp/test2.env"}))
+	require.Equal(t, "/tmp/test.env", getEnvFile([]string{"morph", "--env-file", "/tmp/test.env"}))
+	require.Equal(t, "/tmp/test2.env", getEnvFile([]string{"morph", "--env-file=/tmp/test2.env"}))
 }
 
 func TestResolveEnvFilePrefersEnvVar(t *testing.T) {
-	clearEnvKeys(t, "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_ENV_FILE")
 	resetGlobals(t)
-	t.Setenv("HAND_ENV_FILE", "/tmp/from-env.env")
-	require.Equal(t, "/tmp/from-env.env", getEnvFile([]string{"hand", "--env-file", "/tmp/ignored.env"}))
+	t.Setenv("MORPH_ENV_FILE", "/tmp/from-env.env")
+	require.Equal(t, "/tmp/from-env.env", getEnvFile([]string{"morph", "--env-file", "/tmp/ignored.env"}))
 }
 
 func TestResolveEnvFileUsesDefaultWhenUnset(t *testing.T) {
-	clearEnvKeys(t, "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_ENV_FILE")
 	resetGlobals(t)
-	require.Equal(t, ".env", getEnvFile([]string{"hand"}))
+	require.Equal(t, ".env", getEnvFile([]string{"morph"}))
 }
 
 func TestConfigureProfileDefaults_UsesSelectedProfilePaths(t *testing.T) {
-	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+	clearEnvKeys(t, "MORPH_PROFILE", "MORPH_ENV_FILE", "MORPH_CONFIG")
 	resetGlobals(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	err := configureProfileDefaults([]string{"hand", "--profile", "Work"})
+	err := configureProfileDefaults([]string{"morph", "--profile", "Work"})
 
 	require.NoError(t, err)
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
-	require.Equal(t, filepath.Join(profileHome, ".env"), getEnvFile([]string{"hand"}))
+	require.Equal(t, filepath.Join(profileHome, ".env"), getEnvFile([]string{"morph"}))
 }
 
-func TestConfigureProfileDefaults_UsesProfileShorthand(t *testing.T) {
-	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+func TestConfigureProfileDefaults_UsesProfileShortmorph(t *testing.T) {
+	clearEnvKeys(t, "MORPH_PROFILE", "MORPH_ENV_FILE", "MORPH_CONFIG")
 	resetGlobals(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	err := configureProfileDefaults([]string{"hand", "-p", "Work"})
+	err := configureProfileDefaults([]string{"morph", "-p", "Work"})
 
 	require.NoError(t, err)
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
 }
 
 func TestConfigureProfileDefaults_IgnoresProfileTextAfterTerminator(t *testing.T) {
-	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+	clearEnvKeys(t, "MORPH_PROFILE", "MORPH_ENV_FILE", "MORPH_CONFIG")
 	resetGlobals(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	err := configureProfileDefaults([]string{"hand", "--", "--profile", "Work"})
+	err := configureProfileDefaults([]string{"morph", "--", "--profile", "Work"})
 
 	require.NoError(t, err)
-	profileHome := filepath.Join(home, ".hand", "profiles", "default")
+	profileHome := filepath.Join(home, ".morph", "profiles", "default")
 	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
 }
 
 func TestConfigureProfileDefaults_UsesStoredCurrentProfile(t *testing.T) {
-	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+	clearEnvKeys(t, "MORPH_PROFILE", "MORPH_ENV_FILE", "MORPH_CONFIG")
 	resetGlobals(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	_, err := profile.StoreCurrentName("Work", home)
 	require.NoError(t, err)
 
-	err = configureProfileDefaults([]string{"hand"})
+	err = configureProfileDefaults([]string{"morph"})
 	require.NoError(t, err)
 
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
 }
 
 func TestConfigureProfileDefaults_ProfileFlagOverridesStoredCurrentProfile(t *testing.T) {
-	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+	clearEnvKeys(t, "MORPH_PROFILE", "MORPH_ENV_FILE", "MORPH_CONFIG")
 	resetGlobals(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	_, err := profile.StoreCurrentName("Work", home)
 	require.NoError(t, err)
 
-	err = configureProfileDefaults([]string{"hand", "--profile", "Desk"})
+	err = configureProfileDefaults([]string{"morph", "--profile", "Desk"})
 
 	require.NoError(t, err)
-	profileHome := filepath.Join(home, ".hand", "profiles", "desk")
+	profileHome := filepath.Join(home, ".morph", "profiles", "desk")
 	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
 }
 
 func TestConfigureProfileDefaults_EnvOverridesStoredCurrentProfile(t *testing.T) {
-	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+	clearEnvKeys(t, "MORPH_PROFILE", "MORPH_ENV_FILE", "MORPH_CONFIG")
 	resetGlobals(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("HAND_PROFILE", "Desk")
+	t.Setenv("MORPH_PROFILE", "Desk")
 	_, err := profile.StoreCurrentName("Work", home)
 	require.NoError(t, err)
 
-	err = configureProfileDefaults([]string{"hand"})
+	err = configureProfileDefaults([]string{"morph"})
 
 	require.NoError(t, err)
-	profileHome := filepath.Join(home, ".hand", "profiles", "desk")
+	profileHome := filepath.Join(home, ".morph", "profiles", "desk")
 	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
 }
 
 func TestNewCommand_RootActionStartsTUI(t *testing.T) {
-	clearEnvKeys(t, "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	called := false
@@ -480,13 +480,13 @@ func TestNewCommand_RootActionStartsTUI(t *testing.T) {
 	}
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"hand"})
+	err := cmd.Run(context.Background(), []string{"morph"})
 	require.NoError(t, err)
 	require.True(t, called)
 }
 
 func TestNewCommand_RootActionRejectsMessageWithoutChatFlag(t *testing.T) {
-	clearEnvKeys(t, "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	originalRunRootTUI := runRootTUI
@@ -499,16 +499,16 @@ func TestNewCommand_RootActionRejectsMessageWithoutChatFlag(t *testing.T) {
 	}
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"hand", "hello"})
+	err := cmd.Run(context.Background(), []string{"morph", "hello"})
 	require.EqualError(t, err, `unexpected root arguments "hello"; use --chat or -c to send a one-shot chat request`)
 }
 
 func TestNewCommand_RootActionUsesChatFlag(t *testing.T) {
-	clearEnvKeys(t, "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	var gotArgs []string
-	newRootChatAction = func(options handcli.MainActionOptions) func(context.Context, *cli.Command) error {
+	newRootChatAction = func(options morphcli.MainActionOptions) func(context.Context, *cli.Command) error {
 		require.Equal(t, rootOutput, options.Output)
 		return func(_ context.Context, cmd *cli.Command) error {
 			gotArgs = cmd.Args().Slice()
@@ -521,17 +521,17 @@ func TestNewCommand_RootActionUsesChatFlag(t *testing.T) {
 	}
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"hand", "--chat", "hello", "world"})
+	err := cmd.Run(context.Background(), []string{"morph", "--chat", "hello", "world"})
 	require.NoError(t, err)
 	require.Equal(t, []string{"hello", "world"}, gotArgs)
 }
 
 func TestNewCommand_RootActionUsesChatShortFlag(t *testing.T) {
-	clearEnvKeys(t, "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	var gotArgs []string
-	newRootChatAction = func(handcli.MainActionOptions) func(context.Context, *cli.Command) error {
+	newRootChatAction = func(morphcli.MainActionOptions) func(context.Context, *cli.Command) error {
 		return func(_ context.Context, cmd *cli.Command) error {
 			gotArgs = cmd.Args().Slice()
 			return nil
@@ -543,54 +543,54 @@ func TestNewCommand_RootActionUsesChatShortFlag(t *testing.T) {
 	}
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"hand", "-c", "hello"})
+	err := cmd.Run(context.Background(), []string{"morph", "-c", "hello"})
 	require.NoError(t, err)
 	require.Equal(t, []string{"hello"}, gotArgs)
 }
 
 func TestNewCommand_HelpShowsUpdatedExamples(t *testing.T) {
-	clearEnvKeys(t, "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	var output bytes.Buffer
 	cmd := newCommand()
 	cmd.Writer = &output
 	cmd.ErrWriter = &output
-	err := cmd.Run(context.Background(), []string{"hand", "--help"})
+	err := cmd.Run(context.Background(), []string{"morph", "--help"})
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "EXAMPLES:")
-	require.Contains(t, output.String(), "hand daemon")
-	require.Contains(t, output.String(), "hand --profile work daemon")
-	require.Contains(t, output.String(), "hand profile use work")
-	require.Contains(t, output.String(), "hand --config ./config.yaml --trace.enabled daemon")
-	require.Contains(t, output.String(), `hand --chat "summarize the failing tests"`)
-	require.Contains(t, output.String(), `hand -c --profile work "continue"`)
-	require.Contains(t, output.String(), `hand --chat --session ses_abc123 --instruct "be brief" "continue from the last debugging step"`)
-	require.Contains(t, output.String(), "HAND_PROFILE=work hand session list")
-	require.Contains(t, output.String(), "hand trace view")
-	require.Contains(t, output.String(), "hand --config ./config.yaml trace view --listen 127.0.0.1:9090")
+	require.Contains(t, output.String(), "morph daemon")
+	require.Contains(t, output.String(), "morph --profile work daemon")
+	require.Contains(t, output.String(), "morph profile use work")
+	require.Contains(t, output.String(), "morph --config ./config.yaml --trace.enabled daemon")
+	require.Contains(t, output.String(), `morph --chat "summarize the failing tests"`)
+	require.Contains(t, output.String(), `morph -c --profile work "continue"`)
+	require.Contains(t, output.String(), `morph --chat --session ses_abc123 --instruct "be brief" "continue from the last debugging step"`)
+	require.Contains(t, output.String(), "MORPH_PROFILE=work morph session list")
+	require.Contains(t, output.String(), "morph trace view")
+	require.Contains(t, output.String(), "morph --config ./config.yaml trace view --listen 127.0.0.1:9090")
 	require.Contains(t, output.String(), "--gateway.enabled")
 	require.Contains(t, output.String(), "--gateway.telegram.mode")
 	require.Contains(t, output.String(), "--gateway.slack.mode")
 }
 
 func TestNewCommand_DaemonHelpShowsStatusCommand(t *testing.T) {
-	clearEnvKeys(t, "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	var output bytes.Buffer
 	cmd := newCommand()
 	cmd.Writer = &output
 	cmd.ErrWriter = &output
-	err := cmd.Run(context.Background(), []string{"hand", "daemon", "--help"})
+	err := cmd.Run(context.Background(), []string{"morph", "daemon", "--help"})
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "Start the Hand daemon")
+	require.Contains(t, output.String(), "Start the Morph daemon")
 	require.Contains(t, output.String(), "status")
 	require.Contains(t, output.String(), "Show daemon health and connection status")
 }
 
 func TestNewCommand_DoesNotAliasMisspelledDaemon(t *testing.T) {
-	clearEnvKeys(t, "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	var output bytes.Buffer
@@ -598,14 +598,14 @@ func TestNewCommand_DoesNotAliasMisspelledDaemon(t *testing.T) {
 	cmd.Writer = &output
 	cmd.ErrWriter = &output
 
-	err := cmd.Run(context.Background(), []string{"hand", "deamon", "status"})
+	err := cmd.Run(context.Background(), []string{"morph", "deamon", "status"})
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `unexpected root arguments "deamon status"`)
 }
 
 func TestNewCommand_DaemonStartIsNotAccepted(t *testing.T) {
-	clearEnvKeys(t, "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	var output bytes.Buffer
@@ -613,7 +613,7 @@ func TestNewCommand_DaemonStartIsNotAccepted(t *testing.T) {
 	cmd.Writer = &output
 	cmd.ErrWriter = &output
 
-	err := cmd.Run(context.Background(), []string{"hand", "daemon", "start"})
+	err := cmd.Run(context.Background(), []string{"morph", "daemon", "start"})
 
 	require.Error(t, err)
 }
@@ -625,10 +625,10 @@ func TestNewCommand_VersionCommandShowsVersionAndCommit(t *testing.T) {
 	var output bytes.Buffer
 	rootOutput = &output
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"hand", "version"})
+	err := cmd.Run(context.Background(), []string{"morph", "version"})
 	require.NoError(t, err)
 
-	require.Equal(t, "hand version 1.2.3\ncommit abc1234\n", output.String())
+	require.Equal(t, "morph version 1.2.3\ncommit abc1234\n", output.String())
 }
 
 func TestNewCommand_VersionFlagShowsVersionAndCommit(t *testing.T) {
@@ -639,20 +639,20 @@ func TestNewCommand_VersionFlagShowsVersionAndCommit(t *testing.T) {
 		var output bytes.Buffer
 		cmd := newCommand()
 		cmd.Writer = &output
-		err := cmd.Run(context.Background(), []string{"hand", flag})
+		err := cmd.Run(context.Background(), []string{"morph", flag})
 		require.NoError(t, err)
 
-		require.Contains(t, output.String(), "hand version 1.2.3 (commit abc1234)")
+		require.Contains(t, output.String(), "morph version 1.2.3 (commit abc1234)")
 	}
 }
 
 func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_DEBUG_REQUESTS", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	cmd := newCommand()
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -663,7 +663,7 @@ func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 }
 
 func TestNewCommand_DaemonStartsWhenProviderUnsupported(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -682,7 +682,7 @@ models:
 
 	cmd := newCommand()
 	err := cmd.Run(canceledContext(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
 		"daemon",
@@ -691,7 +691,7 @@ models:
 }
 
 func TestNewCommand_UsesDirectClientWhenProviderIsOpenai(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL", "MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -713,7 +713,7 @@ storage:
 
 	cmd := newCommand()
 	err := cmd.Run(canceledContext(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
 		"daemon",
@@ -726,7 +726,7 @@ storage:
 }
 
 func TestNewCommand_DatabaseResetDeletesConfiguredSQLiteDatabase(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -746,7 +746,7 @@ storage:
 	rootOutput = &output
 	cmd := newCommand()
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"db",
 		"reset",
@@ -761,7 +761,7 @@ storage:
 }
 
 func TestNewCommand_DatabaseResetRequiresForce(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -777,7 +777,7 @@ storage:
 
 	cmd := newCommand()
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"db",
 		"reset",
@@ -787,7 +787,7 @@ storage:
 }
 
 func TestNewCommand_DatabaseResetRejectsMemoryStorage(t *testing.T) {
-	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -799,7 +799,7 @@ storage:
 
 	cmd := newCommand()
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"db",
 		"reset",
@@ -854,7 +854,7 @@ func resetGlobals(t *testing.T) {
 	configFile = "config.yaml"
 	rootOutput = io.Discard
 	runRootTUI = tuicmd.Run
-	newRootChatAction = handcli.NewMainAction
+	newRootChatAction = morphcli.NewMainAction
 	logutils.SetOutput(io.Discard)
 	config.Set(nil)
 	t.Setenv("HOME", t.TempDir())

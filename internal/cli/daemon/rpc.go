@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/gateway"
-	"github.com/wandxy/hand/internal/profile"
-	"github.com/wandxy/hand/internal/rpc/server"
-	handruntime "github.com/wandxy/hand/internal/runtime"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/gateway"
+	"github.com/wandxy/morph/internal/profile"
+	"github.com/wandxy/morph/internal/rpc/server"
+	morphruntime "github.com/wandxy/morph/internal/runtime"
 	"google.golang.org/grpc"
 	"net"
 	"os"
@@ -36,7 +36,7 @@ var serveRPCShutdownTimeout = 5 * time.Second
 // postShutdownServeErrHook is swapped in tests to cover the final serverErr branch.
 var postShutdownServeErrHook = func(err error) error { return err }
 
-var writeRuntimeMetadata = handruntime.WriteActive
+var writeRuntimeMetadata = morphruntime.WriteActive
 
 var openRPCListener = openRPCListenerImpl
 

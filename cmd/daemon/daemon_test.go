@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handcli "github.com/wandxy/hand/internal/cli"
+	morphcli "github.com/wandxy/morph/internal/cli"
 )
 
 var errDaemonTestWrite = errors.New("write failed")
@@ -23,10 +23,10 @@ func (errWriter) Write([]byte) (int, error) {
 
 func TestSetOutputReturnsPreviousAndDiscardsNil(t *testing.T) {
 	originalOutput := daemonOutput
-	originalStartupOutput := handcli.SetDaemonOutput(io.Discard)
+	originalStartupOutput := morphcli.SetDaemonOutput(io.Discard)
 	t.Cleanup(func() {
 		daemonOutput = originalOutput
-		handcli.SetDaemonOutput(originalStartupOutput)
+		morphcli.SetDaemonOutput(originalStartupOutput)
 	})
 	var output bytes.Buffer
 
@@ -51,8 +51,8 @@ func TestStatusCommandPrintsDaemonStatus(t *testing.T) {
 	startedAt := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
 	var output bytes.Buffer
 	daemonOutput = &output
-	getDaemonStatus = func(context.Context) (handcli.DaemonStatus, error) {
-		return handcli.DaemonStatus{
+	getDaemonStatus = func(context.Context) (morphcli.DaemonStatus, error) {
+		return morphcli.DaemonStatus{
 			State:     "running",
 			Health:    "SERVING",
 			Profile:   "work",
@@ -85,8 +85,8 @@ func TestStatusCommandReturnsStatusErrorAfterPrintingStatus(t *testing.T) {
 	expectedErr := errors.New("daemon is missing")
 	var output bytes.Buffer
 	daemonOutput = &output
-	getDaemonStatus = func(context.Context) (handcli.DaemonStatus, error) {
-		return handcli.DaemonStatus{State: "missing", Profile: "default"}, expectedErr
+	getDaemonStatus = func(context.Context) (morphcli.DaemonStatus, error) {
+		return morphcli.DaemonStatus{State: "missing", Profile: "default"}, expectedErr
 	}
 
 	err := NewCommand().Run(context.Background(), []string{"daemon", "status"})
@@ -108,8 +108,8 @@ func TestStatusCommandReturnsWriteError(t *testing.T) {
 	})
 
 	daemonOutput = errWriter{}
-	getDaemonStatus = func(context.Context) (handcli.DaemonStatus, error) {
-		return handcli.DaemonStatus{State: "running"}, nil
+	getDaemonStatus = func(context.Context) (morphcli.DaemonStatus, error) {
+		return morphcli.DaemonStatus{State: "running"}, nil
 	}
 
 	err := NewCommand().Run(context.Background(), []string{"daemon", "status"})
@@ -122,9 +122,9 @@ func TestStartSubcommandIsNotAccepted(t *testing.T) {
 	t.Cleanup(func() {
 		getDaemonStatus = originalGetDaemonStatus
 	})
-	getDaemonStatus = func(context.Context) (handcli.DaemonStatus, error) {
+	getDaemonStatus = func(context.Context) (morphcli.DaemonStatus, error) {
 		t.Fatal("status should not run for start")
-		return handcli.DaemonStatus{}, nil
+		return morphcli.DaemonStatus{}, nil
 	}
 
 	err := NewCommand().Run(context.Background(), []string{"daemon", "start"})
@@ -133,7 +133,7 @@ func TestStartSubcommandIsNotAccepted(t *testing.T) {
 }
 
 func TestWriteDaemonStatusReturnsWriteError(t *testing.T) {
-	err := writeDaemonStatus(errWriter{}, handcli.DaemonStatus{State: "running"})
+	err := writeDaemonStatus(errWriter{}, morphcli.DaemonStatus{State: "running"})
 
 	require.ErrorIs(t, err, errDaemonTestWrite)
 }
@@ -141,7 +141,7 @@ func TestWriteDaemonStatusReturnsWriteError(t *testing.T) {
 func TestWriteDaemonStatusDefaultsEmptyState(t *testing.T) {
 	var output bytes.Buffer
 
-	err := writeDaemonStatus(&output, handcli.DaemonStatus{})
+	err := writeDaemonStatus(&output, morphcli.DaemonStatus{})
 
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "state=unknown")

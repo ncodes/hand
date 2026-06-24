@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wandxy/hand/internal/brand"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/brand"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 const (
@@ -26,15 +26,15 @@ var startupLogoColors = []string{
 	"\x1b[38;5;83m",
 }
 
-var handBadge = joinStartupBanner(brand.Mark, brand.Wordmark)
+var morphBadge = joinStartupBanner(brand.Mark, brand.Wordmark)
 
 func renderStartupPanel(cfg *config.Config) string {
 	if cfg == nil {
-		return handBadge
+		return morphBadge
 	}
 
 	detailRows := getStartupDetailRows(cfg)
-	panel := renderStartupBannerPanel(handBadge, detailRows, cfg.Log.NoColor)
+	panel := renderStartupBannerPanel(morphBadge, detailRows, cfg.Log.NoColor)
 
 	return "\n" + panel + "\n\n"
 }

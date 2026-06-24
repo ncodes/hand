@@ -12,13 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/profile"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
-	tui "github.com/wandxy/hand/internal/tui/app"
-	"github.com/wandxy/hand/pkg/logutils"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/profile"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	storage "github.com/wandxy/morph/internal/state/core"
+	tui "github.com/wandxy/morph/internal/tui/app"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 var daemonLog = logutils.Module("daemon")
@@ -134,7 +134,7 @@ func TestLoadTUICommandModel_UsesConfiguredRPCClientAndCleanup(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, ".env"), nil, 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
@@ -179,7 +179,7 @@ tui:
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--profile", "work"})
+	err := cmd.Run(context.Background(), []string{"morph", "--profile", "work"})
 
 	require.NoError(t, err)
 	require.Equal(t, config.RPCConfig{Address: "127.0.0.2", Port: 45678}, gotEnsureRPC)
@@ -205,7 +205,7 @@ func TestLoadTUICommandModel_ReturnsConfigLoadError(t *testing.T) {
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--config", configPath})
+	err := cmd.Run(context.Background(), []string{"morph", "--config", configPath})
 
 	require.Error(t, err)
 	require.ErrorContains(t, err, "yaml")
@@ -221,7 +221,7 @@ func TestLoadTUICommandModel_IgnoresStaleRuntimeMetadata(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, ".env"), nil, 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "runtime.json"), []byte("{"), 0o600))
@@ -245,7 +245,7 @@ models:
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--profile", "work"})
+	err := cmd.Run(context.Background(), []string{"morph", "--profile", "work"})
 
 	require.NoError(t, err)
 }
@@ -260,7 +260,7 @@ func TestLoadTUICommandModel_ReturnsClientCreationError(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, ".env"), nil, 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
@@ -288,7 +288,7 @@ models:
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--profile", "work"})
+	err := cmd.Run(context.Background(), []string{"morph", "--profile", "work"})
 
 	require.ErrorIs(t, err, expectedErr)
 	require.True(t, daemonCleaned)
@@ -304,7 +304,7 @@ func TestLoadTUICommandModel_ReturnsDaemonBootstrapError(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, ".env"), nil, 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
@@ -329,7 +329,7 @@ models:
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--profile", "work"})
+	err := cmd.Run(context.Background(), []string{"morph", "--profile", "work"})
 
 	require.ErrorIs(t, err, expectedErr)
 }
@@ -339,7 +339,7 @@ func newTUITestRootCommand(action func(context.Context, *cli.Command) error) *cl
 	configFile := "config.yaml"
 
 	return &cli.Command{
-		Flags: handcli.RootFlags(&envFile, &configFile),
+		Flags: morphcli.RootFlags(&envFile, &configFile),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return action(ctx, cmd)
 		},

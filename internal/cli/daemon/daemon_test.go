@@ -19,17 +19,17 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
 	urfavecli "github.com/urfave/cli/v3"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	handgateway "github.com/wandxy/hand/internal/gateway"
-	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
-	models "github.com/wandxy/hand/internal/model"
-	modelclient "github.com/wandxy/hand/internal/model/client"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
-	"github.com/wandxy/hand/internal/profile"
-	handruntime "github.com/wandxy/hand/internal/runtime"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	morphgateway "github.com/wandxy/morph/internal/gateway"
+	agentstub "github.com/wandxy/morph/internal/mocks/agentstub"
+	models "github.com/wandxy/morph/internal/model"
+	modelclient "github.com/wandxy/morph/internal/model/client"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	provider_openai "github.com/wandxy/morph/internal/model/provider_openai"
+	"github.com/wandxy/morph/internal/profile"
+	morphruntime "github.com/wandxy/morph/internal/runtime"
+	"github.com/wandxy/morph/pkg/logutils"
 	"google.golang.org/grpc"
 )
 
@@ -42,12 +42,12 @@ func (s modelClientFactoryStub) NewClient(req modelclient.ClientRequest) (models
 }
 
 type gatewayManagerStub struct {
-	start  func(context.Context, config.GatewayConfig, handgateway.AgentService) error
+	start  func(context.Context, config.GatewayConfig, morphgateway.AgentService) error
 	stop   func(context.Context) error
-	status handgateway.Status
+	status morphgateway.Status
 }
 
-func (s gatewayManagerStub) Start(ctx context.Context, cfg config.GatewayConfig, responder handgateway.AgentService) error {
+func (s gatewayManagerStub) Start(ctx context.Context, cfg config.GatewayConfig, responder morphgateway.AgentService) error {
 	if s.start != nil {
 		return s.start(ctx, cfg, responder)
 	}
@@ -55,7 +55,7 @@ func (s gatewayManagerStub) Start(ctx context.Context, cfg config.GatewayConfig,
 	return nil
 }
 
-func (s gatewayManagerStub) Status() handgateway.Status {
+func (s gatewayManagerStub) Status() morphgateway.Status {
 	return s.status
 }
 
@@ -121,7 +121,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 
 	cmd := newRootCommandForTest(&configFile)
 	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -130,7 +130,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 		"--rpc.address", "0.0.0.0",
 		"--rpc.port", "6000",
 		"--trace.enabled",
-		"--trace.disk.dir", "/tmp/hand-traces",
+		"--trace.disk.dir", "/tmp/morph-traces",
 		"--log.level", "debug",
 		"daemon",
 	}))
@@ -144,7 +144,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Equal(t, "0.0.0.0", cfg.RPC.Address)
 	require.Equal(t, 6000, cfg.RPC.Port)
 	require.True(t, cfg.Trace.Enabled)
-	require.Equal(t, "/tmp/hand-traces", cfg.Trace.Disk.Dir)
+	require.Equal(t, "/tmp/morph-traces", cfg.Trace.Disk.Dir)
 	require.Equal(t, "debug", cfg.Log.Level)
 	require.False(t, cfg.Log.NoColor)
 	require.True(t, runCalled)
@@ -180,7 +180,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "Debug requests")
 	require.Contains(t, startupBuffer.String(), "enabled")
 	require.Contains(t, startupBuffer.String(), "Traces")
-	require.Contains(t, startupBuffer.String(), "enabled (/tmp/hand-traces)")
+	require.Contains(t, startupBuffer.String(), "enabled (/tmp/morph-traces)")
 	require.Contains(t, startupBuffer.String(), "Safety")
 	require.Contains(t, startupBuffer.String(), "input=enabled, output=enabled, pii=enabled")
 	require.Contains(t, startupBuffer.String(), "Reranker")
@@ -188,7 +188,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	logOutput := stripANSI(logBuffer.String())
 	require.Contains(t, logOutput, "Configuration loaded")
 	require.Contains(t, logOutput, "Vector retrieval configured")
-	require.Contains(t, logOutput, "Starting Hand services")
+	require.Contains(t, logOutput, "Starting Morph services")
 	require.NotContains(t, logOutput, "name=flag-agent")
 	require.NotContains(t, logOutput, "model=gpt-4o-mini")
 	require.NotContains(t, logOutput, "provider=openrouter")
@@ -201,11 +201,11 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.NotContains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
 	require.NotContains(t, logOutput, "streaming=true")
 	require.NotContains(t, logOutput, "traceEnabled=true")
-	require.NotContains(t, logOutput, "traceDir=/tmp/hand-traces")
+	require.NotContains(t, logOutput, "traceDir=/tmp/morph-traces")
 	require.NotContains(t, logOutput, "embeddingModel=")
 	require.NotContains(t, logOutput, "embeddingProvider=")
 	require.NotContains(t, logOutput, "reranker=")
-	require.NotContains(t, logOutput, "service=hand")
+	require.NotContains(t, logOutput, "service=morph")
 	require.NotContains(t, logOutput, "rpcAddress=0.0.0.0 rpcEndpoint=0.0.0.0:6000 rpcPort=6000")
 }
 
@@ -264,7 +264,7 @@ func TestNewCommand_RestartsDaemonWhenConfigFileChanges(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	done := make(chan error, 1)
 	go func() {
-		done <- cmd.Run(context.Background(), []string{"hand", "--config", configPath, "daemon"})
+		done <- cmd.Run(context.Background(), []string{"morph", "--config", configPath, "daemon"})
 	}()
 
 	select {
@@ -342,7 +342,7 @@ func TestNewCommand_KeepsRunningWhenChangedConfigIsInvalid(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	done := make(chan error, 1)
 	go func() {
-		done <- cmd.Run(ctx, []string{"hand", "--config", configPath, "daemon"})
+		done <- cmd.Run(ctx, []string{"morph", "--config", configPath, "daemon"})
 	}()
 
 	select {
@@ -389,7 +389,7 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 		RPC:    config.RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log:    config.LogConfig{Level: "info", NoColor: true},
 		Debug:  config.DebugConfig{Requests: true},
-		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: "/tmp/hand-traces"}},
+		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: "/tmp/morph-traces"}},
 	})
 
 	require.NotContains(t, output, "\x1b[90m")
@@ -408,7 +408,7 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	require.Contains(t, output, "Streaming: false")
 	require.Contains(t, output, "Gateway: disabled")
 	require.Contains(t, output, "Debug requests: enabled")
-	require.Contains(t, output, "Traces: enabled (/tmp/hand-traces)")
+	require.Contains(t, output, "Traces: enabled (/tmp/morph-traces)")
 	require.Contains(t, output, "Safety: input=enabled, output=enabled, pii=enabled")
 	require.NotContains(t, output, "Ready to accept RPC connections.")
 }
@@ -448,27 +448,27 @@ func TestRenderStartupPanel_IncludesGatewaySummaryWithoutSecrets(t *testing.T) {
 			Enabled:   true,
 			Address:   "127.0.0.1",
 			Port:      50052,
-			AuthToken: "HAND_GATEWAY_AUTH_TOKEN",
+			AuthToken: "MORPH_GATEWAY_AUTH_TOKEN",
 			Telegram: config.GatewayTelegramConfig{
 				Enabled:  true,
 				Mode:     config.GatewayTelegramModePolling,
-				BotToken: "HAND_GATEWAY_TELEGRAM_BOT_TOKEN",
+				BotToken: "MORPH_GATEWAY_TELEGRAM_BOT_TOKEN",
 			},
 			Slack: config.GatewaySlackConfig{
 				Enabled:  true,
 				Mode:     config.GatewaySlackModeSocket,
-				BotToken: "HAND_GATEWAY_SLACK_BOT_TOKEN",
-				AppToken: "HAND_GATEWAY_SLACK_APP_TOKEN",
+				BotToken: "MORPH_GATEWAY_SLACK_BOT_TOKEN",
+				AppToken: "MORPH_GATEWAY_SLACK_APP_TOKEN",
 			},
 		},
 		Log: config.LogConfig{Level: "info", NoColor: true},
 	})
 
 	require.Contains(t, output, "Gateway: 127.0.0.1:50052 telegram=polling slack=socket")
-	require.NotContains(t, output, "HAND_GATEWAY_AUTH_TOKEN")
-	require.NotContains(t, output, "HAND_GATEWAY_TELEGRAM_BOT_TOKEN")
-	require.NotContains(t, output, "HAND_GATEWAY_SLACK_BOT_TOKEN")
-	require.NotContains(t, output, "HAND_GATEWAY_SLACK_APP_TOKEN")
+	require.NotContains(t, output, "MORPH_GATEWAY_AUTH_TOKEN")
+	require.NotContains(t, output, "MORPH_GATEWAY_TELEGRAM_BOT_TOKEN")
+	require.NotContains(t, output, "MORPH_GATEWAY_SLACK_BOT_TOKEN")
+	require.NotContains(t, output, "MORPH_GATEWAY_SLACK_APP_TOKEN")
 }
 
 func TestRenderStartupPanel_IncludesSafetyMode(t *testing.T) {
@@ -568,7 +568,7 @@ func TestSetOutput_SwitchesWriterAndRestoresPrevious(t *testing.T) {
 
 func TestRenderStartupPanel_NilConfigReturnsBadgeOnly(t *testing.T) {
 	out := renderStartupPanel(nil)
-	require.Equal(t, handBadge, out)
+	require.Equal(t, morphBadge, out)
 }
 
 func TestRenderStartupPanel_IncludesSummaryProviderAndAPIWhenDistinct(t *testing.T) {
@@ -1317,7 +1317,7 @@ func TestServeRPC_WritesRuntimeMetadataWithActualPort(t *testing.T) {
 	})
 
 	home := t.TempDir()
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: profileHome}))
 	listenFunc = net.Listen
 	grpcServerServe = func(*grpc.Server, net.Listener) error {
@@ -1462,7 +1462,7 @@ func TestServeDaemonServices_DisabledGatewayInitializesStatusAndRunsOnlyRPC(t *t
 		serveCalled = true
 		require.NotNil(t, manager)
 		status := manager.Status()
-		require.Equal(t, handgateway.StateDisabled, status.State)
+		require.Equal(t, morphgateway.StateDisabled, status.State)
 		require.Equal(t, "127.0.0.1", status.Address)
 		require.Equal(t, 50052, status.Port)
 		return nil
@@ -1488,7 +1488,7 @@ func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {
 	agent := &agentstub.AgentRunnerStub{}
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
-			start: func(_ context.Context, _ config.GatewayConfig, responder handgateway.AgentService) error {
+			start: func(_ context.Context, _ config.GatewayConfig, responder morphgateway.AgentService) error {
 				started = true
 				require.Same(t, agent, responder)
 				return nil
@@ -1514,10 +1514,10 @@ func TestServeDaemonServices_EnabledGatewayStopsWithRPC(t *testing.T) {
 func TestLogGatewayStartedIncludesConfiguredChannels(t *testing.T) {
 	var output bytes.Buffer
 	logutils.SetOutput(&output)
-	logutils.ConfigureLogger("hand", true)
+	logutils.ConfigureLogger("morph", true)
 	t.Cleanup(func() {
 		logutils.SetOutput(io.Discard)
-		logutils.ConfigureLogger("hand", true)
+		logutils.ConfigureLogger("morph", true)
 	})
 
 	logGatewayStarted(config.GatewayConfig{
@@ -1552,7 +1552,7 @@ func TestServeDaemonServices_ReturnsGatewayStartError(t *testing.T) {
 	lis := &closeTrackingListener{}
 	newGatewayManager = func() gatewayManager {
 		return gatewayManagerStub{
-			start: func(context.Context, config.GatewayConfig, handgateway.AgentService) error {
+			start: func(context.Context, config.GatewayConfig, morphgateway.AgentService) error {
 				return errors.New("gateway start failed")
 			},
 		}
@@ -1703,7 +1703,7 @@ func TestNewCommand_ReturnsConfigLoadError(t *testing.T) {
 
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
-	err := cmd.Run(context.Background(), []string{"hand", "--config", badPath, "daemon"})
+	err := cmd.Run(context.Background(), []string{"morph", "--config", badPath, "daemon"})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to parse config file")
 }
@@ -1795,7 +1795,7 @@ func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
 	args := []string{
-		"hand",
+		"morph",
 		"--name", "x",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -1837,7 +1837,7 @@ func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -1873,7 +1873,7 @@ func TestNewCommand_StartsWhenSummaryAuthCannotResolve(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -1917,7 +1917,7 @@ func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -1966,7 +1966,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -2004,7 +2004,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 func TestNewCommand_PassesSeparateRerankerClientWhenAuthDiffers(t *testing.T) {
 	isolateCommandProfile(t)
 	stubOpenRPCListener(t)
-	t.Setenv("HAND_RERANKER_TYPE", constants.RerankerLLM)
+	t.Setenv("MORPH_RERANKER_TYPE", constants.RerankerLLM)
 	origFactory := modelClientFactory
 	origRunner := newAgentRunner
 	origServe := serveRPC
@@ -2052,7 +2052,7 @@ func TestNewCommand_PassesSeparateRerankerClientWhenAuthDiffers(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -2113,7 +2113,7 @@ func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -2168,7 +2168,7 @@ func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 
 	cmd := newRootCommandForTest(&configFile)
 	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -2214,7 +2214,7 @@ func TestNewCommand_StartsWithoutConfiguredModel(t *testing.T) {
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "",
 		"--model.provider", "openrouter",
@@ -2230,7 +2230,7 @@ func TestNewCommand_StartsWithoutConfiguredModel(t *testing.T) {
 
 func newRootCommandForTest(configFile *string) *urfavecli.Command {
 	return &urfavecli.Command{
-		Name:  "hand",
+		Name:  "morph",
 		Flags: daemonRootFlags(configFile),
 		Commands: []*urfavecli.Command{
 			newDaemonCommandForTest(),
@@ -2241,7 +2241,7 @@ func newRootCommandForTest(configFile *string) *urfavecli.Command {
 func newDaemonCommandForTest() *urfavecli.Command {
 	return &urfavecli.Command{
 		Name:  "daemon",
-		Usage: "Start the Hand daemon",
+		Usage: "Start the Morph daemon",
 		Flags: []urfavecli.Flag{daemonPersistentInstructFlag()},
 		Action: func(ctx context.Context, cmd *urfavecli.Command) error {
 			return runDaemonWithConfigRestarts(ctx, cmd, daemonConfigWatchDebounce)
@@ -2254,7 +2254,7 @@ func runParsedDaemonCommand(t *testing.T, args []string, action func(context.Con
 
 	configFile := ""
 	root := &urfavecli.Command{
-		Name:  "hand",
+		Name:  "morph",
 		Flags: daemonRootFlags(&configFile),
 		Commands: []*urfavecli.Command{
 			{
@@ -2264,7 +2264,7 @@ func runParsedDaemonCommand(t *testing.T, args []string, action func(context.Con
 		},
 	}
 
-	return root.Run(context.Background(), append([]string{"hand"}, args...))
+	return root.Run(context.Background(), append([]string{"morph"}, args...))
 }
 
 func TestRunWithConfigRestartsUsesDependenciesAndRestoresPrevious(t *testing.T) {
@@ -2498,8 +2498,8 @@ func TestOpenRPCListenerReturnsRuntimeMetadataWriteError(t *testing.T) {
 	listenFunc = func(string, string) (net.Listener, error) {
 		return listener, nil
 	}
-	writeRuntimeMetadata = func(string, int) (handruntime.Metadata, error) {
-		return handruntime.Metadata{}, expectedErr
+	writeRuntimeMetadata = func(string, int) (morphruntime.Metadata, error) {
+		return morphruntime.Metadata{}, expectedErr
 	}
 	profile.SetActive(profile.Profile{RuntimePath: filepath.Join(t.TempDir(), "runtime.json")})
 
@@ -2723,28 +2723,28 @@ func isolateCommandProfile(t *testing.T) {
 	clearDaemonEnv(
 		t,
 		profile.EnvName,
-		"HAND_ENV_FILE",
-		"HAND_CONFIG",
-		"HAND_NAME",
-		"HAND_MODEL",
-		"HAND_MODEL_PROVIDER",
-		"HAND_MODEL_API",
-		"HAND_MODEL_API_KEY",
-		"HAND_MODEL_BASE_URL",
-		"HAND_MODEL_MAX_RETRIES",
-		"HAND_MODEL_SUMMARY",
-		"HAND_MODEL_SUMMARY_PROVIDER",
-		"HAND_MODEL_SUMMARY_API",
-		"HAND_MODEL_SUMMARY_API_KEY",
-		"HAND_MODEL_SUMMARY_BASE_URL",
-		"HAND_RPC_ADDRESS",
-		"HAND_RPC_PORT",
-		"HAND_LOG_LEVEL",
-		"HAND_LOG_NO_COLOR",
-		"HAND_DEBUG_REQUESTS",
-		"HAND_SAFETY_INPUT",
-		"HAND_SAFETY_OUTPUT",
-		"HAND_SAFETY_PII",
+		"MORPH_ENV_FILE",
+		"MORPH_CONFIG",
+		"MORPH_NAME",
+		"MORPH_MODEL",
+		"MORPH_MODEL_PROVIDER",
+		"MORPH_MODEL_API",
+		"MORPH_MODEL_API_KEY",
+		"MORPH_MODEL_BASE_URL",
+		"MORPH_MODEL_MAX_RETRIES",
+		"MORPH_MODEL_SUMMARY",
+		"MORPH_MODEL_SUMMARY_PROVIDER",
+		"MORPH_MODEL_SUMMARY_API",
+		"MORPH_MODEL_SUMMARY_API_KEY",
+		"MORPH_MODEL_SUMMARY_BASE_URL",
+		"MORPH_RPC_ADDRESS",
+		"MORPH_RPC_PORT",
+		"MORPH_LOG_LEVEL",
+		"MORPH_LOG_NO_COLOR",
+		"MORPH_DEBUG_REQUESTS",
+		"MORPH_SAFETY_INPUT",
+		"MORPH_SAFETY_OUTPUT",
+		"MORPH_SAFETY_PII",
 	)
 }
 

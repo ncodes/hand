@@ -13,13 +13,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
-	"github.com/wandxy/hand/internal/profile"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	"github.com/wandxy/hand/internal/runtime"
-	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
+	"github.com/wandxy/morph/internal/config"
+	agentstub "github.com/wandxy/morph/internal/mocks/agentstub"
+	"github.com/wandxy/morph/internal/profile"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/internal/runtime"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
 )
 
 func TestNewCommandSessionNewCallsRPC(t *testing.T) {
@@ -82,7 +82,7 @@ func TestNewCommandSessionListUsesProfileRuntimeEndpoint(t *testing.T) {
 	})
 
 	home := t.TempDir()
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte("models:\n"), 0o600))
 	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: profileHome}))
@@ -408,8 +408,8 @@ func (w failingSessionWriter) Write([]byte) (int, error) {
 
 func setSessionTestProfile(t *testing.T) {
 	t.Helper()
-	t.Setenv("HAND_RPC_ADDRESS", "")
-	t.Setenv("HAND_RPC_PORT", "")
+	t.Setenv("MORPH_RPC_ADDRESS", "")
+	t.Setenv("MORPH_RPC_PORT", "")
 
 	original := profile.Active()
 	t.Cleanup(func() {

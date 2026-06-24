@@ -1,4 +1,4 @@
-// Package tui provides Hand's interactive terminal UI command.
+// Package tui provides Morph's interactive terminal UI command.
 package tui
 
 import (

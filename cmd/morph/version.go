@@ -8,13 +8,13 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/hand/internal/constants"
+	"github.com/wandxy/morph/internal/constants"
 )
 
 func newVersionCommand(output io.Writer) *cli.Command {
 	return &cli.Command{
 		Name:  "version",
-		Usage: "Print Hand version information",
+		Usage: "Print Morph version information",
 		Action: func(_ context.Context, _ *cli.Command) error {
 			_, err := fmt.Fprint(output, formatVersionCommandOutput())
 			return err
@@ -33,7 +33,7 @@ func formatRootVersion() string {
 }
 
 func formatVersionCommandOutput() string {
-	return fmt.Sprintf("hand version %s\ncommit %s\n", getAppVersion(), getCommitHash())
+	return fmt.Sprintf("morph version %s\ncommit %s\n", getAppVersion(), getCommitHash())
 }
 
 func getAppVersion() string {

@@ -8,10 +8,10 @@ import (
 
 	urfavecli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/hand/internal/config"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	"github.com/wandxy/hand/internal/runtime"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/config"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/internal/runtime"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 const (
@@ -69,7 +69,7 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 		cfg.RPC = endpoint
 
 		config.Set(cfg)
-		_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
+		_ = logutils.ConfigureLogger("morph", cfg.Log.NoColor)
 		logutils.SetLogLevel(cfg.Log.Level)
 
 		daemonCleanup, err := ensureDaemonRunning(ctx, cfg)

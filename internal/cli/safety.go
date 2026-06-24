@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/morph/internal/config"
 )
 
 // SafetySummary formats safety findings for CLI output.

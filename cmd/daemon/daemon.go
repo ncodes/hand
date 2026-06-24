@@ -10,11 +10,11 @@ import (
 
 	urfavecli "github.com/urfave/cli/v3"
 
-	handcli "github.com/wandxy/hand/internal/cli"
+	morphcli "github.com/wandxy/morph/internal/cli"
 )
 
 var daemonOutput io.Writer = os.Stdout
-var getDaemonStatus = handcli.GetDaemonStatus
+var getDaemonStatus = morphcli.GetDaemonStatus
 
 func SetOutput(w io.Writer) io.Writer {
 	previous := daemonOutput
@@ -23,18 +23,18 @@ func SetOutput(w io.Writer) io.Writer {
 	} else {
 		daemonOutput = w
 	}
-	handcli.SetDaemonOutput(daemonOutput)
+	morphcli.SetDaemonOutput(daemonOutput)
 	return previous
 }
 
 func NewCommand() *urfavecli.Command {
 	return &urfavecli.Command{
 		Name:     "daemon",
-		Usage:    "Start the Hand daemon",
+		Usage:    "Start the Morph daemon",
 		Commands: []*urfavecli.Command{newStatusCommand()},
-		Flags:    []urfavecli.Flag{handcli.PersistentInstructFlag()},
+		Flags:    []urfavecli.Flag{morphcli.PersistentInstructFlag()},
 		Action: func(ctx context.Context, cmd *urfavecli.Command) error {
-			return handcli.RunDaemonWithConfigRestarts(ctx, cmd)
+			return morphcli.RunDaemonWithConfigRestarts(ctx, cmd)
 		},
 	}
 }
@@ -53,7 +53,7 @@ func newStatusCommand() *urfavecli.Command {
 	}
 }
 
-func writeDaemonStatus(out io.Writer, status handcli.DaemonStatus) error {
+func writeDaemonStatus(out io.Writer, status morphcli.DaemonStatus) error {
 	if strings.TrimSpace(status.State) == "" {
 		status.State = "unknown"
 	}

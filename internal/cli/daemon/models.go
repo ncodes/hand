@@ -3,10 +3,10 @@ package daemon
 import (
 	"context"
 	"errors"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	models "github.com/wandxy/hand/internal/model"
-	modelclient "github.com/wandxy/hand/internal/model/client"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	models "github.com/wandxy/morph/internal/model"
+	modelclient "github.com/wandxy/morph/internal/model/client"
 	"strings"
 )
 

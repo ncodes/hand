@@ -7,15 +7,15 @@ import (
 
 	urfavecli "github.com/urfave/cli/v3"
 
-	handagent "github.com/wandxy/hand/internal/agent"
-	"github.com/wandxy/hand/internal/config"
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/pkg/logutils"
+	morphagent "github.com/wandxy/morph/internal/agent"
+	"github.com/wandxy/morph/internal/config"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 type agentRunner interface {
 	Start(context.Context) error
-	handagent.ServiceAPI
+	morphagent.ServiceAPI
 }
 
 type closeableAgentRunner interface {
@@ -59,7 +59,7 @@ func newAgentRunnerImpl(
 	summaryClient,
 	rerankerClient models.Client,
 ) agentRunner {
-	return handagent.NewAgent(ctx, cfg, modelClient, summaryClient, rerankerClient)
+	return morphagent.NewAgent(ctx, cfg, modelClient, summaryClient, rerankerClient)
 }
 
 var newAgentRunner = newAgentRunnerImpl

@@ -5,9 +5,9 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 // AppDescription is the package-level app description constant.
@@ -19,7 +19,7 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		ProfileFlag(),
 		&cli.StringFlag{
 			Name:  "name",
-			Usage: "The name of your hand",
+			Usage: "The name of your morph",
 			Value: config.Get().Name,
 		},
 		&cli.StringFlag{
@@ -463,7 +463,7 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 				Value:       ".env",
 				Destination: envFile,
 				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("HAND_ENV_FILE"),
+					cli.EnvVar("MORPH_ENV_FILE"),
 				),
 			},
 		}, flags...)
@@ -480,7 +480,7 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:       "config.yaml",
 			Destination: configFile,
 			Sources: cli.NewValueSourceChain(
-				cli.EnvVar("HAND_CONFIG"),
+				cli.EnvVar("MORPH_CONFIG"),
 			),
 		}
 		flags = append(flags[:insertAt], append([]cli.Flag{configFlag}, flags[insertAt:]...)...)

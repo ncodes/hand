@@ -14,10 +14,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/profile"
-	handtrace "github.com/wandxy/hand/internal/trace"
-	"github.com/wandxy/hand/internal/trace/inspect"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/profile"
+	morphtrace "github.com/wandxy/morph/internal/trace"
+	"github.com/wandxy/morph/internal/trace/inspect"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func TestNewCommand_ShowsHelpWithoutSubcommand(t *testing.T) {
@@ -265,11 +265,11 @@ func writeTraceSession(t *testing.T, dir, id string) {
 	defer file.Close()
 
 	encoder := json.NewEncoder(file)
-	require.NoError(t, encoder.Encode(handtrace.Event{
+	require.NoError(t, encoder.Encode(morphtrace.Event{
 		SessionID: id,
-		Type:      handtrace.EvtChatStarted,
+		Type:      morphtrace.EvtChatStarted,
 		Timestamp: time.Now().UTC(),
-		Payload: handtrace.Metadata{
+		Payload: morphtrace.Metadata{
 			AgentName: "Daemon",
 			Model:     "model",
 			API:       "openai-completions",
@@ -279,7 +279,7 @@ func writeTraceSession(t *testing.T, dir, id string) {
 
 func restoreLogs(t *testing.T, out io.Writer) {
 	t.Helper()
-	t.Setenv("HAND_LOG_NO_COLOR", "true")
+	t.Setenv("MORPH_LOG_NO_COLOR", "true")
 	logutils.SetOutput(out)
 	t.Cleanup(func() {
 		logutils.SetOutput(os.Stderr)

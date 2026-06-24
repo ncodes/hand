@@ -3,13 +3,13 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
 	config.Set(cfg)
-	_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
+	_ = logutils.ConfigureLogger("morph", cfg.Log.NoColor)
 	logutils.SetLogLevel(cfg.Log.Level)
 
 	runtimeCfg := prepareDaemonRuntimeConfig(cfg)
@@ -27,7 +27,7 @@ func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
 		daemonLog.Info().Msg("Vector retrieval configured")
 	}
 
-	daemonLog.Info().Msg("Starting Hand services")
+	daemonLog.Info().Msg("Starting Morph services")
 
 	modelClient, summaryClient, rerankerClient, err := buildDaemonModelClients(runtimeCfg)
 	if err != nil {

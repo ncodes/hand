@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/diagnostics"
-	"github.com/wandxy/hand/internal/diagnostics/readiness"
-	"github.com/wandxy/hand/internal/profile"
-	"github.com/wandxy/hand/pkg/logutils"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/diagnostics"
+	"github.com/wandxy/morph/internal/diagnostics/readiness"
+	"github.com/wandxy/morph/internal/profile"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -39,7 +39,7 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 
 	cmd := newRootCommandForTest()
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -66,7 +66,7 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 	require.Contains(t, output.String(), "\nsafety:")
 	require.Contains(t, output.String(), "[\x1b[32mPASS\x1b[0m] policy: input=enabled, output=enabled, pii=enabled")
 	require.Contains(t, output.String(), "\ntools:")
-	require.Contains(t, output.String(), "fix: \x1b[97mhand daemon\x1b[0m\x1b[90m - start the daemon for this profile\x1b[0m")
+	require.Contains(t, output.String(), "fix: \x1b[97mmorph daemon\x1b[0m\x1b[90m - start the daemon for this profile\x1b[0m")
 	require.Contains(t, output.String(), "\n[OK] doctor checks passed")
 	require.NotContains(t, output.String(), "flag-key")
 }
@@ -102,7 +102,7 @@ search:
 
 	cmd := newRootCommandForTest()
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"doctor",
 	})
@@ -130,7 +130,7 @@ search:
 
 	cmd := newRootCommandForTest()
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
@@ -165,7 +165,7 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 
 	cmd := newRootCommandForTest()
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -185,7 +185,7 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 	)
 	require.Contains(t, output.String(), "[PASS] config validation: configuration is valid")
 	require.Contains(t, output.String(), "[WARN] runtime: runtime metadata is not present")
-	require.Contains(t, output.String(), "fix: `hand daemon` - start the daemon for this profile")
+	require.Contains(t, output.String(), "fix: `morph daemon` - start the daemon for this profile")
 	require.Contains(t, output.String(), "[PASS] policy: input=enabled, output=enabled, pii=enabled")
 	require.NotRegexp(t, regexp.MustCompile(`\x1b\[[0-9;]*m`), output.String())
 }
@@ -202,7 +202,7 @@ func TestNewCommand_PrintsJSONReport(t *testing.T) {
 
 	cmd := newRootCommandForTest()
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
@@ -250,7 +250,7 @@ search:
 
 	cmd := newRootCommandForTest()
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"--name", "flag-agent",
 		"--model", "gpt-4o-mini",
@@ -299,7 +299,7 @@ search:
 
 	cmd := newRootCommandForTest()
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"doctor",
 	})
@@ -320,7 +320,7 @@ func TestRenderReadinessReport(t *testing.T) {
 					Status:  readiness.StatusWarn,
 					Message: "missing",
 					Actions: []readiness.Action{
-						{Command: "hand auth login openai", Description: "login"},
+						{Command: "morph auth login openai", Description: "login"},
 						{Command: "/models"},
 					},
 				},
@@ -332,17 +332,17 @@ func TestRenderReadinessReport(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "models:")
-	require.Contains(t, output.String(), "fix: \x1b[97mhand auth login openai\x1b[0m\x1b[90m - login\x1b[0m")
+	require.Contains(t, output.String(), "fix: \x1b[97mmorph auth login openai\x1b[0m\x1b[90m - login\x1b[0m")
 	require.Contains(t, output.String(), "fix: \x1b[97m/models\x1b[0m")
 	require.Equal(
 		t,
-		"`hand auth login openai` - login",
-		formatAction(readiness.Action{Command: "hand auth login openai", Description: "login"}, &config.Config{Log: config.LogConfig{NoColor: true}}),
+		"`morph auth login openai` - login",
+		formatAction(readiness.Action{Command: "morph auth login openai", Description: "login"}, &config.Config{Log: config.LogConfig{NoColor: true}}),
 	)
 	require.Equal(
 		t,
-		"\x1b[97m/models\x1b[0m\x1b[90m - choose after hand daemon; then continue\x1b[0m",
-		formatAction(readiness.Action{Command: "/models", Description: "choose after hand daemon; then continue"}, &config.Config{}),
+		"\x1b[97m/models\x1b[0m\x1b[90m - choose after morph daemon; then continue\x1b[0m",
+		formatAction(readiness.Action{Command: "/models", Description: "choose after morph daemon; then continue"}, &config.Config{}),
 	)
 	require.Error(t, renderReadinessReport(failingWriter{}, report, &config.Config{}))
 }
@@ -447,8 +447,8 @@ func newRootCommandForTest() *cli.Command {
 	configFile := "config.yaml"
 
 	return &cli.Command{
-		Name:  "hand",
-		Flags: handcli.RootFlags(&envFile, &configFile),
+		Name:  "morph",
+		Flags: morphcli.RootFlags(&envFile, &configFile),
 		Commands: []*cli.Command{
 			NewCommand(),
 		},
@@ -464,7 +464,7 @@ func isolateProfile(t *testing.T) {
 	})
 	profile.SetActive(profile.Profile{})
 	t.Setenv("HOME", t.TempDir())
-	clearEnv(t, profile.EnvName, "HAND_ENV_FILE", "HAND_CONFIG", "HAND_SAFETY_INPUT", "HAND_SAFETY_OUTPUT", "HAND_SAFETY_PII")
+	clearEnv(t, profile.EnvName, "MORPH_ENV_FILE", "MORPH_CONFIG", "MORPH_SAFETY_INPUT", "MORPH_SAFETY_OUTPUT", "MORPH_SAFETY_PII")
 }
 
 func clearEnv(t *testing.T, keys ...string) {

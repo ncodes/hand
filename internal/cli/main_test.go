@@ -15,19 +15,19 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/wandxy/hand/internal/config"
-	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
-	"github.com/wandxy/hand/internal/profile"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	"github.com/wandxy/hand/internal/runtime"
-	"github.com/wandxy/hand/internal/trace"
-	agent "github.com/wandxy/hand/pkg/agent"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/config"
+	agentstub "github.com/wandxy/morph/internal/mocks/agentstub"
+	"github.com/wandxy/morph/internal/profile"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/internal/runtime"
+	"github.com/wandxy/morph/internal/trace"
+	agent "github.com/wandxy/morph/pkg/agent"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func TestNewMainAction_TreatsUnknownArgsAsChat(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
-		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
 
 	var output bytes.Buffer
@@ -37,7 +37,7 @@ func TestNewMainAction_TreatsUnknownArgsAsChat(t *testing.T) {
 	})
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
@@ -53,19 +53,19 @@ func TestNewMainAction_TreatsUnknownArgsAsChat(t *testing.T) {
 }
 
 func TestNewMainAction_UsesProfileConfigAndEnv(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_LOG_LEVEL",
-		"HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_LOG_LEVEL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE")
 	resetMainActionState(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
 name: profile-agent
 models:
 `), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(profileHome, ".env"), []byte("HAND_LOG_LEVEL=debug\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(profileHome, ".env"), []byte("MORPH_LOG_LEVEL=debug\n"), 0o600))
 
 	var got *config.Config
 	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
@@ -74,7 +74,7 @@ models:
 		return stub, nil
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--profile", "Work", "hello"})
+	err := cmd.Run(context.Background(), []string{"morph", "--profile", "Work", "hello"})
 
 	require.NoError(t, err)
 	require.Equal(t, "hello", stub.ChatInput)
@@ -84,8 +84,8 @@ models:
 }
 
 func TestNewMainAction_UsesProfileRuntimeEndpoint(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_LOG_LEVEL",
-		"HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_RPC_ADDRESS", "HAND_RPC_PORT")
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_LOG_LEVEL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "MORPH_RPC_ADDRESS", "MORPH_RPC_PORT")
 	resetMainActionState(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -96,7 +96,7 @@ func TestNewMainAction_UsesProfileRuntimeEndpoint(t *testing.T) {
 		require.NoError(t, listener.Close())
 	})
 
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
 name: profile-agent
@@ -114,7 +114,7 @@ models:
 		return stub, nil
 	})
 
-	err = cmd.Run(context.Background(), []string{"hand", "--profile", "Work", "hello"})
+	err = cmd.Run(context.Background(), []string{"morph", "--profile", "Work", "hello"})
 
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -123,8 +123,8 @@ models:
 }
 
 func TestNewMainAction_ForwardsInstruct(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
-		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
 
 	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
@@ -133,7 +133,7 @@ func TestNewMainAction_ForwardsInstruct(t *testing.T) {
 	})
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--instruct", "be terse",
 		"hello",
@@ -143,8 +143,8 @@ func TestNewMainAction_ForwardsInstruct(t *testing.T) {
 }
 
 func TestNewMainAction_ForwardsSessionID(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
-		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
 
 	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
@@ -153,7 +153,7 @@ func TestNewMainAction_ForwardsSessionID(t *testing.T) {
 	})
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--session", "project-a",
 		"hello",
@@ -163,8 +163,8 @@ func TestNewMainAction_ForwardsSessionID(t *testing.T) {
 }
 
 func TestNewMainAction_StreamsOutput(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
-		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
 
 	var output bytes.Buffer
@@ -174,7 +174,7 @@ func TestNewMainAction_StreamsOutput(t *testing.T) {
 	})
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model.stream=true",
 		"hello",
@@ -186,8 +186,8 @@ func TestNewMainAction_StreamsOutput(t *testing.T) {
 }
 
 func TestNewMainAction_StylesReasoningOutput(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
-		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
 
 	var output bytes.Buffer
@@ -203,7 +203,7 @@ func TestNewMainAction_StylesReasoningOutput(t *testing.T) {
 	})
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model.stream=true",
 		"hello",
@@ -213,8 +213,8 @@ func TestNewMainAction_StylesReasoningOutput(t *testing.T) {
 }
 
 func TestNewMainAction_DoesNotStyleReasoningWhenNoColor(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
-		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
 
 	var output bytes.Buffer
@@ -230,7 +230,7 @@ func TestNewMainAction_DoesNotStyleReasoningWhenNoColor(t *testing.T) {
 	})
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model.stream=true",
 		"--log.no-color=true",
@@ -241,8 +241,8 @@ func TestNewMainAction_DoesNotStyleReasoningWhenNoColor(t *testing.T) {
 }
 
 func TestNewMainAction_IgnoresTraceEvents(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
-		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
 
 	var output bytes.Buffer
@@ -259,7 +259,7 @@ func TestNewMainAction_IgnoresTraceEvents(t *testing.T) {
 	})
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"--model.stream=true",
 		"hello",
@@ -269,8 +269,8 @@ func TestNewMainAction_IgnoresTraceEvents(t *testing.T) {
 }
 
 func TestNewMainAction_DoesNotForwardConfiguredInstruct(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
-		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
 
 	dir := t.TempDir()
@@ -294,7 +294,7 @@ session:
 	})
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--config", configPath,
 		"hello",
 	})
@@ -303,7 +303,7 @@ session:
 }
 
 func TestNewMainAction_EnsuresDaemonAndCleansStartedRuntime(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
 
 	started := false
@@ -324,7 +324,7 @@ func TestNewMainAction_EnsuresDaemonAndCleansStartedRuntime(t *testing.T) {
 		},
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--name", "flag-agent", "hello"})
+	err := cmd.Run(context.Background(), []string{"morph", "--name", "flag-agent", "hello"})
 
 	require.NoError(t, err)
 	require.True(t, cleaned)
@@ -332,7 +332,7 @@ func TestNewMainAction_EnsuresDaemonAndCleansStartedRuntime(t *testing.T) {
 }
 
 func TestNewMainAction_ReturnsDaemonStartErrorBeforeCreatingClient(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
 
 	expectedErr := errors.New("daemon unavailable")
@@ -346,13 +346,13 @@ func TestNewMainAction_ReturnsDaemonStartErrorBeforeCreatingClient(t *testing.T)
 		},
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--name", "flag-agent", "hello"})
+	err := cmd.Run(context.Background(), []string{"morph", "--name", "flag-agent", "hello"})
 
 	require.ErrorIs(t, err, expectedErr)
 }
 
 func TestNewMainAction_ReturnsRPCError(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnv(t, "MORPH_NAME", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
 
 	cmd := newMainActionTestCommand(io.Discard, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
@@ -360,7 +360,7 @@ func TestNewMainAction_ReturnsRPCError(t *testing.T) {
 	})
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--name", "flag-agent",
 		"hello",
 	})
@@ -383,7 +383,7 @@ func newMainActionTestCommandWithOptions(output io.Writer, opts MainActionOption
 	}
 
 	return &urfavecli.Command{
-		Name:   "hand",
+		Name:   "morph",
 		Flags:  append(RootFlags(&envFile, &configFile), RequestInstructFlag()),
 		Action: NewMainAction(opts),
 	}

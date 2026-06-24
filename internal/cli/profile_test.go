@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func TestResolveConfigInputs_UsesProfileDefaults(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	clearEnv(t, profile.EnvName, "HAND_ENV_FILE", "HAND_CONFIG")
+	clearEnv(t, profile.EnvName, "MORPH_ENV_FILE", "MORPH_CONFIG")
 
 	var got ConfigInputs
 	cmd := newProfileInputCommand(t, func(cmd *cli.Command) error {
@@ -25,20 +25,20 @@ func TestResolveConfigInputs_UsesProfileDefaults(t *testing.T) {
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--profile", "Work"})
+	err := cmd.Run(context.Background(), []string{"morph", "--profile", "Work"})
 
 	require.NoError(t, err)
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.Equal(t, "work", got.Profile.Name)
 	require.Equal(t, filepath.Join(profileHome, ".env"), got.EnvPath)
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), got.ConfigPath)
 	require.Equal(t, got.Profile, profile.Active())
 }
 
-func TestResolveConfigInputs_UsesProfileShorthand(t *testing.T) {
+func TestResolveConfigInputs_UsesProfileShortmorph(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	clearEnv(t, profile.EnvName, "HAND_ENV_FILE", "HAND_CONFIG")
+	clearEnv(t, profile.EnvName, "MORPH_ENV_FILE", "MORPH_CONFIG")
 
 	var got ConfigInputs
 	cmd := newProfileInputCommand(t, func(cmd *cli.Command) error {
@@ -47,10 +47,10 @@ func TestResolveConfigInputs_UsesProfileShorthand(t *testing.T) {
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "-p", "Work"})
+	err := cmd.Run(context.Background(), []string{"morph", "-p", "Work"})
 
 	require.NoError(t, err)
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.Equal(t, "work", got.Profile.Name)
 	require.Equal(t, filepath.Join(profileHome, ".env"), got.EnvPath)
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), got.ConfigPath)
@@ -59,7 +59,7 @@ func TestResolveConfigInputs_UsesProfileShorthand(t *testing.T) {
 func TestResolveConfigInputs_KeepsExplicitPathOverrides(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	clearEnv(t, profile.EnvName, "HAND_ENV_FILE", "HAND_CONFIG")
+	clearEnv(t, profile.EnvName, "MORPH_ENV_FILE", "MORPH_CONFIG")
 
 	envPath := filepath.Join(t.TempDir(), "custom.env")
 	configPath := filepath.Join(t.TempDir(), "custom.yaml")
@@ -72,7 +72,7 @@ func TestResolveConfigInputs_KeepsExplicitPathOverrides(t *testing.T) {
 	})
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--profile", "Work",
 		"--env-file", envPath,
 		"--config", configPath,
@@ -90,8 +90,8 @@ func TestResolveConfigInputs_KeepsEnvironmentPathOverrides(t *testing.T) {
 	clearEnv(t, profile.EnvName)
 	envPath := filepath.Join(t.TempDir(), "custom.env")
 	configPath := filepath.Join(t.TempDir(), "custom.yaml")
-	t.Setenv("HAND_ENV_FILE", envPath)
-	t.Setenv("HAND_CONFIG", configPath)
+	t.Setenv("MORPH_ENV_FILE", envPath)
+	t.Setenv("MORPH_CONFIG", configPath)
 
 	var got ConfigInputs
 	cmd := newProfileInputCommand(t, func(cmd *cli.Command) error {
@@ -100,7 +100,7 @@ func TestResolveConfigInputs_KeepsEnvironmentPathOverrides(t *testing.T) {
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--profile", "Work"})
+	err := cmd.Run(context.Background(), []string{"morph", "--profile", "Work"})
 
 	require.NoError(t, err)
 	require.Equal(t, "work", got.Profile.Name)
@@ -111,7 +111,7 @@ func TestResolveConfigInputs_KeepsEnvironmentPathOverrides(t *testing.T) {
 func TestResolveConfigInputs_UsesProfileEnvVar(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	clearEnv(t, "HAND_ENV_FILE", "HAND_CONFIG")
+	clearEnv(t, "MORPH_ENV_FILE", "MORPH_CONFIG")
 	t.Setenv(profile.EnvName, "Desk")
 
 	var got ConfigInputs
@@ -121,10 +121,10 @@ func TestResolveConfigInputs_UsesProfileEnvVar(t *testing.T) {
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand"})
+	err := cmd.Run(context.Background(), []string{"morph"})
 
 	require.NoError(t, err)
-	profileHome := filepath.Join(home, ".hand", "profiles", "desk")
+	profileHome := filepath.Join(home, ".morph", "profiles", "desk")
 	require.Equal(t, "desk", got.Profile.Name)
 	require.Equal(t, filepath.Join(profileHome, ".env"), got.EnvPath)
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), got.ConfigPath)
@@ -156,15 +156,15 @@ func TestResolveConfigInputs_UsesActiveProfileWhenCommandHasNoProfile(t *testing
 func TestLoadConfig_UsesProfileConfigAndEnvDefaults(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	clearEnv(t, profile.EnvName, "HAND_ENV_FILE", "HAND_CONFIG", "HAND_LOG_LEVEL")
+	clearEnv(t, profile.EnvName, "MORPH_ENV_FILE", "MORPH_CONFIG", "MORPH_LOG_LEVEL")
 
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
 name: profile-agent
 models:
 `), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(profileHome, ".env"), []byte("HAND_LOG_LEVEL=debug\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(profileHome, ".env"), []byte("MORPH_LOG_LEVEL=debug\n"), 0o600))
 
 	var got *config.Config
 	var inputs ConfigInputs
@@ -174,7 +174,7 @@ models:
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--profile", "Work"})
+	err := cmd.Run(context.Background(), []string{"morph", "--profile", "Work"})
 
 	require.NoError(t, err)
 	require.Equal(t, filepath.Join(profileHome, ".env"), inputs.EnvPath)
@@ -229,9 +229,9 @@ func TestAddStartupFilesystemRoots_SkipsProfileHomeWhenProfileAccessDisabled(t *
 func TestLoadConfig_ReturnsConfigLoadError(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	clearEnv(t, profile.EnvName, "HAND_ENV_FILE", "HAND_CONFIG")
+	clearEnv(t, profile.EnvName, "MORPH_ENV_FILE", "MORPH_CONFIG")
 
-	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profileHome := filepath.Join(home, ".morph", "profiles", "work")
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte("name: ["), 0o600))
 
@@ -242,7 +242,7 @@ func TestLoadConfig_ReturnsConfigLoadError(t *testing.T) {
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--profile", "Work"})
+	err := cmd.Run(context.Background(), []string{"morph", "--profile", "Work"})
 
 	require.ErrorContains(t, err, "failed to parse config file")
 	require.Equal(t, filepath.Join(profileHome, ".env"), inputs.EnvPath)
@@ -255,7 +255,7 @@ func TestLoadConfig_ReturnsProfileResolutionError(t *testing.T) {
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--profile", "work/team"})
+	err := cmd.Run(context.Background(), []string{"morph", "--profile", "work/team"})
 
 	require.EqualError(t, err, `invalid profile name "work/team": must match [a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`)
 }
@@ -263,7 +263,7 @@ func TestLoadConfig_ReturnsProfileResolutionError(t *testing.T) {
 func TestResolveConfigInputs_UsesDefaultProfileWhenCommandNil(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	clearEnv(t, profile.EnvName, "HAND_ENV_FILE", "HAND_CONFIG")
+	clearEnv(t, profile.EnvName, "MORPH_ENV_FILE", "MORPH_CONFIG")
 	active := profile.Active()
 	t.Cleanup(func() {
 		profile.SetActive(active)
@@ -273,7 +273,7 @@ func TestResolveConfigInputs_UsesDefaultProfileWhenCommandNil(t *testing.T) {
 	inputs, err := ResolveConfigInputs(nil)
 
 	require.NoError(t, err)
-	profileHome := filepath.Join(home, ".hand", "profiles", "default")
+	profileHome := filepath.Join(home, ".morph", "profiles", "default")
 	require.Equal(t, profile.DefaultName, inputs.Profile.Name)
 	require.Equal(t, filepath.Join(profileHome, ".env"), inputs.EnvPath)
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), inputs.ConfigPath)
@@ -285,7 +285,7 @@ func TestResolveConfigInputs_ReturnsInvalidProfileError(t *testing.T) {
 		return err
 	})
 
-	err := cmd.Run(context.Background(), []string{"hand", "--profile", "work/team"})
+	err := cmd.Run(context.Background(), []string{"morph", "--profile", "work/team"})
 
 	require.EqualError(t, err, `invalid profile name "work/team": must match [a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`)
 }

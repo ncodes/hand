@@ -9,8 +9,8 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 var profileOutput io.Writer = os.Stdout
@@ -28,7 +28,7 @@ func SetOutput(w io.Writer) io.Writer {
 func NewCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "profile",
-		Usage: "Manage Hand profiles",
+		Usage: "Manage Morph profiles",
 		Commands: []*cli.Command{
 			newUseCommand(),
 			newListCommand(),
@@ -59,7 +59,7 @@ func newUseCommand() *cli.Command {
 				return err
 			}
 			if !pathExists(resolved.HomeDir) {
-				return fmt.Errorf("profile %q does not exist; run `hand profile init %s` first", resolved.Name, resolved.Name)
+				return fmt.Errorf("profile %q does not exist; run `morph profile init %s` first", resolved.Name, resolved.Name)
 			}
 
 			name, err = profile.StoreCurrentName(resolved.Name, "")
@@ -163,7 +163,7 @@ func getProfileInitConfigError(resolved profile.Profile, err error) error {
 	}
 	if strings.Contains(err.Error(), "config file already exists") {
 		return fmt.Errorf(
-			"profile %q already exists at %s; run `hand profile use %s` to select it, or choose a different profile name",
+			"profile %q already exists at %s; run `morph profile use %s` to select it, or choose a different profile name",
 			resolved.Name,
 			resolved.HomeDir,
 			resolved.Name,

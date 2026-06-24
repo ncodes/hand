@@ -12,9 +12,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	appcredential "github.com/wandxy/hand/internal/credential"
-	"github.com/wandxy/hand/internal/profile"
+	"github.com/wandxy/morph/internal/config"
+	appcredential "github.com/wandxy/morph/internal/credential"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func setAuthTestSubscriptionProviderLookup(t *testing.T) {
@@ -363,7 +363,7 @@ func TestGetFirstEnvValue_SkipsBlankAndMissingKeys(t *testing.T) {
 }
 
 func TestGetWebProviderEnvKeys_ReturnsGenericFallbackForUnknownProvider(t *testing.T) {
-	require.Equal(t, []string{"HAND_WEB_API_KEY"}, config.WebProviderAPIKeyEnv("custom"))
+	require.Equal(t, []string{"MORPH_WEB_API_KEY"}, config.WebProviderAPIKeyEnv("custom"))
 }
 
 func setAuthTestProfile(t *testing.T) string {
@@ -374,15 +374,15 @@ func setAuthTestProfile(t *testing.T) string {
 		"OPENROUTER_API_KEY",
 		"ANTHROPIC_API_KEY",
 		"COPILOT_GITHUB_TOKEN",
-		"HAND_FIRECRAWL_API_KEY",
+		"MORPH_FIRECRAWL_API_KEY",
 		"FIRECRAWL_API_KEY",
-		"HAND_PARALLEL_API_KEY",
+		"MORPH_PARALLEL_API_KEY",
 		"PARALLEL_API_KEY",
-		"HAND_TAVILY_API_KEY",
+		"MORPH_TAVILY_API_KEY",
 		"TAVILY_API_KEY",
-		"HAND_EXA_API_KEY",
+		"MORPH_EXA_API_KEY",
 		"EXA_API_KEY",
-		"HAND_WEB_API_KEY",
+		"MORPH_WEB_API_KEY",
 	} {
 		t.Setenv(key, "")
 	}

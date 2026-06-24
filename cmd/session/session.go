@@ -10,11 +10,11 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	"github.com/wandxy/hand/internal/runtime"
-	"github.com/wandxy/hand/pkg/logutils"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/config"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/internal/runtime"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 var (
@@ -289,13 +289,13 @@ func formatSessionTime(t time.Time) string {
 }
 
 func getSessionClient(ctx context.Context, cmd *cli.Command) (sessionClient, error) {
-	cfg, inputs, err := handcli.LoadConfig(cmd)
+	cfg, inputs, err := morphcli.LoadConfig(cmd)
 	if err != nil {
 		return nil, err
 	}
 
-	handcli.ApplyConfigOverrides(cmd, cfg)
-	handcli.AddStartupFilesystemRoots(cfg, inputs)
+	morphcli.ApplyConfigOverrides(cmd, cfg)
+	morphcli.AddStartupFilesystemRoots(cfg, inputs)
 
 	endpoint, err := runtime.ResolveRPC(ctx, cmd, cfg)
 	if err != nil {
@@ -304,7 +304,7 @@ func getSessionClient(ctx context.Context, cmd *cli.Command) (sessionClient, err
 	cfg.RPC = endpoint
 
 	config.Set(cfg)
-	_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
+	_ = logutils.ConfigureLogger("morph", cfg.Log.NoColor)
 	logutils.SetLogLevel(cfg.Log.Level)
 
 	return newClient(ctx, cfg)

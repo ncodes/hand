@@ -1,6 +1,6 @@
 package cli
 
-import "github.com/wandxy/hand/internal/config"
+import "github.com/wandxy/morph/internal/config"
 
 // ConfigUpdate describes config update.
 type ConfigUpdate = config.ConfigUpdate

@@ -6,11 +6,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	cli "github.com/urfave/cli/v3"
 
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	tui "github.com/wandxy/hand/internal/tui/app"
-	"github.com/wandxy/hand/pkg/logutils"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/config"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	tui "github.com/wandxy/morph/internal/tui/app"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 type programRunner interface {
@@ -36,22 +36,22 @@ var newTUIChatClient = func(ctx context.Context, cfg *config.Config) (tuiClient,
 }
 
 var (
-	ensureTUIDaemonRunning = handcli.EnsureDaemonRunning
+	ensureTUIDaemonRunning = morphcli.EnsureDaemonRunning
 	loadCommandModel       = loadTUICommandModel
 )
 
 func loadTUICommandModel(ctx context.Context, cmd *cli.Command) (tea.Model, func(), error) {
-	cfg, inputs, err := handcli.LoadConfig(cmd)
+	cfg, inputs, err := morphcli.LoadConfig(cmd)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	handcli.ApplyConfigOverrides(cmd, cfg)
-	handcli.AddStartupFilesystemRoots(cfg, inputs)
+	morphcli.ApplyConfigOverrides(cmd, cfg)
+	morphcli.AddStartupFilesystemRoots(cfg, inputs)
 
 	config.Set(cfg)
 	logutils.SetConsoleEnabled(false)
-	_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
+	_ = logutils.ConfigureLogger("morph", cfg.Log.NoColor)
 	logutils.SetLogLevel(cfg.Log.Level)
 
 	daemonCleanup, err := ensureTUIDaemonRunning(ctx, cfg)

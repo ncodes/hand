@@ -11,11 +11,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
-	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
-	"github.com/wandxy/hand/internal/profile"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	"github.com/wandxy/hand/pkg/gateway/pairing"
+	"github.com/wandxy/morph/internal/config"
+	agentstub "github.com/wandxy/morph/internal/mocks/agentstub"
+	"github.com/wandxy/morph/internal/profile"
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/pkg/gateway/pairing"
 )
 
 var errGatewayTestWrite = errors.New("write failed")

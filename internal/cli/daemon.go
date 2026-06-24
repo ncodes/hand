@@ -13,11 +13,11 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	clidaemon "github.com/wandxy/hand/internal/cli/daemon"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/profile"
-	handruntime "github.com/wandxy/hand/internal/runtime"
-	"github.com/wandxy/hand/pkg/logutils"
+	clidaemon "github.com/wandxy/morph/internal/cli/daemon"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/profile"
+	morphruntime "github.com/wandxy/morph/internal/runtime"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 const (
@@ -29,7 +29,7 @@ const (
 var (
 	checkDaemonRPC                = checkDaemonRPCImpl
 	checkDaemonHealth             = checkDaemonHealthImpl
-	probeActiveRuntime            = handruntime.Probe
+	probeActiveRuntime            = morphruntime.Probe
 	daemonStatusNow               = time.Now
 	startDaemonRuntime            = startDaemonRuntimeImpl
 	runDaemonRuntimeOnce          = RunDaemonOnce
@@ -67,7 +67,7 @@ func RunDaemonOnce(ctx context.Context, cfg *config.Config) error {
 func GetDaemonStatus(ctx context.Context) (DaemonStatus, error) {
 	probe := probeActiveRuntime(ctx, profile.Active())
 	status := daemonStatusFromProbe(probe)
-	if probe.State != handruntime.ProbeStateReady {
+	if probe.State != morphruntime.ProbeStateReady {
 		if probe.Err != nil {
 			return status, fmt.Errorf("daemon is %s: %w", probe.State, probe.Err)
 		}
@@ -103,9 +103,9 @@ func EnsureDaemonRunning(ctx context.Context, cfg *config.Config) (func() error,
 	}
 	if err := waitForDaemonRPC(ctx, cfg, daemonBootstrapReadyTimeout); err != nil {
 		if cleanupErr := cleanup(); cleanupErr != nil {
-			return nil, fmt.Errorf("start Hand daemon: cleanup after readiness failure: %w", cleanupErr)
+			return nil, fmt.Errorf("start Morph daemon: cleanup after readiness failure: %w", cleanupErr)
 		}
-		return nil, fmt.Errorf("start Hand daemon: RPC did not become ready at %s:%d: %w",
+		return nil, fmt.Errorf("start Morph daemon: RPC did not become ready at %s:%d: %w",
 			strings.TrimSpace(cfg.RPC.Address), cfg.RPC.Port, err)
 	}
 
@@ -187,7 +187,7 @@ func checkDaemonHealthImpl(ctx context.Context, address string, port int) (strin
 	return resp.GetStatus().String(), nil
 }
 
-func daemonStatusFromProbe(probe handruntime.ProbeResult) DaemonStatus {
+func daemonStatusFromProbe(probe morphruntime.ProbeResult) DaemonStatus {
 	metadata := probe.Metadata
 	status := DaemonStatus{
 		State:     string(probe.State),

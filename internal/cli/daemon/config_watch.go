@@ -5,8 +5,8 @@ import (
 	"errors"
 	"github.com/fsnotify/fsnotify"
 	urfavecli "github.com/urfave/cli/v3"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/diagnostics"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/diagnostics"
 	"os"
 	"path/filepath"
 	"strings"
@@ -235,7 +235,7 @@ func runDaemonUntilConfigChange(
 				continue
 			}
 
-			daemonLog.Info().Msg("Configuration changed; restarting Hand services")
+			daemonLog.Info().Msg("Configuration changed; restarting Morph services")
 			cancel()
 			if err := <-done; err != nil {
 				return daemonConfigSnapshot{}, false, err

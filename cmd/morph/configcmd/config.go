@@ -9,8 +9,8 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/config"
 )
 
 func NewCommand(output io.Writer) *cli.Command {
@@ -33,7 +33,7 @@ func newGetCommand(output io.Writer) *cli.Command {
 		Name:      "get",
 		Usage:     "Get values from the selected profile config",
 		ArgsUsage: "<path>...",
-		Flags:     []cli.Flag{handcli.ProfileFlag()},
+		Flags:     []cli.Flag{morphcli.ProfileFlag()},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			paths, err := getConfigGetPaths(cmd)
 			if err != nil {
@@ -48,7 +48,7 @@ func newGetCommand(output io.Writer) *cli.Command {
 				return err
 			}
 
-			values, err := handcli.GetConfigValues(inputs.EnvPath, inputs.ConfigPath, paths)
+			values, err := morphcli.GetConfigValues(inputs.EnvPath, inputs.ConfigPath, paths)
 			if err != nil {
 				return err
 			}
@@ -72,7 +72,7 @@ func newSetCommand(output io.Writer) *cli.Command {
 		Name:      "set",
 		Usage:     "Set values in the selected profile config file",
 		ArgsUsage: "<path> <value>|<path=value>...",
-		Flags:     []cli.Flag{handcli.ProfileFlag()},
+		Flags:     []cli.Flag{morphcli.ProfileFlag()},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			updates, err := getSetConfigUpdates(cmd)
 			if err != nil {
@@ -87,11 +87,11 @@ func newSetCommand(output io.Writer) *cli.Command {
 				return err
 			}
 
-			oldValues, err := handcli.GetConfigValues(inputs.EnvPath, inputs.ConfigPath, getUpdatePaths(updates))
+			oldValues, err := morphcli.GetConfigValues(inputs.EnvPath, inputs.ConfigPath, getUpdatePaths(updates))
 			if err != nil {
 				return err
 			}
-			updatedPaths, err := handcli.SetConfigValues(inputs.EnvPath, inputs.ConfigPath, updates)
+			updatedPaths, err := morphcli.SetConfigValues(inputs.EnvPath, inputs.ConfigPath, updates)
 			if err != nil {
 				return err
 			}
@@ -116,7 +116,7 @@ func newSetCommand(output io.Writer) *cli.Command {
 	}
 }
 
-func getUpdatePaths(updates []handcli.ConfigUpdate) []string {
+func getUpdatePaths(updates []morphcli.ConfigUpdate) []string {
 	paths := make([]string, 0, len(updates))
 	for _, update := range updates {
 		paths = append(paths, update.Path)
@@ -125,10 +125,10 @@ func getUpdatePaths(updates []handcli.ConfigUpdate) []string {
 	return paths
 }
 
-func resolveKnownConfigInputs(cmd *cli.Command) (handcli.ConfigInputs, error) {
-	inputs, err := handcli.ResolveConfigInputs(cmd)
+func resolveKnownConfigInputs(cmd *cli.Command) (morphcli.ConfigInputs, error) {
+	inputs, err := morphcli.ResolveConfigInputs(cmd)
 	if err != nil {
-		return handcli.ConfigInputs{}, err
+		return morphcli.ConfigInputs{}, err
 	}
 	if !hasExplicitProfile(cmd) {
 		return inputs, nil
@@ -137,12 +137,12 @@ func resolveKnownConfigInputs(cmd *cli.Command) (handcli.ConfigInputs, error) {
 	info, err := os.Stat(inputs.Profile.HomeDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return handcli.ConfigInputs{}, fmt.Errorf("unknown profile %q", inputs.Profile.Name)
+			return morphcli.ConfigInputs{}, fmt.Errorf("unknown profile %q", inputs.Profile.Name)
 		}
-		return handcli.ConfigInputs{}, fmt.Errorf("read profile %q: %w", inputs.Profile.Name, err)
+		return morphcli.ConfigInputs{}, fmt.Errorf("read profile %q: %w", inputs.Profile.Name, err)
 	}
 	if !info.IsDir() {
-		return handcli.ConfigInputs{}, fmt.Errorf("profile %q is not a directory", inputs.Profile.Name)
+		return morphcli.ConfigInputs{}, fmt.Errorf("profile %q is not a directory", inputs.Profile.Name)
 	}
 
 	return inputs, nil
@@ -178,13 +178,13 @@ func getConfigGetPaths(cmd *cli.Command) ([]string, error) {
 	return paths, nil
 }
 
-func getSetConfigUpdates(cmd *cli.Command) ([]handcli.ConfigUpdate, error) {
+func getSetConfigUpdates(cmd *cli.Command) ([]morphcli.ConfigUpdate, error) {
 	if cmd == nil {
 		return nil, fmt.Errorf("config path and value are required")
 	}
 
 	args := cmd.Args().Slice()
-	updates := make([]handcli.ConfigUpdate, 0, len(args))
+	updates := make([]morphcli.ConfigUpdate, 0, len(args))
 	for index := 0; index < len(args); index++ {
 		raw := strings.TrimSpace(args[index])
 		if raw == "" {
@@ -197,7 +197,7 @@ func getSetConfigUpdates(cmd *cli.Command) ([]handcli.ConfigUpdate, error) {
 			if path == "" {
 				return nil, fmt.Errorf("config path and value are required")
 			}
-			updates = append(updates, handcli.ConfigUpdate{Path: path, Value: strings.TrimSpace(value)})
+			updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: strings.TrimSpace(value)})
 			continue
 		}
 
@@ -208,7 +208,7 @@ func getSetConfigUpdates(cmd *cli.Command) ([]handcli.ConfigUpdate, error) {
 		if path == "" {
 			return nil, fmt.Errorf("config path and value are required")
 		}
-		updates = append(updates, handcli.ConfigUpdate{Path: path, Value: strings.TrimSpace(args[index+1])})
+		updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: strings.TrimSpace(args[index+1])})
 		index++
 	}
 

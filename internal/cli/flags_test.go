@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/morph/internal/config"
 )
 
 func TestApplyConfigOverrides_AppliesRulesFiles(t *testing.T) {
@@ -21,10 +21,10 @@ func TestApplyConfigOverrides_AppliesRulesFiles(t *testing.T) {
 		return nil
 	}
 
-	err := cmd.Run(context.Background(), []string{"hand", "--rules.files", "/tmp/Hand.md, ./custom.md ,/tmp/CLAUDE.md"})
+	err := cmd.Run(context.Background(), []string{"morph", "--rules.files", "/tmp/Morph.md, ./custom.md ,/tmp/CLAUDE.md"})
 
 	require.NoError(t, err)
-	require.Equal(t, []string{"/tmp/Hand.md", "./custom.md", "/tmp/CLAUDE.md"}, cfg.Rules.Files)
+	require.Equal(t, []string{"/tmp/Morph.md", "./custom.md", "/tmp/CLAUDE.md"}, cfg.Rules.Files)
 }
 
 func TestApplyConfigOverrides_AppliesInstruct(t *testing.T) {
@@ -36,7 +36,7 @@ func TestApplyConfigOverrides_AppliesInstruct(t *testing.T) {
 		return nil
 	}
 
-	err := cmd.Run(context.Background(), []string{"hand", "--instruct", " be terse "})
+	err := cmd.Run(context.Background(), []string{"morph", "--instruct", " be terse "})
 
 	require.NoError(t, err)
 	require.Equal(t, "be terse", cfg.Session.Instruct)
@@ -44,8 +44,8 @@ func TestApplyConfigOverrides_AppliesInstruct(t *testing.T) {
 
 func TestChatFlag_AcceptsLongAndShortForms(t *testing.T) {
 	for _, args := range [][]string{
-		{"hand", "--chat", "hello"},
-		{"hand", "-c", "hello"},
+		{"morph", "--chat", "hello"},
+		{"morph", "-c", "hello"},
 	} {
 		var gotChat bool
 		var gotArgs []string
@@ -75,7 +75,7 @@ func TestApplyConfigOverrides_AppliesPlatformAndCapabilities(t *testing.T) {
 		return nil
 	}
 
-	err := cmd.Run(context.Background(), []string{"hand", "--platform", "cli", "--cap.fs=false", "--cap.browser"})
+	err := cmd.Run(context.Background(), []string{"morph", "--platform", "cli", "--cap.fs=false", "--cap.browser"})
 
 	require.NoError(t, err)
 	cfg.Normalize()
@@ -96,7 +96,7 @@ func TestApplyConfigOverrides_AppliesModelMaxRetries(t *testing.T) {
 		return nil
 	}
 
-	err := cmd.Run(context.Background(), []string{"hand", "--model.max-retries", "0"})
+	err := cmd.Run(context.Background(), []string{"morph", "--model.max-retries", "0"})
 
 	require.NoError(t, err)
 	require.Equal(t, 0, cfg.ModelMaxRetriesEffective())
@@ -112,7 +112,7 @@ func TestApplyConfigOverrides_AppliesLogRotationSettings(t *testing.T) {
 	}
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--log.max-size-mb", "25",
 		"--log.max-backups", "9",
 		"--log.max-age-days", "30",
@@ -136,21 +136,21 @@ func TestApplyConfigOverrides_AppliesGatewaySettings(t *testing.T) {
 	}
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--gateway.enabled",
 		"--gateway.address", " 127.0.0.2 ",
 		"--gateway.port", "7100",
-		"--gateway.auth-token", " HAND_GATEWAY_AUTH_TOKEN ",
+		"--gateway.auth-token", " MORPH_GATEWAY_AUTH_TOKEN ",
 		"--gateway.telegram.enabled",
 		"--gateway.telegram.mode", " WEBHOOK ",
-		"--gateway.telegram.bot-token", " HAND_GATEWAY_TELEGRAM_BOT_TOKEN ",
-		"--gateway.telegram.webhook-secret", " HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET ",
+		"--gateway.telegram.bot-token", " MORPH_GATEWAY_TELEGRAM_BOT_TOKEN ",
+		"--gateway.telegram.webhook-secret", " MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET ",
 		"--gateway.slack.enabled",
 		"--gateway.slack.mode", " HTTP ",
 		"--gateway.slack.response-mode", " MESSAGE ",
-		"--gateway.slack.bot-token", " HAND_GATEWAY_SLACK_BOT_TOKEN ",
-		"--gateway.slack.app-token", " HAND_GATEWAY_SLACK_APP_TOKEN ",
-		"--gateway.slack.signing-secret", " HAND_GATEWAY_SLACK_SIGNING_SECRET ",
+		"--gateway.slack.bot-token", " MORPH_GATEWAY_SLACK_BOT_TOKEN ",
+		"--gateway.slack.app-token", " MORPH_GATEWAY_SLACK_APP_TOKEN ",
+		"--gateway.slack.signing-secret", " MORPH_GATEWAY_SLACK_SIGNING_SECRET ",
 	})
 
 	require.NoError(t, err)
@@ -158,17 +158,17 @@ func TestApplyConfigOverrides_AppliesGatewaySettings(t *testing.T) {
 	require.True(t, cfg.Gateway.Enabled)
 	require.Equal(t, "127.0.0.2", cfg.Gateway.Address)
 	require.Equal(t, 7100, cfg.Gateway.Port)
-	require.Equal(t, "HAND_GATEWAY_AUTH_TOKEN", cfg.Gateway.AuthToken)
+	require.Equal(t, "MORPH_GATEWAY_AUTH_TOKEN", cfg.Gateway.AuthToken)
 	require.True(t, cfg.Gateway.Telegram.Enabled)
 	require.Equal(t, config.GatewayTelegramModeWebhook, cfg.Gateway.Telegram.Mode)
-	require.Equal(t, "HAND_GATEWAY_TELEGRAM_BOT_TOKEN", cfg.Gateway.Telegram.BotToken)
-	require.Equal(t, "HAND_GATEWAY_TELEGRAM_WEBHOOK_SECRET", cfg.Gateway.Telegram.WebhookSecret)
+	require.Equal(t, "MORPH_GATEWAY_TELEGRAM_BOT_TOKEN", cfg.Gateway.Telegram.BotToken)
+	require.Equal(t, "MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET", cfg.Gateway.Telegram.WebhookSecret)
 	require.True(t, cfg.Gateway.Slack.Enabled)
 	require.Equal(t, config.GatewaySlackModeHTTP, cfg.Gateway.Slack.Mode)
 	require.Equal(t, config.GatewaySlackResponseModeMessage, cfg.Gateway.Slack.ResponseMode)
-	require.Equal(t, "HAND_GATEWAY_SLACK_BOT_TOKEN", cfg.Gateway.Slack.BotToken)
-	require.Equal(t, "HAND_GATEWAY_SLACK_APP_TOKEN", cfg.Gateway.Slack.AppToken)
-	require.Equal(t, "HAND_GATEWAY_SLACK_SIGNING_SECRET", cfg.Gateway.Slack.SigningSecret)
+	require.Equal(t, "MORPH_GATEWAY_SLACK_BOT_TOKEN", cfg.Gateway.Slack.BotToken)
+	require.Equal(t, "MORPH_GATEWAY_SLACK_APP_TOKEN", cfg.Gateway.Slack.AppToken)
+	require.Equal(t, "MORPH_GATEWAY_SLACK_SIGNING_SECRET", cfg.Gateway.Slack.SigningSecret)
 }
 
 func TestApplyConfigOverrides_AppliesModelStream(t *testing.T) {
@@ -180,7 +180,7 @@ func TestApplyConfigOverrides_AppliesModelStream(t *testing.T) {
 		return nil
 	}
 
-	err := cmd.Run(context.Background(), []string{"hand", "--model.stream=false"})
+	err := cmd.Run(context.Background(), []string{"morph", "--model.stream=false"})
 
 	require.NoError(t, err)
 	cfg.Normalize()
@@ -196,7 +196,7 @@ func TestApplyConfigOverrides_AppliesTUIThinkingComposer(t *testing.T) {
 		return nil
 	}
 
-	err := cmd.Run(context.Background(), []string{"hand", "--tui.thinking-composer=false"})
+	err := cmd.Run(context.Background(), []string{"morph", "--tui.thinking-composer=false"})
 
 	require.NoError(t, err)
 	cfg.Normalize()
@@ -215,7 +215,7 @@ func TestApplyConfigOverrides_AppliesFilesystemRootsAndExecRules(t *testing.T) {
 	}
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--fs.roots", "./workspace,./nested",
 		"--exec.allow", "git status",
 		"--exec.ask", "git push",
@@ -243,7 +243,7 @@ func TestApplyConfigOverrides_AppliesSessionSettings(t *testing.T) {
 	}
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--storage.backend", "memory",
 		"--memory.backend", "sqlite",
 		"--session.default-idle-expiry", "2h",
@@ -267,7 +267,7 @@ func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
 	}
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--web.provider", " exa ",
 		"--web.key", " web-key ",
 		"--web.base-url", " https://example.test ",

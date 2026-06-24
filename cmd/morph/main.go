@@ -10,32 +10,32 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
-	authcmd "github.com/wandxy/hand/cmd/auth"
-	daemoncmd "github.com/wandxy/hand/cmd/daemon"
-	doctorcmd "github.com/wandxy/hand/cmd/doctor"
-	gatewaycmd "github.com/wandxy/hand/cmd/gateway"
-	configcmd "github.com/wandxy/hand/cmd/hand/configcmd"
-	profilecmd "github.com/wandxy/hand/cmd/profile"
-	sessioncmd "github.com/wandxy/hand/cmd/session"
-	tracecmd "github.com/wandxy/hand/cmd/trace"
-	tuicmd "github.com/wandxy/hand/cmd/tui"
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/profile"
-	"github.com/wandxy/hand/pkg/logutils"
+	authcmd "github.com/wandxy/morph/cmd/auth"
+	daemoncmd "github.com/wandxy/morph/cmd/daemon"
+	doctorcmd "github.com/wandxy/morph/cmd/doctor"
+	gatewaycmd "github.com/wandxy/morph/cmd/gateway"
+	configcmd "github.com/wandxy/morph/cmd/morph/configcmd"
+	profilecmd "github.com/wandxy/morph/cmd/profile"
+	sessioncmd "github.com/wandxy/morph/cmd/session"
+	tracecmd "github.com/wandxy/morph/cmd/trace"
+	tuicmd "github.com/wandxy/morph/cmd/tui"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/profile"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
-var log = logutils.Module("hand")
+var log = logutils.Module("morph")
 
 var (
 	envFile                     = ".env"
 	configFile                  = "config.yaml"
 	rootOutput        io.Writer = os.Stdout
 	runRootTUI                  = tuicmd.Run
-	newRootChatAction           = handcli.NewMainAction
+	newRootChatAction           = morphcli.NewMainAction
 )
 
-const rootHelpTemplate = `HAND_NAME:
+const rootHelpTemplate = `MORPH_NAME:
    {{template "helpNameTemplate" .}}
 
 USAGE:
@@ -58,24 +58,24 @@ GLOBAL OPTIONS:{{template "visibleFlagTemplate" .}}{{end}}
 
 EXAMPLES:
    Start the interactive terminal UI:
-      hand
-      hand --profile work
+      morph
+      morph --profile work
 
    Start the daemon:
-      hand daemon
-      hand --profile work daemon
-      hand profile use work
-      hand --config ./config.yaml --trace.enabled daemon
+      morph daemon
+      morph --profile work daemon
+      morph profile use work
+      morph --config ./config.yaml --trace.enabled daemon
 
    Chat with the agent:
-      hand --chat "summarize the failing tests"
-      hand -c --profile work "continue"
-      hand --chat --session ses_abc123 --instruct "be brief" "continue from the last debugging step"
-      HAND_PROFILE=work hand session list
+      morph --chat "summarize the failing tests"
+      morph -c --profile work "continue"
+      morph --chat --session ses_abc123 --instruct "be brief" "continue from the last debugging step"
+      MORPH_PROFILE=work morph session list
 
    Start the trace viewer:
-      hand trace view
-      hand --config ./config.yaml trace view --listen 127.0.0.1:9090
+      morph trace view
+      morph --config ./config.yaml trace view --listen 127.0.0.1:9090
 {{if .Copyright}}
 
 COPYRIGHT:
@@ -83,7 +83,7 @@ COPYRIGHT:
 `
 
 func main() {
-	logutils.InitLogger("hand")
+	logutils.InitLogger("morph")
 
 	if err := configureProfileDefaults(os.Args); err != nil {
 		log.Fatal().Err(err).Msg("Failed to resolve profile")
@@ -109,15 +109,15 @@ func main() {
 func newCommand() *cli.Command {
 	var cmd *cli.Command
 	cmd = &cli.Command{
-		Name:                          "hand",
-		Usage:                         "Run and manage your Hand daemon",
-		Description:                   handcli.AppDescription,
+		Name:                          "morph",
+		Usage:                         "Run and manage your Morph daemon",
+		Description:                   morphcli.AppDescription,
 		Version:                       formatRootVersion(),
 		CustomRootCommandHelpTemplate: rootHelpTemplate,
 		Flags: append(
-			handcli.RootFlags(&envFile, &configFile),
-			handcli.ChatFlag(),
-			handcli.RequestInstructFlag()),
+			morphcli.RootFlags(&envFile, &configFile),
+			morphcli.ChatFlag(),
+			morphcli.RequestInstructFlag()),
 		Commands: []*cli.Command{
 			authcmd.NewCommand(),
 			newDatabaseCommand(),
@@ -137,7 +137,7 @@ func newCommand() *cli.Command {
 }
 
 func newRootAction() func(context.Context, *cli.Command) error {
-	chatAction := newRootChatAction(handcli.MainActionOptions{
+	chatAction := newRootChatAction(morphcli.MainActionOptions{
 		Output: rootOutput,
 	})
 
@@ -155,7 +155,7 @@ func newRootAction() func(context.Context, *cli.Command) error {
 }
 
 func getEnvFile(args []string) string {
-	if value := strings.TrimSpace(os.Getenv("HAND_ENV_FILE")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("MORPH_ENV_FILE")); value != "" {
 		return value
 	}
 

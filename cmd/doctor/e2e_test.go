@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/pkg/logutils"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -34,7 +34,7 @@ models:
     provider: openrouter
 `), 0o600))
 
-		output, err := runDoctorCommand(t, "hand", "--config", configPath, "doctor")
+		output, err := runDoctorCommand(t, "morph", "--config", configPath, "doctor")
 		require.NoError(t, err)
 		assert.Contains(t, output, "config validation: configuration is valid")
 		assert.Contains(t, output, "doctor checks passed")
@@ -55,7 +55,7 @@ search:
     enabled: false
 `), 0o600))
 
-		output, err := runDoctorCommand(t, "hand", "--config", configPath, "doctor")
+		output, err := runDoctorCommand(t, "morph", "--config", configPath, "doctor")
 		require.ErrorContains(t, err, "model API key is required")
 		assert.Contains(t, output, "config validation")
 		assert.Contains(t, output, "models:")
@@ -77,8 +77,8 @@ func runDoctorCommand(t *testing.T, args ...string) (string, error) {
 	configFile := "config.yaml"
 
 	cmd := &cli.Command{
-		Name:  "hand",
-		Flags: handcli.RootFlags(&envFile, &configFile),
+		Name:  "morph",
+		Flags: morphcli.RootFlags(&envFile, &configFile),
 		Commands: []*cli.Command{
 			NewCommand(),
 		},

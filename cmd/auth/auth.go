@@ -11,12 +11,12 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
-	appcredential "github.com/wandxy/hand/internal/credential"
-	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	_ "github.com/wandxy/hand/internal/model/provider_copilot"
-	"github.com/wandxy/hand/internal/profile"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/config"
+	appcredential "github.com/wandxy/morph/internal/credential"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	_ "github.com/wandxy/morph/internal/model/provider_copilot"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 var (
@@ -56,7 +56,7 @@ func newLoginCommand() *cli.Command {
 		Usage:     "Store credentials for a model or web provider",
 		ArgsUsage: "<provider>",
 		Flags: []cli.Flag{
-			handcli.ProfileFlag(),
+			morphcli.ProfileFlag(),
 			&cli.StringFlag{Name: "api-key", Usage: "Static API key to store"},
 			&cli.StringFlag{Name: "token", Usage: "OAuth or subscription bearer token to store"},
 			&cli.StringFlag{Name: "refresh-token", Usage: "OAuth refresh token to store with --token"},
@@ -92,7 +92,7 @@ func newStatusCommand() *cli.Command {
 		Name:      "status",
 		Usage:     "Show configured provider credential sources",
 		ArgsUsage: "[provider...]",
-		Flags:     []cli.Flag{handcli.ProfileFlag()},
+		Flags:     []cli.Flag{morphcli.ProfileFlag()},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			store, err := getAuthStore(cmd)
 			if err != nil {
@@ -124,7 +124,7 @@ func newLogoutCommand() *cli.Command {
 		Name:      "logout",
 		Usage:     "Remove stored credentials for a model or web provider",
 		ArgsUsage: "<provider>",
-		Flags:     []cli.Flag{handcli.ProfileFlag()},
+		Flags:     []cli.Flag{morphcli.ProfileFlag()},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			provider, err := getAuthProviderArg(cmd)
 			if err != nil {
@@ -153,7 +153,7 @@ func getAuthProviderArg(cmd *cli.Command) (string, error) {
 }
 
 func getAuthStore(cmd *cli.Command) (*appcredential.FileStore, error) {
-	inputs, err := handcli.ResolveConfigInputs(cmd)
+	inputs, err := morphcli.ResolveConfigInputs(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func getLoginCredential(
 }
 
 func loadAuthConfig(cmd *cli.Command) (*config.Config, error) {
-	cfg, _, err := handcli.LoadConfig(cmd)
+	cfg, _, err := morphcli.LoadConfig(cmd)
 	if err != nil {
 		return nil, err
 	}

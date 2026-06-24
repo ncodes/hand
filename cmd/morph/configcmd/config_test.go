@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/profile"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/profile"
 )
 
 func TestCommand_UpdatesSelectedProfileConfig(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearSetConfigEnv(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -28,7 +28,7 @@ func TestCommand_UpdatesSelectedProfileConfig(t *testing.T) {
 	cmd := newTestRootCommand(&output)
 
 	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--profile", "work",
 		"config",
 		"set",
@@ -43,7 +43,7 @@ func TestCommand_UpdatesSelectedProfileConfig(t *testing.T) {
 }
 
 func TestCommand_GetsSelectedProfileConfigValues(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearSetConfigEnv(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -54,7 +54,7 @@ func TestCommand_GetsSelectedProfileConfigValues(t *testing.T) {
 	cmd := newTestRootCommand(&output)
 
 	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"config",
 		"get",
 		"-p", "safety-manual",
@@ -66,7 +66,7 @@ func TestCommand_GetsSelectedProfileConfigValues(t *testing.T) {
 }
 
 func TestCommand_GetsSelectedProfileConfigValuesWithTrailingProfileFlag(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearSetConfigEnv(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -77,7 +77,7 @@ func TestCommand_GetsSelectedProfileConfigValuesWithTrailingProfileFlag(t *testi
 	cmd := newTestRootCommand(&output)
 
 	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"config",
 		"get",
 		"safety.pii",
@@ -88,7 +88,7 @@ func TestCommand_GetsSelectedProfileConfigValuesWithTrailingProfileFlag(t *testi
 }
 
 func TestCommand_GetRejectsUnknownProfile(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearSetConfigEnv(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -96,7 +96,7 @@ func TestCommand_GetRejectsUnknownProfile(t *testing.T) {
 	cmd := newTestRootCommand(nil)
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"config",
 		"get",
 		"--profile", "missing",
@@ -108,13 +108,13 @@ func TestCommand_GetRejectsUnknownProfile(t *testing.T) {
 
 func TestCommand_GetRequiresPath(t *testing.T) {
 	cmd := newTestRootCommand(nil)
-	err := cmd.Run(context.Background(), []string{"hand", "config", "get"})
+	err := cmd.Run(context.Background(), []string{"morph", "config", "get"})
 
 	require.EqualError(t, err, "config path is required")
 }
 
 func TestCommand_UpdatesSelectedProfileConfigWithInlineValueAndLocalProfileFlag(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearSetConfigEnv(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -125,7 +125,7 @@ func TestCommand_UpdatesSelectedProfileConfigWithInlineValueAndLocalProfileFlag(
 	cmd := newTestRootCommand(&output)
 
 	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"config",
 		"set",
 		"-p", "safety-manual",
@@ -140,7 +140,7 @@ func TestCommand_UpdatesSelectedProfileConfigWithInlineValueAndLocalProfileFlag(
 }
 
 func TestCommand_SetRejectsUnknownProfile(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearSetConfigEnv(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -148,7 +148,7 @@ func TestCommand_SetRejectsUnknownProfile(t *testing.T) {
 	cmd := newTestRootCommand(nil)
 
 	err := cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"config",
 		"set",
 		"-p", "missing",
@@ -159,7 +159,7 @@ func TestCommand_SetRejectsUnknownProfile(t *testing.T) {
 }
 
 func TestCommand_UpdatesMultipleSelectedProfileConfigValues(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearSetConfigEnv(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -170,7 +170,7 @@ func TestCommand_UpdatesMultipleSelectedProfileConfigValues(t *testing.T) {
 	cmd := newTestRootCommand(&output)
 
 	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--profile", "work",
 		"config",
 		"set",
@@ -187,7 +187,7 @@ func TestCommand_UpdatesMultipleSelectedProfileConfigValues(t *testing.T) {
 }
 
 func TestCommand_UpdatesMultipleSelectedProfileConfigValuesWithSpacedPairs(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
+	clearSetConfigEnv(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -198,7 +198,7 @@ func TestCommand_UpdatesMultipleSelectedProfileConfigValuesWithSpacedPairs(t *te
 	cmd := newTestRootCommand(&output)
 
 	require.NoError(t, cmd.Run(context.Background(), []string{
-		"hand",
+		"morph",
 		"--profile", "work",
 		"config",
 		"set",
@@ -216,7 +216,7 @@ func TestCommand_UpdatesMultipleSelectedProfileConfigValuesWithSpacedPairs(t *te
 
 func TestCommand_RequiresPathAndValue(t *testing.T) {
 	cmd := newTestRootCommand(nil)
-	err := cmd.Run(context.Background(), []string{"hand", "config", "set", "search.enableRerank"})
+	err := cmd.Run(context.Background(), []string{"morph", "config", "set", "search.enableRerank"})
 
 	require.EqualError(t, err, "config path and value are required")
 }
@@ -225,8 +225,8 @@ func newTestRootCommand(output io.Writer) *cli.Command {
 	envFile := ".env"
 	configFile := "config.yaml"
 	return &cli.Command{
-		Name:     "hand",
-		Flags:    handcli.RootFlags(&envFile, &configFile),
+		Name:     "morph",
+		Flags:    morphcli.RootFlags(&envFile, &configFile),
 		Commands: []*cli.Command{NewCommand(output)},
 	}
 }
@@ -263,7 +263,7 @@ func resetSetConfigProfileState(t *testing.T) {
 func writeCommandProfileConfig(t *testing.T, home string, name string) string {
 	t.Helper()
 
-	profileHome := filepath.Join(home, ".hand", "profiles", name)
+	profileHome := filepath.Join(home, ".morph", "profiles", name)
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
 	configPath := filepath.Join(profileHome, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`

@@ -9,8 +9,8 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
-	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/datadir"
+	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/datadir"
 )
 
 func newDatabaseCommand() *cli.Command {
@@ -38,13 +38,13 @@ func resetConfiguredDatabase(_ context.Context, cmd *cli.Command) error {
 		return errors.New("database reset requires --force")
 	}
 
-	cfg, inputs, err := handcli.LoadConfig(cmd)
+	cfg, inputs, err := morphcli.LoadConfig(cmd)
 	if err != nil {
 		return err
 	}
 
-	handcli.ApplyConfigOverrides(cmd, cfg)
-	handcli.AddStartupFilesystemRoots(cfg, inputs)
+	morphcli.ApplyConfigOverrides(cmd, cfg)
+	morphcli.AddStartupFilesystemRoots(cfg, inputs)
 
 	if strings.TrimSpace(strings.ToLower(cfg.Storage.Backend)) != "sqlite" {
 		return errors.New("database reset requires sqlite storage backend")

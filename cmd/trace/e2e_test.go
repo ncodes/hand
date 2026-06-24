@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/e2e"
-	models "github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/morph/internal/e2e"
+	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func init() {
@@ -21,7 +21,7 @@ func init() {
 }
 
 func Test_E2E_TraceCommand_GeneratedTracesAreReadable(t *testing.T) {
-	home := filepath.Join(t.TempDir(), "hand-home")
+	home := filepath.Join(t.TempDir(), "morph-home")
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
 	cfg.Trace.Enabled = true
 
