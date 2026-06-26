@@ -9,6 +9,7 @@ import (
 const (
 	APIOpenAICompletions = "openai-completions"
 	APIOpenAIResponses   = "openai-responses"
+	APIOllamaNative      = "ollama-native"
 	APIAnthropicMessages = "anthropic-messages"
 )
 
@@ -36,6 +37,7 @@ type Request struct {
 	Messages         []message.Message
 	Tools            []ToolDefinition
 	StructuredOutput *StructuredOutput
+	ContextLength    int
 	MaxOutputTokens  int64
 	Temperature      float64
 	DebugRequests    bool

@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -14,6 +15,20 @@ import (
 	provider_anthropic "github.com/wandxy/morph/internal/model/provider_anthropic"
 	provider_openai "github.com/wandxy/morph/internal/model/provider_openai"
 )
+
+type stubClient struct{}
+
+func (stubClient) Complete(context.Context, models.Request) (*models.Response, error) {
+	return &models.Response{}, nil
+}
+
+func (stubClient) CompleteStream(
+	context.Context,
+	models.Request,
+	func(models.StreamDelta),
+) (*models.Response, error) {
+	return &models.Response{}, nil
+}
 
 func TestClientFactory_ResolveUsesRegistryDefaults(t *testing.T) {
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
@@ -260,6 +275,29 @@ func TestClientFactory_NewClientBuildsAnthropicClient(t *testing.T) {
 	require.Equal(t, 3, capturedOptions)
 }
 
+func TestClientFactory_NewClientBuildsOllamaClient(t *testing.T) {
+	var capturedBaseURL string
+	var capturedHeaders map[string]string
+	factory := NewClientFactory(modelprovider.DefaultRegistry())
+	factory.OllamaClient = func(baseURL string, headers map[string]string) (models.Client, error) {
+		capturedBaseURL = baseURL
+		capturedHeaders = headers
+		return stubClient{}, nil
+	}
+
+	client, err := factory.NewClient(ClientRequest{
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaNative,
+		BaseURL:  "http://127.0.0.1:11434",
+		Headers:  map[string]string{"x-test": "value"},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	require.Equal(t, "http://127.0.0.1:11434", capturedBaseURL)
+	require.Equal(t, map[string]string{"x-test": "value"}, capturedHeaders)
+}
+
 func TestClientFactory_NewClientBuildsAnthropicOAuthClientWithoutAPIKey(t *testing.T) {
 	var capturedKey string
 	var capturedOptions int
@@ -440,6 +478,28 @@ func TestClientFactory_NewClientReturnsBuilderError(t *testing.T) {
 	})
 
 	require.EqualError(t, err, "build failed")
+}
+
+func TestClientFactory_NewClientReturnsOllamaBuilderError(t *testing.T) {
+	factory := NewClientFactory(modelprovider.DefaultRegistry())
+	factory.OllamaClient = func(string, map[string]string) (models.Client, error) {
+		return nil, errors.New("ollama build failed")
+	}
+
+	_, err := factory.NewClient(ClientRequest{Provider: constants.ModelProviderOllama})
+
+	require.EqualError(t, err, "ollama build failed")
+}
+
+func TestClientFactory_NewClientRejectsNilOllamaClient(t *testing.T) {
+	factory := NewClientFactory(modelprovider.DefaultRegistry())
+	factory.OllamaClient = func(string, map[string]string) (models.Client, error) {
+		return nil, nil
+	}
+
+	_, err := factory.NewClient(ClientRequest{Provider: constants.ModelProviderOllama})
+
+	require.EqualError(t, err, "model client is required")
 }
 
 func TestClientFactory_NewClientRejectsNilBuiltClient(t *testing.T) {

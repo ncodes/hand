@@ -43,17 +43,17 @@ The first milestone is a reliable Ollama path that can be configured, discovered
 
 ## Phase 1 - Ollama MVP
 
-- [ ] Add an Ollama provider entry with defaults:
-  - [ ] Provider id: `ollama`.
-  - [ ] Default base URL: `http://127.0.0.1:11434`.
-  - [ ] Default auth marker: `ollama-local`.
-  - [ ] Default suggested model: pick one small, broadly available model.
-- [ ] Implement Ollama discovery:
-  - [ ] Query `GET /api/tags`.
-  - [ ] Query `POST /api/show` for context length when available.
-  - [ ] Convert discovered models into Morph model metadata.
-  - [ ] Mark cost as zero/unknown local cost.
-  - [ ] Infer reasoning capability conservatively from known model names only.
+- [x] Add an Ollama provider entry with defaults:
+  - [x] Provider id: `ollama`.
+  - [x] Default base URL: `http://127.0.0.1:11434`.
+  - [x] Default auth marker: `ollama-local`.
+  - [x] Default suggested model: pick one small, broadly available model.
+- [x] Implement Ollama discovery:
+  - [x] Query `GET /api/tags`.
+  - [x] Query `POST /api/show` for context length when available.
+  - [x] Convert discovered models into Morph model metadata.
+  - [x] Mark cost as zero/unknown local cost.
+  - [x] Infer reasoning capability conservatively from known model names only.
 - [ ] Implement Ollama onboarding/config:
   - [ ] Prompt for base URL.
   - [ ] Validate reachability.
@@ -61,25 +61,25 @@ The first milestone is a reliable Ollama path that can be configured, discovered
   - [ ] Offer to pull the selected model when missing.
   - [ ] Persist the selected default model.
 - [ ] Implement non-interactive setup:
-  - [ ] `--provider ollama`.
-  - [ ] `--base-url`.
-  - [ ] `--model`.
+  - [x] `--provider ollama`.
+  - [x] `--base-url`.
+  - [x] `--model`.
   - [ ] `--pull-missing`.
-- [ ] Add runtime execution:
-  - [ ] Convert Morph messages to Ollama `/api/chat` messages.
-  - [ ] Convert tool definitions to Ollama tool schema.
-  - [ ] Parse streaming NDJSON.
-  - [ ] Accumulate streamed text and tool calls.
-  - [ ] Convert Ollama tool calls back into Morph tool invocation events.
-  - [ ] Respect cancellation.
-  - [ ] Preserve usage metadata when Ollama returns token counts.
+- [x] Add runtime execution:
+  - [x] Convert Morph messages to Ollama `/api/chat` messages.
+  - [x] Convert tool definitions to Ollama tool schema.
+  - [x] Parse streaming NDJSON.
+  - [x] Accumulate streamed text and tool calls.
+  - [x] Convert Ollama tool calls back into Morph tool invocation events.
+  - [x] Respect cancellation.
+  - [x] Preserve usage metadata when Ollama returns token counts.
 - [ ] Add compatibility switches:
-  - [ ] Native Ollama mode by default.
-  - [ ] Optional OpenAI-compatible mode for proxies that only expose `/v1/chat/completions`.
+  - [x] Native Ollama mode by default.
+  - [x] Optional OpenAI-compatible mode for proxies that only expose `/v1/chat/completions`.
   - [ ] Optional `num_ctx` injection for OpenAI-compatible Ollama mode.
 - [ ] Add user-facing diagnostics:
-  - [ ] Ollama not running.
-  - [ ] Base URL points at `/v1` while native mode is selected.
+  - [x] Ollama not running.
+  - [x] Base URL points at `/v1` while native mode is selected.
   - [ ] Model not pulled.
   - [ ] Tool calling failed or returned raw tool JSON.
   - [ ] Context too small.
@@ -202,20 +202,20 @@ The first milestone is a reliable Ollama path that can be configured, discovered
 
 - [ ] Unit tests:
   - [x] Provider id/model ref parsing.
-  - [ ] Ollama API base URL normalization.
-  - [ ] `/api/tags` discovery.
-  - [ ] `/api/show` context extraction.
-  - [ ] Native Ollama message conversion.
-  - [ ] Native Ollama tool conversion.
-  - [ ] NDJSON stream parsing.
+  - [x] Ollama API base URL normalization.
+  - [x] `/api/tags` discovery.
+  - [x] `/api/show` context extraction.
+  - [x] Native Ollama message conversion.
+  - [x] Native Ollama tool conversion.
+  - [x] NDJSON stream parsing.
   - [x] OpenAI-compatible local provider config.
-  - [ ] Diagnostic messages.
+  - [x] Diagnostic messages.
 - [ ] Integration tests with mocked local servers:
-  - [ ] Ollama reachable with no models.
-  - [ ] Ollama with one model.
+  - [x] Ollama reachable with no models.
+  - [x] Ollama with one model.
   - [ ] Ollama missing model pull path.
-  - [ ] Ollama streaming text.
-  - [ ] Ollama streaming tool calls.
+  - [x] Ollama streaming text.
+  - [x] Ollama streaming tool calls.
   - [ ] vLLM `/models` discovery.
   - [ ] Custom endpoint with failed discovery but explicit model.
 - [ ] Optional live tests guarded by env:

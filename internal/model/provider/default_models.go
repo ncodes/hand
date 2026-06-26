@@ -68,6 +68,8 @@ func defaultModels() []ModelDefinition {
 		openAICodexModel("gpt-5.4-mini", "GPT-5.4 mini", []InputKind{InputText, InputImage}, 272000, 128000),
 		displayDefaultModel(openAICodexModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 272000, 128000)),
 
+		displayDefaultModel(ollamaModel(constants.DefaultOllamaModel, "Gemma 4 8B", []InputKind{InputText}, 131072, 0)),
+
 		// GitHub Copilot models
 		gitHubCopilotAnthropicModel("claude-haiku-4.5", "Claude Haiku 4.5", []InputKind{InputText, InputImage}, 144000, 32000),
 		gitHubCopilotAnthropicModel("claude-opus-4.5", "Claude Opus 4.5", []InputKind{InputText, InputImage}, 160000, 32000),
@@ -454,6 +456,26 @@ func openAICodexModel(
 		Input:         input,
 		Reasoning:     true,
 		SupportsOAuth: true,
+		ContextWindow: contextWindow,
+		MaxTokens:     maxTokens,
+	}
+}
+
+func ollamaModel(
+	id string,
+	name string,
+	input []InputKind,
+	contextWindow int,
+	maxTokens int,
+) ModelDefinition {
+	return ModelDefinition{
+		ID:            id,
+		Name:          name,
+		Owner:         constants.ModelProviderOllama,
+		Provider:      constants.ModelProviderOllama,
+		API:           APIOllamaNative,
+		Input:         input,
+		SupportsTools: true,
 		ContextWindow: contextWindow,
 		MaxTokens:     maxTokens,
 	}

@@ -102,9 +102,27 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 	require.Equal(t, []string{"COPILOT_GITHUB_TOKEN"}, copilot.APIKeyEnv)
 	require.True(t, copilot.SupportsOAuth)
 
+	ollama, ok := registry.GetProvider(constants.ModelProviderOllama)
+	require.True(t, ok)
+	require.Equal(t, APIOllamaNative, ollama.DefaultAPI)
+	require.True(t, ollama.HasDisplayIndex)
+	require.Equal(t, 4, ollama.DisplayIndex)
+	require.Equal(t, constants.DefaultOllamaBaseURL, registry.GetBaseURL("ollama", ""))
+	require.Equal(t, constants.DefaultOllamaBaseURL+"/v1", registry.GetBaseURL("ollama", APIOpenAICompletions))
+	require.Equal(t, constants.DefaultOllamaBaseURL, registry.GetBaseURL("ollama", APIOllamaNative))
+	require.Equal(t, constants.DefaultOllamaBaseURL, registry.GetBaseURL("ollama", APIOllamaEmbeddings))
+	require.NotNil(t, ollama.Local)
+	require.Equal(t, constants.OllamaLocalAuthMarker, ollama.Local.AuthMarker)
+	require.Equal(t, APIOllamaNative, ollama.Local.NativeChatAPI)
+	require.Equal(t, APIOllamaEmbeddings, ollama.Local.EmbeddingsAPI)
+	require.Equal(t, []string{APIOpenAICompletions}, ollama.Local.OpenAICompatibleChatAPIs)
+	require.True(t, ollama.Local.Capabilities.Tools)
+	require.True(t, ollama.Local.Capabilities.Vision)
+
 	require.ElementsMatch(t, []string{
 		constants.ModelProviderAnthropic,
 		constants.ModelProviderGitHubCopilot,
+		constants.ModelProviderOllama,
 		constants.ModelProviderOpenAI,
 		constants.ModelProviderOpenAICodex,
 		constants.ModelProviderOpenRouter,
@@ -152,6 +170,15 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 		_, ok = registry.GetModel("openai-codex", modelID)
 		require.False(t, ok, modelID)
 	}
+
+	ollamaModel, ok := registry.GetModel(constants.ModelProviderOllama, constants.DefaultOllamaModel)
+	require.True(t, ok)
+	require.Equal(t, constants.ModelProviderOllama, ollamaModel.Owner)
+	require.Equal(t, APIOllamaNative, ollamaModel.API)
+	require.Equal(t, []InputKind{InputText}, ollamaModel.Input)
+	require.True(t, ollamaModel.SupportsTools)
+	require.True(t, ollamaModel.DisplayDefault)
+	require.Equal(t, 131072, ollamaModel.ContextWindow)
 
 	copilotResponsesModel, ok := registry.GetModel("github-copilot", "gpt-5.4-mini")
 	require.True(t, ok)

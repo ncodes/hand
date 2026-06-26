@@ -55,7 +55,12 @@ func TestAgent_StartRespondAndCloseLifecycle(t *testing.T) {
 	core := NewAgent(context.Background(), &config.Config{
 		Platform: storage.SessionOriginSourceCLI,
 		Models: config.ModelsConfig{
-			Main: config.MainModelConfig{Name: "model", API: models.APIOpenAIResponses, Stream: &stream},
+			Main: config.MainModelConfig{
+				Name:          "model",
+				API:           models.APIOpenAIResponses,
+				ContextLength: 8192,
+				Stream:        &stream,
+			},
 		},
 	}, client)
 
@@ -65,6 +70,8 @@ func TestAgent_StartRespondAndCloseLifecycle(t *testing.T) {
 	reply, err := core.Respond(context.Background(), "hi", agentcore.RespondOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "hello", reply)
+	require.Len(t, client.Requests, 1)
+	require.Equal(t, 8192, client.Requests[0].ContextLength)
 	require.Len(t, core.TurnMessages(), 2)
 	require.Len(t, env.TraceRunContexts, 1)
 	require.Equal(t, storage.DefaultSessionID, env.TraceRunContexts[0].Session.PublicID)

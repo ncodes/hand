@@ -13,6 +13,8 @@ const (
 	DefaultProfileSummaryModel = DefaultModel
 	// DefaultProfileEmbeddingModel is the starter profile embedding model identifier.
 	DefaultProfileEmbeddingModel = "text-embedding-3-small"
+	// DefaultOllamaModel is the suggested starter model for local Ollama setup.
+	DefaultOllamaModel = "gemma4:latest"
 	// DefaultModelProvider is the fallback model provider.
 	DefaultModelProvider = "openrouter"
 	// ModelProviderOpenRouter identifies OpenRouter-backed model access.

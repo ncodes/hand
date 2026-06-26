@@ -15,6 +15,7 @@ import (
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	provider_anthropic "github.com/wandxy/morph/internal/model/provider_anthropic"
 	_ "github.com/wandxy/morph/internal/model/provider_copilot"
+	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
 	provider_openai "github.com/wandxy/morph/internal/model/provider_openai"
 )
 
@@ -63,11 +64,15 @@ type OpenAIClientBuilder func(string, string, string, *modelprovider.Registry, .
 // AnthropicClientBuilder constructs an Anthropic Messages model client.
 type AnthropicClientBuilder func(string, ...anthropicoption.RequestOption) (models.Client, error)
 
+// OllamaClientBuilder constructs a native Ollama model client.
+type OllamaClientBuilder func(string, map[string]string) (models.Client, error)
+
 // ClientFactory constructs model clients from registry-backed provider definitions.
 type ClientFactory struct {
 	Registry        *modelprovider.Registry
 	OpenAIClient    OpenAIClientBuilder
 	AnthropicClient AnthropicClientBuilder
+	OllamaClient    OllamaClientBuilder
 	mu              sync.Mutex
 	clients         map[string]models.Client
 }
@@ -82,6 +87,7 @@ func NewClientFactory(registry *modelprovider.Registry) *ClientFactory {
 		Registry:        registry,
 		OpenAIClient:    newOpenAIClient,
 		AnthropicClient: newAnthropicClient,
+		OllamaClient:    newOllamaClient,
 		clients:         make(map[string]models.Client),
 	}
 }
@@ -158,6 +164,8 @@ func (f *ClientFactory) NewClient(req ClientRequest) (models.Client, error) {
 		return f.cachedClient(resolved)
 	case modelprovider.APIAnthropicMessages:
 		return f.cachedClient(resolved)
+	case modelprovider.APIOllamaNative:
+		return f.cachedClient(resolved)
 	default:
 		return nil, fmt.Errorf("model API %q is not supported for chat clients", resolved.API.ID)
 	}
@@ -204,6 +212,8 @@ func (f *ClientFactory) newClient(req ResolvedClientRequest) (models.Client, err
 		return f.newOpenAIClient(req)
 	case modelprovider.APIAnthropicMessages:
 		return f.newAnthropicClient(req)
+	case modelprovider.APIOllamaNative:
+		return f.newOllamaClient(req)
 	default:
 		return nil, fmt.Errorf("model API %q is not supported for chat clients", req.API.ID)
 	}
@@ -268,6 +278,23 @@ func (f *ClientFactory) newAnthropicClient(req ResolvedClientRequest) (models.Cl
 			req.Provider.ID == constants.ModelProviderAnthropic &&
 				hasHeader(req.Headers, "Authorization"),
 		)
+	}
+
+	return client, nil
+}
+
+func (f *ClientFactory) newOllamaClient(req ResolvedClientRequest) (models.Client, error) {
+	builder := newOllamaClient
+	if f != nil && f.OllamaClient != nil {
+		builder = f.OllamaClient
+	}
+
+	client, err := builder(req.BaseURL, req.Headers)
+	if err != nil {
+		return nil, err
+	}
+	if client == nil {
+		return nil, errors.New("model client is required")
 	}
 
 	return client, nil
@@ -357,4 +384,8 @@ func newOpenAIClient(
 
 func newAnthropicClient(apiKey string, opts ...anthropicoption.RequestOption) (models.Client, error) {
 	return provider_anthropic.NewAnthropicClient(apiKey, opts...)
+}
+
+func newOllamaClient(baseURL string, headers map[string]string) (models.Client, error) {
+	return provider_ollama.NewOllamaClient(baseURL, headers)
 }

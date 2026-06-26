@@ -937,7 +937,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	_, err = (&Config{
 		Models: ModelsConfig{Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}}, Embedding: EmbeddingModelConfig{Provider: "test"}},
 	}).ResolveEmbeddingModelAuth()
-	require.EqualError(t, err, "embedding provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
+	require.EqualError(t, err, "embedding provider must be one of: anthropic, github-copilot, ollama, openai, openai-codex, openrouter")
 }
 
 func TestConfig_ResolveEmbeddingModelAuthUsesRegistryModelAPIAndCustomProvider(t *testing.T) {
@@ -1275,7 +1275,7 @@ func TestModelProviders_CoverDayOneProviderBaseURLs(t *testing.T) {
 	require.True(t, hasModelProvider("anthropic"))
 	require.True(t, hasModelProvider("github-copilot"))
 	require.True(t, hasModelProvider("openai-codex"))
-	require.Equal(t, "anthropic, github-copilot, openai, openai-codex, openrouter", getModelProviderList())
+	require.Equal(t, "anthropic, github-copilot, ollama, openai, openai-codex, openrouter", getModelProviderList())
 	openai, ok := modelRegistry.GetProvider("openai")
 	require.True(t, ok)
 	require.Equal(t, "openai", openai.ID)

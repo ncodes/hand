@@ -23,10 +23,11 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value: config.Get().Name,
 		},
 		&cli.StringFlag{
-			Name:   "model.provider",
-			Usage:  "Model provider: openrouter (default) or openai",
-			Value:  config.Get().Models.Main.Provider,
-			Hidden: true,
+			Name:    "model.provider",
+			Aliases: []string{"provider"},
+			Usage:   "Model provider: openrouter (default), openai, anthropic, or ollama",
+			Value:   config.Get().Models.Main.Provider,
+			Hidden:  true,
 		},
 		&cli.StringFlag{
 			Name:   "model.api-key",
@@ -49,10 +50,11 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value: config.Get().StreamEnabled(),
 		},
 		&cli.StringFlag{
-			Name:   "model.base-url",
-			Usage:  "Base URL for the model provider API",
-			Value:  config.Get().Models.Main.BaseURL,
-			Hidden: true,
+			Name:    "model.base-url",
+			Aliases: []string{"base-url"},
+			Usage:   "Base URL for the model provider API",
+			Value:   config.Get().Models.Main.BaseURL,
+			Hidden:  true,
 		},
 		&cli.StringFlag{
 			Name:   "model.summary-provider",
@@ -546,7 +548,17 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		cfg.Models.Main.Stream = new(cmd.Bool("model.stream"))
 	}
 	if cmd.IsSet("model.provider") {
+		previousProvider := strings.TrimSpace(strings.ToLower(cfg.Models.Main.Provider))
 		cfg.Models.Main.Provider = strings.TrimSpace(cmd.String("model.provider"))
+		nextProvider := strings.TrimSpace(strings.ToLower(cfg.Models.Main.Provider))
+		if nextProvider != "" && nextProvider != previousProvider {
+			if !cmd.IsSet("model.api") {
+				cfg.Models.Main.API = ""
+			}
+			if !cmd.IsSet("model.base-url") {
+				cfg.Models.Main.BaseURL = ""
+			}
+		}
 	}
 	if cmd.IsSet("model.api-key") {
 		provider := strings.TrimSpace(strings.ToLower(cfg.Models.Main.Provider))

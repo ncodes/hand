@@ -10,6 +10,8 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 func TestApplyConfigOverrides_AppliesRulesFiles(t *testing.T) {
@@ -100,6 +102,63 @@ func TestApplyConfigOverrides_AppliesModelMaxRetries(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 0, cfg.ModelMaxRetriesEffective())
+}
+
+func TestApplyConfigOverrides_ProviderSwitchResolvesProviderDefaults(t *testing.T) {
+	cfg := &config.Config{
+		Models: config.ModelsConfig{
+			Main: config.MainModelConfig{
+				Provider: constants.ModelProviderOpenRouter,
+				API:      modelprovider.APIOpenAIResponses,
+				BaseURL:  constants.DefaultOpenRouterResponsesBaseURL,
+			},
+		},
+	}
+	var cmd *cli.Command
+	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd.Action = func(context.Context, *cli.Command) error {
+		ApplyConfigOverrides(cmd, cfg)
+		return nil
+	}
+
+	err := cmd.Run(context.Background(), []string{"morph", "--provider", "ollama"})
+
+	require.NoError(t, err)
+	cfg.Normalize()
+	require.Equal(t, constants.ModelProviderOllama, cfg.Models.Main.Provider)
+	require.Equal(t, modelprovider.APIOllamaNative, cfg.Models.Main.API)
+	require.Equal(t, constants.DefaultOllamaBaseURL, cfg.Models.Main.BaseURL)
+}
+
+func TestApplyConfigOverrides_ProviderSwitchKeepsExplicitAPIAndBaseURL(t *testing.T) {
+	cfg := &config.Config{
+		Models: config.ModelsConfig{
+			Main: config.MainModelConfig{
+				Provider: constants.ModelProviderOpenRouter,
+				API:      modelprovider.APIOpenAIResponses,
+				BaseURL:  constants.DefaultOpenRouterResponsesBaseURL,
+			},
+		},
+	}
+	var cmd *cli.Command
+	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd.Action = func(context.Context, *cli.Command) error {
+		ApplyConfigOverrides(cmd, cfg)
+		return nil
+	}
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--provider", "ollama",
+		"--model.api", modelprovider.APIOpenAICompletions,
+		"--base-url", constants.DefaultOllamaBaseURL + "/v1",
+	})
+
+	require.NoError(t, err)
+	cfg.Normalize()
+	require.Equal(t, constants.ModelProviderOllama, cfg.Models.Main.Provider)
+	require.Equal(t, modelprovider.APIOpenAICompletions, cfg.Models.Main.API)
+	require.Equal(t, constants.DefaultOllamaBaseURL+"/v1", cfg.Models.Main.BaseURL)
 }
 
 func TestApplyConfigOverrides_AppliesLogRotationSettings(t *testing.T) {

@@ -1,0 +1,220 @@
+package provider_ollama
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+)
+
+type Discoverer struct {
+	baseURL    string
+	httpClient httpDoer
+}
+
+type tagsResponse struct {
+	Models []tagModel `json:"models"`
+}
+
+type tagModel struct {
+	Name    string       `json:"name"`
+	Model   string       `json:"model"`
+	Details modelDetails `json:"details"`
+}
+
+type modelDetails struct {
+	Family string `json:"family"`
+}
+
+type showResponse struct {
+	ModelInfo    map[string]any `json:"model_info"`
+	Capabilities []string       `json:"capabilities"`
+}
+
+func NewDiscoverer(baseURL string) (*Discoverer, error) {
+	return newDiscoverer(baseURL, http.DefaultClient)
+}
+
+func newDiscoverer(baseURL string, httpClient httpDoer) (*Discoverer, error) {
+	normalizedBaseURL, err := normalizeBaseURL(baseURL)
+	if err != nil {
+		return nil, err
+	}
+	if httpClient == nil {
+		return nil, fmt.Errorf("ollama HTTP client is required")
+	}
+
+	return &Discoverer{baseURL: normalizedBaseURL, httpClient: httpClient}, nil
+}
+
+func (d *Discoverer) DiscoverModels(ctx context.Context) ([]modelprovider.ModelDefinition, error) {
+	if d == nil {
+		return nil, fmt.Errorf("ollama discoverer is required")
+	}
+
+	tags, err := d.fetchTags(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	models := make([]modelprovider.ModelDefinition, 0, len(tags.Models))
+	for _, tag := range tags.Models {
+		modelID := getTagModelID(tag)
+		if modelID == "" {
+			continue
+		}
+
+		show, _ := d.fetchShow(ctx, modelID)
+		models = append(models, modelDefinitionFromOllamaModel(tag, show))
+	}
+
+	return models, nil
+}
+
+func (d *Discoverer) fetchTags(ctx context.Context) (tagsResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, d.baseURL+"/api/tags", nil)
+	if err != nil {
+		return tagsResponse{}, err
+	}
+
+	resp, err := d.httpClient.Do(req)
+	if err != nil {
+		return tagsResponse{}, enrichOllamaConnectionError(d.baseURL, err)
+	}
+	defer resp.Body.Close()
+
+	var tags tagsResponse
+	if err := decodeOllamaResponse(resp, &tags); err != nil {
+		return tagsResponse{}, err
+	}
+
+	return tags, nil
+}
+
+func (d *Discoverer) fetchShow(ctx context.Context, model string) (showResponse, error) {
+	body := strings.NewReader(`{"model":` + strconv.Quote(model) + `}`)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.baseURL+"/api/show", body)
+	if err != nil {
+		return showResponse{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := d.httpClient.Do(req)
+	if err != nil {
+		return showResponse{}, enrichOllamaConnectionError(d.baseURL, err)
+	}
+	defer resp.Body.Close()
+
+	var show showResponse
+	if err := decodeOllamaResponse(resp, &show); err != nil {
+		return showResponse{}, err
+	}
+
+	return show, nil
+}
+
+func modelDefinitionFromOllamaModel(tag tagModel, show showResponse) modelprovider.ModelDefinition {
+	modelID := getTagModelID(tag)
+	return modelprovider.ModelDefinition{
+		ID:            modelID,
+		Name:          getOllamaModelDisplayName(modelID),
+		Owner:         constants.ModelProviderOllama,
+		Provider:      constants.ModelProviderOllama,
+		API:           modelprovider.APIOllamaNative,
+		Input:         getOllamaModelInputs(show),
+		Reasoning:     isOllamaReasoningModel(modelID),
+		SupportsTools: hasOllamaCapability(show, "tools"),
+		ContextWindow: getOllamaContextWindow(show),
+	}
+}
+
+func getTagModelID(tag tagModel) string {
+	if model := strings.TrimSpace(tag.Model); model != "" {
+		return model
+	}
+
+	return strings.TrimSpace(tag.Name)
+}
+
+func getOllamaModelDisplayName(modelID string) string {
+	modelID = strings.TrimSpace(modelID)
+	if modelID == "" {
+		return ""
+	}
+
+	name, _, _ := strings.Cut(modelID, ":")
+	return strings.TrimSpace(name)
+}
+
+func getOllamaModelInputs(show showResponse) []modelprovider.InputKind {
+	inputs := []modelprovider.InputKind{modelprovider.InputText}
+	if hasOllamaCapability(show, "vision") {
+		inputs = append(inputs, modelprovider.InputImage)
+	}
+
+	return inputs
+}
+
+func getOllamaContextWindow(show showResponse) int {
+	for key, value := range show.ModelInfo {
+		key = strings.ToLower(strings.TrimSpace(key))
+		if key != "context_length" && !strings.HasSuffix(key, ".context_length") {
+			continue
+		}
+		if contextWindow := numberToInt(value); contextWindow > 0 {
+			return contextWindow
+		}
+	}
+
+	return 0
+}
+
+func numberToInt(value any) int {
+	switch typed := value.(type) {
+	case float64:
+		return int(typed)
+	case int:
+		return typed
+	case json.Number:
+		converted, _ := typed.Int64()
+		return int(converted)
+	default:
+		return 0
+	}
+}
+
+func hasOllamaCapability(show showResponse, capability string) bool {
+	capability = strings.ToLower(strings.TrimSpace(capability))
+	if capability == "" {
+		return false
+	}
+
+	for _, value := range show.Capabilities {
+		if strings.ToLower(strings.TrimSpace(value)) == capability {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isOllamaReasoningModel(modelID string) bool {
+	modelID = strings.ToLower(strings.TrimSpace(modelID))
+	for _, marker := range []string{
+		"deepseek-r1",
+		"qwen3",
+		"qwq",
+		"thinking",
+	} {
+		if strings.Contains(modelID, marker) {
+			return true
+		}
+	}
+
+	return false
+}

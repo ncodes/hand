@@ -560,6 +560,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 				Instructions:  t.buildRequestInstructions(availableToolDefinitions),
 				Messages:      t.Context(),
 				Tools:         availableToolDefinitions,
+				ContextLength: t.cfg.Models.Main.ContextLength,
 				DebugRequests: t.cfg.Debug.Requests,
 			}
 
@@ -1183,6 +1184,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 		Instructions:  t.buildRequestInstructions(nil, instruct.BuildSummary(budget.Remaining())),
 		Messages:      t.Context(),
 		Tools:         nil,
+		ContextLength: t.cfg.Models.Main.ContextLength,
 		DebugRequests: t.cfg.Debug.Requests,
 	}
 

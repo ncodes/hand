@@ -474,5 +474,27 @@ func defaultProviders() []ProviderDefinition {
 				APIAnthropicMessages: constants.DefaultGitHubCopilotBaseURL,
 			},
 		},
+		{
+			ID:              constants.ModelProviderOllama,
+			DisplayName:     "Ollama",
+			DisplayIndex:    4,
+			HasDisplayIndex: true,
+			DefaultAPI:      APIOllamaNative,
+			SupportsModels:  true,
+			BaseURLs: map[string]string{
+				APIOpenAICompletions: constants.DefaultOllamaBaseURL + "/v1",
+				APIOllamaNative:      constants.DefaultOllamaBaseURL,
+				APIOllamaEmbeddings:  constants.DefaultOllamaBaseURL,
+			},
+			Local: &LocalProviderDefinition{
+				NativeChatAPI: APIOllamaNative,
+				OpenAICompatibleChatAPIs: []string{
+					APIOpenAICompletions,
+				},
+				EmbeddingsAPI: APIOllamaEmbeddings,
+				AuthMarker:    constants.OllamaLocalAuthMarker,
+				Capabilities:  CapabilitySet{Tools: true, Vision: true},
+			},
+		},
 	}
 }

@@ -88,7 +88,7 @@ func TestConfig_ValidateRelaxedAllowsUnsupportedModelProvider(t *testing.T) {
 	}
 
 	require.NoError(t, cfg.ValidateRelaxed())
-	require.EqualError(t, cfg.Validate(), "model provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
+	require.EqualError(t, cfg.Validate(), "model provider must be one of: anthropic, github-copilot, ollama, openai, openai-codex, openrouter")
 }
 
 func TestConfig_ValidateAllowsProviderSpecificAuthWithoutModelKey(t *testing.T) {
@@ -353,7 +353,7 @@ func TestConfig_ValidateRejectsInvalidSummaryProvider(t *testing.T) {
 		Log: LogConfig{Level: "info"},
 	}).Validate()
 
-	require.EqualError(t, err, "summary model provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
+	require.EqualError(t, err, "summary model provider must be one of: anthropic, github-copilot, ollama, openai, openai-codex, openrouter")
 }
 
 func TestConfig_ValidateRejectsNegativeModelMaxRetries(t *testing.T) {

@@ -5,6 +5,7 @@ import agentmodel "github.com/wandxy/morph/pkg/agent/model"
 const (
 	APIOpenAICompletions = agentmodel.APIOpenAICompletions
 	APIOpenAIResponses   = agentmodel.APIOpenAIResponses
+	APIOllamaNative      = agentmodel.APIOllamaNative
 	APIAnthropicMessages = agentmodel.APIAnthropicMessages
 )
 
