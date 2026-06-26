@@ -26,7 +26,7 @@ See [Provider Auth](../guides/provider-auth) for provider notes and API key link
 Install Morph with the hosted installer:
 
 ```bash
-curl -fsSL https://morphagent.ai/install.sh | bash
+curl -fsSL https://morph.xymorphic.com/install.sh | bash
 ```
 
 After installation, verify the CLI is available:
