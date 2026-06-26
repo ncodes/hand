@@ -260,7 +260,25 @@ func cloneProviderModelConfigs(values map[string]ProviderModelConfig) map[string
 	cloned := make(map[string]ProviderModelConfig, len(values))
 	for provider, value := range values {
 		value.APIKeyEnv = slices.Clone(value.APIKeyEnv)
+		value.Headers = maps.Clone(value.Headers)
+		value.Models = cloneProviderModelMetadata(value.Models)
 		cloned[provider] = value
+	}
+
+	return cloned
+}
+
+func cloneProviderModelMetadata(values map[string]ProviderModelMetadata) map[string]ProviderModelMetadata {
+	if len(values) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]ProviderModelMetadata, len(values))
+	for model, value := range values {
+		value.SupportsTools = cloneBoolPtr(value.SupportsTools)
+		value.SupportsVision = cloneBoolPtr(value.SupportsVision)
+		value.Reasoning = cloneBoolPtr(value.Reasoning)
+		cloned[model] = value
 	}
 
 	return cloned

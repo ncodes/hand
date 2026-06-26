@@ -104,6 +104,7 @@ func modelGenerationAPIs() map[string]struct{} {
 	return map[string]struct{}{
 		modelprovider.APIOpenAICompletions: {},
 		modelprovider.APIOpenAIResponses:   {},
+		modelprovider.APIOllamaNative:      {},
 		modelprovider.APIAnthropicMessages: {},
 	}
 }
@@ -112,5 +113,6 @@ func modelEmbeddingAPIs() map[string]struct{} {
 	return map[string]struct{}{
 		modelprovider.APIOpenAIEmbeddings:     {},
 		modelprovider.APIOpenRouterEmbeddings: {},
+		modelprovider.APIOllamaEmbeddings:     {},
 	}
 }

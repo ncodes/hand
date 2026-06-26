@@ -282,7 +282,7 @@ func TestConfig_ValidateRejectsInvalidSummaryModelAPI(t *testing.T) {
 		Log: LogConfig{Level: "info"},
 	}).Validate()
 
-	require.EqualError(t, err, "summary model API must be one of: anthropic-messages, openai-completions, openai-responses")
+	require.EqualError(t, err, "summary model API must be one of: anthropic-messages, ollama-native, openai-completions, openai-responses")
 }
 
 func TestConfig_ValidateAcceptsSummaryModelAPIResponses(t *testing.T) {
@@ -354,7 +354,7 @@ func TestConfig_ValidateRejectsInvalidAPI(t *testing.T) {
 				RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 				Log: LogConfig{Level: "info"},
 			}).Validate()
-			require.EqualError(t, err, "model API must be one of: anthropic-messages, openai-completions, openai-responses")
+			require.EqualError(t, err, "model API must be one of: anthropic-messages, ollama-native, openai-completions, openai-responses")
 		})
 	}
 }

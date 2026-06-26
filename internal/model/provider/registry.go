@@ -11,10 +11,14 @@ const (
 	APIOpenAICompletions = "openai-completions"
 	// APIOpenAIResponses identifies the OpenAI responses protocol.
 	APIOpenAIResponses = "openai-responses"
+	// APIOllamaNative identifies Ollama's native chat protocol.
+	APIOllamaNative = "ollama-native"
 	// APIOpenAIEmbeddings identifies the OpenAI-compatible embeddings protocol.
 	APIOpenAIEmbeddings = "openai-embeddings"
 	// APIOpenRouterEmbeddings identifies the OpenRouter embeddings protocol.
 	APIOpenRouterEmbeddings = "openrouter-embeddings"
+	// APIOllamaEmbeddings identifies Ollama's native embeddings protocol.
+	APIOllamaEmbeddings = "ollama-embeddings"
 	// APIAnthropicMessages identifies the Anthropic Messages protocol.
 	APIAnthropicMessages = "anthropic-messages"
 )
@@ -35,6 +39,22 @@ type APIDefinition struct {
 	DisplayName string
 }
 
+// CapabilitySet describes model/provider capabilities that can be discovered or configured.
+type CapabilitySet struct {
+	Tools     bool
+	Vision    bool
+	Reasoning bool
+}
+
+// LocalProviderDefinition describes local-runtime capabilities without implying a specific client.
+type LocalProviderDefinition struct {
+	NativeChatAPI            string
+	OpenAICompatibleChatAPIs []string
+	EmbeddingsAPI            string
+	AuthMarker               string
+	Capabilities             CapabilitySet
+}
+
 // ProviderDefinition describes provider-level routing, defaults, and credential metadata.
 type ProviderDefinition struct {
 	ID                 string
@@ -49,6 +69,7 @@ type ProviderDefinition struct {
 	RequiresKnownModel bool
 	SupportsAPIKey     bool
 	SupportsOAuth      bool
+	Local              *LocalProviderDefinition
 }
 
 // ModelDefinition describes provider-specific model metadata used for resolution and validation.
@@ -60,6 +81,7 @@ type ModelDefinition struct {
 	API            string
 	Input          []InputKind
 	Reasoning      bool
+	SupportsTools  bool
 	SupportsOAuth  bool
 	DisplayDefault bool
 	ContextWindow  int
@@ -102,6 +124,7 @@ func NewRegistry(
 		provider.BaseURLs = cloneStringMap(provider.BaseURLs)
 		provider.Headers = cloneStringMap(provider.Headers)
 		provider.APIKeyEnv = append([]string(nil), provider.APIKeyEnv...)
+		provider.Local = cloneLocalProviderDefinition(provider.Local)
 		r.providers[provider.ID] = provider
 	}
 
@@ -152,6 +175,7 @@ func (r *Registry) GetProvider(id string) (ProviderDefinition, bool) {
 	provider.BaseURLs = cloneStringMap(provider.BaseURLs)
 	provider.Headers = cloneStringMap(provider.Headers)
 	provider.APIKeyEnv = append([]string(nil), provider.APIKeyEnv...)
+	provider.Local = cloneLocalProviderDefinition(provider.Local)
 	return provider, true
 }
 
@@ -166,6 +190,7 @@ func (r *Registry) GetProviders() []ProviderDefinition {
 		provider.BaseURLs = cloneStringMap(provider.BaseURLs)
 		provider.Headers = cloneStringMap(provider.Headers)
 		provider.APIKeyEnv = append([]string(nil), provider.APIKeyEnv...)
+		provider.Local = cloneLocalProviderDefinition(provider.Local)
 		providers = append(providers, provider)
 	}
 
@@ -303,6 +328,45 @@ func cloneStringMap(values map[string]string) map[string]string {
 	return cloned
 }
 
+func cloneLocalProviderDefinition(value *LocalProviderDefinition) *LocalProviderDefinition {
+	if value == nil {
+		return nil
+	}
+
+	cloned := *value
+	cloned.NativeChatAPI = normalizeID(cloned.NativeChatAPI)
+	cloned.EmbeddingsAPI = normalizeID(cloned.EmbeddingsAPI)
+	cloned.AuthMarker = strings.TrimSpace(cloned.AuthMarker)
+	cloned.OpenAICompatibleChatAPIs = normalizeIDList(cloned.OpenAICompatibleChatAPIs)
+
+	return &cloned
+}
+
+func normalizeIDList(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		value = normalizeID(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		normalized = append(normalized, value)
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+
+	return normalized
+}
+
 func defaultAPIs() []APIDefinition {
 	return []APIDefinition{
 		{
@@ -314,12 +378,20 @@ func defaultAPIs() []APIDefinition {
 			DisplayName: "OpenAI Responses",
 		},
 		{
+			ID:          APIOllamaNative,
+			DisplayName: "Ollama Native API",
+		},
+		{
 			ID:          APIOpenAIEmbeddings,
 			DisplayName: "OpenAI Embeddings",
 		},
 		{
 			ID:          APIOpenRouterEmbeddings,
 			DisplayName: "OpenRouter Embeddings",
+		},
+		{
+			ID:          APIOllamaEmbeddings,
+			DisplayName: "Ollama Embeddings",
 		},
 		{
 			ID:          APIAnthropicMessages,

@@ -52,6 +52,31 @@ func getModelAPIID(apiID string) string {
 	return api.ID
 }
 
+func (c *Config) getProviderConfig(provider string) ProviderModelConfig {
+	if c == nil {
+		return ProviderModelConfig{}
+	}
+
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	if provider == "" || len(c.Models.Providers) == 0 {
+		return ProviderModelConfig{}
+	}
+
+	return c.Models.Providers[provider]
+}
+
+func (c *Config) getProviderAPIConfig(provider string) string {
+	return strings.TrimSpace(strings.ToLower(c.getProviderConfig(provider).API))
+}
+
+func (c *Config) getProviderBaseURLConfig(provider string) string {
+	return strings.TrimSpace(c.getProviderConfig(provider).BaseURL)
+}
+
+func (c *Config) getProviderHeadersConfig(provider string) map[string]string {
+	return normalizeStringMap(c.getProviderConfig(provider).Headers)
+}
+
 func hasModelProvider(provider string) bool {
 	_, ok := modelRegistry.GetProvider(provider)
 	return ok
@@ -177,6 +202,12 @@ func (c *Config) SummaryModelAPIEffective() string {
 	c.normalizeFields()
 	if c.Models.Summary.API != "" {
 		return getModelAPIID(c.Models.Summary.API)
+	}
+	if provider := c.SummaryProviderEffective(); provider != "" && provider != c.Models.Main.Provider {
+		if api := c.getProviderAPIConfig(provider); api != "" {
+			return getModelAPIID(api)
+		}
+		return getModelAPIID(getDefaultAPIForProvider(provider))
 	}
 
 	return getModelAPIID(c.Models.Main.API)
@@ -385,6 +416,9 @@ func (c *Config) summaryModelBaseURLEffective() string {
 	if u := strings.TrimSpace(c.Models.Summary.BaseURL); u != "" {
 		return u
 	}
+	if u := c.getProviderBaseURLConfig(sum); u != "" {
+		return u
+	}
 
 	return getDefaultBaseURLForProvider(sum, sumAPI)
 }
@@ -408,6 +442,9 @@ func (c *Config) rerankerModelBaseURLEffective() string {
 
 	if provider == c.SummaryProviderEffective() && api == c.SummaryModelAPIEffective() {
 		return c.summaryModelBaseURLEffective()
+	}
+	if u := c.getProviderBaseURLConfig(provider); u != "" {
+		return u
 	}
 
 	return getDefaultBaseURLForProvider(provider, api)
@@ -445,8 +482,9 @@ func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 	if err != nil {
 		return ModelAuth{}, err
 	}
+
 	auth.APIKey = credential.Value
-	auth.Headers = credential.Headers
+	auth.Headers = mergeModelAuthHeaders(c.getProviderHeadersConfig(auth.Provider), credential.Headers)
 	auth.CredentialSource = credential.Source
 	auth.applySubscriptionDefaults()
 	if strings.TrimSpace(auth.APIKey) == "" {
@@ -480,7 +518,7 @@ func (c *Config) ResolveRerankerModelAuth() (ModelAuth, error) {
 		return ModelAuth{}, err
 	}
 	auth.APIKey = credential.Value
-	auth.Headers = credential.Headers
+	auth.Headers = mergeModelAuthHeaders(c.getProviderHeadersConfig(auth.Provider), credential.Headers)
 	auth.CredentialSource = credential.Source
 	auth.applySubscriptionDefaults()
 	if strings.TrimSpace(auth.APIKey) == "" {
@@ -513,6 +551,9 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 	api := c.EmbeddingModelAPIEffective()
 	baseURL := strings.TrimSpace(c.Models.Embedding.BaseURL)
 	if baseURL == "" {
+		baseURL = c.getProviderBaseURLConfig(provider)
+	}
+	if baseURL == "" {
 		baseURL = getDefaultBaseURLForProvider(provider, api)
 	}
 
@@ -526,7 +567,7 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 		return ModelAuth{}, err
 	}
 	auth.APIKey = credential.Value
-	auth.Headers = credential.Headers
+	auth.Headers = mergeModelAuthHeaders(c.getProviderHeadersConfig(auth.Provider), credential.Headers)
 	auth.CredentialSource = credential.Source
 	if strings.TrimSpace(auth.APIKey) == "" {
 		return ModelAuth{}, newMissingModelCredentialError("embedding", auth.Provider)
@@ -546,6 +587,11 @@ func (c *Config) EmbeddingModelAPIEffective() string {
 	}
 
 	provider := c.ModelEmbeddingProviderEffective()
+	if api := c.getProviderAPIConfig(provider); api != "" {
+		if _, ok := modelEmbeddingAPIs()[api]; ok {
+			return getModelAPIID(api)
+		}
+	}
 	if model, ok := modelRegistry.GetModel(provider, c.Models.Embedding.Name); ok {
 		if _, ok := modelEmbeddingAPIs()[model.API]; ok {
 			return getModelAPIID(model.API)
@@ -599,7 +645,7 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 		return ModelAuth{}, err
 	}
 	auth.APIKey = credential.Value
-	auth.Headers = credential.Headers
+	auth.Headers = mergeModelAuthHeaders(c.getProviderHeadersConfig(auth.Provider), credential.Headers)
 	auth.CredentialSource = credential.Source
 	auth.applySubscriptionDefaults()
 	if strings.TrimSpace(auth.APIKey) == "" {
@@ -726,11 +772,33 @@ func (c *Config) resolveCredentialForProvider(
 			Source: ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: provider},
 		}, nil
 	}
+	if marker := getLocalProviderAuthMarker(provider); marker != "" {
+		return resolvedModelCredential{
+			Value: marker,
+			Source: ModelCredentialSource{
+				Kind: ModelCredentialSourceLocalProvider,
+				Name: provider,
+			},
+		}, nil
+	}
 	if oauthModelErr != nil {
 		return resolvedModelCredential{}, oauthModelErr
 	}
 
 	return resolvedModelCredential{}, nil
+}
+
+func getLocalProviderAuthMarker(provider string) string {
+	providerDef, ok := modelRegistry.GetProvider(provider)
+	if !ok || providerDef.Local == nil {
+		return ""
+	}
+
+	if marker := strings.TrimSpace(providerDef.Local.AuthMarker); marker != "" {
+		return marker
+	}
+
+	return constants.LocalProviderAuthMarker
 }
 
 func getStoredModelCredentialHeaders(
@@ -868,6 +936,20 @@ func normalizeStringMap(values map[string]string) map[string]string {
 	}
 
 	return normalized
+}
+
+func mergeModelAuthHeaders(values ...map[string]string) map[string]string {
+	merged := make(map[string]string)
+	for _, headers := range values {
+		for key, value := range normalizeStringMap(headers) {
+			merged[key] = value
+		}
+	}
+	if len(merged) == 0 {
+		return nil
+	}
+
+	return merged
 }
 
 func stringMapsEqual(a map[string]string, b map[string]string) bool {

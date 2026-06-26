@@ -197,6 +197,20 @@ func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 	cfg := &Config{
 		Name: "  Test Agent  ",
 		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{
+				" OpenAI ": {
+					API:     " OPENAI-COMPLETIONS ",
+					BaseURL: " https://provider.example/v1 ",
+					Headers: map[string]string{
+						" X-Test ": " value ",
+						" blank ":  " ",
+					},
+					Models: map[string]ProviderModelMetadata{
+						" gpt-4o ": {ContextLength: 128000},
+						" ":        {ContextLength: 1},
+					},
+				},
+			},
 			Main: MainModelConfig{
 				Name:     "  test-model  ",
 				Provider: " OpenRouter ",
@@ -215,8 +229,34 @@ func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
 	require.Equal(t, "test-key", cfg.Models.Main.APIKey)
 	require.Equal(t, "https://example.com/v1", cfg.Models.Main.BaseURL)
+	require.Contains(t, cfg.Models.Providers, "openai")
+	require.Equal(t, modelprovider.APIOpenAICompletions, cfg.Models.Providers["openai"].API)
+	require.Equal(t, "https://provider.example/v1", cfg.Models.Providers["openai"].BaseURL)
+	require.Equal(t, map[string]string{"X-Test": "value"}, cfg.Models.Providers["openai"].Headers)
+	require.Equal(t, map[string]ProviderModelMetadata{"gpt-4o": {ContextLength: 128000}}, cfg.Models.Providers["openai"].Models)
 	require.Equal(t, "warn", cfg.Log.Level)
 	require.Equal(t, GatewaySlackResponseModeMessage, cfg.Gateway.Slack.ResponseMode)
+}
+
+func TestConfig_NormalizeDropsBlankProviderModelConfigEntries(t *testing.T) {
+	cfg := &Config{
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{
+				" ": {
+					Models: map[string]ProviderModelMetadata{" ": {ContextLength: 1}},
+				},
+			},
+		},
+	}
+
+	cfg.Normalize()
+
+	require.Empty(t, cfg.Models.Providers)
+}
+
+func TestNormalizeProviderModelMetadataReturnsNilForEmptyInput(t *testing.T) {
+	require.Nil(t, normalizeProviderModelMetadata(nil))
+	require.Nil(t, normalizeProviderModelMetadata(map[string]ProviderModelMetadata{" ": {ContextLength: 1}}))
 }
 
 func TestNormalizeFields_NilReceiver_NoPanic(t *testing.T) {

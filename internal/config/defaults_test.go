@@ -71,6 +71,20 @@ func TestNewProfileConfig_LeavesModelSelectionEmpty(t *testing.T) {
 
 func TestCloneConfig_ClonesPersonalityPointers(t *testing.T) {
 	cfg := Config{
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{
+				"openai": {
+					Headers: map[string]string{"X-Test": "value"},
+					Models: map[string]ProviderModelMetadata{
+						"gpt-4o": {
+							SupportsTools:  new(true),
+							SupportsVision: new(true),
+							Reasoning:      new(true),
+						},
+					},
+				},
+			},
+		},
 		Personalities: map[string]PersonalityConfig{
 			"researcher": {
 				Memory: PersonalityMemoryConfig{
@@ -87,11 +101,23 @@ func TestCloneConfig_ClonesPersonalityPointers(t *testing.T) {
 	}
 
 	cloned := cloneConfig(cfg)
+	cloned.Models.Providers["openai"].Headers["X-Test"] = "changed"
+	*cloned.Models.Providers["openai"].Models["gpt-4o"].SupportsTools = false
+	*cloned.Models.Providers["openai"].Models["gpt-4o"].SupportsVision = false
+	*cloned.Models.Providers["openai"].Models["gpt-4o"].Reasoning = false
 	*cloned.Personalities["researcher"].Memory.Pinned = false
 	*cloned.Personalities["researcher"].Tools.Filesystem = false
 	*cloned.Personalities["researcher"].Model.Stream = true
 
+	require.Equal(t, "value", cfg.Models.Providers["openai"].Headers["X-Test"])
+	require.True(t, *cfg.Models.Providers["openai"].Models["gpt-4o"].SupportsTools)
+	require.True(t, *cfg.Models.Providers["openai"].Models["gpt-4o"].SupportsVision)
+	require.True(t, *cfg.Models.Providers["openai"].Models["gpt-4o"].Reasoning)
 	require.True(t, *cfg.Personalities["researcher"].Memory.Pinned)
 	require.True(t, *cfg.Personalities["researcher"].Tools.Filesystem)
 	require.False(t, *cfg.Personalities["researcher"].Model.Stream)
+}
+
+func TestCloneProviderModelMetadata_ReturnsNilForEmptyInput(t *testing.T) {
+	require.Nil(t, cloneProviderModelMetadata(nil))
 }

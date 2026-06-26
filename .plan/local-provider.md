@@ -17,29 +17,29 @@ The first milestone is a reliable Ollama path that can be configured, discovered
 
 ## Phase 0 - Provider Architecture Shape
 
-- [ ] Define a `LocalProvider` capability model that can represent:
-  - [ ] Native Ollama chat API.
-  - [ ] OpenAI-compatible chat completions.
-  - [ ] OpenAI-compatible responses if needed later.
-  - [ ] Embeddings support, separately from chat support.
-  - [ ] Vision/tool-calling capability flags.
-- [ ] Decide where local provider config lives:
-  - [ ] Global config defaults.
-  - [ ] Profile-specific overrides.
-  - [ ] Runtime/session overrides.
-- [ ] Add a normalized provider id and model ref format:
-  - [ ] `ollama/<model>`.
-  - [ ] `vllm/<model>`.
-  - [ ] `sglang/<model>`.
-  - [ ] `custom-local/<model>` or configured custom provider ids.
-- [ ] Define a non-secret local auth marker, for example `ollama-local`, so SDK/client setup can proceed without treating the marker as a real secret.
-- [ ] Document which settings are provider-level versus model-level:
-  - [ ] `base_url`.
-  - [ ] `api_mode` or adapter type.
-  - [ ] `headers`.
-  - [ ] `context_window`.
-  - [ ] `max_output_tokens`.
-  - [ ] tool/vision/reasoning support.
+- [x] Define a `LocalProvider` capability model that can represent:
+  - [x] Native Ollama chat API.
+  - [x] OpenAI-compatible chat completions.
+  - [x] OpenAI-compatible responses if needed later.
+  - [x] Embeddings support, separately from chat support.
+  - [x] Vision/tool-calling capability flags.
+- [x] Decide where local provider config lives:
+  - [x] Global config defaults.
+  - [x] Profile-specific overrides.
+  - [x] Runtime/session overrides.
+- [x] Add a normalized provider id and model ref format:
+  - [x] `ollama/<model>`.
+  - [x] `vllm/<model>`.
+  - [x] `sglang/<model>`.
+  - [x] `custom-local/<model>` or configured custom provider ids.
+- [x] Define a non-secret local auth marker, for example `ollama-local`, so SDK/client setup can proceed without treating the marker as a real secret.
+- [x] Document which settings are provider-level versus model-level:
+  - [x] `base_url`.
+  - [x] `api_mode` or adapter type.
+  - [x] `headers`.
+  - [x] `context_window`.
+  - [x] `max_output_tokens`.
+  - [x] tool/vision/reasoning support.
 
 ## Phase 1 - Ollama MVP
 
@@ -201,14 +201,14 @@ The first milestone is a reliable Ollama path that can be configured, discovered
 ## Phase 7 - Testing and Validation
 
 - [ ] Unit tests:
-  - [ ] Provider id/model ref parsing.
+  - [x] Provider id/model ref parsing.
   - [ ] Ollama API base URL normalization.
   - [ ] `/api/tags` discovery.
   - [ ] `/api/show` context extraction.
   - [ ] Native Ollama message conversion.
   - [ ] Native Ollama tool conversion.
   - [ ] NDJSON stream parsing.
-  - [ ] OpenAI-compatible local provider config.
+  - [x] OpenAI-compatible local provider config.
   - [ ] Diagnostic messages.
 - [ ] Integration tests with mocked local servers:
   - [ ] Ollama reachable with no models.

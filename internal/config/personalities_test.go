@@ -182,7 +182,7 @@ func TestConfig_ValidatePersonalitySettings(t *testing.T) {
 		{
 			name:          "invalid model api mode",
 			personality:   PersonalityConfig{Model: MainModelConfig{API: "other"}},
-			expectedError: "personalities.researcher.model.api must be one of: anthropic-messages, openai-completions, openai-responses",
+			expectedError: "personalities.researcher.model.api must be one of: anthropic-messages, ollama-native, openai-completions, openai-responses",
 		},
 	}
 

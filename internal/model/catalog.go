@@ -16,6 +16,7 @@ type Option struct {
 	MaxTokens      int
 	Input          []string
 	Reasoning      bool
+	SupportsTools  bool
 	SupportsOAuth  bool
 	DisplayDefault bool
 	Current        bool
@@ -30,6 +31,7 @@ type ProviderOption struct {
 	ModelCount      int
 	SupportsAPIKey  bool
 	SupportsOAuth   bool
+	Local           bool
 	AuthType        string
 	Current         bool
 }
@@ -118,6 +120,7 @@ func ListProviders(query ProviderQuery) []ProviderOption {
 			ModelCount:      count,
 			SupportsAPIKey:  provider.SupportsAPIKey,
 			SupportsOAuth:   provider.SupportsOAuth,
+			Local:           provider.Local != nil,
 			AuthType:        strings.TrimSpace(query.Auth[provider.ID]),
 			Current:         strings.TrimSpace(provider.ID) == current,
 		})
@@ -144,6 +147,7 @@ func isGenerationAPI(api string) bool {
 	switch strings.TrimSpace(api) {
 	case modelprovider.APIOpenAICompletions,
 		modelprovider.APIOpenAIResponses,
+		modelprovider.APIOllamaNative,
 		modelprovider.APIAnthropicMessages:
 		return true
 	default:
@@ -164,6 +168,8 @@ func countGenerationModels(registry *modelprovider.Registry, provider string) in
 
 func getProviderOptionType(provider modelprovider.ProviderDefinition) string {
 	switch {
+	case provider.Local != nil:
+		return "local"
 	case provider.SupportsAPIKey && provider.SupportsOAuth:
 		return "api-key/oauth"
 	case provider.SupportsOAuth:
@@ -193,6 +199,7 @@ func modelDefinitionToOption(model modelprovider.ModelDefinition, current string
 		MaxTokens:      model.MaxTokens,
 		Input:          inputs,
 		Reasoning:      model.Reasoning,
+		SupportsTools:  model.SupportsTools,
 		SupportsOAuth:  model.SupportsOAuth,
 		DisplayDefault: model.DisplayDefault,
 		Current:        strings.TrimSpace(model.ID) == current,

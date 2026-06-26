@@ -9,6 +9,11 @@ import (
 type ModelCredentialSourceKind string
 
 const (
+	modelAuthTypeAPIKey = "api-key"
+	modelAuthTypeNone   = "none"
+)
+
+const (
 	// ModelCredentialSourceRoleConfig means the credential came from the concrete model role config.
 	ModelCredentialSourceRoleConfig ModelCredentialSourceKind = "role-config"
 
@@ -20,6 +25,9 @@ const (
 
 	// ModelCredentialSourceTokenStore means the credential came from a local OAuth or subscription token store.
 	ModelCredentialSourceTokenStore ModelCredentialSourceKind = "token-store"
+
+	// ModelCredentialSourceLocalProvider means the credential is a non-secret local provider marker.
+	ModelCredentialSourceLocalProvider ModelCredentialSourceKind = "local-provider"
 )
 
 // ModelsConfig contains provider credentials and model-specific settings.
@@ -33,8 +41,21 @@ type ModelsConfig struct {
 
 // ProviderModelConfig describes static credential settings for one model provider.
 type ProviderModelConfig struct {
-	APIKey    string   `yaml:"apiKey"`
-	APIKeyEnv []string `yaml:"apiKeyEnv"`
+	APIKey    string                           `yaml:"apiKey"`
+	APIKeyEnv []string                         `yaml:"apiKeyEnv"`
+	API       string                           `yaml:"api"`
+	BaseURL   string                           `yaml:"baseUrl"`
+	Headers   map[string]string                `yaml:"headers"`
+	Models    map[string]ProviderModelMetadata `yaml:"models"`
+}
+
+// ProviderModelMetadata describes explicit metadata for one provider-local model.
+type ProviderModelMetadata struct {
+	ContextLength   int   `yaml:"contextLength"`
+	MaxOutputTokens int64 `yaml:"maxOutputTokens"`
+	SupportsTools   *bool `yaml:"supportsTools"`
+	SupportsVision  *bool `yaml:"supportsVision"`
+	Reasoning       *bool `yaml:"reasoning"`
 }
 
 // MainModelConfig selects the model used for normal agent turns.
@@ -91,12 +112,15 @@ func (auth ModelAuth) AuthType() string {
 	if value := strings.TrimSpace(auth.CredentialSource.Type); value != "" {
 		return strings.ToLower(value)
 	}
+	if auth.CredentialSource.Kind == ModelCredentialSourceLocalProvider {
+		return string(ModelCredentialSourceLocalProvider)
+	}
 	if strings.TrimSpace(auth.APIKey) != "" {
-		return "api-key"
+		return modelAuthTypeAPIKey
 	}
 	if value := strings.TrimSpace(string(auth.CredentialSource.Kind)); value != "" {
 		return value
 	}
 
-	return "none"
+	return modelAuthTypeNone
 }

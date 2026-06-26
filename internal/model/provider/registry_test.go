@@ -24,16 +24,26 @@ func TestDefaultRegistry_RegistersBuiltInAPIs(t *testing.T) {
 	require.Equal(t, APIOpenRouterEmbeddings, openRouterEmbeddings.ID)
 
 	require.ElementsMatch(t, []string{
+		APIAnthropicMessages,
+		APIOllamaNative,
+		APIOllamaEmbeddings,
 		APIOpenAICompletions,
 		APIOpenAIResponses,
 		APIOpenAIEmbeddings,
 		APIOpenRouterEmbeddings,
-		APIAnthropicMessages,
 	}, registry.GetAPIIDs())
 
 	anthropic, ok := registry.GetAPI(APIAnthropicMessages)
 	require.True(t, ok)
 	require.Equal(t, APIAnthropicMessages, anthropic.ID)
+
+	ollamaNative, ok := registry.GetAPI(APIOllamaNative)
+	require.True(t, ok)
+	require.Equal(t, APIOllamaNative, ollamaNative.ID)
+
+	ollamaEmbeddings, ok := registry.GetAPI(APIOllamaEmbeddings)
+	require.True(t, ok)
+	require.Equal(t, APIOllamaEmbeddings, ollamaEmbeddings.ID)
 }
 
 func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
@@ -326,6 +336,50 @@ func TestRegistry_GetModelsReturnsClonedProviderModels(t *testing.T) {
 	require.Empty(t, (*Registry)(nil).GetModels(constants.ModelProviderOpenAI))
 }
 
+func TestRegistry_GetProvidersReturnsClonedProviders(t *testing.T) {
+	registry := NewRegistry(
+		[]APIDefinition{{ID: APIOllamaNative}},
+		[]ProviderDefinition{{
+			ID:             constants.ModelProviderOllama,
+			DefaultAPI:     APIOllamaNative,
+			SupportsModels: true,
+			Local: &LocalProviderDefinition{
+				NativeChatAPI: APIOllamaNative,
+				AuthMarker:    constants.OllamaLocalAuthMarker,
+			},
+		}, {
+			ID:             "blank-local",
+			DefaultAPI:     APIOllamaNative,
+			SupportsModels: true,
+			Local: &LocalProviderDefinition{
+				OpenAICompatibleChatAPIs: []string{" "},
+			},
+		}},
+		nil,
+	)
+
+	providers := registry.GetProviders()
+	require.Len(t, providers, 2)
+	byID := map[string]ProviderDefinition{}
+	for _, provider := range providers {
+		byID[provider.ID] = provider
+	}
+
+	require.NotNil(t, byID[constants.ModelProviderOllama].Local)
+	require.Equal(t, APIOllamaNative, byID[constants.ModelProviderOllama].Local.NativeChatAPI)
+	require.Empty(t, byID["blank-local"].Local.OpenAICompatibleChatAPIs)
+
+	byID[constants.ModelProviderOllama].Local.NativeChatAPI = APIOpenAICompletions
+	fresh := registry.GetProviders()
+	for _, provider := range fresh {
+		byID[provider.ID] = provider
+	}
+	require.Equal(t, APIOllamaNative, byID[constants.ModelProviderOllama].Local.NativeChatAPI)
+	require.Empty(t, byID[constants.ModelProviderOllama].Local.OpenAICompatibleChatAPIs)
+
+	require.Empty(t, (*Registry)(nil).GetProviders())
+}
+
 func TestRegistry_ReturnsCopies(t *testing.T) {
 	registry := DefaultRegistry()
 
@@ -339,6 +393,7 @@ func TestRegistry_ReturnsCopies(t *testing.T) {
 	require.Equal(t, constants.DefaultOpenRouterBaseURL, provider.BaseURLs[APIOpenAICompletions])
 	require.Nil(t, provider.Headers)
 	require.Equal(t, []string{"OPENROUTER_API_KEY"}, provider.APIKeyEnv)
+	require.Nil(t, provider.Local)
 
 	model, ok := registry.GetModel("openai", constants.DefaultModel)
 	require.True(t, ok)
@@ -410,6 +465,17 @@ func TestRegistry_NormalizesDefinitionsAndSkipsIncompleteEntries(t *testing.T) {
 					" X-Custom ": " value ",
 					" ignored ":  " ",
 				},
+				Local: &LocalProviderDefinition{
+					NativeChatAPI: " OLLAMA-NATIVE ",
+					OpenAICompatibleChatAPIs: []string{
+						" openai-completions ",
+						"OPENAI-COMPLETIONS",
+						"openai-responses",
+					},
+					EmbeddingsAPI: APIOllamaEmbeddings,
+					AuthMarker:    " local-marker ",
+					Capabilities:  CapabilitySet{Tools: true, Vision: true, Reasoning: true},
+				},
 			},
 			{ID: "empty"},
 			{
@@ -442,6 +508,13 @@ func TestRegistry_NormalizesDefinitionsAndSkipsIncompleteEntries(t *testing.T) {
 	require.NotContains(t, provider.BaseURLs, "blank")
 	require.Equal(t, "value", provider.Headers["x-custom"])
 	require.NotContains(t, provider.Headers, "ignored")
+	require.Equal(t, &LocalProviderDefinition{
+		NativeChatAPI:            APIOllamaNative,
+		OpenAICompatibleChatAPIs: []string{APIOpenAICompletions, APIOpenAIResponses},
+		EmbeddingsAPI:            APIOllamaEmbeddings,
+		AuthMarker:               "local-marker",
+		Capabilities:             CapabilitySet{Tools: true, Vision: true, Reasoning: true},
+	}, provider.Local)
 	require.Equal(t, "https://custom.example/v1", registry.GetBaseURL("custom", ""))
 	emptyProvider, ok := registry.GetProvider("empty")
 	require.True(t, ok)

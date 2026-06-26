@@ -83,6 +83,9 @@ func (c *Config) normalizeFields() {
 	}
 
 	if c.Models.Main.API == "" {
+		c.Models.Main.API = c.getProviderAPIConfig(c.Models.Main.Provider)
+	}
+	if c.Models.Main.API == "" {
 		c.Models.Main.API = getDefaultAPIForProvider(c.Models.Main.Provider)
 	}
 
@@ -270,7 +273,32 @@ func normalizeProviderModelConfigs(values map[string]ProviderModelConfig) map[st
 
 		value.APIKey = strings.TrimSpace(value.APIKey)
 		value.APIKeyEnv = dedupeAndTrim(value.APIKeyEnv)
+		value.API = strings.TrimSpace(strings.ToLower(value.API))
+		value.BaseURL = strings.TrimSpace(value.BaseURL)
+		value.Headers = normalizeStringMap(value.Headers)
+		value.Models = normalizeProviderModelMetadata(value.Models)
 		normalized[provider] = value
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+
+	return normalized
+}
+
+func normalizeProviderModelMetadata(values map[string]ProviderModelMetadata) map[string]ProviderModelMetadata {
+	if len(values) == 0 {
+		return nil
+	}
+
+	normalized := make(map[string]ProviderModelMetadata, len(values))
+	for model, value := range values {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+
+		normalized[model] = value
 	}
 	if len(normalized) == 0 {
 		return nil
@@ -332,6 +360,11 @@ func (c *Config) applyDefaultModelBaseURL() {
 	}
 
 	mapped := getDefaultBaseURLForProvider(c.Models.Main.Provider, c.Models.Main.API)
+	configured := c.getProviderBaseURLConfig(c.Models.Main.Provider)
+	if configured != "" && (c.Models.Main.BaseURL == "" || isProviderDefaultBaseURL(c.Models.Main.BaseURL)) {
+		c.Models.Main.BaseURL = configured
+		return
+	}
 	if mapped == "" {
 		return
 	}

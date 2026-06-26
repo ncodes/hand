@@ -25,6 +25,18 @@ const (
 	ModelProviderAnthropic = "anthropic"
 	// ModelProviderGitHubCopilot identifies GitHub Copilot-backed model access.
 	ModelProviderGitHubCopilot = "github-copilot"
+	// ModelProviderOllama identifies local Ollama-backed model access.
+	ModelProviderOllama = "ollama"
+	// ModelProviderVLLM identifies local vLLM-backed model access.
+	ModelProviderVLLM = "vllm"
+	// ModelProviderSGLang identifies local SGLang-backed model access.
+	ModelProviderSGLang = "sglang"
+	// ModelProviderCustomLocal identifies a user-defined local model runtime.
+	ModelProviderCustomLocal = "custom-local"
+	// LocalProviderAuthMarker is the fallback non-secret marker for local providers.
+	LocalProviderAuthMarker = "local-provider"
+	// OllamaLocalAuthMarker is the non-secret marker used for Ollama provider clients.
+	OllamaLocalAuthMarker = "ollama-local"
 	// DefaultOpenRouterBaseURL is the default OpenRouter API base URL.
 	DefaultOpenRouterBaseURL           = "https://openrouter.ai/api/v1"
 	DefaultOpenRouterResponsesBaseURL  = "https://openrouter.ai/api/v1"
@@ -34,6 +46,9 @@ const (
 	DefaultOpenAIEmbeddingsBaseURL     = "https://api.openai.com/v1/embeddings"
 	DefaultAnthropicBaseURL            = "https://api.anthropic.com"
 	DefaultGitHubCopilotBaseURL        = "https://api.individual.githubcopilot.com"
+	DefaultOllamaBaseURL               = "http://127.0.0.1:11434"
+	DefaultVLLMBaseURL                 = "http://127.0.0.1:8000/v1"
+	DefaultSGLangBaseURL               = "http://127.0.0.1:30000/v1"
 	// DefaultModelMaxRetries is the fallback retry count for model calls.
 	DefaultModelMaxRetries    = 2
 	DefaultProfileModelStream = true

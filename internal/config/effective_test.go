@@ -73,6 +73,253 @@ func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
 	require.Equal(t, "https://api.openai.com/v1", auth.BaseURL)
 }
 
+func TestConfig_ResolveModelAuthUsesProviderConfigDefaults(t *testing.T) {
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
+
+	cfg := &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{
+				"openai": {
+					APIKey:  "openai-key",
+					API:     modelprovider.APIOpenAICompletions,
+					BaseURL: " http://127.0.0.1:8080/v1 ",
+					Headers: map[string]string{
+						" X-Provider ": " configured ",
+					},
+				},
+			},
+			Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
+		},
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, modelprovider.APIOpenAICompletions, auth.API)
+	require.Equal(t, "http://127.0.0.1:8080/v1", auth.BaseURL)
+	require.Equal(t, map[string]string{"X-Provider": "configured"}, auth.Headers)
+}
+
+func TestConfig_GetProviderConfigHandlesNilAndMissingProviders(t *testing.T) {
+	require.Equal(t, ProviderModelConfig{}, (*Config)(nil).getProviderConfig("openai"))
+	require.Equal(t, ProviderModelConfig{}, (&Config{}).getProviderConfig("openai"))
+}
+
+func TestConfig_SummaryModelAPIEffectiveUsesSummaryProviderDefaults(t *testing.T) {
+	cfg := &Config{
+		Models: ModelsConfig{
+			Main: MainModelConfig{
+				Name:     constants.DefaultModel,
+				Provider: constants.ModelProviderOpenAI,
+			},
+			Summary: SummaryModelConfig{
+				Provider: constants.ModelProviderAnthropic,
+			},
+		},
+	}
+
+	require.Equal(t, modelprovider.APIAnthropicMessages, cfg.SummaryModelAPIEffective())
+
+	cfg.Models.Summary.Provider = constants.ModelProviderOpenRouter
+	cfg.Models.Providers = map[string]ProviderModelConfig{
+		constants.ModelProviderOpenRouter: {API: modelprovider.APIOpenAICompletions},
+	}
+	require.Equal(t, modelprovider.APIOpenAICompletions, cfg.SummaryModelAPIEffective())
+}
+
+func TestConfig_SummaryModelAuthUsesSummaryProviderBaseURLConfig(t *testing.T) {
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
+
+	cfg := &Config{
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{
+				constants.ModelProviderOpenAI:     {APIKey: "openai-key"},
+				constants.ModelProviderOpenRouter: {APIKey: "router-key", BaseURL: "https://router.example/v1"},
+			},
+			Main: MainModelConfig{
+				Name:     constants.DefaultModel,
+				Provider: constants.ModelProviderOpenAI,
+			},
+			Summary: SummaryModelConfig{
+				Provider: constants.ModelProviderOpenRouter,
+			},
+		},
+	}
+
+	auth, err := cfg.ResolveSummaryModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderOpenRouter, auth.Provider)
+	require.Equal(t, "https://router.example/v1", auth.BaseURL)
+}
+
+func TestConfig_RerankerBaseURLUsesProviderConfigForDifferentModelAPI(t *testing.T) {
+	stubModelRegistry(t, modelprovider.NewRegistry(
+		[]modelprovider.APIDefinition{
+			{ID: modelprovider.APIOpenAICompletions},
+			{ID: modelprovider.APIOpenAIResponses},
+		},
+		[]modelprovider.ProviderDefinition{{
+			ID:             "multi",
+			DefaultAPI:     modelprovider.APIOpenAIResponses,
+			SupportsModels: true,
+			BaseURLs: map[string]string{
+				modelprovider.APIOpenAICompletions: "https://multi.example/completions",
+				modelprovider.APIOpenAIResponses:   "https://multi.example/responses",
+			},
+		}},
+		[]modelprovider.ModelDefinition{{
+			ID:       "completion-model",
+			Provider: "multi",
+			API:      modelprovider.APIOpenAICompletions,
+		}},
+	))
+
+	cfg := &Config{
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{
+				"multi": {BaseURL: "https://configured.example/v1"},
+			},
+			Main:    MainModelConfig{Provider: "multi", API: modelprovider.APIOpenAIResponses},
+			Summary: SummaryModelConfig{Provider: "multi", API: modelprovider.APIOpenAIResponses},
+		},
+		Reranker: RerankerConfig{Model: "completion-model"},
+	}
+
+	require.Equal(t, "https://configured.example/v1", cfg.rerankerModelBaseURLEffective())
+}
+
+func TestConfig_EmbeddingModelAPIEffectiveUsesProviderEmbeddingAPI(t *testing.T) {
+	cfg := &Config{
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{
+				constants.ModelProviderOpenAI: {API: modelprovider.APIOpenAIEmbeddings},
+			},
+			Main: MainModelConfig{
+				Provider: constants.ModelProviderOpenRouter,
+			},
+			Embedding: EmbeddingModelConfig{
+				Provider: constants.ModelProviderOpenAI,
+			},
+		},
+	}
+
+	require.Equal(t, modelprovider.APIOpenAIEmbeddings, cfg.EmbeddingModelAPIEffective())
+}
+
+func TestConfig_EmbeddingModelAPIEffectiveReturnsEmptyWithoutEmbeddingAPI(t *testing.T) {
+	stubModelRegistry(t, modelprovider.NewRegistry(
+		[]modelprovider.APIDefinition{{ID: modelprovider.APIOpenAIResponses}},
+		[]modelprovider.ProviderDefinition{{
+			ID:             "chat-only",
+			DefaultAPI:     modelprovider.APIOpenAIResponses,
+			SupportsModels: true,
+			BaseURLs: map[string]string{
+				modelprovider.APIOpenAIResponses: "https://chat.example/v1",
+			},
+		}},
+		nil,
+	))
+
+	cfg := &Config{
+		Models: ModelsConfig{
+			Main:      MainModelConfig{Provider: "chat-only"},
+			Embedding: EmbeddingModelConfig{Provider: "chat-only"},
+		},
+	}
+
+	require.Empty(t, cfg.EmbeddingModelAPIEffective())
+}
+
+func TestConfig_ResolveModelAuthUsesLocalProviderMarker(t *testing.T) {
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
+	stubModelRegistry(t, modelprovider.NewRegistry(
+		[]modelprovider.APIDefinition{
+			{ID: modelprovider.APIOllamaNative},
+			{ID: modelprovider.APIOpenAICompletions},
+			{ID: modelprovider.APIOpenAIResponses},
+		},
+		[]modelprovider.ProviderDefinition{{
+			ID:             constants.ModelProviderOllama,
+			DefaultAPI:     modelprovider.APIOllamaNative,
+			SupportsModels: true,
+			BaseURLs: map[string]string{
+				modelprovider.APIOllamaNative: constants.DefaultOllamaBaseURL,
+			},
+			Local: &modelprovider.LocalProviderDefinition{
+				NativeChatAPI: modelprovider.APIOllamaNative,
+				OpenAICompatibleChatAPIs: []string{
+					modelprovider.APIOpenAICompletions,
+					modelprovider.APIOpenAIResponses,
+				},
+				AuthMarker: constants.OllamaLocalAuthMarker,
+				Capabilities: modelprovider.CapabilitySet{
+					Tools:  true,
+					Vision: true,
+				},
+			},
+		}},
+		nil,
+	))
+
+	cfg := NewDefaultConfig()
+	cfg.Search.Vector.Enabled = false
+	cfg.Models.Main.Name = "llama3.1:8b"
+	cfg.Models.Main.Provider = constants.ModelProviderOllama
+
+	require.NoError(t, cfg.Validate())
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, ModelAuth{
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaNative,
+		APIKey:   constants.OllamaLocalAuthMarker,
+		BaseURL:  constants.DefaultOllamaBaseURL,
+		CredentialSource: ModelCredentialSource{
+			Kind: ModelCredentialSourceLocalProvider,
+			Name: constants.ModelProviderOllama,
+		},
+	}, auth)
+	require.Equal(t, string(ModelCredentialSourceLocalProvider), auth.AuthType())
+}
+
+func TestConfig_ResolveModelAuthUsesFallbackLocalProviderMarker(t *testing.T) {
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
+	stubModelRegistry(t, modelprovider.NewRegistry(
+		[]modelprovider.APIDefinition{{ID: modelprovider.APIOllamaNative}},
+		[]modelprovider.ProviderDefinition{{
+			ID:             constants.ModelProviderOllama,
+			DefaultAPI:     modelprovider.APIOllamaNative,
+			SupportsModels: true,
+			BaseURLs: map[string]string{
+				modelprovider.APIOllamaNative: constants.DefaultOllamaBaseURL,
+			},
+			Local: &modelprovider.LocalProviderDefinition{NativeChatAPI: modelprovider.APIOllamaNative},
+		}},
+		nil,
+	))
+
+	cfg := NewDefaultConfig()
+	cfg.Search.Vector.Enabled = false
+	cfg.Models.Main.Name = "llama3.1:8b"
+	cfg.Models.Main.Provider = constants.ModelProviderOllama
+
+	auth, err := cfg.ResolveModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, constants.LocalProviderAuthMarker, auth.APIKey)
+	require.Equal(t, ModelCredentialSourceLocalProvider, auth.CredentialSource.Kind)
+}
+
 func TestConfig_ResolveModelAuthAcceptsOpenAIProviderAlias(t *testing.T) {
 	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
 		return StoredModelCredential{}, nil
@@ -340,6 +587,26 @@ func TestConfig_ResolveModelAuthUsesAnthropicOAuthEnvBeforeAPIKeyEnv(t *testing.
 		Name: "ANTHROPIC_OAUTH_TOKEN",
 		Type: appcredential.TypeOAuth,
 	}, auth.CredentialSource)
+}
+
+func TestConfig_ResolveModelAuthReturnsOAuthEnvHeaderError(t *testing.T) {
+	t.Setenv("ANTHROPIC_OAUTH_TOKEN", "oauth-env-token")
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "anthropic", provider)
+		return StoredModelCredential{}, nil
+	})
+	stubSubscriptionProvider(t, func(provider string) (appcredential.SubscriptionProvider, bool) {
+		require.Equal(t, "anthropic", provider)
+		return modelAuthSubscriptionProvider{err: errors.New("headers failed")}, true
+	})
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: "claude-sonnet-4-6", Provider: "anthropic"}},
+	}
+
+	_, err := cfg.ResolveModelAuth()
+	require.EqualError(t, err, "headers failed")
 }
 
 func TestConfig_ResolveModelAuthUsesCopilotTokenEnvAsOAuth(t *testing.T) {
@@ -787,6 +1054,30 @@ func TestConfig_ResolveRerankerModelAuthUsesRegistryModelAPI(t *testing.T) {
 	require.Equal(t, modelprovider.APIAnthropicMessages, cfg.RerankerModelAPIEffective())
 }
 
+func TestConfig_ResolveRerankerModelAuthReturnsCredentialErrors(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, errors.New("store failed")
+	})
+
+	cfg := &Config{
+		Models: ModelsConfig{
+			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: constants.ModelProviderOpenAI},
+			Summary: SummaryModelConfig{Name: constants.DefaultModel, Provider: constants.ModelProviderOpenAI},
+		},
+	}
+
+	_, err := cfg.ResolveRerankerModelAuth()
+	require.EqualError(t, err, "store failed")
+
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
+
+	_, err = cfg.ResolveRerankerModelAuth()
+	require.EqualError(t, err, `model API key is required for provider "openai"; set a provider API key, provider env var, role apiKey, or provider login`)
+}
+
 func TestConfig_ResolveEmbeddingModelAuthSkipsStoredOAuthCredential(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "env-api-key")
 	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
@@ -949,11 +1240,11 @@ func TestModelAuth_AuthType(t *testing.T) {
 	require.Equal(t, appcredential.TypeOAuth, ModelAuth{
 		CredentialSource: ModelCredentialSource{Type: " OAuth "},
 	}.AuthType())
-	require.Equal(t, "api-key", ModelAuth{APIKey: " key "}.AuthType())
+	require.Equal(t, modelAuthTypeAPIKey, ModelAuth{APIKey: " key "}.AuthType())
 	require.Equal(t, string(ModelCredentialSourceProviderEnv), ModelAuth{
 		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceProviderEnv},
 	}.AuthType())
-	require.Equal(t, "none", ModelAuth{}.AuthType())
+	require.Equal(t, modelAuthTypeNone, ModelAuth{}.AuthType())
 }
 
 func TestResolveModelAuth_CoversDefaultBranchAndNilReceiver(t *testing.T) {
@@ -1084,8 +1375,12 @@ func TestConfig_NilReceiver_EffectiveHelpers(t *testing.T) {
 	require.Equal(t, "", cfg.SummaryModelAPIEffective())
 	require.Equal(t, constants.RerankerDeterministic, cfg.RerankerEffective())
 	require.False(t, cfg.MemoryEnabled())
+	require.False(t, cfg.MemoryPinnedEnabled())
 	require.False(t, cfg.MemoryRetrievalEnabled())
 	require.False(t, cfg.MemoryFlushEnabled())
+	require.False(t, cfg.MemoryEpisodicEnabled())
+	require.False(t, cfg.MemoryReflectionEnabled())
+	require.False(t, cfg.MemoryPromotionEnabled())
 	require.False(t, cfg.MemoryWriteEnabled())
 	require.Equal(t, "", cfg.RerankerModelEffective())
 	require.Equal(t, "", cfg.RerankerProviderEffective())
@@ -1134,6 +1429,11 @@ func TestConfig_EffectiveAuthHelpersCoverFallbackBranches(t *testing.T) {
 		t,
 		newMissingModelCredentialError("", ""),
 		"model API key is required; set a provider API key, provider env var, role apiKey, or provider login",
+	)
+	require.EqualError(
+		t,
+		newMissingModelCredentialError("embedding", ""),
+		"embedding API key is required; set a provider API key, provider env var, or role apiKey",
 	)
 }
 

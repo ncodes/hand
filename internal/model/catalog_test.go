@@ -97,6 +97,42 @@ func TestListOptions_ReturnsEmptyForMissingProviderOrRegistry(t *testing.T) {
 	}))
 }
 
+func TestListOptions_IncludesLocalGenerationModels(t *testing.T) {
+	registry := modelprovider.NewRegistry(
+		[]modelprovider.APIDefinition{{ID: modelprovider.APIOllamaNative}},
+		[]modelprovider.ProviderDefinition{{
+			ID:             constants.ModelProviderOllama,
+			DisplayName:    "Ollama",
+			DefaultAPI:     modelprovider.APIOllamaNative,
+			SupportsModels: true,
+			Local: &modelprovider.LocalProviderDefinition{
+				NativeChatAPI: modelprovider.APIOllamaNative,
+				AuthMarker:    constants.OllamaLocalAuthMarker,
+			},
+		}},
+		[]modelprovider.ModelDefinition{{
+			ID:            "llama3.1:8b",
+			Name:          "Llama 3.1 8B",
+			Provider:      constants.ModelProviderOllama,
+			API:           modelprovider.APIOllamaNative,
+			Input:         []modelprovider.InputKind{modelprovider.InputText, modelprovider.InputImage},
+			SupportsTools: true,
+		}},
+	)
+
+	options := ListOptions(OptionQuery{Provider: constants.ModelProviderOllama, Registry: registry})
+	require.Len(t, options, 1)
+	require.Equal(t, "llama3.1:8b", options[0].ID)
+	require.True(t, options[0].SupportsTools)
+	require.Equal(t, []string{"text", "image"}, options[0].Input)
+
+	providers := ListProviders(ProviderQuery{Registry: registry})
+	require.Len(t, providers, 1)
+	require.Equal(t, constants.ModelProviderOllama, providers[0].ID)
+	require.Equal(t, "local", providers[0].Type)
+	require.True(t, providers[0].Local)
+}
+
 func findModelOption(t *testing.T, options []Option, id string) Option {
 	t.Helper()
 
@@ -171,6 +207,27 @@ func TestListProviders_FiltersByAuthMethod(t *testing.T) {
 	require.True(t, apiKeyIDs[constants.ModelProviderOpenRouter])
 	require.False(t, apiKeyIDs[constants.ModelProviderOpenAICodex])
 	require.True(t, apiKeyIDs[constants.ModelProviderGitHubCopilot])
+}
+
+func TestListProviders_OrdersCurrentProviderBeforeNameWithoutDisplayIndex(t *testing.T) {
+	registry := modelprovider.NewRegistry(
+		[]modelprovider.APIDefinition{{ID: modelprovider.APIOpenAIResponses}},
+		[]modelprovider.ProviderDefinition{
+			{ID: "alpha", DisplayName: "Alpha", SupportsModels: true},
+			{ID: "zulu", DisplayName: "Zulu", SupportsModels: true},
+		},
+		[]modelprovider.ModelDefinition{
+			{ID: "alpha-model", Provider: "alpha", API: modelprovider.APIOpenAIResponses},
+			{ID: "zulu-model", Provider: "zulu", API: modelprovider.APIOpenAIResponses},
+		},
+	)
+
+	options := ListProviders(ProviderQuery{Current: "zulu", Registry: registry})
+
+	require.Len(t, options, 2)
+	require.Equal(t, "zulu", options[0].ID)
+	require.True(t, options[0].Current)
+	require.Equal(t, "alpha", options[1].ID)
 }
 
 func findProviderOption(t *testing.T, options []ProviderOption, id string) ProviderOption {
