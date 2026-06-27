@@ -8,7 +8,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	urfavecli "github.com/urfave/cli/v3"
@@ -52,7 +54,7 @@ func TestNewMainAction_TreatsUnknownArgsAsChat(t *testing.T) {
 	require.Empty(t, stub.RespondOptions.Instruct)
 	require.Empty(t, stub.RespondOptions.SessionID)
 	require.True(t, stub.Closed)
-	require.Equal(t, "hello back\n", output.String())
+	require.Equal(t, "hello back\n\n\x1b[90mWorked for 0s\x1b[0m\n", output.String())
 }
 
 func TestNewMainAction_UsesProfileConfigAndEnv(t *testing.T) {
@@ -185,10 +187,10 @@ func TestNewMainAction_StreamsOutput(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stub.RespondOptions.Stream)
 	require.True(t, *stub.RespondOptions.Stream)
-	require.Equal(t, "hello back\n", output.String())
+	require.Equal(t, "hello back\n\n\x1b[90mWorked for 0s\x1b[0m\n", output.String())
 }
 
-func TestNewMainAction_StylesReasoningOutput(t *testing.T) {
+func TestNewMainAction_LabelsReasoningAndWorkDuration(t *testing.T) {
 	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
 		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
@@ -201,8 +203,16 @@ func TestNewMainAction_StylesReasoningOutput(t *testing.T) {
 			{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: " done"},
 		},
 	}
-	cmd := newMainActionTestCommand(&output, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
-		return stub, nil
+	cmd := newMainActionTestCommandWithOptions(&output, MainActionOptions{
+		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+			return stub, nil
+		},
+		Now: sequenceClock(
+			time.Unix(0, 0),
+			time.Unix(0, 0),
+			time.Unix(5, 0),
+			time.Unix(120, 0),
+		),
 	})
 
 	err := cmd.Run(context.Background(), []string{
@@ -212,7 +222,16 @@ func TestNewMainAction_StylesReasoningOutput(t *testing.T) {
 		"hello",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "\x1b[90mthinking\x1b[0m\n done\n", output.String())
+	require.Equal(t, strings.Join([]string{
+		"\x1b[90mthinking\x1b[0m",
+		"",
+		"\x1b[90mThought for 5s\x1b[0m",
+		"",
+		" done",
+		"",
+		"\x1b[90mWorked for 2m\x1b[0m",
+		"",
+	}, "\n"), output.String())
 }
 
 func TestNewMainAction_DoesNotStyleReasoningWhenNoColor(t *testing.T) {
@@ -240,11 +259,24 @@ func TestNewMainAction_DoesNotStyleReasoningWhenNoColor(t *testing.T) {
 		"hello",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "thinking\n done\n", output.String())
+	require.Equal(t, strings.Join([]string{
+		"thinking",
+		"",
+		"Thought for 0s",
+		"",
+		" done",
+		"",
+		"Worked for 0s",
+		"",
+	}, "\n"), output.String())
 }
 
-func TestChatStreamFormatter_DoesNotAddBoundaryAfterReasoningNewline(t *testing.T) {
-	formatter := newChatStreamFormatter(config.NewDefaultConfig())
+func TestChatStreamFormatter_CompletesReasoningBoundaryAfterOneNewline(t *testing.T) {
+	formatter := newChatStreamFormatter(config.NewDefaultConfig(), sequenceClock(
+		time.Unix(0, 0),
+		time.Unix(0, 0),
+		time.Unix(5, 0),
+	))
 
 	output := formatter.Format(rpcclient.Event{
 		Kind:    agent.EventKindTextDelta,
@@ -257,7 +289,28 @@ func TestChatStreamFormatter_DoesNotAddBoundaryAfterReasoningNewline(t *testing.
 		Text:    "done",
 	})
 
-	require.Equal(t, "\x1b[90mthinking\n\x1b[0mdone", output)
+	require.Equal(t, "\x1b[90mthinking\n\x1b[0m\n\x1b[90mThought for 5s\x1b[0m\n\ndone", output)
+}
+
+func TestChatStreamFormatter_DoesNotAddBoundaryAfterTwoReasoningNewlines(t *testing.T) {
+	formatter := newChatStreamFormatter(config.NewDefaultConfig(), sequenceClock(
+		time.Unix(0, 0),
+		time.Unix(0, 0),
+		time.Unix(5, 0),
+	))
+
+	output := formatter.Format(rpcclient.Event{
+		Kind:    agent.EventKindTextDelta,
+		Channel: "reasoning",
+		Text:    "thinking\n\n",
+	})
+	output += formatter.Format(rpcclient.Event{
+		Kind:    agent.EventKindTextDelta,
+		Channel: "assistant",
+		Text:    "done",
+	})
+
+	require.Equal(t, "\x1b[90mthinking\n\n\x1b[0m\x1b[90mThought for 5s\x1b[0m\n\ndone", output)
 }
 
 func TestNewMainAction_IgnoresTraceEvents(t *testing.T) {
@@ -285,7 +338,7 @@ func TestNewMainAction_IgnoresTraceEvents(t *testing.T) {
 		"hello",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "hello back\n", output.String())
+	require.Equal(t, "hello back\n\n\x1b[90mWorked for 0s\x1b[0m\n", output.String())
 }
 
 func TestNewMainAction_DoesNotForwardConfiguredInstruct(t *testing.T) {
@@ -400,7 +453,14 @@ func TestNewMainAction_PullsOllamaModelBeforeStartingDaemon(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, pulled)
 	require.Equal(t, "hello", stub.ChatInput)
-	require.Equal(t, "Ollama pull: pulling manifest\nOllama pull: downloading 25%\nhello back\n", output.String())
+	require.Equal(t, strings.Join([]string{
+		"Ollama pull: pulling manifest",
+		"Ollama pull: downloading 25%",
+		"hello back",
+		"",
+		"\x1b[90mWorked for 0s\x1b[0m",
+		"",
+	}, "\n"), output.String())
 }
 
 func TestNewMainAction_PullQuietSuppressesProgressOutput(t *testing.T) {
@@ -436,7 +496,7 @@ func TestNewMainAction_PullQuietSuppressesProgressOutput(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, "hello back\n", output.String())
+	require.Equal(t, "hello back\n\n\x1b[90mWorked for 0s\x1b[0m\n", output.String())
 }
 
 func TestNewMainAction_PullRejectsNonOllamaProvider(t *testing.T) {
@@ -518,17 +578,104 @@ func TestPullSelectedOllamaModel_RejectsInvalidInputs(t *testing.T) {
 	require.ErrorContains(t, err, "parse credential store")
 }
 
-func TestPullProgressWriter_IgnoresDisabledAndEmptyProgress(t *testing.T) {
-	require.Nil(t, pullProgressWriter(io.Discard, false))
-	require.Nil(t, pullProgressWriter(nil, true))
+func TestNewMainAction_PullProgressKeepsRecentLines(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
 
 	var output bytes.Buffer
-	onProgress := pullProgressWriter(&output, true)
-	require.NotNil(t, onProgress)
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	cmd := newMainActionTestCommandWithOptions(&output, MainActionOptions{
+		PullOllamaModel: func(
+			_ context.Context,
+			_ string,
+			_ string,
+			_ map[string]string,
+			onProgress func(provider_ollama.PullProgress),
+		) error {
+			for _, progress := range []provider_ollama.PullProgress{
+				{Status: "pulling manifest"},
+				{Status: "pulling a", Completed: 10, Total: 100},
+				{Status: "pulling b", Completed: 20, Total: 100},
+				{Status: "pulling c", Completed: 30, Total: 100},
+				{Status: "pulling c", Completed: 30, Total: 100},
+				{Status: "pulling d", Completed: 40, Total: 100},
+				{Status: "verifying sha256 digest"},
+				{Status: "verifying sha256 digest"},
+				{Status: "success"},
+				{Status: "success"},
+			} {
+				onProgress(progress)
+			}
+			return nil
+		},
+		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+			return stub, nil
+		},
+	})
 
-	onProgress(provider_ollama.PullProgress{Status: " "})
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--provider", "ollama",
+		"--model", "qwen3:8b",
+		"--pull",
+		"hello",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, strings.Join([]string{
+		"Ollama pull: pulling b 20%",
+		"Ollama pull: pulling c 30%",
+		"Ollama pull: pulling d 40%",
+		"Ollama pull: verifying sha256 digest",
+		"Ollama pull: success",
+		"hello back",
+		"",
+		"\x1b[90mWorked for 0s\x1b[0m",
+		"",
+	}, "\n"), output.String())
+}
+
+func TestPullProgressPrinter_IgnoresDisabledAndEmptyProgress(t *testing.T) {
+	require.Nil(t, newPullProgressPrinter(io.Discard, false))
+	require.Nil(t, newPullProgressPrinter(nil, true))
+
+	var output bytes.Buffer
+	printer := newPullProgressPrinter(&output, true)
+	require.NotNil(t, printer)
+
+	printer.Progress(provider_ollama.PullProgress{Status: " "})
+	printer.Finish()
 
 	require.Empty(t, output.String())
+}
+
+func TestPullProgressPrinter_RepaintsLiveProgressWindow(t *testing.T) {
+	var output bytes.Buffer
+	printer := &pullProgressPrinter{output: &output, live: true}
+
+	for _, status := range []string{
+		"pulling manifest",
+		"pulling a",
+		"pulling b",
+		"pulling b",
+		"pulling c",
+		"pulling d",
+		"success",
+		"success",
+	} {
+		printer.Progress(provider_ollama.PullProgress{Status: status})
+	}
+
+	require.Equal(t, []string{
+		"Ollama pull: pulling a",
+		"Ollama pull: pulling b",
+		"Ollama pull: pulling c",
+		"Ollama pull: pulling d",
+		"Ollama pull: success",
+	}, printer.lines)
+	require.Equal(t, pullProgressLineLimit, printer.rendered)
+	require.Contains(t, output.String(), "\x1b[5F")
 }
 
 func TestNewMainAction_ReturnsDaemonStartErrorBeforeCreatingClient(t *testing.T) {
@@ -581,6 +728,11 @@ func newMainActionTestCommandWithOptions(output io.Writer, opts MainActionOption
 	if opts.EnsureDaemonRunning == nil {
 		opts.EnsureDaemonRunning = noopEnsureDaemonRunning
 	}
+	if opts.Now == nil {
+		opts.Now = func() time.Time {
+			return time.Unix(0, 0)
+		}
+	}
 
 	return &urfavecli.Command{
 		Name:   "morph",
@@ -591,6 +743,22 @@ func newMainActionTestCommandWithOptions(output io.Writer, opts MainActionOption
 
 func noopEnsureDaemonRunning(context.Context, *config.Config) (func() error, error) {
 	return nil, nil
+}
+
+func sequenceClock(times ...time.Time) func() time.Time {
+	index := 0
+	return func() time.Time {
+		if len(times) == 0 {
+			return time.Unix(0, 0)
+		}
+		if index >= len(times) {
+			return times[len(times)-1]
+		}
+
+		value := times[index]
+		index++
+		return value
+	}
 }
 
 func resetMainActionState(t *testing.T) {
