@@ -570,6 +570,34 @@ func TestNewMainAction_PullRejectsNonOllamaProvider(t *testing.T) {
 	require.EqualError(t, err, `--pull is only supported with provider "ollama"`)
 }
 
+func TestNewMainAction_RejectsInvalidModelAPIOverride(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	cmd := newMainActionTestCommandWithOptions(io.Discard, MainActionOptions{
+		EnsureDaemonRunning: func(context.Context, *config.Config) (func() error, error) {
+			t.Fatal("daemon should not start when --model.api is invalid")
+			return nil, nil
+		},
+		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+			t.Fatal("chat client should not be created when --model.api is invalid")
+			return nil, nil
+		},
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--provider", "ollama",
+		"--model", "lfm2.5-thinking",
+		"--base-url", constants.DefaultOllamaBaseURL,
+		"--model.api", "wrong",
+		"hello",
+	})
+
+	require.EqualError(t, err, "model API must be one of: anthropic-messages, ollama-native, openai-completions, openai-responses")
+}
+
 func TestPullSelectedOllamaModel_RejectsInvalidInputs(t *testing.T) {
 	err := pullSelectedOllamaModel(
 		t.Context(),

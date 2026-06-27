@@ -55,6 +55,15 @@ func validateProviderAPI(field string, providerID string, apiID string) error {
 	return nil
 }
 
+func ValidateModelGenerationAPIForProvider(field string, providerID string, apiID string) error {
+	apiID = getModelAPIID(apiID)
+	if err := validateModelRoleAPI(field, apiID, modelGenerationAPIs()); err != nil {
+		return err
+	}
+
+	return validateProviderAPI(field, providerID, apiID)
+}
+
 func validateModelRoleAPI(field string, apiID string, allowedAPIs map[string]struct{}) error {
 	apiID = strings.TrimSpace(strings.ToLower(apiID))
 	if _, ok := allowedAPIs[apiID]; ok {

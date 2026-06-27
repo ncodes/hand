@@ -77,6 +77,9 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 
 		ApplyConfigOverrides(cmd, cfg)
 		AddStartupFilesystemRoots(cfg, inputs)
+		if err := validateRootChatModelConfig(cfg); err != nil {
+			return err
+		}
 
 		endpoint, err := runtime.ResolveRPC(ctx, cmd, cfg)
 		if err != nil {
@@ -153,6 +156,22 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 		_, err = fmt.Fprintln(output, reply)
 		return err
 	}
+}
+
+func validateRootChatModelConfig(cfg *config.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config is required")
+	}
+	if strings.TrimSpace(cfg.Models.Main.API) == "" {
+		return nil
+	}
+
+	cfg.Normalize()
+	return config.ValidateModelGenerationAPIForProvider(
+		"model API",
+		cfg.Models.Main.Provider,
+		cfg.Models.Main.API,
+	)
 }
 
 func pullSelectedOllamaModel(
