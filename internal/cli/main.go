@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -123,6 +124,9 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 			return err
 		}
 		defer client.Close()
+		if err := validateRootChatDaemonModel(ctx, cmd, cfg, client); err != nil {
+			return err
+		}
 
 		instruct := ""
 		if cmd.IsSet("instruct") {
@@ -172,6 +176,108 @@ func validateRootChatModelConfig(cfg *config.Config) error {
 		cfg.Models.Main.Provider,
 		cfg.Models.Main.API,
 	)
+}
+
+func validateRootChatDaemonModel(
+	ctx context.Context,
+	cmd *urfavecli.Command,
+	cfg *config.Config,
+	client rpcclient.ChatClient,
+) error {
+	if !hasRootChatModelOverride(cmd) {
+		return nil
+	}
+
+	modelAPIProvider, ok := client.(interface{ ModelAPI() rpcclient.ModelAPI })
+	if !ok || modelAPIProvider.ModelAPI() == nil {
+		return fmt.Errorf("running daemon model identity is not available")
+	}
+
+	runtimeModel, err := modelAPIProvider.ModelAPI().RuntimeModel(ctx)
+	if err != nil {
+		return fmt.Errorf("check running daemon model: %w", err)
+	}
+    
+	requestedModel := rootChatModelRuntimeFromConfig(cfg)
+	if rootChatModelRuntimeEqual(runtimeModel, requestedModel) {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"running daemon uses %s; requested %s. Stop or restart the daemon before running root chat with model overrides",
+		formatRootChatModelRuntime(runtimeModel),
+		formatRootChatModelRuntime(requestedModel),
+	)
+}
+
+func hasRootChatModelOverride(cmd *urfavecli.Command) bool {
+	if cmd == nil {
+		return false
+	}
+
+	return slices.ContainsFunc([]string{
+		"model",
+		"model.provider",
+		"provider",
+		"model.api",
+		"model.base-url",
+		"base-url",
+	}, cmd.IsSet)
+}
+
+func rootChatModelRuntimeFromConfig(cfg *config.Config) rpcclient.ModelRuntime {
+	if cfg == nil {
+		return rpcclient.ModelRuntime{}
+	}
+
+	snapshot := *cfg
+	snapshot.Normalize()
+
+	return normalizeRootChatModelRuntime(rpcclient.ModelRuntime{
+		Provider:      snapshot.Models.Main.Provider,
+		API:           snapshot.MainModelAPIEffective(),
+		Model:         snapshot.Models.Main.Name,
+		BaseURL:       snapshot.Models.Main.BaseURL,
+		ContextLength: snapshot.Models.Main.ContextLength,
+	})
+}
+
+func rootChatModelRuntimeEqual(a rpcclient.ModelRuntime, b rpcclient.ModelRuntime) bool {
+	a = normalizeRootChatModelRuntime(a)
+	b = normalizeRootChatModelRuntime(b)
+
+	return a.Provider == b.Provider &&
+		a.API == b.API &&
+		a.Model == b.Model &&
+		a.BaseURL == b.BaseURL
+}
+
+func normalizeRootChatModelRuntime(runtime rpcclient.ModelRuntime) rpcclient.ModelRuntime {
+	runtime.Provider = strings.TrimSpace(strings.ToLower(runtime.Provider))
+	runtime.API = strings.TrimSpace(strings.ToLower(runtime.API))
+	runtime.Model = strings.TrimSpace(runtime.Model)
+	runtime.BaseURL = strings.TrimRight(strings.TrimSpace(runtime.BaseURL), "/")
+	if runtime.ContextLength < 0 {
+		runtime.ContextLength = 0
+	}
+
+	return runtime
+}
+
+func formatRootChatModelRuntime(runtime rpcclient.ModelRuntime) string {
+	runtime = normalizeRootChatModelRuntime(runtime)
+	parts := []string{
+		fmt.Sprintf("provider=%q", runtime.Provider),
+		fmt.Sprintf("model=%q", runtime.Model),
+	}
+	if runtime.API != "" {
+		parts = append(parts, fmt.Sprintf("api=%q", runtime.API))
+	}
+	if runtime.BaseURL != "" {
+		parts = append(parts, fmt.Sprintf("base_url=%q", runtime.BaseURL))
+	}
+
+	return strings.Join(parts, " ")
 }
 
 func pullSelectedOllamaModel(

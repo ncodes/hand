@@ -12,6 +12,7 @@ import (
 
 // Options configures the RPC server.
 type Options struct {
+	RuntimeModel         rpc.ModelRuntime
 	Health               bool
 	GatewayPairingSecret string
 	GatewayConfig        config.GatewayConfig
@@ -22,6 +23,7 @@ type Options struct {
 func New(service morphagent.ServiceAPI, opts Options) *grpc.Server {
 	server := grpc.NewServer()
 	rpcService := rpc.NewServiceWithOptions(service, rpc.ServiceOptions{
+		RuntimeModel:         opts.RuntimeModel,
 		GatewayPairingSecret: opts.GatewayPairingSecret,
 		GatewayConfig:        opts.GatewayConfig,
 		GatewayRuntime:       opts.GatewayRuntime,

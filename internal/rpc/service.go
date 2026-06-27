@@ -33,6 +33,7 @@ type Service struct {
 	morphpb.UnimplementedModelServiceServer
 	morphpb.UnimplementedGatewayServiceServer
 	api                  morphagent.ServiceAPI
+	runtimeModel         ModelRuntime
 	gatewayPairingSecret string
 	gatewayConfig        config.GatewayConfig
 	gatewayRuntime       GatewayRuntime
@@ -41,9 +42,18 @@ type Service struct {
 var marshalRPCJSON = json.Marshal
 
 type ServiceOptions struct {
+	RuntimeModel         ModelRuntime
 	GatewayPairingSecret string
 	GatewayConfig        config.GatewayConfig
 	GatewayRuntime       GatewayRuntime
+}
+
+type ModelRuntime struct {
+	Provider      string
+	API           string
+	Model         string
+	BaseURL       string
+	ContextLength int
 }
 
 type GatewayRuntime interface {
@@ -60,10 +70,44 @@ func NewService(api morphagent.ServiceAPI) *Service {
 func NewServiceWithOptions(api morphagent.ServiceAPI, opts ServiceOptions) *Service {
 	return &Service{
 		api:                  api,
+		runtimeModel:         normalizeModelRuntime(opts.RuntimeModel),
 		gatewayPairingSecret: strings.TrimSpace(opts.GatewayPairingSecret),
 		gatewayConfig:        opts.GatewayConfig,
 		gatewayRuntime:       opts.GatewayRuntime,
 	}
+}
+
+func ModelRuntimeFromConfig(cfg *config.Config) ModelRuntime {
+	if cfg == nil {
+		return ModelRuntime{}
+	}
+
+	snapshot := *cfg
+	snapshot.Normalize()
+
+	return normalizeModelRuntime(ModelRuntime{
+		Provider:      snapshot.Models.Main.Provider,
+		API:           snapshot.MainModelAPIEffective(),
+		Model:         snapshot.Models.Main.Name,
+		BaseURL:       snapshot.Models.Main.BaseURL,
+		ContextLength: snapshot.Models.Main.ContextLength,
+	})
+}
+
+func normalizeModelRuntime(runtime ModelRuntime) ModelRuntime {
+	runtime.Provider = strings.TrimSpace(strings.ToLower(runtime.Provider))
+	runtime.API = strings.TrimSpace(strings.ToLower(runtime.API))
+	runtime.Model = strings.TrimSpace(runtime.Model)
+	runtime.BaseURL = normalizeRuntimeModelBaseURL(runtime.BaseURL)
+	if runtime.ContextLength < 0 {
+		runtime.ContextLength = 0
+	}
+
+	return runtime
+}
+
+func normalizeRuntimeModelBaseURL(value string) string {
+	return strings.TrimRight(strings.TrimSpace(value), "/")
 }
 
 // Respond sends a chat request to the service and returns the completed response.
@@ -924,6 +968,17 @@ func (s *Service) ListProviders(ctx context.Context, req *morphpb.ListProvidersR
 	return &morphpb.ListProvidersResponse{Providers: providerOptionsToProto(list.Providers)}, nil
 }
 
+func (s *Service) RuntimeModel(
+	context.Context,
+	*morphpb.RuntimeModelRequest,
+) (*morphpb.RuntimeModelResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+
+	return modelRuntimeToProto(s.runtimeModel), nil
+}
+
 func (s *Service) ListModels(ctx context.Context, req *morphpb.ListModelsRequest) (*morphpb.ListModelsResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
@@ -1580,6 +1635,18 @@ func modelOptionToProto(option models.Option) *morphpb.ModelOption {
 		Reasoning:     option.Reasoning,
 		SupportsOauth: option.SupportsOAuth,
 		Current:       option.Current,
+	}
+}
+
+func modelRuntimeToProto(runtime ModelRuntime) *morphpb.RuntimeModelResponse {
+	runtime = normalizeModelRuntime(runtime)
+
+	return &morphpb.RuntimeModelResponse{
+		Provider:      runtime.Provider,
+		Api:           runtime.API,
+		Model:         runtime.Model,
+		BaseUrl:       runtime.BaseURL,
+		ContextLength: int32(runtime.ContextLength),
 	}
 }
 

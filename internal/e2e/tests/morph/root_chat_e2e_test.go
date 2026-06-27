@@ -76,7 +76,7 @@ func Test_E2E_MorphRootChat_StreamingAnswer(t *testing.T) {
 
 	output, err := runRootChatCommand(t, "morph", "--config", configPath, "hello")
 	require.NoError(t, err)
-	assert.Equal(t, "\x1b[90mthinking\x1b[0manswer\n", output)
+	assert.Equal(t, "\x1b[90mthinking\x1b[0m\n\n\x1b[90mThought for 0s\x1b[0m\n\nanswer\n\n\x1b[90mWorked for 0s\x1b[0m\n", output)
 }
 
 func Test_E2E_MorphRootChat_ExplicitSession(t *testing.T) {

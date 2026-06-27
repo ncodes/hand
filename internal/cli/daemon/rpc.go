@@ -7,6 +7,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/gateway"
 	"github.com/wandxy/morph/internal/profile"
+	morphrpc "github.com/wandxy/morph/internal/rpc"
 	"github.com/wandxy/morph/internal/rpc/server"
 	morphruntime "github.com/wandxy/morph/internal/runtime"
 	"google.golang.org/grpc"
@@ -152,6 +153,7 @@ var serveRPC = func(
 	}
 
 	grpcSrv := server.New(agent, server.Options{
+		RuntimeModel:         morphrpc.ModelRuntimeFromConfig(cfg),
 		Health:               true,
 		GatewayPairingSecret: pairingSecret,
 		GatewayConfig:        gatewayCfg,

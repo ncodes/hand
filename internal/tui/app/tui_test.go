@@ -5628,6 +5628,10 @@ func (c *fakeTUIChatClient) ListProviders(context.Context) (rpcclient.ProviderLi
 	return c.providerList, c.providerListErr
 }
 
+func (c *fakeTUIChatClient) RuntimeModel(context.Context) (rpcclient.ModelRuntime, error) {
+	return rpcclient.ModelRuntime{}, nil
+}
+
 func (c *fakeTUIChatClient) ListModels(_ context.Context, opts ...rpcclient.ModelListOptions) (rpcclient.ModelList, error) {
 	c.listModelCalls++
 	if len(opts) > 0 {

@@ -16,6 +16,7 @@ import (
 
 	agentapi "github.com/wandxy/morph/internal/agent"
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/gateway"
 	agentstub "github.com/wandxy/morph/internal/mocks/agentstub"
 	models "github.com/wandxy/morph/internal/model"
@@ -2556,7 +2557,59 @@ func TestService_SetProviderAPIKeySendsProviderAndKey(t *testing.T) {
 	require.Equal(t, "router-key", stub.ProviderAPIKey)
 }
 
+func TestService_RuntimeModelReturnsConfiguredIdentity(t *testing.T) {
+	svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
+		RuntimeModel: ModelRuntime{
+			Provider:      " Ollama ",
+			API:           " OLLAMA-NATIVE ",
+			Model:         " qwen3:8b ",
+			BaseURL:       " http://127.0.0.1:11434/ ",
+			ContextLength: 8192,
+		},
+	})
+
+	resp, err := svc.RuntimeModel(context.Background(), &morphpb.RuntimeModelRequest{})
+
+	require.NoError(t, err)
+	require.Equal(t, "ollama", resp.GetProvider())
+	require.Equal(t, "ollama-native", resp.GetApi())
+	require.Equal(t, "qwen3:8b", resp.GetModel())
+	require.Equal(t, "http://127.0.0.1:11434", resp.GetBaseUrl())
+	require.EqualValues(t, 8192, resp.GetContextLength())
+}
+
+func TestModelRuntimeFromConfigNormalizesMainModelIdentity(t *testing.T) {
+	require.Zero(t, ModelRuntimeFromConfig(nil))
+
+	cfg := config.NewDefaultConfig()
+	cfg.Models.Main.Provider = " Ollama "
+	cfg.Models.Main.API = " OLLAMA-NATIVE "
+	cfg.Models.Main.Name = " qwen3:8b "
+	cfg.Models.Main.BaseURL = " http://127.0.0.1:11434/ "
+	cfg.Models.Main.ContextLength = -1
+
+	require.Equal(t, ModelRuntime{
+		Provider:      "ollama",
+		API:           "ollama-native",
+		Model:         "qwen3:8b",
+		BaseURL:       "http://127.0.0.1:11434",
+		ContextLength: constants.DefaultContextLength,
+	}, ModelRuntimeFromConfig(cfg))
+
+	resp := modelRuntimeToProto(ModelRuntime{ContextLength: -1})
+	require.Zero(t, resp.GetContextLength())
+}
+
 func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
+	t.Run("runtime model nil receiver", func(t *testing.T) {
+		var svc *Service
+
+		resp, err := svc.RuntimeModel(context.Background(), &morphpb.RuntimeModelRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
 	t.Run("list nil receiver", func(t *testing.T) {
 		var svc *Service
 

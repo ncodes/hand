@@ -25,6 +25,7 @@ service SessionService {
 }
 
 service ModelService {
+  rpc RuntimeModel(RuntimeModelRequest) returns (RuntimeModelResponse);
   rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse);
   rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
   rpc SelectModel(SelectModelRequest) returns (SelectModelResponse);
@@ -256,6 +257,16 @@ message GetSessionTimelineResponse {
   int32 last_trace_sequence = 8;
   string title = 9;
   string title_source = 10;
+}
+
+message RuntimeModelRequest {}
+
+message RuntimeModelResponse {
+  string provider = 1;
+  string api = 2;
+  string model = 3;
+  string base_url = 4;
+  int32 context_length = 5;
 }
 
 message ListProvidersRequest {}

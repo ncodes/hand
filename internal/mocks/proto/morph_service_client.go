@@ -37,6 +37,8 @@ type MorphServiceClientStub struct {
 	TimelineReq        *morphpb.GetSessionTimelineRequest
 	ProvidersResp      *morphpb.ListProvidersResponse
 	ProvidersReq       *morphpb.ListProvidersRequest
+	RuntimeModelResp   *morphpb.RuntimeModelResponse
+	RuntimeModelReq    *morphpb.RuntimeModelRequest
 	ModelsResp         *morphpb.ListModelsResponse
 	ModelsReq          *morphpb.ListModelsRequest
 	SelectReq          *morphpb.SelectModelRequest
@@ -137,6 +139,11 @@ func (s *MorphServiceClientStub) ListModels(_ context.Context, req *morphpb.List
 func (s *MorphServiceClientStub) ListProviders(_ context.Context, req *morphpb.ListProvidersRequest, _ ...grpc.CallOption) (*morphpb.ListProvidersResponse, error) {
 	s.ProvidersReq = req
 	return s.ProvidersResp, s.Err
+}
+
+func (s *MorphServiceClientStub) RuntimeModel(_ context.Context, req *morphpb.RuntimeModelRequest, _ ...grpc.CallOption) (*morphpb.RuntimeModelResponse, error) {
+	s.RuntimeModelReq = req
+	return s.RuntimeModelResp, s.Err
 }
 
 func (s *MorphServiceClientStub) SelectModel(_ context.Context, req *morphpb.SelectModelRequest, _ ...grpc.CallOption) (*morphpb.SelectModelResponse, error) {

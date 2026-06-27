@@ -374,6 +374,10 @@ func (c *fakeTUIChatClient) ListProviders(context.Context) (rpcclient.ProviderLi
 	return rpcclient.ProviderList{}, nil
 }
 
+func (c *fakeTUIChatClient) RuntimeModel(context.Context) (rpcclient.ModelRuntime, error) {
+	return rpcclient.ModelRuntime{}, nil
+}
+
 func (c *fakeTUIChatClient) ListModels(context.Context, ...rpcclient.ModelListOptions) (rpcclient.ModelList, error) {
 	return rpcclient.ModelList{}, nil
 }

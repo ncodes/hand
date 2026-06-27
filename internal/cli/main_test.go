@@ -57,6 +57,57 @@ func TestNewMainAction_TreatsUnknownArgsAsChat(t *testing.T) {
 	require.Equal(t, "hello back\n\n\x1b[90mWorked for 0s\x1b[0m\n", output.String())
 }
 
+func TestNewMainAction_ShowsHelpForEmptyMessageWithDefaultOptions(t *testing.T) {
+	cmd := &urfavecli.Command{
+		Name:   "morph",
+		Action: NewMainAction(MainActionOptions{}),
+	}
+
+	err := cmd.Run(context.Background(), []string{"morph", "  "})
+
+	require.NoError(t, err)
+}
+
+func TestNewMainAction_ReturnsLoadConfigError(t *testing.T) {
+	clearEnv(t, "MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("models:\n  main:\n    name: ["), 0o600))
+
+	cmd := newMainActionTestCommandWithOptions(io.Discard, MainActionOptions{
+		EnsureDaemonRunning: func(context.Context, *config.Config) (func() error, error) {
+			t.Fatal("daemon should not start when config loading fails")
+			return nil, nil
+		},
+	})
+
+	err := cmd.Run(context.Background(), []string{"morph", "--config", configPath, "hello"})
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to parse config file")
+}
+
+func TestNewMainAction_ReturnsRuntimeEndpointError(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_RPC_ADDRESS", "MORPH_RPC_PORT")
+	resetMainActionState(t)
+
+	active := profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()})
+	profile.SetActive(active)
+	require.NoError(t, os.WriteFile(active.RuntimePath, []byte(`{`), 0o600))
+
+	cmd := newMainActionTestCommandWithOptions(io.Discard, MainActionOptions{
+		EnsureDaemonRunning: func(context.Context, *config.Config) (func() error, error) {
+			t.Fatal("daemon should not start when runtime endpoint cannot be resolved")
+			return nil, nil
+		},
+	})
+
+	err := cmd.Run(context.Background(), []string{"morph", "--name", "flag-agent", "hello"})
+
+	require.ErrorContains(t, err, "parse runtime metadata")
+}
+
 func TestNewMainAction_UsesProfileConfigAndEnv(t *testing.T) {
 	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_LOG_LEVEL",
 		"MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE")
@@ -380,6 +431,88 @@ func TestNewMainAction_IgnoresTraceEvents(t *testing.T) {
 	require.Equal(t, "hello back\n\n\x1b[90mWorked for 0s\x1b[0m\n", output.String())
 }
 
+func TestNewMainAction_ReturnsStreamRespondError(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	expectedErr := errors.New("stream failed")
+	stub := &agentstub.AgentServiceStub{Reply: "partial", RespondErr: expectedErr}
+	cmd := newMainActionTestCommand(io.Discard, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--name", "flag-agent",
+		"--model.stream=true",
+		"hello",
+	})
+
+	require.ErrorIs(t, err, expectedErr)
+}
+
+func TestNewMainAction_ReturnsStreamFinishWriteError(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	cmd := newMainActionTestCommand(failingWriter{}, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--name", "flag-agent",
+		"--model.stream=true",
+		"hello",
+	})
+
+	require.ErrorIs(t, err, io.ErrClosedPipe)
+}
+
+func TestNewMainAction_ReturnsNonStreamRespondError(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	expectedErr := errors.New("respond failed")
+	stub := &agentstub.AgentServiceStub{RespondErr: expectedErr}
+	cmd := newMainActionTestCommand(io.Discard, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--name", "flag-agent",
+		"--model.stream=false",
+		"hello",
+	})
+
+	require.ErrorIs(t, err, expectedErr)
+}
+
+func TestNewMainAction_ReturnsNonStreamWriteError(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	cmd := newMainActionTestCommand(failingWriter{}, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--name", "flag-agent",
+		"--model.stream=false",
+		"hello",
+	})
+
+	require.ErrorIs(t, err, io.ErrClosedPipe)
+}
+
 func TestNewMainAction_DoesNotForwardConfiguredInstruct(t *testing.T) {
 	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
 		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
@@ -477,6 +610,12 @@ func TestNewMainAction_PullsOllamaModelBeforeStartingDaemon(t *testing.T) {
 		},
 		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
 			require.True(t, started)
+			stub.RuntimeModelResult = rpcclient.ModelRuntime{
+				Provider: constants.ModelProviderOllama,
+				API:      modelprovider.APIOllamaNative,
+				Model:    "qwen3:8b",
+				BaseURL:  constants.DefaultOllamaBaseURL,
+			}
 			return stub, nil
 		},
 	})
@@ -521,6 +660,12 @@ func TestNewMainAction_PullQuietSuppressesProgressOutput(t *testing.T) {
 			return nil
 		},
 		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+			stub.RuntimeModelResult = rpcclient.ModelRuntime{
+				Provider: constants.ModelProviderOllama,
+				API:      modelprovider.APIOllamaNative,
+				Model:    "qwen3:8b",
+				BaseURL:  constants.DefaultOllamaBaseURL,
+			}
 			return stub, nil
 		},
 	})
@@ -596,6 +741,135 @@ func TestNewMainAction_RejectsInvalidModelAPIOverride(t *testing.T) {
 	})
 
 	require.EqualError(t, err, "model API must be one of: anthropic-messages, ollama-native, openai-completions, openai-responses")
+}
+
+func TestValidateRootChatModelConfigRejectsNil(t *testing.T) {
+	err := validateRootChatModelConfig(nil)
+
+	require.EqualError(t, err, "config is required")
+}
+
+func TestNewMainAction_RejectsExplicitModelOverrideWhenDaemonModelDiffers(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	stub := &agentstub.AgentServiceStub{
+		Reply: "should not respond",
+		RuntimeModelResult: rpcclient.ModelRuntime{
+			Provider: constants.ModelProviderOpenAI,
+			API:      modelprovider.APIOpenAIResponses,
+			Model:    "gpt-5.5",
+			BaseURL:  constants.DefaultOpenAIBaseURL,
+		},
+	}
+	cmd := newMainActionTestCommand(io.Discard, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--provider", "ollama",
+		"--model", "qwen3:8b",
+		"hello",
+	})
+
+	require.ErrorContains(t, err, `running daemon uses provider="openai" model="gpt-5.5"`)
+	require.ErrorContains(t, err, `requested provider="ollama" model="qwen3:8b"`)
+	require.Empty(t, stub.ChatInput)
+}
+
+func TestNewMainAction_AllowsExplicitModelOverrideWhenDaemonModelMatches(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	stub := &agentstub.AgentServiceStub{
+		Reply: "hello back",
+		RuntimeModelResult: rpcclient.ModelRuntime{
+			Provider: constants.ModelProviderOllama,
+			API:      modelprovider.APIOllamaNative,
+			Model:    "qwen3:8b",
+			BaseURL:  constants.DefaultOllamaBaseURL + "/",
+		},
+	}
+	cmd := newMainActionTestCommand(io.Discard, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--provider", "ollama",
+		"--model", "qwen3:8b",
+		"hello",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "hello", stub.ChatInput)
+}
+
+func TestNewMainAction_RejectsExplicitModelOverrideWhenDaemonIdentityUnavailable(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	client := &chatOnlyClient{}
+	cmd := newMainActionTestCommand(io.Discard, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return client, nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--provider", "ollama",
+		"--model", "qwen3:8b",
+		"hello",
+	})
+
+	require.EqualError(t, err, "running daemon model identity is not available")
+	require.Empty(t, client.message)
+}
+
+func TestNewMainAction_ReturnsDaemonIdentityError(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	expectedErr := errors.New("identity unavailable")
+	stub := &agentstub.AgentServiceStub{Err: expectedErr}
+	cmd := newMainActionTestCommand(io.Discard, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--provider", "ollama",
+		"--model", "qwen3:8b",
+		"hello",
+	})
+
+	require.ErrorIs(t, err, expectedErr)
+	require.ErrorContains(t, err, "check running daemon model")
+	require.Empty(t, stub.ChatInput)
+}
+
+func TestRootChatModelRuntimeHelpersHandleEmptyInputs(t *testing.T) {
+	require.False(t, hasRootChatModelOverride(nil))
+	require.Zero(t, rootChatModelRuntimeFromConfig(nil))
+
+	runtime := normalizeRootChatModelRuntime(rpcclient.ModelRuntime{
+		Provider:      " Ollama ",
+		API:           " OLLAMA-NATIVE ",
+		Model:         " qwen3:8b ",
+		BaseURL:       " http://127.0.0.1:11434/ ",
+		ContextLength: -1,
+	})
+
+	require.Equal(t, rpcclient.ModelRuntime{
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaNative,
+		Model:    "qwen3:8b",
+		BaseURL:  constants.DefaultOllamaBaseURL,
+	}, runtime)
 }
 
 func TestPullSelectedOllamaModel_RejectsInvalidInputs(t *testing.T) {
@@ -677,6 +951,12 @@ func TestNewMainAction_PullProgressKeepsRecentLines(t *testing.T) {
 			return nil
 		},
 		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+			stub.RuntimeModelResult = rpcclient.ModelRuntime{
+				Provider: constants.ModelProviderOllama,
+				API:      modelprovider.APIOllamaNative,
+				Model:    "qwen3:8b",
+				BaseURL:  constants.DefaultOllamaBaseURL,
+			}
 			return stub, nil
 		},
 	})
@@ -707,11 +987,28 @@ func TestPullProgressPrinter_IgnoresDisabledAndEmptyProgress(t *testing.T) {
 	require.Nil(t, newPullProgressPrinter(io.Discard, false))
 	require.Nil(t, newPullProgressPrinter(nil, true))
 
+	var nilPrinter *pullProgressPrinter
+	nilPrinter.Progress(provider_ollama.PullProgress{Status: "pulling manifest"})
+	nilPrinter.Finish()
+
 	var output bytes.Buffer
 	printer := newPullProgressPrinter(&output, true)
 	require.NotNil(t, printer)
 
 	printer.Progress(provider_ollama.PullProgress{Status: " "})
+	printer.Finish()
+
+	require.Empty(t, output.String())
+}
+
+func TestPullProgressPrinter_LiveFinishIsNoop(t *testing.T) {
+	var output bytes.Buffer
+	printer := &pullProgressPrinter{
+		output: &output,
+		live:   true,
+		lines:  []string{"Ollama pull: success"},
+	}
+
 	printer.Finish()
 
 	require.Empty(t, output.String())
@@ -743,6 +1040,81 @@ func TestPullProgressPrinter_RepaintsLiveProgressWindow(t *testing.T) {
 	}, printer.lines)
 	require.Equal(t, pullProgressLineLimit, printer.rendered)
 	require.Contains(t, output.String(), "\x1b[5F")
+}
+
+func TestIsTerminalWriterChecksFileDescriptors(t *testing.T) {
+	require.False(t, isTerminalWriter(fakeFDWriter{fd: ^uintptr(0)}))
+}
+
+func TestNewDefaultChatClientUsesRPCConfig(t *testing.T) {
+	client, err := newDefaultChatClient(context.Background(), &config.Config{
+		RPC: config.RPCConfig{
+			Address: "127.0.0.1",
+			Port:    1,
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, client.Close())
+}
+
+func TestChatStreamFormatter_DefaultClockAndNilFinish(t *testing.T) {
+	formatter := newChatStreamFormatter(config.NewDefaultConfig(), nil, false)
+
+	require.NotNil(t, formatter.now)
+	require.False(t, formatter.turnStarted.IsZero())
+	require.Empty(t, (*chatStreamFormatter)(nil).Finish())
+}
+
+func TestChatStreamFormatter_IgnoresEmptyOutput(t *testing.T) {
+	formatter := newChatStreamFormatter(config.NewDefaultConfig(), sequenceClock(time.Unix(0, 0)), false)
+
+	output := formatter.Format(rpcclient.Event{
+		Kind:    agent.EventKindTextDelta,
+		Channel: "assistant",
+	})
+
+	require.Empty(t, output)
+}
+
+func TestChatStreamFormatter_FinishesActiveReasoning(t *testing.T) {
+	formatter := newChatStreamFormatter(config.NewDefaultConfig(), sequenceClock(
+		time.Unix(0, 0),
+		time.Unix(0, 0),
+		time.Unix(5, 0),
+		time.Unix(65, 500*int64(time.Millisecond)),
+	), true)
+
+	output := formatter.Format(rpcclient.Event{
+		Kind:    agent.EventKindTextDelta,
+		Channel: "reasoning",
+		Text:    "thinking",
+	})
+	output += formatter.Finish()
+
+	require.Equal(t, strings.Join([]string{
+		"thinking",
+		"",
+		"Thought for 5s",
+		"",
+		"Worked for 1m6s",
+		"",
+	}, "\n"), output)
+}
+
+func TestFormatChatEvent(t *testing.T) {
+	traceEvent := trace.Event{Type: trace.EvtInputSafetyBlocked}
+	require.Empty(t, FormatChatEvent(config.NewDefaultConfig(), rpcclient.Event{TraceEvent: &traceEvent}))
+	require.Equal(t, "\x1b[90mthinking\x1b[0m", FormatChatEvent(config.NewDefaultConfig(), rpcclient.Event{
+		Kind:    agent.EventKindTextDelta,
+		Channel: "reasoning",
+		Text:    "thinking",
+	}))
+	require.Equal(t, "thinking", formatChatEvent(nil, rpcclient.Event{
+		Kind:    agent.EventKindTextDelta,
+		Channel: "reasoning",
+		Text:    "thinking",
+	}, false))
 }
 
 func TestNewMainAction_ReturnsDaemonStartErrorBeforeCreatingClient(t *testing.T) {
@@ -810,6 +1182,39 @@ func newMainActionTestCommandWithOptions(output io.Writer, opts MainActionOption
 
 func noopEnsureDaemonRunning(context.Context, *config.Config) (func() error, error) {
 	return nil, nil
+}
+
+type chatOnlyClient struct {
+	message string
+	closed  bool
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, io.ErrClosedPipe
+}
+
+type fakeFDWriter struct {
+	fd uintptr
+}
+
+func (w fakeFDWriter) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+func (w fakeFDWriter) Fd() uintptr {
+	return w.fd
+}
+
+func (c *chatOnlyClient) Respond(_ context.Context, message string, _ rpcclient.RespondOptions) (string, error) {
+	c.message = message
+	return "reply", nil
+}
+
+func (c *chatOnlyClient) Close() error {
+	c.closed = true
+	return nil
 }
 
 func sequenceClock(times ...time.Time) func() time.Time {

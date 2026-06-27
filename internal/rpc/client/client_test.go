@@ -1085,6 +1085,29 @@ func TestModelService_ListProvidersReturnsOptions(t *testing.T) {
 	require.True(t, list.Providers[0].Current)
 }
 
+func TestModelService_RuntimeModelReturnsDaemonIdentity(t *testing.T) {
+	stub := &protomock.MorphServiceClientStub{RuntimeModelResp: &morphpb.RuntimeModelResponse{
+		Provider:      " ollama ",
+		Api:           " ollama-native ",
+		Model:         " qwen3:8b ",
+		BaseUrl:       " http://127.0.0.1:11434/ ",
+		ContextLength: 8192,
+	}}
+	client := NewModelService(stub)
+
+	runtimeModel, err := client.RuntimeModel(context.Background())
+
+	require.NoError(t, err)
+	require.NotNil(t, stub.RuntimeModelReq)
+	require.Equal(t, ModelRuntime{
+		Provider:      "ollama",
+		API:           "ollama-native",
+		Model:         "qwen3:8b",
+		BaseURL:       "http://127.0.0.1:11434",
+		ContextLength: 8192,
+	}, runtimeModel)
+}
+
 func TestModelService_SelectModelSendsTrimmedIDAndProvider(t *testing.T) {
 	stub := &protomock.MorphServiceClientStub{SelectResp: &morphpb.SelectModelResponse{
 		Model: &morphpb.ModelOption{Id: "gpt-4o", Current: true},
@@ -1112,7 +1135,10 @@ func TestModelService_SetProviderAPIKeySendsTrimmedProviderAndKey(t *testing.T) 
 }
 
 func TestModelService_ReturnsClientErrors(t *testing.T) {
-	_, err := (*ModelService)(nil).ListModels(context.Background())
+	_, err := (*ModelService)(nil).RuntimeModel(context.Background())
+	require.EqualError(t, err, "morph: model service client is required")
+
+	_, err = (*ModelService)(nil).ListModels(context.Background())
 	require.EqualError(t, err, "morph: model service client is required")
 
 	_, err = (*ModelService)(nil).ListProviders(context.Background())
@@ -1129,6 +1155,10 @@ func TestModelService_ReturnsClientErrors(t *testing.T) {
 	require.NotNil(t, wrapped.ModelAPI())
 
 	client := NewModelService(&protomock.MorphServiceClientStub{Err: context.Canceled})
+	runtimeModel, err := client.RuntimeModel(context.Background())
+	require.ErrorIs(t, err, context.Canceled)
+	require.Zero(t, runtimeModel)
+
 	providers, err := client.ListProviders(context.Background())
 	require.ErrorIs(t, err, context.Canceled)
 	require.Empty(t, providers.Providers)
@@ -1156,6 +1186,9 @@ func TestTimelineProtoAdaptersHandleNilRecords(t *testing.T) {
 
 	model := protoModelOptionToModelOption(nil)
 	require.Zero(t, model)
+
+	runtimeModel := protoRuntimeModelToModelRuntime(nil)
+	require.Zero(t, runtimeModel)
 
 	provider := protoProviderOptionToProviderOption(nil)
 	require.Zero(t, provider)

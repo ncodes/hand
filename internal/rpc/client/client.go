@@ -96,6 +96,14 @@ type ModelOption = models.Option
 
 type ModelList = agentapi.ModelList
 
+type ModelRuntime struct {
+	Provider      string
+	API           string
+	Model         string
+	BaseURL       string
+	ContextLength int
+}
+
 type GatewayPairingRequest struct {
 	CreatedAt   time.Time
 	LastSeenAt  time.Time
@@ -149,6 +157,7 @@ type SessionAPI interface {
 }
 
 type ModelAPI interface {
+	RuntimeModel(context.Context) (ModelRuntime, error)
 	ListProviders(context.Context) (ProviderList, error)
 	ListModels(context.Context, ...ModelListOptions) (ModelList, error)
 	SelectModel(context.Context, string, ...agentapi.ModelSelectOptions) (ModelOption, error)
@@ -388,6 +397,21 @@ func (s *ModelService) ListProviders(ctx context.Context) (ProviderList, error) 
 	}
 
 	return ProviderList{Providers: providers}, nil
+}
+
+func (s *ModelService) RuntimeModel(ctx context.Context) (ModelRuntime, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return ModelRuntime{}, err
+	}
+
+	prepareRPCConnection(s.reconnector)
+	resp, err := client.RuntimeModel(ctx, &morphpb.RuntimeModelRequest{})
+	if err != nil {
+		return ModelRuntime{}, err
+	}
+
+	return protoRuntimeModelToModelRuntime(resp), nil
 }
 
 func (s *ModelService) ListModels(ctx context.Context, opts ...ModelListOptions) (ModelList, error) {
@@ -1058,6 +1082,20 @@ func protoModelOptionToModelOption(option *morphpb.ModelOption) ModelOption {
 		Reasoning:     option.GetReasoning(),
 		SupportsOAuth: option.GetSupportsOauth(),
 		Current:       option.GetCurrent(),
+	}
+}
+
+func protoRuntimeModelToModelRuntime(runtime *morphpb.RuntimeModelResponse) ModelRuntime {
+	if runtime == nil {
+		return ModelRuntime{}
+	}
+
+	return ModelRuntime{
+		Provider:      strings.TrimSpace(runtime.GetProvider()),
+		API:           strings.TrimSpace(runtime.GetApi()),
+		Model:         strings.TrimSpace(runtime.GetModel()),
+		BaseURL:       strings.TrimRight(strings.TrimSpace(runtime.GetBaseUrl()), "/"),
+		ContextLength: int(runtime.GetContextLength()),
 	}
 }
 

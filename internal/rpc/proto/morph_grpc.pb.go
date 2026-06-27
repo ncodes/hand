@@ -606,6 +606,7 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	ModelService_RuntimeModel_FullMethodName      = "/morph.v1.ModelService/RuntimeModel"
 	ModelService_ListProviders_FullMethodName     = "/morph.v1.ModelService/ListProviders"
 	ModelService_ListModels_FullMethodName        = "/morph.v1.ModelService/ListModels"
 	ModelService_SelectModel_FullMethodName       = "/morph.v1.ModelService/SelectModel"
@@ -616,6 +617,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ModelServiceClient interface {
+	RuntimeModel(ctx context.Context, in *RuntimeModelRequest, opts ...grpc.CallOption) (*RuntimeModelResponse, error)
 	ListProviders(ctx context.Context, in *ListProvidersRequest, opts ...grpc.CallOption) (*ListProvidersResponse, error)
 	ListModels(ctx context.Context, in *ListModelsRequest, opts ...grpc.CallOption) (*ListModelsResponse, error)
 	SelectModel(ctx context.Context, in *SelectModelRequest, opts ...grpc.CallOption) (*SelectModelResponse, error)
@@ -628,6 +630,16 @@ type modelServiceClient struct {
 
 func NewModelServiceClient(cc grpc.ClientConnInterface) ModelServiceClient {
 	return &modelServiceClient{cc}
+}
+
+func (c *modelServiceClient) RuntimeModel(ctx context.Context, in *RuntimeModelRequest, opts ...grpc.CallOption) (*RuntimeModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RuntimeModelResponse)
+	err := c.cc.Invoke(ctx, ModelService_RuntimeModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *modelServiceClient) ListProviders(ctx context.Context, in *ListProvidersRequest, opts ...grpc.CallOption) (*ListProvidersResponse, error) {
@@ -674,6 +686,7 @@ func (c *modelServiceClient) SetProviderAPIKey(ctx context.Context, in *SetProvi
 // All implementations must embed UnimplementedModelServiceServer
 // for forward compatibility.
 type ModelServiceServer interface {
+	RuntimeModel(context.Context, *RuntimeModelRequest) (*RuntimeModelResponse, error)
 	ListProviders(context.Context, *ListProvidersRequest) (*ListProvidersResponse, error)
 	ListModels(context.Context, *ListModelsRequest) (*ListModelsResponse, error)
 	SelectModel(context.Context, *SelectModelRequest) (*SelectModelResponse, error)
@@ -688,6 +701,9 @@ type ModelServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedModelServiceServer struct{}
 
+func (UnimplementedModelServiceServer) RuntimeModel(context.Context, *RuntimeModelRequest) (*RuntimeModelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RuntimeModel not implemented")
+}
 func (UnimplementedModelServiceServer) ListProviders(context.Context, *ListProvidersRequest) (*ListProvidersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListProviders not implemented")
 }
@@ -719,6 +735,24 @@ func RegisterModelServiceServer(s grpc.ServiceRegistrar, srv ModelServiceServer)
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&ModelService_ServiceDesc, srv)
+}
+
+func _ModelService_RuntimeModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RuntimeModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelServiceServer).RuntimeModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelService_RuntimeModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelServiceServer).RuntimeModel(ctx, req.(*RuntimeModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _ModelService_ListProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -800,6 +834,10 @@ var ModelService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "morph.v1.ModelService",
 	HandlerType: (*ModelServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "RuntimeModel",
+			Handler:    _ModelService_RuntimeModel_Handler,
+		},
 		{
 			MethodName: "ListProviders",
 			Handler:    _ModelService_ListProviders_Handler,

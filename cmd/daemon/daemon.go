@@ -34,6 +34,10 @@ func NewCommand() *urfavecli.Command {
 		Commands: []*urfavecli.Command{newStatusCommand()},
 		Flags:    []urfavecli.Flag{morphcli.PersistentInstructFlag()},
 		Action: func(ctx context.Context, cmd *urfavecli.Command) error {
+			if cmd.Args().Len() > 0 {
+				return fmt.Errorf("unknown daemon command %q", cmd.Args().First())
+			}
+
 			return morphcli.RunDaemonWithConfigRestarts(ctx, cmd)
 		},
 	}

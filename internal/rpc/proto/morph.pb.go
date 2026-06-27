@@ -2049,6 +2049,118 @@ func (x *GetSessionTimelineResponse) GetTitleSource() string {
 	return ""
 }
 
+type RuntimeModelRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RuntimeModelRequest) Reset() {
+	*x = RuntimeModelRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuntimeModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuntimeModelRequest) ProtoMessage() {}
+
+func (x *RuntimeModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuntimeModelRequest.ProtoReflect.Descriptor instead.
+func (*RuntimeModelRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{31}
+}
+
+type RuntimeModelResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	Api           string                 `protobuf:"bytes,2,opt,name=api,proto3" json:"api,omitempty"`
+	Model         string                 `protobuf:"bytes,3,opt,name=model,proto3" json:"model,omitempty"`
+	BaseUrl       string                 `protobuf:"bytes,4,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	ContextLength int32                  `protobuf:"varint,5,opt,name=context_length,json=contextLength,proto3" json:"context_length,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RuntimeModelResponse) Reset() {
+	*x = RuntimeModelResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuntimeModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuntimeModelResponse) ProtoMessage() {}
+
+func (x *RuntimeModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuntimeModelResponse.ProtoReflect.Descriptor instead.
+func (*RuntimeModelResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *RuntimeModelResponse) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *RuntimeModelResponse) GetApi() string {
+	if x != nil {
+		return x.Api
+	}
+	return ""
+}
+
+func (x *RuntimeModelResponse) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *RuntimeModelResponse) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
+	}
+	return ""
+}
+
+func (x *RuntimeModelResponse) GetContextLength() int32 {
+	if x != nil {
+		return x.ContextLength
+	}
+	return 0
+}
+
 type ListProvidersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -2057,7 +2169,7 @@ type ListProvidersRequest struct {
 
 func (x *ListProvidersRequest) Reset() {
 	*x = ListProvidersRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[31]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2069,7 +2181,7 @@ func (x *ListProvidersRequest) String() string {
 func (*ListProvidersRequest) ProtoMessage() {}
 
 func (x *ListProvidersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[31]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2082,7 +2194,7 @@ func (x *ListProvidersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProvidersRequest.ProtoReflect.Descriptor instead.
 func (*ListProvidersRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{31}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{33}
 }
 
 type ProviderOption struct {
@@ -2101,7 +2213,7 @@ type ProviderOption struct {
 
 func (x *ProviderOption) Reset() {
 	*x = ProviderOption{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[32]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2113,7 +2225,7 @@ func (x *ProviderOption) String() string {
 func (*ProviderOption) ProtoMessage() {}
 
 func (x *ProviderOption) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[32]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2126,7 +2238,7 @@ func (x *ProviderOption) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderOption.ProtoReflect.Descriptor instead.
 func (*ProviderOption) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{32}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ProviderOption) GetId() string {
@@ -2194,7 +2306,7 @@ type ListProvidersResponse struct {
 
 func (x *ListProvidersResponse) Reset() {
 	*x = ListProvidersResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[33]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2206,7 +2318,7 @@ func (x *ListProvidersResponse) String() string {
 func (*ListProvidersResponse) ProtoMessage() {}
 
 func (x *ListProvidersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[33]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2219,7 +2331,7 @@ func (x *ListProvidersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProvidersResponse.ProtoReflect.Descriptor instead.
 func (*ListProvidersResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{33}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ListProvidersResponse) GetProviders() []*ProviderOption {
@@ -2238,7 +2350,7 @@ type ListModelsRequest struct {
 
 func (x *ListModelsRequest) Reset() {
 	*x = ListModelsRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[34]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2250,7 +2362,7 @@ func (x *ListModelsRequest) String() string {
 func (*ListModelsRequest) ProtoMessage() {}
 
 func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[34]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2263,7 +2375,7 @@ func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsRequest.ProtoReflect.Descriptor instead.
 func (*ListModelsRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{34}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ListModelsRequest) GetProvider() string {
@@ -2291,7 +2403,7 @@ type ModelOption struct {
 
 func (x *ModelOption) Reset() {
 	*x = ModelOption{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[35]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2303,7 +2415,7 @@ func (x *ModelOption) String() string {
 func (*ModelOption) ProtoMessage() {}
 
 func (x *ModelOption) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[35]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2316,7 +2428,7 @@ func (x *ModelOption) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelOption.ProtoReflect.Descriptor instead.
 func (*ModelOption) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{35}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ModelOption) GetId() string {
@@ -2400,7 +2512,7 @@ type ListModelsResponse struct {
 
 func (x *ListModelsResponse) Reset() {
 	*x = ListModelsResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[36]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2412,7 +2524,7 @@ func (x *ListModelsResponse) String() string {
 func (*ListModelsResponse) ProtoMessage() {}
 
 func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[36]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2425,7 +2537,7 @@ func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsResponse.ProtoReflect.Descriptor instead.
 func (*ListModelsResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{36}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ListModelsResponse) GetProvider() string {
@@ -2459,7 +2571,7 @@ type SelectModelRequest struct {
 
 func (x *SelectModelRequest) Reset() {
 	*x = SelectModelRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[37]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2471,7 +2583,7 @@ func (x *SelectModelRequest) String() string {
 func (*SelectModelRequest) ProtoMessage() {}
 
 func (x *SelectModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[37]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2484,7 +2596,7 @@ func (x *SelectModelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SelectModelRequest.ProtoReflect.Descriptor instead.
 func (*SelectModelRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{37}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *SelectModelRequest) GetId() string {
@@ -2510,7 +2622,7 @@ type SelectModelResponse struct {
 
 func (x *SelectModelResponse) Reset() {
 	*x = SelectModelResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[38]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2522,7 +2634,7 @@ func (x *SelectModelResponse) String() string {
 func (*SelectModelResponse) ProtoMessage() {}
 
 func (x *SelectModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[38]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2535,7 +2647,7 @@ func (x *SelectModelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SelectModelResponse.ProtoReflect.Descriptor instead.
 func (*SelectModelResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{38}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *SelectModelResponse) GetModel() *ModelOption {
@@ -2555,7 +2667,7 @@ type SetProviderAPIKeyRequest struct {
 
 func (x *SetProviderAPIKeyRequest) Reset() {
 	*x = SetProviderAPIKeyRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[39]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2567,7 +2679,7 @@ func (x *SetProviderAPIKeyRequest) String() string {
 func (*SetProviderAPIKeyRequest) ProtoMessage() {}
 
 func (x *SetProviderAPIKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[39]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2580,7 +2692,7 @@ func (x *SetProviderAPIKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetProviderAPIKeyRequest.ProtoReflect.Descriptor instead.
 func (*SetProviderAPIKeyRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{39}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *SetProviderAPIKeyRequest) GetProvider() string {
@@ -2606,7 +2718,7 @@ type SetProviderAPIKeyResponse struct {
 
 func (x *SetProviderAPIKeyResponse) Reset() {
 	*x = SetProviderAPIKeyResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[40]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2618,7 +2730,7 @@ func (x *SetProviderAPIKeyResponse) String() string {
 func (*SetProviderAPIKeyResponse) ProtoMessage() {}
 
 func (x *SetProviderAPIKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[40]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2631,7 +2743,7 @@ func (x *SetProviderAPIKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetProviderAPIKeyResponse.ProtoReflect.Descriptor instead.
 func (*SetProviderAPIKeyResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{40}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *SetProviderAPIKeyResponse) GetProvider() string {
@@ -2655,7 +2767,7 @@ type GatewayStatus struct {
 
 func (x *GatewayStatus) Reset() {
 	*x = GatewayStatus{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[41]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2667,7 +2779,7 @@ func (x *GatewayStatus) String() string {
 func (*GatewayStatus) ProtoMessage() {}
 
 func (x *GatewayStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[41]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2680,7 +2792,7 @@ func (x *GatewayStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayStatus.ProtoReflect.Descriptor instead.
 func (*GatewayStatus) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{41}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *GatewayStatus) GetState() string {
@@ -2733,7 +2845,7 @@ type GetGatewayStatusRequest struct {
 
 func (x *GetGatewayStatusRequest) Reset() {
 	*x = GetGatewayStatusRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[42]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2745,7 +2857,7 @@ func (x *GetGatewayStatusRequest) String() string {
 func (*GetGatewayStatusRequest) ProtoMessage() {}
 
 func (x *GetGatewayStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[42]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2758,7 +2870,7 @@ func (x *GetGatewayStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGatewayStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetGatewayStatusRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{42}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{44}
 }
 
 type GetGatewayStatusResponse struct {
@@ -2770,7 +2882,7 @@ type GetGatewayStatusResponse struct {
 
 func (x *GetGatewayStatusResponse) Reset() {
 	*x = GetGatewayStatusResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[43]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2782,7 +2894,7 @@ func (x *GetGatewayStatusResponse) String() string {
 func (*GetGatewayStatusResponse) ProtoMessage() {}
 
 func (x *GetGatewayStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[43]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2795,7 +2907,7 @@ func (x *GetGatewayStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGatewayStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetGatewayStatusResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{43}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *GetGatewayStatusResponse) GetStatus() *GatewayStatus {
@@ -2813,7 +2925,7 @@ type StartGatewayRequest struct {
 
 func (x *StartGatewayRequest) Reset() {
 	*x = StartGatewayRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[44]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2825,7 +2937,7 @@ func (x *StartGatewayRequest) String() string {
 func (*StartGatewayRequest) ProtoMessage() {}
 
 func (x *StartGatewayRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[44]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2838,7 +2950,7 @@ func (x *StartGatewayRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartGatewayRequest.ProtoReflect.Descriptor instead.
 func (*StartGatewayRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{44}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{46}
 }
 
 type StartGatewayResponse struct {
@@ -2850,7 +2962,7 @@ type StartGatewayResponse struct {
 
 func (x *StartGatewayResponse) Reset() {
 	*x = StartGatewayResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[45]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2862,7 +2974,7 @@ func (x *StartGatewayResponse) String() string {
 func (*StartGatewayResponse) ProtoMessage() {}
 
 func (x *StartGatewayResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[45]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2875,7 +2987,7 @@ func (x *StartGatewayResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartGatewayResponse.ProtoReflect.Descriptor instead.
 func (*StartGatewayResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{45}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *StartGatewayResponse) GetStatus() *GatewayStatus {
@@ -2893,7 +3005,7 @@ type StopGatewayRequest struct {
 
 func (x *StopGatewayRequest) Reset() {
 	*x = StopGatewayRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[46]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2905,7 +3017,7 @@ func (x *StopGatewayRequest) String() string {
 func (*StopGatewayRequest) ProtoMessage() {}
 
 func (x *StopGatewayRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[46]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2918,7 +3030,7 @@ func (x *StopGatewayRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopGatewayRequest.ProtoReflect.Descriptor instead.
 func (*StopGatewayRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{46}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{48}
 }
 
 type StopGatewayResponse struct {
@@ -2930,7 +3042,7 @@ type StopGatewayResponse struct {
 
 func (x *StopGatewayResponse) Reset() {
 	*x = StopGatewayResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[47]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2942,7 +3054,7 @@ func (x *StopGatewayResponse) String() string {
 func (*StopGatewayResponse) ProtoMessage() {}
 
 func (x *StopGatewayResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[47]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2955,7 +3067,7 @@ func (x *StopGatewayResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopGatewayResponse.ProtoReflect.Descriptor instead.
 func (*StopGatewayResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{47}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *StopGatewayResponse) GetStatus() *GatewayStatus {
@@ -2973,7 +3085,7 @@ type RestartGatewayRequest struct {
 
 func (x *RestartGatewayRequest) Reset() {
 	*x = RestartGatewayRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[48]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2985,7 +3097,7 @@ func (x *RestartGatewayRequest) String() string {
 func (*RestartGatewayRequest) ProtoMessage() {}
 
 func (x *RestartGatewayRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[48]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2998,7 +3110,7 @@ func (x *RestartGatewayRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartGatewayRequest.ProtoReflect.Descriptor instead.
 func (*RestartGatewayRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{48}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{50}
 }
 
 type RestartGatewayResponse struct {
@@ -3010,7 +3122,7 @@ type RestartGatewayResponse struct {
 
 func (x *RestartGatewayResponse) Reset() {
 	*x = RestartGatewayResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[49]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3022,7 +3134,7 @@ func (x *RestartGatewayResponse) String() string {
 func (*RestartGatewayResponse) ProtoMessage() {}
 
 func (x *RestartGatewayResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[49]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3035,7 +3147,7 @@ func (x *RestartGatewayResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartGatewayResponse.ProtoReflect.Descriptor instead.
 func (*RestartGatewayResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{49}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *RestartGatewayResponse) GetStatus() *GatewayStatus {
@@ -3059,7 +3171,7 @@ type GatewayPairingRequest struct {
 
 func (x *GatewayPairingRequest) Reset() {
 	*x = GatewayPairingRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[50]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3071,7 +3183,7 @@ func (x *GatewayPairingRequest) String() string {
 func (*GatewayPairingRequest) ProtoMessage() {}
 
 func (x *GatewayPairingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[50]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3084,7 +3196,7 @@ func (x *GatewayPairingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayPairingRequest.ProtoReflect.Descriptor instead.
 func (*GatewayPairingRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{50}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *GatewayPairingRequest) GetSource() string {
@@ -3142,7 +3254,7 @@ type GatewayPairedSender struct {
 
 func (x *GatewayPairedSender) Reset() {
 	*x = GatewayPairedSender{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[51]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3154,7 +3266,7 @@ func (x *GatewayPairedSender) String() string {
 func (*GatewayPairedSender) ProtoMessage() {}
 
 func (x *GatewayPairedSender) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[51]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3167,7 +3279,7 @@ func (x *GatewayPairedSender) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayPairedSender.ProtoReflect.Descriptor instead.
 func (*GatewayPairedSender) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{51}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *GatewayPairedSender) GetSource() string {
@@ -3214,7 +3326,7 @@ type ListGatewayPairingsRequest struct {
 
 func (x *ListGatewayPairingsRequest) Reset() {
 	*x = ListGatewayPairingsRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[52]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3226,7 +3338,7 @@ func (x *ListGatewayPairingsRequest) String() string {
 func (*ListGatewayPairingsRequest) ProtoMessage() {}
 
 func (x *ListGatewayPairingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[52]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3239,7 +3351,7 @@ func (x *ListGatewayPairingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGatewayPairingsRequest.ProtoReflect.Descriptor instead.
 func (*ListGatewayPairingsRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{52}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *ListGatewayPairingsRequest) GetSource() string {
@@ -3259,7 +3371,7 @@ type ListGatewayPairingsResponse struct {
 
 func (x *ListGatewayPairingsResponse) Reset() {
 	*x = ListGatewayPairingsResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[53]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3271,7 +3383,7 @@ func (x *ListGatewayPairingsResponse) String() string {
 func (*ListGatewayPairingsResponse) ProtoMessage() {}
 
 func (x *ListGatewayPairingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[53]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3284,7 +3396,7 @@ func (x *ListGatewayPairingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGatewayPairingsResponse.ProtoReflect.Descriptor instead.
 func (*ListGatewayPairingsResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{53}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *ListGatewayPairingsResponse) GetPending() []*GatewayPairingRequest {
@@ -3311,7 +3423,7 @@ type ApproveGatewayPairingRequest struct {
 
 func (x *ApproveGatewayPairingRequest) Reset() {
 	*x = ApproveGatewayPairingRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[54]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3323,7 +3435,7 @@ func (x *ApproveGatewayPairingRequest) String() string {
 func (*ApproveGatewayPairingRequest) ProtoMessage() {}
 
 func (x *ApproveGatewayPairingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[54]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3336,7 +3448,7 @@ func (x *ApproveGatewayPairingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveGatewayPairingRequest.ProtoReflect.Descriptor instead.
 func (*ApproveGatewayPairingRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{54}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *ApproveGatewayPairingRequest) GetSource() string {
@@ -3363,7 +3475,7 @@ type ApproveGatewayPairingResponse struct {
 
 func (x *ApproveGatewayPairingResponse) Reset() {
 	*x = ApproveGatewayPairingResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[55]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3375,7 +3487,7 @@ func (x *ApproveGatewayPairingResponse) String() string {
 func (*ApproveGatewayPairingResponse) ProtoMessage() {}
 
 func (x *ApproveGatewayPairingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[55]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3388,7 +3500,7 @@ func (x *ApproveGatewayPairingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveGatewayPairingResponse.ProtoReflect.Descriptor instead.
 func (*ApproveGatewayPairingResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{55}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *ApproveGatewayPairingResponse) GetApproved() bool {
@@ -3415,7 +3527,7 @@ type RevokeGatewayPairingRequest struct {
 
 func (x *RevokeGatewayPairingRequest) Reset() {
 	*x = RevokeGatewayPairingRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[56]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3427,7 +3539,7 @@ func (x *RevokeGatewayPairingRequest) String() string {
 func (*RevokeGatewayPairingRequest) ProtoMessage() {}
 
 func (x *RevokeGatewayPairingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[56]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3440,7 +3552,7 @@ func (x *RevokeGatewayPairingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeGatewayPairingRequest.ProtoReflect.Descriptor instead.
 func (*RevokeGatewayPairingRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{56}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *RevokeGatewayPairingRequest) GetSource() string {
@@ -3465,7 +3577,7 @@ type RevokeGatewayPairingResponse struct {
 
 func (x *RevokeGatewayPairingResponse) Reset() {
 	*x = RevokeGatewayPairingResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[57]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3477,7 +3589,7 @@ func (x *RevokeGatewayPairingResponse) String() string {
 func (*RevokeGatewayPairingResponse) ProtoMessage() {}
 
 func (x *RevokeGatewayPairingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[57]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3490,7 +3602,7 @@ func (x *RevokeGatewayPairingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeGatewayPairingResponse.ProtoReflect.Descriptor instead.
 func (*RevokeGatewayPairingResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{57}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{59}
 }
 
 type ClearPendingGatewayPairingsRequest struct {
@@ -3502,7 +3614,7 @@ type ClearPendingGatewayPairingsRequest struct {
 
 func (x *ClearPendingGatewayPairingsRequest) Reset() {
 	*x = ClearPendingGatewayPairingsRequest{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[58]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3514,7 +3626,7 @@ func (x *ClearPendingGatewayPairingsRequest) String() string {
 func (*ClearPendingGatewayPairingsRequest) ProtoMessage() {}
 
 func (x *ClearPendingGatewayPairingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[58]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3527,7 +3639,7 @@ func (x *ClearPendingGatewayPairingsRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use ClearPendingGatewayPairingsRequest.ProtoReflect.Descriptor instead.
 func (*ClearPendingGatewayPairingsRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{58}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *ClearPendingGatewayPairingsRequest) GetSource() string {
@@ -3545,7 +3657,7 @@ type ClearPendingGatewayPairingsResponse struct {
 
 func (x *ClearPendingGatewayPairingsResponse) Reset() {
 	*x = ClearPendingGatewayPairingsResponse{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[59]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3557,7 +3669,7 @@ func (x *ClearPendingGatewayPairingsResponse) String() string {
 func (*ClearPendingGatewayPairingsResponse) ProtoMessage() {}
 
 func (x *ClearPendingGatewayPairingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[59]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3570,7 +3682,7 @@ func (x *ClearPendingGatewayPairingsResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use ClearPendingGatewayPairingsResponse.ProtoReflect.Descriptor instead.
 func (*ClearPendingGatewayPairingsResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{59}
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{61}
 }
 
 type GetSessionStatusResponse_Context struct {
@@ -3587,7 +3699,7 @@ type GetSessionStatusResponse_Context struct {
 
 func (x *GetSessionStatusResponse_Context) Reset() {
 	*x = GetSessionStatusResponse_Context{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[60]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3599,7 +3711,7 @@ func (x *GetSessionStatusResponse_Context) String() string {
 func (*GetSessionStatusResponse_Context) ProtoMessage() {}
 
 func (x *GetSessionStatusResponse_Context) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[60]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3823,7 +3935,14 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"\x13last_trace_sequence\x18\b \x01(\x05R\x11lastTraceSequence\x12\x14\n" +
 	"\x05title\x18\t \x01(\tR\x05title\x12!\n" +
 	"\ftitle_source\x18\n" +
-	" \x01(\tR\vtitleSource\"\x16\n" +
+	" \x01(\tR\vtitleSource\"\x15\n" +
+	"\x13RuntimeModelRequest\"\x9c\x01\n" +
+	"\x14RuntimeModelResponse\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x10\n" +
+	"\x03api\x18\x02 \x01(\tR\x03api\x12\x14\n" +
+	"\x05model\x18\x03 \x01(\tR\x05model\x12\x19\n" +
+	"\bbase_url\x18\x04 \x01(\tR\abaseUrl\x12%\n" +
+	"\x0econtext_length\x18\x05 \x01(\x05R\rcontextLength\"\x16\n" +
 	"\x14ListProvidersRequest\"\xf1\x01\n" +
 	"\x0eProviderOption\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -3936,8 +4055,9 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"\aCompact\x12\x1f.morph.v1.CompactSessionRequest\x1a .morph.v1.CompactSessionResponse\x12I\n" +
 	"\x06Repair\x12\x1e.morph.v1.RepairSessionRequest\x1a\x1f.morph.v1.RepairSessionResponse\x12O\n" +
 	"\x06Status\x12!.morph.v1.GetSessionStatusRequest\x1a\".morph.v1.GetSessionStatusResponse\x12U\n" +
-	"\bTimeline\x12#.morph.v1.GetSessionTimelineRequest\x1a$.morph.v1.GetSessionTimelineResponse2\xd3\x02\n" +
-	"\fModelService\x12P\n" +
+	"\bTimeline\x12#.morph.v1.GetSessionTimelineRequest\x1a$.morph.v1.GetSessionTimelineResponse2\xa2\x03\n" +
+	"\fModelService\x12M\n" +
+	"\fRuntimeModel\x12\x1d.morph.v1.RuntimeModelRequest\x1a\x1e.morph.v1.RuntimeModelResponse\x12P\n" +
 	"\rListProviders\x12\x1e.morph.v1.ListProvidersRequest\x1a\x1f.morph.v1.ListProvidersResponse\x12G\n" +
 	"\n" +
 	"ListModels\x12\x1b.morph.v1.ListModelsRequest\x1a\x1c.morph.v1.ListModelsResponse\x12J\n" +
@@ -3966,7 +4086,7 @@ func file_internal_rpc_proto_morph_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_rpc_proto_morph_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_internal_rpc_proto_morph_proto_msgTypes = make([]protoimpl.MessageInfo, 61)
+var file_internal_rpc_proto_morph_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
 var file_internal_rpc_proto_morph_proto_goTypes = []any{
 	(RespondEvent_Type)(0),                      // 0: morph.v1.RespondEvent.Type
 	(RespondEvent_Channel)(0),                   // 1: morph.v1.RespondEvent.Channel
@@ -4002,75 +4122,77 @@ var file_internal_rpc_proto_morph_proto_goTypes = []any{
 	(*SessionTimelineMessage)(nil),              // 31: morph.v1.SessionTimelineMessage
 	(*SessionTimelineTraceEvent)(nil),           // 32: morph.v1.SessionTimelineTraceEvent
 	(*GetSessionTimelineResponse)(nil),          // 33: morph.v1.GetSessionTimelineResponse
-	(*ListProvidersRequest)(nil),                // 34: morph.v1.ListProvidersRequest
-	(*ProviderOption)(nil),                      // 35: morph.v1.ProviderOption
-	(*ListProvidersResponse)(nil),               // 36: morph.v1.ListProvidersResponse
-	(*ListModelsRequest)(nil),                   // 37: morph.v1.ListModelsRequest
-	(*ModelOption)(nil),                         // 38: morph.v1.ModelOption
-	(*ListModelsResponse)(nil),                  // 39: morph.v1.ListModelsResponse
-	(*SelectModelRequest)(nil),                  // 40: morph.v1.SelectModelRequest
-	(*SelectModelResponse)(nil),                 // 41: morph.v1.SelectModelResponse
-	(*SetProviderAPIKeyRequest)(nil),            // 42: morph.v1.SetProviderAPIKeyRequest
-	(*SetProviderAPIKeyResponse)(nil),           // 43: morph.v1.SetProviderAPIKeyResponse
-	(*GatewayStatus)(nil),                       // 44: morph.v1.GatewayStatus
-	(*GetGatewayStatusRequest)(nil),             // 45: morph.v1.GetGatewayStatusRequest
-	(*GetGatewayStatusResponse)(nil),            // 46: morph.v1.GetGatewayStatusResponse
-	(*StartGatewayRequest)(nil),                 // 47: morph.v1.StartGatewayRequest
-	(*StartGatewayResponse)(nil),                // 48: morph.v1.StartGatewayResponse
-	(*StopGatewayRequest)(nil),                  // 49: morph.v1.StopGatewayRequest
-	(*StopGatewayResponse)(nil),                 // 50: morph.v1.StopGatewayResponse
-	(*RestartGatewayRequest)(nil),               // 51: morph.v1.RestartGatewayRequest
-	(*RestartGatewayResponse)(nil),              // 52: morph.v1.RestartGatewayResponse
-	(*GatewayPairingRequest)(nil),               // 53: morph.v1.GatewayPairingRequest
-	(*GatewayPairedSender)(nil),                 // 54: morph.v1.GatewayPairedSender
-	(*ListGatewayPairingsRequest)(nil),          // 55: morph.v1.ListGatewayPairingsRequest
-	(*ListGatewayPairingsResponse)(nil),         // 56: morph.v1.ListGatewayPairingsResponse
-	(*ApproveGatewayPairingRequest)(nil),        // 57: morph.v1.ApproveGatewayPairingRequest
-	(*ApproveGatewayPairingResponse)(nil),       // 58: morph.v1.ApproveGatewayPairingResponse
-	(*RevokeGatewayPairingRequest)(nil),         // 59: morph.v1.RevokeGatewayPairingRequest
-	(*RevokeGatewayPairingResponse)(nil),        // 60: morph.v1.RevokeGatewayPairingResponse
-	(*ClearPendingGatewayPairingsRequest)(nil),  // 61: morph.v1.ClearPendingGatewayPairingsRequest
-	(*ClearPendingGatewayPairingsResponse)(nil), // 62: morph.v1.ClearPendingGatewayPairingsResponse
-	(*GetSessionStatusResponse_Context)(nil),    // 63: morph.v1.GetSessionStatusResponse.Context
-	(*timestamppb.Timestamp)(nil),               // 64: google.protobuf.Timestamp
+	(*RuntimeModelRequest)(nil),                 // 34: morph.v1.RuntimeModelRequest
+	(*RuntimeModelResponse)(nil),                // 35: morph.v1.RuntimeModelResponse
+	(*ListProvidersRequest)(nil),                // 36: morph.v1.ListProvidersRequest
+	(*ProviderOption)(nil),                      // 37: morph.v1.ProviderOption
+	(*ListProvidersResponse)(nil),               // 38: morph.v1.ListProvidersResponse
+	(*ListModelsRequest)(nil),                   // 39: morph.v1.ListModelsRequest
+	(*ModelOption)(nil),                         // 40: morph.v1.ModelOption
+	(*ListModelsResponse)(nil),                  // 41: morph.v1.ListModelsResponse
+	(*SelectModelRequest)(nil),                  // 42: morph.v1.SelectModelRequest
+	(*SelectModelResponse)(nil),                 // 43: morph.v1.SelectModelResponse
+	(*SetProviderAPIKeyRequest)(nil),            // 44: morph.v1.SetProviderAPIKeyRequest
+	(*SetProviderAPIKeyResponse)(nil),           // 45: morph.v1.SetProviderAPIKeyResponse
+	(*GatewayStatus)(nil),                       // 46: morph.v1.GatewayStatus
+	(*GetGatewayStatusRequest)(nil),             // 47: morph.v1.GetGatewayStatusRequest
+	(*GetGatewayStatusResponse)(nil),            // 48: morph.v1.GetGatewayStatusResponse
+	(*StartGatewayRequest)(nil),                 // 49: morph.v1.StartGatewayRequest
+	(*StartGatewayResponse)(nil),                // 50: morph.v1.StartGatewayResponse
+	(*StopGatewayRequest)(nil),                  // 51: morph.v1.StopGatewayRequest
+	(*StopGatewayResponse)(nil),                 // 52: morph.v1.StopGatewayResponse
+	(*RestartGatewayRequest)(nil),               // 53: morph.v1.RestartGatewayRequest
+	(*RestartGatewayResponse)(nil),              // 54: morph.v1.RestartGatewayResponse
+	(*GatewayPairingRequest)(nil),               // 55: morph.v1.GatewayPairingRequest
+	(*GatewayPairedSender)(nil),                 // 56: morph.v1.GatewayPairedSender
+	(*ListGatewayPairingsRequest)(nil),          // 57: morph.v1.ListGatewayPairingsRequest
+	(*ListGatewayPairingsResponse)(nil),         // 58: morph.v1.ListGatewayPairingsResponse
+	(*ApproveGatewayPairingRequest)(nil),        // 59: morph.v1.ApproveGatewayPairingRequest
+	(*ApproveGatewayPairingResponse)(nil),       // 60: morph.v1.ApproveGatewayPairingResponse
+	(*RevokeGatewayPairingRequest)(nil),         // 61: morph.v1.RevokeGatewayPairingRequest
+	(*RevokeGatewayPairingResponse)(nil),        // 62: morph.v1.RevokeGatewayPairingResponse
+	(*ClearPendingGatewayPairingsRequest)(nil),  // 63: morph.v1.ClearPendingGatewayPairingsRequest
+	(*ClearPendingGatewayPairingsResponse)(nil), // 64: morph.v1.ClearPendingGatewayPairingsResponse
+	(*GetSessionStatusResponse_Context)(nil),    // 65: morph.v1.GetSessionStatusResponse.Context
+	(*timestamppb.Timestamp)(nil),               // 66: google.protobuf.Timestamp
 }
 var file_internal_rpc_proto_morph_proto_depIdxs = []int32{
 	0,  // 0: morph.v1.RespondEvent.type:type_name -> morph.v1.RespondEvent.Type
 	1,  // 1: morph.v1.RespondEvent.channel:type_name -> morph.v1.RespondEvent.Channel
-	64, // 2: morph.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
+	66, // 2: morph.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
 	5,  // 3: morph.v1.CreateSessionResponse.session:type_name -> morph.v1.SessionSummary
 	5,  // 4: morph.v1.ListSessionsResponse.sessions:type_name -> morph.v1.SessionSummary
 	5,  // 5: morph.v1.UnarchiveSessionResponse.session:type_name -> morph.v1.SessionSummary
 	5,  // 6: morph.v1.RenameSessionResponse.session:type_name -> morph.v1.SessionSummary
-	64, // 7: morph.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	66, // 7: morph.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 8: morph.v1.RepairSessionRequest.type:type_name -> morph.v1.RepairSessionRequest.Type
 	24, // 9: morph.v1.RepairSessionRequest.vector:type_name -> morph.v1.VectorRepairOption
 	2,  // 10: morph.v1.RepairSessionResponse.type:type_name -> morph.v1.RepairSessionRequest.Type
 	25, // 11: morph.v1.RepairSessionResponse.vector:type_name -> morph.v1.VectorRepairResponse
 	26, // 12: morph.v1.GetSessionStatusRequest.context:type_name -> morph.v1.GetSessionStatusRequestContext
-	63, // 13: morph.v1.GetSessionStatusResponse.context:type_name -> morph.v1.GetSessionStatusResponse.Context
-	64, // 14: morph.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
-	64, // 15: morph.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
-	64, // 16: morph.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
+	65, // 13: morph.v1.GetSessionStatusResponse.context:type_name -> morph.v1.GetSessionStatusResponse.Context
+	66, // 14: morph.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
+	66, // 15: morph.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
+	66, // 16: morph.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
 	30, // 17: morph.v1.SessionTimelineMessage.tool_calls:type_name -> morph.v1.SessionTimelineToolCall
-	64, // 18: morph.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
+	66, // 18: morph.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
 	31, // 19: morph.v1.GetSessionTimelineResponse.messages:type_name -> morph.v1.SessionTimelineMessage
 	32, // 20: morph.v1.GetSessionTimelineResponse.trace_events:type_name -> morph.v1.SessionTimelineTraceEvent
-	35, // 21: morph.v1.ListProvidersResponse.providers:type_name -> morph.v1.ProviderOption
-	38, // 22: morph.v1.ListModelsResponse.models:type_name -> morph.v1.ModelOption
-	38, // 23: morph.v1.SelectModelResponse.model:type_name -> morph.v1.ModelOption
-	44, // 24: morph.v1.GetGatewayStatusResponse.status:type_name -> morph.v1.GatewayStatus
-	44, // 25: morph.v1.StartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
-	44, // 26: morph.v1.StopGatewayResponse.status:type_name -> morph.v1.GatewayStatus
-	44, // 27: morph.v1.RestartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
-	64, // 28: morph.v1.GatewayPairingRequest.created_at:type_name -> google.protobuf.Timestamp
-	64, // 29: morph.v1.GatewayPairingRequest.last_seen_at:type_name -> google.protobuf.Timestamp
-	64, // 30: morph.v1.GatewayPairingRequest.expires_at:type_name -> google.protobuf.Timestamp
-	64, // 31: morph.v1.GatewayPairedSender.created_at:type_name -> google.protobuf.Timestamp
-	64, // 32: morph.v1.GatewayPairedSender.updated_at:type_name -> google.protobuf.Timestamp
-	53, // 33: morph.v1.ListGatewayPairingsResponse.pending:type_name -> morph.v1.GatewayPairingRequest
-	54, // 34: morph.v1.ListGatewayPairingsResponse.approved:type_name -> morph.v1.GatewayPairedSender
-	54, // 35: morph.v1.ApproveGatewayPairingResponse.sender:type_name -> morph.v1.GatewayPairedSender
+	37, // 21: morph.v1.ListProvidersResponse.providers:type_name -> morph.v1.ProviderOption
+	40, // 22: morph.v1.ListModelsResponse.models:type_name -> morph.v1.ModelOption
+	40, // 23: morph.v1.SelectModelResponse.model:type_name -> morph.v1.ModelOption
+	46, // 24: morph.v1.GetGatewayStatusResponse.status:type_name -> morph.v1.GatewayStatus
+	46, // 25: morph.v1.StartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
+	46, // 26: morph.v1.StopGatewayResponse.status:type_name -> morph.v1.GatewayStatus
+	46, // 27: morph.v1.RestartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
+	66, // 28: morph.v1.GatewayPairingRequest.created_at:type_name -> google.protobuf.Timestamp
+	66, // 29: morph.v1.GatewayPairingRequest.last_seen_at:type_name -> google.protobuf.Timestamp
+	66, // 30: morph.v1.GatewayPairingRequest.expires_at:type_name -> google.protobuf.Timestamp
+	66, // 31: morph.v1.GatewayPairedSender.created_at:type_name -> google.protobuf.Timestamp
+	66, // 32: morph.v1.GatewayPairedSender.updated_at:type_name -> google.protobuf.Timestamp
+	55, // 33: morph.v1.ListGatewayPairingsResponse.pending:type_name -> morph.v1.GatewayPairingRequest
+	56, // 34: morph.v1.ListGatewayPairingsResponse.approved:type_name -> morph.v1.GatewayPairedSender
+	56, // 35: morph.v1.ApproveGatewayPairingResponse.sender:type_name -> morph.v1.GatewayPairedSender
 	3,  // 36: morph.v1.MorphService.Respond:input_type -> morph.v1.RespondRequest
 	6,  // 37: morph.v1.SessionService.Create:input_type -> morph.v1.CreateSessionRequest
 	8,  // 38: morph.v1.SessionService.List:input_type -> morph.v1.ListSessionsRequest
@@ -4083,44 +4205,46 @@ var file_internal_rpc_proto_morph_proto_depIdxs = []int32{
 	22, // 45: morph.v1.SessionService.Repair:input_type -> morph.v1.RepairSessionRequest
 	27, // 46: morph.v1.SessionService.Status:input_type -> morph.v1.GetSessionStatusRequest
 	29, // 47: morph.v1.SessionService.Timeline:input_type -> morph.v1.GetSessionTimelineRequest
-	34, // 48: morph.v1.ModelService.ListProviders:input_type -> morph.v1.ListProvidersRequest
-	37, // 49: morph.v1.ModelService.ListModels:input_type -> morph.v1.ListModelsRequest
-	40, // 50: morph.v1.ModelService.SelectModel:input_type -> morph.v1.SelectModelRequest
-	42, // 51: morph.v1.ModelService.SetProviderAPIKey:input_type -> morph.v1.SetProviderAPIKeyRequest
-	45, // 52: morph.v1.GatewayService.GatewayStatus:input_type -> morph.v1.GetGatewayStatusRequest
-	47, // 53: morph.v1.GatewayService.Start:input_type -> morph.v1.StartGatewayRequest
-	49, // 54: morph.v1.GatewayService.Stop:input_type -> morph.v1.StopGatewayRequest
-	51, // 55: morph.v1.GatewayService.Restart:input_type -> morph.v1.RestartGatewayRequest
-	55, // 56: morph.v1.GatewayService.ListPairings:input_type -> morph.v1.ListGatewayPairingsRequest
-	57, // 57: morph.v1.GatewayService.ApprovePairing:input_type -> morph.v1.ApproveGatewayPairingRequest
-	59, // 58: morph.v1.GatewayService.RevokePairing:input_type -> morph.v1.RevokeGatewayPairingRequest
-	61, // 59: morph.v1.GatewayService.ClearPendingPairings:input_type -> morph.v1.ClearPendingGatewayPairingsRequest
-	4,  // 60: morph.v1.MorphService.Respond:output_type -> morph.v1.RespondEvent
-	7,  // 61: morph.v1.SessionService.Create:output_type -> morph.v1.CreateSessionResponse
-	9,  // 62: morph.v1.SessionService.List:output_type -> morph.v1.ListSessionsResponse
-	11, // 63: morph.v1.SessionService.Use:output_type -> morph.v1.UseSessionResponse
-	13, // 64: morph.v1.SessionService.Archive:output_type -> morph.v1.ArchiveSessionResponse
-	15, // 65: morph.v1.SessionService.Unarchive:output_type -> morph.v1.UnarchiveSessionResponse
-	17, // 66: morph.v1.SessionService.Rename:output_type -> morph.v1.RenameSessionResponse
-	19, // 67: morph.v1.SessionService.Current:output_type -> morph.v1.CurrentSessionResponse
-	21, // 68: morph.v1.SessionService.Compact:output_type -> morph.v1.CompactSessionResponse
-	23, // 69: morph.v1.SessionService.Repair:output_type -> morph.v1.RepairSessionResponse
-	28, // 70: morph.v1.SessionService.Status:output_type -> morph.v1.GetSessionStatusResponse
-	33, // 71: morph.v1.SessionService.Timeline:output_type -> morph.v1.GetSessionTimelineResponse
-	36, // 72: morph.v1.ModelService.ListProviders:output_type -> morph.v1.ListProvidersResponse
-	39, // 73: morph.v1.ModelService.ListModels:output_type -> morph.v1.ListModelsResponse
-	41, // 74: morph.v1.ModelService.SelectModel:output_type -> morph.v1.SelectModelResponse
-	43, // 75: morph.v1.ModelService.SetProviderAPIKey:output_type -> morph.v1.SetProviderAPIKeyResponse
-	46, // 76: morph.v1.GatewayService.GatewayStatus:output_type -> morph.v1.GetGatewayStatusResponse
-	48, // 77: morph.v1.GatewayService.Start:output_type -> morph.v1.StartGatewayResponse
-	50, // 78: morph.v1.GatewayService.Stop:output_type -> morph.v1.StopGatewayResponse
-	52, // 79: morph.v1.GatewayService.Restart:output_type -> morph.v1.RestartGatewayResponse
-	56, // 80: morph.v1.GatewayService.ListPairings:output_type -> morph.v1.ListGatewayPairingsResponse
-	58, // 81: morph.v1.GatewayService.ApprovePairing:output_type -> morph.v1.ApproveGatewayPairingResponse
-	60, // 82: morph.v1.GatewayService.RevokePairing:output_type -> morph.v1.RevokeGatewayPairingResponse
-	62, // 83: morph.v1.GatewayService.ClearPendingPairings:output_type -> morph.v1.ClearPendingGatewayPairingsResponse
-	60, // [60:84] is the sub-list for method output_type
-	36, // [36:60] is the sub-list for method input_type
+	34, // 48: morph.v1.ModelService.RuntimeModel:input_type -> morph.v1.RuntimeModelRequest
+	36, // 49: morph.v1.ModelService.ListProviders:input_type -> morph.v1.ListProvidersRequest
+	39, // 50: morph.v1.ModelService.ListModels:input_type -> morph.v1.ListModelsRequest
+	42, // 51: morph.v1.ModelService.SelectModel:input_type -> morph.v1.SelectModelRequest
+	44, // 52: morph.v1.ModelService.SetProviderAPIKey:input_type -> morph.v1.SetProviderAPIKeyRequest
+	47, // 53: morph.v1.GatewayService.GatewayStatus:input_type -> morph.v1.GetGatewayStatusRequest
+	49, // 54: morph.v1.GatewayService.Start:input_type -> morph.v1.StartGatewayRequest
+	51, // 55: morph.v1.GatewayService.Stop:input_type -> morph.v1.StopGatewayRequest
+	53, // 56: morph.v1.GatewayService.Restart:input_type -> morph.v1.RestartGatewayRequest
+	57, // 57: morph.v1.GatewayService.ListPairings:input_type -> morph.v1.ListGatewayPairingsRequest
+	59, // 58: morph.v1.GatewayService.ApprovePairing:input_type -> morph.v1.ApproveGatewayPairingRequest
+	61, // 59: morph.v1.GatewayService.RevokePairing:input_type -> morph.v1.RevokeGatewayPairingRequest
+	63, // 60: morph.v1.GatewayService.ClearPendingPairings:input_type -> morph.v1.ClearPendingGatewayPairingsRequest
+	4,  // 61: morph.v1.MorphService.Respond:output_type -> morph.v1.RespondEvent
+	7,  // 62: morph.v1.SessionService.Create:output_type -> morph.v1.CreateSessionResponse
+	9,  // 63: morph.v1.SessionService.List:output_type -> morph.v1.ListSessionsResponse
+	11, // 64: morph.v1.SessionService.Use:output_type -> morph.v1.UseSessionResponse
+	13, // 65: morph.v1.SessionService.Archive:output_type -> morph.v1.ArchiveSessionResponse
+	15, // 66: morph.v1.SessionService.Unarchive:output_type -> morph.v1.UnarchiveSessionResponse
+	17, // 67: morph.v1.SessionService.Rename:output_type -> morph.v1.RenameSessionResponse
+	19, // 68: morph.v1.SessionService.Current:output_type -> morph.v1.CurrentSessionResponse
+	21, // 69: morph.v1.SessionService.Compact:output_type -> morph.v1.CompactSessionResponse
+	23, // 70: morph.v1.SessionService.Repair:output_type -> morph.v1.RepairSessionResponse
+	28, // 71: morph.v1.SessionService.Status:output_type -> morph.v1.GetSessionStatusResponse
+	33, // 72: morph.v1.SessionService.Timeline:output_type -> morph.v1.GetSessionTimelineResponse
+	35, // 73: morph.v1.ModelService.RuntimeModel:output_type -> morph.v1.RuntimeModelResponse
+	38, // 74: morph.v1.ModelService.ListProviders:output_type -> morph.v1.ListProvidersResponse
+	41, // 75: morph.v1.ModelService.ListModels:output_type -> morph.v1.ListModelsResponse
+	43, // 76: morph.v1.ModelService.SelectModel:output_type -> morph.v1.SelectModelResponse
+	45, // 77: morph.v1.ModelService.SetProviderAPIKey:output_type -> morph.v1.SetProviderAPIKeyResponse
+	48, // 78: morph.v1.GatewayService.GatewayStatus:output_type -> morph.v1.GetGatewayStatusResponse
+	50, // 79: morph.v1.GatewayService.Start:output_type -> morph.v1.StartGatewayResponse
+	52, // 80: morph.v1.GatewayService.Stop:output_type -> morph.v1.StopGatewayResponse
+	54, // 81: morph.v1.GatewayService.Restart:output_type -> morph.v1.RestartGatewayResponse
+	58, // 82: morph.v1.GatewayService.ListPairings:output_type -> morph.v1.ListGatewayPairingsResponse
+	60, // 83: morph.v1.GatewayService.ApprovePairing:output_type -> morph.v1.ApproveGatewayPairingResponse
+	62, // 84: morph.v1.GatewayService.RevokePairing:output_type -> morph.v1.RevokeGatewayPairingResponse
+	64, // 85: morph.v1.GatewayService.ClearPendingPairings:output_type -> morph.v1.ClearPendingGatewayPairingsResponse
+	61, // [61:86] is the sub-list for method output_type
+	36, // [36:61] is the sub-list for method input_type
 	36, // [36:36] is the sub-list for extension type_name
 	36, // [36:36] is the sub-list for extension extendee
 	0,  // [0:36] is the sub-list for field type_name
@@ -4140,7 +4264,7 @@ func file_internal_rpc_proto_morph_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_rpc_proto_morph_proto_rawDesc), len(file_internal_rpc_proto_morph_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   61,
+			NumMessages:   63,
 			NumExtensions: 0,
 			NumServices:   4,
 		},

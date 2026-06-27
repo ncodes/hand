@@ -67,6 +67,7 @@ type AgentServiceStub struct {
 	TimelineOptions      agentapi.SessionTimelineOptions
 	TimelineResult       agentapi.SessionTimeline
 	ProviderList         agentapi.ProviderList
+	RuntimeModelResult   rpcclient.ModelRuntime
 	ModelList            agentapi.ModelList
 	ModelListOptions     agentapi.ModelListOptions
 	SelectedModel        models.Option
@@ -121,6 +122,10 @@ func (s *AgentServiceStub) GatewayAPI() rpcclient.GatewayAPI {
 
 func (s *AgentServiceStub) ListProviders(context.Context) (agentapi.ProviderList, error) {
 	return s.ProviderList, s.Err
+}
+
+func (s *AgentServiceStub) RuntimeModel(context.Context) (rpcclient.ModelRuntime, error) {
+	return s.RuntimeModelResult, s.Err
 }
 
 func (s *AgentServiceStub) ListModels(_ context.Context, opts ...agentapi.ModelListOptions) (agentapi.ModelList, error) {

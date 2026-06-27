@@ -129,7 +129,7 @@ func TestStartSubcommandIsNotAccepted(t *testing.T) {
 
 	err := NewCommand().Run(context.Background(), []string{"daemon", "start"})
 
-	require.Error(t, err)
+	require.EqualError(t, err, `unknown daemon command "start"`)
 }
 
 func TestWriteDaemonStatusReturnsWriteError(t *testing.T) {
