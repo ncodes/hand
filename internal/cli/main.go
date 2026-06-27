@@ -114,8 +114,9 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 			Stream:    cfg.Models.Main.Stream,
 		}
 		if cfg.StreamEnabled() {
+			formatter := newChatStreamFormatter(cfg)
 			responseOptions.OnEvent = func(event rpcclient.Event) {
-				_, _ = fmt.Fprint(output, FormatChatEvent(cfg, event))
+				_, _ = fmt.Fprint(output, formatter.Format(event))
 			}
 		}
 
@@ -189,6 +190,40 @@ func newDefaultChatClient(ctx context.Context, cfg *config.Config) (rpcclient.Ch
 		Address: cfg.RPC.Address,
 		Port:    cfg.RPC.Port,
 	})
+}
+
+type chatStreamFormatter struct {
+	cfg                  *config.Config
+	lastChannel          string
+	wroteText            bool
+	lastTextEndedNewline bool
+}
+
+func newChatStreamFormatter(cfg *config.Config) *chatStreamFormatter {
+	return &chatStreamFormatter{cfg: cfg}
+}
+
+func (f *chatStreamFormatter) Format(event rpcclient.Event) string {
+	if event.TraceEvent != nil {
+		return ""
+	}
+
+	channel := strings.TrimSpace(event.Channel)
+	output := FormatChatEvent(f.cfg, event)
+	if output == "" {
+		return ""
+	}
+
+	prefix := ""
+	if f.wroteText && f.lastChannel == "reasoning" && channel != "reasoning" && !f.lastTextEndedNewline {
+		prefix = "\n"
+	}
+
+	f.wroteText = true
+	f.lastChannel = channel
+	f.lastTextEndedNewline = strings.HasSuffix(event.Text, "\n")
+
+	return prefix + output
 }
 
 // FormatChatEvent formats one streamed chat event for terminal output.

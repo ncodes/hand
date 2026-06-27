@@ -212,7 +212,7 @@ func TestNewMainAction_StylesReasoningOutput(t *testing.T) {
 		"hello",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "\x1b[90mthinking\x1b[0m done\n", output.String())
+	require.Equal(t, "\x1b[90mthinking\x1b[0m\n done\n", output.String())
 }
 
 func TestNewMainAction_DoesNotStyleReasoningWhenNoColor(t *testing.T) {
@@ -240,7 +240,24 @@ func TestNewMainAction_DoesNotStyleReasoningWhenNoColor(t *testing.T) {
 		"hello",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "thinking done\n", output.String())
+	require.Equal(t, "thinking\n done\n", output.String())
+}
+
+func TestChatStreamFormatter_DoesNotAddBoundaryAfterReasoningNewline(t *testing.T) {
+	formatter := newChatStreamFormatter(config.NewDefaultConfig())
+
+	output := formatter.Format(rpcclient.Event{
+		Kind:    agent.EventKindTextDelta,
+		Channel: "reasoning",
+		Text:    "thinking\n",
+	})
+	output += formatter.Format(rpcclient.Event{
+		Kind:    agent.EventKindTextDelta,
+		Channel: "assistant",
+		Text:    "done",
+	})
+
+	require.Equal(t, "\x1b[90mthinking\n\x1b[0mdone", output)
 }
 
 func TestNewMainAction_IgnoresTraceEvents(t *testing.T) {
