@@ -16,7 +16,10 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
 	agentstub "github.com/wandxy/morph/internal/mocks/agentstub"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
 	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	"github.com/wandxy/morph/internal/runtime"
@@ -329,6 +332,186 @@ func TestNewMainAction_EnsuresDaemonAndCleansStartedRuntime(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, cleaned)
 	require.True(t, stub.Closed)
+}
+
+func TestNewMainAction_PullsOllamaModelBeforeStartingDaemon(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	pulled := false
+	started := false
+	var output bytes.Buffer
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	cmd := newMainActionTestCommandWithOptions(&output, MainActionOptions{
+		PullOllamaModel: func(
+			_ context.Context,
+			baseURL string,
+			model string,
+			headers map[string]string,
+			onProgress func(provider_ollama.PullProgress),
+		) error {
+			require.False(t, started)
+			require.Equal(t, constants.DefaultOllamaBaseURL, baseURL)
+			require.Equal(t, "qwen3:8b", model)
+			require.Nil(t, headers)
+			require.NotNil(t, onProgress)
+			onProgress(provider_ollama.PullProgress{Status: "pulling manifest"})
+			onProgress(provider_ollama.PullProgress{Status: "downloading", Completed: 25, Total: 100})
+			pulled = true
+			return nil
+		},
+		EnsureDaemonRunning: func(context.Context, *config.Config) (func() error, error) {
+			require.True(t, pulled)
+			started = true
+			return nil, nil
+		},
+		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+			require.True(t, started)
+			return stub, nil
+		},
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--provider", "ollama",
+		"--model", "qwen3:8b",
+		"--pull",
+		"hello",
+	})
+
+	require.NoError(t, err)
+	require.True(t, pulled)
+	require.Equal(t, "hello", stub.ChatInput)
+	require.Equal(t, "Ollama pull: pulling manifest\nOllama pull: downloading 25%\nhello back\n", output.String())
+}
+
+func TestNewMainAction_PullQuietSuppressesProgressOutput(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	var output bytes.Buffer
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	cmd := newMainActionTestCommandWithOptions(&output, MainActionOptions{
+		PullOllamaModel: func(
+			_ context.Context,
+			_ string,
+			_ string,
+			_ map[string]string,
+			onProgress func(provider_ollama.PullProgress),
+		) error {
+			require.Nil(t, onProgress)
+			return nil
+		},
+		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+			return stub, nil
+		},
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--provider", "ollama",
+		"--model", "qwen3:8b",
+		"--pull",
+		"--pull-quiet",
+		"hello",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "hello back\n", output.String())
+}
+
+func TestNewMainAction_PullRejectsNonOllamaProvider(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	cmd := newMainActionTestCommandWithOptions(io.Discard, MainActionOptions{
+		PullOllamaModel: func(
+			context.Context,
+			string,
+			string,
+			map[string]string,
+			func(provider_ollama.PullProgress),
+		) error {
+			t.Fatal("pull should not run for non-Ollama providers")
+			return nil
+		},
+		EnsureDaemonRunning: func(context.Context, *config.Config) (func() error, error) {
+			t.Fatal("daemon should not start when --pull is invalid")
+			return nil, nil
+		},
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--provider", "openrouter",
+		"--pull",
+		"hello",
+	})
+
+	require.EqualError(t, err, `--pull is only supported with provider "ollama"`)
+}
+
+func TestPullSelectedOllamaModel_RejectsInvalidInputs(t *testing.T) {
+	err := pullSelectedOllamaModel(
+		t.Context(),
+		nil,
+		func(context.Context, string, string, map[string]string, func(provider_ollama.PullProgress)) error {
+			t.Fatal("pull should not run without config")
+			return nil
+		},
+		nil,
+	)
+	require.EqualError(t, err, "config is required")
+
+	err = pullSelectedOllamaModel(t.Context(), &config.Config{}, nil, nil)
+	require.EqualError(t, err, "ollama puller is required")
+
+	cfg := config.NewDefaultConfig()
+	cfg.Models.Main.Provider = constants.ModelProviderOllama
+	cfg.Models.Main.API = modelprovider.APIOpenAIResponses
+
+	err = pullSelectedOllamaModel(
+		t.Context(),
+		cfg,
+		func(context.Context, string, string, map[string]string, func(provider_ollama.PullProgress)) error {
+			t.Fatal("pull should not run for unsupported Ollama API")
+			return nil
+		},
+		nil,
+	)
+	require.EqualError(t, err, "--pull is only supported with Ollama chat APIs")
+
+	profileHome := t.TempDir()
+	profile.SetActive(profile.Profile{HomeDir: profileHome})
+	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "auth.json"), []byte("{bad json"), 0o600))
+
+	cfg.Models.Main.API = modelprovider.APIOllamaNative
+	err = pullSelectedOllamaModel(
+		t.Context(),
+		cfg,
+		func(context.Context, string, string, map[string]string, func(provider_ollama.PullProgress)) error {
+			t.Fatal("pull should not run when model auth cannot be resolved")
+			return nil
+		},
+		nil,
+	)
+	require.ErrorContains(t, err, "parse credential store")
+}
+
+func TestPullProgressWriter_IgnoresDisabledAndEmptyProgress(t *testing.T) {
+	require.Nil(t, pullProgressWriter(io.Discard, false))
+	require.Nil(t, pullProgressWriter(nil, true))
+
+	var output bytes.Buffer
+	onProgress := pullProgressWriter(&output, true)
+	require.NotNil(t, onProgress)
+
+	onProgress(provider_ollama.PullProgress{Status: " "})
+
+	require.Empty(t, output.String())
 }
 
 func TestNewMainAction_ReturnsDaemonStartErrorBeforeCreatingClient(t *testing.T) {

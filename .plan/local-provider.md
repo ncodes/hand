@@ -64,7 +64,8 @@ The first milestone is a reliable Ollama path that can be configured, discovered
   - [x] `--provider ollama`.
   - [x] `--base-url`.
   - [x] `--model`.
-  - [ ] `--pull-missing`.
+  - [x] `--pull`.
+  - [x] `--pull-quiet`.
 - [x] Add runtime execution:
   - [x] Convert Morph messages to Ollama `/api/chat` messages.
   - [x] Convert tool definitions to Ollama tool schema.
@@ -73,6 +74,7 @@ The first milestone is a reliable Ollama path that can be configured, discovered
   - [x] Convert Ollama tool calls back into Morph tool invocation events.
   - [x] Respect cancellation.
   - [x] Preserve usage metadata when Ollama returns token counts.
+  - [x] Surface pull progress to the caller for CLI output.
 - [ ] Add compatibility switches:
   - [x] Native Ollama mode by default.
   - [x] Optional OpenAI-compatible mode for proxies that only expose `/v1/chat/completions`.
@@ -184,7 +186,7 @@ The first milestone is a reliable Ollama path that can be configured, discovered
 - [ ] Add `morph provider add ollama` or equivalent guided setup.
 - [ ] Add `morph providers status` with local runtime checks.
 - [ ] Add `morph models list --provider ollama`.
-- [ ] Add `morph models pull <ollama/model>` if Morph should wrap `ollama pull`; otherwise link to the exact command.
+- [ ] Add `morph models pull <ollama/model>` if Morph should wrap `ollama pull`; otherwise link to the exact command. The one-shot CLI now supports `--pull`.
 - [ ] Add examples:
   - [ ] Pure local Ollama setup.
   - [ ] Remote LAN Ollama setup.
@@ -213,7 +215,7 @@ The first milestone is a reliable Ollama path that can be configured, discovered
 - [ ] Integration tests with mocked local servers:
   - [x] Ollama reachable with no models.
   - [x] Ollama with one model.
-  - [ ] Ollama missing model pull path.
+  - [x] Ollama missing model pull path.
   - [x] Ollama streaming text.
   - [x] Ollama streaming tool calls.
   - [ ] vLLM `/models` discovery.
@@ -245,7 +247,7 @@ The first milestone is a reliable Ollama path that can be configured, discovered
 
 ## Open Questions
 
-- [ ] Should Morph wrap `ollama pull`, or should it only detect and print the command?
+- [x] Should Morph wrap `ollama pull`, or should it only detect and print the command? Use Ollama's HTTP API behind explicit `--pull`.
 - [ ] Should native Ollama mode be mandatory, or should OpenAI-compatible Ollama mode remain user-selectable?
 - [ ] How should local-only mode interact with remote tools and web-enabled features?
 - [ ] Do we need a provider plugin system now, or is a registry abstraction enough for the first two providers?

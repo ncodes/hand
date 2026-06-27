@@ -39,6 +39,16 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Usage: "Model ID to send to the provider, for example gpt-4o-mini",
 			Value: config.Get().Models.Main.Name,
 		},
+		&cli.BoolFlag{
+			Name:   "pull",
+			Usage:  "Pull the selected Ollama model before sending the request when it is missing locally",
+			Hidden: true,
+		},
+		&cli.BoolFlag{
+			Name:   "pull-quiet",
+			Usage:  "Suppress Ollama model pull progress output",
+			Hidden: true,
+		},
 		&cli.StringFlag{
 			Name:  "model.summary",
 			Usage: "Optional model ID for compaction summarization; defaults to --model when unset",
