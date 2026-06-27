@@ -229,6 +229,11 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Hidden: true,
 		},
 		&cli.BoolFlag{
+			Name:   "no-color",
+			Usage:  "Emit plain terminal output without ANSI color codes",
+			Hidden: true,
+		},
+		&cli.BoolFlag{
 			Name:  "debug.requests",
 			Usage: "Log sanitized model request payloads at debug level",
 		},
@@ -672,6 +677,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("log.no-color") {
 		cfg.Log.NoColor = cmd.Bool("log.no-color")
+	}
+	if cmd.IsSet("no-color") && cmd.Bool("no-color") {
+		cfg.Log.NoColor = true
 	}
 	if cmd.IsSet("debug.requests") {
 		cfg.Debug.Requests = cmd.Bool("debug.requests")

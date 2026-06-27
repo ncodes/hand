@@ -44,6 +44,21 @@ func TestApplyConfigOverrides_AppliesInstruct(t *testing.T) {
 	require.Equal(t, "be terse", cfg.Session.Instruct)
 }
 
+func TestApplyConfigOverrides_NoColorForcesLogNoColor(t *testing.T) {
+	cfg := &config.Config{}
+	var cmd *cli.Command
+	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd.Action = func(context.Context, *cli.Command) error {
+		ApplyConfigOverrides(cmd, cfg)
+		return nil
+	}
+
+	err := cmd.Run(context.Background(), []string{"morph", "--log.no-color=false", "--no-color"})
+
+	require.NoError(t, err)
+	require.True(t, cfg.Log.NoColor)
+}
+
 func TestChatFlag_AcceptsLongAndShortForms(t *testing.T) {
 	for _, args := range [][]string{
 		{"morph", "--chat", "hello"},

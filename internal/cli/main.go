@@ -132,7 +132,7 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 			Stream:    cfg.Models.Main.Stream,
 		}
 		if cfg.StreamEnabled() {
-			formatter := newChatStreamFormatter(cfg, now)
+			formatter := newChatStreamFormatter(cfg, now, cmd.Bool("no-color"))
 			responseOptions.OnEvent = func(event rpcclient.Event) {
 				_, _ = fmt.Fprint(output, formatter.Format(event))
 			}
@@ -286,6 +286,7 @@ func newDefaultChatClient(ctx context.Context, cfg *config.Config) (rpcclient.Ch
 type chatStreamFormatter struct {
 	cfg                      *config.Config
 	now                      func() time.Time
+	noColor                  bool
 	turnStarted              time.Time
 	reasoningStarted         time.Time
 	reasoningActive          bool
@@ -294,15 +295,15 @@ type chatStreamFormatter struct {
 	lastTextTrailingNewlines int
 }
 
-func newChatStreamFormatter(cfg *config.Config, now ...func() time.Time) *chatStreamFormatter {
-	clock := time.Now
-	if len(now) > 0 && now[0] != nil {
-		clock = now[0]
+func newChatStreamFormatter(cfg *config.Config, now func() time.Time, noColor bool) *chatStreamFormatter {
+	clock := now
+	if clock == nil {
+		clock = time.Now
 	}
-
 	return &chatStreamFormatter{
 		cfg:         cfg,
 		now:         clock,
+		noColor:     noColor,
 		turnStarted: clock(),
 	}
 }
@@ -318,7 +319,7 @@ func (f *chatStreamFormatter) Format(event rpcclient.Event) string {
 		f.reasoningActive = true
 	}
 
-	output := FormatChatEvent(f.cfg, event)
+	output := formatChatEvent(f.cfg, event, f.noColor)
 	if output == "" {
 		return ""
 	}
@@ -364,7 +365,7 @@ func (f *chatStreamFormatter) finishReasoning() string {
 }
 
 func (f *chatStreamFormatter) formatMutedLabel(label string) string {
-	if f == nil || f.cfg == nil || f.cfg.Log.NoColor {
+	if f == nil || f.noColor {
 		return label
 	}
 
@@ -404,10 +405,14 @@ func countTrailingNewlines(text string, limit int) int {
 
 // FormatChatEvent formats one streamed chat event for terminal output.
 func FormatChatEvent(cfg *config.Config, event rpcclient.Event) string {
+	return formatChatEvent(cfg, event, false)
+}
+
+func formatChatEvent(cfg *config.Config, event rpcclient.Event, noColor bool) string {
 	if event.TraceEvent != nil {
 		return ""
 	}
-	if strings.TrimSpace(event.Channel) != "reasoning" || cfg == nil || cfg.Log.NoColor {
+	if strings.TrimSpace(event.Channel) != "reasoning" || cfg == nil || noColor {
 		return event.Text
 	}
 

@@ -234,7 +234,7 @@ func TestNewMainAction_LabelsReasoningAndWorkDuration(t *testing.T) {
 	}, "\n"), output.String())
 }
 
-func TestNewMainAction_DoesNotStyleReasoningWhenNoColor(t *testing.T) {
+func TestNewMainAction_StylesReasoningWhenOnlyLogNoColor(t *testing.T) {
 	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
 		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
 	resetMainActionState(t)
@@ -260,6 +260,45 @@ func TestNewMainAction_DoesNotStyleReasoningWhenNoColor(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, strings.Join([]string{
+		"\x1b[90mthinking\x1b[0m",
+		"",
+		"\x1b[90mThought for 0s\x1b[0m",
+		"",
+		" done",
+		"",
+		"\x1b[90mWorked for 0s\x1b[0m",
+		"",
+	}, "\n"), output.String())
+}
+
+func TestNewMainAction_DoesNotStyleReasoningWithNoColorAlias(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	var output bytes.Buffer
+	stub := &agentstub.AgentServiceStub{
+		Reply: "thinking done",
+		Events: []rpcclient.Event{
+			{Kind: agent.EventKindTextDelta, Channel: "reasoning", Text: "thinking"},
+			{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: " done"},
+		},
+	}
+	cmd := newMainActionTestCommand(&output, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--name", "flag-agent",
+		"--model.stream=true",
+		"--no-color",
+		"hello",
+	})
+
+	require.NoError(t, err)
+	require.NotContains(t, output.String(), "\x1b[")
+	require.Equal(t, strings.Join([]string{
 		"thinking",
 		"",
 		"Thought for 0s",
@@ -276,7 +315,7 @@ func TestChatStreamFormatter_CompletesReasoningBoundaryAfterOneNewline(t *testin
 		time.Unix(0, 0),
 		time.Unix(0, 0),
 		time.Unix(5, 0),
-	))
+	), false)
 
 	output := formatter.Format(rpcclient.Event{
 		Kind:    agent.EventKindTextDelta,
@@ -297,7 +336,7 @@ func TestChatStreamFormatter_DoesNotAddBoundaryAfterTwoReasoningNewlines(t *test
 		time.Unix(0, 0),
 		time.Unix(0, 0),
 		time.Unix(5, 0),
-	))
+	), false)
 
 	output := formatter.Format(rpcclient.Event{
 		Kind:    agent.EventKindTextDelta,
