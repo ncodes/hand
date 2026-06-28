@@ -18,6 +18,7 @@ config.yaml
 
 .DS_Store
 .plan/
+.plan/*
 .morph/
 docs/plans
 
