@@ -179,6 +179,32 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.True(t, ollamaModel.SupportsTools)
 	require.True(t, ollamaModel.DisplayDefault)
 	require.Equal(t, 131072, ollamaModel.ContextWindow)
+	for _, modelID := range []string{
+		"llama3.2:3b",
+		"llama3.1:8b",
+		"llama3.3:70b",
+		"qwen2.5-coder:7b",
+		"mistral:latest",
+	} {
+		model, ok := registry.GetModel(constants.ModelProviderOllama, modelID)
+		require.True(t, ok, modelID)
+		require.Equal(t, constants.ModelProviderOllama, model.Provider)
+		require.Equal(t, APIOllamaNative, model.API)
+		require.True(t, model.SupportsTools)
+	}
+	for _, modelID := range []string{
+		"qwen3.5:latest",
+		"qwen3.6:latest",
+		"deepseek-r1:8b",
+		"phi4-mini:latest",
+		"phi4-mini-reasoning:latest",
+		"lfm2.5-thinking:latest",
+	} {
+		model, ok := registry.GetModel(constants.ModelProviderOllama, modelID)
+		require.True(t, ok, modelID)
+		require.True(t, model.Reasoning)
+		require.Equal(t, APIOllamaNative, model.API)
+	}
 
 	copilotResponsesModel, ok := registry.GetModel("github-copilot", "gpt-5.4-mini")
 	require.True(t, ok)

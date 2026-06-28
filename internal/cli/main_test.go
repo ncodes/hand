@@ -1001,7 +1001,21 @@ func TestPullProgressPrinter_IgnoresDisabledAndEmptyProgress(t *testing.T) {
 	require.Empty(t, output.String())
 }
 
-func TestPullProgressPrinter_LiveFinishIsNoop(t *testing.T) {
+func TestPullProgressPrinter_LiveFinishResetsCurrentLine(t *testing.T) {
+	var output bytes.Buffer
+	printer := &pullProgressPrinter{
+		output:   &output,
+		live:     true,
+		lines:    []string{"Ollama pull: success"},
+		rendered: 1,
+	}
+
+	printer.Finish()
+
+	require.Equal(t, "\r\x1b[2K", output.String())
+}
+
+func TestPullProgressPrinter_LiveFinishDoesNothingBeforeRender(t *testing.T) {
 	var output bytes.Buffer
 	printer := &pullProgressPrinter{
 		output: &output,

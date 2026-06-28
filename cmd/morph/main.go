@@ -15,6 +15,7 @@ import (
 	doctorcmd "github.com/wandxy/morph/cmd/doctor"
 	gatewaycmd "github.com/wandxy/morph/cmd/gateway"
 	configcmd "github.com/wandxy/morph/cmd/morph/configcmd"
+	setupcmd "github.com/wandxy/morph/cmd/morph/setupcmd"
 	profilecmd "github.com/wandxy/morph/cmd/profile"
 	sessioncmd "github.com/wandxy/morph/cmd/session"
 	tracecmd "github.com/wandxy/morph/cmd/trace"
@@ -126,6 +127,7 @@ func newCommand() *cli.Command {
 			doctorcmd.NewCommand(),
 			gatewaycmd.NewCommand(),
 			profilecmd.NewCommand(),
+			setupcmd.NewCommand(os.Stdin, rootOutput),
 			sessioncmd.NewCommand(),
 			tracecmd.NewCommand(),
 			daemoncmd.NewCommand(),

@@ -93,7 +93,7 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 		logutils.SetLogLevel(cfg.Log.Level)
 
 		if cmd.Bool("pull") {
-			progressPrinter := newPullProgressPrinter(output, !cmd.Bool("pull-quiet"))
+			progressPrinter := NewPullProgressPrinter(output, !cmd.Bool("pull-quiet"))
 			var onProgress func(provider_ollama.PullProgress)
 			if progressPrinter != nil {
 				onProgress = progressPrinter.Progress
@@ -197,7 +197,7 @@ func validateRootChatDaemonModel(
 	if err != nil {
 		return fmt.Errorf("check running daemon model: %w", err)
 	}
-    
+
 	requestedModel := rootChatModelRuntimeFromConfig(cfg)
 	if rootChatModelRuntimeEqual(runtimeModel, requestedModel) {
 		return nil
@@ -317,6 +317,12 @@ type pullProgressPrinter struct {
 	rendered int
 }
 
+type PullProgressPrinter = pullProgressPrinter
+
+func NewPullProgressPrinter(output io.Writer, enabled bool) *PullProgressPrinter {
+	return newPullProgressPrinter(output, enabled)
+}
+
 func newPullProgressPrinter(output io.Writer, enabled bool) *pullProgressPrinter {
 	if !enabled || output == nil {
 		return nil
@@ -351,7 +357,13 @@ func (p *pullProgressPrinter) Progress(progress provider_ollama.PullProgress) {
 }
 
 func (p *pullProgressPrinter) Finish() {
-	if p == nil || p.live {
+	if p == nil {
+		return
+	}
+	if p.live {
+		if p.rendered > 0 {
+			_, _ = fmt.Fprint(p.output, "\r\x1b[2K")
+		}
 		return
 	}
 
@@ -377,6 +389,10 @@ func (p *pullProgressPrinter) renderLive() {
 }
 
 func formatPullProgress(progress provider_ollama.PullProgress) string {
+	return FormatPullProgress(progress)
+}
+
+func FormatPullProgress(progress provider_ollama.PullProgress) string {
 	text := strings.TrimSpace(progress.Status)
 	if text == "" {
 		return ""

@@ -170,6 +170,33 @@ storage:
 	require.Contains(t, rendered, "providers:\n        openrouter:\n            apiKey: new-key")
 }
 
+func TestSetConfigValues_CreatesNestedMappingUnderNullNode(t *testing.T) {
+	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
+	resetSetConfigProfileState(t)
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: test-agent
+models:
+    providers:
+    main:
+        name: claude-sonnet-4-6
+        provider: anthropic
+search:
+    vector:
+        enabled: false
+storage:
+    backend: memory
+`), 0o600))
+
+	_, err := SetConfigValue("", configPath, "models.providers.anthropic.apiKey", "new-key")
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	require.Contains(t, string(data), "providers:\n        anthropic:\n            apiKey: new-key")
+}
+
 func TestSetConfigValue_RejectsInvalidPathOrValue(t *testing.T) {
 	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)

@@ -529,6 +529,7 @@ func setYAMLNodePath(root *yaml.Node, steps []configPathStep, valueNode *yaml.No
 
 	current := root.Content[0]
 	for i, step := range steps {
+		normalizeYAMLNodeMapping(current)
 		if current.Kind != yaml.MappingNode {
 			return fmt.Errorf("config path %q is not a mapping", step.key)
 		}
@@ -546,6 +547,18 @@ func setYAMLNodePath(root *yaml.Node, steps []configPathStep, valueNode *yaml.No
 	}
 
 	return nil
+}
+
+func normalizeYAMLNodeMapping(node *yaml.Node) {
+	if node == nil {
+		return
+	}
+	if node.Kind == 0 || node.Kind == yaml.ScalarNode && node.Tag == "!!null" {
+		node.Kind = yaml.MappingNode
+		node.Tag = "!!map"
+		node.Value = ""
+		node.Content = nil
+	}
 }
 
 func getMappingValue(node *yaml.Node, key string) *yaml.Node {

@@ -60,7 +60,7 @@ The first milestone is a reliable Ollama path that can be configured, discovered
   - [ ] Show discovered models.
   - [ ] Offer to pull the selected model when missing.
   - [ ] Persist the selected default model.
-- [ ] Implement non-interactive setup:
+- [x] Implement non-interactive setup:
   - [x] `--provider ollama`.
   - [x] `--base-url`.
   - [x] `--model`.

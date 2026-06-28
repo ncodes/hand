@@ -1293,15 +1293,15 @@ search:
 	require.False(t, cfg.Search.Vector.Enabled)
 }
 
-func TestSetupEmbeddingConfigUpdates(t *testing.T) {
+func TestModelSetupEmbeddingUpdates(t *testing.T) {
 	require.Equal(t, []config.ConfigUpdate{
 		{Path: "models.embedding.provider", Value: "openai"},
 		{Path: "models.embedding.name", Value: "text-embedding-3-small"},
-	}, setupEmbeddingConfigUpdates("openai"))
+	}, config.ModelSetupEmbeddingUpdates("openai"))
 
 	require.Equal(t, []config.ConfigUpdate{
 		{Path: "search.vector.enabled", Value: "false"},
-	}, setupEmbeddingConfigUpdates("openai-codex"))
+	}, config.ModelSetupEmbeddingUpdates("openai-codex"))
 }
 
 func TestModel_SetupProviderWheelMovesSelection(t *testing.T) {

@@ -20,6 +20,7 @@ type Option struct {
 	SupportsOAuth  bool
 	DisplayDefault bool
 	Current        bool
+	LocalMissing   bool
 }
 
 type ProviderOption struct {

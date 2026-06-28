@@ -68,7 +68,19 @@ func defaultModels() []ModelDefinition {
 		openAICodexModel("gpt-5.4-mini", "GPT-5.4 mini", []InputKind{InputText, InputImage}, 272000, 128000),
 		displayDefaultModel(openAICodexModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 272000, 128000)),
 
+		// Ollama local models
 		displayDefaultModel(ollamaModel(constants.DefaultOllamaModel, "Gemma 4 8B", []InputKind{InputText}, 131072, 0)),
+		ollamaModel("llama3.2:3b", "Llama 3.2 3B", []InputKind{InputText}, 131072, 0),
+		ollamaModel("llama3.1:8b", "Llama 3.1 8B", []InputKind{InputText}, 131072, 0),
+		ollamaModel("llama3.3:70b", "Llama 3.3 70B", []InputKind{InputText}, 131072, 0),
+		ollamaReasoningModel("qwen3.5:latest", "Qwen 3.5", []InputKind{InputText, InputImage}, 262144, 0),
+		ollamaReasoningModel("qwen3.6:latest", "Qwen 3.6", []InputKind{InputText, InputImage}, 262144, 0),
+		ollamaModel("qwen2.5-coder:7b", "Qwen 2.5 Coder 7B", []InputKind{InputText}, 32768, 0),
+		ollamaReasoningModel("deepseek-r1:8b", "DeepSeek R1 8B", []InputKind{InputText}, 131072, 0),
+		ollamaModel("mistral:latest", "Mistral 7B", []InputKind{InputText}, 32768, 0),
+		ollamaReasoningModel("phi4-mini:latest", "Phi 4 Mini", []InputKind{InputText}, 131072, 0),
+		ollamaReasoningModel("phi4-mini-reasoning:latest", "Phi 4 Mini Reasoning", []InputKind{InputText}, 131072, 0),
+		ollamaReasoningModel("lfm2.5-thinking:latest", "LFM 2.5 Thinking", []InputKind{InputText}, 131072, 0),
 
 		// GitHub Copilot models
 		gitHubCopilotAnthropicModel("claude-haiku-4.5", "Claude Haiku 4.5", []InputKind{InputText, InputImage}, 144000, 32000),
@@ -479,6 +491,19 @@ func ollamaModel(
 		ContextWindow: contextWindow,
 		MaxTokens:     maxTokens,
 	}
+}
+
+func ollamaReasoningModel(
+	id string,
+	name string,
+	input []InputKind,
+	contextWindow int,
+	maxTokens int,
+) ModelDefinition {
+	model := ollamaModel(id, name, input, contextWindow, maxTokens)
+	model.Reasoning = true
+
+	return model
 }
 
 func gitHubCopilotResponsesModel(

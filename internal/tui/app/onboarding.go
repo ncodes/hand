@@ -855,7 +855,7 @@ func (m *model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey 
 		{Path: "models.summary.provider", Value: provider},
 		{Path: "models.summary.name", Value: modelID},
 	}
-	updates = append(updates, setupEmbeddingConfigUpdates(provider)...)
+	updates = append(updates, config.ModelSetupEmbeddingUpdates(provider)...)
 	if apiKey = strings.TrimSpace(apiKey); apiKey != "" {
 		updates = append(updates, config.ConfigUpdate{
 			Path:  fmt.Sprintf("models.providers.%s.apiKey", provider),
@@ -916,20 +916,6 @@ func (m model) checkSetupModelAuth(option rpcclient.ModelOption) error {
 	_, err = cfg.ResolveModelAuth()
 
 	return err
-}
-
-func setupEmbeddingConfigUpdates(provider string) []config.ConfigUpdate {
-	switch strings.TrimSpace(strings.ToLower(provider)) {
-	case constants.ModelProviderOpenRouter, constants.ModelProviderOpenAI:
-		return []config.ConfigUpdate{
-			{Path: "models.embedding.provider", Value: provider},
-			{Path: "models.embedding.name", Value: constants.DefaultProfileEmbeddingModel},
-		}
-	default:
-		return []config.ConfigUpdate{
-			{Path: "search.vector.enabled", Value: "false"},
-		}
-	}
 }
 
 func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
