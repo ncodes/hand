@@ -67,6 +67,7 @@ type tuiState struct {
 	setupProviders             []rpcclient.ProviderOption
 	setupModels                []rpcclient.ModelOption
 	setupModelProvider         string
+	setupModelBaseURL          string
 	setupProviderAPIKey        string
 	setupPendingModelID        string
 	setupNoticeMessage         string

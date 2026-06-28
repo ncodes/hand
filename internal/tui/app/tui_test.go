@@ -25,6 +25,7 @@ import (
 	"github.com/wandxy/morph/internal/constants"
 	appcredential "github.com/wandxy/morph/internal/credential"
 	modelcatalog "github.com/wandxy/morph/internal/model"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	storage "github.com/wandxy/morph/internal/state/core"
@@ -745,6 +746,170 @@ search:
 	require.True(t, local.SupportsTools)
 	require.Equal(t, 4096, local.ContextWindow)
 	require.True(t, getSetupModelOption(t, runModel.setupModels, constants.DefaultOllamaModel).LocalMissing)
+}
+
+func TestModel_PersistSetupModelSelectionUpdatesLocalBaseURL(t *testing.T) {
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: openai
+        name: gpt-5.5
+        api: openai-responses
+        baseUrl: https://stale.example/v1
+    summary:
+        provider: openai
+        name: gpt-5.5
+        api: openai-responses
+        baseUrl: https://stale.example/v1
+search:
+    vector:
+        enabled: false
+`)
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupModelBaseURL = "http://127.0.0.1:11434"
+
+	err := runModel.persistSetupModelSelection(rpcclient.ModelOption{
+		ID:       "lfm2.5-thinking:latest",
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaNative,
+	}, "")
+
+	require.NoError(t, err)
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderOllama, cfg.Models.Main.Provider)
+	require.Equal(t, "lfm2.5-thinking:latest", cfg.Models.Main.Name)
+	require.Equal(t, modelprovider.APIOllamaNative, cfg.Models.Main.API)
+	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Main.BaseURL)
+	require.Equal(t, constants.ModelProviderOllama, cfg.Models.Summary.Provider)
+	require.Equal(t, "lfm2.5-thinking:latest", cfg.Models.Summary.Name)
+	require.Equal(t, modelprovider.APIOllamaNative, cfg.Models.Summary.API)
+	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Summary.BaseURL)
+}
+
+func TestModel_PersistSetupModelSelectionClearsHostedBaseURL(t *testing.T) {
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ollama
+        name: lfm2.5-thinking:latest
+        api: ollama-native
+        baseUrl: http://127.0.0.1:11434
+    summary:
+        provider: ollama
+        name: lfm2.5-thinking:latest
+        api: ollama-native
+        baseUrl: http://127.0.0.1:11434
+search:
+    vector:
+        enabled: false
+`)
+	runModel.setupModelProvider = constants.ModelProviderOpenAI
+	runModel.setupModelBaseURL = "http://127.0.0.1:11434"
+
+	err := runModel.persistSetupModelSelection(rpcclient.ModelOption{
+		ID:       "gpt-5.5",
+		Provider: constants.ModelProviderOpenAI,
+		API:      modelprovider.APIOpenAIResponses,
+	}, "")
+
+	require.NoError(t, err)
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderOpenAI, cfg.Models.Main.Provider)
+	require.Equal(t, "gpt-5.5", cfg.Models.Main.Name)
+	require.Equal(t, modelprovider.APIOpenAIResponses, cfg.Models.Main.API)
+	require.Equal(t, constants.ModelProviderOpenAI, cfg.Models.Summary.Provider)
+	require.Equal(t, "gpt-5.5", cfg.Models.Summary.Name)
+	require.Equal(t, modelprovider.APIOpenAIResponses, cfg.Models.Summary.API)
+	rawConfig, err := os.ReadFile(filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.NotContains(t, string(rawConfig), "http://127.0.0.1:11434")
+}
+
+func TestModel_SetupOllamaRefreshesLocalModelOptionsAndPreservesSelection(t *testing.T) {
+	modelNames := []string{"first:latest", "selected:latest"}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			names := make([]string, 0, len(modelNames))
+			for _, name := range modelNames {
+				names = append(names, `{"name":"`+name+`"}`)
+			}
+			_, _ = w.Write([]byte(`{"models":[` + strings.Join(names, ",") + `]}`))
+		case "/api/show":
+			_, _ = w.Write([]byte(`{"capabilities":["completion"],"model_info":{"llama.context_length":4096}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+    providers:
+        ollama:
+            baseUrl: `+server.URL+`
+search:
+    vector:
+        enabled: false
+`)
+	runModel.setupModelStep = setupModelStepProvider
+	runModel.setupAuthMethod = ""
+	runModel.setupProviders = []rpcclient.ProviderOption{{ID: constants.ModelProviderOllama}}
+
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+	require.Equal(t, server.URL, runModel.setupModelBaseURL)
+	selectSetupModel(t, &runModel, "selected:latest")
+
+	modelNames = []string{"new:latest", "selected:latest"}
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "refreshing models", runModel.status.Text())
+
+	loaded := runSetupModelOptionsRefreshBatch(t, cmd)
+	updated, cmd = runModel.Update(loaded)
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.Equal(t, "models refreshed", runModel.status.Text())
+	require.Contains(t, getSetupModelIDs(runModel.setupModels), "new:latest")
+	require.NotContains(t, getSetupModelIDs(runModel.setupModels), "first:latest")
+	require.Equal(t, "selected:latest", runModel.currentSetupModelID())
+	require.Equal(t, server.URL, runModel.setupModelBaseURL)
+}
+
+func TestModel_SetupOllamaRefreshFailurePreservesCurrentModels(t *testing.T) {
+	runModel := newModel()
+	runModel.setupModelStep = setupModelStepModel
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupModelBaseURL = "http://127.0.0.1:11434"
+	runModel.setupModels = []rpcclient.ModelOption{{ID: "installed:latest"}}
+
+	updated, cmd := runModel.Update(setupModelOptionsLoadedMsg{
+		provider: constants.ModelProviderOllama,
+		err:      errors.New("ollama offline"),
+	})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.Equal(t, []string{"installed:latest"}, getSetupModelIDs(runModel.setupModels))
+	require.Equal(t, "model discovery failed", runModel.status.Text())
 }
 
 func TestModel_SetupModelFilterTitleUsesFixedInputWidth(t *testing.T) {
@@ -5546,6 +5711,27 @@ func runSetupOAuthBatch(t *testing.T, cmd tea.Cmd) (setupOAuthOutputMsg, setupOA
 		t.Fatal("timed out waiting for setup oauth output")
 		return setupOAuthOutputMsg{}, setupOAuthCompletedMsg{}
 	}
+}
+
+func runSetupModelOptionsRefreshBatch(t *testing.T, cmd tea.Cmd) setupModelOptionsLoadedMsg {
+	t.Helper()
+
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, len(batch), 1)
+
+	for _, item := range batch {
+		if item == nil {
+			continue
+		}
+		if loaded, ok := item().(setupModelOptionsLoadedMsg); ok {
+			return loaded
+		}
+	}
+
+	t.Fatal("setup model options refresh message not found")
+	return setupModelOptionsLoadedMsg{}
 }
 
 func makeOpenAITestJWTForSetup(t *testing.T) string {

@@ -2029,6 +2029,31 @@ func TestListModelOptionsUsesLocalAwareCatalogPath(t *testing.T) {
 	require.True(t, getSetupModelOption(t, options, constants.DefaultOllamaModel).LocalMissing)
 }
 
+func TestResolveModelOptionsBaseURLUsesExplicitAndProfileConfig(t *testing.T) {
+	cfg := config.NewProfileConfig()
+	cfg.Models.Main.Provider = constants.ModelProviderOllama
+	cfg.Models.Main.BaseURL = "http://main.local:11434"
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		"Ollama": {BaseURL: "http://provider.local:11434"},
+	}
+
+	require.Equal(t, "http://explicit.local:11434", ResolveModelOptionsBaseURL(ModelOptions{
+		Provider: constants.ModelProviderOllama,
+		BaseURL:  "http://explicit.local:11434",
+		Config:   cfg,
+	}))
+	require.Equal(t, "http://main.local:11434", ResolveModelOptionsBaseURL(ModelOptions{
+		Provider: constants.ModelProviderOllama,
+		Config:   cfg,
+	}))
+
+	cfg.Models.Main.Provider = ""
+	require.Equal(t, "http://provider.local:11434", ResolveModelOptionsBaseURL(ModelOptions{
+		Provider: constants.ModelProviderOllama,
+		Config:   cfg,
+	}))
+}
+
 func TestSetupWizardLabelsMissingOllamaCatalogModels(t *testing.T) {
 	originalDiscover := discoverOllamaModels
 	t.Cleanup(func() {

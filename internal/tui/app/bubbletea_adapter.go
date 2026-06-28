@@ -137,6 +137,9 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case setupOAuthCompletedMsg:
 		next, cmd := m.completeSetupOAuthLogin(msg)
 		return next, cmd, true
+	case setupModelOptionsLoadedMsg:
+		next, cmd := m.completeSetupModelOptionsRefresh(msg)
+		return next, cmd, true
 	case toolInvocationStartedMsg:
 		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 		return next, cmd, true

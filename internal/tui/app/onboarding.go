@@ -114,6 +114,14 @@ type setupOAuthCompletedMsg struct {
 	err      error
 }
 
+type setupModelOptionsLoadedMsg struct {
+	provider        string
+	baseURL         string
+	selectedModelID string
+	models          []rpcclient.ModelOption
+	err             error
+}
+
 func newNameInput() textinput.Model {
 	input := textinput.New()
 	input.Prompt = ""
@@ -400,6 +408,7 @@ func (m *model) startProfileModelSetup() tea.Cmd {
 	m.setupProviders = nil
 	m.setupModels = nil
 	m.setupModelProvider = ""
+	m.setupModelBaseURL = ""
 	m.setupProviderAPIKey = ""
 	m.setupPendingModelID = ""
 	m.setupItemSelected = 0
@@ -489,12 +498,15 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 	}
 
 	rawConfig := m.loadRawProfileConfig()
-	models, _, err := clisetup.ListModelOptions(m.chatCtx, clisetup.ModelOptions{
+	opts := clisetup.ModelOptions{
 		Provider:  providerID,
 		Current:   strings.TrimSpace(rawConfig.Models.Main.Name),
 		OAuthOnly: m.setupAuthMethod == setupAuthMethodSubscription,
 		Config:    rawConfig,
-	})
+	}
+	baseURL := clisetup.ResolveModelOptionsBaseURL(opts)
+	opts.BaseURL = baseURL
+	models, _, err := clisetup.ListModelOptions(m.chatCtx, opts)
 	if err != nil {
 		return *m, m.setStatus("models unavailable")
 	}
@@ -504,6 +516,7 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 
 	m.setupModels = models
 	m.setupModelProvider = providerID
+	m.setupModelBaseURL = baseURL
 	m.modelFilterInput = newModelFilterInput()
 	m.setupItemSelected = 0
 	m.setupOffset = 0
@@ -781,6 +794,69 @@ func (m model) completeSetupOAuthLogin(msg setupOAuthCompletedMsg) (tea.Model, t
 	return m.showSetupModelSelection()
 }
 
+func loadSetupModelOptionsCommand(
+	ctx context.Context,
+	provider string,
+	selectedModelID string,
+	opts clisetup.ModelOptions,
+) tea.Cmd {
+	return func() tea.Msg {
+		baseURL := clisetup.ResolveModelOptionsBaseURL(opts)
+		opts.BaseURL = baseURL
+		models, _, err := clisetup.ListModelOptions(ctx, opts)
+
+		return setupModelOptionsLoadedMsg{
+			provider:        strings.TrimSpace(provider),
+			baseURL:         baseURL,
+			selectedModelID: strings.TrimSpace(selectedModelID),
+			models:          models,
+			err:             err,
+		}
+	}
+}
+
+func (m model) completeSetupModelOptionsRefresh(msg setupModelOptionsLoadedMsg) (tea.Model, tea.Cmd) {
+	if strings.TrimSpace(msg.provider) != strings.TrimSpace(m.setupModelProvider) {
+		return m, nil
+	}
+	if msg.err != nil {
+		return m, m.setStatus("model discovery failed")
+	}
+	if len(msg.models) == 0 {
+		return m, m.setStatus("models unavailable")
+	}
+
+	m.setupModels = msg.models
+	m.setupModelBaseURL = strings.TrimSpace(msg.baseURL)
+	m.setProfileModelSetupModelSelection(msg.selectedModelID)
+	m.resize()
+
+	return m, m.setStatus("models refreshed")
+}
+
+func (m *model) refreshSetupModelOptions() (tea.Model, tea.Cmd) {
+	provider := strings.TrimSpace(m.setupModelProvider)
+	if provider == "" {
+		return *m, m.setStatus("provider selection unavailable")
+	}
+
+	rawConfig := m.loadRawProfileConfig()
+	selectedModelID := m.currentSetupModelID()
+	opts := clisetup.ModelOptions{
+		Provider:  provider,
+		Current:   strings.TrimSpace(rawConfig.Models.Main.Name),
+		BaseURL:   strings.TrimSpace(m.setupModelBaseURL),
+		OAuthOnly: m.setupAuthMethod == setupAuthMethodSubscription,
+		Config:    rawConfig,
+		Refresh:   true,
+	}
+
+	return *m, tea.Batch(
+		loadSetupModelOptionsCommand(m.chatCtx, provider, selectedModelID, opts),
+		m.setStatus("refreshing models"),
+	)
+}
+
 func (m *model) cancelSetupOAuthLogin() {
 	if m.setupOAuthCancel != nil {
 		m.setupOAuthCancel()
@@ -855,11 +931,17 @@ func (m *model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey 
 		return errors.New("config path unavailable")
 	}
 
+	api := getSetupModelOptionAPI(provider, option)
+	baseURL := getSetupModelOptionBaseURL(provider, m.setupModelBaseURL, option)
 	updates := []config.ConfigUpdate{
 		{Path: "models.main.provider", Value: provider},
 		{Path: "models.main.name", Value: modelID},
+		{Path: "models.main.api", Value: api},
+		{Path: "models.main.baseURL", Value: baseURL},
 		{Path: "models.summary.provider", Value: provider},
 		{Path: "models.summary.name", Value: modelID},
+		{Path: "models.summary.api", Value: api},
+		{Path: "models.summary.baseURL", Value: baseURL},
 	}
 	updates = append(updates, config.ModelSetupEmbeddingUpdates(provider)...)
 	if apiKey = strings.TrimSpace(apiKey); apiKey != "" {
@@ -879,6 +961,36 @@ func (m *model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey 
 	}
 
 	return nil
+}
+
+func getSetupModelOptionAPI(provider string, option rpcclient.ModelOption) string {
+	if api := strings.TrimSpace(option.API); api != "" {
+		return api
+	}
+
+	providerDef, ok := modelprovider.DefaultRegistry().GetProvider(strings.TrimSpace(strings.ToLower(provider)))
+	if !ok {
+		return ""
+	}
+
+	return strings.TrimSpace(providerDef.DefaultAPI)
+}
+
+func getSetupModelOptionBaseURL(provider string, setupBaseURL string, option rpcclient.ModelOption) string {
+	if baseURL := strings.TrimSpace(option.BaseURL); baseURL != "" {
+		return baseURL
+	}
+	if isLocalSetupProvider(provider) {
+		return strings.TrimSpace(setupBaseURL)
+	}
+
+	return ""
+}
+
+func isLocalSetupProvider(provider string) bool {
+	providerDef, ok := modelprovider.DefaultRegistry().GetProvider(strings.TrimSpace(strings.ToLower(provider)))
+
+	return ok && providerDef.Local != nil
 }
 
 func (m *model) applySetupModelSelectionToRuntime(option rpcclient.ModelOption) {
@@ -944,6 +1056,9 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 
 		return m.handleProfileModelSetupListKey(msg, len(m.setupProviders), m.selectCurrentSetupProviderOption)
 	case setupModelStepModel:
+		if isSetupModelRefreshKey(msg) {
+			return m.refreshSetupModelOptions()
+		}
 		if isModelFilterKey(msg) {
 			var cmd tea.Cmd
 			m.modelFilterInput, cmd = m.modelFilterInput.Update(msg)
@@ -1004,6 +1119,7 @@ func (m *model) showSetupAuthMethodSelection() (tea.Model, tea.Cmd) {
 	m.setupProviders = nil
 	m.setupModels = nil
 	m.setupModelProvider = ""
+	m.setupModelBaseURL = ""
 	m.setupProviderAPIKey = ""
 	m.setupPendingModelID = ""
 	m.setupNoticeMessage = ""
@@ -1027,6 +1143,7 @@ func (m *model) showSetupProviderSelection() (tea.Model, tea.Cmd) {
 	m.setupModelStep = setupModelStepProvider
 	m.setupModels = nil
 	m.setupModelProvider = ""
+	m.setupModelBaseURL = ""
 	m.setupProviderAPIKey = ""
 	m.setupPendingModelID = ""
 	m.setupNoticeMessage = ""
@@ -1085,6 +1202,41 @@ func (m *model) handleProfileModelSetupListKey(
 
 	m.setProfileModelSetupSelection(selection, count)
 	return *m, nil
+}
+
+func isSetupModelRefreshKey(msg tea.KeyPressMsg) bool {
+	key := msg.Key()
+	return msg.Keystroke() == "ctrl+r" || key.Code == 'r' && key.Mod == tea.ModCtrl
+}
+
+func (m model) currentSetupModelID() string {
+	models := m.filteredSetupModels()
+	if len(models) == 0 {
+		return ""
+	}
+
+	index := min(max(m.setupItemSelected, 0), len(models)-1)
+	return strings.TrimSpace(models[index].ID)
+}
+
+func (m *model) setProfileModelSetupModelSelection(modelID string) {
+	models := m.filteredSetupModels()
+	if len(models) == 0 {
+		m.setProfileModelSetupSelection(0, 0)
+		return
+	}
+
+	modelID = strings.TrimSpace(modelID)
+	if modelID != "" {
+		for index, option := range models {
+			if strings.TrimSpace(option.ID) == modelID {
+				m.setProfileModelSetupSelection(index, len(models))
+				return
+			}
+		}
+	}
+
+	m.setProfileModelSetupSelection(0, len(models))
 }
 
 func (m *model) handleProfileModelSetupPaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
@@ -1258,7 +1410,7 @@ func (m model) renderProfileModelSetupModelList() string {
 	hint := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
 		Width(boxWidth).
-		Render(m.renderProfileModelSetupHint("enter to select · esc to go back", boxWidth))
+		Render(m.renderProfileModelSetupHint("enter to select · ctrl+r to refresh · esc to go back", boxWidth))
 
 	return m.renderProfileModelSetupFrameWithTitleContent(
 		m.renderProfileModelSetupModelTitle(boxWidth),
@@ -1691,6 +1843,7 @@ func (m *model) clearProfileModelSetup() {
 	m.setupProviders = nil
 	m.setupModels = nil
 	m.setupModelProvider = ""
+	m.setupModelBaseURL = ""
 	m.setupProviderAPIKey = ""
 	m.setupPendingModelID = ""
 	m.setupNoticeMessage = ""
