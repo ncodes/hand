@@ -848,19 +848,14 @@ func (r providerRunner) getModelOptions(
 	current string,
 	baseURL string,
 ) ([]modelcatalog.Option, bool, error) {
-	options, err := modelcatalog.ListOptions(modelcatalog.OptionQuery{
-		Context:             ctx,
-		Provider:            provider.ID,
-		Current:             current,
-		Config:              cfg,
-		BaseURL:             baseURL,
-		LocalDiscovery:      true,
-		Refresh:             opts.Refresh,
-		Registry:            r.registry,
-		DiscoverLocalModels: discoverOllamaModels,
+	return ListModelOptions(ctx, ModelOptions{
+		Provider: provider.ID,
+		Current:  current,
+		Config:   cfg,
+		BaseURL:  baseURL,
+		Refresh:  opts.Refresh,
+		Registry: r.registry,
 	})
-
-	return options, hasInstalledLocalOptions(options), err
 }
 
 func getSetupModelDescription(option modelcatalog.Option) string {
@@ -877,7 +872,7 @@ func getSetupModelDescription(option modelcatalog.Option) string {
 
 func hasInstalledLocalOptions(options []modelcatalog.Option) bool {
 	for _, option := range options {
-		if option.Source == "discovery" && !option.LocalMissing {
+		if option.Source == modelcatalog.OptionSourceDiscovery && !option.LocalMissing {
 			return true
 		}
 	}

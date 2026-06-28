@@ -1998,6 +1998,37 @@ func TestProviderRunnerMergesLiveAndCataloguedOllamaModels(t *testing.T) {
 	require.True(t, getSetupModelOption(t, options, constants.DefaultOllamaModel).LocalMissing)
 }
 
+func TestListModelOptionsUsesLocalAwareCatalogPath(t *testing.T) {
+	originalDiscover := discoverOllamaModels
+	t.Cleanup(func() {
+		discoverOllamaModels = originalDiscover
+	})
+
+	discoverOllamaModels = func(_ context.Context, baseURL string) ([]modelprovider.ModelDefinition, error) {
+		require.Equal(t, "http://configured.local:11434", baseURL)
+		return []modelprovider.ModelDefinition{{ID: "local:latest"}}, nil
+	}
+
+	cfg := config.NewProfileConfig()
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		constants.ModelProviderOllama: {
+			BaseURL: "http://configured.local:11434",
+		},
+	}
+	options, hasInstalled, err := ListModelOptions(context.Background(), ModelOptions{
+		Provider: constants.ModelProviderOllama,
+		Current:  constants.DefaultOllamaModel,
+		Config:   cfg,
+		Refresh:  true,
+	})
+
+	require.NoError(t, err)
+	require.True(t, hasInstalled)
+	require.Equal(t, "local:latest", options[0].ID)
+	require.False(t, options[0].LocalMissing)
+	require.True(t, getSetupModelOption(t, options, constants.DefaultOllamaModel).LocalMissing)
+}
+
 func TestSetupWizardLabelsMissingOllamaCatalogModels(t *testing.T) {
 	originalDiscover := discoverOllamaModels
 	t.Cleanup(func() {

@@ -27,8 +27,16 @@ type Option struct {
 	Current        bool
 	LocalMissing   bool
 	BaseURL        string
-	Source         string
+	Source         OptionSource
 }
+
+type OptionSource string
+
+const (
+	OptionSourceCatalog   OptionSource = "catalog"
+	OptionSourceConfig    OptionSource = "config"
+	OptionSourceDiscovery OptionSource = "discovery"
+)
 
 type ProviderOption struct {
 	ID              string
@@ -89,8 +97,8 @@ func ListOptions(query OptionQuery) ([]Option, error) {
 	provider := strings.TrimSpace(strings.ToLower(query.Provider))
 	current := strings.TrimSpace(query.Current)
 	options := listRegistryOptions(registry, provider, current, query.OAuthOnly)
-	hasExplicitConfig := hasExplicitProviderModelDefinitions(query.Config, provider)
 
+    hasExplicitConfig := hasExplicitProviderModelDefinitions(query.Config, provider)
 	explicitOptions := listExplicitConfigOptions(query.Config, registry, provider, current, query.OAuthOnly)
 	if len(explicitOptions) > 0 {
 		options = mergeOptions(explicitOptions, options, false)
@@ -141,7 +149,7 @@ func getDiscoveredLocalOptions(
 		return nil, err
 	}
 
-	options := modelDefinitionsToOptions(models, current, baseURL, "discovery")
+	options := modelDefinitionsToOptions(models, current, baseURL, OptionSourceDiscovery)
 	setCachedLocalDiscoveryOptions(cacheKey, options)
 
 	return cloneOptionsWithCurrent(options, current), nil
@@ -305,7 +313,7 @@ func listRegistryOptions(
 		}
 
 		option := modelDefinitionToOption(model, current)
-		option.Source = "catalog"
+		option.Source = OptionSourceCatalog
 		options = append(options, option)
 	}
 
@@ -356,7 +364,7 @@ func listExplicitConfigOptions(
 			Current:        modelID == strings.TrimSpace(current),
 			LocalMissing:   false,
 			BaseURL:        strings.TrimSpace(providerConfig.BaseURL),
-			Source:         "config",
+			Source:         OptionSourceConfig,
 			SupportsTools:  boolPtrValue(metadata.SupportsTools),
 			Reasoning:      boolPtrValue(metadata.Reasoning),
 			DisplayDefault: modelID == strings.TrimSpace(current),
@@ -500,7 +508,7 @@ func modelDefinitionToOption(model modelprovider.ModelDefinition, current string
 		SupportsOAuth:  model.SupportsOAuth,
 		DisplayDefault: model.DisplayDefault,
 		Current:        strings.TrimSpace(model.ID) == current,
-		Source:         "catalog",
+		Source:         OptionSourceCatalog,
 	}
 }
 
@@ -508,7 +516,7 @@ func modelDefinitionsToOptions(
 	models []modelprovider.ModelDefinition,
 	current string,
 	baseURL string,
-	source string,
+	source OptionSource,
 ) []Option {
 	options := make([]Option, 0, len(models))
 	for _, model := range models {
@@ -517,7 +525,7 @@ func modelDefinitionsToOptions(
 		}
 		option := modelDefinitionToOption(model, current)
 		option.BaseURL = strings.TrimSpace(baseURL)
-		option.Source = strings.TrimSpace(source)
+		option.Source = source
 		options = append(options, option)
 	}
 

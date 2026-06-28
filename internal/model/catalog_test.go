@@ -24,7 +24,7 @@ func TestListOptions_FiltersGenerationModelsAndOrdersDisplayDefaultFirst(t *test
 	require.NotEmpty(t, options)
 	require.Equal(t, "gpt-5.5", options[0].ID)
 	require.True(t, options[0].DisplayDefault)
-	current := findModelOption(t, options, constants.DefaultModel)
+	current := findOption(t, options, constants.DefaultModel)
 	require.True(t, current.Current)
 	for _, option := range options {
 		require.NotEqual(t, modelprovider.APIOpenAIEmbeddings, option.API)
@@ -43,7 +43,7 @@ func TestListOptions_FiltersOAuthOnlyModels(t *testing.T) {
 	require.NotEmpty(t, options)
 	require.Equal(t, "gpt-5.5", options[0].ID)
 	require.True(t, options[0].DisplayDefault)
-	current := findModelOption(t, options, "gpt-5.4")
+	current := findOption(t, options, "gpt-5.4")
 	require.True(t, current.Current)
 	for _, option := range options {
 		require.True(t, option.SupportsOAuth)
@@ -96,7 +96,7 @@ func TestListOptions_OrdersOpenRouterDisplayDefaultFirst(t *testing.T) {
 	require.NotEmpty(t, options)
 	require.Equal(t, constants.DefaultProfileModel, options[0].ID)
 	require.True(t, options[0].DisplayDefault)
-	current := findModelOption(t, options, "openai/gpt-5.5")
+	current := findOption(t, options, "openai/gpt-5.5")
 	require.True(t, current.Current)
 }
 
@@ -174,11 +174,11 @@ func TestListOptions_MergesOllamaDiscoveryAndSuggestedModels(t *testing.T) {
 	logutils.PrettyPrint(options)
 	require.Equal(t, "installed:latest", options[0].ID)
 	require.False(t, options[0].LocalMissing)
-	require.Equal(t, "discovery", options[0].Source)
+	require.Equal(t, OptionSourceDiscovery, options[0].Source)
 	require.Equal(t, "http://127.0.0.1:11434", options[0].BaseURL)
-	defaultModel := findModelOption(t, options, constants.DefaultOllamaModel)
+	defaultModel := findOption(t, options, constants.DefaultOllamaModel)
 	require.True(t, defaultModel.LocalMissing)
-	require.Equal(t, "catalog", defaultModel.Source)
+	require.Equal(t, OptionSourceCatalog, defaultModel.Source)
 }
 
 func TestListOptions_UsesCachedOllamaDiscoveryUntilRefresh(t *testing.T) {
@@ -269,8 +269,8 @@ func TestListOptions_ExplicitConfigOverridesOllamaDiscovery(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	pinned := findModelOption(t, options, constants.DefaultOllamaModel)
-	require.Equal(t, "config", pinned.Source)
+	pinned := findOption(t, options, constants.DefaultOllamaModel)
+	require.Equal(t, OptionSourceConfig, pinned.Source)
 	require.Equal(t, modelprovider.APIOllamaNative, pinned.API)
 	require.Equal(t, 8192, pinned.ContextWindow)
 	require.Equal(t, 2048, pinned.MaxTokens)
@@ -304,9 +304,9 @@ func TestListOptions_ExplicitConfigDisablesOllamaDiscoveryWhenFiltered(t *testin
 	})
 
 	require.NoError(t, err)
-	require.NotContains(t, getModelOptionIDs(options), "pinned-embedding:latest")
+	require.NotContains(t, getOptionIDs(options), "pinned-embedding:latest")
 	require.NotEmpty(t, options)
-	require.Equal(t, "catalog", options[0].Source)
+	require.Equal(t, OptionSourceCatalog, options[0].Source)
 }
 
 func TestListOptions_UsesConfiguredOllamaDiscoveryBaseURL(t *testing.T) {
@@ -432,7 +432,7 @@ func TestCatalogHelpersHandleFallbacks(t *testing.T) {
 		},
 		true,
 	)
-	require.Equal(t, []string{"installed:latest", "missing:latest"}, getModelOptionIDs(options))
+	require.Equal(t, []string{"installed:latest", "missing:latest"}, getOptionIDs(options))
 	require.False(t, options[0].LocalMissing)
 	require.True(t, options[1].LocalMissing)
 
@@ -443,14 +443,14 @@ func TestCatalogHelpersHandleFallbacks(t *testing.T) {
 		},
 		"vision:latest",
 		"http://local",
-		"discovery",
+		OptionSourceDiscovery,
 	)
 	require.Len(t, converted, 1)
 	require.Equal(t, "vision:latest", converted[0].ID)
 	require.Equal(t, []string{"image"}, converted[0].Input)
 	require.True(t, converted[0].Current)
 	require.Equal(t, "http://local", converted[0].BaseURL)
-	require.Equal(t, "discovery", converted[0].Source)
+	require.Equal(t, OptionSourceDiscovery, converted[0].Source)
 }
 
 func TestListExplicitConfigOptionsFiltersAndMapsMetadata(t *testing.T) {
@@ -491,7 +491,7 @@ func TestListExplicitConfigOptionsFiltersAndMapsMetadata(t *testing.T) {
 	))
 }
 
-func findModelOption(t *testing.T, options []Option, id string) Option {
+func findOption(t *testing.T, options []Option, id string) Option {
 	t.Helper()
 
 	for _, option := range options {
@@ -504,7 +504,7 @@ func findModelOption(t *testing.T, options []Option, id string) Option {
 	return Option{}
 }
 
-func getModelOptionIDs(options []Option) []string {
+func getOptionIDs(options []Option) []string {
 	ids := make([]string, 0, len(options))
 	for _, option := range options {
 		ids = append(ids, option.ID)

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +24,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	appcredential "github.com/wandxy/morph/internal/credential"
+	modelcatalog "github.com/wandxy/morph/internal/model"
 	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	storage "github.com/wandxy/morph/internal/state/core"
@@ -694,6 +697,54 @@ func TestModel_SetupModelSelectionFiltersModels(t *testing.T) {
 	require.Empty(t, runModel.filteredSetupModels())
 	require.Equal(t, initialHeight, runModel.getProfileModelSetupRenderedListHeight())
 	require.Contains(t, stripANSI(runModel.View().Content), " No matching models.")
+}
+
+func TestModel_SetupOllamaUsesLocalAwareModelOptions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			_, _ = w.Write([]byte(`{"models":[{"name":"local:latest"}]}`))
+		case "/api/show":
+			_, _ = w.Write([]byte(`{"capabilities":["completion","tools"],"model_info":{"llama.context_length":4096}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	writeSetupProfileConfig(t, home, `
+name: test-agent
+models:
+    main:
+        provider: ""
+        name: ""
+    providers:
+        ollama:
+            baseUrl: `+server.URL+`
+search:
+    vector:
+        enabled: false
+`)
+	runModel.setupModelStep = setupModelStepProvider
+	runModel.setupAuthMethod = ""
+	runModel.setupProviders = []rpcclient.ProviderOption{{ID: constants.ModelProviderOllama}}
+	runModel.setupItemSelected = 0
+
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+	require.Contains(t, getSetupModelIDs(runModel.setupModels), "local:latest")
+	require.Contains(t, getSetupModelIDs(runModel.setupModels), constants.DefaultOllamaModel)
+	local := getSetupModelOption(t, runModel.setupModels, "local:latest")
+	require.False(t, local.LocalMissing)
+	require.Equal(t, modelcatalog.OptionSourceDiscovery, local.Source)
+	require.Equal(t, server.URL, local.BaseURL)
+	require.True(t, local.SupportsTools)
+	require.Equal(t, 4096, local.ContextWindow)
+	require.True(t, getSetupModelOption(t, runModel.setupModels, constants.DefaultOllamaModel).LocalMissing)
 }
 
 func TestModel_SetupModelFilterTitleUsesFixedInputWidth(t *testing.T) {
@@ -5308,6 +5359,28 @@ func selectSetupModel(t *testing.T, runModel *model, modelID string) {
 	}
 
 	t.Fatalf("setup model %q not found", modelID)
+}
+
+func getSetupModelIDs(options []rpcclient.ModelOption) []string {
+	ids := make([]string, 0, len(options))
+	for _, option := range options {
+		ids = append(ids, option.ID)
+	}
+
+	return ids
+}
+
+func getSetupModelOption(t *testing.T, options []rpcclient.ModelOption, modelID string) rpcclient.ModelOption {
+	t.Helper()
+
+	for _, option := range options {
+		if option.ID == modelID {
+			return option
+		}
+	}
+
+	t.Fatalf("setup model %q not found", modelID)
+	return rpcclient.ModelOption{}
 }
 
 func getVisibleSetupProviderRow(t *testing.T, runModel *model, providerID string) int {

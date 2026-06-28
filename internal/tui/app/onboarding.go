@@ -20,6 +20,7 @@ import (
 	"github.com/muesli/reflow/wordwrap"
 	"gopkg.in/yaml.v3"
 
+	clisetup "github.com/wandxy/morph/internal/cli/setup"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	appcredential "github.com/wandxy/morph/internal/credential"
@@ -487,10 +488,12 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 		return *m, m.setStatus("provider selection unavailable")
 	}
 
-	models, err := modelcatalog.ListOptions(modelcatalog.OptionQuery{
+	rawConfig := m.loadRawProfileConfig()
+	models, _, err := clisetup.ListModelOptions(m.chatCtx, clisetup.ModelOptions{
 		Provider:  providerID,
-		Current:   m.loadRawProfileMainModel(),
+		Current:   strings.TrimSpace(rawConfig.Models.Main.Name),
 		OAuthOnly: m.setupAuthMethod == setupAuthMethodSubscription,
+		Config:    rawConfig,
 	})
 	if err != nil {
 		return *m, m.setStatus("models unavailable")
