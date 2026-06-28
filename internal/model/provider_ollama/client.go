@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -139,7 +138,7 @@ func (c *OllamaClient) complete(
 		return nil, err
 	}
 
-	return responseFromChatResponse(providerResp)
+	return responseFromChatResponse(providerResp, providerReq.Tools)
 }
 
 func (c *OllamaClient) postChat(ctx context.Context, providerReq chatRequest) (chatResponse, error) {
@@ -150,7 +149,7 @@ func (c *OllamaClient) postChat(ctx context.Context, providerReq chatRequest) (c
 	}
 	defer resp.Body.Close()
 
-	if err := decodeOllamaResponse(resp, &providerResp); err != nil {
+	if err := decodeOllamaResponseForModel(resp, &providerResp, providerReq.Model); err != nil {
 		return chatResponse{}, err
 	}
 
@@ -169,10 +168,10 @@ func (c *OllamaClient) completeStream(
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, ollamaStatusError(resp)
+		return nil, ollamaStatusErrorForModel(resp, providerReq.Model)
 	}
 
-	var acc chatStreamAccumulator
+	acc := chatStreamAccumulator{tools: providerReq.Tools}
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
@@ -227,6 +226,7 @@ type chatStreamAccumulator struct {
 	model            string
 	outputText       strings.Builder
 	toolCalls        []ToolCall
+	tools            []chatTool
 	promptTokens     int
 	completionTokens int
 }
@@ -261,6 +261,9 @@ func (a *chatStreamAccumulator) response() (*Response, error) {
 	}
 	if resp.OutputText == "" && len(resp.ToolCalls) == 0 {
 		return nil, errors.New("model returned empty response")
+	}
+	if len(resp.ToolCalls) == 0 && isRawToolJSONOutput(resp.OutputText, a.tools) {
+		return nil, ollamaRawToolJSONError(resp.Model)
 	}
 
 	return resp, nil
@@ -486,11 +489,14 @@ func buildOptions(req normalizedRequest) map[string]any {
 	return options
 }
 
-func responseFromChatResponse(resp chatResponse) (*Response, error) {
+func responseFromChatResponse(resp chatResponse, tools []chatTool) (*Response, error) {
 	toolCalls := toolCallsFromChatToolCalls(resp.Message.ToolCalls, 0)
 	outputText := strings.TrimSpace(resp.Message.Content)
 	if outputText == "" && len(toolCalls) == 0 {
 		return nil, errors.New("model returned empty response")
+	}
+	if len(toolCalls) == 0 && isRawToolJSONOutput(outputText, tools) {
+		return nil, ollamaRawToolJSONError(resp.Model)
 	}
 
 	return &Response{
@@ -554,8 +560,12 @@ func defaultToolArguments(value string) string {
 }
 
 func decodeOllamaResponse(resp *http.Response, target any) error {
+	return decodeOllamaResponseForModel(resp, target, "")
+}
+
+func decodeOllamaResponseForModel(resp *http.Response, target any, model string) error {
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return ollamaStatusError(resp)
+		return ollamaStatusErrorForModel(resp, model)
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		return fmt.Errorf("decode Ollama response: %w", err)
@@ -565,13 +575,7 @@ func decodeOllamaResponse(resp *http.Response, target any) error {
 }
 
 func ollamaStatusError(resp *http.Response) error {
-	body, _ := io.ReadAll(resp.Body)
-	detail := strings.TrimSpace(string(body))
-	if detail == "" {
-		detail = resp.Status
-	}
-
-	return fmt.Errorf("ollama request failed with status %d: %s", resp.StatusCode, detail)
+	return ollamaStatusErrorForModel(resp, "")
 }
 
 func normalizeBaseURL(value string) (string, error) {

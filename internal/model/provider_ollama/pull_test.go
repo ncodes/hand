@@ -109,7 +109,11 @@ func TestPuller_PullModelReturnsChunkError(t *testing.T) {
 
 	err = puller.PullModel(t.Context(), "missing", nil)
 
-	require.EqualError(t, err, "ollama pull failed: model does not exist")
+	require.EqualError(
+		t,
+		err,
+		`ollama model "missing" is not installed or could not be found; run morph setup provider --provider ollama --model missing --pull or ollama pull missing: ollama pull failed: model does not exist`,
+	)
 }
 
 func TestPuller_PullModelSkipsBlankChunks(t *testing.T) {
@@ -155,7 +159,11 @@ func TestPuller_ReturnsProviderStatusError(t *testing.T) {
 	require.EqualError(t, err, "ollama request failed with status 503: tags failed")
 
 	err = puller.PullModel(t.Context(), "llama3.2:3b", nil)
-	require.EqualError(t, err, "ollama request failed with status 404: pull failed")
+	require.EqualError(
+		t,
+		err,
+		`ollama model "llama3.2:3b" is not installed or could not be found; run morph setup provider --provider ollama --model llama3.2:3b --pull or ollama pull llama3.2:3b: ollama request failed with status 404: pull failed`,
+	)
 }
 
 func TestPuller_PullModelReturnsDecodeAndReadErrors(t *testing.T) {

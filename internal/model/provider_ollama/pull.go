@@ -152,7 +152,7 @@ func (p *Puller) PullModel(ctx context.Context, model string, onProgress func(Pu
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return ollamaStatusError(resp)
+		return ollamaStatusErrorForModel(resp, model)
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
@@ -168,7 +168,7 @@ func (p *Puller) PullModel(ctx context.Context, model string, onProgress func(Pu
 			return fmt.Errorf("decode Ollama pull chunk: %w", err)
 		}
 		if strings.TrimSpace(chunk.Error) != "" {
-			return fmt.Errorf("ollama pull failed: %s", strings.TrimSpace(chunk.Error))
+			return enrichOllamaPullError(chunk.Error, model)
 		}
 		if onProgress != nil {
 			onProgress(PullProgress{

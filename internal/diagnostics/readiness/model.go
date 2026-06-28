@@ -1,14 +1,26 @@
 package readiness
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
 )
 
-func buildModelGroup(cfg *config.Config) Group {
+var discoverOllamaModels = func(ctx context.Context, baseURL string) ([]modelprovider.ModelDefinition, error) {
+	discoverer, err := provider_ollama.NewDiscoverer(baseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return discoverer.DiscoverModels(ctx)
+}
+
+func buildModelGroup(ctx context.Context, cfg *config.Config) Group {
 	if cfg == nil {
 		return Group{
 			Name:   "models",
@@ -22,8 +34,101 @@ func buildModelGroup(cfg *config.Config) Group {
 			cfg.ResolveSummaryModelAuth),
 		buildEmbeddingRoleCheck(cfg),
 	}
+	checks = append(checks, buildOllamaReadinessChecks(ctx, cfg)...)
 
 	return Group{Name: "models", Checks: checks}
+}
+
+func buildOllamaReadinessChecks(ctx context.Context, cfg *config.Config) []Check {
+	if cfg == nil || strings.TrimSpace(strings.ToLower(cfg.Models.Main.Provider)) != constants.ModelProviderOllama {
+		return nil
+	}
+
+	baseURL := strings.TrimSpace(cfg.Models.Main.BaseURL)
+	modelID := strings.TrimSpace(cfg.Models.Main.Name)
+	models, err := discoverOllamaModels(ctx, baseURL)
+	if err != nil {
+		return []Check{check(
+			"ollama",
+			StatusFail,
+			err.Error(),
+			commandAction("ollama serve", "start Ollama"),
+			commandAction("morph setup provider --provider ollama --base-url "+baseURL, "update Ollama base URL"),
+		)}
+	}
+
+	checks := []Check{check(
+		"ollama",
+		StatusPass,
+		fmt.Sprintf("reachable at %s, discovered %d model(s)", baseURL, len(models)),
+	)}
+	selected, ok := getOllamaReadinessModel(models, modelID)
+	if !ok {
+		return append(checks, check(
+			"ollama model",
+			StatusFail,
+			fmt.Sprintf("model %q is not installed", modelID),
+			commandAction(ollamaSetupPullCommand(baseURL, modelID), "pull the selected Ollama model"),
+		))
+	}
+
+	checks = append(checks, check(
+		"ollama model",
+		StatusPass,
+		fmt.Sprintf("model %q is installed", modelID),
+	))
+	checks = append(checks, buildOllamaContextCheck(cfg, selected))
+
+	return checks
+}
+
+func getOllamaReadinessModel(models []modelprovider.ModelDefinition, modelID string) (modelprovider.ModelDefinition, bool) {
+	for _, model := range models {
+		if strings.EqualFold(strings.TrimSpace(model.ID), modelID) {
+			return model, true
+		}
+	}
+
+	return modelprovider.ModelDefinition{}, false
+}
+
+func buildOllamaContextCheck(cfg *config.Config, model modelprovider.ModelDefinition) Check {
+	modelID := strings.TrimSpace(model.ID)
+	if model.ContextWindow <= 0 {
+		return check("ollama context", StatusWarn, fmt.Sprintf("context metadata is unavailable for model %q", modelID))
+	}
+
+	configured := cfg.Models.Main.ContextLength
+	if configured > model.ContextWindow {
+		return check(
+			"ollama context",
+			StatusWarn,
+			fmt.Sprintf("configured contextLength=%d exceeds model %q reported context window=%d", configured, modelID, model.ContextWindow),
+			commandAction(
+				fmt.Sprintf("morph config set models.main.contextLength %d", model.ContextWindow),
+				"fit configured context to the selected model",
+			),
+		)
+	}
+
+	return check(
+		"ollama context",
+		StatusPass,
+		fmt.Sprintf("model %q reports context window=%d, configured contextLength=%d", modelID, model.ContextWindow, configured),
+	)
+}
+
+func ollamaSetupPullCommand(baseURL string, modelID string) string {
+	parts := []string{"morph setup provider --provider ollama"}
+	if strings.TrimSpace(baseURL) != "" {
+		parts = append(parts, "--base-url "+strings.TrimSpace(baseURL))
+	}
+	if strings.TrimSpace(modelID) != "" {
+		parts = append(parts, "--model "+strings.TrimSpace(modelID))
+	}
+	parts = append(parts, "--pull")
+
+	return strings.Join(parts, " ")
 }
 
 func buildEmbeddingRoleCheck(cfg *config.Config) Check {

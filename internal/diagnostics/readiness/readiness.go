@@ -55,7 +55,7 @@ func Build(ctx context.Context, opts Options) Report {
 	return Report{Groups: []Group{
 		buildProfileGroup(opts.Profile, opts.EnvPath, opts.ConfigPath),
 		buildRuntimeGroup(ctx, opts.Profile),
-		buildModelGroup(cfg),
+		buildModelGroup(ctx, cfg),
 		buildSessionGroup(cfg),
 		buildMemoryGroup(cfg),
 		buildSearchGroup(cfg),

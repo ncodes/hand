@@ -54,12 +54,11 @@ The first milestone is a reliable Ollama path that can be configured, discovered
   - [x] Convert discovered models into Morph model metadata.
   - [x] Mark cost as zero/unknown local cost.
   - [x] Infer reasoning capability conservatively from known model names only.
-- [ ] Implement Ollama onboarding/config:
-  - [ ] Prompt for base URL.
-  - [ ] Validate reachability.
-  - [ ] Show discovered models.
-  - [ ] Offer to pull the selected model when missing.
-  - [ ] Persist the selected default model.
+- [x] Implement Ollama onboarding/config:
+  - [x] Validate reachability.
+  - [x] Show discovered models.
+  - [x] Offer to pull the selected model when missing.
+  - [x] Persist the selected default model.
 - [x] Implement non-interactive setup:
   - [x] `--provider ollama`.
   - [x] `--base-url`.
@@ -79,12 +78,16 @@ The first milestone is a reliable Ollama path that can be configured, discovered
   - [x] Native Ollama mode by default.
   - [x] Optional OpenAI-compatible mode for proxies that only expose `/v1/chat/completions`.
   - [ ] Optional `num_ctx` injection for OpenAI-compatible Ollama mode.
-- [ ] Add user-facing diagnostics:
+- [x] Add user-facing diagnostics:
   - [x] Ollama not running.
   - [x] Base URL points at `/v1` while native mode is selected.
-  - [ ] Model not pulled.
-  - [ ] Tool calling failed or returned raw tool JSON.
-  - [ ] Context too small.
+  - [x] Add doctor diagnostics:
+    - [x] Ollama reachability.
+    - [x] Selected model installed.
+    - [x] Selected model context metadata when available.
+  - [x] Add runtime diagnostics:
+    - [x] Missing Ollama model.
+    - [x] Tool-calling failure or raw tool JSON.
 
 ## Phase 2 - Provider Registry and Model Catalog Integration
 

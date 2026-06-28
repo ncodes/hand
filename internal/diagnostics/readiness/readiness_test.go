@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	"github.com/wandxy/morph/internal/profile"
 )
 
@@ -95,6 +96,109 @@ func TestBuild_ReportsModelAuthWithoutLeakingCredentials(t *testing.T) {
 	require.Contains(t, embedding.Message, "embedding model")
 	require.Contains(t, embedding.Message, "vector search is disabled")
 	require.NotContains(t, report.Summary()+main.Message, "secret-openrouter-key")
+}
+
+func TestBuild_ReportsOllamaReadiness(t *testing.T) {
+	originalDiscover := discoverOllamaModels
+	t.Cleanup(func() {
+		discoverOllamaModels = originalDiscover
+	})
+
+	var discoveredBaseURL string
+	discoverOllamaModels = func(_ context.Context, baseURL string) ([]modelprovider.ModelDefinition, error) {
+		discoveredBaseURL = baseURL
+		return []modelprovider.ModelDefinition{{
+			ID:            "llama3.2:3b",
+			Provider:      constants.ModelProviderOllama,
+			ContextWindow: 8192,
+		}}, nil
+	}
+
+	cfg := readyConfig()
+	cfg.Models.Main.Provider = constants.ModelProviderOllama
+	cfg.Models.Main.Name = "llama3.2:3b"
+	cfg.Models.Main.BaseURL = "http://127.0.0.1:11434"
+	cfg.Models.Main.ContextLength = 4096
+
+	report := Build(context.Background(), Options{
+		Config:  cfg,
+		Profile: profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()}),
+	})
+
+	require.Equal(t, "http://127.0.0.1:11434", discoveredBaseURL)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "models", "ollama").Status)
+	model := findReadinessCheck(t, report, "models", "ollama model")
+	require.Equal(t, StatusPass, model.Status)
+	require.Contains(t, model.Message, "installed")
+	contextCheck := findReadinessCheck(t, report, "models", "ollama context")
+	require.Equal(t, StatusPass, contextCheck.Status)
+	require.Contains(t, contextCheck.Message, "context window=8192")
+}
+
+func TestBuild_ReportsMissingOllamaModel(t *testing.T) {
+	originalDiscover := discoverOllamaModels
+	t.Cleanup(func() {
+		discoverOllamaModels = originalDiscover
+	})
+
+	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+		return []modelprovider.ModelDefinition{{ID: "installed:latest"}}, nil
+	}
+
+	cfg := readyConfig()
+	cfg.Models.Main.Provider = constants.ModelProviderOllama
+	cfg.Models.Main.Name = "missing:latest"
+	cfg.Models.Main.BaseURL = "http://127.0.0.1:11434"
+
+	report := Build(context.Background(), Options{Config: cfg})
+
+	model := findReadinessCheck(t, report, "models", "ollama model")
+	require.Equal(t, StatusFail, model.Status)
+	require.Contains(t, model.Message, `model "missing:latest" is not installed`)
+	require.Equal(
+		t,
+		"morph setup provider --provider ollama --base-url http://127.0.0.1:11434 --model missing:latest --pull",
+		model.Actions[0].Command,
+	)
+}
+
+func TestBuild_ReportsOllamaDiscoveryAndContextWarnings(t *testing.T) {
+	originalDiscover := discoverOllamaModels
+	t.Cleanup(func() {
+		discoverOllamaModels = originalDiscover
+	})
+
+	cfg := readyConfig()
+	cfg.Models.Main.Provider = constants.ModelProviderOllama
+	cfg.Models.Main.Name = "small:latest"
+	cfg.Models.Main.BaseURL = "http://127.0.0.1:11434"
+	cfg.Models.Main.ContextLength = 9000
+
+	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+		return nil, errors.New("ollama is not reachable")
+	}
+	report := Build(context.Background(), Options{Config: cfg})
+	ollama := findReadinessCheck(t, report, "models", "ollama")
+	require.Equal(t, StatusFail, ollama.Status)
+	require.Contains(t, ollama.Message, "not reachable")
+	require.Equal(t, "ollama serve", ollama.Actions[0].Command)
+
+	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+		return []modelprovider.ModelDefinition{{ID: "small:latest", ContextWindow: 4096}}, nil
+	}
+	report = Build(context.Background(), Options{Config: cfg})
+	contextCheck := findReadinessCheck(t, report, "models", "ollama context")
+	require.Equal(t, StatusWarn, contextCheck.Status)
+	require.Contains(t, contextCheck.Message, "configured contextLength=9000 exceeds")
+	require.Equal(t, "morph config set models.main.contextLength 4096", contextCheck.Actions[0].Command)
+
+	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+		return []modelprovider.ModelDefinition{{ID: "small:latest"}}, nil
+	}
+	report = Build(context.Background(), Options{Config: cfg})
+	contextCheck = findReadinessCheck(t, report, "models", "ollama context")
+	require.Equal(t, StatusWarn, contextCheck.Status)
+	require.Contains(t, contextCheck.Message, "context metadata is unavailable")
 }
 
 func TestBuild_ReportsDisabledMemoryAsWarningOnly(t *testing.T) {

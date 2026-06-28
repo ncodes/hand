@@ -189,7 +189,54 @@ func TestOllamaClient_CompleteReturnsProviderStatusError(t *testing.T) {
 		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
 	})
 
-	require.EqualError(t, err, "ollama request failed with status 404: model not found")
+	require.EqualError(
+		t,
+		err,
+		`ollama model "missing" is not installed or could not be found; run morph setup provider --provider ollama --model missing --pull or ollama pull missing: ollama request failed with status 404: model not found`,
+	)
+}
+
+func TestOllamaClient_CompleteReturnsActionableToolError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "tools are unsupported by this model", http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client, err := NewOllamaClient(server.URL, nil)
+	require.NoError(t, err)
+
+	_, err = client.Complete(t.Context(), Request{
+		Model:    "llama3.2:3b",
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
+	})
+
+	require.ErrorContains(
+		t,
+		err,
+		"ollama tool calling failed; choose a tool-capable Ollama model or disable tools",
+	)
+}
+
+func TestOllamaClient_CompleteRejectsRawToolJSONOutput(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"model":"llama3.2:3b","message":{"role":"assistant","content":"{\"tool\":\"lookup\",\"arguments\":{\"city\":\"Lagos\"}}"}}`))
+	}))
+	defer server.Close()
+
+	client, err := NewOllamaClient(server.URL, nil)
+	require.NoError(t, err)
+
+	_, err = client.Complete(t.Context(), Request{
+		Model:    "llama3.2:3b",
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
+		Tools:    []ToolDefinition{{Name: "lookup"}},
+	})
+
+	require.EqualError(
+		t,
+		err,
+		`ollama model "llama3.2:3b" returned raw tool JSON instead of a structured tool call; choose a tool-capable Ollama model or disable tools`,
+	)
 }
 
 func TestOllamaClient_CompleteRejectsEmptyProviderResponse(t *testing.T) {
@@ -309,6 +356,24 @@ func TestOllamaClient_CompleteStreamReturnsProviderStatusError(t *testing.T) {
 	}, nil)
 
 	require.EqualError(t, err, "ollama request failed with status 500: 500 Internal Server Error")
+}
+
+func TestOllamaClient_CompleteStreamRejectsRawToolJSONOutput(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"model":"llama3.2:3b","message":{"role":"assistant","content":"{\"function\":\"lookup\",\"arguments\":{}}"}}` + "\n"))
+	}))
+	defer server.Close()
+
+	client, err := NewOllamaClient(server.URL, nil)
+	require.NoError(t, err)
+
+	_, err = client.CompleteStream(t.Context(), Request{
+		Model:    "llama3.2:3b",
+		Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}},
+		Tools:    []ToolDefinition{{Name: "lookup"}},
+	}, nil)
+
+	require.ErrorContains(t, err, "returned raw tool JSON instead of a structured tool call")
 }
 
 func TestOllamaClient_CompleteStreamReturnsConnectionError(t *testing.T) {
@@ -448,6 +513,10 @@ func TestOllamaClient_NormalizesOptionalValues(t *testing.T) {
 	require.Equal(t, "not-json", stringFromRawArguments(json.RawMessage("not-json")))
 	require.Equal(t, "{}", defaultToolArguments(" "))
 	require.Empty(t, structuredOutputToFormat(nil))
+	require.False(t, isRawToolJSONOutput(`{"answer":"lookup"}`, []chatTool{{Function: chatFunction{Name: "lookup"}}}))
+	require.False(t, isRawToolJSONOutput(`not-json`, []chatTool{{Function: chatFunction{Name: "lookup"}}}))
+	require.False(t, isRawToolJSONOutput(`{"tool":"lookup"}`, nil))
+	require.True(t, isRawToolJSONOutput(`{"name":"lookup"}`, []chatTool{{Function: chatFunction{Name: "lookup"}}}))
 
 	toolCalls := toolCallsFromChatToolCalls([]chatToolCall{{Function: chatToolCallFunction{}}}, 0)
 	require.Empty(t, toolCalls)
