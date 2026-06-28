@@ -140,6 +140,7 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 		}
 		if cfg.StreamEnabled() {
 			formatter := newChatStreamFormatter(cfg, now, cmd.Bool("no-color"))
+			formatter.terminalLinefeeds = isTerminalWriter(output)
 			responseOptions.OnEvent = func(event rpcclient.Event) {
 				_, _ = fmt.Fprint(output, formatter.Format(event))
 			}
@@ -431,6 +432,7 @@ type chatStreamFormatter struct {
 	turnStarted              time.Time
 	reasoningStarted         time.Time
 	reasoningActive          bool
+	terminalLinefeeds        bool
 	lastChannel              string
 	wroteText                bool
 	lastTextTrailingNewlines int
@@ -474,7 +476,7 @@ func (f *chatStreamFormatter) Format(event rpcclient.Event) string {
 	f.lastChannel = channel
 	f.lastTextTrailingNewlines = countTrailingNewlines(event.Text, 2)
 
-	return prefix + output
+	return f.formatOutput(prefix + output)
 }
 
 func (f *chatStreamFormatter) Finish() string {
@@ -492,7 +494,7 @@ func (f *chatStreamFormatter) Finish() string {
 	output += f.formatMutedLabel("Worked for " + formatElapsed(f.now().Sub(f.turnStarted)))
 	output += "\n"
 
-	return output
+	return f.formatOutput(output)
 }
 
 func (f *chatStreamFormatter) finishReasoning() string {
@@ -511,6 +513,31 @@ func (f *chatStreamFormatter) formatMutedLabel(label string) string {
 	}
 
 	return rootColorGray + label + rootColorReset
+}
+
+func (f *chatStreamFormatter) formatOutput(output string) string {
+	if f == nil || !f.terminalLinefeeds {
+		return output
+	}
+
+	return normalizeTerminalLinefeeds(output)
+}
+
+func normalizeTerminalLinefeeds(output string) string {
+	if !strings.Contains(output, "\n") {
+		return output
+	}
+
+	var builder strings.Builder
+	builder.Grow(len(output) + strings.Count(output, "\n"))
+	for index := 0; index < len(output); index++ {
+		if output[index] == '\n' && (index == 0 || output[index-1] != '\r') {
+			builder.WriteByte('\r')
+		}
+		builder.WriteByte(output[index])
+	}
+
+	return builder.String()
 }
 
 func formatElapsed(duration time.Duration) string {

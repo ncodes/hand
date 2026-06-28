@@ -1116,6 +1116,27 @@ func TestChatStreamFormatter_FinishesActiveReasoning(t *testing.T) {
 	}, "\n"), output)
 }
 
+func TestChatStreamFormatter_NormalizesTerminalLinefeeds(t *testing.T) {
+	formatter := newChatStreamFormatter(config.NewDefaultConfig(), sequenceClock(
+		time.Unix(0, 0),
+		time.Unix(2, 0),
+	), true)
+	formatter.terminalLinefeeds = true
+
+	output := formatter.Format(rpcclient.Event{
+		Kind:    agent.EventKindTextDelta,
+		Channel: "assistant",
+		Text:    "hello\nworld\r\nagain",
+	})
+	output += formatter.Finish()
+
+	require.Equal(t, "hello\r\nworld\r\nagain\r\n\r\nWorked for 2s\r\n", output)
+}
+
+func TestNormalizeTerminalLinefeedsPreservesExistingCRLF(t *testing.T) {
+	require.Equal(t, "a\r\nb\r\nc", normalizeTerminalLinefeeds("a\nb\r\nc"))
+}
+
 func TestFormatChatEvent(t *testing.T) {
 	traceEvent := trace.Event{Type: trace.EvtInputSafetyBlocked}
 	require.Empty(t, FormatChatEvent(config.NewDefaultConfig(), rpcclient.Event{TraceEvent: &traceEvent}))
