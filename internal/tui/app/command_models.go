@@ -144,10 +144,13 @@ func loadModelsCmd(provider string, currentModel string) tea.Cmd {
 			return modelsLoadedMsg{Err: errors.New("model provider is required")}
 		}
 
-		models := modelcatalog.ListOptions(modelcatalog.OptionQuery{
+		models, err := modelcatalog.ListOptions(modelcatalog.OptionQuery{
 			Provider: provider,
 			Current:  currentModel,
 		})
+		if err != nil {
+			return modelsLoadedMsg{Err: err}
+		}
 		return modelsLoadedMsg{List: rpcclient.ModelList{
 			Provider: provider,
 			Models:   models,

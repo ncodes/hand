@@ -78,6 +78,7 @@ func buildOllamaReadinessChecks(ctx context.Context, cfg *config.Config) []Check
 		fmt.Sprintf("model %q is installed", modelID),
 	))
 	checks = append(checks, buildOllamaContextCheck(cfg, selected))
+	checks = append(checks, buildOllamaToolSupportCheck(selected))
 
 	return checks
 }
@@ -115,6 +116,19 @@ func buildOllamaContextCheck(cfg *config.Config, model modelprovider.ModelDefini
 		"ollama context",
 		StatusPass,
 		fmt.Sprintf("model %q reports context window=%d, configured contextLength=%d", modelID, model.ContextWindow, configured),
+	)
+}
+
+func buildOllamaToolSupportCheck(model modelprovider.ModelDefinition) Check {
+	modelID := strings.TrimSpace(model.ID)
+	if model.SupportsTools {
+		return check("ollama tools", StatusPass, fmt.Sprintf("model %q reports tool support", modelID))
+	}
+
+	return check(
+		"ollama tools",
+		StatusWarn,
+		fmt.Sprintf("model %q does not report tool support; tool-using workflows may fail", modelID),
 	)
 }
 

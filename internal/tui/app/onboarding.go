@@ -487,11 +487,14 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 		return *m, m.setStatus("provider selection unavailable")
 	}
 
-	models := modelcatalog.ListOptions(modelcatalog.OptionQuery{
+	models, err := modelcatalog.ListOptions(modelcatalog.OptionQuery{
 		Provider:  providerID,
 		Current:   m.loadRawProfileMainModel(),
 		OAuthOnly: m.setupAuthMethod == setupAuthMethodSubscription,
 	})
+	if err != nil {
+		return *m, m.setStatus("models unavailable")
+	}
 	if len(models) == 0 {
 		return *m, m.setStatus("models unavailable")
 	}

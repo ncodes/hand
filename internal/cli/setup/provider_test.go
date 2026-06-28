@@ -421,10 +421,11 @@ func TestProviderRunnerAuthenticatesWithSubscriptionLogin(t *testing.T) {
 	cfg, err := config.Load("", configPath)
 	require.NoError(t, err)
 
-	models := modelcatalog.ListOptions(modelcatalog.OptionQuery{
+	models, err := modelcatalog.ListOptions(modelcatalog.OptionQuery{
 		Provider:  constants.ModelProviderAnthropic,
 		OAuthOnly: true,
 	})
+	require.NoError(t, err)
 	require.NotEmpty(t, models)
 
 	originalSubscriptionProvider := getSubscriptionProvider
@@ -510,10 +511,11 @@ func TestProviderRunnerReturnsUnavailableAuthMethod(t *testing.T) {
 
 func TestProviderRunnerReturnsInvalidAuthMethod(t *testing.T) {
 	cfg := config.NewProfileConfig()
-	models := modelcatalog.ListOptions(modelcatalog.OptionQuery{
+	models, err := modelcatalog.ListOptions(modelcatalog.OptionQuery{
 		Provider:  constants.ModelProviderAnthropic,
 		OAuthOnly: true,
 	})
+	require.NoError(t, err)
 	require.NotEmpty(t, models)
 
 	originalSubscriptionProvider := getSubscriptionProvider
@@ -530,7 +532,7 @@ func TestProviderRunnerReturnsInvalidAuthMethod(t *testing.T) {
 			return "bogus", nil
 		},
 	}
-	_, err := runner.ensureSetupAuth(context.Background(), cfg, setupSelection{
+	_, err = runner.ensureSetupAuth(context.Background(), cfg, setupSelection{
 		provider: constants.ModelProviderAnthropic,
 		api:      modelprovider.APIAnthropicMessages,
 		baseURL:  constants.DefaultAnthropicBaseURL,
@@ -581,10 +583,11 @@ func TestProviderRunnerReturnsUnavailableAPIKeyFromAuthStep(t *testing.T) {
 
 func TestProviderRunnerReturnsPostLoginAuthError(t *testing.T) {
 	cfg := config.NewProfileConfig()
-	models := modelcatalog.ListOptions(modelcatalog.OptionQuery{
+	models, err := modelcatalog.ListOptions(modelcatalog.OptionQuery{
 		Provider:  constants.ModelProviderAnthropic,
 		OAuthOnly: true,
 	})
+	require.NoError(t, err)
 	require.NotEmpty(t, models)
 
 	originalSubscriptionProvider := getSubscriptionProvider
@@ -609,7 +612,7 @@ func TestProviderRunnerReturnsPostLoginAuthError(t *testing.T) {
 			return "oauth", nil
 		},
 	}
-	_, err := runner.ensureSetupAuth(context.Background(), cfg, setupSelection{
+	_, err = runner.ensureSetupAuth(context.Background(), cfg, setupSelection{
 		provider: constants.ModelProviderAnthropic,
 		api:      modelprovider.APIAnthropicMessages,
 		baseURL:  constants.DefaultAnthropicBaseURL,
@@ -621,10 +624,11 @@ func TestProviderRunnerReturnsPostLoginAuthError(t *testing.T) {
 
 func TestProviderRunnerReturnsOAuthLoginErrorFromAuthStep(t *testing.T) {
 	cfg := config.NewProfileConfig()
-	models := modelcatalog.ListOptions(modelcatalog.OptionQuery{
+	models, err := modelcatalog.ListOptions(modelcatalog.OptionQuery{
 		Provider:  constants.ModelProviderAnthropic,
 		OAuthOnly: true,
 	})
+	require.NoError(t, err)
 	require.NotEmpty(t, models)
 
 	originalSubscriptionProvider := getSubscriptionProvider
@@ -642,7 +646,7 @@ func TestProviderRunnerReturnsOAuthLoginErrorFromAuthStep(t *testing.T) {
 			return "oauth", nil
 		},
 	}
-	_, err := runner.ensureSetupAuth(context.Background(), cfg, setupSelection{
+	_, err = runner.ensureSetupAuth(context.Background(), cfg, setupSelection{
 		provider: constants.ModelProviderAnthropic,
 		api:      modelprovider.APIAnthropicMessages,
 		baseURL:  constants.DefaultAnthropicBaseURL,
@@ -938,6 +942,7 @@ func TestSetupWizardRecordsPullChoice(t *testing.T) {
 		ProviderOptions{
 			Provider: constants.ModelProviderOllama,
 			BaseURL:  "http://127.0.0.1:11434",
+			Refresh:  true,
 			Registry: modelprovider.DefaultRegistry(),
 		},
 		config.NewProfileConfig(),
@@ -1069,6 +1074,7 @@ func TestSetupWizardModelOptionErrors(t *testing.T) {
 		ProviderOptions{
 			Provider: constants.ModelProviderOllama,
 			BaseURL:  "http://127.0.0.1:11434",
+			Refresh:  true,
 			Registry: modelprovider.DefaultRegistry(),
 		},
 		config.NewProfileConfig(),
@@ -1291,6 +1297,7 @@ func TestSetupWizardBackAndChooseErrorBranches(t *testing.T) {
 		step: setupWizardStepPull,
 		ctx:  context.Background(),
 		cfg:  config.NewProfileConfig(),
+		opts: ProviderOptions{Refresh: true},
 		runner: providerRunner{
 			registry: modelprovider.DefaultRegistry(),
 		},
@@ -1695,7 +1702,7 @@ func TestRunProviderReturnsSelectionErrors(t *testing.T) {
 	}
 	_, err = runner.getSetupModel(
 		context.Background(),
-		ProviderOptions{},
+		ProviderOptions{Refresh: true},
 		config.NewProfileConfig(),
 		modelprovider.ProviderDefinition{ID: "custom"},
 		"https://custom.example/v1",
@@ -1713,7 +1720,7 @@ func TestProviderRunnerReturnsInvalidProviderFromNonPagedSelection(t *testing.T)
 
 	_, err := runner.getSetupSelection(
 		context.Background(),
-		ProviderOptions{},
+		ProviderOptions{Refresh: true},
 		config.NewProfileConfig(),
 	)
 
@@ -1884,7 +1891,7 @@ func TestProviderRunnerReturnsSelectedOllamaModelMissingCheckError(t *testing.T)
 	}
 	_, err := runner.getSetupModel(
 		context.Background(),
-		ProviderOptions{},
+		ProviderOptions{Refresh: true},
 		config.NewProfileConfig(),
 		mustSetupProvider(t, constants.ModelProviderOllama),
 		constants.DefaultOllamaBaseURL,
@@ -1906,7 +1913,7 @@ func TestProviderRunnerReturnsModelOptionError(t *testing.T) {
 	runner := providerRunner{registry: modelprovider.DefaultRegistry()}
 	_, err := runner.getSetupModel(
 		context.Background(),
-		ProviderOptions{},
+		ProviderOptions{Refresh: true},
 		config.NewProfileConfig(),
 		mustSetupProvider(t, constants.ModelProviderOllama),
 		"http://127.0.0.1:11434",
@@ -1950,6 +1957,8 @@ func TestProviderRunnerFallsBackToCatalogWhenOllamaHasNoLiveModels(t *testing.T)
 	runner := providerRunner{registry: modelprovider.DefaultRegistry()}
 	options, fromLiveDiscovery, err := runner.getModelOptions(
 		context.Background(),
+		ProviderOptions{Refresh: true},
+		config.NewProfileConfig(),
 		mustSetupProvider(t, constants.ModelProviderOllama),
 		"",
 		"http://127.0.0.1:11434",
@@ -1974,6 +1983,8 @@ func TestProviderRunnerMergesLiveAndCataloguedOllamaModels(t *testing.T) {
 	runner := providerRunner{registry: modelprovider.DefaultRegistry()}
 	options, fromLiveDiscovery, err := runner.getModelOptions(
 		context.Background(),
+		ProviderOptions{Refresh: true},
+		config.NewProfileConfig(),
 		mustSetupProvider(t, constants.ModelProviderOllama),
 		"",
 		"http://127.0.0.1:11434",
@@ -2000,6 +2011,7 @@ func TestSetupWizardLabelsMissingOllamaCatalogModels(t *testing.T) {
 	model := setupWizardModel{
 		ctx:    context.Background(),
 		cfg:    config.NewProfileConfig(),
+		opts:   ProviderOptions{Refresh: true},
 		runner: providerRunner{registry: modelprovider.DefaultRegistry()},
 		selection: setupSelection{
 			provider: constants.ModelProviderOllama,
@@ -2016,40 +2028,6 @@ func TestSetupWizardLabelsMissingOllamaCatalogModels(t *testing.T) {
 	require.Contains(t, model.render(), "not installed")
 }
 
-func TestMergeOllamaModelOptionsMarksMissingCatalogModels(t *testing.T) {
-	options := mergeOllamaModelOptions(
-		[]modelcatalog.Option{
-			{ID: " installed:latest ", DisplayDefault: true, LocalMissing: true},
-			{ID: " "},
-		},
-		[]modelcatalog.Option{
-			{ID: "installed:latest"},
-			{ID: "missing-current:latest", Current: true},
-			{ID: "missing-default:latest", DisplayDefault: true},
-			{ID: "missing-zeta:latest"},
-			{ID: "missing-alpha:latest"},
-			{ID: " "},
-		},
-	)
-
-	require.Equal(
-		t,
-		[]string{
-			"installed:latest",
-			"missing-default:latest",
-			"missing-current:latest",
-			"missing-alpha:latest",
-			"missing-zeta:latest",
-		},
-		getSetupModelIDs(options),
-	)
-	require.False(t, options[0].LocalMissing)
-	require.True(t, options[1].LocalMissing)
-	require.True(t, options[2].LocalMissing)
-	require.Equal(t, "not installed", getSetupModelDescription(modelcatalog.Option{LocalMissing: true}))
-	require.Equal(t, "missing-current:latest - not installed", getSetupModelDescription(options[2]))
-}
-
 func TestProviderRunnerDetectsMissingSelectedLocalModel(t *testing.T) {
 	originalDiscover := discoverOllamaModels
 	t.Cleanup(func() {
@@ -2063,6 +2041,7 @@ func TestProviderRunnerDetectsMissingSelectedLocalModel(t *testing.T) {
 	missing, err := providerRunner{}.checkLocalModelMissing(
 		context.Background(),
 		ProviderOptions{},
+		config.NewProfileConfig(),
 		mustSetupProvider(t, constants.ModelProviderOllama),
 		"http://127.0.0.1:11434",
 		"missing:latest",
@@ -2070,6 +2049,79 @@ func TestProviderRunnerDetectsMissingSelectedLocalModel(t *testing.T) {
 
 	require.NoError(t, err)
 	require.True(t, missing)
+}
+
+func TestProviderRunnerTrustsExplicitLocalModelConfig(t *testing.T) {
+	originalDiscover := discoverOllamaModels
+	t.Cleanup(func() {
+		discoverOllamaModels = originalDiscover
+	})
+
+	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+		t.Fatal("discovery should not run when provider models are pinned in config")
+		return nil, nil
+	}
+
+	cfg := config.NewProfileConfig()
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		constants.ModelProviderOllama: {
+			Models: map[string]config.ProviderModelMetadata{
+				"pinned:latest": {},
+			},
+		},
+	}
+	missing, err := providerRunner{}.checkLocalModelMissing(
+		context.Background(),
+		ProviderOptions{},
+		cfg,
+		mustSetupProvider(t, constants.ModelProviderOllama),
+		"http://127.0.0.1:11434",
+		"pinned:latest",
+	)
+
+	require.NoError(t, err)
+	require.False(t, missing)
+}
+
+func TestHasExplicitProviderModels(t *testing.T) {
+	require.False(t, hasExplicitProviderModels(nil, constants.ModelProviderOllama))
+	require.False(t, hasExplicitProviderModels(config.NewProfileConfig(), constants.ModelProviderOllama))
+
+	cfg := config.NewProfileConfig()
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		constants.ModelProviderOllama: {},
+	}
+	require.False(t, hasExplicitProviderModels(cfg, constants.ModelProviderOllama))
+	require.False(t, hasExplicitProviderModels(cfg, constants.ModelProviderOpenAI))
+
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		"Ollama": {
+			Models: map[string]config.ProviderModelMetadata{
+				"pinned:latest": {},
+			},
+		},
+	}
+	require.True(t, hasExplicitProviderModels(cfg, constants.ModelProviderOllama))
+}
+
+func TestSetupModelPageCopy(t *testing.T) {
+	require.Equal(t, "Select an Ollama model", getSetupModelPageTitle(mustSetupProvider(t, constants.ModelProviderOllama)))
+	require.Equal(t, "Select a model", getSetupModelPageTitle(mustSetupProvider(t, constants.ModelProviderOpenAI)))
+	require.Equal(
+		t,
+		"Choose an installed or suggested Ollama model from http://127.0.0.1:11434.",
+		getSetupModelPageDescription(mustSetupProvider(t, constants.ModelProviderOllama), "http://127.0.0.1:11434"),
+	)
+	require.Equal(
+		t,
+		"Choose an installed or suggested Ollama model from the configured Ollama base URL.",
+		getSetupModelPageDescription(mustSetupProvider(t, constants.ModelProviderOllama), " "),
+	)
+	require.Equal(
+		t,
+		"Choose the model Morph should use for chat, one-shot commands, and summaries.",
+		getSetupModelPageDescription(mustSetupProvider(t, constants.ModelProviderOpenAI), ""),
+	)
 }
 
 func TestDiscoverOllamaModelsReturnsBaseURLError(t *testing.T) {
@@ -2352,31 +2404,6 @@ func TestSelectionHelpers(t *testing.T) {
 
 	_, ok = parseSelectionIndex("3", 2)
 	require.False(t, ok)
-}
-
-func TestModelDefinitionsToOptionsOrdersCurrentModel(t *testing.T) {
-	options := modelDefinitionsToOptions([]modelprovider.ModelDefinition{
-		{ID: "zeta", Input: []modelprovider.InputKind{modelprovider.InputText}},
-		{ID: "beta"},
-		{ID: "alpha", Input: []modelprovider.InputKind{" ", modelprovider.InputImage}},
-		{ID: " "},
-	}, "zeta")
-
-	require.Equal(t, []modelcatalog.Option{
-		{
-			ID:      "zeta",
-			Input:   []string{"text"},
-			Current: true,
-		},
-		{
-			ID:    "alpha",
-			Input: []string{"image"},
-		},
-		{
-			ID:    "beta",
-			Input: []string{},
-		},
-	}, options)
 }
 
 func TestFormatPullProgress(t *testing.T) {

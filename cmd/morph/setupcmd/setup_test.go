@@ -114,6 +114,7 @@ func TestProviderCommandHelpShowsAPIFlag(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "--provider")
 	require.Contains(t, output.String(), "--api")
+	require.Contains(t, output.String(), "--refresh")
 	require.NotContains(t, output.String(), "--model.api")
 }
 

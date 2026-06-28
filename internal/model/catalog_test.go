@@ -1,20 +1,26 @@
 package model
 
 import (
+	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func TestListOptions_FiltersGenerationModelsAndOrdersDisplayDefaultFirst(t *testing.T) {
-	options := ListOptions(OptionQuery{
+	options, err := ListOptions(OptionQuery{
 		Provider: constants.ModelProviderOpenAI,
 		Current:  constants.DefaultModel,
 	})
 
+	require.NoError(t, err)
 	require.NotEmpty(t, options)
 	require.Equal(t, "gpt-5.5", options[0].ID)
 	require.True(t, options[0].DisplayDefault)
@@ -27,12 +33,13 @@ func TestListOptions_FiltersGenerationModelsAndOrdersDisplayDefaultFirst(t *test
 }
 
 func TestListOptions_FiltersOAuthOnlyModels(t *testing.T) {
-	options := ListOptions(OptionQuery{
+	options, err := ListOptions(OptionQuery{
 		Provider:  constants.ModelProviderOpenAICodex,
 		Current:   "gpt-5.4",
 		OAuthOnly: true,
 	})
 
+	require.NoError(t, err)
 	require.NotEmpty(t, options)
 	require.Equal(t, "gpt-5.5", options[0].ID)
 	require.True(t, options[0].DisplayDefault)
@@ -44,20 +51,23 @@ func TestListOptions_FiltersOAuthOnlyModels(t *testing.T) {
 }
 
 func TestListOptions_ExcludesOpenAIPlatformModelsFromOAuthOnly(t *testing.T) {
-	require.Empty(t, ListOptions(OptionQuery{
+	options, err := ListOptions(OptionQuery{
 		Provider:  constants.ModelProviderOpenAI,
 		Current:   "gpt-5.2",
 		OAuthOnly: true,
-	}))
+	})
+	require.NoError(t, err)
+	require.Empty(t, options)
 }
 
 func TestListOptions_FiltersAnthropicOAuthOnlyModels(t *testing.T) {
-	options := ListOptions(OptionQuery{
+	options, err := ListOptions(OptionQuery{
 		Provider:  constants.ModelProviderAnthropic,
 		Current:   "claude-sonnet-4-6",
 		OAuthOnly: true,
 	})
 
+	require.NoError(t, err)
 	require.NotEmpty(t, options)
 	require.Equal(t, "claude-sonnet-4-6", options[0].ID)
 	require.True(t, options[0].DisplayDefault)
@@ -77,11 +87,12 @@ func TestListOptions_FiltersAnthropicOAuthOnlyModels(t *testing.T) {
 }
 
 func TestListOptions_OrdersOpenRouterDisplayDefaultFirst(t *testing.T) {
-	options := ListOptions(OptionQuery{
+	options, err := ListOptions(OptionQuery{
 		Provider: constants.ModelProviderOpenRouter,
 		Current:  "openai/gpt-5.5",
 	})
 
+	require.NoError(t, err)
 	require.NotEmpty(t, options)
 	require.Equal(t, constants.DefaultProfileModel, options[0].ID)
 	require.True(t, options[0].DisplayDefault)
@@ -90,11 +101,15 @@ func TestListOptions_OrdersOpenRouterDisplayDefaultFirst(t *testing.T) {
 }
 
 func TestListOptions_ReturnsEmptyForMissingProviderOrRegistry(t *testing.T) {
-	require.Empty(t, ListOptions(OptionQuery{Provider: "missing"}))
-	require.Empty(t, ListOptions(OptionQuery{
+	options, err := ListOptions(OptionQuery{Provider: "missing"})
+	require.NoError(t, err)
+	require.Empty(t, options)
+	options, err = ListOptions(OptionQuery{
 		Provider: "missing",
 		Registry: modelprovider.NewRegistry(nil, nil, nil),
-	}))
+	})
+	require.NoError(t, err)
+	require.Empty(t, options)
 }
 
 func TestListOptions_IncludesLocalGenerationModels(t *testing.T) {
@@ -120,7 +135,8 @@ func TestListOptions_IncludesLocalGenerationModels(t *testing.T) {
 		}},
 	)
 
-	options := ListOptions(OptionQuery{Provider: constants.ModelProviderOllama, Registry: registry})
+	options, err := ListOptions(OptionQuery{Provider: constants.ModelProviderOllama, Registry: registry})
+	require.NoError(t, err)
 	require.Len(t, options, 1)
 	require.Equal(t, "llama3.1:8b", options[0].ID)
 	require.True(t, options[0].SupportsTools)
@@ -131,6 +147,348 @@ func TestListOptions_IncludesLocalGenerationModels(t *testing.T) {
 	require.Equal(t, constants.ModelProviderOllama, providers[0].ID)
 	require.Equal(t, "local", providers[0].Type)
 	require.True(t, providers[0].Local)
+}
+
+func TestListOptions_MergesOllamaDiscoveryAndSuggestedModels(t *testing.T) {
+	resetLocalDiscoveryCache(t)
+
+	options, err := ListOptions(OptionQuery{
+		Context:        context.Background(),
+		Provider:       constants.ModelProviderOllama,
+		Current:        constants.DefaultOllamaModel,
+		BaseURL:        "http://127.0.0.1:11434",
+		LocalDiscovery: true,
+		DiscoverLocalModels: func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+			return []modelprovider.ModelDefinition{{
+				ID:            "installed:latest",
+				Name:          "Installed",
+				Provider:      constants.ModelProviderOllama,
+				API:           modelprovider.APIOllamaNative,
+				Input:         []modelprovider.InputKind{modelprovider.InputText},
+				ContextWindow: 4096,
+			}}, nil
+		},
+	})
+
+	require.NoError(t, err)
+	logutils.PrettyPrint(options)
+	require.Equal(t, "installed:latest", options[0].ID)
+	require.False(t, options[0].LocalMissing)
+	require.Equal(t, "discovery", options[0].Source)
+	require.Equal(t, "http://127.0.0.1:11434", options[0].BaseURL)
+	defaultModel := findModelOption(t, options, constants.DefaultOllamaModel)
+	require.True(t, defaultModel.LocalMissing)
+	require.Equal(t, "catalog", defaultModel.Source)
+}
+
+func TestListOptions_UsesCachedOllamaDiscoveryUntilRefresh(t *testing.T) {
+	resetLocalDiscoveryCache(t)
+
+	calls := 0
+	discover := func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+		calls++
+		return []modelprovider.ModelDefinition{
+			{ID: "cached:latest", Provider: constants.ModelProviderOllama,
+				API:           modelprovider.APIOllamaNative,
+				Input:         []modelprovider.InputKind{modelprovider.InputText},
+				ContextWindow: 4096,
+			},
+		}, nil
+	}
+	query := OptionQuery{
+		Context:             context.Background(),
+		Provider:            constants.ModelProviderOllama,
+		BaseURL:             "http://127.0.0.1:11434",
+		LocalDiscovery:      true,
+		DiscoveryTTL:        time.Minute,
+		DiscoverLocalModels: discover,
+	}
+
+	options, err := ListOptions(query)
+	require.NoError(t, err)
+	require.Equal(t, "cached:latest", options[0].ID)
+	require.Equal(t, 1, calls)
+
+	options, err = ListOptions(query)
+	require.NoError(t, err)
+	require.Equal(t, "cached:latest", options[0].ID)
+	require.Equal(t, 1, calls)
+
+	query.Refresh = true
+	_, err = ListOptions(query)
+	require.NoError(t, err)
+	require.Equal(t, 2, calls)
+}
+
+func TestListOptions_ReturnsLocalDiscoveryError(t *testing.T) {
+	resetLocalDiscoveryCache(t)
+
+	errDiscovery := errors.New("ollama unavailable")
+	options, err := ListOptions(OptionQuery{
+		Provider:       constants.ModelProviderOllama,
+		BaseURL:        "http://127.0.0.1:11434",
+		LocalDiscovery: true,
+		DiscoverLocalModels: func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+			return nil, errDiscovery
+		},
+	})
+
+	require.ErrorIs(t, err, errDiscovery)
+	require.Nil(t, options)
+}
+
+func TestListOptions_ExplicitConfigOverridesOllamaDiscovery(t *testing.T) {
+	resetLocalDiscoveryCache(t)
+
+	supportsTools := true
+	cfg := config.NewProfileConfig()
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		constants.ModelProviderOllama: {
+			BaseURL: "http://configured.local:11434",
+			Models: map[string]config.ProviderModelMetadata{
+				constants.DefaultOllamaModel: {
+					ContextLength:   8192,
+					MaxOutputTokens: 2048,
+					SupportsTools:   &supportsTools,
+				},
+			},
+		},
+	}
+
+	options, err := ListOptions(OptionQuery{
+		Context:        context.Background(),
+		Provider:       constants.ModelProviderOllama,
+		Current:        constants.DefaultOllamaModel,
+		Config:         cfg,
+		BaseURL:        "http://127.0.0.1:11434",
+		LocalDiscovery: true,
+		DiscoverLocalModels: func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+			t.Fatal("discovery should not run when provider model metadata is pinned")
+			return nil, nil
+		},
+	})
+
+	require.NoError(t, err)
+	pinned := findModelOption(t, options, constants.DefaultOllamaModel)
+	require.Equal(t, "config", pinned.Source)
+	require.Equal(t, modelprovider.APIOllamaNative, pinned.API)
+	require.Equal(t, 8192, pinned.ContextWindow)
+	require.Equal(t, 2048, pinned.MaxTokens)
+	require.True(t, pinned.SupportsTools)
+	require.False(t, pinned.LocalMissing)
+	require.True(t, pinned.Current)
+}
+
+func TestListOptions_ExplicitConfigDisablesOllamaDiscoveryWhenFiltered(t *testing.T) {
+	resetLocalDiscoveryCache(t)
+
+	cfg := config.NewProfileConfig()
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		"Ollama": {
+			API: modelprovider.APIOllamaEmbeddings,
+			Models: map[string]config.ProviderModelMetadata{
+				"pinned-embedding:latest": {},
+			},
+		},
+	}
+
+	options, err := ListOptions(OptionQuery{
+		Context:        context.Background(),
+		Provider:       constants.ModelProviderOllama,
+		Config:         cfg,
+		LocalDiscovery: true,
+		DiscoverLocalModels: func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+			t.Fatal("discovery should not run when provider model metadata is pinned")
+			return nil, nil
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotContains(t, getModelOptionIDs(options), "pinned-embedding:latest")
+	require.NotEmpty(t, options)
+	require.Equal(t, "catalog", options[0].Source)
+}
+
+func TestListOptions_UsesConfiguredOllamaDiscoveryBaseURL(t *testing.T) {
+	registry := modelprovider.NewRegistry(
+		nil,
+		[]modelprovider.ProviderDefinition{{
+			ID:             constants.ModelProviderOllama,
+			DefaultAPI:     "ollama-chat",
+			SupportsModels: true,
+			BaseURLs: map[string]string{
+				"ollama-chat":       "http://chat.local:11434",
+				"ollama-embeddings": "http://embeddings.local:11434",
+			},
+			Local: &modelprovider.LocalProviderDefinition{},
+		}},
+		nil,
+	)
+
+	tests := []struct {
+		name     string
+		queryURL string
+		cfg      *config.Config
+		want     string
+	}{
+		{
+			name:     "query base URL",
+			queryURL: "http://query.local:11434",
+			cfg:      config.NewProfileConfig(),
+			want:     "http://query.local:11434",
+		},
+		{
+			name: "main base URL",
+			cfg: func() *config.Config {
+				cfg := config.NewProfileConfig()
+				cfg.Models.Main.Provider = constants.ModelProviderOllama
+				cfg.Models.Main.BaseURL = "http://main.local:11434"
+				return cfg
+			}(),
+			want: "http://main.local:11434",
+		},
+		{
+			name: "main API base URL",
+			cfg: func() *config.Config {
+				cfg := config.NewProfileConfig()
+				cfg.Models.Main.Provider = constants.ModelProviderOllama
+				cfg.Models.Main.API = "ollama-embeddings"
+				return cfg
+			}(),
+			want: "http://embeddings.local:11434",
+		},
+		{
+			name: "provider base URL",
+			cfg: func() *config.Config {
+				cfg := config.NewProfileConfig()
+				cfg.Models.Providers = map[string]config.ProviderModelConfig{
+					"Ollama": {BaseURL: "http://provider.local:11434"},
+				}
+				return cfg
+			}(),
+			want: "http://provider.local:11434",
+		},
+		{
+			name: "provider API base URL",
+			cfg: func() *config.Config {
+				cfg := config.NewProfileConfig()
+				cfg.Models.Providers = map[string]config.ProviderModelConfig{
+					constants.ModelProviderOllama: {API: "ollama-embeddings"},
+				}
+				return cfg
+			}(),
+			want: "http://embeddings.local:11434",
+		},
+		{
+			name: "provider default API base URL",
+			cfg:  config.NewProfileConfig(),
+			want: "http://chat.local:11434",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetLocalDiscoveryCache(t)
+			var got string
+			_, err := ListOptions(OptionQuery{
+				Context:        context.Background(),
+				Provider:       constants.ModelProviderOllama,
+				Config:         tt.cfg,
+				BaseURL:        tt.queryURL,
+				LocalDiscovery: true,
+				Refresh:        true,
+				Registry:       registry,
+				DiscoverLocalModels: func(_ context.Context, baseURL string) ([]modelprovider.ModelDefinition, error) {
+					got = baseURL
+					return nil, nil
+				},
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCatalogHelpersHandleFallbacks(t *testing.T) {
+	require.Empty(t, getProviderDefaultAPI(nil, "missing"))
+	require.Equal(t, modelprovider.APIOllamaNative, getProviderDefaultAPI(nil, constants.ModelProviderOllama))
+
+	_, ok := getExplicitProviderConfig(config.NewProfileConfig(), constants.ModelProviderOllama)
+	require.False(t, ok)
+	cfg := config.NewProfileConfig()
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		"openai": {},
+	}
+	_, ok = getExplicitProviderConfig(cfg, constants.ModelProviderOllama)
+	require.False(t, ok)
+
+	options := mergeOptions(
+		[]Option{{ID: " installed:latest "}, {ID: " "}},
+		[]Option{
+			{ID: "installed:latest"},
+			{ID: "missing:latest"},
+			{ID: " "},
+		},
+		true,
+	)
+	require.Equal(t, []string{"installed:latest", "missing:latest"}, getModelOptionIDs(options))
+	require.False(t, options[0].LocalMissing)
+	require.True(t, options[1].LocalMissing)
+
+	converted := modelDefinitionsToOptions(
+		[]modelprovider.ModelDefinition{
+			{ID: " "},
+			{ID: "vision:latest", Input: []modelprovider.InputKind{" ", modelprovider.InputImage}},
+		},
+		"vision:latest",
+		"http://local",
+		"discovery",
+	)
+	require.Len(t, converted, 1)
+	require.Equal(t, "vision:latest", converted[0].ID)
+	require.Equal(t, []string{"image"}, converted[0].Input)
+	require.True(t, converted[0].Current)
+	require.Equal(t, "http://local", converted[0].BaseURL)
+	require.Equal(t, "discovery", converted[0].Source)
+}
+
+func TestListExplicitConfigOptionsFiltersAndMapsMetadata(t *testing.T) {
+	supportsVision := true
+	cfg := config.NewProfileConfig()
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		constants.ModelProviderOllama: {
+			API:     modelprovider.APIOllamaNative,
+			BaseURL: "http://configured.local:11434",
+			Models: map[string]config.ProviderModelMetadata{
+				" ": {},
+				"vision:latest": {
+					SupportsVision: &supportsVision,
+				},
+			},
+		},
+	}
+
+	options := listExplicitConfigOptions(
+		cfg,
+		nil,
+		constants.ModelProviderOllama,
+		"vision:latest",
+		false,
+	)
+	require.Len(t, options, 1)
+	require.Equal(t, "vision:latest", options[0].ID)
+	require.Equal(t, []string{"text", "image"}, options[0].Input)
+	require.True(t, options[0].Current)
+	require.True(t, options[0].DisplayDefault)
+
+	require.Empty(t, listExplicitConfigOptions(
+		cfg,
+		nil,
+		constants.ModelProviderOllama,
+		"vision:latest",
+		true,
+	))
 }
 
 func findModelOption(t *testing.T, options []Option, id string) Option {
@@ -144,6 +502,24 @@ func findModelOption(t *testing.T, options []Option, id string) Option {
 
 	t.Fatalf("model option %q not found", id)
 	return Option{}
+}
+
+func getModelOptionIDs(options []Option) []string {
+	ids := make([]string, 0, len(options))
+	for _, option := range options {
+		ids = append(ids, option.ID)
+	}
+
+	return ids
+}
+
+func resetLocalDiscoveryCache(t *testing.T) {
+	t.Helper()
+
+	localDiscoveryCache.Lock()
+	defer localDiscoveryCache.Unlock()
+
+	localDiscoveryCache.values = make(map[string]localDiscoveryCacheEntry)
 }
 
 func TestListProviders_ReturnsGenerationProviderCountsAndOrdersByDisplayIndex(t *testing.T) {

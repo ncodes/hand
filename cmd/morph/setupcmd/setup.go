@@ -47,6 +47,7 @@ func newProviderCommand(input io.Reader, output io.Writer) *cli.Command {
 			&cli.StringFlag{Name: "api-key", Usage: "Provider API key to persist"},
 			&cli.BoolFlag{Name: "pull", Usage: "Pull the selected local model when it is missing"},
 			&cli.BoolFlag{Name: "pull-quiet", Usage: "Suppress local model pull progress output"},
+			&cli.BoolFlag{Name: "refresh", Usage: "Refresh local model discovery cache"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
@@ -69,6 +70,7 @@ func newProviderCommand(input io.Reader, output io.Writer) *cli.Command {
 				APIKey:     cmd.String("api-key"),
 				Pull:       cmd.Bool("pull"),
 				PullQuiet:  cmd.Bool("pull-quiet"),
+				Refresh:    cmd.Bool("refresh"),
 			})
 			if err != nil {
 				return err

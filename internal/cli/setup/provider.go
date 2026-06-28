@@ -88,6 +88,7 @@ type ProviderOptions struct {
 	APIKey     string
 	Pull       bool
 	PullQuiet  bool
+	Refresh    bool
 	Registry   *modelprovider.Registry
 }
 
@@ -285,7 +286,7 @@ func (r providerRunner) shouldRunPagedSetup(
 	}
 
 	baseURL := r.getSetupBaseURL(opts, cfg, providerDef, api)
-	missing, err := r.checkLocalModelMissing(ctx, opts, providerDef, baseURL, opts.Model)
+	missing, err := r.checkLocalModelMissing(ctx, opts, cfg, providerDef, baseURL, opts.Model)
 	if err != nil {
 		return false, err
 	}
@@ -367,7 +368,7 @@ func (r providerRunner) getSetupModel(
 	baseURL string,
 ) (modelSelection, error) {
 	if opts.Model != "" {
-		missing, err := r.checkLocalModelMissing(ctx, opts, provider, baseURL, opts.Model)
+		missing, err := r.checkLocalModelMissing(ctx, opts, cfg, provider, baseURL, opts.Model)
 		if err != nil {
 			return modelSelection{}, err
 		}
@@ -375,7 +376,7 @@ func (r providerRunner) getSetupModel(
 		return modelSelection{id: opts.Model, localMissing: missing}, nil
 	}
 
-	options, _, err := r.getModelOptions(ctx, provider, cfg.Models.Main.Name, baseURL)
+	options, _, err := r.getModelOptions(ctx, opts, cfg, provider, cfg.Models.Main.Name, baseURL)
 	if err != nil {
 		return modelSelection{}, err
 	}
@@ -401,7 +402,7 @@ func (r providerRunner) getSetupModel(
 		return modelSelection{}, err
 	}
 
-	missing, err := r.checkLocalModelMissing(ctx, opts, provider, baseURL, modelID)
+	missing, err := r.checkLocalModelMissing(ctx, opts, cfg, provider, baseURL, modelID)
 	if err != nil {
 		return modelSelection{}, err
 	}
@@ -508,6 +509,8 @@ func (m *setupWizardModel) setProvider(provider string) error {
 func (m *setupWizardModel) showModelPage(provider modelprovider.ProviderDefinition) error {
 	options, _, err := m.runner.getModelOptions(
 		m.ctx,
+		m.opts,
+		m.cfg,
 		provider,
 		m.cfg.Models.Main.Name,
 		m.selection.baseURL,
@@ -545,6 +548,7 @@ func (m *setupWizardModel) setModel(modelID string) error {
 	missing, err := m.runner.checkLocalModelMissing(
 		m.ctx,
 		m.opts,
+		m.cfg,
 		provider,
 		m.selection.baseURL,
 		modelID,
@@ -814,8 +818,9 @@ func (m setupWizardModel) render() string {
 		title = "Select a provider"
 		description = "Choose the model provider Morph should use by default."
 	case setupWizardStepModel:
-		title = "Select a model"
-		description = "Choose the model Morph should use for chat, one-shot commands, and summaries."
+		provider, _ := m.runner.registry.GetProvider(m.selection.provider)
+		title = getSetupModelPageTitle(provider)
+		description = getSetupModelPageDescription(provider, m.selection.baseURL)
 	case setupWizardStepAuth:
 		provider, _ := m.runner.registry.GetProvider(m.selection.provider)
 		title = "Authenticate " + getProviderDisplayName(provider)
@@ -837,31 +842,25 @@ func (m setupWizardModel) render() string {
 
 func (r providerRunner) getModelOptions(
 	ctx context.Context,
+	opts ProviderOptions,
+	cfg *config.Config,
 	provider modelprovider.ProviderDefinition,
 	current string,
 	baseURL string,
 ) ([]modelcatalog.Option, bool, error) {
-	if provider.ID == constants.ModelProviderOllama {
-		models, err := discoverOllamaModels(ctx, baseURL)
-		if err != nil {
-			return nil, false, err
-		}
+	options, err := modelcatalog.ListOptions(modelcatalog.OptionQuery{
+		Context:             ctx,
+		Provider:            provider.ID,
+		Current:             current,
+		Config:              cfg,
+		BaseURL:             baseURL,
+		LocalDiscovery:      true,
+		Refresh:             opts.Refresh,
+		Registry:            r.registry,
+		DiscoverLocalModels: discoverOllamaModels,
+	})
 
-		liveOptions := modelDefinitionsToOptions(models, current)
-		catalogOptions := modelcatalog.ListOptions(modelcatalog.OptionQuery{
-			Provider: provider.ID,
-			Current:  current,
-			Registry: r.registry,
-		})
-
-		return mergeOllamaModelOptions(liveOptions, catalogOptions), len(liveOptions) > 0, nil
-	}
-
-	return modelcatalog.ListOptions(modelcatalog.OptionQuery{
-		Provider: provider.ID,
-		Current:  current,
-		Registry: r.registry,
-	}), false, nil
+	return options, hasInstalledLocalOptions(options), err
 }
 
 func getSetupModelDescription(option modelcatalog.Option) string {
@@ -876,60 +875,49 @@ func getSetupModelDescription(option modelcatalog.Option) string {
 	return description
 }
 
-func mergeOllamaModelOptions(
-	liveOptions []modelcatalog.Option,
-	catalogOptions []modelcatalog.Option,
-) []modelcatalog.Option {
-	merged := make([]modelcatalog.Option, 0, len(liveOptions)+len(catalogOptions))
-	seen := make(map[string]struct{}, len(liveOptions)+len(catalogOptions))
-	for _, option := range liveOptions {
-		id := strings.TrimSpace(option.ID)
-		if id == "" {
-			continue
+func hasInstalledLocalOptions(options []modelcatalog.Option) bool {
+	for _, option := range options {
+		if option.Source == "discovery" && !option.LocalMissing {
+			return true
 		}
-		option.ID = id
-		option.LocalMissing = false
-		merged = append(merged, option)
-		seen[strings.ToLower(id)] = struct{}{}
-	}
-	for _, option := range catalogOptions {
-		id := strings.TrimSpace(option.ID)
-		if id == "" {
-			continue
-		}
-		if _, ok := seen[strings.ToLower(id)]; ok {
-			continue
-		}
-		option.ID = id
-		option.LocalMissing = true
-		merged = append(merged, option)
 	}
 
-	sort.Slice(merged, func(i, j int) bool {
-		if merged[i].LocalMissing != merged[j].LocalMissing {
-			return !merged[i].LocalMissing
-		}
-		if merged[i].DisplayDefault != merged[j].DisplayDefault {
-			return merged[i].DisplayDefault
-		}
-		if merged[i].Current != merged[j].Current {
-			return merged[i].Current
+	return false
+}
+
+func getSetupModelPageTitle(provider modelprovider.ProviderDefinition) string {
+	if provider.ID == constants.ModelProviderOllama {
+		return "Select an Ollama model"
+	}
+
+	return "Select a model"
+}
+
+func getSetupModelPageDescription(provider modelprovider.ProviderDefinition, baseURL string) string {
+	if provider.ID == constants.ModelProviderOllama {
+		baseURL = strings.TrimSpace(baseURL)
+		if baseURL == "" {
+			baseURL = "the configured Ollama base URL"
 		}
 
-		return strings.ToLower(merged[i].ID) < strings.ToLower(merged[j].ID)
-	})
+		return "Choose an installed or suggested Ollama model from " + baseURL + "."
+	}
 
-	return merged
+	return "Choose the model Morph should use for chat, one-shot commands, and summaries."
 }
 
 func (r providerRunner) checkLocalModelMissing(
 	ctx context.Context,
 	opts ProviderOptions,
+	cfg *config.Config,
 	provider modelprovider.ProviderDefinition,
 	baseURL string,
 	modelID string,
 ) (bool, error) {
 	if provider.ID != constants.ModelProviderOllama {
+		return false, nil
+	}
+	if hasExplicitProviderModels(cfg, provider.ID) {
 		return false, nil
 	}
 	if opts.Pull {
@@ -947,6 +935,25 @@ func (r providerRunner) checkLocalModelMissing(
 	}
 
 	return true, nil
+}
+
+func hasExplicitProviderModels(cfg *config.Config, provider string) bool {
+	if cfg == nil || len(cfg.Models.Providers) == 0 {
+		return false
+	}
+
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	if providerConfig, ok := cfg.Models.Providers[provider]; ok {
+		return len(providerConfig.Models) > 0
+	}
+
+	for key, providerConfig := range cfg.Models.Providers {
+		if strings.EqualFold(strings.TrimSpace(key), provider) {
+			return len(providerConfig.Models) > 0
+		}
+	}
+
+	return false
 }
 
 func (r providerRunner) pullMissingLocalModel(
@@ -1414,46 +1421,4 @@ func parseSelectionIndex(value string, length int) (int, bool) {
 	}
 
 	return number - 1, true
-}
-
-func modelDefinitionsToOptions(
-	models []modelprovider.ModelDefinition,
-	current string,
-) []modelcatalog.Option {
-	options := make([]modelcatalog.Option, 0, len(models))
-	for _, model := range models {
-		if strings.TrimSpace(model.ID) == "" {
-			continue
-		}
-		inputs := make([]string, 0, len(model.Input))
-		for _, input := range model.Input {
-			value := strings.TrimSpace(string(input))
-			if value != "" {
-				inputs = append(inputs, value)
-			}
-		}
-		options = append(options, modelcatalog.Option{
-			ID:             strings.TrimSpace(model.ID),
-			Name:           strings.TrimSpace(model.Name),
-			Provider:       strings.TrimSpace(model.Provider),
-			API:            strings.TrimSpace(model.API),
-			ContextWindow:  model.ContextWindow,
-			MaxTokens:      model.MaxTokens,
-			Input:          inputs,
-			Reasoning:      model.Reasoning,
-			SupportsTools:  model.SupportsTools,
-			DisplayDefault: model.DisplayDefault,
-			Current:        strings.TrimSpace(model.ID) == strings.TrimSpace(current),
-		})
-	}
-
-	sort.Slice(options, func(i, j int) bool {
-		if options[i].Current != options[j].Current {
-			return options[i].Current
-		}
-
-		return strings.ToLower(options[i].ID) < strings.ToLower(options[j].ID)
-	})
-
-	return options
 }

@@ -111,6 +111,7 @@ func TestBuild_ReportsOllamaReadiness(t *testing.T) {
 			ID:            "llama3.2:3b",
 			Provider:      constants.ModelProviderOllama,
 			ContextWindow: 8192,
+			SupportsTools: true,
 		}}, nil
 	}
 
@@ -133,6 +134,9 @@ func TestBuild_ReportsOllamaReadiness(t *testing.T) {
 	contextCheck := findReadinessCheck(t, report, "models", "ollama context")
 	require.Equal(t, StatusPass, contextCheck.Status)
 	require.Contains(t, contextCheck.Message, "context window=8192")
+	tools := findReadinessCheck(t, report, "models", "ollama tools")
+	require.Equal(t, StatusPass, tools.Status)
+	require.Contains(t, tools.Message, "reports tool support")
 }
 
 func TestBuild_ReportsMissingOllamaModel(t *testing.T) {
@@ -199,6 +203,9 @@ func TestBuild_ReportsOllamaDiscoveryAndContextWarnings(t *testing.T) {
 	contextCheck = findReadinessCheck(t, report, "models", "ollama context")
 	require.Equal(t, StatusWarn, contextCheck.Status)
 	require.Contains(t, contextCheck.Message, "context metadata is unavailable")
+	tools := findReadinessCheck(t, report, "models", "ollama tools")
+	require.Equal(t, StatusWarn, tools.Status)
+	require.Contains(t, tools.Message, "does not report tool support")
 }
 
 func TestBuild_ReportsDisabledMemoryAsWarningOnly(t *testing.T) {

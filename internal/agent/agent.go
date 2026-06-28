@@ -155,13 +155,19 @@ func (a *Agent) ListProviders(context.Context) (ProviderList, error) {
 	}
 
 	auth := make(map[string]string)
-	currentProviderModels := models.ListOptions(models.OptionQuery{Provider: a.cfg.Models.Main.Provider})
+	currentProviderModels, err := models.ListOptions(models.OptionQuery{Provider: a.cfg.Models.Main.Provider})
+	if err != nil {
+		return ProviderList{}, err
+	}
 	auth[a.cfg.Models.Main.Provider] = a.getProviderAuthTypeForModelList(a.cfg.Models.Main.Provider, currentProviderModels)
 	for _, provider := range models.ListProviders(models.ProviderQuery{Current: a.cfg.Models.Main.Provider}) {
 		if _, ok := auth[provider.ID]; ok {
 			continue
 		}
-		providerModels := models.ListOptions(models.OptionQuery{Provider: provider.ID})
+		providerModels, err := models.ListOptions(models.OptionQuery{Provider: provider.ID})
+		if err != nil {
+			return ProviderList{}, err
+		}
 		auth[provider.ID] = a.getProviderAuthTypeForModelList(provider.ID, providerModels)
 	}
 
@@ -190,20 +196,26 @@ func (a *Agent) ListModels(_ context.Context, opts ...ModelListOptions) (ModelLi
 		return ModelList{}, errors.New("model provider is required")
 	}
 
-	modelsForProvider := models.ListOptions(models.OptionQuery{
+	modelsForProvider, err := models.ListOptions(models.OptionQuery{
 		Provider: provider,
 		Current:  a.getCurrentModelForProvider(provider),
 	})
+	if err != nil {
+		return ModelList{}, err
+	}
 	if len(modelsForProvider) == 0 {
 		return ModelList{}, fmt.Errorf("model provider %q is not available", provider)
 	}
 	authType := a.getProviderAuthTypeForModelList(provider, modelsForProvider)
 	if authType == "oauth" {
-		modelsForProvider = models.ListOptions(models.OptionQuery{
+		modelsForProvider, err = models.ListOptions(models.OptionQuery{
 			Provider:  provider,
 			Current:   a.getCurrentModelForProvider(provider),
 			OAuthOnly: true,
 		})
+		if err != nil {
+			return ModelList{}, err
+		}
 	}
 
 	return ModelList{
