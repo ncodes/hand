@@ -295,6 +295,7 @@ search:
 	require.Contains(t, content, "enter to select")
 	require.Contains(t, content, "Use a subscription")
 	require.Contains(t, content, "Use an API Key")
+	require.Contains(t, content, "Use local providers")
 }
 
 func TestModel_SetupAuthMethodSelectionShowsFilteredProviders(t *testing.T) {
@@ -323,6 +324,7 @@ func TestModel_SetupAuthMethodSelectionShowsFilteredProviders(t *testing.T) {
 	require.Contains(t, content, "OpenAI Codex")
 	require.Contains(t, content, "Use your OpenAI account")
 	require.Contains(t, content, "GitHub Copilot")
+	require.NotContains(t, content, "Ollama")
 	require.NotContains(t, content, "OpenRouter")
 }
 
@@ -342,8 +344,27 @@ func TestModel_SetupAPIKeyAuthMethodSelectionShowsAPIKeyProviders(t *testing.T) 
 	require.Contains(t, content, "Use your OpenAI API key")
 	require.Contains(t, content, "OpenRouter")
 	require.Contains(t, content, "Use your OpenRouter API key")
+	require.NotContains(t, content, "Ollama")
 	require.NotContains(t, content, "OpenAI Codex")
 	require.NotContains(t, content, "GitHub Copilot")
+}
+
+func TestModel_SetupLocalAuthMethodSelectionShowsLocalProviders(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	selectSetupAuthMethod(t, &runModel, setupAuthMethodLocal)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepProvider, runModel.setupModelStep)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, getLineContaining(content, "Select model provider"), "login type: local")
+	require.Contains(t, content, "Ollama")
+	require.Contains(t, content, "Local provider · local")
+	require.NotContains(t, content, "OpenAI")
+	require.NotContains(t, content, "Anthropic")
+	require.NotContains(t, content, "OpenRouter")
 }
 
 func TestModel_SetupModelBackReturnsToProviderSelector(t *testing.T) {
@@ -730,10 +751,15 @@ search:
 `)
 	runModel.setupModelStep = setupModelStepProvider
 	runModel.setupAuthMethod = ""
-	runModel.setupProviders = []rpcclient.ProviderOption{{ID: constants.ModelProviderOllama}}
+	runModel.setupProviders = []rpcclient.ProviderOption{{ID: constants.ModelProviderOllama, Local: true, Type: "local"}}
 	runModel.setupItemSelected = 0
 
 	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepBaseURL, runModel.setupModelStep)
+	require.Equal(t, server.URL, runModel.baseURLInput.Value())
+
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	runModel = updated.(model)
 
 	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
@@ -746,6 +772,200 @@ search:
 	require.True(t, local.SupportsTools)
 	require.Equal(t, 4096, local.ContextWindow)
 	require.True(t, getSetupModelOption(t, runModel.setupModels, constants.DefaultOllamaModel).LocalMissing)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, server.URL)
+	require.Contains(t, getLineContaining(content, "local"), "installed")
+	require.Contains(t, content, "not installed")
+}
+
+func TestModel_SetupOllamaBaseURLStepValidatesAndLoadsModels(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			_, _ = w.Write([]byte(`{"models":[{"name":"local:latest"}]}`))
+		case "/api/show":
+			_, _ = w.Write([]byte(`{"capabilities":["completion"]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	runModel.setupModelStep = setupModelStepProvider
+	runModel.setupProviders = []rpcclient.ProviderOption{{ID: constants.ModelProviderOllama}}
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepBaseURL, runModel.setupModelStep)
+	require.Equal(t, constants.DefaultOllamaBaseURL, runModel.baseURLInput.Value())
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Set base URL for Ollama")
+	require.Contains(t, content, constants.DefaultOllamaBaseURL)
+	require.Contains(t, content, "enter to continue")
+
+	runModel.baseURLInput.SetValue("")
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepBaseURL, runModel.setupModelStep)
+	require.Equal(t, "base URL required", runModel.status.Text())
+
+	runModel.baseURLInput.SetValue("not a url")
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepBaseURL, runModel.setupModelStep)
+	require.Equal(t, "base URL invalid", runModel.status.Text())
+
+	runModel.baseURLInput.SetValue("")
+	updated, cmd = runModel.Update(tea.PasteMsg{Content: server.URL + "/"})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+	require.Equal(t, server.URL, runModel.setupModelBaseURL)
+	require.Contains(t, getSetupModelIDs(runModel.setupModels), "local:latest")
+
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepBaseURL, runModel.setupModelStep)
+	require.Equal(t, server.URL, runModel.baseURLInput.Value())
+}
+
+func TestModel_SetupOllamaBaseURLStepHandlesUnavailableModels(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "offline", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	runModel := newSetupModelSelectionTestModel(t)
+	runModel.setupModelStep = setupModelStepBaseURL
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.baseURLInput = newSetupBaseURLInput()
+	runModel.baseURLInput.SetValue(server.URL)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.Equal(t, setupModelStepBaseURL, runModel.setupModelStep)
+	require.Equal(t, "models unavailable", runModel.status.Text())
+	require.Empty(t, runModel.setupModels)
+}
+
+func TestModel_SetupOllamaModelClickPersistsWithoutAuthPrompt(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			_, _ = w.Write([]byte(`{"models":[{"name":"local:latest"}]}`))
+		case "/api/show":
+			_, _ = w.Write([]byte(`{"capabilities":["completion"]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	runModel.setupModelStep = setupModelStepProvider
+	runModel.setupProviders = []rpcclient.ProviderOption{{ID: constants.ModelProviderOllama, Local: true, Type: "local"}}
+
+	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	runModel.baseURLInput.SetValue(server.URL)
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	row := getVisibleSetupModelRow(t, &runModel, "local:latest")
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		Y:      runModel.getProfileModelSetupListFirstRow() + row,
+	}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderOllama, cfg.Models.Main.Provider)
+	require.Equal(t, "local:latest", cfg.Models.Main.Name)
+	require.Equal(t, server.URL, cfg.Models.Main.BaseURL)
+}
+
+func TestProfileModelSetupLocalModelDetails(t *testing.T) {
+	require.Equal(t, "not installed", getSetupModelOptionMutedDetail(rpcclient.ModelOption{LocalMissing: true}))
+	detail := getSetupModelOptionMutedDetail(rpcclient.ModelOption{LocalMissing: true, Reasoning: true})
+	require.Contains(t, detail, "not installed")
+	require.Contains(t, detail, "reasoning")
+	require.Equal(
+		t,
+		"installed",
+		getSetupModelOptionMutedDetail(rpcclient.ModelOption{Source: modelcatalog.OptionSourceDiscovery}),
+	)
+	detail = getSetupModelOptionMutedDetail(rpcclient.ModelOption{Source: modelcatalog.OptionSourceDiscovery, Reasoning: true})
+	require.Contains(t, detail, "installed")
+	require.Contains(t, detail, "reasoning")
+	require.Equal(t, "", getSetupModelOptionMutedDetail(rpcclient.ModelOption{}))
+}
+
+func TestProfileModelSetupLocalProviderHelpers(t *testing.T) {
+	providers := []modelcatalog.ProviderOption{
+		{ID: constants.ModelProviderOpenAI, SupportsAPIKey: true},
+		{ID: constants.ModelProviderOpenAICodex, SupportsAPIKey: true, SupportsOAuth: true},
+		{ID: constants.ModelProviderOllama},
+	}
+
+	require.Equal(
+		t,
+		[]string{constants.ModelProviderOpenAI},
+		getSetupProviderIDs(filterSetupProvidersForAuthMethod(providers, setupAuthMethodAPIKey)),
+	)
+	require.Equal(
+		t,
+		[]string{constants.ModelProviderOpenAICodex},
+		getSetupProviderIDs(filterSetupProvidersForAuthMethod(providers, setupAuthMethodSubscription)),
+	)
+	require.Equal(
+		t,
+		[]string{constants.ModelProviderOllama},
+		getSetupProviderIDs(filterSetupProvidersForAuthMethod(providers, setupAuthMethodLocal)),
+	)
+	require.Equal(
+		t,
+		[]string{},
+		getSetupProviderIDs(filterSetupProvidersForAuthMethod(providers, "unknown")),
+	)
+	require.Equal(
+		t,
+		"Local provider · local",
+		getProfileModelSetupProviderDescription(rpcclient.ProviderOption{ID: constants.ModelProviderOllama}, ""),
+	)
+
+	runModel := newModel()
+	runModel.setupModelProvider = constants.ModelProviderOpenAI
+	require.Empty(t, runModel.renderProfileModelSetupModelDetail(40))
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	require.Contains(t, stripANSI(runModel.renderProfileModelSetupModelDetail(40)), constants.DefaultOllamaBaseURL)
+
+	updated, cmd := runModel.showSetupBaseURLPrompt("", "")
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "provider selection unavailable", runModel.status.Text())
+
+	runModel.setupModelStep = setupModelStepBaseURL
+	runModel.setupModelProvider = ""
+	runModel.baseURLInput = newSetupBaseURLInput()
+	runModel.baseURLInput.SetValue(constants.DefaultOllamaBaseURL)
+	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "provider selection unavailable", runModel.status.Text())
 }
 
 func TestModel_PersistSetupModelSelectionUpdatesLocalBaseURL(t *testing.T) {
@@ -868,9 +1088,12 @@ search:
 `)
 	runModel.setupModelStep = setupModelStepProvider
 	runModel.setupAuthMethod = ""
-	runModel.setupProviders = []rpcclient.ProviderOption{{ID: constants.ModelProviderOllama}}
+	runModel.setupProviders = []rpcclient.ProviderOption{{ID: constants.ModelProviderOllama, Local: true, Type: "local"}}
 
 	updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepBaseURL, runModel.setupModelStep)
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	runModel = updated.(model)
 	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
 	require.Equal(t, server.URL, runModel.setupModelBaseURL)
@@ -5484,6 +5707,8 @@ func selectSetupProvider(t *testing.T, runModel *model, providerID string) {
 		switch providerID {
 		case constants.ModelProviderOpenAICodex, constants.ModelProviderGitHubCopilot:
 			authMethod = setupAuthMethodSubscription
+		case constants.ModelProviderOllama:
+			authMethod = setupAuthMethodLocal
 		}
 		selectSetupAuthMethod(t, runModel, authMethod)
 		updated, _ := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -5527,6 +5752,15 @@ func selectSetupModel(t *testing.T, runModel *model, modelID string) {
 }
 
 func getSetupModelIDs(options []rpcclient.ModelOption) []string {
+	ids := make([]string, 0, len(options))
+	for _, option := range options {
+		ids = append(ids, option.ID)
+	}
+
+	return ids
+}
+
+func getSetupProviderIDs(options []modelcatalog.ProviderOption) []string {
 	ids := make([]string, 0, len(options))
 	for _, option := range options {
 		ids = append(ids, option.ID)

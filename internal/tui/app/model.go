@@ -26,6 +26,7 @@ type model struct {
 	transcript       viewport.Model
 	input            textarea.Model
 	apiKeyInput      textinput.Model
+	baseURLInput     textinput.Model
 	modelFilterInput textinput.Model
 	nameInput        textinput.Model
 	renameInput      textinput.Model
@@ -69,6 +70,7 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 		transcript:       newTranscript(),
 		input:            newInputComposer(),
 		apiKeyInput:      newProviderAPIKeyInput("API key"),
+		baseURLInput:     newSetupBaseURLInput(),
 		modelFilterInput: newModelFilterInput(),
 		nameInput:        newNameInput(),
 		renameInput:      newChatRenameInput(),

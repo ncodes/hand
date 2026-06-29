@@ -11,6 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
 	modelcatalog "github.com/wandxy/morph/internal/model"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
@@ -70,6 +71,27 @@ func newProviderAPIKeyInput(placeholder string) textinput.Model {
 		UnsetBackground()
 	styles.Focused.Prompt = styles.Focused.Prompt.
 		UnsetBackground()
+	input.SetStyles(styles)
+
+	return input
+}
+
+func newSetupBaseURLInput() textinput.Model {
+	input := textinput.New()
+	input.Prompt = ""
+	input.Placeholder = constants.DefaultOllamaBaseURL
+	input.CharLimit = 2048
+	input.SetWidth(80)
+	input.Focus()
+
+	styles := input.Styles()
+	styles.Focused.Text = styles.Focused.Text.
+		Foreground(lipgloss.Color(defaultTUITheme.MarkdownLinkForeground)).
+		UnsetBackground()
+	styles.Focused.Placeholder = styles.Focused.Placeholder.
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		UnsetBackground()
+	styles.Focused.Prompt = styles.Focused.Prompt.UnsetBackground()
 	input.SetStyles(styles)
 
 	return input

@@ -46,12 +46,14 @@ const (
 
 	setupModelStepAuthMethod = "auth-method"
 	setupModelStepProvider   = "provider"
+	setupModelStepBaseURL    = "base-url"
 	setupModelStepModel      = "model"
 	setupModelStepAPIKey     = "api-key"
 	setupModelStepNotice     = "notice"
 
 	setupAuthMethodSubscription = "subscription"
 	setupAuthMethodAPIKey       = "api-key"
+	setupAuthMethodLocal        = "local"
 
 	setupModelMaxWidth      = 72
 	setupModelMinWidth      = 34
@@ -80,6 +82,11 @@ var setupAuthMethodOptions = []setupAuthMethodOption{
 		ID:          setupAuthMethodAPIKey,
 		Label:       "Use an API Key",
 		Description: "Connect with your own Anthropic, OpenAI, OpenRouter API Keys (BYOK)",
+	},
+	{
+		ID:          setupAuthMethodLocal,
+		Label:       "Use local providers",
+		Description: "Connect to Ollama or another local provider",
 	},
 }
 
@@ -442,9 +449,7 @@ func (m *model) selectCurrentSetupAuthMethodOption() (tea.Model, tea.Cmd) {
 	selected := min(max(m.setupItemSelected, 0), len(setupAuthMethodOptions)-1)
 	m.setupAuthMethod = setupAuthMethodOptions[selected].ID
 	providers := modelcatalog.ListProviders(modelcatalog.ProviderQuery{
-		Current:    m.loadRawProfileMainProvider(),
-		OAuthOnly:  m.setupAuthMethod == setupAuthMethodSubscription,
-		APIKeyOnly: m.setupAuthMethod == setupAuthMethodAPIKey,
+		Current: m.loadRawProfileMainProvider(),
 	})
 	providers = filterSetupProvidersForAuthMethod(providers, m.setupAuthMethod)
 	if len(providers) == 0 {
@@ -469,17 +474,32 @@ func filterSetupProvidersForAuthMethod(
 	providers []modelcatalog.ProviderOption,
 	authMethod string,
 ) []modelcatalog.ProviderOption {
-	if authMethod != setupAuthMethodAPIKey {
-		return providers
-	}
-
 	filtered := make([]modelcatalog.ProviderOption, 0, len(providers))
 	for _, provider := range providers {
-		switch strings.TrimSpace(strings.ToLower(provider.ID)) {
-		case constants.ModelProviderOpenAICodex, constants.ModelProviderGitHubCopilot:
+		if isSetupProviderLocalOption(provider) {
+			if authMethod == setupAuthMethodLocal {
+				filtered = append(filtered, provider)
+			}
+			continue
+		}
+
+		switch authMethod {
+		case setupAuthMethodAPIKey:
+			switch strings.TrimSpace(strings.ToLower(provider.ID)) {
+			case constants.ModelProviderOpenAICodex, constants.ModelProviderGitHubCopilot:
+				continue
+			}
+			if provider.SupportsAPIKey {
+				filtered = append(filtered, provider)
+			}
+		case setupAuthMethodSubscription:
+			if provider.SupportsOAuth {
+				filtered = append(filtered, provider)
+			}
+		case setupAuthMethodLocal:
 			continue
 		default:
-			filtered = append(filtered, provider)
+			continue
 		}
 	}
 
@@ -497,35 +517,23 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 		return *m, m.setStatus("provider selection unavailable")
 	}
 
-	rawConfig := m.loadRawProfileConfig()
-	opts := clisetup.ModelOptions{
-		Provider:  providerID,
-		Current:   strings.TrimSpace(rawConfig.Models.Main.Name),
-		OAuthOnly: m.setupAuthMethod == setupAuthMethodSubscription,
-		Config:    rawConfig,
-	}
-	baseURL := clisetup.ResolveModelOptionsBaseURL(opts)
-	opts.BaseURL = baseURL
-	models, _, err := clisetup.ListModelOptions(m.chatCtx, opts)
-	if err != nil {
-		return *m, m.setStatus("models unavailable")
-	}
-	if len(models) == 0 {
-		return *m, m.setStatus("models unavailable")
+	baseURL := m.getSetupProviderBaseURL(providerID)
+	if isSetupProviderLocalOption(provider) {
+		return m.showSetupBaseURLPrompt(providerID, baseURL)
 	}
 
-	m.setupModels = models
-	m.setupModelProvider = providerID
-	m.setupModelBaseURL = baseURL
-	m.modelFilterInput = newModelFilterInput()
-	m.setupItemSelected = 0
-	m.setupOffset = 0
+	if err := m.loadSetupModels(providerID, baseURL); err != nil {
+		return *m, m.setStatus("models unavailable")
+	}
+	if len(m.setupModels) == 0 {
+		return *m, m.setStatus("models unavailable")
+	}
 
 	if m.setupAuthMethod == setupAuthMethodAPIKey {
 		return m.showSetupProviderAPIKeyPromptForProvider(providerID)
 	}
 	if m.setupAuthMethod == setupAuthMethodSubscription {
-		if err := m.checkSetupModelAuth(models[0]); err == nil {
+		if err := m.checkSetupModelAuth(m.setupModels[0]); err == nil {
 			return m.showSetupModelSelection()
 		} else if !isMissingModelCredentialError(err) {
 			return m.showSetupNotice("Authentication unavailable", err.Error(), "enter to continue")
@@ -537,6 +545,42 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 	return m.showSetupModelSelection()
 }
 
+func (m model) getSetupProviderBaseURL(providerID string) string {
+	rawConfig := m.loadRawProfileConfig()
+	opts := clisetup.ModelOptions{
+		Provider:  providerID,
+		Current:   strings.TrimSpace(rawConfig.Models.Main.Name),
+		OAuthOnly: m.setupAuthMethod == setupAuthMethodSubscription,
+		Config:    rawConfig,
+	}
+
+	return clisetup.ResolveModelOptionsBaseURL(opts)
+}
+
+func (m *model) loadSetupModels(providerID string, baseURL string) error {
+	rawConfig := m.loadRawProfileConfig()
+	opts := clisetup.ModelOptions{
+		Provider:  providerID,
+		Current:   strings.TrimSpace(rawConfig.Models.Main.Name),
+		BaseURL:   strings.TrimSpace(baseURL),
+		OAuthOnly: m.setupAuthMethod == setupAuthMethodSubscription,
+		Config:    rawConfig,
+	}
+	models, _, err := clisetup.ListModelOptions(m.chatCtx, opts)
+	if err != nil {
+		return err
+	}
+
+	m.setupModels = models
+	m.setupModelProvider = providerID
+	m.setupModelBaseURL = strings.TrimSpace(baseURL)
+	m.modelFilterInput = newModelFilterInput()
+	m.setupItemSelected = 0
+	m.setupOffset = 0
+
+	return nil
+}
+
 func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
 	models := m.filteredSetupModels()
 	if len(models) == 0 {
@@ -544,12 +588,13 @@ func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
 	}
 
 	option := models[min(max(m.setupItemSelected, 0), len(models)-1)]
+	provider := getSetupModelProvider(m.setupModelProvider, option)
 	apiKey := strings.TrimSpace(m.setupProviderAPIKey)
-	if apiKey == "" {
+	if apiKey == "" && !isLocalSetupProvider(provider) {
 		if err := m.checkSetupModelAuth(option); err != nil {
 			if isMissingModelCredentialError(err) {
 				if option.SupportsOAuth {
-					return m.startSetupOAuthLogin(getSetupModelProvider(m.setupModelProvider, option))
+					return m.startSetupOAuthLogin(provider)
 				}
 
 				return m.showSetupProviderAPIKeyPrompt(option)
@@ -564,7 +609,7 @@ func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
 		return m.completeSetupModelSelection(option)
 	}
 	if option.SupportsOAuth && isMissingModelCredentialError(err) {
-		return m.startSetupOAuthLogin(getSetupModelProvider(m.setupModelProvider, option))
+		return m.startSetupOAuthLogin(provider)
 	}
 	if isEmbeddingSetupError(err) {
 		return m.showSetupNotice("Embedding setup required", getEmbeddingSetupInstruction(), "enter to continue")
@@ -610,6 +655,57 @@ func (m *model) submitSetupProviderAPIKey() (tea.Model, tea.Cmd) {
 	}
 
 	return m.completeSetupModelSelection(option)
+}
+
+func (m *model) showSetupBaseURLPrompt(providerID string, baseURL string) (tea.Model, tea.Cmd) {
+	providerID = strings.TrimSpace(providerID)
+	if providerID == "" {
+		return *m, m.setStatus("provider selection unavailable")
+	}
+
+	m.setupModelStep = setupModelStepBaseURL
+	m.setupModelProvider = providerID
+	m.setupModelBaseURL = strings.TrimSpace(baseURL)
+	m.setupModels = nil
+	m.setupProviderAPIKey = ""
+	m.setupPendingModelID = ""
+	m.baseURLInput = newSetupBaseURLInput()
+	m.baseURLInput.SetValue(m.setupModelBaseURL)
+	m.baseURLInput.CursorEnd()
+	m.resize()
+
+	return *m, m.setStatus("enter local provider base URL")
+}
+
+func (m *model) submitSetupBaseURL() (tea.Model, tea.Cmd) {
+	providerID := strings.TrimSpace(m.setupModelProvider)
+	baseURL := strings.TrimRight(strings.TrimSpace(m.baseURLInput.Value()), "/")
+	if providerID == "" {
+		return *m, m.setStatus("provider selection unavailable")
+	}
+	if baseURL == "" {
+		return *m, m.setStatus("base URL required")
+	}
+	if err := validateSetupBaseURL(baseURL); err != nil {
+		return *m, m.setStatus("base URL invalid")
+	}
+	if err := m.loadSetupModels(providerID, baseURL); err != nil {
+		return *m, m.setStatus("models unavailable")
+	}
+	if len(m.setupModels) == 0 {
+		return *m, m.setStatus("models unavailable")
+	}
+
+	return m.showSetupModelSelection()
+}
+
+func validateSetupBaseURL(value string) error {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return errors.New("base URL is invalid")
+	}
+
+	return nil
 }
 
 func (m *model) showSetupNotice(title string, message string, hint string) (tea.Model, tea.Cmd) {
@@ -990,7 +1086,11 @@ func getSetupModelOptionBaseURL(provider string, setupBaseURL string, option rpc
 func isLocalSetupProvider(provider string) bool {
 	providerDef, ok := modelprovider.DefaultRegistry().GetProvider(strings.TrimSpace(strings.ToLower(provider)))
 
-	return ok && providerDef.Local != nil
+	return ok && providerDef.Local != nil && strings.TrimSpace(providerDef.Local.AuthMarker) != ""
+}
+
+func isSetupProviderLocalOption(provider rpcclient.ProviderOption) bool {
+	return provider.Local || isLocalSetupProvider(provider.ID)
 }
 
 func (m *model) applySetupModelSelectionToRuntime(option rpcclient.ModelOption) {
@@ -1024,8 +1124,10 @@ func (m model) checkSetupModelAuth(option rpcclient.ModelOption) error {
 	}
 	cfg.Models.Main.Provider = provider
 	cfg.Models.Main.Name = modelID
+	cfg.Models.Main.BaseURL = getSetupModelOptionBaseURL(provider, m.setupModelBaseURL, option)
 	cfg.Models.Summary.Provider = provider
 	cfg.Models.Summary.Name = modelID
+	cfg.Models.Summary.BaseURL = getSetupModelOptionBaseURL(provider, m.setupModelBaseURL, option)
 	cfg.Search.Vector.Enabled = false
 	if option.API != "" {
 		cfg.Models.Main.API = option.API
@@ -1055,6 +1157,18 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 		}
 
 		return m.handleProfileModelSetupListKey(msg, len(m.setupProviders), m.selectCurrentSetupProviderOption)
+	case setupModelStepBaseURL:
+		switch msg.Key().Code {
+		case tea.KeyEsc, tea.KeyLeft:
+			return m.showSetupProviderSelection()
+		case tea.KeyEnter:
+			return m.submitSetupBaseURL()
+		}
+
+		var cmd tea.Cmd
+		m.baseURLInput, cmd = m.baseURLInput.Update(msg)
+		m.resize()
+		return *m, cmd
 	case setupModelStepModel:
 		if isSetupModelRefreshKey(msg) {
 			return m.refreshSetupModelOptions()
@@ -1070,6 +1184,10 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 
 		switch msg.Key().Code {
 		case tea.KeyEsc, tea.KeyLeft:
+			if isLocalSetupProvider(m.setupModelProvider) {
+				return m.showSetupBaseURLPrompt(m.setupModelProvider, m.setupModelBaseURL)
+			}
+
 			return m.showSetupProviderSelection()
 		}
 
@@ -1078,6 +1196,10 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 		switch msg.Key().Code {
 		case tea.KeyEsc:
 			if strings.TrimSpace(m.setupPendingModelID) == "" {
+				if isLocalSetupProvider(m.setupModelProvider) {
+					return m.showSetupBaseURLPrompt(m.setupModelProvider, m.setupModelBaseURL)
+				}
+
 				return m.showSetupProviderSelection()
 			}
 
@@ -1248,6 +1370,12 @@ func (m *model) handleProfileModelSetupPaste(msg tea.PasteMsg) (tea.Model, tea.C
 		m.resize()
 		return *m, cmd
 	}
+	if m.setupModelStep == setupModelStepBaseURL {
+		var cmd tea.Cmd
+		m.baseURLInput, cmd = m.baseURLInput.Update(msg)
+		m.resize()
+		return *m, cmd
+	}
 	if m.setupModelStep != setupModelStepAPIKey {
 		return *m, nil
 	}
@@ -1354,6 +1482,8 @@ func (m model) renderProfileModelSetup() string {
 			"enter to select · esc to go back",
 			m.renderProfileModelSetupProviderRows(),
 		)
+	case setupModelStepBaseURL:
+		return m.renderProfileModelSetupBaseURL()
 	case setupModelStepModel:
 		return m.renderProfileModelSetupModelList()
 	case setupModelStepAPIKey:
@@ -1406,6 +1536,9 @@ func (m model) renderProfileModelSetupModelList() string {
 		BorderForeground(lipgloss.Color(defaultTUITheme.InputFrameBorder)).
 		Width(boxWidth).
 		Render(strings.Join(m.renderProfileModelSetupModelRows(), "\n"))
+	if detail := m.renderProfileModelSetupModelDetail(boxWidth); detail != "" {
+		list = lipgloss.JoinVertical(lipgloss.Left, detail, list)
+	}
 
 	hint := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
@@ -1421,13 +1554,37 @@ func (m model) renderProfileModelSetupModelList() string {
 
 func (m model) renderProfileModelSetupModelTitle(width int) string {
 	width = max(width, 1)
-	title := "Select model from " + getProviderDisplayName(m.setupModelProvider)
+	title := m.getProfileModelSetupModelTitleText()
 	inputWidth := min(setupModelFilterWidth, max(width/2, 10))
 	titleText := m.renderProfileModelSetupTitleLeft(title, max(width-inputWidth-1, 1))
 	filter := m.renderInlineModelFilterInput(inputWidth)
 	gap := max(width-lipgloss.Width(titleText)-lipgloss.Width(filter), 1)
 
 	return titleText + strings.Repeat(" ", gap) + filter
+}
+
+func (m model) renderProfileModelSetupModelDetail(width int) string {
+	if !isLocalSetupProvider(m.setupModelProvider) {
+		return ""
+	}
+
+	baseURL := strings.TrimSpace(m.setupModelBaseURL)
+	if baseURL == "" {
+		baseURL = constants.DefaultOllamaBaseURL
+	}
+
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Width(max(width, 1)).
+		Render(renderProfileModelSetupPaddedLabel("base URL: "+baseURL, width))
+}
+
+func (m model) getProfileModelSetupModelTitleText() string {
+	if isLocalSetupProvider(m.setupModelProvider) {
+		return "Select Ollama model"
+	}
+
+	return "Select model from " + getProviderDisplayName(m.setupModelProvider)
 }
 
 func (m model) renderProfileModelSetupTitle(width int, title string) string {
@@ -1459,6 +1616,8 @@ func (m model) getProfileModelSetupLoginMethodLabel() string {
 		return "login type: subscription"
 	case setupAuthMethodAPIKey:
 		return "login type: api key"
+	case setupAuthMethodLocal:
+		return "login type: local"
 	default:
 		return ""
 	}
@@ -1592,6 +1751,15 @@ func renderProfileModelSetupProviderLine(text string, width int, foreground stri
 }
 
 func getProfileModelSetupProviderDescription(provider rpcclient.ProviderOption, authMethod string) string {
+	if isSetupProviderLocalOption(provider) {
+		detail := strings.TrimSpace(provider.Type)
+		if detail == "" {
+			detail = "local"
+		}
+
+		return "Local provider · " + detail
+	}
+
 	authMethod = strings.TrimSpace(authMethod)
 	switch strings.TrimSpace(strings.ToLower(provider.ID)) {
 	case constants.ModelProviderAnthropic:
@@ -1633,7 +1801,7 @@ func (m model) renderProfileModelSetupModelRows() []string {
 		rows = append(rows, renderNoMatchingModelsRow(m.getProfileModelSetupListWidth()))
 	} else {
 		for index := m.setupOffset; index < end; index++ {
-			row := renderModelsCommandRow(
+			row := renderProfileModelSetupModelRow(
 				models[index],
 				m.getProfileModelSetupListWidth(),
 				index == m.setupItemSelected,
@@ -1648,8 +1816,58 @@ func (m model) renderProfileModelSetupModelRows() []string {
 	return rows
 }
 
+func renderProfileModelSetupModelRow(model rpcclient.ModelOption, width int, selected bool) string {
+	width = max(width, 1)
+	contentWidth := max(width-2, 1)
+	name := getModelOptionDisplayName(model)
+	detail := getSetupModelOptionMutedDetail(model)
+
+	return renderCommandListEntryRow(name, detail, width, contentWidth, selected)
+}
+
+func getSetupModelOptionMutedDetail(model rpcclient.ModelOption) string {
+	detail := getModelOptionMutedDetail(model)
+	if model.LocalMissing {
+		if detail == "" {
+			return "not installed"
+		}
+
+		return "not installed · " + detail
+	}
+	if model.Source == modelcatalog.OptionSourceDiscovery {
+		if detail == "" {
+			return "installed"
+		}
+
+		return "installed · " + detail
+	}
+
+	return detail
+}
+
 func (m model) filteredSetupModels() []rpcclient.ModelOption {
 	return filterModelOptions(m.setupModels, m.modelFilterInput.Value())
+}
+
+func (m model) renderProfileModelSetupBaseURL() string {
+	boxWidth := m.getProfileModelSetupBoxWidth()
+	input := m.baseURLInput
+	input.Placeholder = constants.DefaultOllamaBaseURL
+	input.SetWidth(max(boxWidth-4, 1))
+
+	body := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(defaultTUITheme.InputFrameBorder)).
+		Padding(0, 1).
+		Width(boxWidth).
+		Render(input.View())
+	hint := m.renderProfileModelSetupHint("enter to continue · esc to go back", lipgloss.Width(body))
+
+	return m.renderProfileModelSetupFrameWithHint(
+		"Set base URL for "+getProviderDisplayName(m.setupModelProvider),
+		hint,
+		body,
+	)
 }
 
 func (m model) renderProfileModelSetupAPIKey() string {
@@ -1796,11 +2014,20 @@ func (m model) getProfileModelSetupListHeight() int {
 	case setupModelStepModel:
 		count = len(m.setupModels)
 	}
+
 	return min(max(count, 1), setupModelMaxListHeight)
 }
 
 func (m model) getProfileModelSetupRenderedListHeight() int {
 	return m.getProfileModelSetupListHeight() * m.getProfileModelSetupRowHeight()
+}
+
+func (m model) getProfileModelSetupPreListDetailHeight() int {
+	if m.setupModelStep == setupModelStepModel && isLocalSetupProvider(m.setupModelProvider) {
+		return 1
+	}
+
+	return 0
 }
 
 func (m model) getProfileModelSetupRowHeight() int {
@@ -1829,11 +2056,12 @@ func (m model) getProfileModelSetupBoxWidth() int {
 func (m model) getProfileModelSetupListFirstRow() int {
 	height := max(m.transcript.Height(), 1)
 	listHeight := m.getProfileModelSetupRenderedListHeight()
+	detailHeight := m.getProfileModelSetupPreListDetailHeight()
 	markHeight := lipgloss.Height(renderMorphBanner(morphHeaderMark))
-	contentHeight := markHeight + listHeight + 6
+	contentHeight := markHeight + listHeight + detailHeight + 6
 	top := max((height-contentHeight)/2, 0)
 
-	return m.getTranscriptTop() + top + markHeight + 4
+	return m.getTranscriptTop() + top + markHeight + detailHeight + 4
 }
 
 func (m *model) clearProfileModelSetup() {
