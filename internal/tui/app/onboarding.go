@@ -20,6 +20,7 @@ import (
 	"github.com/muesli/reflow/wordwrap"
 	"gopkg.in/yaml.v3"
 
+	clibase "github.com/wandxy/morph/internal/cli"
 	clisetup "github.com/wandxy/morph/internal/cli/setup"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
@@ -28,6 +29,7 @@ import (
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	_ "github.com/wandxy/morph/internal/model/provider_anthropic"
 	_ "github.com/wandxy/morph/internal/model/provider_copilot"
+	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
 	_ "github.com/wandxy/morph/internal/model/provider_openai"
 	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
@@ -55,6 +57,9 @@ const (
 	setupAuthMethodAPIKey       = "api-key"
 	setupAuthMethodLocal        = "local"
 
+	setupNoticeActionMissingModelPull = "missing-model-pull"
+	setupNoticeActionPullingModel     = "pulling-model"
+
 	setupModelMaxWidth      = 72
 	setupModelMinWidth      = 34
 	setupModelLoginMinWidth = 52
@@ -70,6 +75,7 @@ var (
 	newSetupCredentialStore      = func() setupCredentialStore {
 		return appcredential.NewFileStore("")
 	}
+	pullSetupOllamaModel = provider_ollama.EnsureModel
 )
 
 var setupAuthMethodOptions = []setupAuthMethodOption{
@@ -128,6 +134,21 @@ type setupModelOptionsLoadedMsg struct {
 	models          []rpcclient.ModelOption
 	err             error
 }
+
+type setupModelPullProgressMsg struct {
+	provider string
+	model    string
+	lines    []string
+}
+
+type setupModelPullCompletedMsg struct {
+	provider string
+	model    string
+	option   rpcclient.ModelOption
+	err      error
+}
+
+type setupModelPullClosedMsg struct{}
 
 func newNameInput() textinput.Model {
 	input := textinput.New()
@@ -418,6 +439,10 @@ func (m *model) startProfileModelSetup() tea.Cmd {
 	m.setupModelBaseURL = ""
 	m.setupProviderAPIKey = ""
 	m.setupPendingModelID = ""
+	m.setupNoticeTitle = ""
+	m.setupNoticeMessage = ""
+	m.setupNoticeHint = ""
+	m.setupNoticeAction = ""
 	m.setupItemSelected = 0
 	m.setupOffset = 0
 	m.resize()
@@ -589,6 +614,10 @@ func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
 
 	option := models[min(max(m.setupItemSelected, 0), len(models)-1)]
 	provider := getSetupModelProvider(m.setupModelProvider, option)
+	if isMissingLocalSetupModel(provider, option) {
+		return m.showMissingSetupModelPullPrompt(option)
+	}
+
 	apiKey := strings.TrimSpace(m.setupProviderAPIKey)
 	if apiKey == "" && !isLocalSetupProvider(provider) {
 		if err := m.checkSetupModelAuth(option); err != nil {
@@ -663,12 +692,17 @@ func (m *model) showSetupBaseURLPrompt(providerID string, baseURL string) (tea.M
 		return *m, m.setStatus("provider selection unavailable")
 	}
 
+	m.cancelSetupModelPull()
 	m.setupModelStep = setupModelStepBaseURL
 	m.setupModelProvider = providerID
 	m.setupModelBaseURL = strings.TrimSpace(baseURL)
 	m.setupModels = nil
 	m.setupProviderAPIKey = ""
 	m.setupPendingModelID = ""
+	m.setupNoticeTitle = ""
+	m.setupNoticeMessage = ""
+	m.setupNoticeHint = ""
+	m.setupNoticeAction = ""
 	m.baseURLInput = newSetupBaseURLInput()
 	m.baseURLInput.SetValue(m.setupModelBaseURL)
 	m.baseURLInput.CursorEnd()
@@ -708,9 +742,238 @@ func validateSetupBaseURL(value string) error {
 	return nil
 }
 
+func (m *model) showMissingSetupModelPullPrompt(option rpcclient.ModelOption) (tea.Model, tea.Cmd) {
+	modelID := strings.TrimSpace(option.ID)
+	if modelID == "" {
+		return *m, m.setStatus("model selection unavailable")
+	}
+
+	m.cancelSetupModelPull()
+	m.setupModelStep = setupModelStepNotice
+	m.setupNoticeAction = setupNoticeActionMissingModelPull
+	m.setupNoticeTitle = "Install " + modelID + "?"
+	m.setupPendingModelID = modelID
+	m.setupNoticeMessage = strings.Join([]string{
+		"This Ollama model is not installed locally.",
+		"Pull it now before saving.",
+		"Or skip to save without installing.",
+	}, "\n")
+	m.setupNoticeHint = "enter to pull · s to skip · esc to go back"
+	m.resize()
+
+	return *m, m.setStatus("model not installed")
+}
+
+func (m *model) startSetupModelPull() (tea.Model, tea.Cmd) {
+	option, ok := m.getPendingSetupModelOption()
+	if !ok {
+		return *m, m.setStatus("model selection unavailable")
+	}
+
+	provider := getSetupModelProvider(m.setupModelProvider, option)
+	modelID := strings.TrimSpace(option.ID)
+	baseURL := getSetupModelOptionBaseURL(provider, m.setupModelBaseURL, option)
+	if provider == "" || modelID == "" || strings.TrimSpace(baseURL) == "" {
+		return *m, m.setStatus("model selection unavailable")
+	}
+
+	m.cancelSetupModelPull()
+	ctx, cancel := context.WithCancel(m.chatCtx)
+	events := make(chan tea.Msg, 16)
+	m.setupPullCancel = cancel
+	m.setupPullEvents = events
+	m.setupModelStep = setupModelStepNotice
+	m.setupNoticeAction = setupNoticeActionPullingModel
+	m.setupNoticeTitle = "Pulling " + modelID
+	m.setupPendingModelID = modelID
+	m.setupNoticeMessage = "Starting Ollama pull..."
+	m.setupNoticeHint = "esc to cancel"
+	m.resize()
+
+	return *m, tea.Batch(
+		runSetupModelPullCommand(ctx, provider, baseURL, option, events),
+		waitForSetupModelPullEvent(events),
+		m.setStatus("pulling model"),
+	)
+}
+
+func runSetupModelPullCommand(
+	ctx context.Context,
+	provider string,
+	baseURL string,
+	option rpcclient.ModelOption,
+	events chan<- tea.Msg,
+) tea.Cmd {
+	return func() tea.Msg {
+		defer close(events)
+
+		modelID := strings.TrimSpace(option.ID)
+		printer := clibase.NewPullProgressPrinter(io.Discard, true)
+		var onProgress func(provider_ollama.PullProgress)
+		if printer != nil {
+			var lastLines []string
+			onProgress = func(progress provider_ollama.PullProgress) {
+				printer.Progress(progress)
+				lines := printer.Lines()
+				if sameSetupPullProgressLines(lastLines, lines) {
+					return
+				}
+				lastLines = lines
+				_ = sendSetupModelPullEvent(ctx, events, setupModelPullProgressMsg{
+					provider: provider,
+					model:    modelID,
+					lines:    lines,
+				})
+			}
+		}
+
+		err := pullSetupOllamaModel(ctx, baseURL, modelID, nil, onProgress)
+		if printer != nil {
+			printer.Finish()
+		}
+		_ = sendSetupModelPullEvent(ctx, events, setupModelPullCompletedMsg{
+			provider: provider,
+			model:    modelID,
+			option:   option,
+			err:      err,
+		})
+
+		return nil
+	}
+}
+
+func sameSetupPullProgressLines(a []string, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for index := range a {
+		if a[index] != b[index] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func sendSetupModelPullEvent(ctx context.Context, events chan<- tea.Msg, msg tea.Msg) bool {
+	if events == nil {
+		return false
+	}
+
+	select {
+	case events <- msg:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func waitForSetupModelPullEvent(events <-chan tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-events
+		if !ok {
+			return setupModelPullClosedMsg{}
+		}
+
+		return msg
+	}
+}
+
+func (m model) updateSetupModelPullProgress(msg setupModelPullProgressMsg) (tea.Model, tea.Cmd) {
+	if !m.isCurrentSetupModelPull(msg.provider, msg.model) {
+		return m, nil
+	}
+	if len(msg.lines) == 0 {
+		return m, waitForSetupModelPullEventFromState(&m)
+	}
+
+	m.setupNoticeMessage = strings.Join(msg.lines, "\n")
+	m.resize()
+
+	return m, waitForSetupModelPullEventFromState(&m)
+}
+
+func waitForSetupModelPullEventFromState(m *model) tea.Cmd {
+	if m == nil || m.setupPullEvents == nil {
+		return nil
+	}
+
+	return waitForSetupModelPullEvent(m.setupPullEvents)
+}
+
+func (m model) completeSetupModelPull(msg setupModelPullCompletedMsg) (tea.Model, tea.Cmd) {
+	if !m.isCurrentSetupModelPull(msg.provider, msg.model) {
+		return m, nil
+	}
+
+	m.setupPullCancel = nil
+	m.setupPullEvents = nil
+	if msg.err != nil {
+		next, cmd := m.showMissingSetupModelPullPrompt(msg.option)
+		nextModel := next.(model)
+		nextModel.setupNoticeMessage = "Ollama pull failed: " + msg.err.Error()
+		nextModel.setupNoticeHint = "enter to retry · s to skip · esc to go back"
+
+		return nextModel, cmd
+	}
+
+	option := msg.option
+	option.LocalMissing = false
+	if err := m.persistSetupModelSelection(option, ""); err != nil {
+		return m.showSetupNotice("Model setup unavailable", err.Error(), "enter to continue")
+	}
+
+	return m.completeSetupModelSelection(option)
+}
+
+func (m *model) skipMissingSetupModelPull() (tea.Model, tea.Cmd) {
+	option, ok := m.getPendingSetupModelOption()
+	if !ok {
+		return *m, m.setStatus("model selection unavailable")
+	}
+	if err := m.persistSetupModelSelection(option, ""); err != nil {
+		return m.showSetupNotice("Model setup unavailable", err.Error(), "enter to continue")
+	}
+
+	return m.completeSetupModelSelection(option)
+}
+
+func (m model) getPendingSetupModelOption() (rpcclient.ModelOption, bool) {
+	modelID := strings.TrimSpace(m.setupPendingModelID)
+	if modelID == "" {
+		return rpcclient.ModelOption{}, false
+	}
+
+	for _, option := range m.setupModels {
+		if strings.TrimSpace(option.ID) == modelID {
+			return option, true
+		}
+	}
+
+	return rpcclient.ModelOption{}, false
+}
+
+func (m model) isCurrentSetupModelPull(provider string, modelID string) bool {
+	return m.setupModelStep == setupModelStepNotice &&
+		m.setupNoticeAction == setupNoticeActionPullingModel &&
+		strings.TrimSpace(m.setupModelProvider) == strings.TrimSpace(provider) &&
+		strings.TrimSpace(m.setupPendingModelID) == strings.TrimSpace(modelID)
+}
+
+func (m *model) cancelSetupModelPull() {
+	if m.setupPullCancel != nil {
+		m.setupPullCancel()
+		m.setupPullCancel = nil
+	}
+	m.setupPullEvents = nil
+}
+
 func (m *model) showSetupNotice(title string, message string, hint string) (tea.Model, tea.Cmd) {
 	m.cancelSetupOAuthLogin()
+	m.cancelSetupModelPull()
 	m.setupModelStep = setupModelStepNotice
+	m.setupNoticeAction = ""
+	m.setupNoticeTitle = strings.TrimSpace(title)
 	m.setupPendingModelID = strings.TrimSpace(title)
 	m.setupNoticeMessage = strings.TrimSpace(message)
 	m.setupNoticeHint = strings.TrimSpace(hint)
@@ -1089,6 +1352,10 @@ func isLocalSetupProvider(provider string) bool {
 	return ok && providerDef.Local != nil && strings.TrimSpace(providerDef.Local.AuthMarker) != ""
 }
 
+func isMissingLocalSetupModel(provider string, option rpcclient.ModelOption) bool {
+	return isLocalSetupProvider(provider) && option.LocalMissing
+}
+
 func isSetupProviderLocalOption(provider rpcclient.ProviderOption) bool {
 	return provider.Local || isLocalSetupProvider(provider.ID)
 }
@@ -1213,6 +1480,30 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 		m.resize()
 		return *m, cmd
 	case setupModelStepNotice:
+		if m.setupNoticeAction == setupNoticeActionMissingModelPull {
+			switch msg.Key().Code {
+			case tea.KeyEnter:
+				return m.startSetupModelPull()
+			case tea.KeyEsc, tea.KeyLeft, tea.KeyBackspace:
+				return m.showSetupModelSelection()
+			default:
+				if strings.EqualFold(msg.Key().Text, "s") {
+					return m.skipMissingSetupModelPull()
+				}
+			}
+
+			return *m, nil
+		}
+		if m.setupNoticeAction == setupNoticeActionPullingModel {
+			switch msg.Key().Code {
+			case tea.KeyEsc, tea.KeyLeft, tea.KeyBackspace:
+				m.cancelSetupModelPull()
+				return m.showSetupModelSelection()
+			}
+
+			return *m, nil
+		}
+
 		switch msg.Key().Code {
 		case tea.KeyEnter:
 			if m.setupOAuthPending {
@@ -1235,6 +1526,7 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 
 func (m *model) showSetupAuthMethodSelection() (tea.Model, tea.Cmd) {
 	m.cancelSetupOAuthLogin()
+	m.cancelSetupModelPull()
 	authMethod := strings.TrimSpace(m.setupAuthMethod)
 	m.setupModelStep = setupModelStepAuthMethod
 	m.setupAuthMethod = ""
@@ -1244,8 +1536,10 @@ func (m *model) showSetupAuthMethodSelection() (tea.Model, tea.Cmd) {
 	m.setupModelBaseURL = ""
 	m.setupProviderAPIKey = ""
 	m.setupPendingModelID = ""
+	m.setupNoticeTitle = ""
 	m.setupNoticeMessage = ""
 	m.setupNoticeHint = ""
+	m.setupNoticeAction = ""
 	m.setupOAuthPending = false
 	m.setupOAuthProvider = ""
 	for index, option := range setupAuthMethodOptions {
@@ -1261,6 +1555,7 @@ func (m *model) showSetupAuthMethodSelection() (tea.Model, tea.Cmd) {
 
 func (m *model) showSetupProviderSelection() (tea.Model, tea.Cmd) {
 	m.cancelSetupOAuthLogin()
+	m.cancelSetupModelPull()
 	provider := strings.TrimSpace(m.setupModelProvider)
 	m.setupModelStep = setupModelStepProvider
 	m.setupModels = nil
@@ -1268,8 +1563,10 @@ func (m *model) showSetupProviderSelection() (tea.Model, tea.Cmd) {
 	m.setupModelBaseURL = ""
 	m.setupProviderAPIKey = ""
 	m.setupPendingModelID = ""
+	m.setupNoticeTitle = ""
 	m.setupNoticeMessage = ""
 	m.setupNoticeHint = ""
+	m.setupNoticeAction = ""
 	m.setupOAuthPending = false
 	m.setupOAuthProvider = ""
 	for index, option := range m.setupProviders {
@@ -1285,8 +1582,10 @@ func (m *model) showSetupProviderSelection() (tea.Model, tea.Cmd) {
 
 func (m *model) showSetupModelSelection() (tea.Model, tea.Cmd) {
 	m.setupModelStep = setupModelStepModel
+	m.setupNoticeTitle = ""
 	m.setupNoticeMessage = ""
 	m.setupNoticeHint = ""
+	m.setupNoticeAction = ""
 	m.setupPendingModelID = ""
 	m.resize()
 
@@ -1955,22 +2254,37 @@ func (m model) renderProfileModelSetupNotice() string {
 		Render(message)
 
 	return m.renderProfileModelSetupFrame(
-		strings.TrimSpace(m.setupPendingModelID),
+		m.getSetupNoticeTitle(),
 		hint,
 		body,
 	)
 }
 
+func (m model) getSetupNoticeTitle() string {
+	if title := strings.TrimSpace(m.setupNoticeTitle); title != "" {
+		return title
+	}
+
+	return strings.TrimSpace(m.setupPendingModelID)
+}
+
 func renderProfileModelSetupNoticeMessage(message string, width int) string {
 	width = max(width, 1)
-	wrapped := strings.TrimSpace(wordwrap.String(strings.TrimSpace(message), width))
-	if wrapped == "" {
+	message = strings.TrimSpace(message)
+	if message == "" {
 		return ""
 	}
 
-	lines := strings.Split(wrapped, "\n")
-	for index, line := range lines {
-		lines[index] = renderProfileModelSetupNoticeMessageLine(line)
+	lines := make([]string, 0)
+	for _, paragraph := range strings.Split(message, "\n") {
+		paragraph = strings.TrimSpace(paragraph)
+		if paragraph == "" {
+			lines = append(lines, "")
+			continue
+		}
+		for _, line := range strings.Split(wordwrap.String(paragraph, width), "\n") {
+			lines = append(lines, renderProfileModelSetupNoticeMessageLine(line))
+		}
 	}
 
 	return strings.Join(lines, "\n")
@@ -2066,6 +2380,7 @@ func (m model) getProfileModelSetupListFirstRow() int {
 
 func (m *model) clearProfileModelSetup() {
 	m.cancelSetupOAuthLogin()
+	m.cancelSetupModelPull()
 	m.setupModelStep = ""
 	m.setupAuthMethod = ""
 	m.setupProviders = nil
@@ -2074,8 +2389,10 @@ func (m *model) clearProfileModelSetup() {
 	m.setupModelBaseURL = ""
 	m.setupProviderAPIKey = ""
 	m.setupPendingModelID = ""
+	m.setupNoticeTitle = ""
 	m.setupNoticeMessage = ""
 	m.setupNoticeHint = ""
+	m.setupNoticeAction = ""
 	m.setupItemSelected = 0
 	m.setupOffset = 0
 	m.modelFilterInput = newModelFilterInput()

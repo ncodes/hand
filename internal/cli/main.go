@@ -373,6 +373,14 @@ func (p *pullProgressPrinter) Finish() {
 	}
 }
 
+func (p *pullProgressPrinter) Lines() []string {
+	if p == nil {
+		return nil
+	}
+
+	return slices.Clone(p.lines)
+}
+
 func (p *pullProgressPrinter) renderLive() {
 	if p.rendered > 0 {
 		_, _ = fmt.Fprintf(p.output, "\x1b[%dF", p.rendered)

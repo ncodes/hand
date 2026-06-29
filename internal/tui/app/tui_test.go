@@ -26,6 +26,7 @@ import (
 	appcredential "github.com/wandxy/morph/internal/credential"
 	modelcatalog "github.com/wandxy/morph/internal/model"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
 	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	storage "github.com/wandxy/morph/internal/state/core"
@@ -898,6 +899,370 @@ func TestModel_SetupOllamaModelClickPersistsWithoutAuthPrompt(t *testing.T) {
 	require.Equal(t, server.URL, cfg.Models.Main.BaseURL)
 }
 
+func TestModel_SetupMissingOllamaModelPromptsBeforePersisting(t *testing.T) {
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	runModel.setupModelStep = setupModelStepModel
+	runModel.setupAuthMethod = setupAuthMethodLocal
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupModelBaseURL = "http://127.0.0.1:11434"
+	runModel.setupModels = []rpcclient.ModelOption{{
+		ID:           "missing:latest",
+		Provider:     constants.ModelProviderOllama,
+		API:          modelprovider.APIOllamaNative,
+		LocalMissing: true,
+	}}
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.Equal(t, setupModelStepNotice, runModel.setupModelStep)
+	require.Equal(t, setupNoticeActionMissingModelPull, runModel.setupNoticeAction)
+	require.Equal(t, "missing:latest", runModel.setupPendingModelID)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Install missing:latest?")
+	require.Contains(t, content, "This Ollama model is not installed locally.")
+	require.Contains(t, content, "Pull it now before saving.")
+	require.Contains(t, content, "Or skip to save without installing.")
+	require.Contains(t, content, "enter to pull")
+	require.Contains(t, content, "s to skip")
+
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.Empty(t, cfg.Models.Main.Name)
+
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+	require.Equal(t, "missing:latest", runModel.setupModels[runModel.setupItemSelected].ID)
+}
+
+func TestModel_SetupMissingOllamaModelSkipPersistsSelection(t *testing.T) {
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	runModel.setupModelStep = setupModelStepNotice
+	runModel.setupAuthMethod = setupAuthMethodLocal
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupModelBaseURL = "http://127.0.0.1:11434"
+	runModel.setupPendingModelID = "missing:latest"
+	runModel.setupNoticeAction = setupNoticeActionMissingModelPull
+	runModel.setupModels = []rpcclient.ModelOption{{
+		ID:           "missing:latest",
+		Provider:     constants.ModelProviderOllama,
+		API:          modelprovider.APIOllamaNative,
+		LocalMissing: true,
+	}}
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderOllama, cfg.Models.Main.Provider)
+	require.Equal(t, "missing:latest", cfg.Models.Main.Name)
+	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Main.BaseURL)
+}
+
+func TestModel_SetupMissingOllamaModelPullsBeforePersisting(t *testing.T) {
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	runModel.setupModelStep = setupModelStepNotice
+	runModel.setupAuthMethod = setupAuthMethodLocal
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupModelBaseURL = "http://127.0.0.1:11434"
+	runModel.setupPendingModelID = "missing:latest"
+	runModel.setupNoticeAction = setupNoticeActionMissingModelPull
+	runModel.setupModels = []rpcclient.ModelOption{{
+		ID:           "missing:latest",
+		Provider:     constants.ModelProviderOllama,
+		API:          modelprovider.APIOllamaNative,
+		LocalMissing: true,
+	}}
+	var pulledBaseURL, pulledModel string
+	restore := stubSetupOllamaPull(t, func(
+		_ context.Context,
+		baseURL string,
+		model string,
+		_ map[string]string,
+		onProgress func(provider_ollama.PullProgress),
+	) error {
+		pulledBaseURL = baseURL
+		pulledModel = model
+		onProgress(provider_ollama.PullProgress{Status: "pulling manifest"})
+		onProgress(provider_ollama.PullProgress{Status: "pulling manifest"})
+		onProgress(provider_ollama.PullProgress{Status: "success"})
+		return nil
+	})
+	defer restore()
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, setupNoticeActionPullingModel, runModel.setupNoticeAction)
+
+	pullMessages := runSetupModelPullBatch(t, cmd)
+	require.Len(t, pullMessages.progress, 2)
+	require.Equal(t, []string{"Ollama pull: pulling manifest"}, pullMessages.progress[0].lines)
+	require.Equal(t, []string{"Ollama pull: pulling manifest", "Ollama pull: success"}, pullMessages.progress[1].lines)
+	updated, cmd = runModel.Update(pullMessages.progress[1])
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Contains(t, stripANSI(runModel.View().Content), "Ollama pull: success")
+
+	updated, cmd = runModel.Update(pullMessages.completed)
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.Equal(t, "http://127.0.0.1:11434", pulledBaseURL)
+	require.Equal(t, "missing:latest", pulledModel)
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, "missing:latest", cfg.Models.Main.Name)
+	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Main.BaseURL)
+}
+
+func TestModel_SetupMissingOllamaModelPullFailureKeepsSelection(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	runModel.setupModelStep = setupModelStepNotice
+	runModel.setupAuthMethod = setupAuthMethodLocal
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupModelBaseURL = "http://127.0.0.1:11434"
+	runModel.setupPendingModelID = "missing:latest"
+	runModel.setupNoticeAction = setupNoticeActionMissingModelPull
+	runModel.setupModels = []rpcclient.ModelOption{{
+		ID:           "missing:latest",
+		Provider:     constants.ModelProviderOllama,
+		API:          modelprovider.APIOllamaNative,
+		LocalMissing: true,
+	}}
+	restore := stubSetupOllamaPull(t, func(
+		context.Context,
+		string,
+		string,
+		map[string]string,
+		func(provider_ollama.PullProgress),
+	) error {
+		return errors.New("pull failed")
+	})
+	defer restore()
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	pullMessages := runSetupModelPullBatch(t, cmd)
+	updated, cmd = runModel.Update(pullMessages.completed)
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.Equal(t, setupModelStepNotice, runModel.setupModelStep)
+	require.Equal(t, setupNoticeActionMissingModelPull, runModel.setupNoticeAction)
+	require.Equal(t, "missing:latest", runModel.setupPendingModelID)
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Ollama pull failed: pull failed")
+	require.Contains(t, content, "enter to retry")
+
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+	require.Equal(t, "missing:latest", runModel.setupModels[runModel.setupItemSelected].ID)
+}
+
+func TestModel_SetupMissingOllamaModelPullCanBeCancelled(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	runModel.setupModelStep = setupModelStepNotice
+	runModel.setupAuthMethod = setupAuthMethodLocal
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupModelBaseURL = "http://127.0.0.1:11434"
+	runModel.setupPendingModelID = "missing:latest"
+	runModel.setupNoticeAction = setupNoticeActionMissingModelPull
+	runModel.setupModels = []rpcclient.ModelOption{{
+		ID:           "missing:latest",
+		Provider:     constants.ModelProviderOllama,
+		API:          modelprovider.APIOllamaNative,
+		LocalMissing: true,
+	}}
+	pullStarted := make(chan struct{})
+	restore := stubSetupOllamaPull(t, func(
+		ctx context.Context,
+		_ string,
+		_ string,
+		_ map[string]string,
+		_ func(provider_ollama.PullProgress),
+	) error {
+		close(pullStarted)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	defer restore()
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	completed := make(chan tea.Msg, 1)
+	go func() {
+		completed <- batch[0]()
+	}()
+	select {
+	case <-pullStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for pull")
+	}
+
+	updated, _ = runModel.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	runModel = updated.(model)
+	require.Equal(t, setupModelStepModel, runModel.setupModelStep)
+	require.Nil(t, runModel.setupPullCancel)
+
+	select {
+	case <-completed:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for cancelled pull")
+	}
+}
+
+func TestProfileModelSetupPullProgressHelpers(t *testing.T) {
+	require.True(t, sameSetupPullProgressLines(nil, nil))
+	require.True(t, sameSetupPullProgressLines([]string{"a"}, []string{"a"}))
+	require.False(t, sameSetupPullProgressLines([]string{"a"}, []string{"a", "b"}))
+	require.False(t, sameSetupPullProgressLines([]string{"a"}, []string{"b"}))
+
+	events := make(chan tea.Msg, 1)
+	require.True(t, sendSetupModelPullEvent(context.Background(), events, setupModelPullClosedMsg{}))
+	require.IsType(t, setupModelPullClosedMsg{}, <-events)
+	require.False(t, sendSetupModelPullEvent(context.Background(), nil, setupModelPullClosedMsg{}))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.False(t, sendSetupModelPullEvent(ctx, nil, setupModelPullClosedMsg{}))
+	closedEvents := make(chan tea.Msg)
+	close(closedEvents)
+	require.IsType(t, setupModelPullClosedMsg{}, waitForSetupModelPullEvent(closedEvents)())
+	require.Nil(t, waitForSetupModelPullEventFromState(nil))
+	emptyModel := model{}
+	require.Nil(t, waitForSetupModelPullEventFromState(&emptyModel))
+}
+
+func TestProfileModelSetupPullIgnoresStaleProgress(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	runModel.setupModelStep = setupModelStepNotice
+	runModel.setupNoticeAction = setupNoticeActionPullingModel
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupPendingModelID = "missing:latest"
+	updated, cmd := runModel.Update(setupModelPullProgressMsg{
+		provider: constants.ModelProviderOpenAI,
+		model:    "missing:latest",
+		lines:    []string{"ignored"},
+	})
+	require.Nil(t, cmd)
+	require.Empty(t, updated.(model).setupNoticeMessage)
+
+	events := make(chan tea.Msg, 1)
+	runModel.setupPullEvents = events
+	updated, cmd = runModel.Update(setupModelPullProgressMsg{
+		provider: constants.ModelProviderOllama,
+		model:    "missing:latest",
+	})
+	require.NotNil(t, cmd)
+	require.Empty(t, updated.(model).setupNoticeMessage)
+}
+
+func TestProfileModelSetupPullGuardPaths(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	updated, cmd := runModel.showMissingSetupModelPullPrompt(rpcclient.ModelOption{})
+	require.NotNil(t, cmd)
+	require.Equal(t, "model selection unavailable", updated.(model).status.Text())
+
+	updated, cmd = runModel.startSetupModelPull()
+	require.NotNil(t, cmd)
+	require.Equal(t, "model selection unavailable", updated.(model).status.Text())
+
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupPendingModelID = "missing:latest"
+	runModel.setupModels = []rpcclient.ModelOption{{
+		ID:       "missing:latest",
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaNative,
+	}}
+	updated, cmd = runModel.startSetupModelPull()
+	require.NotNil(t, cmd)
+	require.Equal(t, "model selection unavailable", updated.(model).status.Text())
+
+	runModel.setupPendingModelID = "missing:latest"
+	runModel.setupModels = []rpcclient.ModelOption{{ID: "other:latest"}}
+	_, ok := runModel.getPendingSetupModelOption()
+	require.False(t, ok)
+
+	updated, cmd = runModel.skipMissingSetupModelPull()
+	require.NotNil(t, cmd)
+	require.Equal(t, "model selection unavailable", updated.(model).status.Text())
+
+	runModel.setupPendingModelID = "missing:latest"
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupModelBaseURL = constants.DefaultOllamaBaseURL
+	runModel.setupModels = []rpcclient.ModelOption{{
+		ID:       "missing:latest",
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaNative,
+	}}
+	runModel.configPath = ""
+	updated, cmd = runModel.skipMissingSetupModelPull()
+	require.NotNil(t, cmd)
+	require.Contains(t, stripANSI(updated.(model).View().Content), "config path unavailable")
+}
+
+func TestProfileModelSetupPullIgnoresStaleCompletion(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	runModel.setupModelStep = setupModelStepNotice
+	runModel.setupNoticeAction = setupNoticeActionPullingModel
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupPendingModelID = "missing:latest"
+	updated, cmd := runModel.Update(setupModelPullCompletedMsg{
+		provider: constants.ModelProviderOpenAI,
+		model:    "missing:latest",
+	})
+	require.Nil(t, cmd)
+	require.Equal(t, setupNoticeActionPullingModel, updated.(model).setupNoticeAction)
+}
+
+func TestProfileModelSetupPullPersistFailureShowsNotice(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	runModel.setupModelStep = setupModelStepNotice
+	runModel.setupNoticeAction = setupNoticeActionPullingModel
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupPendingModelID = "missing:latest"
+	runModel.configPath = ""
+	updated, cmd := runModel.Update(setupModelPullCompletedMsg{
+		provider: constants.ModelProviderOllama,
+		model:    "missing:latest",
+		option: rpcclient.ModelOption{
+			ID:       "missing:latest",
+			Provider: constants.ModelProviderOllama,
+			API:      modelprovider.APIOllamaNative,
+		},
+	})
+	require.NotNil(t, cmd)
+	require.Contains(t, stripANSI(updated.(model).View().Content), "config path unavailable")
+}
+
+func TestModel_StartProfileModelSetupClearsNoticeState(t *testing.T) {
+	runModel := newSetupModelSelectionTestModel(t)
+	runModel.setupNoticeTitle = "Old title"
+	runModel.setupNoticeMessage = "Old message"
+	runModel.setupNoticeHint = "Old hint"
+	runModel.setupNoticeAction = setupNoticeActionPullingModel
+	cmd := runModel.startProfileModelSetup()
+	require.NotNil(t, cmd)
+	require.Empty(t, runModel.setupNoticeTitle)
+	require.Empty(t, runModel.setupNoticeMessage)
+	require.Empty(t, runModel.setupNoticeHint)
+	require.Empty(t, runModel.setupNoticeAction)
+}
+
 func TestProfileModelSetupLocalModelDetails(t *testing.T) {
 	require.Equal(t, "not installed", getSetupModelOptionMutedDetail(rpcclient.ModelOption{LocalMissing: true}))
 	detail := getSetupModelOptionMutedDetail(rpcclient.ModelOption{LocalMissing: true, Reasoning: true})
@@ -1599,6 +1964,11 @@ func TestRenderProfileModelSetupNoticeMessageStylesAuthCommand(t *testing.T) {
 			Render("morph auth login anthropic"),
 	)
 	require.Contains(t, stripANSI(rendered), "run morph auth login anthropic in a new terminal")
+	require.Equal(
+		t,
+		"first line\nsecond line",
+		stripANSI(renderProfileModelSetupNoticeMessage("first line\nsecond line", 80)),
+	)
 	require.Empty(t, renderProfileModelSetupNoticeMessage("", 80))
 	require.Empty(t, getProfileModelSetupNoticeAuthCommand("run something else"))
 }
@@ -5917,6 +6287,58 @@ func stubSetupOAuth(
 	return func() {
 		getSetupSubscriptionProvider = originalProvider
 		newSetupCredentialStore = originalStore
+	}
+}
+
+func stubSetupOllamaPull(
+	t *testing.T,
+	pull func(
+		context.Context,
+		string,
+		string,
+		map[string]string,
+		func(provider_ollama.PullProgress),
+	) error,
+) func() {
+	t.Helper()
+
+	original := pullSetupOllamaModel
+	pullSetupOllamaModel = pull
+
+	return func() {
+		pullSetupOllamaModel = original
+	}
+}
+
+type setupModelPullBatchMessages struct {
+	progress  []setupModelPullProgressMsg
+	completed setupModelPullCompletedMsg
+}
+
+func runSetupModelPullBatch(t *testing.T, cmd tea.Cmd) setupModelPullBatchMessages {
+	t.Helper()
+
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, len(batch), 2)
+
+	require.Nil(t, batch[0]())
+	wait := batch[1]
+	var messages setupModelPullBatchMessages
+	for {
+		msg = wait()
+		switch msg := msg.(type) {
+		case setupModelPullProgressMsg:
+			messages.progress = append(messages.progress, msg)
+		case setupModelPullCompletedMsg:
+			messages.completed = msg
+			return messages
+		case setupModelPullClosedMsg:
+			return messages
+		default:
+			t.Fatalf("unexpected setup pull message %T", msg)
+		}
 	}
 }
 

@@ -990,6 +990,7 @@ func TestPullProgressPrinter_IgnoresDisabledAndEmptyProgress(t *testing.T) {
 	var nilPrinter *pullProgressPrinter
 	nilPrinter.Progress(provider_ollama.PullProgress{Status: "pulling manifest"})
 	nilPrinter.Finish()
+	require.Nil(t, nilPrinter.Lines())
 
 	var output bytes.Buffer
 	printer := newPullProgressPrinter(&output, true)
@@ -1052,6 +1053,10 @@ func TestPullProgressPrinter_RepaintsLiveProgressWindow(t *testing.T) {
 		"Ollama pull: pulling d",
 		"Ollama pull: success",
 	}, printer.lines)
+	lines := printer.Lines()
+	require.Equal(t, printer.lines, lines)
+	lines[0] = "changed"
+	require.Equal(t, "Ollama pull: pulling a", printer.lines[0])
 	require.Equal(t, pullProgressLineLimit, printer.rendered)
 	require.Contains(t, output.String(), "\x1b[5F")
 }

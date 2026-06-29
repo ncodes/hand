@@ -24,6 +24,8 @@ type tuiState struct {
 	setupOAuthPending          bool
 	setupOAuthProvider         string
 	setupOAuthCancel           context.CancelFunc
+	setupPullCancel            context.CancelFunc
+	setupPullEvents            <-chan tea.Msg
 	namePromptError            string
 	namePromptErrorStartedAt   time.Time
 	modelName                  string
@@ -70,8 +72,10 @@ type tuiState struct {
 	setupModelBaseURL          string
 	setupProviderAPIKey        string
 	setupPendingModelID        string
+	setupNoticeTitle           string
 	setupNoticeMessage         string
 	setupNoticeHint            string
+	setupNoticeAction          string
 	setupItemSelected          int
 	setupOffset                int
 	configEnvPath              string
