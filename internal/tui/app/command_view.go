@@ -532,6 +532,35 @@ func (m model) getCommandViewSelectionContent() string {
 }
 
 func (m model) renderCommandViewSelectionDocument() string {
+	if m.isSessionListCommandView() {
+		return m.renderSessionListCommandViewContent(commandViewContent{
+			Width:  m.getCommandViewContentWidth(),
+			Height: max(len(m.commandView.Chats), 1),
+			Offset: 0,
+		})
+	}
+	if m.isModelsCommandView() {
+		return m.renderModelsCommandViewContent(commandViewContent{
+			Width:  m.getCommandViewContentWidth(),
+			Height: m.getCommandViewSelectionModelHeight(),
+			Offset: 0,
+		})
+	}
+	if m.isProvidersCommandView() {
+		return m.renderProvidersCommandViewContent(commandViewContent{
+			Width:  m.getCommandViewContentWidth(),
+			Height: max(len(m.commandView.Providers), 1),
+			Offset: 0,
+		})
+	}
+	if m.isProviderAPIKeyCommandView() {
+		return m.renderProviderAPIKeyCommandViewContent(commandViewContent{
+			Width:  m.getCommandViewContentWidth(),
+			Height: m.getCommandViewContentHeight(),
+			Offset: 0,
+		})
+	}
+
 	view := m.newCommandViewContentViewport(commandViewContent{
 		Text:   m.renderCommandViewContentText(),
 		Width:  m.getCommandViewContentWidth(),
@@ -542,6 +571,13 @@ func (m model) renderCommandViewSelectionDocument() string {
 	view.SetYOffset(0)
 
 	return view.View()
+}
+
+func (m model) getCommandViewSelectionModelHeight() int {
+	filterHeight := lipgloss.Height(m.renderModelFilterBlock(m.getCommandViewContentWidth()))
+	modelHeight := max(len(m.filteredCommandModels()), 1)
+
+	return filterHeight + modelHeight
 }
 
 func (m model) isMouseInCommandViewContent(mouse tea.Mouse) bool {

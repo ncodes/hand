@@ -3873,6 +3873,34 @@ func TestModel_UpdateSelectsCommandViewTextWithMouseAndCopiesOnRelease(t *testin
 	require.Equal(t, "alpha", runModel.selectedCommandViewText())
 }
 
+func TestModel_CommandViewSelectionUsesRenderedChatRows(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 80
+	runModel.height = 24
+	runModel.showCommandView(commandViewPayload{
+		Kind:      commandViewKindChats,
+		TitleLeft: "Chats",
+		Chats: []storage.Session{{
+			ID:    "chat-1",
+			Title: "Latest CNN and BBC Headlines",
+		}},
+	})
+	row := runModel.getCommandViewContentTop()
+	x := runModel.getCommandViewContentLeft()
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      x,
+		Y:      row,
+	}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.commandViewSelection.dragging)
+	require.Contains(t, stripANSI(runModel.commandViewSelection.content), "Latest CNN and BBC Headlines")
+	require.NotContains(t, stripANSI(runModel.renderCommandView()), "No content available.")
+}
+
 func TestModel_UpdateAutoScrollsCommandViewSelection(t *testing.T) {
 	runModel := newModel()
 	runModel.width = 80
