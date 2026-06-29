@@ -59,6 +59,8 @@ const (
 
 	setupNoticeActionMissingModelPull = "missing-model-pull"
 	setupNoticeActionPullingModel     = "pulling-model"
+	setupNoticeActionLocalUnavailable = "local-unavailable"
+	setupNoticeActionToolWarning      = "tool-warning"
 
 	setupModelMaxWidth      = 72
 	setupModelMinWidth      = 34
@@ -553,7 +555,8 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 		return m.showSetupBaseURLPrompt(providerID, baseURL)
 	}
 
-	if err := m.loadSetupModels(providerID, baseURL); err != nil {
+	err := m.loadSetupModels(providerID, baseURL)
+	if err != nil {
 		return *m, m.setStatus("models unavailable")
 	}
 	if len(m.setupModels) == 0 {
@@ -622,6 +625,9 @@ func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
 	provider := getSetupModelProvider(m.setupModelProvider, option)
 	if isMissingLocalSetupModel(provider, option) {
 		return m.showMissingSetupModelPullPrompt(option)
+	}
+	if shouldWarnSetupModelToolSupport(provider, option) {
+		return m.showSetupModelToolWarning(option)
 	}
 
 	apiKey := strings.TrimSpace(m.setupProviderAPIKey)
@@ -729,8 +735,9 @@ func (m *model) submitSetupBaseURL() (tea.Model, tea.Cmd) {
 	if err := validateSetupBaseURL(baseURL); err != nil {
 		return *m, m.setStatus("base URL invalid")
 	}
-	if err := m.loadSetupModels(providerID, baseURL); err != nil {
-		return *m, m.setStatus("models unavailable")
+	err := m.loadSetupModels(providerID, baseURL)
+	if err != nil {
+		return m.showLocalProviderUnavailableNotice(baseURL)
 	}
 	if len(m.setupModels) == 0 {
 		return *m, m.setStatus("models unavailable")
@@ -768,6 +775,45 @@ func (m *model) showMissingSetupModelPullPrompt(option rpcclient.ModelOption) (t
 	m.resize()
 
 	return *m, m.setStatus("model not installed")
+}
+
+func (m *model) showLocalProviderUnavailableNotice(baseURL string) (tea.Model, tea.Cmd) {
+	message := []string{
+		"Could not connect to Ollama at " + strings.TrimSpace(baseURL) + ".",
+		"Start Ollama, or edit the base URL and retry.",
+	}
+
+	m.setupModelStep = setupModelStepNotice
+	m.setupModelBaseURL = strings.TrimSpace(baseURL)
+	m.setupNoticeAction = setupNoticeActionLocalUnavailable
+	m.setupNoticeTitle = "Ollama not reachable"
+	m.setupPendingModelID = ""
+	m.setupNoticeMessage = strings.Join(message, "\n")
+	m.setupNoticeHint = "enter to retry · esc to edit base URL"
+	m.resize()
+
+	return *m, m.setStatus("ollama not reachable")
+}
+
+func (m *model) showSetupModelToolWarning(option rpcclient.ModelOption) (tea.Model, tea.Cmd) {
+	modelID := strings.TrimSpace(option.ID)
+	if modelID == "" {
+		return *m, m.setStatus("model selection unavailable")
+	}
+
+	m.setSetupModelOption(option)
+	m.setupModelStep = setupModelStepNotice
+	m.setupNoticeAction = setupNoticeActionToolWarning
+	m.setupNoticeTitle = "Tool support warning"
+	m.setupPendingModelID = modelID
+	m.setupNoticeMessage = strings.Join([]string{
+		modelID + " does not advertise tool support.",
+		"Morph can save it for chat, but agent workflows that need tools may fail.",
+	}, "\n")
+	m.setupNoticeHint = "enter to save anyway · esc to choose another model"
+	m.resize()
+
+	return *m, m.setStatus("model may not support tools")
 }
 
 func (m *model) startSetupModelPull() (tea.Model, tea.Cmd) {
@@ -917,7 +963,10 @@ func (m model) completeSetupModelPull(msg setupModelPullCompletedMsg) (tea.Model
 	if msg.err != nil {
 		next, cmd := m.showMissingSetupModelPullPrompt(msg.option)
 		nextModel := next.(model)
-		nextModel.setupNoticeMessage = "Ollama pull failed: " + msg.err.Error()
+		nextModel.setupNoticeMessage = getSetupModelPullFailureMessage(
+			getSetupModelOptionBaseURL(msg.provider, m.setupModelBaseURL, msg.option),
+			msg.err,
+		)
 		nextModel.setupNoticeHint = "enter to retry · s to skip · esc to go back"
 
 		return nextModel, cmd
@@ -925,6 +974,9 @@ func (m model) completeSetupModelPull(msg setupModelPullCompletedMsg) (tea.Model
 
 	option := msg.option
 	option.LocalMissing = false
+	if shouldWarnSetupModelToolSupport(msg.provider, option) {
+		return m.showSetupModelToolWarning(option)
+	}
 	if err := m.persistSetupModelSelection(option, ""); err != nil {
 		return m.showSetupNotice("Model setup unavailable", err.Error(), "enter to continue")
 	}
@@ -933,6 +985,22 @@ func (m model) completeSetupModelPull(msg setupModelPullCompletedMsg) (tea.Model
 }
 
 func (m *model) skipMissingSetupModelPull() (tea.Model, tea.Cmd) {
+	option, ok := m.getPendingSetupModelOption()
+	if !ok {
+		return *m, m.setStatus("model selection unavailable")
+	}
+	provider := getSetupModelProvider(m.setupModelProvider, option)
+	if shouldWarnSetupModelToolSupport(provider, option) {
+		return m.showSetupModelToolWarning(option)
+	}
+	if err := m.persistSetupModelSelection(option, ""); err != nil {
+		return m.showSetupNotice("Model setup unavailable", err.Error(), "enter to continue")
+	}
+
+	return m.completeSetupModelSelection(option)
+}
+
+func (m *model) confirmSetupModelToolWarning() (tea.Model, tea.Cmd) {
 	option, ok := m.getPendingSetupModelOption()
 	if !ok {
 		return *m, m.setStatus("model selection unavailable")
@@ -957,6 +1025,46 @@ func (m model) getPendingSetupModelOption() (rpcclient.ModelOption, bool) {
 	}
 
 	return rpcclient.ModelOption{}, false
+}
+
+func getSetupModelPullFailureMessage(baseURL string, err error) string {
+	if err == nil {
+		return ""
+	}
+
+	message := strings.TrimSpace(err.Error())
+	if baseURL = strings.TrimSpace(baseURL); baseURL == "" {
+		baseURL = constants.DefaultOllamaBaseURL
+	}
+	if strings.Contains(strings.ToLower(message), "ollama is not reachable") ||
+		strings.Contains(strings.ToLower(message), "connection refused") {
+		return strings.Join([]string{
+			"Could not connect to Ollama at " + baseURL + ".",
+			"Start Ollama, or edit the base URL and retry.",
+		}, "\n")
+	}
+
+	return "Ollama pull failed: " + message
+}
+
+func (m *model) setSetupModelOption(option rpcclient.ModelOption) {
+	modelID := strings.TrimSpace(option.ID)
+	if modelID == "" {
+		return
+	}
+
+	for index := range m.setupModels {
+		if strings.TrimSpace(m.setupModels[index].ID) == modelID {
+			m.setupModels[index] = option
+			return
+		}
+	}
+
+	m.setupModels = append(m.setupModels, option)
+}
+
+func shouldWarnSetupModelToolSupport(provider string, option rpcclient.ModelOption) bool {
+	return isLocalSetupProvider(provider) && !option.SupportsTools
 }
 
 func (m model) isCurrentSetupModelPull(provider string, modelID string) bool {
@@ -1185,6 +1293,10 @@ func (m model) completeSetupModelOptionsRefresh(msg setupModelOptionsLoadedMsg) 
 		return m, nil
 	}
 	if msg.err != nil {
+		if isLocalSetupProvider(msg.provider) {
+			return m.showLocalProviderUnavailableNotice(msg.baseURL)
+		}
+
 		return m, m.setStatus("model discovery failed")
 	}
 	if len(msg.models) == 0 {
@@ -1542,6 +1654,26 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 			switch msg.Key().Code {
 			case tea.KeyEsc, tea.KeyLeft, tea.KeyBackspace:
 				m.cancelSetupModelPull()
+				return m.showSetupModelSelection()
+			}
+
+			return *m, nil
+		}
+		if m.setupNoticeAction == setupNoticeActionLocalUnavailable {
+			switch msg.Key().Code {
+			case tea.KeyEnter:
+				return m.submitSetupBaseURL()
+			case tea.KeyEsc, tea.KeyLeft, tea.KeyBackspace:
+				return m.showSetupBaseURLPrompt(m.setupModelProvider, m.setupModelBaseURL)
+			}
+
+			return *m, nil
+		}
+		if m.setupNoticeAction == setupNoticeActionToolWarning {
+			switch msg.Key().Code {
+			case tea.KeyEnter:
+				return m.confirmSetupModelToolWarning()
+			case tea.KeyEsc, tea.KeyLeft, tea.KeyBackspace:
 				return m.showSetupModelSelection()
 			}
 
