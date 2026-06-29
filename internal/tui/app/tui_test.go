@@ -1362,7 +1362,7 @@ models:
         baseUrl: https://stale.example/v1
 search:
     vector:
-        enabled: false
+        enabled: true
 `)
 	runModel.setupModelProvider = constants.ModelProviderOllama
 	runModel.setupModelBaseURL = "http://127.0.0.1:11434"
@@ -1384,6 +1384,82 @@ search:
 	require.Equal(t, "lfm2.5-thinking:latest", cfg.Models.Summary.Name)
 	require.Equal(t, modelprovider.APIOllamaNative, cfg.Models.Summary.API)
 	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Summary.BaseURL)
+	require.False(t, cfg.Search.Vector.Enabled)
+}
+
+func TestModel_CompleteSetupModelSelectionRefreshesRuntimeModelClient(t *testing.T) {
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	client := &fakeTUIChatClient{selectedModel: rpcclient.ModelOption{
+		ID:       "lfm2.5-thinking:latest",
+		Provider: constants.ModelProviderOllama,
+	}}
+	runModel.modelClient = client
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupModelBaseURL = "http://127.0.0.1:11434"
+
+	option := rpcclient.ModelOption{
+		ID:       "lfm2.5-thinking:latest",
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaNative,
+	}
+	require.NoError(t, runModel.persistSetupModelSelection(option, ""))
+
+	updated, cmd := runModel.completeSetupModelSelection(option)
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.shouldShowProfileModelSetup())
+	require.Equal(t, "model setup saved", runModel.status.Text())
+	require.Equal(t, constants.ModelProviderOllama, runModel.runtimeInfo.Provider)
+	require.Equal(t, "lfm2.5-thinking:latest", runModel.runtimeInfo.Model)
+	require.Equal(t, constants.ModelProviderOllama, runModel.runtimeInfo.SummaryProvider)
+	require.Equal(t, "lfm2.5-thinking:latest", runModel.runtimeInfo.SummaryModel)
+
+	msg := setupModelRuntimeSelectedMessageFromBatch(t, cmd)
+	require.NoError(t, msg.Err)
+	require.Equal(t, 1, client.selectModelCalls)
+	require.Equal(t, constants.ModelProviderOllama, client.selectedModelProvider)
+	require.Equal(t, "lfm2.5-thinking:latest", client.selectedModelID)
+
+	updated, cmd = runModel.Update(msg)
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "model setup saved; daemon restarting", runModel.status.Text())
+	require.Equal(t, constants.ModelProviderOllama, runModel.runtimeInfo.Provider)
+	require.Equal(t, "lfm2.5-thinking:latest", runModel.runtimeInfo.Model)
+}
+
+func TestModel_CompleteSetupModelSelectionKeepsSavedConfigWhenRuntimeRefreshFails(t *testing.T) {
+	home := t.TempDir()
+	runModel := newSetupModelSelectionTestModelWithHome(t, home)
+	client := &fakeTUIChatClient{selectModelErr: errors.New("daemon unavailable")}
+	runModel.modelClient = client
+	runModel.setupModelProvider = constants.ModelProviderOllama
+	runModel.setupModelBaseURL = "http://127.0.0.1:11434"
+
+	option := rpcclient.ModelOption{
+		ID:       "lfm2.5-thinking:latest",
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaNative,
+	}
+	require.NoError(t, runModel.persistSetupModelSelection(option, ""))
+
+	updated, cmd := runModel.completeSetupModelSelection(option)
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	msg := setupModelRuntimeSelectedMessageFromBatch(t, cmd)
+	require.EqualError(t, msg.Err, "daemon unavailable")
+
+	updated, cmd = runModel.Update(msg)
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "model setup saved; daemon refresh unavailable", runModel.status.Text())
+
+	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderOllama, cfg.Models.Main.Provider)
+	require.Equal(t, "lfm2.5-thinking:latest", cfg.Models.Main.Name)
+	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Main.BaseURL)
 }
 
 func TestModel_PersistSetupModelSelectionClearsHostedBaseURL(t *testing.T) {
@@ -6427,6 +6503,20 @@ func runSetupModelOptionsRefreshBatch(t *testing.T, cmd tea.Cmd) setupModelOptio
 
 	t.Fatal("setup model options refresh message not found")
 	return setupModelOptionsLoadedMsg{}
+}
+
+func setupModelRuntimeSelectedMessageFromBatch(t *testing.T, cmd tea.Cmd) setupModelRuntimeSelectedMsg {
+	t.Helper()
+
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, len(batch), 1)
+
+	selected, ok := batch[len(batch)-1]().(setupModelRuntimeSelectedMsg)
+	require.True(t, ok)
+
+	return selected
 }
 
 func makeOpenAITestJWTForSetup(t *testing.T) string {

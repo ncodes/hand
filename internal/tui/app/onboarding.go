@@ -150,6 +150,11 @@ type setupModelPullCompletedMsg struct {
 
 type setupModelPullClosedMsg struct{}
 
+type setupModelRuntimeSelectedMsg struct {
+	Model rpcclient.ModelOption
+	Err   error
+}
+
 func newNameInput() textinput.Model {
 	input := textinput.New()
 	input.Prompt = ""
@@ -1278,7 +1283,12 @@ func (m *model) completeSetupModelSelection(option rpcclient.ModelOption) (tea.M
 	m.resize()
 	m.setTranscriptContent()
 
-	return *m, m.setStatus("model setup saved")
+	cmds := []tea.Cmd{m.setStatus("model setup saved")}
+	if cmd := m.refreshSetupModelRuntimeCmd(option); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return *m, tea.Batch(cmds...)
 }
 
 func (m *model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey string) error {
@@ -1377,6 +1387,39 @@ func (m *model) applySetupModelSelectionToRuntime(option rpcclient.ModelOption) 
 	m.runtimeInfo.Storage = info.Storage
 	m.runtimeInfo.Streaming = info.Streaming
 	m.modelName = getModelDisplayName(info.Model)
+}
+
+func (m *model) refreshSetupModelRuntimeCmd(option rpcclient.ModelOption) tea.Cmd {
+	client, ok := m.modelClient.(modelSelector)
+	if m.modelClient == nil || !ok {
+		return nil
+	}
+
+	provider := getSetupModelProvider(m.setupModelProvider, option)
+	modelID := strings.TrimSpace(option.ID)
+	if provider == "" || modelID == "" {
+		return nil
+	}
+
+	return func() tea.Msg {
+		ctx := m.chatCtx
+		if ctx == nil {
+			ctx = context.Background()
+		}
+
+		model, err := client.SelectModel(ctx, modelID, rpcclient.ModelSelectOptions{Provider: provider})
+
+		return setupModelRuntimeSelectedMsg{Model: model, Err: err}
+	}
+}
+
+func (m *model) completeSetupModelRuntimeSelection(msg setupModelRuntimeSelectedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		return *m, m.setStatus("model setup saved; daemon refresh unavailable")
+	}
+	m.applySetupModelSelectionToRuntime(msg.Model)
+
+	return *m, m.setStatus("model setup saved; daemon restarting")
 }
 
 func (m model) checkSetupModelAuth(option rpcclient.ModelOption) error {
