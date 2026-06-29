@@ -67,7 +67,7 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 		return next, cmd, true
 	case responseEventMsg:
-		next, cmd := m.HandesponseEvent(msg)
+		next, cmd := m.handleResponseEvent(msg)
 		return next, cmd, true
 	case responseEventsClosedMsg:
 		if !m.isActiveResponse(msg.ResponseID) {
@@ -253,7 +253,7 @@ func (m model) handleTerminalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-func (m model) HandesponseEvent(msg responseEventMsg) (tea.Model, tea.Cmd) {
+func (m model) handleResponseEvent(msg responseEventMsg) (tea.Model, tea.Cmd) {
 	if !m.isActiveResponse(msg.ResponseID) {
 		return m, nil
 	}
@@ -371,13 +371,19 @@ func (m model) updateBubbleTeaChildren(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	previousValue := m.input.Value()
-	var cmds []tea.Cmd
-	var cmd tea.Cmd
+
+	var (
+		cmds []tea.Cmd
+		cmd  tea.Cmd
+	)
+
 	m.input, cmd = m.input.Update(msg)
 	m.updateCommandMenuForInput(m.input.Value())
 	cmds = append(cmds, cmd)
+
 	m.transcript, cmd = m.transcript.Update(msg)
 	cmds = append(cmds, cmd)
+
 	m.resizeAfterInputValueChange(previousValue)
 
 	return m, tea.Batch(cmds...)
