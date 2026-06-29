@@ -79,6 +79,7 @@ func newChatRenameInput() textinput.Model {
 		UnsetBackground()
 	styles.Focused.Prompt = styles.Focused.Prompt.
 		UnsetBackground()
+	styles.Cursor.Blink = false
 	input.SetStyles(styles)
 
 	return input
@@ -474,7 +475,7 @@ func (m *model) updateChatsRenameInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 
 	var cmd tea.Cmd
 	m.renameInput, cmd = m.renameInput.Update(msg)
-	return *m, cmd
+	return *m, inputHandledCmd(cmd)
 }
 
 func (m *model) clearChatsRename() {

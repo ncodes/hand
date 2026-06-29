@@ -167,6 +167,7 @@ func newNameInput() textinput.Model {
 		UnsetBackground()
 	styles.Focused.Prompt = styles.Focused.Prompt.
 		UnsetBackground()
+	styles.Cursor.Blink = false
 	input.SetStyles(styles)
 
 	return input
@@ -373,13 +374,13 @@ func (m model) handleNamePromptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.nameInput, cmd = m.nameInput.Update(msg)
 
-	return m, cmd
+	return m, inputHandledCmd(cmd)
 }
 
 func (m model) handleNamePromptPaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 	m.nameInput.SetValue(m.nameInput.Value() + normalizeComposerPaste(msg.Content))
 
-	return m, nil
+	return m, inputHandledCmd(nil)
 }
 
 func (m model) submitNamePrompt() (tea.Model, tea.Cmd) {
@@ -1435,7 +1436,7 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 		var cmd tea.Cmd
 		m.baseURLInput, cmd = m.baseURLInput.Update(msg)
 		m.resize()
-		return *m, cmd
+		return *m, inputHandledCmd(cmd)
 	case setupModelStepModel:
 		if isSetupModelRefreshKey(msg) {
 			return m.refreshSetupModelOptions()
@@ -1446,7 +1447,7 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 			m.setupItemSelected = 0
 			m.setupOffset = 0
 			m.resize()
-			return *m, cmd
+			return *m, inputHandledCmd(cmd)
 		}
 
 		switch msg.Key().Code {
@@ -1478,7 +1479,7 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 		var cmd tea.Cmd
 		m.apiKeyInput, cmd = m.apiKeyInput.Update(msg)
 		m.resize()
-		return *m, cmd
+		return *m, inputHandledCmd(cmd)
 	case setupModelStepNotice:
 		if m.setupNoticeAction == setupNoticeActionMissingModelPull {
 			switch msg.Key().Code {
@@ -1667,13 +1668,13 @@ func (m *model) handleProfileModelSetupPaste(msg tea.PasteMsg) (tea.Model, tea.C
 		m.setupItemSelected = 0
 		m.setupOffset = 0
 		m.resize()
-		return *m, cmd
+		return *m, inputHandledCmd(cmd)
 	}
 	if m.setupModelStep == setupModelStepBaseURL {
 		var cmd tea.Cmd
 		m.baseURLInput, cmd = m.baseURLInput.Update(msg)
 		m.resize()
-		return *m, cmd
+		return *m, inputHandledCmd(cmd)
 	}
 	if m.setupModelStep != setupModelStepAPIKey {
 		return *m, nil
@@ -1684,7 +1685,7 @@ func (m *model) handleProfileModelSetupPaste(msg tea.PasteMsg) (tea.Model, tea.C
 	m.apiKeyInput, cmd = m.apiKeyInput.Update(msg)
 	m.resize()
 
-	return *m, cmd
+	return *m, inputHandledCmd(cmd)
 }
 
 func (m *model) handleProfileModelSetupWheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {

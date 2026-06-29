@@ -5,7 +5,7 @@ import tea "charm.land/bubbletea/v2"
 // Init focuses the input composer when Bubble Tea starts the program.
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
-		m.input.Focus(),
+		inputHandledCmd(m.input.Focus()),
 		m.statusExpireCmd(),
 		m.loadStartupSessionTimeline(),
 	)
@@ -387,7 +387,7 @@ func (m model) updateBubbleTeaChildren(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.input, cmd = m.input.Update(msg)
 	m.updateCommandMenuForInput(m.input.Value())
-	cmds = append(cmds, cmd)
+	cmds = append(cmds, inputHandledCmdForMsg(msg, cmd))
 
 	m.transcript, cmd = m.transcript.Update(msg)
 	cmds = append(cmds, cmd)
@@ -408,7 +408,7 @@ func (m model) updateInputComposer(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.updateCommandMenuForInput(m.input.Value())
 	m.resizeAfterInputValueChange(previousValue)
 
-	return m, cmd
+	return m, inputHandledCmd(cmd)
 }
 
 func (m *model) resizeAfterInputValueChange(previousValue string) {
@@ -419,5 +419,24 @@ func (m *model) resizeAfterInputValueChange(previousValue string) {
 	m.resize()
 	if shouldKeepHeaderVisible {
 		m.transcript.GotoTop()
+	}
+}
+
+func inputHandledCmd(cmd tea.Cmd) tea.Cmd {
+	if cmd != nil {
+		return cmd
+	}
+
+	return func() tea.Msg {
+		return nil
+	}
+}
+
+func inputHandledCmdForMsg(msg tea.Msg, cmd tea.Cmd) tea.Cmd {
+	switch msg.(type) {
+	case tea.KeyPressMsg, tea.PasteMsg:
+		return inputHandledCmd(cmd)
+	default:
+		return cmd
 	}
 }

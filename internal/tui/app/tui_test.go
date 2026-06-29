@@ -109,6 +109,17 @@ func TestModel_ViewShowsCancelHintDuringActiveResponse(t *testing.T) {
 	require.NotContains(t, content, "enter to send")
 }
 
+func TestModel_InputCursorsDoNotBlink(t *testing.T) {
+	runModel := newModel()
+
+	require.False(t, runModel.input.Styles().Cursor.Blink)
+	require.False(t, runModel.apiKeyInput.Styles().Cursor.Blink)
+	require.False(t, runModel.baseURLInput.Styles().Cursor.Blink)
+	require.False(t, runModel.modelFilterInput.Styles().Cursor.Blink)
+	require.False(t, runModel.nameInput.Styles().Cursor.Blink)
+	require.False(t, runModel.renameInput.Styles().Cursor.Blink)
+}
+
 func TestModel_InitFocusesInput(t *testing.T) {
 	runModel := newModel()
 

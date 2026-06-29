@@ -71,6 +71,7 @@ func newProviderAPIKeyInput(placeholder string) textinput.Model {
 		UnsetBackground()
 	styles.Focused.Prompt = styles.Focused.Prompt.
 		UnsetBackground()
+	styles.Cursor.Blink = false
 	input.SetStyles(styles)
 
 	return input
@@ -92,6 +93,7 @@ func newSetupBaseURLInput() textinput.Model {
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
 		UnsetBackground()
 	styles.Focused.Prompt = styles.Focused.Prompt.UnsetBackground()
+	styles.Cursor.Blink = false
 	input.SetStyles(styles)
 
 	return input
@@ -113,6 +115,7 @@ func newModelFilterInput() textinput.Model {
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
 		UnsetBackground()
 	styles.Focused.Prompt = styles.Focused.Prompt.UnsetBackground()
+	styles.Cursor.Blink = false
 	input.SetStyles(styles)
 
 	return input
@@ -538,7 +541,7 @@ func (m *model) updateModelsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.commandViewItemSelected = 0
 		m.commandViewOffset = 0
 		m.clearCommandViewSelection()
-		return *m, cmd
+		return *m, inputHandledCmd(cmd)
 	case tea.KeyPressMsg:
 		if isModelFilterKey(msg) {
 			var cmd tea.Cmd
@@ -546,7 +549,7 @@ func (m *model) updateModelsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.commandViewItemSelected = 0
 			m.commandViewOffset = 0
 			m.clearCommandViewSelection()
-			return *m, cmd
+			return *m, inputHandledCmd(cmd)
 		}
 
 		switch msg.Key().Code {
@@ -613,7 +616,7 @@ func (m *model) updateProviderAPIKeyCommandView(msg tea.Msg) (tea.Model, tea.Cmd
 		msg.Content = normalizeProviderAPIKeyPaste(msg.Content)
 		var cmd tea.Cmd
 		m.apiKeyInput, cmd = m.apiKeyInput.Update(msg)
-		return *m, cmd
+		return *m, inputHandledCmd(cmd)
 	case tea.KeyPressMsg:
 		switch msg.Key().Code {
 		case tea.KeyEsc:
@@ -622,11 +625,13 @@ func (m *model) updateProviderAPIKeyCommandView(msg tea.Msg) (tea.Model, tea.Cmd
 		case tea.KeyEnter:
 			return m.submitProviderAPIKey()
 		}
+	default:
+		return *m, nil
 	}
 
 	var cmd tea.Cmd
 	m.apiKeyInput, cmd = m.apiKeyInput.Update(msg)
-	return *m, cmd
+	return *m, inputHandledCmd(cmd)
 }
 
 func normalizeProviderAPIKeyPaste(value string) string {

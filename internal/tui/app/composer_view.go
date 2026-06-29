@@ -34,6 +34,7 @@ func newInputComposer() textarea.Model {
 // setInputTransparentStyles removes Bubble's default focused-line background.
 func setInputTransparentStyles(input *textarea.Model) {
 	styles := input.Styles()
+	styles.Cursor.Blink = false
 	styles.Focused.Base = styles.Focused.Base.UnsetBackground()
 	styles.Focused.Text = styles.Focused.Text.UnsetBackground()
 	styles.Focused.Placeholder = styles.Focused.Placeholder.UnsetBackground()

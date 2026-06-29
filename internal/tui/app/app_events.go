@@ -46,11 +46,11 @@ func (m model) handleAppEvent(event tuiEvent) (model, tea.Cmd) {
 	case insertInputNewlineEvent:
 		updated, cmd := m.insertInputNewline()
 		next, _ := updated.(model)
-		return next, cmd
+		return next, inputHandledCmd(cmd)
 	case deleteInputLineEvent:
 		updated, cmd := m.deleteInputLine()
 		next, _ := updated.(model)
-		return next, cmd
+		return next, inputHandledCmd(cmd)
 	case applyTUIMessageEvent:
 		cmd := m.applyTUIMessage(value.Message)
 		return m, cmd
