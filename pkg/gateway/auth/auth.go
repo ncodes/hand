@@ -5,6 +5,8 @@ import (
 	"crypto/subtle"
 	"errors"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var (
@@ -13,7 +15,7 @@ var (
 )
 
 func CheckBearer(header string, token string) error {
-	token = strings.TrimSpace(token)
+	token = stringx.String(token).Trim()
 	if token == "" {
 		return nil
 	}

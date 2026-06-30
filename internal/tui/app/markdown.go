@@ -4,11 +4,12 @@ import (
 	"strings"
 
 	xansi "github.com/charmbracelet/x/ansi"
+	"github.com/wandxy/morph/pkg/stringx"
 	"github.com/wandxy/morph/pkg/terminalmd"
 )
 
 func renderMarkdownForTranscript(markdown string, width int) string {
-	markdown = strings.TrimSpace(markdown)
+	markdown = stringx.String(markdown).Trim()
 	if markdown == "" || !hasTranscriptMarkdown(markdown) {
 		return markdown
 	}
@@ -30,7 +31,7 @@ func renderMarkdownForTranscript(markdown string, width int) string {
 	if err != nil {
 		return markdown
 	}
-	if strings.TrimSpace(xansi.Strip(rendered)) == "" {
+	if stringx.String(xansi.Strip(rendered)).Trim() == "" {
 		return markdown
 	}
 
@@ -39,7 +40,7 @@ func renderMarkdownForTranscript(markdown string, width int) string {
 
 func hasTranscriptMarkdown(value string) bool {
 	for _, line := range strings.Split(value, "\n") {
-		line = strings.TrimSpace(line)
+		line = stringx.String(line).Trim()
 		switch {
 		case strings.HasPrefix(line, "#"),
 			hasMarkdownAutolinkText(line),

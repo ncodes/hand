@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/shared"
 
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // chatCompletionsHandler handles chat completions requests.
@@ -203,9 +203,9 @@ func extractChatCompletionsResponse(resp *openai.ChatCompletion) (*Response, err
 		return nil, err
 	}
 
-	outputText := strings.TrimSpace(message.Content)
+	outputText := stringx.String(message.Content).Trim()
 	if outputText == "" {
-		outputText = strings.TrimSpace(message.Refusal)
+		outputText = stringx.String(message.Refusal).Trim()
 	}
 	if outputText == "" && len(toolCalls) == 0 {
 		return nil, errors.New("model returned empty response")
@@ -244,8 +244,8 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 
 	normalized := make([]ToolCall, 0, len(toolCalls))
 	for idx, toolCall := range toolCalls {
-		id := strings.TrimSpace(toolCall.ID)
-		name := strings.TrimSpace(toolCall.Function.Name)
+		id := stringx.String(toolCall.ID).Trim()
+		name := stringx.String(toolCall.Function.Name).Trim()
 		if name == "" {
 			return nil, errors.New("tool call name is required")
 		}
@@ -256,7 +256,7 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 		normalized = append(normalized, ToolCall{
 			ID:    id,
 			Name:  name,
-			Input: strings.TrimSpace(toolCall.Function.Arguments),
+			Input: stringx.String(toolCall.Function.Arguments).Trim(),
 		})
 	}
 
@@ -264,5 +264,5 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 }
 
 func getFallbackToolCallID(name string, index int) string {
-	return "functions." + strings.TrimSpace(name) + ":" + strconv.Itoa(index)
+	return "functions." + stringx.String(name).Trim() + ":" + strconv.Itoa(index)
 }

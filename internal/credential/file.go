@@ -8,10 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/wandxy/morph/internal/datadir"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var (
@@ -32,7 +32,7 @@ func DefaultPath() string {
 
 // NewFileStore returns a file-backed credential store.
 func NewFileStore(path string) *FileStore {
-	if strings.TrimSpace(path) == "" {
+	if stringx.String(path).Trim() == "" {
 		path = DefaultPath()
 	}
 
@@ -166,7 +166,7 @@ func (s *FileStore) Refresh(
 		if next.Type != TypeOAuth {
 			return data, false, errors.New("refreshed credential must be OAuth")
 		}
-		if strings.TrimSpace(next.Token) == "" {
+		if stringx.String(next.Token).Trim() == "" {
 			return data, false, errors.New("refreshed OAuth token credential is required")
 		}
 		data[provider] = next
@@ -194,7 +194,7 @@ func (s *FileStore) withLockedData(
 		return errors.New("credential store is required")
 	}
 
-	path := strings.TrimSpace(s.Path)
+	path := stringx.String(s.Path).Trim()
 	if path == "" {
 		path = DefaultPath()
 	}
@@ -243,7 +243,7 @@ func loadData(path string) (map[string]StoredCredential, error) {
 
 		return nil, fmt.Errorf("read credential store: %w", err)
 	}
-	if len(strings.TrimSpace(string(body))) == 0 {
+	if len(stringx.String(string(body)).Trim()) == 0 {
 		return make(map[string]StoredCredential), nil
 	}
 

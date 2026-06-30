@@ -3,10 +3,10 @@ package storememory
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	base "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func (s *Store) SaveGatewayBinding(ctx context.Context, binding base.GatewayBinding) error {
@@ -16,12 +16,12 @@ func (s *Store) SaveGatewayBinding(ctx context.Context, binding base.GatewayBind
 		return errors.New("store is required")
 	}
 
-	key := strings.TrimSpace(binding.Key)
+	key := stringx.String(binding.Key).Trim()
 	if key == "" {
 		return errors.New("gateway binding key is required")
 	}
 
-	sessionID := strings.TrimSpace(binding.SessionID)
+	sessionID := stringx.String(binding.SessionID).Trim()
 	if err := base.ValidateSessionID(sessionID); err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (s *Store) GetGatewayBinding(ctx context.Context, key string) (base.Gateway
 		return base.GatewayBinding{}, false, errors.New("store is required")
 	}
 
-	key = strings.TrimSpace(key)
+	key = stringx.String(key).Trim()
 	if key == "" {
 		return base.GatewayBinding{}, false, errors.New("gateway binding key is required")
 	}

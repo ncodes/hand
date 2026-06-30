@@ -12,6 +12,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type input struct {
@@ -125,8 +126,8 @@ func normalizeRequest(ctx context.Context, req input) (episodic.Request, error) 
 }
 
 func normalizeSessionID(ctx context.Context, sessionID string) string {
-	sessionID = strings.TrimSpace(sessionID)
-	currentSessionID := strings.TrimSpace(tools.SessionIDFromContext(ctx))
+	sessionID = stringx.String(sessionID).Trim()
+	currentSessionID := stringx.String(tools.SessionIDFromContext(ctx)).Trim()
 	if sessionID == "" {
 		return currentSessionID
 	}

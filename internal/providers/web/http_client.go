@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type httpClient struct {
@@ -47,7 +49,7 @@ func (p *httpClient) postJSONLimited(
 		client = http.DefaultClient
 	}
 
-	baseURL := strings.TrimRight(strings.TrimSpace(p.baseURL), "/")
+	baseURL := strings.TrimRight(stringx.String(p.baseURL).Trim(), "/")
 	if baseURL == "" {
 		return errors.New("web provider base URL is required")
 	}
@@ -65,7 +67,7 @@ func (p *httpClient) postJSONLimited(
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	for key, value := range headers {
-		if strings.TrimSpace(value) == "" {
+		if stringx.String(value).Trim() == "" {
 			continue
 		}
 		req.Header.Set(key, value)
@@ -79,7 +81,7 @@ func (p *httpClient) postJSONLimited(
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4*1024))
-		message := strings.TrimSpace(string(data))
+		message := stringx.String(string(data)).Trim()
 		if message == "" {
 			message = resp.Status
 		}
@@ -102,18 +104,18 @@ func (p *httpClient) postJSONLimited(
 }
 
 func (p *httpClient) authorizationHeaders() map[string]string {
-	if strings.TrimSpace(p.apiKey) == "" {
+	if stringx.String(p.apiKey).Trim() == "" {
 		return nil
 	}
 
 	return map[string]string{
-		"Authorization": "Bearer " + strings.TrimSpace(p.apiKey),
+		"Authorization": "Bearer " + stringx.String(p.apiKey).Trim(),
 	}
 }
 
 func getFirstNonEmpty(values ...string) string {
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if value != "" {
 			return value
 		}
@@ -124,7 +126,7 @@ func getFirstNonEmpty(values ...string) string {
 
 func getFirstHighlight(values []string) string {
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if value != "" {
 			return value
 		}

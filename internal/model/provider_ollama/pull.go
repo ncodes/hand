@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type Puller struct {
@@ -167,12 +169,12 @@ func (p *Puller) PullModel(ctx context.Context, model string, onProgress func(Pu
 		if err := json.Unmarshal(line, &chunk); err != nil {
 			return fmt.Errorf("decode Ollama pull chunk: %w", err)
 		}
-		if strings.TrimSpace(chunk.Error) != "" {
+		if stringx.String(chunk.Error).Trim() != "" {
 			return enrichOllamaPullError(chunk.Error, model)
 		}
 		if onProgress != nil {
 			onProgress(PullProgress{
-				Status:    strings.TrimSpace(chunk.Status),
+				Status:    stringx.String(chunk.Status).Trim(),
 				Total:     chunk.Total,
 				Completed: chunk.Completed,
 			})
@@ -192,11 +194,11 @@ func (p *Puller) setHeaders(req *http.Request) {
 }
 
 func isOllamaCloudModel(model string) bool {
-	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(model)), ":cloud")
+	return strings.HasSuffix(stringx.String(model).Normalized(), ":cloud")
 }
 
 func normalizePullBaseURL(value string) (string, error) {
-	value = strings.TrimRight(strings.TrimSpace(value), "/")
+	value = strings.TrimRight(stringx.String(value).Trim(), "/")
 	if value == "" {
 		return "", errors.New("ollama base URL is required")
 	}

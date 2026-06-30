@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tuirender "github.com/wandxy/morph/internal/tui/render"
+	"github.com/wandxy/morph/pkg/stringx"
 	"github.com/wandxy/morph/pkg/termtheme"
 )
 
@@ -32,7 +33,7 @@ func adaptTUITheme(base tuiTheme, result termtheme.Result) tuiTheme {
 		return base
 	}
 
-	switch strings.TrimSpace(strings.ToLower(result.Theme)) {
+	switch stringx.String(result.Theme).Normalized() {
 	case "dark":
 		return adaptDarkTUITheme(base, background)
 	case "light":
@@ -81,7 +82,7 @@ func (c themeRGB) Hex() string {
 }
 
 func parseThemeHexColor(value string) (themeRGB, bool) {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if len(value) != 7 || !strings.HasPrefix(value, "#") {
 		return themeRGB{}, false
 	}

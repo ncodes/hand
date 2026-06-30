@@ -3,7 +3,8 @@ package agent
 import (
 	"context"
 	"errors"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type TurnCloser interface {
@@ -46,7 +47,7 @@ func RunTurnLifecycle(
 	}
 
 	if lifecycle.SetRequestInstruction != nil {
-		lifecycle.SetRequestInstruction(strings.TrimSpace(opts.Instruct))
+		lifecycle.SetRequestInstruction(stringx.String(opts.Instruct).Trim())
 	}
 
 	closer, err := openTurnLifecycle(ctx, opts, lifecycle)

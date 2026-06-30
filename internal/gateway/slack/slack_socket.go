@@ -14,6 +14,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/gateway/dispatch"
 	slack "github.com/wandxy/morph/pkg/gateway/slack"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -115,7 +116,7 @@ func startSocketWithClient(
 
 func newSocketClient(appToken string) *socketClient {
 	return &socketClient{
-		appToken: strings.TrimSpace(appToken),
+		appToken: stringx.String(appToken).Trim(),
 		http:     http.DefaultClient,
 		baseURL:  defaultSlackAPIBase,
 		dial: func(url string) (socketConn, error) {
@@ -222,7 +223,7 @@ func (c *socketClient) openConnection(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(c.appToken))
+	req.Header.Set("Authorization", "Bearer "+stringx.String(c.appToken).Trim())
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := c.http.Do(req)
@@ -248,7 +249,7 @@ func (c *socketClient) openConnection(ctx context.Context) (string, error) {
 		}
 		return "", errors.New(body.Error)
 	}
-	if strings.TrimSpace(body.URL) == "" {
+	if stringx.String(body.URL).Trim() == "" {
 		return "", errors.New("slack socket URL is required")
 	}
 

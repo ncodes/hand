@@ -15,6 +15,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // OpenAIClient sends normalized model requests through OpenAI-compatible APIs.
@@ -97,7 +98,7 @@ func NewOpenAIProviderClient(
 	}
 
 	clientOptions := make([]option.RequestOption, 0, len(opts)+1)
-	if trimmed := strings.TrimSpace(apiKey); trimmed != "" {
+	if trimmed := stringx.String(apiKey).Trim(); trimmed != "" {
 		clientOptions = append(clientOptions, option.WithAPIKey(trimmed))
 	}
 	clientOptions = append(clientOptions, opts...)
@@ -188,14 +189,14 @@ func getModelClientProviderErrorDetail(err error) string {
 	if !errors.As(err, &apiErr) || apiErr == nil {
 		return ""
 	}
-	if raw := strings.TrimSpace(apiErr.RawJSON()); raw != "" {
+	if raw := stringx.String(apiErr.RawJSON()).Trim(); raw != "" {
 		return truncateProviderErrorDetail(raw)
 	}
 	if body := readOpenAIErrorResponseBody(apiErr); body != "" {
 		return truncateProviderErrorDetail(body)
 	}
 
-	return truncateProviderErrorDetail(strings.TrimSpace(apiErr.Message))
+	return truncateProviderErrorDetail(stringx.String(apiErr.Message).Trim())
 }
 
 func readOpenAIErrorResponseBody(apiErr *openai.Error) string {
@@ -209,13 +210,13 @@ func readOpenAIErrorResponseBody(apiErr *openai.Error) string {
 		return ""
 	}
 
-	return strings.TrimSpace(string(body))
+	return stringx.String(string(body)).Trim()
 }
 
 func truncateProviderErrorDetail(detail string) string {
 	const maxProviderErrorDetailChars = 2048
 
-	detail = strings.TrimSpace(detail)
+	detail = stringx.String(detail).Trim()
 	if len(detail) <= maxProviderErrorDetailChars {
 		return detail
 	}
@@ -225,7 +226,7 @@ func truncateProviderErrorDetail(detail string) string {
 
 // getProviderModelID converts Morph's neutral model ID to the provider's routed ID.
 func (c *OpenAIClient) getProviderModelID(model string) string {
-	model = strings.TrimSpace(model)
+	model = stringx.String(model).Trim()
 	if normalizeProvider(c.provider) == "openai" {
 		return strings.TrimPrefix(model, "openai/")
 	}
@@ -243,11 +244,11 @@ func (c *OpenAIClient) getModelOwner(model string) string {
 		return ""
 	}
 
-	return strings.TrimSpace(modelDef.Owner)
+	return stringx.String(modelDef.Owner).Trim()
 }
 
 func normalizeProvider(provider string) string {
-	return strings.TrimSpace(strings.ToLower(provider))
+	return stringx.String(provider).Normalized()
 }
 
 func (c *OpenAIClient) registryOrDefault() *modelprovider.Registry {

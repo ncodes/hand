@@ -2,7 +2,8 @@ package search
 
 import (
 	"context"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // UseCaseReranker reranks use case candidates.
@@ -26,7 +27,7 @@ func (r UseCaseReranker) Rerank(ctx context.Context, req RerankRequest) (RerankR
 }
 
 func (r UseCaseReranker) getOverride(useCase string) Reranker {
-	useCase = strings.TrimSpace(strings.ToLower(useCase))
+	useCase = stringx.String(useCase).Normalized()
 	if useCase == "" || len(r.Override) == 0 {
 		return nil
 	}

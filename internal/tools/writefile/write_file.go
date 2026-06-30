@@ -5,9 +5,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
@@ -41,7 +41,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return result, nil
 			}
 
-			if strings.TrimSpace(req.Path) == "" {
+			if stringx.String(req.Path).Trim() == "" {
 				return common.ToolError("invalid_input", "path is required"), nil
 			}
 

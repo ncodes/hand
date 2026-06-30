@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"strings"
 	"time"
 
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/trace"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -131,7 +131,7 @@ func (s *Service) RunBackground(ctx context.Context, req BackgroundRequest) (Bac
 	}
 
 	opts := NormalizeBackgroundOptions(req.Options)
-	runID := strings.TrimSpace(req.RunID)
+	runID := stringx.String(req.RunID).Trim()
 	if runID == "" {
 		runID = getBackgroundRunID(started)
 	}
@@ -191,7 +191,7 @@ func (s *Service) runBackgroundForSession(
 	opts BackgroundOptions,
 	session storage.Session,
 ) BackgroundSessionResult {
-	sessionID := strings.TrimSpace(session.ID)
+	sessionID := stringx.String(session.ID).Trim()
 	messageCount, err := s.manager.CountMessages(ctx, sessionID, storage.MessageQueryOptions{})
 	if err != nil {
 		recordBackgroundFailure(recorder, runID, sessionID, 0, "count_messages", err)
@@ -271,7 +271,7 @@ func isSessionEligible(
 	messageCount int,
 	checkpointOffset int,
 	opts BackgroundOptions) (bool, string) {
-	if strings.TrimSpace(session.ID) == "" {
+	if stringx.String(session.ID).Trim() == "" {
 		return false, "missing_session_id"
 	}
 	if messageCount < opts.MinMessages {

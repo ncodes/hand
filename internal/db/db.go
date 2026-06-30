@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/datadir"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const sqliteBusyTimeout = 10 * time.Second
@@ -30,7 +31,7 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 
 // OpenSQLite opens a SQLite database and applies connection settings.
 func OpenSQLite(path string) (*gorm.DB, error) {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" {
 		return nil, errors.New("sqlite path is required")
 	}
@@ -78,7 +79,7 @@ func ConfigureSQLite(db *gorm.DB) error {
 }
 
 func sqliteDSN(path string) string {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if strings.HasPrefix(path, "file:") {
 		return path
 	}

@@ -33,6 +33,7 @@ import (
 	_ "github.com/wandxy/morph/internal/model/provider_openai"
 	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -200,12 +201,12 @@ func loadProfileUserName() (string, bool, bool, error) {
 		return "", false, false, fmt.Errorf("parse user profile: %w", err)
 	}
 
-	name := strings.TrimSpace(user.Name)
+	name := stringx.String(user.Name).Trim()
 	return name, name != "", false, nil
 }
 
 func saveProfileUserName(name string) error {
-	name = strings.TrimSpace(name)
+	name = stringx.String(name).Trim()
 	if name == "" {
 		return nil
 	}
@@ -228,7 +229,7 @@ func saveProfileUserName(name string) error {
 
 func profileUserPath() string {
 	active := profile.WithMetadataPaths(profile.Active())
-	home := strings.TrimSpace(active.HomeDir)
+	home := stringx.String(active.HomeDir).Trim()
 	if home == "" {
 		return ""
 	}
@@ -244,7 +245,7 @@ func (m model) shouldShowNamePrompt() bool {
 		return true
 	}
 
-	return strings.TrimSpace(m.userName) == "" &&
+	return stringx.String(m.userName).Trim() == "" &&
 		len(m.messages) == 0 &&
 		(m.live == nil || m.live.IsEmpty())
 }
@@ -252,13 +253,13 @@ func (m model) shouldShowNamePrompt() bool {
 func (m model) shouldShowEmptyUserPrompt() bool {
 	return !m.shouldShowNamePrompt() &&
 		!m.shouldShowProfileModelSetup() &&
-		strings.TrimSpace(m.userDisplayName()) != "" &&
+		stringx.String(m.userDisplayName()).Trim() != "" &&
 		len(m.messages) == 0 &&
 		(m.live == nil || m.live.IsEmpty())
 }
 
 func (m model) userDisplayName() string {
-	if name := strings.TrimSpace(m.userName); name != "" {
+	if name := stringx.String(m.userName).Trim(); name != "" {
 		return name
 	}
 
@@ -286,7 +287,7 @@ func (m model) renderNamePrompt() string {
 		Render(input.View())
 	hintText := namePromptSubmitHint
 	hintColor := defaultTUITheme.MutedText
-	if errorText := strings.TrimSpace(m.namePromptError); errorText != "" {
+	if errorText := stringx.String(m.namePromptError).Trim(); errorText != "" {
 		hintText = errorText
 		hintColor = defaultTUITheme.ToolDeletion
 	} else if m.setupNamePromptActive {
@@ -342,7 +343,7 @@ func (m model) renderEmptyUserPrompt() string {
 
 func (m model) renderNamePromptHint(hintText string, hintColor string, width int) string {
 	width = max(width, 1)
-	hintText = strings.TrimSpace(hintText)
+	hintText = stringx.String(hintText).Trim()
 	if m.setupDismissible {
 		return renderProfileModelSetupSplitHint(hintText, setupCloseHint, width)
 	}
@@ -391,7 +392,7 @@ func (m model) handleNamePromptPaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) submitNamePrompt() (tea.Model, tea.Cmd) {
-	name := strings.TrimSpace(m.nameInput.Value())
+	name := stringx.String(m.nameInput.Value()).Trim()
 	if name == "" {
 		return m.setNamePromptError("name is required")
 	}
@@ -418,7 +419,7 @@ func (m model) submitNamePrompt() (tea.Model, tea.Cmd) {
 }
 
 func (m model) setNamePromptError(text string) (tea.Model, tea.Cmd) {
-	m.namePromptError = strings.TrimSpace(text)
+	m.namePromptError = stringx.String(text).Trim()
 	m.namePromptErrorStartedAt = currentTime()
 	startedAt := m.namePromptErrorStartedAt
 
@@ -459,7 +460,7 @@ func (m *model) startProfileModelSetup() tea.Cmd {
 }
 
 func (m *model) startProfileSetup(dismissible bool) tea.Cmd {
-	name := strings.TrimSpace(m.userName)
+	name := stringx.String(m.userName).Trim()
 	m.clearProfileModelSetup()
 	m.namePromptEnabled = true
 	m.setupNamePromptActive = true
@@ -518,7 +519,7 @@ func filterSetupProvidersForAuthMethod(
 
 		switch authMethod {
 		case setupAuthMethodAPIKey:
-			switch strings.TrimSpace(strings.ToLower(provider.ID)) {
+			switch stringx.String(provider.ID).Normalized() {
 			case constants.ModelProviderOpenAICodex, constants.ModelProviderGitHubCopilot:
 				continue
 			}
@@ -545,7 +546,7 @@ func (m *model) selectCurrentSetupProviderOption() (tea.Model, tea.Cmd) {
 	}
 
 	provider := m.setupProviders[m.setupItemSelected]
-	providerID := strings.TrimSpace(provider.ID)
+	providerID := stringx.String(provider.ID).Trim()
 	if providerID == "" {
 		return *m, m.setStatus("provider selection unavailable")
 	}
@@ -583,7 +584,7 @@ func (m model) getSetupProviderBaseURL(providerID string) string {
 	rawConfig := m.loadRawProfileConfig()
 	opts := clisetup.ModelOptions{
 		Provider:  providerID,
-		Current:   strings.TrimSpace(rawConfig.Models.Main.Name),
+		Current:   stringx.String(rawConfig.Models.Main.Name).Trim(),
 		OAuthOnly: m.setupAuthMethod == setupAuthMethodSubscription,
 		Config:    rawConfig,
 	}
@@ -595,8 +596,8 @@ func (m *model) loadSetupModels(providerID string, baseURL string) error {
 	rawConfig := m.loadRawProfileConfig()
 	opts := clisetup.ModelOptions{
 		Provider:  providerID,
-		Current:   strings.TrimSpace(rawConfig.Models.Main.Name),
-		BaseURL:   strings.TrimSpace(baseURL),
+		Current:   stringx.String(rawConfig.Models.Main.Name).Trim(),
+		BaseURL:   stringx.String(baseURL).Trim(),
 		OAuthOnly: m.setupAuthMethod == setupAuthMethodSubscription,
 		Config:    rawConfig,
 	}
@@ -607,7 +608,7 @@ func (m *model) loadSetupModels(providerID string, baseURL string) error {
 
 	m.setupModels = models
 	m.setupModelProvider = providerID
-	m.setupModelBaseURL = strings.TrimSpace(baseURL)
+	m.setupModelBaseURL = stringx.String(baseURL).Trim()
 	m.modelFilterInput = newModelFilterInput()
 	m.setupItemSelected = 0
 	m.setupOffset = 0
@@ -630,7 +631,7 @@ func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
 		return m.showSetupModelToolWarning(option)
 	}
 
-	apiKey := strings.TrimSpace(m.setupProviderAPIKey)
+	apiKey := stringx.String(m.setupProviderAPIKey).Trim()
 	if apiKey == "" && !isLocalSetupProvider(provider) {
 		if err := m.checkSetupModelAuth(option); err != nil {
 			if isMissingModelCredentialError(err) {
@@ -663,9 +664,9 @@ func (m *model) selectCurrentSetupModelOption() (tea.Model, tea.Cmd) {
 }
 
 func (m *model) submitSetupProviderAPIKey() (tea.Model, tea.Cmd) {
-	provider := strings.TrimSpace(m.setupModelProvider)
-	modelID := strings.TrimSpace(m.setupPendingModelID)
-	apiKey := strings.TrimSpace(m.apiKeyInput.Value())
+	provider := stringx.String(m.setupModelProvider).Trim()
+	modelID := stringx.String(m.setupPendingModelID).Trim()
+	apiKey := stringx.String(m.apiKeyInput.Value()).Trim()
 	if provider == "" {
 		return *m, m.setStatus("provider API key unavailable")
 	}
@@ -699,7 +700,7 @@ func (m *model) submitSetupProviderAPIKey() (tea.Model, tea.Cmd) {
 }
 
 func (m *model) showSetupBaseURLPrompt(providerID string, baseURL string) (tea.Model, tea.Cmd) {
-	providerID = strings.TrimSpace(providerID)
+	providerID = stringx.String(providerID).Trim()
 	if providerID == "" {
 		return *m, m.setStatus("provider selection unavailable")
 	}
@@ -707,7 +708,7 @@ func (m *model) showSetupBaseURLPrompt(providerID string, baseURL string) (tea.M
 	m.cancelSetupModelPull()
 	m.setupModelStep = setupModelStepBaseURL
 	m.setupModelProvider = providerID
-	m.setupModelBaseURL = strings.TrimSpace(baseURL)
+	m.setupModelBaseURL = stringx.String(baseURL).Trim()
 	m.setupModels = nil
 	m.setupProviderAPIKey = ""
 	m.setupPendingModelID = ""
@@ -724,8 +725,8 @@ func (m *model) showSetupBaseURLPrompt(providerID string, baseURL string) (tea.M
 }
 
 func (m *model) submitSetupBaseURL() (tea.Model, tea.Cmd) {
-	providerID := strings.TrimSpace(m.setupModelProvider)
-	baseURL := strings.TrimRight(strings.TrimSpace(m.baseURLInput.Value()), "/")
+	providerID := stringx.String(m.setupModelProvider).Trim()
+	baseURL := strings.TrimRight(stringx.String(m.baseURLInput.Value()).Trim(), "/")
 	if providerID == "" {
 		return *m, m.setStatus("provider selection unavailable")
 	}
@@ -747,7 +748,7 @@ func (m *model) submitSetupBaseURL() (tea.Model, tea.Cmd) {
 }
 
 func validateSetupBaseURL(value string) error {
-	parsed, err := url.Parse(strings.TrimSpace(value))
+	parsed, err := url.Parse(stringx.String(value).Trim())
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return errors.New("base URL is invalid")
 	}
@@ -756,7 +757,7 @@ func validateSetupBaseURL(value string) error {
 }
 
 func (m *model) showMissingSetupModelPullPrompt(option rpcclient.ModelOption) (tea.Model, tea.Cmd) {
-	modelID := strings.TrimSpace(option.ID)
+	modelID := stringx.String(option.ID).Trim()
 	if modelID == "" {
 		return *m, m.setStatus("model selection unavailable")
 	}
@@ -779,12 +780,12 @@ func (m *model) showMissingSetupModelPullPrompt(option rpcclient.ModelOption) (t
 
 func (m *model) showLocalProviderUnavailableNotice(baseURL string) (tea.Model, tea.Cmd) {
 	message := []string{
-		"Could not connect to Ollama at " + strings.TrimSpace(baseURL) + ".",
+		"Could not connect to Ollama at " + stringx.String(baseURL).Trim() + ".",
 		"Start Ollama, or edit the base URL and retry.",
 	}
 
 	m.setupModelStep = setupModelStepNotice
-	m.setupModelBaseURL = strings.TrimSpace(baseURL)
+	m.setupModelBaseURL = stringx.String(baseURL).Trim()
 	m.setupNoticeAction = setupNoticeActionLocalUnavailable
 	m.setupNoticeTitle = "Ollama not reachable"
 	m.setupPendingModelID = ""
@@ -796,7 +797,7 @@ func (m *model) showLocalProviderUnavailableNotice(baseURL string) (tea.Model, t
 }
 
 func (m *model) showSetupModelToolWarning(option rpcclient.ModelOption) (tea.Model, tea.Cmd) {
-	modelID := strings.TrimSpace(option.ID)
+	modelID := stringx.String(option.ID).Trim()
 	if modelID == "" {
 		return *m, m.setStatus("model selection unavailable")
 	}
@@ -823,9 +824,9 @@ func (m *model) startSetupModelPull() (tea.Model, tea.Cmd) {
 	}
 
 	provider := getSetupModelProvider(m.setupModelProvider, option)
-	modelID := strings.TrimSpace(option.ID)
+	modelID := stringx.String(option.ID).Trim()
 	baseURL := getSetupModelOptionBaseURL(provider, m.setupModelBaseURL, option)
-	if provider == "" || modelID == "" || strings.TrimSpace(baseURL) == "" {
+	if provider == "" || modelID == "" || stringx.String(baseURL).Trim() == "" {
 		return *m, m.setStatus("model selection unavailable")
 	}
 
@@ -859,7 +860,7 @@ func runSetupModelPullCommand(
 	return func() tea.Msg {
 		defer close(events)
 
-		modelID := strings.TrimSpace(option.ID)
+		modelID := stringx.String(option.ID).Trim()
 		printer := clibase.NewPullProgressPrinter(io.Discard, true)
 		var onProgress func(provider_ollama.PullProgress)
 		if printer != nil {
@@ -1013,13 +1014,13 @@ func (m *model) confirmSetupModelToolWarning() (tea.Model, tea.Cmd) {
 }
 
 func (m model) getPendingSetupModelOption() (rpcclient.ModelOption, bool) {
-	modelID := strings.TrimSpace(m.setupPendingModelID)
+	modelID := stringx.String(m.setupPendingModelID).Trim()
 	if modelID == "" {
 		return rpcclient.ModelOption{}, false
 	}
 
 	for _, option := range m.setupModels {
-		if strings.TrimSpace(option.ID) == modelID {
+		if stringx.String(option.ID).Trim() == modelID {
 			return option, true
 		}
 	}
@@ -1032,8 +1033,8 @@ func getSetupModelPullFailureMessage(baseURL string, err error) string {
 		return ""
 	}
 
-	message := strings.TrimSpace(err.Error())
-	if baseURL = strings.TrimSpace(baseURL); baseURL == "" {
+	message := stringx.String(err.Error()).Trim()
+	if baseURL = stringx.String(baseURL).Trim(); baseURL == "" {
 		baseURL = constants.DefaultOllamaBaseURL
 	}
 	if strings.Contains(strings.ToLower(message), "ollama is not reachable") ||
@@ -1048,13 +1049,13 @@ func getSetupModelPullFailureMessage(baseURL string, err error) string {
 }
 
 func (m *model) setSetupModelOption(option rpcclient.ModelOption) {
-	modelID := strings.TrimSpace(option.ID)
+	modelID := stringx.String(option.ID).Trim()
 	if modelID == "" {
 		return
 	}
 
 	for index := range m.setupModels {
-		if strings.TrimSpace(m.setupModels[index].ID) == modelID {
+		if stringx.String(m.setupModels[index].ID).Trim() == modelID {
 			m.setupModels[index] = option
 			return
 		}
@@ -1070,8 +1071,8 @@ func shouldWarnSetupModelToolSupport(provider string, option rpcclient.ModelOpti
 func (m model) isCurrentSetupModelPull(provider string, modelID string) bool {
 	return m.setupModelStep == setupModelStepNotice &&
 		m.setupNoticeAction == setupNoticeActionPullingModel &&
-		strings.TrimSpace(m.setupModelProvider) == strings.TrimSpace(provider) &&
-		strings.TrimSpace(m.setupPendingModelID) == strings.TrimSpace(modelID)
+		stringx.String(m.setupModelProvider).Trim() == stringx.String(provider).Trim() &&
+		stringx.String(m.setupPendingModelID).Trim() == stringx.String(modelID).Trim()
 }
 
 func (m *model) cancelSetupModelPull() {
@@ -1087,19 +1088,19 @@ func (m *model) showSetupNotice(title string, message string, hint string) (tea.
 	m.cancelSetupModelPull()
 	m.setupModelStep = setupModelStepNotice
 	m.setupNoticeAction = ""
-	m.setupNoticeTitle = strings.TrimSpace(title)
-	m.setupPendingModelID = strings.TrimSpace(title)
-	m.setupNoticeMessage = strings.TrimSpace(message)
-	m.setupNoticeHint = strings.TrimSpace(hint)
+	m.setupNoticeTitle = stringx.String(title).Trim()
+	m.setupPendingModelID = stringx.String(title).Trim()
+	m.setupNoticeMessage = stringx.String(message).Trim()
+	m.setupNoticeHint = stringx.String(hint).Trim()
 	m.setupOAuthPending = false
 	m.setupOAuthProvider = ""
 	m.resize()
 
-	return *m, m.setStatus(strings.ToLower(strings.TrimSpace(title)))
+	return *m, m.setStatus(stringx.String(title).Normalized())
 }
 
 func (m *model) startSetupOAuthLogin(provider string) (tea.Model, tea.Cmd) {
-	provider = strings.TrimSpace(provider)
+	provider = stringx.String(provider).Trim()
 	if provider == "" {
 		return *m, m.setStatus("provider selection unavailable")
 	}
@@ -1157,7 +1158,7 @@ func runSetupOAuthLoginCommand(
 
 		return setupOAuthCompletedMsg{
 			provider: provider,
-			output:   strings.TrimSpace(output.String()),
+			output:   stringx.String(output.String()).Trim(),
 			err:      err,
 		}
 	}
@@ -1199,7 +1200,7 @@ func (m model) updateSetupOAuthOutput(msg setupOAuthOutputMsg) (tea.Model, tea.C
 		return m, nil
 	}
 
-	m.setupNoticeMessage = strings.TrimSpace(m.setupNoticeMessage + "\n" + output)
+	m.setupNoticeMessage = stringx.String(m.setupNoticeMessage + "\n" + output).Trim()
 	m.resize()
 
 	return m, readSetupOAuthOutputCommand(msg.provider, msg.reader)
@@ -1219,7 +1220,7 @@ func shortenSetupOAuthOutput(output string) string {
 }
 
 func shortenSetupOAuthOutputLine(line string) string {
-	line = strings.TrimSpace(line)
+	line = stringx.String(line).Trim()
 	if line == "" {
 		return ""
 	}
@@ -1245,7 +1246,7 @@ func (m model) completeSetupOAuthLogin(msg setupOAuthCompletedMsg) (tea.Model, t
 	}
 	if msg.err != nil {
 		m.cancelSetupOAuthLogin()
-		message := strings.TrimSpace(msg.output)
+		message := stringx.String(msg.output).Trim()
 		if message != "" {
 			message += "\n"
 		}
@@ -1279,9 +1280,9 @@ func loadSetupModelOptionsCommand(
 		models, _, err := clisetup.ListModelOptions(ctx, opts)
 
 		return setupModelOptionsLoadedMsg{
-			provider:        strings.TrimSpace(provider),
+			provider:        stringx.String(provider).Trim(),
 			baseURL:         baseURL,
-			selectedModelID: strings.TrimSpace(selectedModelID),
+			selectedModelID: stringx.String(selectedModelID).Trim(),
 			models:          models,
 			err:             err,
 		}
@@ -1289,7 +1290,7 @@ func loadSetupModelOptionsCommand(
 }
 
 func (m model) completeSetupModelOptionsRefresh(msg setupModelOptionsLoadedMsg) (tea.Model, tea.Cmd) {
-	if strings.TrimSpace(msg.provider) != strings.TrimSpace(m.setupModelProvider) {
+	if stringx.String(msg.provider).Trim() != stringx.String(m.setupModelProvider).Trim() {
 		return m, nil
 	}
 	if msg.err != nil {
@@ -1304,7 +1305,7 @@ func (m model) completeSetupModelOptionsRefresh(msg setupModelOptionsLoadedMsg) 
 	}
 
 	m.setupModels = msg.models
-	m.setupModelBaseURL = strings.TrimSpace(msg.baseURL)
+	m.setupModelBaseURL = stringx.String(msg.baseURL).Trim()
 	m.setProfileModelSetupModelSelection(msg.selectedModelID)
 	m.resize()
 
@@ -1312,7 +1313,7 @@ func (m model) completeSetupModelOptionsRefresh(msg setupModelOptionsLoadedMsg) 
 }
 
 func (m *model) refreshSetupModelOptions() (tea.Model, tea.Cmd) {
-	provider := strings.TrimSpace(m.setupModelProvider)
+	provider := stringx.String(m.setupModelProvider).Trim()
 	if provider == "" {
 		return *m, m.setStatus("provider selection unavailable")
 	}
@@ -1321,8 +1322,8 @@ func (m *model) refreshSetupModelOptions() (tea.Model, tea.Cmd) {
 	selectedModelID := m.currentSetupModelID()
 	opts := clisetup.ModelOptions{
 		Provider:  provider,
-		Current:   strings.TrimSpace(rawConfig.Models.Main.Name),
-		BaseURL:   strings.TrimSpace(m.setupModelBaseURL),
+		Current:   stringx.String(rawConfig.Models.Main.Name).Trim(),
+		BaseURL:   stringx.String(m.setupModelBaseURL).Trim(),
 		OAuthOnly: m.setupAuthMethod == setupAuthMethodSubscription,
 		Config:    rawConfig,
 		Refresh:   true,
@@ -1344,7 +1345,7 @@ func (m *model) cancelSetupOAuthLogin() {
 func (m model) isCurrentSetupOAuthLogin(provider string) bool {
 	return m.setupOAuthPending &&
 		m.setupModelStep == setupModelStepNotice &&
-		strings.TrimSpace(m.setupOAuthProvider) == strings.TrimSpace(provider)
+		stringx.String(m.setupOAuthProvider).Trim() == stringx.String(provider).Trim()
 }
 
 func (m *model) showSetupProviderAPIKeyPrompt(option rpcclient.ModelOption) (tea.Model, tea.Cmd) {
@@ -1355,7 +1356,7 @@ func (m *model) showSetupProviderAPIKeyPrompt(option rpcclient.ModelOption) (tea
 
 	m.setupModelStep = setupModelStepAPIKey
 	m.setupModelProvider = provider
-	m.setupPendingModelID = strings.TrimSpace(option.ID)
+	m.setupPendingModelID = stringx.String(option.ID).Trim()
 	m.apiKeyInput = newProviderAPIKeyInput("API key for " + getProviderDisplayName(provider))
 	m.prefillSetupProviderAPIKeyInput(provider)
 	m.resize()
@@ -1364,7 +1365,7 @@ func (m *model) showSetupProviderAPIKeyPrompt(option rpcclient.ModelOption) (tea
 }
 
 func (m *model) showSetupProviderAPIKeyPromptForProvider(provider string) (tea.Model, tea.Cmd) {
-	provider = strings.TrimSpace(provider)
+	provider = stringx.String(provider).Trim()
 	if provider == "" {
 		return *m, m.setStatus("provider selection unavailable")
 	}
@@ -1405,11 +1406,11 @@ func (m *model) completeSetupModelSelection(option rpcclient.ModelOption) (tea.M
 
 func (m *model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey string) error {
 	provider := getSetupModelProvider(m.setupModelProvider, option)
-	modelID := strings.TrimSpace(option.ID)
+	modelID := stringx.String(option.ID).Trim()
 	if provider == "" || modelID == "" {
 		return errors.New("model selection unavailable")
 	}
-	if strings.TrimSpace(m.configPath) == "" {
+	if stringx.String(m.configPath).Trim() == "" {
 		return errors.New("config path unavailable")
 	}
 
@@ -1426,7 +1427,7 @@ func (m *model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey 
 		{Path: "models.summary.baseUrl", Value: baseURL},
 	}
 	updates = append(updates, config.ModelSetupEmbeddingUpdates(provider, baseURL)...)
-	if apiKey = strings.TrimSpace(apiKey); apiKey != "" {
+	if apiKey = stringx.String(apiKey).Trim(); apiKey != "" {
 		updates = append(updates, config.ConfigUpdate{
 			Path:  fmt.Sprintf("models.providers.%s.apiKey", provider),
 			Value: apiKey,
@@ -1446,33 +1447,33 @@ func (m *model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey 
 }
 
 func getSetupModelOptionAPI(provider string, option rpcclient.ModelOption) string {
-	if api := strings.TrimSpace(option.API); api != "" {
+	if api := stringx.String(option.API).Trim(); api != "" {
 		return api
 	}
 
-	providerDef, ok := modelprovider.DefaultRegistry().GetProvider(strings.TrimSpace(strings.ToLower(provider)))
+	providerDef, ok := modelprovider.DefaultRegistry().GetProvider(stringx.String(provider).Normalized())
 	if !ok {
 		return ""
 	}
 
-	return strings.TrimSpace(providerDef.DefaultAPI)
+	return stringx.String(providerDef.DefaultAPI).Trim()
 }
 
 func getSetupModelOptionBaseURL(provider string, setupBaseURL string, option rpcclient.ModelOption) string {
-	if baseURL := strings.TrimSpace(option.BaseURL); baseURL != "" {
+	if baseURL := stringx.String(option.BaseURL).Trim(); baseURL != "" {
 		return baseURL
 	}
 	if isLocalSetupProvider(provider) {
-		return strings.TrimSpace(setupBaseURL)
+		return stringx.String(setupBaseURL).Trim()
 	}
 
 	return ""
 }
 
 func isLocalSetupProvider(provider string) bool {
-	providerDef, ok := modelprovider.DefaultRegistry().GetProvider(strings.TrimSpace(strings.ToLower(provider)))
+	providerDef, ok := modelprovider.DefaultRegistry().GetProvider(stringx.String(provider).Normalized())
 
-	return ok && providerDef.Local != nil && strings.TrimSpace(providerDef.Local.AuthMarker) != ""
+	return ok && providerDef.Local != nil && stringx.String(providerDef.Local.AuthMarker).Trim() != ""
 }
 
 func isMissingLocalSetupModel(provider string, option rpcclient.ModelOption) bool {
@@ -1508,7 +1509,7 @@ func (m *model) refreshSetupModelRuntimeCmd(option rpcclient.ModelOption) tea.Cm
 	}
 
 	provider := getSetupModelProvider(m.setupModelProvider, option)
-	modelID := strings.TrimSpace(option.ID)
+	modelID := stringx.String(option.ID).Trim()
 	if provider == "" || modelID == "" {
 		return nil
 	}
@@ -1536,7 +1537,7 @@ func (m *model) completeSetupModelRuntimeSelection(msg setupModelRuntimeSelected
 
 func (m model) checkSetupModelAuth(option rpcclient.ModelOption) error {
 	provider := getSetupModelProvider(m.setupModelProvider, option)
-	modelID := strings.TrimSpace(option.ID)
+	modelID := stringx.String(option.ID).Trim()
 	if provider == "" || modelID == "" {
 		return errors.New("model selection unavailable")
 	}
@@ -1618,7 +1619,7 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 	case setupModelStepAPIKey:
 		switch msg.Key().Code {
 		case tea.KeyEsc:
-			if strings.TrimSpace(m.setupPendingModelID) == "" {
+			if stringx.String(m.setupPendingModelID).Trim() == "" {
 				if isLocalSetupProvider(m.setupModelProvider) {
 					return m.showSetupBaseURLPrompt(m.setupModelProvider, m.setupModelBaseURL)
 				}
@@ -1685,7 +1686,7 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 			if m.setupOAuthPending {
 				return *m, nil
 			}
-			if strings.TrimSpace(m.setupOAuthProvider) != "" {
+			if stringx.String(m.setupOAuthProvider).Trim() != "" {
 				return m.startSetupOAuthLogin(m.setupOAuthProvider)
 			}
 
@@ -1703,7 +1704,7 @@ func (m *model) handleProfileModelSetupKey(msg tea.KeyPressMsg) (tea.Model, tea.
 func (m *model) showSetupAuthMethodSelection() (tea.Model, tea.Cmd) {
 	m.cancelSetupOAuthLogin()
 	m.cancelSetupModelPull()
-	authMethod := strings.TrimSpace(m.setupAuthMethod)
+	authMethod := stringx.String(m.setupAuthMethod).Trim()
 	m.setupModelStep = setupModelStepAuthMethod
 	m.setupAuthMethod = ""
 	m.setupProviders = nil
@@ -1732,7 +1733,7 @@ func (m *model) showSetupAuthMethodSelection() (tea.Model, tea.Cmd) {
 func (m *model) showSetupProviderSelection() (tea.Model, tea.Cmd) {
 	m.cancelSetupOAuthLogin()
 	m.cancelSetupModelPull()
-	provider := strings.TrimSpace(m.setupModelProvider)
+	provider := stringx.String(m.setupModelProvider).Trim()
 	m.setupModelStep = setupModelStepProvider
 	m.setupModels = nil
 	m.setupModelProvider = ""
@@ -1746,7 +1747,7 @@ func (m *model) showSetupProviderSelection() (tea.Model, tea.Cmd) {
 	m.setupOAuthPending = false
 	m.setupOAuthProvider = ""
 	for index, option := range m.setupProviders {
-		if strings.TrimSpace(option.ID) == provider {
+		if stringx.String(option.ID).Trim() == provider {
 			m.setProfileModelSetupSelection(index, len(m.setupProviders))
 			break
 		}
@@ -1813,7 +1814,7 @@ func (m model) currentSetupModelID() string {
 	}
 
 	index := min(max(m.setupItemSelected, 0), len(models)-1)
-	return strings.TrimSpace(models[index].ID)
+	return stringx.String(models[index].ID).Trim()
 }
 
 func (m *model) setProfileModelSetupModelSelection(modelID string) {
@@ -1823,10 +1824,10 @@ func (m *model) setProfileModelSetupModelSelection(modelID string) {
 		return
 	}
 
-	modelID = strings.TrimSpace(modelID)
+	modelID = stringx.String(modelID).Trim()
 	if modelID != "" {
 		for index, option := range models {
-			if strings.TrimSpace(option.ID) == modelID {
+			if stringx.String(option.ID).Trim() == modelID {
 				m.setProfileModelSetupSelection(index, len(models))
 				return
 			}
@@ -2043,7 +2044,7 @@ func (m model) renderProfileModelSetupModelDetail(width int) string {
 		return ""
 	}
 
-	baseURL := strings.TrimSpace(m.setupModelBaseURL)
+	baseURL := stringx.String(m.setupModelBaseURL).Trim()
 	if baseURL == "" {
 		baseURL = constants.DefaultOllamaBaseURL
 	}
@@ -2086,7 +2087,7 @@ func (m model) renderProfileModelSetupTitleLeft(title string, width int) string 
 }
 
 func (m model) getProfileModelSetupLoginMethodLabel() string {
-	switch strings.TrimSpace(m.setupAuthMethod) {
+	switch stringx.String(m.setupAuthMethod).Trim() {
 	case setupAuthMethodSubscription:
 		return "login type: subscription"
 	case setupAuthMethodAPIKey:
@@ -2123,7 +2124,7 @@ func (m model) renderProfileModelSetupFrameWithHint(title string, hint string, b
 	height := max(m.transcript.Height(), 1)
 	boxWidth := m.getProfileModelSetupBoxWidth()
 
-	titleText := m.renderProfileModelSetupTitle(boxWidth, strings.TrimSpace(title))
+	titleText := m.renderProfileModelSetupTitle(boxWidth, stringx.String(title).Trim())
 	mark := lipgloss.NewStyle().
 		Width(boxWidth).
 		Align(lipgloss.Center).
@@ -2183,7 +2184,7 @@ func (m model) renderProfileModelSetupProviderRows() []string {
 func renderProfileModelSetupProviderRow(provider rpcclient.ProviderOption, authMethod string, width int, selected bool) string {
 	return renderProfileModelSetupOptionRow(
 		getProviderOptionDisplayName(provider),
-		getProfileModelSetupProviderDescription(provider, authMethod),
+		getProfileModelSetupProviderDescription(provider, stringx.String(authMethod)),
 		width,
 		selected,
 	)
@@ -2215,7 +2216,7 @@ func renderProfileModelSetupProviderLine(text string, width int, foreground stri
 	line += strings.Repeat(" ", max(width-lipgloss.Width(line), 0))
 	style := lipgloss.NewStyle().
 		Width(width)
-	if strings.TrimSpace(foreground) != "" {
+	if stringx.String(foreground).Trim() != "" {
 		style = style.Foreground(lipgloss.Color(foreground))
 	}
 	if selected {
@@ -2225,9 +2226,9 @@ func renderProfileModelSetupProviderLine(text string, width int, foreground stri
 	return style.Render(line)
 }
 
-func getProfileModelSetupProviderDescription(provider rpcclient.ProviderOption, authMethod string) string {
+func getProfileModelSetupProviderDescription(provider rpcclient.ProviderOption, authMethod stringx.String) string {
 	if isSetupProviderLocalOption(provider) {
-		detail := strings.TrimSpace(provider.Type)
+		detail := stringx.String(provider.Type).Trim()
 		if detail == "" {
 			detail = "local"
 		}
@@ -2235,10 +2236,10 @@ func getProfileModelSetupProviderDescription(provider rpcclient.ProviderOption, 
 		return "Local provider · " + detail
 	}
 
-	authMethod = strings.TrimSpace(authMethod)
-	switch strings.TrimSpace(strings.ToLower(provider.ID)) {
+	trimmedAuthMethod := authMethod.Trim()
+	switch stringx.String(provider.ID).Normalized() {
 	case constants.ModelProviderAnthropic:
-		if authMethod == setupAuthMethodAPIKey {
+		if trimmedAuthMethod == setupAuthMethodAPIKey {
 			return "Use your Anthropic API key"
 		}
 
@@ -2253,10 +2254,10 @@ func getProfileModelSetupProviderDescription(provider rpcclient.ProviderOption, 
 		return "Use your OpenRouter API key"
 	default:
 		name := getProviderOptionDisplayName(provider)
-		if authMethod == setupAuthMethodSubscription || provider.SupportsOAuth && !provider.SupportsAPIKey {
+		if trimmedAuthMethod == setupAuthMethodSubscription || provider.SupportsOAuth && !provider.SupportsAPIKey {
 			return "Use your " + name + " account"
 		}
-		if authMethod == setupAuthMethodAPIKey || provider.SupportsAPIKey {
+		if trimmedAuthMethod == setupAuthMethodAPIKey || provider.SupportsAPIKey {
 			return "Use your " + name + " API key"
 		}
 		if detail := getProviderOptionDetail(provider); detail != "" {
@@ -2368,8 +2369,8 @@ func (m model) renderProfileModelSetupAPIKey() string {
 
 func renderProfileModelSetupSplitHint(left string, right string, width int) string {
 	width = max(width, 1)
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
+	left = stringx.String(left).Trim()
+	right = stringx.String(right).Trim()
 	leftWidth := lipgloss.Width(left)
 	rightWidth := lipgloss.Width(right)
 	spacer := max(width-2-leftWidth-rightWidth, 1)
@@ -2383,7 +2384,7 @@ func renderProfileModelSetupSplitHint(left string, right string, width int) stri
 
 func (m model) renderProfileModelSetupHint(hintText string, width int) string {
 	width = max(width, 1)
-	hintText = strings.TrimSpace(hintText)
+	hintText = stringx.String(hintText).Trim()
 	if m.setupDismissible {
 		return renderProfileModelSetupSplitHint(hintText, setupCloseHint, width)
 	}
@@ -2404,7 +2405,7 @@ func renderProfileModelSetupAPIKeyHint(dismissible bool, width int) string {
 
 func renderProfileModelSetupPaddedLabel(label string, width int) string {
 	width = max(width, 1)
-	label = strings.TrimSpace(label)
+	label = stringx.String(label).Trim()
 	if width <= 2 {
 		return truncateCommandMenuText(label, width)
 	}
@@ -2414,9 +2415,9 @@ func renderProfileModelSetupPaddedLabel(label string, width int) string {
 
 func (m model) renderProfileModelSetupNotice() string {
 	boxWidth := m.getProfileModelSetupBoxWidth()
-	hint := strings.TrimSpace(m.setupNoticeHint)
+	hint := stringx.String(m.setupNoticeHint).Trim()
 	if !strings.Contains(strings.ToLower(hint), "esc") {
-		hint = strings.TrimSpace(hint + " · esc to go back")
+		hint = stringx.String(hint + " · esc to go back").Trim()
 	}
 
 	message := lipgloss.NewStyle().
@@ -2437,23 +2438,23 @@ func (m model) renderProfileModelSetupNotice() string {
 }
 
 func (m model) getSetupNoticeTitle() string {
-	if title := strings.TrimSpace(m.setupNoticeTitle); title != "" {
+	if title := stringx.String(m.setupNoticeTitle).Trim(); title != "" {
 		return title
 	}
 
-	return strings.TrimSpace(m.setupPendingModelID)
+	return stringx.String(m.setupPendingModelID).Trim()
 }
 
 func renderProfileModelSetupNoticeMessage(message string, width int) string {
 	width = max(width, 1)
-	message = strings.TrimSpace(message)
+	message = stringx.String(message).Trim()
 	if message == "" {
 		return ""
 	}
 
 	lines := make([]string, 0)
 	for _, paragraph := range strings.Split(message, "\n") {
-		paragraph = strings.TrimSpace(paragraph)
+		paragraph = stringx.String(paragraph).Trim()
 		if paragraph == "" {
 			lines = append(lines, "")
 			continue
@@ -2597,11 +2598,11 @@ func isSetupCloseKey(msg tea.KeyPressMsg) bool {
 }
 
 func getSetupModelProvider(provider string, option rpcclient.ModelOption) string {
-	if provider = strings.TrimSpace(provider); provider != "" {
+	if provider = stringx.String(provider).Trim(); provider != "" {
 		return provider
 	}
 
-	return strings.TrimSpace(option.Provider)
+	return stringx.String(option.Provider).Trim()
 }
 
 func isMissingModelCredentialError(err error) bool {
@@ -2624,24 +2625,24 @@ func getEmbeddingSetupInstruction() string {
 
 func (m model) profileModelSetupMissing() bool {
 	raw := m.loadRawProfileConfig()
-	return strings.TrimSpace(raw.Models.Main.Provider) == "" ||
-		strings.TrimSpace(raw.Models.Main.Name) == ""
+	return stringx.String(raw.Models.Main.Provider).Trim() == "" ||
+		stringx.String(raw.Models.Main.Name).Trim() == ""
 }
 
 func (m model) shouldShowProfileModelSetup() bool {
-	return strings.TrimSpace(m.setupModelStep) != ""
+	return stringx.String(m.setupModelStep).Trim() != ""
 }
 
 func (m model) loadRawProfileMainProvider() string {
-	return strings.TrimSpace(m.loadRawProfileConfig().Models.Main.Provider)
+	return stringx.String(m.loadRawProfileConfig().Models.Main.Provider).Trim()
 }
 
 func (m model) loadRawProfileMainModel() string {
-	return strings.TrimSpace(m.loadRawProfileConfig().Models.Main.Name)
+	return stringx.String(m.loadRawProfileConfig().Models.Main.Name).Trim()
 }
 
 func (m model) loadRawProviderAPIKey(provider string) string {
-	provider = strings.TrimSpace(provider)
+	provider = stringx.String(provider).Trim()
 	if provider == "" {
 		return ""
 	}
@@ -2651,12 +2652,12 @@ func (m model) loadRawProviderAPIKey(provider string) string {
 		return ""
 	}
 
-	return strings.TrimSpace(raw.Models.Providers[provider].APIKey)
+	return stringx.String(raw.Models.Providers[provider].APIKey).Trim()
 }
 
 func (m model) loadRawProfileConfig() *config.Config {
 	cfg := config.NewProfileConfig()
-	if strings.TrimSpace(m.configPath) == "" {
+	if stringx.String(m.configPath).Trim() == "" {
 		return cfg
 	}
 

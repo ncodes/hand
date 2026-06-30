@@ -11,6 +11,7 @@ import (
 
 	morphcli "github.com/wandxy/morph/internal/cli"
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func NewCommand(output io.Writer) *cli.Command {
@@ -168,7 +169,7 @@ func getConfigGetPaths(cmd *cli.Command) ([]string, error) {
 
 	paths := make([]string, 0, cmd.Args().Len())
 	for _, arg := range cmd.Args().Slice() {
-		path := strings.TrimSpace(arg)
+		path := stringx.String(arg).Trim()
 		if path == "" {
 			return nil, fmt.Errorf("config path is required")
 		}
@@ -186,29 +187,29 @@ func getSetConfigUpdates(cmd *cli.Command) ([]morphcli.ConfigUpdate, error) {
 	args := cmd.Args().Slice()
 	updates := make([]morphcli.ConfigUpdate, 0, len(args))
 	for index := 0; index < len(args); index++ {
-		raw := strings.TrimSpace(args[index])
+		raw := stringx.String(args[index]).Trim()
 		if raw == "" {
 			return nil, fmt.Errorf("config path and value are required")
 		}
 
 		path, value, ok := strings.Cut(raw, "=")
 		if ok {
-			path = strings.TrimSpace(path)
+			path = stringx.String(path).Trim()
 			if path == "" {
 				return nil, fmt.Errorf("config path and value are required")
 			}
-			updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: strings.TrimSpace(value)})
+			updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: stringx.String(value).Trim()})
 			continue
 		}
 
 		if index+1 >= len(args) {
 			return nil, fmt.Errorf("config path and value are required")
 		}
-		path = strings.TrimSpace(raw)
+		path = stringx.String(raw).Trim()
 		if path == "" {
 			return nil, fmt.Errorf("config path and value are required")
 		}
-		updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: strings.TrimSpace(args[index+1])})
+		updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: stringx.String(args[index+1]).Trim()})
 		index++
 	}
 

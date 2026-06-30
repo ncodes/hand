@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type chromeRenderer interface {
@@ -60,8 +61,8 @@ func renderNoticePanel(panel noticePanel) string {
 }
 
 func renderNoticeBarContent(left string, right string, width int) string {
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
+	left = stringx.String(left).Trim()
+	right = stringx.String(right).Trim()
 	if width <= lipgloss.Width(left) || right == "" {
 		return left
 	}

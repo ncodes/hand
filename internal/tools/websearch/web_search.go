@@ -2,9 +2,9 @@ package websearch
 
 import (
 	"context"
-	"strings"
 
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/guardrails"
@@ -55,7 +55,7 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 				return common.ToolError("tool_error", "web search provider is not configured"), nil
 			}
 
-			query := strings.TrimSpace(req.Query)
+			query := stringx.String(req.Query).Trim()
 			if query == "" {
 				return common.ToolError("invalid_input", "query is required"), nil
 			}

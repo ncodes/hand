@@ -11,6 +11,7 @@ import (
 	"github.com/wandxy/morph/internal/datadir"
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/pkg/promptio"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const fileName = constants.PersonalityFileName
@@ -40,12 +41,12 @@ type LoadOptions struct {
 
 // Load reads the configured personality instructions.
 func Load(opts LoadOptions) (Result, error) {
-	opts.ProfileHome = strings.TrimSpace(opts.ProfileHome)
+	opts.ProfileHome = stringx.String(opts.ProfileHome).Trim()
 	if opts.ProfileHome == "" {
 		opts.ProfileHome = datadir.ProjectHomeDir()
 	}
 
-	if opts.AllowWorkspace && strings.TrimSpace(opts.WorkspaceRoot) == "" {
+	if opts.AllowWorkspace && stringx.String(opts.WorkspaceRoot).Trim() == "" {
 		root, err := getwd()
 		if err != nil {
 			return Result{}, fmt.Errorf("resolve workspace root: %w", err)
@@ -61,9 +62,9 @@ func loadWithOptions(opts LoadOptions) (Result, error) {
 	safetyEvents := make([]guardrails.SafetyTracePayloadOptions, 0, 2)
 	seenPaths := make(map[string]struct{}, 2)
 
-	profileHome := strings.TrimSpace(opts.ProfileHome)
-	workspaceRoot := strings.TrimSpace(opts.WorkspaceRoot)
-	personalityName := strings.TrimSpace(opts.PersonalityName)
+	profileHome := stringx.String(opts.ProfileHome).Trim()
+	workspaceRoot := stringx.String(opts.WorkspaceRoot).Trim()
+	personalityName := stringx.String(opts.PersonalityName).Trim()
 
 	if personalityName == "" {
 		globalPath := filepath.Join(profileHome, fileName)
@@ -130,12 +131,12 @@ func loadNamedPersonality(
 	opts LoadOptions,
 	seenPaths map[string]struct{},
 ) (string, bool, []guardrails.SafetyTracePayloadOptions, error) {
-	name := strings.TrimSpace(opts.PersonalityName)
+	name := stringx.String(opts.PersonalityName).Trim()
 	personalityConfig := opts.PersonalityConfig
 	sections := make([]string, 0, 2)
 	safetyEvents := make([]guardrails.SafetyTracePayloadOptions, 0, 2)
 
-	if strings.TrimSpace(personalityConfig.Soul) != "" {
+	if stringx.String(personalityConfig.Soul).Trim() != "" {
 		section, found, events, err := loadFile(
 			personalityConfig.Soul,
 			opts.WorkspaceRoot,
@@ -151,9 +152,9 @@ func loadNamedPersonality(
 		safetyEvents = append(safetyEvents, events...)
 	}
 
-	if strings.TrimSpace(personalityConfig.Instruct) != "" {
+	if stringx.String(personalityConfig.Instruct).Trim() != "" {
 		displayName := fmt.Sprintf("personality:%s.instruct", name)
-		content := strings.TrimSpace(personalityConfig.Instruct)
+		content := stringx.String(personalityConfig.Instruct).Trim()
 		scanned := guardrails.SafetyScan(content, displayName)
 		if scanned.Blocked {
 			safetyEvents = append(safetyEvents, loadedContentSafetyEvent(displayName, content, scanned.Findings))
@@ -213,7 +214,7 @@ func loadFile(
 	if err != nil {
 		return "", false, nil, fmt.Errorf("read personality file %q: %w", path, err)
 	}
-	contentText := strings.TrimSpace(string(content))
+	contentText := stringx.String(string(content)).Trim()
 	if contentText == "" {
 		return "", false, nil, nil
 	}
@@ -228,7 +229,7 @@ func loadFile(
 	if scanned.Blocked {
 		safetyEvents = append(safetyEvents, loadedContentSafetyEvent(displayPath, contentText, scanned.Findings))
 	}
-	label := strings.TrimSpace(opts.Label)
+	label := stringx.String(opts.Label).Trim()
 	if label == "" {
 		label = displayPath
 	}
@@ -261,7 +262,7 @@ func getDisplayPath(path, workspaceRoot string) (string, error) {
 		}
 	}
 
-	if cleanedHome := strings.TrimSpace(datadir.ProjectHomeDir()); cleanedHome != "" {
+	if cleanedHome := stringx.String(datadir.ProjectHomeDir()).Trim(); cleanedHome != "" {
 		relativePath, err := filepath.Rel(cleanedHome, path)
 		if err == nil {
 			relativePath = filepath.ToSlash(relativePath)

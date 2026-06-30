@@ -19,6 +19,7 @@ import (
 	"github.com/wandxy/morph/internal/state/search"
 	vectorsqlite "github.com/wandxy/morph/internal/state/search/vectorstore/sqlite"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type liveMemoryStore interface {
@@ -138,7 +139,7 @@ func loadLiveMemoryVectorIndex(t *testing.T, cfg *config.Config) liveMemoryVecto
 	require.NoError(t, err)
 	return liveMemoryVectorIndex{
 		lister:         vectorStore,
-		embeddingModel: strings.TrimSpace(cfg.Models.Embedding.Name),
+		embeddingModel: stringx.String(cfg.Models.Embedding.Name).Trim(),
 	}
 }
 
@@ -163,7 +164,7 @@ func requireNoLiveMemoryToolUsage(
 }
 
 func isLiveMemoryToolName(name string) bool {
-	return strings.HasPrefix(strings.TrimSpace(name), "memory_")
+	return strings.HasPrefix(stringx.String(name).Trim(), "memory_")
 }
 
 func waitForLiveProceduralMemory(
@@ -236,7 +237,7 @@ func hasNoPendingLiveMemoryPromotion(
 	t.Helper()
 
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: strings.TrimSpace(sessionID),
+		SessionID: stringx.String(sessionID).Trim(),
 		Statuses: []storage.MemoryStatus{
 			storage.MemoryStatusCandidate,
 			storage.MemoryStatusActive,
@@ -272,7 +273,7 @@ func hasCurrentLiveMemoryVectors(
 	expectedHashes := make(map[string]string, len(items))
 	expectedTags := make(map[string][]string, len(items))
 	for _, item := range items {
-		text := strings.TrimSpace(strings.Join([]string{item.Title, item.Text}, "\n"))
+		text := stringx.String(strings.Join([]string{item.Title, item.Text}, "\n")).Trim()
 		if text == "" {
 			continue
 		}
@@ -338,7 +339,7 @@ func loadLiveSessionMemoryItems(
 	t.Helper()
 
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: strings.TrimSpace(sessionID),
+		SessionID: stringx.String(sessionID).Trim(),
 		Statuses: []storage.MemoryStatus{
 			storage.MemoryStatusCandidate,
 			storage.MemoryStatusActive,
@@ -363,7 +364,7 @@ func getLiveProceduralMemory(
 	t.Helper()
 
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: strings.TrimSpace(sessionID),
+		SessionID: stringx.String(sessionID).Trim(),
 		Kinds:     []storage.MemoryKind{storage.MemoryKindProcedural},
 		Statuses:  []storage.MemoryStatus{storage.MemoryStatusActive},
 		Limit:     10,
@@ -388,7 +389,7 @@ func getLiveSemanticMemoryContaining(
 	t.Helper()
 
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: strings.TrimSpace(sessionID),
+		SessionID: stringx.String(sessionID).Trim(),
 		Kinds:     []storage.MemoryKind{storage.MemoryKindSemantic},
 		Statuses:  []storage.MemoryStatus{storage.MemoryStatusActive},
 		Limit:     10,
@@ -440,7 +441,7 @@ func getLiveBackgroundEpisodicMemory(
 	t.Helper()
 
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: strings.TrimSpace(sessionID),
+		SessionID: stringx.String(sessionID).Trim(),
 		Kinds:     []storage.MemoryKind{storage.MemoryKindEpisodic},
 		Statuses:  []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
 		Limit:     10,
@@ -469,7 +470,7 @@ func hasLiveMemoryText(item storage.MemoryItem, required ...string) bool {
 	}, " "))
 
 	for _, value := range required {
-		if !strings.Contains(text, strings.ToLower(strings.TrimSpace(value))) {
+		if !strings.Contains(text, stringx.String(value).Normalized()) {
 			return false
 		}
 	}
@@ -481,7 +482,7 @@ func getLiveMemoryDump(ctx context.Context, t *testing.T, store liveMemoryStore,
 	t.Helper()
 
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: strings.TrimSpace(sessionID),
+		SessionID: stringx.String(sessionID).Trim(),
 		Statuses:  []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
 		Limit:     20,
 	})
@@ -499,7 +500,7 @@ func getLiveMemoryDump(ctx context.Context, t *testing.T, store liveMemoryStore,
 
 func getMemorySourceCreatedBy(item storage.MemoryItem) string {
 	for _, link := range item.SourceLinks {
-		if createdBy := strings.TrimSpace(link.CreatedBy); createdBy != "" {
+		if createdBy := stringx.String(link.CreatedBy).Trim(); createdBy != "" {
 			return createdBy
 		}
 	}
@@ -515,7 +516,7 @@ func getSessionEpisodicCheckpoint(
 ) int {
 	t.Helper()
 
-	session, ok, err := store.Get(ctx, strings.TrimSpace(sessionID), storage.SessionGetOptions{})
+	session, ok, err := store.Get(ctx, stringx.String(sessionID).Trim(), storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	return session.EpisodicCheckpointOffset
@@ -529,7 +530,7 @@ func hasSessionEpisodicCheckpointComplete(
 ) bool {
 	t.Helper()
 
-	sessionID = strings.TrimSpace(sessionID)
+	sessionID = stringx.String(sessionID).Trim()
 	checkpoint := getSessionEpisodicCheckpoint(t, ctx, store, sessionID)
 	count, err := store.CountMessages(ctx, sessionID, storage.MessageQueryOptions{})
 	require.NoError(t, err)

@@ -18,6 +18,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	morphtrace "github.com/wandxy/morph/internal/trace"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var (
@@ -334,11 +335,11 @@ type rawEvent struct {
 
 // NewStore returns a store backed by the supplied dependencies.
 func NewStore(directory string) *Store {
-	return &Store{directory: strings.TrimSpace(directory)}
+	return &Store{directory: stringx.String(directory).Trim()}
 }
 
 func (s *Store) Validate() error {
-	if s == nil || strings.TrimSpace(s.directory) == "" {
+	if s == nil || stringx.String(s.directory).Trim() == "" {
 		return errors.New("trace directory is required")
 	}
 
@@ -418,8 +419,8 @@ func (s *Store) GetSession(id string) (SessionDetail, error) {
 }
 
 func getSessionPath(directory, id string) (string, error) {
-	directory = strings.TrimSpace(directory)
-	id = strings.TrimSpace(id)
+	directory = stringx.String(directory).Trim()
+	id = stringx.String(id).Trim()
 	if directory == "" || id == "" {
 		return "", os.ErrNotExist
 	}
@@ -429,7 +430,7 @@ func getSessionPath(directory, id string) (string, error) {
 
 // LoadSessionFile loads session file.
 func LoadSessionFile(path string) (SessionDetail, error) {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" {
 		return SessionDetail{}, errors.New("trace session path is required")
 	}
@@ -619,7 +620,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 				SourceEndOffset:    payload.SourceEndOffset,
 				SourceMessageCount: payload.SourceMessageCount,
 				UpdatedAt:          payload.UpdatedAt,
-				Error:              strings.TrimSpace(payload.Error),
+				Error:              stringx.String(payload.Error).Trim(),
 			}
 
 			return
@@ -637,7 +638,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 				StartedAt:          payload.StartedAt,
 				CompletedAt:        payload.CompletedAt,
 				FailedAt:           payload.FailedAt,
-				Error:              strings.TrimSpace(payload.Error),
+				Error:              stringx.String(payload.Error).Trim(),
 			}
 
 			return
@@ -659,8 +660,8 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 				Steps:        planStepViewsFromPayload(payload.Steps),
 				Summary:      planSummaryViewFromPayload(payload.Summary),
 				ActiveStepID: payload.ActiveStepID,
-				Explanation:  strings.TrimSpace(payload.Explanation),
-				Source:       strings.TrimSpace(payload.Source),
+				Explanation:  stringx.String(payload.Explanation).Trim(),
+				Source:       stringx.String(payload.Source).Trim(),
 			}
 			return
 		}
@@ -669,13 +670,13 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		morphtrace.EvtMemorySafetyBlocked:
 		if payload, ok := typedPayload.(morphtrace.SafetyEventPayload); payloadOK && ok {
 			timelineEvent.SafetyEvent = &SafetyEventView{
-				SessionID:     strings.TrimSpace(payload.SessionID),
-				Source:        strings.TrimSpace(payload.Source),
-				Action:        strings.TrimSpace(payload.Action),
+				SessionID:     stringx.String(payload.SessionID).Trim(),
+				Source:        stringx.String(payload.Source).Trim(),
+				Action:        stringx.String(payload.Action).Trim(),
 				ContentLength: payload.ContentLength,
 				Blocked:       payload.Blocked,
 				Redacted:      payload.Redacted,
-				Refusal:       strings.TrimSpace(payload.Refusal),
+				Refusal:       stringx.String(payload.Refusal).Trim(),
 				Findings:      payload.Findings,
 			}
 			return
@@ -804,10 +805,10 @@ func pairToolInvocations(timeline []TimelineEvent) {
 	starts := map[string]int{}
 	for index := range timeline {
 		toolInvocation := timeline[index].ToolInvocation
-		if toolInvocation == nil || strings.TrimSpace(toolInvocation.ID) == "" {
+		if toolInvocation == nil || stringx.String(toolInvocation.ID).Trim() == "" {
 			continue
 		}
-		id := strings.TrimSpace(toolInvocation.ID)
+		id := stringx.String(toolInvocation.ID).Trim()
 		switch toolInvocation.Phase {
 		case "started":
 			starts[id] = index
@@ -845,7 +846,7 @@ func compactJSON(value []byte) string {
 
 	var out bytes.Buffer
 	if err := json.Compact(&out, value); err != nil {
-		return strings.TrimSpace(string(value))
+		return stringx.String(string(value)).Trim()
 	}
 
 	return out.String()
@@ -853,7 +854,7 @@ func compactJSON(value []byte) string {
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if value != "" {
 			return value
 		}

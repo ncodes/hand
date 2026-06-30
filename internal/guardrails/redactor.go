@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var jsonUnmarshal = json.Unmarshal
@@ -116,7 +118,7 @@ func sanitizeValue(value any, options RedactorOptions) any {
 }
 
 func sanitizeString(value string, options RedactorOptions) string {
-	trimmed := strings.TrimSpace(value)
+	trimmed := stringx.String(value).Trim()
 	if trimmed == "" {
 		return value
 	}
@@ -278,6 +280,6 @@ func digitsOnly(value string) string {
 }
 
 func isSensitiveKey(key string) bool {
-	normalized := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(key), "-", ""), "_", ""))
+	normalized := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(stringx.String(key).Trim(), "-", ""), "_", ""))
 	return slices.Contains(secretKeys, normalized)
 }

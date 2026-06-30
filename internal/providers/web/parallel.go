@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const parallelDefaultBaseURL = "https://api.parallel.ai"
@@ -62,8 +64,8 @@ func (p *ParallelProvider) Search(ctx context.Context, query string, count int) 
 	results := make([]SearchResult, 0, len(response.Results))
 	for idx, result := range response.Results {
 		results = append(results, SearchResult{
-			Title:    strings.TrimSpace(result.Title),
-			URL:      strings.TrimSpace(result.URL),
+			Title:    stringx.String(result.Title).Trim(),
+			URL:      stringx.String(result.URL).Trim(),
 			Snippet:  truncateToMaxChars(getFirstNonEmpty(strings.Join(result.Excerpts, " "), result.Snippet), p.maxCharsPerResult),
 			Position: idx + 1,
 		})
@@ -105,8 +107,8 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 			maxChars)
 
 		results = append(results, ExtractResult{
-			URL:               strings.TrimSpace(result.URL),
-			Title:             strings.TrimSpace(result.Title),
+			URL:               stringx.String(result.URL).Trim(),
+			Title:             stringx.String(result.Title).Trim(),
 			Content:           content,
 			ContentFormat:     format,
 			Truncated:         truncated,
@@ -115,7 +117,7 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 	}
 	for _, result := range response.Errors {
 		results = append(results, ExtractResult{
-			URL:           strings.TrimSpace(result.URL),
+			URL:           stringx.String(result.URL).Trim(),
 			ContentFormat: format,
 			Error:         getFirstNonEmpty(result.Content, result.ErrorType, "extraction failed"),
 		})
@@ -125,11 +127,11 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 }
 
 func (p *ParallelProvider) parallelHeaders() map[string]string {
-	if p == nil || p.client == nil || strings.TrimSpace(p.client.apiKey) == "" {
+	if p == nil || p.client == nil || stringx.String(p.client.apiKey).Trim() == "" {
 		return nil
 	}
 
 	return map[string]string{
-		"x-api-key": strings.TrimSpace(p.client.apiKey),
+		"x-api-key": stringx.String(p.client.apiKey).Trim(),
 	}
 }

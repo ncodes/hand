@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/wandxy/morph/internal/brand"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const morphProductName = "Morph"
@@ -110,8 +111,8 @@ func getHeaderBodyContentWidth(width int) int {
 
 func getNoticePanel(width int, names ...string) noticePanel {
 	name := noticeBarName
-	if len(names) > 0 && strings.TrimSpace(names[0]) != "" {
-		name = strings.TrimSpace(names[0])
+	if len(names) > 0 && stringx.String(names[0]).Trim() != "" {
+		name = stringx.String(names[0]).Trim()
 	}
 
 	return noticePanel{
@@ -175,9 +176,9 @@ func alignHeaderInfoPanel(info string, targetHeight int) string {
 
 // getModelDisplayName removes the provider or owner prefix from a model identifier.
 func getModelDisplayName(name string) string {
-	name = strings.TrimSpace(name)
+	name = stringx.String(name).Trim()
 	if _, model, ok := strings.Cut(name, "/"); ok {
-		return strings.TrimSpace(model)
+		return stringx.String(model).Trim()
 	}
 
 	return name

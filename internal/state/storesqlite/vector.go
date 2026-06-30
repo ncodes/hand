@@ -11,6 +11,7 @@ import (
 	"github.com/wandxy/morph/internal/constants"
 	base "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const defaultVectorStoreRebuildBatchSize = constants.DefaultVectorStoreRebuildBatchSize
@@ -60,7 +61,7 @@ func (s *Store) ConfigureVectorStore(opts VectorStoreOptions) error {
 		return errors.New("store is required")
 	}
 
-	model := strings.TrimSpace(opts.EmbeddingModel)
+	model := stringx.String(opts.EmbeddingModel).Trim()
 	if opts.Embedder == nil && opts.VectorStore == nil && model == "" {
 		s.vectors = nil
 		return nil
@@ -129,7 +130,7 @@ func (s *Store) rerankerName() string {
 		return search.RerankerDeterministic
 	}
 
-	return strings.TrimSpace(strings.ToLower(s.vectors.Reranker.Name()))
+	return stringx.String(s.vectors.Reranker.Name()).Normalized()
 }
 
 // diagnosticsEnabled reports whether vector search diagnostics should be logged.
@@ -469,7 +470,7 @@ func (s *Store) rerankSearchCandidates(
 	}
 
 	result, err := search.RerankWithFallback(ctx, reranker, search.DeterministicReranker{}, search.RerankRequest{
-		Query:      strings.TrimSpace(opts.Query),
+		Query:      stringx.String(opts.Query).Trim(),
 		Caller:     "session_search",
 		SourceKind: search.SourceKindSessionMessage,
 		Candidates: retrievalCandidates,
@@ -508,18 +509,18 @@ func (s *Store) rerankSearchCandidates(
 
 // getSearchRerankResultName returns the reranker reported by a result or the configured fallback.
 func getSearchRerankResultName(result search.RerankResult, fallback string) string {
-	if name := strings.TrimSpace(strings.ToLower(result.Reranker)); name != "" {
+	if name := stringx.String(result.Reranker).Normalized(); name != "" {
 		return name
 	}
 
-	return strings.TrimSpace(strings.ToLower(fallback))
+	return stringx.String(fallback).Normalized()
 }
 
 // searchCandidateToRetrievalCandidate converts a search candidate to the reranker contract.
 func searchCandidateToRetrievalCandidate(candidate *searchCandidate) search.Candidate {
-	text := strings.TrimSpace(candidate.MatchedText)
+	text := stringx.String(candidate.MatchedText).Trim()
 	if text == "" {
-		text = strings.TrimSpace(candidate.Content)
+		text = stringx.String(candidate.Content).Trim()
 	}
 
 	return search.Candidate{
@@ -544,12 +545,12 @@ func (s *Store) searchMessagesVector(
 	candidateLimit int,
 ) ([]*searchCandidate, error) {
 	embeddingReq := search.EmbeddingRequest{
-		Model:        strings.TrimSpace(s.vectors.Model),
+		Model:        stringx.String(s.vectors.Model).Trim(),
 		Relationship: "query_vector_for_session_message_retrieval",
 		Target:       "session_message_vectors",
 		Inputs: []search.EmbeddingInput{{
 			ID:         "query",
-			Text:       strings.TrimSpace(opts.Query),
+			Text:       stringx.String(opts.Query).Trim(),
 			SourceKind: search.SourceKindSessionMessage,
 		}},
 	}
@@ -574,11 +575,11 @@ func (s *Store) searchMessagesVector(
 	s.logSearchEvent("query embedding completed", id, opts).
 		Int("dimensions", embedding.Dimensions).
 		Str("source_kind", string(search.SourceKindSessionMessage)).
-		Str("embedding_model", strings.TrimSpace(embedding.Model)).
+		Str("embedding_model", stringx.String(embedding.Model).Trim()).
 		Msg("session search query embedding completed for vector retrieval")
 
 	searchReq := search.VectorSearchRequest{
-		EmbeddingModel: strings.TrimSpace(s.vectors.Model),
+		EmbeddingModel: stringx.String(s.vectors.Model).Trim(),
 		Dimensions:     embedding.Dimensions,
 		QueryVector:    embedding.Items[0].Vector,
 		Limit:          candidateLimit,
@@ -586,7 +587,7 @@ func (s *Store) searchMessagesVector(
 			SourceKind:      search.SourceKindSessionMessage,
 			SessionID:       id,
 			IgnoreSessionID: opts.IgnoreSessionID,
-			Role:            strings.TrimSpace(string(opts.Role)),
+			Role:            stringx.String(string(opts.Role)).Trim(),
 			ToolName:        normalizeSearchValue(opts.ToolName),
 		},
 	}
@@ -796,7 +797,7 @@ func checkVectorRecordMatchesOptions(record messageModel, id string, opts base.S
 	if opts.IgnoreSessionID != "" && record.SessionID == opts.IgnoreSessionID {
 		return false
 	}
-	if role := strings.TrimSpace(string(opts.Role)); role != "" && record.Role != role {
+	if role := stringx.String(string(opts.Role)).Trim(); role != "" && record.Role != role {
 		return false
 	}
 
@@ -857,7 +858,7 @@ func (s *Store) vectorRecordsForMessages(
 		Int("input_count", len(req.Inputs)).
 		Int("message_count", len(records)).
 		Int("row_count", len(inputs)).
-		Str("embedding_model", strings.TrimSpace(req.Model)).
+		Str("embedding_model", stringx.String(req.Model).Trim()).
 		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Msg("session vector indexing embedding started for message rows")
 
@@ -877,7 +878,7 @@ func (s *Store) vectorRecordsForMessages(
 		Int("message_count", len(records)).
 		Int("row_count", len(inputs)).
 		Int("dimensions", result.Dimensions).
-		Str("embedding_model", strings.TrimSpace(result.Model)).
+		Str("embedding_model", stringx.String(result.Model).Trim()).
 		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Msg("session vector indexing embedding completed for message rows")
 
@@ -918,7 +919,7 @@ func (s *Store) upsertVectorRecords(ctx context.Context, records []search.Vector
 	dimensions := records[0].Dimensions
 	s.logVectorEvent("upsert started").
 		Int("record_count", len(records)).
-		Str("embedding_model", strings.TrimSpace(model)).
+		Str("embedding_model", stringx.String(model).Trim()).
 		Int("dimensions", dimensions).
 		Str("target", "session_message_vectors").
 		Msg("session vector index upsert started for message rows")
@@ -930,7 +931,7 @@ func (s *Store) upsertVectorRecords(ctx context.Context, records []search.Vector
 	}
 	s.logVectorEvent("upsert completed").
 		Int("record_count", len(records)).
-		Str("embedding_model", strings.TrimSpace(model)).
+		Str("embedding_model", stringx.String(model).Trim()).
 		Int("dimensions", dimensions).
 		Str("target", "session_message_vectors").
 		Msg("session vector index upsert completed for message rows")
@@ -975,7 +976,7 @@ func (s *Store) deleteVectorRows(ctx context.Context, sourceIDs []string) error 
 }
 
 func (s *Store) deleteVectorRowsBySession(ctx context.Context, sessionID string) error {
-	sessionID = strings.TrimSpace(sessionID)
+	sessionID = stringx.String(sessionID).Trim()
 	if s == nil || s.vectors == nil || sessionID == "" {
 		return nil
 	}

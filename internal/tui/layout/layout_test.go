@@ -1,8 +1,10 @@
 package layout
 
-import "testing"
+import (
+	"testing"
 
-import "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
+)
 
 func TestPanelPadding_DisablesPaddingWhenNarrow(t *testing.T) {
 	require.Equal(t, 0, PanelPadding(2))

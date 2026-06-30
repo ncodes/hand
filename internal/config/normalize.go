@@ -1,10 +1,9 @@
 package config
 
 import (
-	"strings"
-
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/datadir"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // normalizeFields applies trimming and defaults except default model base URL resolution.
@@ -13,62 +12,62 @@ func (c *Config) normalizeFields() {
 		return
 	}
 
-	c.Name = strings.TrimSpace(c.Name)
+	c.Name = stringx.String(c.Name).Trim()
 	if c.Name == "" {
 		c.Name = constants.DefaultName
 	}
-	c.Models.Main.Name = strings.TrimSpace(c.Models.Main.Name)
-	c.Models.Summary.Name = strings.TrimSpace(c.Models.Summary.Name)
-	c.Models.Main.Provider = strings.TrimSpace(strings.ToLower(c.Models.Main.Provider))
-	c.Models.Embedding.Provider = strings.TrimSpace(strings.ToLower(c.Models.Embedding.Provider))
-	c.Models.Embedding.Name = strings.TrimSpace(c.Models.Embedding.Name)
-	c.Models.Embedding.API = strings.TrimSpace(strings.ToLower(c.Models.Embedding.API))
+	c.Models.Main.Name = stringx.String(c.Models.Main.Name).Trim()
+	c.Models.Summary.Name = stringx.String(c.Models.Summary.Name).Trim()
+	c.Models.Main.Provider = stringx.String(c.Models.Main.Provider).Normalized()
+	c.Models.Embedding.Provider = stringx.String(c.Models.Embedding.Provider).Normalized()
+	c.Models.Embedding.Name = stringx.String(c.Models.Embedding.Name).Trim()
+	c.Models.Embedding.API = stringx.String(c.Models.Embedding.API).Normalized()
 	c.Models.Providers = normalizeProviderModelConfigs(c.Models.Providers)
-	c.Models.Main.APIKey = strings.TrimSpace(c.Models.Main.APIKey)
-	c.Models.Main.BaseURL = strings.TrimSpace(c.Models.Main.BaseURL)
-	c.Models.Summary.Provider = strings.TrimSpace(strings.ToLower(c.Models.Summary.Provider))
-	c.Models.Summary.APIKey = strings.TrimSpace(c.Models.Summary.APIKey)
-	c.Models.Summary.BaseURL = strings.TrimSpace(c.Models.Summary.BaseURL)
-	c.Models.Embedding.APIKey = strings.TrimSpace(c.Models.Embedding.APIKey)
-	c.Models.Main.API = strings.TrimSpace(strings.ToLower(c.Models.Main.API))
-	c.Models.Summary.API = strings.TrimSpace(strings.ToLower(c.Models.Summary.API))
-	c.Log.Level = strings.TrimSpace(strings.ToLower(c.Log.Level))
-	c.Trace.Disk.Dir = strings.TrimSpace(c.Trace.Disk.Dir)
-	c.Web.Provider = strings.TrimSpace(strings.ToLower(c.Web.Provider))
-	c.Web.APIKey = strings.TrimSpace(c.Web.APIKey)
-	c.Web.BaseURL = strings.TrimSpace(c.Web.BaseURL)
+	c.Models.Main.APIKey = stringx.String(c.Models.Main.APIKey).Trim()
+	c.Models.Main.BaseURL = stringx.String(c.Models.Main.BaseURL).Trim()
+	c.Models.Summary.Provider = stringx.String(c.Models.Summary.Provider).Normalized()
+	c.Models.Summary.APIKey = stringx.String(c.Models.Summary.APIKey).Trim()
+	c.Models.Summary.BaseURL = stringx.String(c.Models.Summary.BaseURL).Trim()
+	c.Models.Embedding.APIKey = stringx.String(c.Models.Embedding.APIKey).Trim()
+	c.Models.Main.API = stringx.String(c.Models.Main.API).Normalized()
+	c.Models.Summary.API = stringx.String(c.Models.Summary.API).Normalized()
+	c.Log.Level = stringx.String(c.Log.Level).Normalized()
+	c.Trace.Disk.Dir = stringx.String(c.Trace.Disk.Dir).Trim()
+	c.Web.Provider = stringx.String(c.Web.Provider).Normalized()
+	c.Web.APIKey = stringx.String(c.Web.APIKey).Trim()
+	c.Web.BaseURL = stringx.String(c.Web.BaseURL).Trim()
 	c.Web.BlockedDomains = dedupeAndTrim(c.Web.BlockedDomains)
 	c.Web.BlockedDomainFiles = dedupeAndTrim(c.Web.BlockedDomainFiles)
 	c.Web.NativeAllowedHosts = dedupeAndTrim(c.Web.NativeAllowedHosts)
 	c.Web.NativeBlockedHosts = dedupeAndTrim(c.Web.NativeBlockedHosts)
 	c.Web.NativeAllowedHostFiles = dedupeAndTrim(c.Web.NativeAllowedHostFiles)
 	c.Web.NativeBlockedHostFiles = dedupeAndTrim(c.Web.NativeBlockedHostFiles)
-	c.Gateway.Address = strings.TrimSpace(c.Gateway.Address)
-	c.Gateway.AuthToken = strings.TrimSpace(c.Gateway.AuthToken)
-	c.Gateway.PairingSecret = strings.TrimSpace(c.Gateway.PairingSecret)
+	c.Gateway.Address = stringx.String(c.Gateway.Address).Trim()
+	c.Gateway.AuthToken = stringx.String(c.Gateway.AuthToken).Trim()
+	c.Gateway.PairingSecret = stringx.String(c.Gateway.PairingSecret).Trim()
 	c.Gateway.AllowedUsers = dedupeAndTrim(c.Gateway.AllowedUsers)
-	c.Gateway.Telegram.Mode = strings.TrimSpace(strings.ToLower(c.Gateway.Telegram.Mode))
-	c.Gateway.Telegram.BotToken = strings.TrimSpace(c.Gateway.Telegram.BotToken)
-	c.Gateway.Telegram.WebhookSecret = strings.TrimSpace(c.Gateway.Telegram.WebhookSecret)
+	c.Gateway.Telegram.Mode = stringx.String(c.Gateway.Telegram.Mode).Normalized()
+	c.Gateway.Telegram.BotToken = stringx.String(c.Gateway.Telegram.BotToken).Trim()
+	c.Gateway.Telegram.WebhookSecret = stringx.String(c.Gateway.Telegram.WebhookSecret).Trim()
 	c.Gateway.Telegram.AllowedUsers = dedupeAndTrim(c.Gateway.Telegram.AllowedUsers)
-	c.Gateway.Slack.Mode = strings.TrimSpace(strings.ToLower(c.Gateway.Slack.Mode))
-	c.Gateway.Slack.ResponseMode = strings.TrimSpace(strings.ToLower(c.Gateway.Slack.ResponseMode))
-	c.Gateway.Slack.BotToken = strings.TrimSpace(c.Gateway.Slack.BotToken)
-	c.Gateway.Slack.AppToken = strings.TrimSpace(c.Gateway.Slack.AppToken)
-	c.Gateway.Slack.SigningSecret = strings.TrimSpace(c.Gateway.Slack.SigningSecret)
+	c.Gateway.Slack.Mode = stringx.String(c.Gateway.Slack.Mode).Normalized()
+	c.Gateway.Slack.ResponseMode = stringx.String(c.Gateway.Slack.ResponseMode).Normalized()
+	c.Gateway.Slack.BotToken = stringx.String(c.Gateway.Slack.BotToken).Trim()
+	c.Gateway.Slack.AppToken = stringx.String(c.Gateway.Slack.AppToken).Trim()
+	c.Gateway.Slack.SigningSecret = stringx.String(c.Gateway.Slack.SigningSecret).Trim()
 	c.Gateway.Slack.AllowedUsers = dedupeAndTrim(c.Gateway.Slack.AllowedUsers)
 	c.Rules.Files = normalizeRulePaths(c.Rules.Files)
-	c.Session.Instruct = strings.TrimSpace(c.Session.Instruct)
-	c.Platform = strings.TrimSpace(strings.ToLower(c.Platform))
+	c.Session.Instruct = stringx.String(c.Session.Instruct).Trim()
+	c.Platform = stringx.String(c.Platform).Normalized()
 	c.FS.Roots = normalizeFSRoots(c.FS.Roots)
 	c.Exec.Allow = dedupeAndTrim(c.Exec.Allow)
 	c.Exec.Ask = dedupeAndTrim(c.Exec.Ask)
 	c.Exec.Deny = dedupeAndTrim(c.Exec.Deny)
-	c.Storage.Backend = strings.TrimSpace(strings.ToLower(c.Storage.Backend))
-	c.Memory.Provider = strings.TrimSpace(strings.ToLower(c.Memory.Provider))
-	c.Memory.Backend = strings.TrimSpace(strings.ToLower(c.Memory.Backend))
-	c.Reranker.Type = strings.TrimSpace(strings.ToLower(c.Reranker.Type))
-	c.Reranker.Model = strings.TrimSpace(c.Reranker.Model)
+	c.Storage.Backend = stringx.String(c.Storage.Backend).Normalized()
+	c.Memory.Provider = stringx.String(c.Memory.Provider).Normalized()
+	c.Memory.Backend = stringx.String(c.Memory.Backend).Normalized()
+	c.Reranker.Type = stringx.String(c.Reranker.Type).Normalized()
+	c.Reranker.Model = stringx.String(c.Reranker.Model).Trim()
 	c.Reranker.Overrides = normalizeRerankerOverrides(c.Reranker.Overrides)
 	c.normalizePersonalities()
 
@@ -266,15 +265,15 @@ func normalizeProviderModelConfigs(values map[string]ProviderModelConfig) map[st
 
 	normalized := make(map[string]ProviderModelConfig, len(values))
 	for provider, value := range values {
-		provider = strings.TrimSpace(strings.ToLower(provider))
+		provider = stringx.String(provider).Normalized()
 		if provider == "" {
 			continue
 		}
 
-		value.APIKey = strings.TrimSpace(value.APIKey)
+		value.APIKey = stringx.String(value.APIKey).Trim()
 		value.APIKeyEnv = dedupeAndTrim(value.APIKeyEnv)
-		value.API = strings.TrimSpace(strings.ToLower(value.API))
-		value.BaseURL = strings.TrimSpace(value.BaseURL)
+		value.API = stringx.String(value.API).Normalized()
+		value.BaseURL = stringx.String(value.BaseURL).Trim()
 		value.Headers = normalizeStringMap(value.Headers)
 		value.Models = normalizeProviderModelMetadata(value.Models)
 		normalized[provider] = value
@@ -293,7 +292,7 @@ func normalizeProviderModelMetadata(values map[string]ProviderModelMetadata) map
 
 	normalized := make(map[string]ProviderModelMetadata, len(values))
 	for model, value := range values {
-		model = strings.TrimSpace(model)
+		model = stringx.String(model).Trim()
 		if model == "" {
 			continue
 		}
@@ -314,13 +313,13 @@ func normalizeRerankerOverrides(overrides map[string]RerankerOverrideConfig) map
 
 	normalized := make(map[string]RerankerOverrideConfig, len(overrides))
 	for key, override := range overrides {
-		key = strings.TrimSpace(strings.ToLower(key))
+		key = stringx.String(key).Normalized()
 		if key == "" {
 			continue
 		}
 
-		override.Type = strings.TrimSpace(strings.ToLower(override.Type))
-		override.Model = strings.TrimSpace(override.Model)
+		override.Type = stringx.String(override.Type).Normalized()
+		override.Model = stringx.String(override.Model).Trim()
 		normalized[key] = override
 	}
 	if len(normalized) == 0 {
@@ -337,18 +336,18 @@ func (c *Config) normalizePersonalities() {
 
 	normalized := make(map[string]PersonalityConfig, len(c.Personalities))
 	for name, personality := range c.Personalities {
-		name = strings.ToLower(strings.TrimSpace(name))
-		personality.Soul = strings.TrimSpace(personality.Soul)
-		personality.Instruct = strings.TrimSpace(personality.Instruct)
-		personality.State = strings.TrimSpace(strings.ToLower(personality.State))
+		name = stringx.String(name).Normalized()
+		personality.Soul = stringx.String(personality.Soul).Trim()
+		personality.Instruct = stringx.String(personality.Instruct).Trim()
+		personality.State = stringx.String(personality.State).Normalized()
 		if personality.State == "" {
 			personality.State = personalityStateShared
 		}
-		personality.Tools.Memory = strings.TrimSpace(strings.ToLower(personality.Tools.Memory))
-		personality.Model.Name = strings.TrimSpace(personality.Model.Name)
-		personality.Model.Provider = strings.TrimSpace(strings.ToLower(personality.Model.Provider))
-		personality.Model.API = strings.TrimSpace(strings.ToLower(personality.Model.API))
-		personality.Model.BaseURL = strings.TrimSpace(personality.Model.BaseURL)
+		personality.Tools.Memory = stringx.String(personality.Tools.Memory).Normalized()
+		personality.Model.Name = stringx.String(personality.Model.Name).Trim()
+		personality.Model.Provider = stringx.String(personality.Model.Provider).Normalized()
+		personality.Model.API = stringx.String(personality.Model.API).Normalized()
+		personality.Model.BaseURL = stringx.String(personality.Model.BaseURL).Trim()
 		normalized[name] = personality
 	}
 	c.Personalities = normalized
@@ -374,7 +373,7 @@ func (c *Config) applyDefaultModelBaseURL() {
 }
 
 func isProviderDefaultBaseURL(value string) bool {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if value == "" {
 		return false
 	}
@@ -385,7 +384,7 @@ func isProviderDefaultBaseURL(value string) bool {
 			continue
 		}
 		for _, baseURL := range providerDef.BaseURLs {
-			if value == strings.TrimSpace(baseURL) {
+			if value == stringx.String(baseURL).Trim() {
 				return true
 			}
 		}

@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // Embedder creates vector embeddings for model inputs.
@@ -43,7 +44,7 @@ type Embedding struct {
 
 // ValidateEmbeddingRequest checks that an embedding request has model input.
 func ValidateEmbeddingRequest(req EmbeddingRequest) error {
-	if strings.TrimSpace(req.Model) == "" {
+	if stringx.String(req.Model).Trim() == "" {
 		return errors.New("embedding model is required")
 	}
 
@@ -53,7 +54,7 @@ func ValidateEmbeddingRequest(req EmbeddingRequest) error {
 
 	seenIDs := make(map[string]struct{}, len(req.Inputs))
 	for _, input := range req.Inputs {
-		inputID := strings.TrimSpace(input.ID)
+		inputID := stringx.String(input.ID).Trim()
 		if inputID == "" {
 			return errors.New("embedding input id is required")
 		}
@@ -67,7 +68,7 @@ func ValidateEmbeddingRequest(req EmbeddingRequest) error {
 		if err := validateOptionalSourceKind(input.SourceKind, "embedding input source kind"); err != nil {
 			return err
 		}
-		if strings.TrimSpace(input.Text) == "" {
+		if stringx.String(input.Text).Trim() == "" {
 			return errors.New("embedding input text is required")
 		}
 	}
@@ -80,10 +81,10 @@ func ValidateEmbeddingResult(req EmbeddingRequest, result EmbeddingResult) error
 	if err := ValidateEmbeddingRequest(req); err != nil {
 		return err
 	}
-	if strings.TrimSpace(result.Model) == "" {
+	if stringx.String(result.Model).Trim() == "" {
 		return errors.New("embedding result model is required")
 	}
-	if strings.TrimSpace(result.Model) != strings.TrimSpace(req.Model) {
+	if stringx.String(result.Model).Trim() != stringx.String(req.Model).Trim() {
 		return errors.New("embedding result model must match request model")
 	}
 	if result.Dimensions <= 0 {
@@ -98,7 +99,7 @@ func ValidateEmbeddingResult(req EmbeddingRequest, result EmbeddingResult) error
 	}
 	seenIDs := make(map[string]struct{}, len(result.Items))
 	for _, item := range result.Items {
-		itemID := strings.TrimSpace(item.ID)
+		itemID := stringx.String(item.ID).Trim()
 		if itemID == "" {
 			return errors.New("embedding id is required")
 		}
@@ -121,7 +122,7 @@ func ValidateEmbeddingResult(req EmbeddingRequest, result EmbeddingResult) error
 				return errors.New("embedding vector value must be finite")
 			}
 		}
-		if strings.TrimSpace(item.ContentHash) == "" {
+		if stringx.String(item.ContentHash).Trim() == "" {
 			return errors.New("embedding content hash is required")
 		}
 		if item.ContentHash != expectedHash {

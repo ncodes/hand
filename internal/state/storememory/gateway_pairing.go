@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"sort"
-	"strings"
 
 	"github.com/wandxy/morph/pkg/gateway/pairing"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func (s *Store) SaveGatewayPairingRequest(ctx context.Context, request pairing.PendingRequest) error {
@@ -16,7 +16,7 @@ func (s *Store) SaveGatewayPairingRequest(ctx context.Context, request pairing.P
 	}
 
 	request.Source = normalizeGatewayPairingSource(request.Source)
-	request.SenderID = strings.TrimSpace(request.SenderID)
+	request.SenderID = stringx.String(request.SenderID).Trim()
 	if request.Source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -43,7 +43,7 @@ func (s *Store) GetGatewayPairingRequest(
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = strings.TrimSpace(senderID)
+	senderID = stringx.String(senderID).Trim()
 	if source == "" {
 		return pairing.PendingRequest{}, false, errors.New("gateway pairing source is required")
 	}
@@ -98,7 +98,7 @@ func (s *Store) DeleteGatewayPairingRequest(ctx context.Context, source string, 
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = strings.TrimSpace(senderID)
+	senderID = stringx.String(senderID).Trim()
 	if source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -138,7 +138,7 @@ func (s *Store) SaveGatewayPairedSender(ctx context.Context, sender pairing.Appr
 	}
 
 	sender.Source = normalizeGatewayPairingSource(sender.Source)
-	sender.SenderID = strings.TrimSpace(sender.SenderID)
+	sender.SenderID = stringx.String(sender.SenderID).Trim()
 	if sender.Source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -165,7 +165,7 @@ func (s *Store) GetGatewayPairedSender(
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = strings.TrimSpace(senderID)
+	senderID = stringx.String(senderID).Trim()
 	if source == "" {
 		return pairing.ApprovedSender{}, false, errors.New("gateway pairing source is required")
 	}
@@ -220,7 +220,7 @@ func (s *Store) DeleteGatewayPairedSender(ctx context.Context, source string, se
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = strings.TrimSpace(senderID)
+	senderID = stringx.String(senderID).Trim()
 	if source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -236,11 +236,11 @@ func (s *Store) DeleteGatewayPairedSender(ctx context.Context, source string, se
 }
 
 func gatewayPairingKey(source string, senderID string) string {
-	return normalizeGatewayPairingSource(source) + "\x00" + strings.TrimSpace(senderID)
+	return normalizeGatewayPairingSource(source) + "\x00" + stringx.String(senderID).Trim()
 }
 
 func normalizeGatewayPairingSource(source string) string {
-	return strings.ToLower(strings.TrimSpace(source))
+	return stringx.String(source).Normalized()
 }
 
 func cloneGatewayPairingMetadata(values map[string]string) map[string]string {
@@ -250,11 +250,11 @@ func cloneGatewayPairingMetadata(values map[string]string) map[string]string {
 
 	clone := make(map[string]string, len(values))
 	for key, value := range values {
-		key = strings.TrimSpace(key)
+		key = stringx.String(key).Trim()
 		if key == "" {
 			continue
 		}
-		clone[key] = strings.TrimSpace(value)
+		clone[key] = stringx.String(value).Trim()
 	}
 	if len(clone) == 0 {
 		return nil

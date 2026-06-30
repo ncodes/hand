@@ -3,9 +3,9 @@ package webextract
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/guardrails"
@@ -106,7 +106,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 
 			urls := make([]string, 0, len(req.URLs))
 			for idx, rawURL := range req.URLs {
-				url := strings.TrimSpace(rawURL)
+				url := stringx.String(rawURL).Trim()
 				if url == "" {
 					return common.ToolError("invalid_input", fmt.Sprintf("url at index %d is required", idx)), nil
 				}
@@ -123,7 +123,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 				return common.ToolError("invalid_input", validationErr.Error()), nil
 			}
 
-			query := strings.TrimSpace(req.Query)
+			query := stringx.String(req.Query).Trim()
 
 			log.Info().
 				Str("tool", "web_extract").
@@ -257,7 +257,7 @@ func extractWithPolicy(
 
 	for idx := len(fetched); idx < len(allowedIndexes); idx++ {
 		results[allowedIndexes[idx]] = webprovider.ExtractResult{
-			URL:           strings.TrimSpace(allowedURLs[idx]),
+			URL:           stringx.String(allowedURLs[idx]).Trim(),
 			ContentFormat: format,
 			Error:         "web extraction provider returned no result",
 		}
@@ -273,15 +273,15 @@ func websiteBlockToExtractResult(rawURL, format string, block guardrails.Website
 	}
 
 	return webprovider.ExtractResult{
-		URL:           strings.TrimSpace(rawURL),
+		URL:           stringx.String(rawURL).Trim(),
 		ContentFormat: format,
 		Error:         block.Message,
 	}
 }
 
 func getFormat(format, extractMode string) (string, error) {
-	format = strings.TrimSpace(strings.ToLower(format))
-	extractMode = strings.TrimSpace(strings.ToLower(extractMode))
+	format = stringx.String(format).Normalized()
+	extractMode = stringx.String(extractMode).Normalized()
 
 	if format != "" && extractMode != "" && format != extractMode {
 		return "", fmt.Errorf("format and extract_mode must match when both are provided")

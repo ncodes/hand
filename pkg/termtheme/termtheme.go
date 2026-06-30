@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/term"
+	"github.com/wandxy/morph/pkg/stringx"
 	"golang.org/x/sys/unix"
 )
 
@@ -67,7 +68,7 @@ func Detect(timeout time.Duration) Result {
 
 func detectExplicitEnvironment() (Result, bool) {
 	if value, ok := lookupEnv("MORPH_TUI_BACKGROUND"); ok {
-		background := strings.TrimSpace(strings.ToLower(value))
+		background := stringx.String(value).Normalized()
 		if _, err := parseHexBackground(background); err == nil {
 			return Result{
 				Theme:      ThemeFromBackground(background),
@@ -98,7 +99,7 @@ func detectThemeEnvironmentFallback() (Result, bool) {
 	if len(parts) == 0 {
 		return Result{}, false
 	}
-	backgroundIndex, err := strconv.Atoi(strings.TrimSpace(parts[len(parts)-1]))
+	backgroundIndex, err := strconv.Atoi(stringx.String(parts[len(parts)-1]).Trim())
 	if err != nil {
 		return Result{}, false
 	}
@@ -121,7 +122,7 @@ func ParseOSC11(response string) (string, error) {
 	value := after
 	value = strings.TrimSuffix(value, "\x07")
 	value = strings.TrimSuffix(value, "\x1b\\")
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 
 	if after0, ok0 := strings.CutPrefix(value, "rgb:"); ok0 {
 		return rgbToHex(after0)

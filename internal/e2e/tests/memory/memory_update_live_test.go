@@ -11,10 +11,11 @@ import (
 
 	e2e "github.com/wandxy/morph/internal/e2e"
 	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func TestLiveMemoryUpdateToolSupersedesActiveSemanticMemory(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+	if stringx.String(os.Getenv("MORPH_E2E_LIVE")).Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 

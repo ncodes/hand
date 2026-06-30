@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func TestNew_BuildsTrimmedList(t *testing.T) {
@@ -533,7 +534,7 @@ func TestBuildMemoryFlushRequest_UsesDefaultTriggerWhenEmpty(t *testing.T) {
 func TestBuildEpisodicExtractionInstructions_ReturnsCuratedExtractionPrompt(t *testing.T) {
 	instructions := BuildEpisodicExtractionInstructions()
 
-	require.Equal(t, strings.TrimSpace(instructions), instructions)
+	require.Equal(t, stringx.String(instructions).Trim(), instructions)
 	require.Contains(t, instructions, "Extract curated episodic memory candidates")
 	require.Contains(t, instructions, "task trace events")
 	require.Contains(t, instructions, "resolved issues")

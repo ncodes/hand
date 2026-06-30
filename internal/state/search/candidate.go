@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strings"
 	"time"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // Candidate is a ranked search candidate before final fusion.
@@ -35,13 +36,13 @@ const (
 
 // ValidateCandidate checks that a search candidate has usable identity and score fields.
 func ValidateCandidate(candidate Candidate) error {
-	if strings.TrimSpace(candidate.ID) == "" {
+	if stringx.String(candidate.ID).Trim() == "" {
 		return errors.New("candidate id is required")
 	}
-	if strings.TrimSpace(string(candidate.SourceKind)) == "" {
+	if stringx.String(string(candidate.SourceKind)).Trim() == "" {
 		return errors.New("candidate source kind is required")
 	}
-	if strings.TrimSpace(candidate.Text) == "" {
+	if stringx.String(candidate.Text).Trim() == "" {
 		return errors.New("candidate text is required")
 	}
 	if !finite(candidate.LexicalScore) {
@@ -56,14 +57,14 @@ func ValidateCandidate(candidate Candidate) error {
 
 	switch candidate.SourceKind {
 	case SourceKindSessionMessage:
-		if strings.TrimSpace(candidate.SessionID) == "" {
+		if stringx.String(candidate.SessionID).Trim() == "" {
 			return errors.New("candidate session id is required")
 		}
 		if candidate.MessageID == 0 {
 			return errors.New("candidate message id is required")
 		}
 	case SourceKindMemoryItem:
-		if strings.TrimSpace(candidate.MemoryID) == "" {
+		if stringx.String(candidate.MemoryID).Trim() == "" {
 			return errors.New("candidate memory id is required")
 		}
 	default:

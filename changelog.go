@@ -3,6 +3,8 @@ package changelog
 import (
 	_ "embed"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 //go:embed CHANGELOG.md
@@ -18,22 +20,22 @@ func latestSection(value string) string {
 
 	start := -1
 	for index, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "## ") {
+		if strings.HasPrefix(stringx.String(line).Trim(), "## ") {
 			start = index
 			break
 		}
 	}
 	if start < 0 {
-		return strings.TrimSpace(value)
+		return stringx.String(value).Trim()
 	}
 
 	end := len(lines)
 	for index := start + 1; index < len(lines); index++ {
-		if strings.HasPrefix(strings.TrimSpace(lines[index]), "## ") {
+		if strings.HasPrefix(stringx.String(lines[index]).Trim(), "## ") {
 			end = index
 			break
 		}
 	}
 
-	return strings.TrimSpace(strings.Join(lines[start:end], "\n"))
+	return stringx.String(strings.Join(lines[start:end], "\n")).Trim()
 }

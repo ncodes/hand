@@ -3,6 +3,8 @@ package guardrails
 import (
 	"net/url"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // WebsitePolicy defines website policy settings.
@@ -43,7 +45,7 @@ func (p WebsitePolicy) Check(rawURL string) (WebsiteBlock, bool) {
 	if rule, ok := getFirstMatchingDomainRule(p.Rules, host); ok {
 		message := getWebsiteBlockMessage(host, rule)
 		return WebsiteBlock{
-			URL:     strings.TrimSpace(rawURL),
+			URL:     stringx.String(rawURL).Trim(),
 			Host:    host,
 			Rule:    rule.Pattern,
 			Source:  rule.Source,
@@ -56,7 +58,7 @@ func (p WebsitePolicy) Check(rawURL string) (WebsiteBlock, bool) {
 
 func getWebsiteBlockMessage(host string, rule WebsiteRule) string {
 	message := `blocked by configured website blocklist policy: "` + host + `" matched "` + rule.Pattern + `"`
-	source := strings.TrimSpace(rule.Source)
+	source := stringx.String(rule.Source).Trim()
 	if source == "" {
 		return message
 	}
@@ -65,7 +67,7 @@ func getWebsiteBlockMessage(host string, rule WebsiteRule) string {
 }
 
 func normalizeWebsiteRule(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
+	value = stringx.String(value).Normalized()
 	if value == "" {
 		return ""
 	}
@@ -93,7 +95,7 @@ func normalizeWebsiteRule(value string) string {
 }
 
 func getHostFromWebsiteURL(rawURL string) string {
-	rawURL = strings.TrimSpace(rawURL)
+	rawURL = stringx.String(rawURL).Trim()
 	if rawURL == "" {
 		return ""
 	}
@@ -115,7 +117,7 @@ func getHostFromWebsiteURL(rawURL string) string {
 }
 
 func normalizeWebsiteHost(host string) string {
-	host = strings.TrimSpace(strings.ToLower(host))
+	host = stringx.String(host).Normalized()
 	host = strings.TrimSuffix(host, ".")
 
 	return host

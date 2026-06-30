@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/wandxy/morph/internal/datadir/files"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -109,7 +110,7 @@ func LoadCurrentName(homeDir string) (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
-	if value := strings.TrimSpace(getStateFileString(state, "current_profile")); value != "" {
+	if value := stringx.String(getStateFileString(state, "current_profile")).Trim(); value != "" {
 		name, err := NormalizeName(value)
 		if err != nil {
 			return "", false, err
@@ -158,7 +159,7 @@ func loadStateFile(path string) (stateFile, error) {
 
 		return nil, fmt.Errorf("read current profile: %w", err)
 	}
-	if len(strings.TrimSpace(string(data))) == 0 {
+	if len(stringx.String(string(data)).Trim()) == 0 {
 		return stateFile{}, nil
 	}
 
@@ -175,7 +176,7 @@ func loadStateFile(path string) (stateFile, error) {
 
 func getStateFileString(state stateFile, key string) string {
 	value, _ := state[key].(string)
-	return strings.TrimSpace(value)
+	return stringx.String(value).Trim()
 }
 
 func encodeStateFile(state stateFile) []byte {
@@ -227,20 +228,20 @@ func List(homeDir string) ([]string, error) {
 
 // WithMetadataPaths returns profile with empty metadata paths filled from HomeDir.
 func WithMetadataPaths(profile Profile) Profile {
-	homeDir := strings.TrimSpace(profile.HomeDir)
+	homeDir := stringx.String(profile.HomeDir).Trim()
 	if homeDir == "" {
 		return profile
 	}
-	if strings.TrimSpace(profile.ConfigPath) == "" {
+	if stringx.String(profile.ConfigPath).Trim() == "" {
 		profile.ConfigPath = filepath.Join(homeDir, "config.yaml")
 	}
-	if strings.TrimSpace(profile.EnvPath) == "" {
+	if stringx.String(profile.EnvPath).Trim() == "" {
 		profile.EnvPath = filepath.Join(homeDir, ".env")
 	}
-	if strings.TrimSpace(profile.RuntimePath) == "" {
+	if stringx.String(profile.RuntimePath).Trim() == "" {
 		profile.RuntimePath = filepath.Join(homeDir, "runtime.json")
 	}
-	if strings.TrimSpace(profile.PIDPath) == "" {
+	if stringx.String(profile.PIDPath).Trim() == "" {
 		profile.PIDPath = filepath.Join(homeDir, "morph.pid")
 	}
 
@@ -263,9 +264,9 @@ func Active() Profile {
 
 // ResolveName returns the normalized profile name from explicit input, environment, or default without reading stored current.
 func ResolveName(explicitName string, env map[string]string) (string, error) {
-	name := strings.TrimSpace(explicitName)
+	name := stringx.String(explicitName).Trim()
 	if name == "" {
-		name = strings.TrimSpace(envValue(env, EnvName))
+		name = stringx.String(envValue(env, EnvName)).Trim()
 	}
 	if name == "" {
 		name = DefaultName
@@ -276,7 +277,7 @@ func ResolveName(explicitName string, env map[string]string) (string, error) {
 
 // NormalizeName validates a profile name and returns its canonical lowercase form.
 func NormalizeName(name string) (string, error) {
-	name = strings.TrimSpace(name)
+	name = stringx.String(name).Trim()
 	if name == "" {
 		return DefaultName, nil
 	}
@@ -289,7 +290,7 @@ func NormalizeName(name string) (string, error) {
 
 // IsValidName reports whether name is a non-empty path-safe profile name.
 func IsValidName(name string) bool {
-	name = strings.TrimSpace(name)
+	name = stringx.String(name).Trim()
 	return name != "" && validName.MatchString(name)
 }
 
@@ -302,9 +303,9 @@ func envValue(env map[string]string, key string) string {
 }
 
 func resolveNameWithStoredCurrent(explicitName string, env map[string]string, homeDir string) (string, error) {
-	name := strings.TrimSpace(explicitName)
+	name := stringx.String(explicitName).Trim()
 	if name == "" {
-		name = strings.TrimSpace(envValue(env, EnvName))
+		name = stringx.String(envValue(env, EnvName)).Trim()
 	}
 	if name != "" {
 		return NormalizeName(name)
@@ -322,7 +323,7 @@ func resolveNameWithStoredCurrent(explicitName string, env map[string]string, ho
 }
 
 func resolveHomeDir(homeDir string) (string, error) {
-	homeDir = strings.TrimSpace(homeDir)
+	homeDir = stringx.String(homeDir).Trim()
 	if homeDir == "" {
 		var err error
 		homeDir, err = userHomeDir()
@@ -330,7 +331,7 @@ func resolveHomeDir(homeDir string) (string, error) {
 			return "", fmt.Errorf("resolve user home dir: %w", err)
 		}
 	}
-	if strings.TrimSpace(homeDir) == "" {
+	if stringx.String(homeDir).Trim() == "" {
 		return "", errors.New("home directory is required")
 	}
 

@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var writeClipboard = clipboard.WriteAll
@@ -26,7 +27,7 @@ func (m model) transcriptText() string {
 		cells = append(cells, m.live)
 	}
 	if len(cells) == 0 {
-		return strings.TrimSpace(ansi.Strip(m.transcript.GetContent()))
+		return stringx.String(ansi.Strip(m.transcript.GetContent())).Trim()
 	}
 
 	parts := make([]string, 0, len(cells))
@@ -36,5 +37,5 @@ func (m model) transcriptText() string {
 		}
 	}
 
-	return strings.TrimSpace(strings.Join(parts, "\n\n"))
+	return stringx.String(strings.Join(parts, "\n\n")).Trim()
 }

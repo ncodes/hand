@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/wandxy/morph/internal/trace"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const autoCompactionLabel = "Automatic compaction"
@@ -26,7 +27,7 @@ func manualCompactionStateFromTraceEvent(eventType string, payload any) manualCo
 		label = autoCompactionLabel
 	}
 
-	switch strings.TrimSpace(eventType) {
+	switch stringx.String(eventType).Trim() {
 	case trace.EvtContextCompactionPending, trace.EvtContextCompactionRunning:
 		return manualCompactionState{Status: "running", Label: label}
 	case trace.EvtContextCompactionSucceeded:
@@ -39,11 +40,11 @@ func manualCompactionStateFromTraceEvent(eventType string, payload any) manualCo
 }
 
 func (state manualCompactionState) isVisible() bool {
-	return strings.TrimSpace(state.Status) != ""
+	return stringx.String(state.Status).Trim() != ""
 }
 
 func (state manualCompactionState) isInProgress() bool {
-	switch strings.TrimSpace(strings.ToLower(state.Status)) {
+	switch stringx.String(state.Status).Normalized() {
 	case "pending", "running", "started":
 		return true
 	default:
@@ -52,18 +53,18 @@ func (state manualCompactionState) isInProgress() bool {
 }
 
 func (state manualCompactionState) displayText() string {
-	label := strings.TrimSpace(state.Label)
+	label := stringx.String(state.Label).Trim()
 	if label == "" {
 		label = manualCompactionLabel
 	}
 
-	switch strings.TrimSpace(strings.ToLower(state.Status)) {
+	switch stringx.String(state.Status).Normalized() {
 	case "pending", "running", "started":
 		return label + " started"
 	case "succeeded", "completed":
 		return label + " completed"
 	case "failed":
-		if err := strings.TrimSpace(state.Error); err != "" {
+		if err := stringx.String(state.Error).Trim(); err != "" {
 			return label + " failed: " + err
 		}
 		return label + " failed"

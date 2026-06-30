@@ -4,19 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/wandxy/morph/internal/config"
-	"github.com/wandxy/morph/internal/gateway"
-	"github.com/wandxy/morph/internal/profile"
-	morphrpc "github.com/wandxy/morph/internal/rpc"
-	"github.com/wandxy/morph/internal/rpc/server"
-	morphruntime "github.com/wandxy/morph/internal/runtime"
-	"google.golang.org/grpc"
 	"net"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/gateway"
+	"github.com/wandxy/morph/internal/profile"
+	morphrpc "github.com/wandxy/morph/internal/rpc"
+	"github.com/wandxy/morph/internal/rpc/server"
+	morphruntime "github.com/wandxy/morph/internal/runtime"
+	"github.com/wandxy/morph/pkg/stringx"
+	"google.golang.org/grpc"
 )
 
 // listenFunc is swapped in tests to simulate listen failures.
@@ -126,7 +128,7 @@ func openRPCListenerImpl(cfg *config.Config) (net.Listener, error) {
 	if tcpAddr, ok := lis.Addr().(*net.TCPAddr); ok {
 		cfg.RPC.Port = tcpAddr.Port
 	}
-	if active := profile.Active(); strings.TrimSpace(active.HomeDir) != "" || strings.TrimSpace(active.RuntimePath) != "" {
+	if active := profile.Active(); stringx.String(active.HomeDir).Trim() != "" || stringx.String(active.RuntimePath).Trim() != "" {
 		if _, err := writeRuntimeMetadata(cfg.RPC.Address, cfg.RPC.Port); err != nil {
 			_ = lis.Close()
 			return nil, err
@@ -149,7 +151,7 @@ var serveRPC = func(
 	var pairingSecret string
 	if cfg != nil {
 		gatewayCfg = cfg.Gateway
-		pairingSecret = strings.TrimSpace(cfg.Gateway.PairingSecret)
+		pairingSecret = stringx.String(cfg.Gateway.PairingSecret).Trim()
 	}
 
 	grpcSrv := server.New(agent, server.Options{

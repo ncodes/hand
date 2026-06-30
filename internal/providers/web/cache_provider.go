@@ -8,6 +8,7 @@ import (
 
 	pkgcache "github.com/wandxy/morph/pkg/cache"
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var webLog = logutils.Module("providers.web")
@@ -39,7 +40,7 @@ func NewCachedProvider(provider Provider, opts CacheOptions) Provider {
 
 	return &cachedProvider{
 		provider:     provider,
-		providerName: strings.TrimSpace(strings.ToLower(opts.ProviderName)),
+		providerName: stringx.String(opts.ProviderName).Normalized(),
 		search: pkgcache.New(pkgcache.Options[string, []SearchResult]{
 			TTL:   opts.TTL,
 			Now:   now,
@@ -111,13 +112,13 @@ func (p *cachedProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 		}
 
 		results[missIndexes[idx]] = result
-		if strings.TrimSpace(result.Error) == "" {
+		if stringx.String(result.Error).Trim() == "" {
 			p.storeExtract(missKeys[idx], result)
 		}
 	}
 	for idx := len(fetched); idx < len(missIndexes); idx++ {
 		results[missIndexes[idx]] = ExtractResult{
-			URL:   strings.TrimSpace(missURLs[idx]),
+			URL:   stringx.String(missURLs[idx]).Trim(),
 			Error: "web extraction provider returned no result",
 		}
 	}
@@ -160,7 +161,7 @@ func (p *cachedProvider) storeExtract(key string, result ExtractResult) {
 func (p *cachedProvider) searchKey(query string, count int) string {
 	return strings.Join([]string{
 		p.providerName,
-		strings.TrimSpace(query),
+		stringx.String(query).Trim(),
 		strconv.Itoa(count),
 	}, "\x00")
 }
@@ -169,7 +170,7 @@ func (p *cachedProvider) extractKey(ctx context.Context, rawURL string) string {
 	opts := ExtractOptionsFromContext(ctx)
 	return strings.Join([]string{
 		p.providerName,
-		strings.TrimSpace(rawURL),
+		stringx.String(rawURL).Trim(),
 		opts.Format,
 		strconv.Itoa(opts.MaxChars),
 		opts.Query,

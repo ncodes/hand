@@ -2,12 +2,13 @@ package pairing
 
 import (
 	"fmt"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func ChallengeMessage(challenge Challenge) string {
-	code := strings.TrimSpace(challenge.Code)
-	source := strings.TrimSpace(challenge.Request.Source)
+	code := stringx.String(challenge.Code).Trim()
+	source := stringx.String(challenge.Request.Source).Trim()
 	if source == "" {
 		source = "gateway"
 	}

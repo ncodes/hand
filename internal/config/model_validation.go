@@ -5,10 +5,11 @@ import (
 	"strings"
 
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func isValidModelID(value string) bool {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if value == "" {
 		return false
 	}
@@ -19,7 +20,7 @@ func isValidModelID(value string) bool {
 
 	segments := strings.SplitSeq(value, "/")
 	for segment := range segments {
-		if strings.TrimSpace(segment) == "" {
+		if stringx.String(segment).Trim() == "" {
 			return false
 		}
 	}
@@ -43,8 +44,8 @@ func applyRegistryModelMetadata(cfg *Config, requestedContextLength int) {
 }
 
 func validateProviderAPI(field string, providerID string, apiID string) error {
-	providerID = strings.TrimSpace(strings.ToLower(providerID))
-	apiID = strings.TrimSpace(strings.ToLower(apiID))
+	providerID = stringx.String(providerID).Normalized()
+	apiID = stringx.String(apiID).Normalized()
 	if _, ok := modelRegistry.GetAPI(apiID); !ok {
 		return fmt.Errorf("%s must be one of: %s", field, getModelAPIList(nil))
 	}
@@ -65,7 +66,7 @@ func ValidateModelGenerationAPIForProvider(field string, providerID string, apiI
 }
 
 func validateModelRoleAPI(field string, apiID string, allowedAPIs map[string]struct{}) error {
-	apiID = strings.TrimSpace(strings.ToLower(apiID))
+	apiID = stringx.String(apiID).Normalized()
 	if _, ok := allowedAPIs[apiID]; ok {
 		return nil
 	}

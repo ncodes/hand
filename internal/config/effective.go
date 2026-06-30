@@ -10,10 +10,11 @@ import (
 	"github.com/wandxy/morph/internal/constants"
 	appcredential "github.com/wandxy/morph/internal/credential"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func getDefaultBaseURLForProvider(provider, apiID string) string {
-	if strings.TrimSpace(apiID) == "" {
+	if stringx.String(apiID).Trim() == "" {
 		return modelRegistry.GetBaseURL(provider, "")
 	}
 
@@ -35,7 +36,7 @@ func getDefaultAPIForProvider(provider string) string {
 }
 
 func getModelAPI(apiID string) (modelprovider.APIDefinition, bool) {
-	apiID = strings.TrimSpace(strings.ToLower(apiID))
+	apiID = stringx.String(apiID).Normalized()
 	if apiID == "" {
 		return modelprovider.APIDefinition{}, false
 	}
@@ -57,7 +58,7 @@ func (c *Config) getProviderConfig(provider string) ProviderModelConfig {
 		return ProviderModelConfig{}
 	}
 
-	provider = strings.TrimSpace(strings.ToLower(provider))
+	provider = stringx.String(provider).Normalized()
 	if provider == "" || len(c.Models.Providers) == 0 {
 		return ProviderModelConfig{}
 	}
@@ -66,11 +67,11 @@ func (c *Config) getProviderConfig(provider string) ProviderModelConfig {
 }
 
 func (c *Config) getProviderAPIConfig(provider string) string {
-	return strings.TrimSpace(strings.ToLower(c.getProviderConfig(provider).API))
+	return stringx.String(c.getProviderConfig(provider).API).Normalized()
 }
 
 func (c *Config) getProviderBaseURLConfig(provider string) string {
-	return strings.TrimSpace(c.getProviderConfig(provider).BaseURL)
+	return stringx.String(c.getProviderConfig(provider).BaseURL).Trim()
 }
 
 func (c *Config) getProviderHeadersConfig(provider string) map[string]string {
@@ -363,12 +364,12 @@ func (c *Config) RerankerOverrideEffective(override RerankerOverrideConfig) Rera
 
 	c.normalizeFields()
 
-	rerankerType := strings.TrimSpace(strings.ToLower(override.Type))
+	rerankerType := stringx.String(override.Type).Normalized()
 	if rerankerType == "" {
 		rerankerType = c.RerankerEffective()
 	}
 
-	model := strings.TrimSpace(override.Model)
+	model := stringx.String(override.Model).Trim()
 	if model == "" {
 		model = c.RerankerModelEffective()
 	}
@@ -413,7 +414,7 @@ func (c *Config) summaryModelBaseURLEffective() string {
 		return c.Models.Main.BaseURL
 	}
 
-	if u := strings.TrimSpace(c.Models.Summary.BaseURL); u != "" {
+	if u := stringx.String(c.Models.Summary.BaseURL).Trim(); u != "" {
 		return u
 	}
 	if u := c.getProviderBaseURLConfig(sum); u != "" {
@@ -424,7 +425,7 @@ func (c *Config) summaryModelBaseURLEffective() string {
 }
 
 func (c *Config) summaryAPIKeyEffective() string {
-	if key := strings.TrimSpace(c.Models.Summary.APIKey); key != "" {
+	if key := stringx.String(c.Models.Summary.APIKey).Trim(); key != "" {
 		return key
 	}
 
@@ -487,7 +488,7 @@ func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 	auth.Headers = mergeModelAuthHeaders(c.getProviderHeadersConfig(auth.Provider), credential.Headers)
 	auth.CredentialSource = credential.Source
 	auth.applySubscriptionDefaults()
-	if strings.TrimSpace(auth.APIKey) == "" {
+	if stringx.String(auth.APIKey).Trim() == "" {
 		return ModelAuth{}, newMissingModelCredentialError("model", auth.Provider)
 	}
 
@@ -521,7 +522,7 @@ func (c *Config) ResolveRerankerModelAuth() (ModelAuth, error) {
 	auth.Headers = mergeModelAuthHeaders(c.getProviderHeadersConfig(auth.Provider), credential.Headers)
 	auth.CredentialSource = credential.Source
 	auth.applySubscriptionDefaults()
-	if strings.TrimSpace(auth.APIKey) == "" {
+	if stringx.String(auth.APIKey).Trim() == "" {
 		return ModelAuth{}, newMissingModelCredentialError("model", auth.Provider)
 	}
 
@@ -530,10 +531,10 @@ func (c *Config) ResolveRerankerModelAuth() (ModelAuth, error) {
 
 // ModelAuthEqual reports whether two auth values describe the same provider, API, endpoint, and key.
 func ModelAuthEqual(a, b ModelAuth) bool {
-	return strings.TrimSpace(strings.ToLower(a.Provider)) == strings.TrimSpace(strings.ToLower(b.Provider)) &&
-		strings.TrimSpace(strings.ToLower(a.API)) == strings.TrimSpace(strings.ToLower(b.API)) &&
-		strings.TrimSpace(a.BaseURL) == strings.TrimSpace(b.BaseURL) &&
-		strings.TrimSpace(a.APIKey) == strings.TrimSpace(b.APIKey) &&
+	return stringx.String(a.Provider).Normalized() == stringx.String(b.Provider).Normalized() &&
+		stringx.String(a.API).Normalized() == stringx.String(b.API).Normalized() &&
+		stringx.String(a.BaseURL).Trim() == stringx.String(b.BaseURL).Trim() &&
+		stringx.String(a.APIKey).Trim() == stringx.String(b.APIKey).Trim() &&
 		stringMapsEqual(a.Headers, b.Headers)
 }
 
@@ -549,7 +550,7 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 		return ModelAuth{}, fmt.Errorf("embedding provider must be one of: %s", getModelProviderList())
 	}
 	api := c.EmbeddingModelAPIEffective()
-	baseURL := strings.TrimSpace(c.Models.Embedding.BaseURL)
+	baseURL := stringx.String(c.Models.Embedding.BaseURL).Trim()
 	if baseURL == "" {
 		baseURL = c.getEmbeddingProviderRoleBaseURL(provider)
 	}
@@ -572,7 +573,7 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 	auth.APIKey = credential.Value
 	auth.Headers = mergeModelAuthHeaders(c.getProviderHeadersConfig(auth.Provider), credential.Headers)
 	auth.CredentialSource = credential.Source
-	if strings.TrimSpace(auth.APIKey) == "" {
+	if stringx.String(auth.APIKey).Trim() == "" {
 		return ModelAuth{}, newMissingModelCredentialError("embedding", auth.Provider)
 	}
 
@@ -628,7 +629,7 @@ func (c *Config) ModelEmbeddingProviderEffective() string {
 }
 
 func (c *Config) getEmbeddingProviderRoleBaseURL(provider string) string {
-	if c == nil || strings.TrimSpace(strings.ToLower(provider)) != constants.ModelProviderOllama {
+	if c == nil || stringx.String(provider).Normalized() != constants.ModelProviderOllama {
 		return ""
 	}
 	if !strings.EqualFold(c.Models.Main.Provider, provider) {
@@ -639,7 +640,7 @@ func (c *Config) getEmbeddingProviderRoleBaseURL(provider string) string {
 }
 
 func normalizeOllamaEmbeddingBaseURL(value string) string {
-	value = strings.TrimRight(strings.TrimSpace(value), "/")
+	value = strings.TrimRight(stringx.String(value).Trim(), "/")
 	if strings.HasSuffix(strings.ToLower(value), "/v1") {
 		value = strings.TrimRight(value[:len(value)-len("/v1")], "/")
 	}
@@ -674,7 +675,7 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 	auth.Headers = mergeModelAuthHeaders(c.getProviderHeadersConfig(auth.Provider), credential.Headers)
 	auth.CredentialSource = credential.Source
 	auth.applySubscriptionDefaults()
-	if strings.TrimSpace(auth.APIKey) == "" {
+	if stringx.String(auth.APIKey).Trim() == "" {
 		return ModelAuth{}, newMissingModelCredentialError("model", auth.Provider)
 	}
 
@@ -694,8 +695,8 @@ func (c *Config) resolveCredentialForProvider(
 	oauthModelField string,
 	oauthModelID string,
 ) (resolvedModelCredential, error) {
-	provider = strings.TrimSpace(strings.ToLower(provider))
-	if value := strings.TrimSpace(roleAPIKey); value != "" {
+	provider = stringx.String(provider).Normalized()
+	if value := stringx.String(roleAPIKey).Trim(); value != "" {
 		return resolvedModelCredential{
 			Value:  value,
 			Source: ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig},
@@ -707,10 +708,10 @@ func (c *Config) resolveCredentialForProvider(
 		return resolvedModelCredential{}, err
 	}
 	var oauthModelErr error
-	if strings.TrimSpace(strings.ToLower(stored.Type)) == appcredential.TypeOAuth && !allowOAuth {
+	if stringx.String(stored.Type).Normalized() == appcredential.TypeOAuth && !allowOAuth {
 		stored = StoredModelCredential{}
 	}
-	if strings.TrimSpace(strings.ToLower(stored.Type)) == appcredential.TypeOAuth && allowOAuth {
+	if stringx.String(stored.Type).Normalized() == appcredential.TypeOAuth && allowOAuth {
 		if err := checkOAuthModelSupported(oauthModelField, provider, oauthModelID); err != nil {
 			oauthModelErr = err
 			stored = StoredModelCredential{}
@@ -726,7 +727,7 @@ func (c *Config) resolveCredentialForProvider(
 		} else {
 			stored = StoredModelCredential{}
 		}
-		if strings.TrimSpace(strings.ToLower(stored.Type)) == appcredential.TypeOAuth && allowOAuth {
+		if stringx.String(stored.Type).Normalized() == appcredential.TypeOAuth && allowOAuth {
 			if err := checkOAuthModelSupported(oauthModelField, provider, oauthModelID); err != nil {
 				oauthModelErr = err
 				stored = StoredModelCredential{}
@@ -745,7 +746,7 @@ func (c *Config) resolveCredentialForProvider(
 			Source: ModelCredentialSource{
 				Kind:      ModelCredentialSourceTokenStore,
 				Name:      provider,
-				Type:      strings.TrimSpace(strings.ToLower(stored.Type)),
+				Type:      stringx.String(stored.Type).Normalized(),
 				HasExpiry: stored.ExpiresAt != nil,
 			},
 		}, nil
@@ -792,7 +793,7 @@ func (c *Config) resolveCredentialForProvider(
 		}
 	}
 
-	if value := strings.TrimSpace(providerConfig.APIKey); value != "" {
+	if value := stringx.String(providerConfig.APIKey).Trim(); value != "" {
 		return resolvedModelCredential{
 			Value:  value,
 			Source: ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: provider},
@@ -820,7 +821,7 @@ func getLocalProviderAuthMarker(provider string) string {
 		return ""
 	}
 
-	if marker := strings.TrimSpace(providerDef.Local.AuthMarker); marker != "" {
+	if marker := stringx.String(providerDef.Local.AuthMarker).Trim(); marker != "" {
 		return marker
 	}
 
@@ -831,7 +832,7 @@ func getStoredModelCredentialHeaders(
 	provider string,
 	credential StoredModelCredential,
 ) (map[string]string, error) {
-	if strings.TrimSpace(strings.ToLower(credential.Type)) != appcredential.TypeOAuth {
+	if stringx.String(credential.Type).Normalized() != appcredential.TypeOAuth {
 		return nil, nil
 	}
 
@@ -857,16 +858,16 @@ func checkOAuthModelSupported(
 	provider string,
 	modelID string,
 ) error {
-	field = strings.TrimSpace(field)
+	field = stringx.String(field).Trim()
 	if field == "" {
 		field = "model"
 	}
-	modelID = strings.TrimSpace(modelID)
+	modelID = stringx.String(modelID).Trim()
 	if modelID == "" {
 		return nil
 	}
 
-	provider = strings.TrimSpace(strings.ToLower(provider))
+	provider = stringx.String(provider).Normalized()
 	providerDef, ok := modelRegistry.GetProvider(provider)
 	if !ok {
 		return nil
@@ -891,8 +892,8 @@ func (auth *ModelAuth) applySubscriptionDefaults() {
 		auth.CredentialSource.Type != appcredential.TypeOAuth {
 		return
 	}
-	if strings.TrimSpace(strings.ToLower(auth.Provider)) != constants.ModelProviderOpenAI &&
-		strings.TrimSpace(strings.ToLower(auth.Provider)) != constants.ModelProviderOpenAICodex {
+	if stringx.String(auth.Provider).Normalized() != constants.ModelProviderOpenAI &&
+		stringx.String(auth.Provider).Normalized() != constants.ModelProviderOpenAICodex {
 		return
 	}
 	if !isProviderDefaultBaseURL(auth.BaseURL) {
@@ -910,7 +911,7 @@ func (auth ModelAuth) SupportsMaxOutputTokens() bool {
 		return true
 	}
 
-	provider := strings.TrimSpace(strings.ToLower(auth.Provider))
+	provider := stringx.String(auth.Provider).Normalized()
 	return provider != constants.ModelProviderOpenAI &&
 		provider != constants.ModelProviderOpenAICodex
 }
@@ -950,8 +951,8 @@ func normalizeStringMap(values map[string]string) map[string]string {
 
 	normalized := make(map[string]string, len(values))
 	for key, value := range values {
-		key = strings.TrimSpace(key)
-		value = strings.TrimSpace(value)
+		key = stringx.String(key).Trim()
+		value = stringx.String(value).Trim()
 		if key == "" || value == "" {
 			continue
 		}
@@ -999,7 +1000,7 @@ func refreshStoredModelCredential(provider string) (StoredModelCredential, bool,
 		return StoredModelCredential{}, false, nil
 	}
 
-	provider = strings.TrimSpace(strings.ToLower(provider))
+	provider = stringx.String(provider).Normalized()
 	return refreshStoredProviderToken(context.Background(), provider)
 }
 
@@ -1008,7 +1009,7 @@ func loadStoredModelCredential(provider string) (StoredModelCredential, error) {
 		return StoredModelCredential{}, nil
 	}
 
-	provider = strings.TrimSpace(strings.ToLower(provider))
+	provider = stringx.String(provider).Normalized()
 	credential, err := loadStoredProviderToken(provider)
 	if err != nil {
 		return StoredModelCredential{}, err
@@ -1018,7 +1019,7 @@ func loadStoredModelCredential(provider string) (StoredModelCredential, error) {
 }
 
 func getProviderOAuthEnvCredential(provider string) (string, string) {
-	switch strings.TrimSpace(strings.ToLower(provider)) {
+	switch stringx.String(provider).Normalized() {
 	case constants.ModelProviderAnthropic:
 		return getCredentialFromEnv([]string{"ANTHROPIC_OAUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"})
 	case constants.ModelProviderGitHubCopilot:
@@ -1029,22 +1030,22 @@ func getProviderOAuthEnvCredential(provider string) (string, string) {
 }
 
 func getStoredModelCredentialValue(credential StoredModelCredential) string {
-	switch strings.TrimSpace(strings.ToLower(credential.Type)) {
+	switch stringx.String(credential.Type).Normalized() {
 	case appcredential.TypeAPIKey:
-		return strings.TrimSpace(credential.Key)
+		return stringx.String(credential.Key).Trim()
 	case appcredential.TypeOAuth, "":
-		return strings.TrimSpace(credential.Token)
+		return stringx.String(credential.Token).Trim()
 	default:
 		return ""
 	}
 }
 
 func newMissingModelCredentialError(role string, provider string) error {
-	role = strings.TrimSpace(role)
+	role = stringx.String(role).Trim()
 	if role == "" {
 		role = "model"
 	}
-	provider = strings.TrimSpace(strings.ToLower(provider))
+	provider = stringx.String(provider).Normalized()
 	if role == "embedding" {
 		if provider == "" {
 			return fmt.Errorf("%s API key is required; set a provider API key, provider env var, or role apiKey", role)

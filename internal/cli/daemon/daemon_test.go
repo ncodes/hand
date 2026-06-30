@@ -31,6 +31,7 @@ import (
 	"github.com/wandxy/morph/internal/profile"
 	morphruntime "github.com/wandxy/morph/internal/runtime"
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 	"google.golang.org/grpc"
 )
 
@@ -2611,7 +2612,7 @@ func testDaemonDependencies() Dependencies {
 
 func testDaemonConfigInputs(cmd *urfavecli.Command) (ConfigInputs, error) {
 	resolved := profile.Active()
-	if strings.TrimSpace(resolved.HomeDir) == "" {
+	if stringx.String(resolved.HomeDir).Trim() == "" {
 		var err error
 		resolved, err = profile.Resolve(profile.ResolveOptions{})
 		if err != nil {
@@ -2653,7 +2654,7 @@ func testApplyDaemonConfigOverrides(cmd *urfavecli.Command, cfg *config.Config) 
 		cfg.Models.Summary.BaseURL = value
 	}
 	if value, ok := testCommandString(cmd, "model.api-key"); ok {
-		provider := strings.TrimSpace(cfg.Models.Main.Provider)
+		provider := stringx.String(cfg.Models.Main.Provider).Trim()
 		if provider == "" {
 			provider = constants.DefaultModelProvider
 		}
@@ -2690,7 +2691,7 @@ func testApplyDaemonConfigOverrides(cmd *urfavecli.Command, cfg *config.Config) 
 func testCommandString(cmd *urfavecli.Command, name string) (string, bool) {
 	for _, candidate := range cmd.Lineage() {
 		if candidate.IsSet(name) {
-			return strings.TrimSpace(candidate.String(name)), true
+			return stringx.String(candidate.String(name)).Trim(), true
 		}
 	}
 

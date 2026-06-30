@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"math"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var (
@@ -103,7 +104,7 @@ func (d *Dispatcher) Enqueue(job Job) (bool, error) {
 		return false, ErrDispatcherClosed
 	}
 
-	id := strings.TrimSpace(job.ID)
+	id := stringx.String(job.ID).Trim()
 	if id == "" {
 		return false, ErrJobIDRequired
 	}

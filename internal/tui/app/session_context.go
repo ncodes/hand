@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type sessionContextLoader interface {
@@ -32,7 +33,7 @@ func loadSessionContextCmd(ctx context.Context, client sessionContextLoader, ses
 			ctx = context.Background()
 		}
 
-		status, err := client.Status(ctx, strings.TrimSpace(sessionID))
+		status, err := client.Status(ctx, stringx.String(sessionID).Trim())
 		if err != nil {
 			return sessionContextLoadFailedMsg{}
 		}

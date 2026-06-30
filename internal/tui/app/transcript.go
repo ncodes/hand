@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // newTranscript creates the scrollable conversation viewport.
@@ -94,7 +95,7 @@ func (m *model) renderTranscriptContent() string {
 		transcriptWidth = m.getMainPaneWidth()
 	}
 	content := strings.Trim(m.renderHeaderWithWidth(transcriptWidth), "\n")
-	if cellsText := strings.Trim(m.renderTranscriptBodyCells(cells), "\n"); strings.TrimSpace(cellsText) != "" {
+	if cellsText := strings.Trim(m.renderTranscriptBodyCells(cells), "\n"); stringx.String(cellsText).Trim() != "" {
 		content = strings.Join([]string{content, cellsText}, "\n\n")
 	}
 
@@ -108,7 +109,7 @@ func (m model) renderTranscriptBodyCells(cells []transcriptCell) string {
 		contentWidth = max(width, 1)
 	}
 	cellsText := renderTranscriptCellsWithFrame(cells, contentWidth, m.toolAnimationFrame)
-	if strings.TrimSpace(cellsText) == "" {
+	if stringx.String(cellsText).Trim() == "" {
 		return ""
 	}
 
@@ -252,7 +253,7 @@ func (m *model) addTranscriptMessage(msg any) {
 }
 
 func (m *model) mergeCompletedToolTranscriptCell(completed toolTranscriptCell) bool {
-	id := strings.TrimSpace(completed.id)
+	id := stringx.String(completed.id).Trim()
 	if id == "" {
 		return false
 	}
@@ -264,7 +265,7 @@ func (m *model) mergeCompletedToolTranscriptCell(completed toolTranscriptCell) b
 
 	for index := len(m.messages) - 1; index >= startIndex; index-- {
 		existing, ok := m.messages[index].(toolTranscriptCell)
-		if !ok || strings.TrimSpace(existing.id) != id {
+		if !ok || stringx.String(existing.id).Trim() != id {
 			continue
 		}
 
@@ -280,10 +281,10 @@ func (m *model) mergeCompletedToolTranscriptCell(completed toolTranscriptCell) b
 
 func mergeToolTranscriptCells(existing toolTranscriptCell, completed toolTranscriptCell) toolTranscriptCell {
 	merged := existing
-	if strings.TrimSpace(merged.action) == "" {
+	if stringx.String(merged.action).Trim() == "" {
 		merged.action = completed.action
 	}
-	if strings.TrimSpace(merged.detail) == "" {
+	if stringx.String(merged.detail).Trim() == "" {
 		merged.detail = completed.detail
 	}
 	merged.planState = mergePlanToolDisplayState(merged.planState, completed.planState)
@@ -294,7 +295,7 @@ func mergeToolTranscriptCells(existing toolTranscriptCell, completed toolTranscr
 	if !completed.completedAt.IsZero() {
 		merged.completedAt = completed.completedAt
 	}
-	if strings.TrimSpace(merged.id) == "" {
+	if stringx.String(merged.id).Trim() == "" {
 		merged.id = completed.id
 	}
 	merged.completed = true
@@ -349,12 +350,12 @@ func (m *model) appendAssistantDelta(delta string) {
 
 func (m *model) completeAssistantResponse(text string, duration time.Duration) {
 	reply := text
-	if strings.TrimSpace(reply) == "" {
+	if stringx.String(reply).Trim() == "" {
 		reply = m.stream.Finalize()
 	} else {
 		m.stream.Reset()
 	}
-	if strings.TrimSpace(reply) == "" {
+	if stringx.String(reply).Trim() == "" {
 		m.applyAction(setLiveTranscriptCellAction{})
 		m.collapseCurrentReasoningTranscript()
 		m.setTranscriptContentAfterResponseCompletion()
@@ -531,7 +532,7 @@ func normalizeThoughtDuration(duration time.Duration) time.Duration {
 }
 
 func newReasoningTranscriptCell(text string, startedAt time.Time) transcriptCell {
-	if strings.TrimSpace(text) == "" {
+	if stringx.String(text).Trim() == "" {
 		return nil
 	}
 
@@ -539,7 +540,7 @@ func newReasoningTranscriptCell(text string, startedAt time.Time) transcriptCell
 }
 
 func appendReasoningTranscriptCell(cell transcriptCell, delta string) transcriptCell {
-	if strings.TrimSpace(delta) == "" {
+	if stringx.String(delta).Trim() == "" {
 		return cell
 	}
 
@@ -553,5 +554,5 @@ func appendReasoningTranscriptCell(cell transcriptCell, delta string) transcript
 }
 
 func isReasoningDeltaChannel(channel string) bool {
-	return strings.TrimSpace(strings.ToLower(channel)) == "reasoning"
+	return stringx.String(channel).Normalized() == "reasoning"
 }

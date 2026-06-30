@@ -3,6 +3,8 @@ package telegram
 import (
 	"regexp"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const ParseModeMarkdownV2 = "MarkdownV2"
@@ -37,7 +39,7 @@ func FormatMarkdownV2(text string) string {
 	formatted = regexp.MustCompile(`(?m)^#{1,6}\s+(.+)$`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^#{1,6}\s+(.+)$`).FindStringSubmatch(match)
 		inner := regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllString(parts[1], "$1")
-		return nextPlaceholder("*" + EscapeMarkdownV2(strings.TrimSpace(inner)) + "*")
+		return nextPlaceholder("*" + EscapeMarkdownV2(stringx.String(inner).Trim()) + "*")
 	})
 	formatted = regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^\*\*(.+?)\*\*$`).FindStringSubmatch(match)

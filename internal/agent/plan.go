@@ -10,6 +10,7 @@ import (
 	"github.com/wandxy/morph/internal/trace"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	agentsession "github.com/wandxy/morph/pkg/agent/session"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // Number of tool messages to retrieve at a time while searching for a plan.
@@ -79,7 +80,7 @@ func (t *Turn) renderPlanInstructions() string {
 	}
 
 	// Include explanation if provided.
-	if explanation := strings.TrimSpace(plan.Explanation); explanation != "" {
+	if explanation := stringx.String(plan.Explanation).Trim(); explanation != "" {
 		lines = append(lines, "", "## Plan Update Reason", "", explanation)
 	}
 
@@ -95,7 +96,7 @@ func decodeHydratedPlan(content string) (envtypes.Plan, bool) {
 	}
 
 	var envelope toolMessageEnvelope
-	if err := json.Unmarshal([]byte(content), &envelope); err == nil && strings.TrimSpace(envelope.Output) != "" {
+	if err := json.Unmarshal([]byte(content), &envelope); err == nil && stringx.String(envelope.Output).Trim() != "" {
 		if plan, ok := decodeHydratedPlanPayload(envelope.Output); ok {
 			return plan, true
 		}
@@ -129,7 +130,7 @@ func decodeHydratedPlanPayload(content string) (envtypes.Plan, bool) {
 
 	plan := envtypes.Plan{
 		Steps:       steps,
-		Explanation: strings.TrimSpace(explanation),
+		Explanation: stringx.String(explanation).Trim(),
 	}
 
 	if err := envtypes.ValidatePlan(plan); err != nil {

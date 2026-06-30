@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
 
 	base "github.com/wandxy/morph/internal/state/core"
 	morphtrace "github.com/wandxy/morph/internal/trace"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type traceEventModel struct {
@@ -32,11 +32,11 @@ func (s *Store) AppendTraceEvent(ctx context.Context, event base.TraceEvent) (ba
 		return base.TraceEvent{}, errors.New("store is required")
 	}
 
-	event.SessionID = strings.TrimSpace(event.SessionID)
+	event.SessionID = stringx.String(event.SessionID).Trim()
 	if err := base.ValidateSessionID(event.SessionID); err != nil {
 		return base.TraceEvent{}, err
 	}
-	event.Type = strings.TrimSpace(event.Type)
+	event.Type = stringx.String(event.Type).Trim()
 	if event.Type == "" {
 		return base.TraceEvent{}, errors.New("trace event type is required")
 	}
@@ -81,7 +81,7 @@ func (s *Store) ListTraceEvents(ctx context.Context, query base.TraceQuery) (bas
 	}
 
 	db := s.db.WithContext(ctx).Model(&traceEventModel{})
-	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" {
+	if sessionID := stringx.String(query.SessionID).Trim(); sessionID != "" {
 		db = db.Where("session_id = ?", sessionID)
 	}
 	if types := base.NormalizeTraceTypes(query.Types); len(types) > 0 {
@@ -126,7 +126,7 @@ func (s *Store) PruneTraceEvents(ctx context.Context, sessionID string, maxEvent
 		return errors.New("max trace events must be greater than or equal to zero")
 	}
 
-	sessionID = strings.TrimSpace(sessionID)
+	sessionID = stringx.String(sessionID).Trim()
 	if err := base.ValidateSessionID(sessionID); err != nil {
 		return err
 	}

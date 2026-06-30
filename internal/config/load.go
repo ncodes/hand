@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/wandxy/morph/internal/datadir"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // PreloadEnvFile loads environment variables from an optional env file before config resolution.
 func PreloadEnvFile(path string) error {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" {
 		path = ".env"
 	}
@@ -100,7 +100,7 @@ func (c *Config) ToYAML() ([]byte, error) {
 
 // SaveYAML writes cfg to path without overwriting an existing file.
 func SaveYAML(path string, cfg *Config) error {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" {
 		return errors.New("config path is required")
 	}
@@ -137,7 +137,7 @@ func Set(cfg *Config) {
 }
 
 func loadConfigFile(path string) (*Config, error) {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" {
 		path = "config.yaml"
 	}
@@ -243,12 +243,12 @@ func (c *Config) resolvePersonalitySoulPaths(baseDir string) {
 }
 
 func resolvePersonalitySoulPath(path string, baseDir string) string {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" || filepath.IsAbs(path) {
 		return path
 	}
 
-	profileHome := strings.TrimSpace(datadir.HomeDir())
+	profileHome := stringx.String(datadir.HomeDir()).Trim()
 	if profileHome != "" {
 		profilePath := filepath.Join(profileHome, path)
 		if _, err := os.Stat(profilePath); err == nil {
@@ -256,7 +256,7 @@ func resolvePersonalitySoulPath(path string, baseDir string) string {
 		}
 	}
 
-	baseDir = strings.TrimSpace(baseDir)
+	baseDir = stringx.String(baseDir).Trim()
 	if baseDir == "" {
 		return path
 	}

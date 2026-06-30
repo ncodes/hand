@@ -4,7 +4,8 @@ import (
 	"context"
 	"net/http"
 	"strconv"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const exaDefaultBaseURL = "https://api.exa.ai"
@@ -65,8 +66,8 @@ func (p *ExaProvider) Search(ctx context.Context, query string, count int) ([]Se
 	results := make([]SearchResult, 0, len(response.Results))
 	for idx, result := range response.Results {
 		results = append(results, SearchResult{
-			Title: strings.TrimSpace(result.Title),
-			URL:   strings.TrimSpace(result.URL),
+			Title: stringx.String(result.Title).Trim(),
+			URL:   stringx.String(result.URL).Trim(),
 			Snippet: truncateToMaxChars(
 				getFirstNonEmpty(getFirstHighlight(result.Highlights), result.Summary, result.Text),
 				p.maxCharsPerResult,
@@ -126,15 +127,15 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 	results := make([]ExtractResult, 0, len(response.Results))
 	statusByURL := make(map[string]string, len(response.Statuses))
 	for _, status := range response.Statuses {
-		if strings.TrimSpace(status.Status) != "error" {
+		if stringx.String(status.Status).Trim() != "error" {
 			continue
 		}
-		statusByURL[strings.TrimSpace(status.ID)] = getExaStatusError(status.Error.Tag, status.Error.HTTPStatusCode)
+		statusByURL[stringx.String(status.ID).Trim()] = getExaStatusError(status.Error.Tag, status.Error.HTTPStatusCode)
 	}
 
 	seen := make(map[string]struct{}, len(response.Results))
 	for _, result := range response.Results {
-		url := strings.TrimSpace(result.URL)
+		url := stringx.String(result.URL).Trim()
 
 		content, truncated, downloadTruncated := limitExtractContent(
 			getFirstNonEmpty(getFirstHighlight(result.Highlights), result.Text),
@@ -145,7 +146,7 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 
 		results = append(results, ExtractResult{
 			URL:               url,
-			Title:             strings.TrimSpace(result.Title),
+			Title:             stringx.String(result.Title).Trim(),
 			Content:           content,
 			ContentFormat:     format,
 			Truncated:         truncated,
@@ -154,8 +155,8 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 		})
 	}
 	for _, status := range response.Statuses {
-		url := strings.TrimSpace(status.ID)
-		if _, ok := seen[url]; ok || strings.TrimSpace(status.Status) != "error" {
+		url := stringx.String(status.ID).Trim()
+		if _, ok := seen[url]; ok || stringx.String(status.Status).Trim() != "error" {
 			continue
 		}
 
@@ -170,17 +171,17 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 }
 
 func (p *ExaProvider) exaHeaders() map[string]string {
-	if p == nil || p.client == nil || strings.TrimSpace(p.client.apiKey) == "" {
+	if p == nil || p.client == nil || stringx.String(p.client.apiKey).Trim() == "" {
 		return nil
 	}
 
 	return map[string]string{
-		"x-api-key": strings.TrimSpace(p.client.apiKey),
+		"x-api-key": stringx.String(p.client.apiKey).Trim(),
 	}
 }
 
 func getExaStatusError(tag string, httpStatusCode int) string {
-	tag = strings.TrimSpace(tag)
+	tag = stringx.String(tag).Trim()
 	if tag == "" {
 		return "extraction failed"
 	}

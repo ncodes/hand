@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var (
@@ -36,7 +38,7 @@ func NormalizeRoots(roots []string) []string {
 	seen := make(map[string]struct{}, len(roots))
 	out := make([]string, 0, len(roots))
 	for _, root := range roots {
-		root = strings.TrimSpace(root)
+		root = stringx.String(root).Trim()
 		if root == "" {
 			continue
 		}
@@ -69,7 +71,7 @@ func (p FilesystemPolicy) Resolve(path string) (ResolvedPath, error) {
 		return ResolvedPath{}, errors.New("access denied")
 	}
 
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" {
 		path = "."
 	}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	state "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // MemoryRerankOptions controls memory rerank.
@@ -22,7 +23,7 @@ func FilterMemoryHitsForEvidence(
 	query state.MemorySearchQuery,
 	hits []state.MemorySearchHit,
 ) []state.MemorySearchHit {
-	if strings.TrimSpace(query.Text) == "" {
+	if stringx.String(query.Text).Trim() == "" {
 		return hits
 	}
 
@@ -90,7 +91,7 @@ func RerankMemoryHits(
 }
 
 func getMemoryRerankCaller(query state.MemorySearchQuery) string {
-	if caller := strings.TrimSpace(strings.ToLower(query.RerankerUseCase)); caller != "" {
+	if caller := stringx.String(query.RerankerUseCase).Normalized(); caller != "" {
 		return caller
 	}
 
@@ -127,7 +128,7 @@ func dedupeMemoryHits(hits []state.MemorySearchHit) []state.MemorySearchHit {
 
 	byID := make(map[string]state.MemorySearchHit, len(hits))
 	for _, hit := range hits {
-		id := strings.TrimSpace(hit.Item.ID)
+		id := stringx.String(hit.Item.ID).Trim()
 		if id == "" {
 			continue
 		}
@@ -204,11 +205,11 @@ func memoryCandidate(query state.MemorySearchQuery, hit state.MemorySearchHit) C
 }
 
 func getMemoryCandidateText(item state.MemoryItem) string {
-	text := strings.TrimSpace(strings.Join([]string{item.Title, item.Text}, "\n"))
+	text := stringx.String(strings.Join([]string{item.Title, item.Text}, "\n")).Trim()
 	if text != "" {
 		return text
 	}
-	return strings.TrimSpace(item.ID)
+	return stringx.String(item.ID).Trim()
 }
 
 func getMemoryCandidateFusedScore(query state.MemorySearchQuery, hit state.MemorySearchHit) float64 {
@@ -275,7 +276,7 @@ func memorySourceQualityBoost(links []state.MemorySourceLink) float64 {
 
 	score := 0.0
 	for _, link := range links {
-		if strings.TrimSpace(link.SessionID) != "" {
+		if stringx.String(link.SessionID).Trim() != "" {
 			score += 0.04
 		}
 		if len(link.MessageIDs) > 0 {
@@ -284,10 +285,10 @@ func memorySourceQualityBoost(links []state.MemorySourceLink) float64 {
 		if len(link.Offsets) > 0 {
 			score += 0.02
 		}
-		if strings.TrimSpace(link.SummaryID) != "" {
+		if stringx.String(link.SummaryID).Trim() != "" {
 			score += 0.02
 		}
-		if strings.TrimSpace(link.CreatedBy) != "" || strings.TrimSpace(link.CreatedReason) != "" {
+		if stringx.String(link.CreatedBy).Trim() != "" || stringx.String(link.CreatedReason).Trim() != "" {
 			score += 0.02
 		}
 	}

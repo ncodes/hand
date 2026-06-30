@@ -3,10 +3,10 @@ package runcontext
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	statecore "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -91,8 +91,8 @@ type PersonalityOptions struct {
 func NewParent(sessionID string) (Context, error) {
 	runCtx := Context{
 		Session: Session{
-			PublicID:    strings.TrimSpace(sessionID),
-			EffectiveID: strings.TrimSpace(sessionID),
+			PublicID:    stringx.String(sessionID).Trim(),
+			EffectiveID: stringx.String(sessionID).Trim(),
 		},
 	}
 
@@ -105,22 +105,22 @@ func (runCtx Context) NewChild(opts ChildOptions) (Context, error) {
 	if err != nil {
 		return Context{}, err
 	}
-	if strings.TrimSpace(opts.ChildSessionID) == "" {
+	if stringx.String(opts.ChildSessionID).Trim() == "" {
 		return Context{}, errors.New("child session id is required")
 	}
 
 	childCtx := Context{
-		ProfileName: strings.TrimSpace(opts.ProfileName),
+		ProfileName: stringx.String(opts.ProfileName).Trim(),
 		Session: Session{
 			PublicID:    parent.Session.PublicID,
-			EffectiveID: strings.TrimSpace(opts.ChildSessionID),
+			EffectiveID: stringx.String(opts.ChildSessionID).Trim(),
 		},
-		Personality: Personality{Name: strings.TrimSpace(opts.PersonalityName)},
-		State:       State{Mode: strings.TrimSpace(opts.StateMode)},
+		Personality: Personality{Name: stringx.String(opts.PersonalityName).Trim()},
+		State:       State{Mode: stringx.String(opts.StateMode).Trim()},
 		Lineage: Lineage{
 			ParentSessionID: parent.Session.PublicID,
-			ChildSessionID:  strings.TrimSpace(opts.ChildSessionID),
-			RunID:           strings.TrimSpace(opts.RunID),
+			ChildSessionID:  stringx.String(opts.ChildSessionID).Trim(),
+			RunID:           stringx.String(opts.RunID).Trim(),
 			SpawnedAt:       opts.SpawnedAt,
 			CompletedAt:     opts.CompletedAt,
 		},
@@ -144,14 +144,14 @@ func (runCtx Context) NewPersonality(opts PersonalityOptions) (Context, error) {
 	if err != nil {
 		return Context{}, err
 	}
-	if strings.TrimSpace(opts.PersonalityName) == "" {
+	if stringx.String(opts.PersonalityName).Trim() == "" {
 		return Context{}, errors.New("personality name is required")
 	}
 
 	personalityCtx := parent
-	personalityCtx.Personality.Name = strings.TrimSpace(opts.PersonalityName)
-	personalityCtx.State.Mode = strings.TrimSpace(opts.StateMode)
-	personalityCtx.ProfileName = strings.TrimSpace(opts.ProfileName)
+	personalityCtx.Personality.Name = stringx.String(opts.PersonalityName).Trim()
+	personalityCtx.State.Mode = stringx.String(opts.StateMode).Trim()
+	personalityCtx.ProfileName = stringx.String(opts.ProfileName).Trim()
 	if personalityCtx.ProfileName == "" {
 		personalityCtx.ProfileName = parent.ProfileName
 	}
@@ -162,9 +162,9 @@ func (runCtx Context) NewPersonality(opts PersonalityOptions) (Context, error) {
 // Normalize trims values, fills default session/state fields, and validates all
 // session IDs carried by the run context.
 func (runCtx Context) Normalize() (Context, error) {
-	runCtx.ProfileName = strings.TrimSpace(runCtx.ProfileName)
+	runCtx.ProfileName = stringx.String(runCtx.ProfileName).Trim()
 
-	runCtx.Session.PublicID = strings.TrimSpace(runCtx.Session.PublicID)
+	runCtx.Session.PublicID = stringx.String(runCtx.Session.PublicID).Trim()
 	if runCtx.Session.PublicID == "" {
 		runCtx.Session.PublicID = DefaultSessionID
 	}
@@ -172,7 +172,7 @@ func (runCtx Context) Normalize() (Context, error) {
 		return Context{}, err
 	}
 
-	runCtx.Session.EffectiveID = strings.TrimSpace(runCtx.Session.EffectiveID)
+	runCtx.Session.EffectiveID = stringx.String(runCtx.Session.EffectiveID).Trim()
 	if runCtx.Session.EffectiveID == "" {
 		runCtx.Session.EffectiveID = runCtx.Session.PublicID
 	}
@@ -180,21 +180,21 @@ func (runCtx Context) Normalize() (Context, error) {
 		return Context{}, err
 	}
 
-	runCtx.Lineage.ParentSessionID = strings.TrimSpace(runCtx.Lineage.ParentSessionID)
+	runCtx.Lineage.ParentSessionID = stringx.String(runCtx.Lineage.ParentSessionID).Trim()
 	if runCtx.Lineage.ParentSessionID != "" {
 		if err := ValidateSessionID(runCtx.Lineage.ParentSessionID); err != nil {
 			return Context{}, err
 		}
 	}
-	runCtx.Lineage.ChildSessionID = strings.TrimSpace(runCtx.Lineage.ChildSessionID)
+	runCtx.Lineage.ChildSessionID = stringx.String(runCtx.Lineage.ChildSessionID).Trim()
 	if runCtx.Lineage.ChildSessionID != "" {
 		if err := ValidateSessionID(runCtx.Lineage.ChildSessionID); err != nil {
 			return Context{}, err
 		}
 	}
 
-	runCtx.Lineage.RunID = strings.TrimSpace(runCtx.Lineage.RunID)
-	runCtx.Personality.Name = strings.TrimSpace(runCtx.Personality.Name)
+	runCtx.Lineage.RunID = stringx.String(runCtx.Lineage.RunID).Trim()
+	runCtx.Personality.Name = stringx.String(runCtx.Personality.Name).Trim()
 	runCtx.State.Mode = normalizeStateMode(runCtx.State.Mode)
 
 	return runCtx, nil
@@ -202,10 +202,10 @@ func (runCtx Context) Normalize() (Context, error) {
 
 // StateSessionID returns the effective session ID used for state isolation.
 func (runCtx Context) StateSessionID() string {
-	if value := strings.TrimSpace(runCtx.Session.EffectiveID); value != "" {
+	if value := stringx.String(runCtx.Session.EffectiveID).Trim(); value != "" {
 		return value
 	}
-	if value := strings.TrimSpace(runCtx.Session.PublicID); value != "" {
+	if value := stringx.String(runCtx.Session.PublicID).Trim(); value != "" {
 		return value
 	}
 
@@ -245,7 +245,7 @@ func FromContext(ctx context.Context) (Context, bool) {
 }
 
 func normalizeStateMode(value string) string {
-	switch strings.TrimSpace(strings.ToLower(value)) {
+	switch stringx.String(value).Normalized() {
 	case StateModeIsolated:
 		return StateModeIsolated
 	case StateModeReadonly:

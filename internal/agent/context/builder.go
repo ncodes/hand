@@ -1,9 +1,8 @@
 package context
 
 import (
-	"strings"
-
 	messages "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // Input contains the sources used to assemble model-visible context for a turn.
@@ -59,7 +58,7 @@ func sanitizeToolCallMessageGroups(input []messages.Message) []messages.Message 
 		toolMessages := mapImmediateToolMessages(input, index+1)
 		sanitized = append(sanitized, message)
 		for _, toolCall := range message.ToolCalls {
-			toolCallID := strings.TrimSpace(toolCall.ID)
+			toolCallID := stringx.String(toolCall.ID).Trim()
 			if toolCallID == "" {
 				continue
 			}
@@ -84,7 +83,7 @@ func mapImmediateToolMessages(input []messages.Message, start int) map[string]me
 		if message.Role != messages.RoleTool {
 			break
 		}
-		toolCallID := strings.TrimSpace(message.ToolCallID)
+		toolCallID := stringx.String(message.ToolCallID).Trim()
 		if toolCallID == "" {
 			continue
 		}
@@ -114,8 +113,8 @@ func countImmediateToolMessages(input []messages.Message) int {
 func unavailableToolResultMessage(toolCall messages.ToolCall) messages.Message {
 	return messages.Message{
 		Role:       messages.RoleTool,
-		Name:       strings.TrimSpace(toolCall.Name),
-		ToolCallID: strings.TrimSpace(toolCall.ID),
+		Name:       stringx.String(toolCall.Name).Trim(),
+		ToolCallID: stringx.String(toolCall.ID).Trim(),
 		Content:    "[Tool result unavailable: the previous run ended before this tool response was recorded.]",
 	}
 }

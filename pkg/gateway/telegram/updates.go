@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type Update struct {
@@ -63,12 +65,12 @@ func NormalizeUpdate(update Update) (InboundMessage, bool, error) {
 		return InboundMessage{}, false, nil
 	}
 
-	text := strings.TrimSpace(msg.Text)
+	text := stringx.String(msg.Text).Trim()
 	if text == "" {
 		return InboundMessage{}, false, nil
 	}
 
-	chatID := strings.TrimSpace(strconv.FormatInt(msg.Chat.ID, 10))
+	chatID := stringx.String(strconv.FormatInt(msg.Chat.ID, 10)).Trim()
 	if chatID == "" || chatID == "0" {
 		return InboundMessage{}, false, ErrTelegramChatRequired
 	}
@@ -82,8 +84,8 @@ func NormalizeUpdate(update Update) (InboundMessage, bool, error) {
 	senderName := ""
 	if msg.From != nil && msg.From.ID != 0 {
 		senderID = strconv.FormatInt(msg.From.ID, 10)
-		senderName = strings.TrimSpace(strings.Join([]string{msg.From.FirstName, msg.From.LastName}, " "))
-		if username := strings.TrimSpace(msg.From.Username); username != "" {
+		senderName = stringx.String(strings.Join([]string{msg.From.FirstName, msg.From.LastName}, " ")).Trim()
+		if username := stringx.String(msg.From.Username).Trim(); username != "" {
 			if senderName != "" {
 				senderName += " "
 			}
@@ -101,7 +103,7 @@ func NormalizeUpdate(update Update) (InboundMessage, bool, error) {
 			ChatID:           chatID,
 			ThreadID:         threadID,
 			ReplyToMessageID: msg.MessageID,
-			ChatType:         strings.TrimSpace(msg.Chat.Type),
+			ChatType:         stringx.String(msg.Chat.Type).Trim(),
 		},
 	}, true, nil
 }

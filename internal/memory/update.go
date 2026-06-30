@@ -3,7 +3,8 @@ package memory
 import (
 	"context"
 	"errors"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -16,7 +17,7 @@ func (p *MemoryProvider) Update(ctx context.Context, req UpdateRequest) (UpdateR
 		return UpdateResult{}, errors.New("memory provider is required")
 	}
 
-	memoryID := strings.TrimSpace(req.ID)
+	memoryID := stringx.String(req.ID).Trim()
 	if memoryID == "" {
 		return UpdateResult{}, errors.New("memory id is required")
 	}
@@ -31,8 +32,8 @@ func (p *MemoryProvider) Update(ctx context.Context, req UpdateRequest) (UpdateR
 		replacement.Metadata = make(map[string]string)
 	}
 	replacement.Metadata[supersedesMemoryIDMetadataKey] = previous.ID
-	if sessionID := strings.TrimSpace(previous.Metadata["source_session_id"]); sessionID != "" {
-		if strings.TrimSpace(replacement.Metadata["source_session_id"]) == "" {
+	if sessionID := stringx.String(previous.Metadata["source_session_id"]).Trim(); sessionID != "" {
+		if stringx.String(replacement.Metadata["source_session_id"]).Trim() == "" {
 			replacement.Metadata["source_session_id"] = sessionID
 		}
 	}
@@ -96,7 +97,7 @@ func (p *MemoryProvider) supersedeMemory(
 ) (MemoryItem, error) {
 	status := StatusSuperseded
 	metadata := buildLifecycleMetadata(item.Metadata, "supersede", reason, item.Status)
-	metadata[supersededByMemoryIDMetadataKey] = strings.TrimSpace(replacementID)
+	metadata[supersededByMemoryIDMetadataKey] = stringx.String(replacementID).Trim()
 
 	return p.manager.PatchMemory(ctx, MemoryPatch{
 		ID:       item.ID,
@@ -111,7 +112,7 @@ func (p *MemoryProvider) restoreMemory(ctx context.Context, item MemoryItem) err
 }
 
 func getUpdatePromotionReason(reason string) string {
-	reason = strings.TrimSpace(reason)
+	reason = stringx.String(reason).Trim()
 	if reason == "" {
 		return "tool_memory_update"
 	}

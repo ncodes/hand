@@ -3,7 +3,8 @@ package planstore
 import (
 	"errors"
 	"fmt"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -46,10 +47,10 @@ type PlanSummary struct {
 func ValidatePlan(plan Plan) error {
 	active := 0
 	for idx, step := range plan.Steps {
-		if strings.TrimSpace(step.ID) == "" {
+		if stringx.String(step.ID).Trim() == "" {
 			return fmt.Errorf("step %d id is required", idx)
 		}
-		if strings.TrimSpace(step.Content) == "" {
+		if stringx.String(step.Content).Trim() == "" {
 			return fmt.Errorf("step %d content is required", idx)
 		}
 		if !ValidPlanStatus(step.Status) {
@@ -74,7 +75,7 @@ func ValidatePlan(plan Plan) error {
 
 // ValidPlanStatus reports whether status is accepted by the plan store.
 func ValidPlanStatus(status string) bool {
-	switch strings.TrimSpace(status) {
+	switch stringx.String(status).Trim() {
 	case PlanStatusPending,
 		PlanStatusInProgress,
 		PlanStatusCompleted,

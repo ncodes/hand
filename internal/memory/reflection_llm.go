@@ -9,6 +9,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const defaultReflectionMaxOutputTokens int64 = 1600
@@ -37,7 +38,7 @@ func NewLLMReflectionGenerator(options LLMReflectionGeneratorOptions) (*LLMRefle
 	if options.Client == nil {
 		return nil, errors.New("memory reflection model client is required")
 	}
-	if strings.TrimSpace(options.Model) == "" {
+	if stringx.String(options.Model).Trim() == "" {
 		return nil, errors.New("memory reflection model is required")
 	}
 	if options.MaxOutputTokensEnabled != nil && !*options.MaxOutputTokensEnabled {
@@ -122,7 +123,7 @@ type reflectionModelProcedural struct {
 
 func reflectionGenerationRequestToModelPayload(req ReflectionGenerationRequest) reflectionModelRequest {
 	return reflectionModelRequest{
-		SessionID: strings.TrimSpace(req.SessionID),
+		SessionID: stringx.String(req.SessionID).Trim(),
 		Sources:   memoryItemsToReflectionModelMemories(req.Sources),
 		Related:   memoryItemsToReflectionModelMemories(req.Related),
 		Limit:     req.Limit,
@@ -133,11 +134,11 @@ func memoryItemsToReflectionModelMemories(items []MemoryItem) []reflectionModelM
 	memories := make([]reflectionModelMemory, 0, len(items))
 	for _, item := range items {
 		memories = append(memories, reflectionModelMemory{
-			ID:         strings.TrimSpace(item.ID),
-			Kind:       strings.TrimSpace(string(item.Kind)),
-			Status:     strings.TrimSpace(string(item.Status)),
-			Title:      strings.TrimSpace(item.Title),
-			Text:       strings.TrimSpace(item.Text),
+			ID:         stringx.String(item.ID).Trim(),
+			Kind:       stringx.String(string(item.Kind)).Trim(),
+			Status:     stringx.String(string(item.Status)).Trim(),
+			Title:      stringx.String(item.Title).Trim(),
+			Text:       stringx.String(item.Text).Trim(),
 			Tags:       append([]string(nil), item.Tags...),
 			Metadata:   cloneMetadata(item.Metadata),
 			Confidence: item.Confidence,
@@ -170,8 +171,8 @@ func reflectionModelResponseToGenerationResult(resp *models.Response) (Reflectio
 		items = append(items, MemoryItem{
 			Kind:       kind,
 			Status:     StatusCandidate,
-			Title:      strings.TrimSpace(candidate.Title),
-			Text:       strings.TrimSpace(candidate.Text),
+			Title:      stringx.String(candidate.Title).Trim(),
+			Text:       stringx.String(candidate.Text).Trim(),
 			Tags:       append([]string(nil), candidate.Tags...),
 			Metadata:   metadata,
 			Confidence: candidate.Confidence,
@@ -186,16 +187,16 @@ func memoryKindFromReflectionCandidate(candidate reflectionModelCandidate) Kind 
 		return KindProcedural
 	}
 
-	return Kind(strings.TrimSpace(candidate.Kind))
+	return Kind(stringx.String(candidate.Kind).Trim())
 }
 
 func hasProceduralReflectionFields(procedural reflectionModelProcedural) bool {
-	return strings.TrimSpace(procedural.Trigger) != "" ||
+	return stringx.String(procedural.Trigger).Trim() != "" ||
 		len(getNonBlankStrings(procedural.Steps)) > 0
 }
 
 func normalizeReflectionJSON(raw string) string {
-	raw = strings.TrimSpace(raw)
+	raw = stringx.String(raw).Trim()
 	if !strings.HasPrefix(raw, "```") {
 		return raw
 	}
@@ -203,8 +204,8 @@ func normalizeReflectionJSON(raw string) string {
 	raw = strings.TrimPrefix(raw, "```json")
 	raw = strings.TrimPrefix(raw, "```JSON")
 	raw = strings.TrimPrefix(raw, "```")
-	raw = strings.TrimSuffix(strings.TrimSpace(raw), "```")
-	return strings.TrimSpace(raw)
+	raw = strings.TrimSuffix(stringx.String(raw).Trim(), "```")
+	return stringx.String(raw).Trim()
 }
 
 // getReflectionInstructions tells the model what to omit as much as what to emit.
@@ -297,11 +298,11 @@ func setProceduralReflectionMetadata(
 	procedural reflectionModelProcedural,
 ) map[string]string {
 	values := map[string]string{
-		"procedural_trigger":           strings.TrimSpace(procedural.Trigger),
+		"procedural_trigger":           stringx.String(procedural.Trigger).Trim(),
 		"procedural_steps":             strings.Join(getNonBlankStrings(procedural.Steps), "; "),
 		"procedural_constraints":       strings.Join(getNonBlankStrings(procedural.Constraints), "; "),
 		"procedural_examples":          strings.Join(getNonBlankStrings(procedural.Examples), "; "),
-		"procedural_expected_behavior": strings.TrimSpace(procedural.ExpectedBehavior),
+		"procedural_expected_behavior": stringx.String(procedural.ExpectedBehavior).Trim(),
 	}
 	for key, value := range values {
 		if value == "" {
@@ -323,9 +324,9 @@ func reflectionMetadataEntriesToMap(entries []reflectionModelMetadataEntry) map[
 
 	metadata := make(map[string]string, len(entries))
 	for _, entry := range entries {
-		key := strings.TrimSpace(entry.Key)
+		key := stringx.String(entry.Key).Trim()
 		if key != "" {
-			metadata[key] = strings.TrimSpace(entry.Value)
+			metadata[key] = stringx.String(entry.Value).Trim()
 		}
 	}
 	if len(metadata) == 0 {
@@ -338,7 +339,7 @@ func reflectionMetadataEntriesToMap(entries []reflectionModelMetadataEntry) map[
 func getNonBlankStrings(values []string) []string {
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
-		if value := strings.TrimSpace(value); value != "" {
+		if value := stringx.String(value).Trim(); value != "" {
 			normalized = append(normalized, value)
 		}
 	}

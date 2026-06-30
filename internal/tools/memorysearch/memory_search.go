@@ -11,6 +11,7 @@ import (
 	"github.com/wandxy/morph/internal/memory"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -116,7 +117,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 }
 
 func buildMemorySearchQuery(req input) (memory.SearchQuery, tools.Result) {
-	query := strings.TrimSpace(req.Query)
+	query := stringx.String(req.Query).Trim()
 	if query == "" {
 		return memory.SearchQuery{}, common.ToolError("invalid_input", "query is required")
 	}
@@ -206,7 +207,7 @@ func memoryItemToOutputItem(item memory.MemoryItem, maxChars int) (memory.Memory
 		item.Text = string([]rune(item.Text)[:maxChars])
 	}
 	item.Tags = sanitizeStrings(item.Tags)
-	if strings.TrimSpace(item.Title) == "" && strings.TrimSpace(item.Text) == "" {
+	if stringx.String(item.Title).Trim() == "" && stringx.String(item.Text).Trim() == "" {
 		return memory.MemoryItem{}, false
 	}
 
@@ -243,9 +244,9 @@ func sourceLinksToOutputSourceLinks(links []memory.SourceLink) []sourceLink {
 func sanitizeString(value string) string {
 	sanitized, ok := sanitizeValue(value).(string)
 	if !ok {
-		return strings.TrimSpace(value)
+		return stringx.String(value).Trim()
 	}
-	return strings.TrimSpace(sanitized)
+	return stringx.String(sanitized).Trim()
 }
 
 func sanitizeStrings(values []string) []string {
@@ -271,7 +272,7 @@ func cleanStrings(values []string) []string {
 
 	cleaned := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if value == "" {
 			continue
 		}

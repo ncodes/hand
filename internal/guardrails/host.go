@@ -1,6 +1,6 @@
 package guardrails
 
-import "strings"
+import "github.com/wandxy/morph/pkg/stringx"
 
 // HostPolicy defines host policy settings.
 type HostPolicy struct {
@@ -40,7 +40,7 @@ func (p HostPolicy) Check(host string) (HostBlock, bool) {
 
 	if rule, ok := getFirstMatchingDomainRule(p.DenyRules, host); ok {
 		message := `blocked by configured native host denylist policy: "` + host + `" matched "` + rule.Pattern + `"`
-		if source := strings.TrimSpace(rule.Source); source != "" {
+		if source := stringx.String(rule.Source).Trim(); source != "" {
 			message += ` from "` + source + `"`
 		}
 

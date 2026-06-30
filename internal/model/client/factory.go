@@ -17,6 +17,7 @@ import (
 	_ "github.com/wandxy/morph/internal/model/provider_copilot"
 	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
 	provider_openai "github.com/wandxy/morph/internal/model/provider_openai"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // ModelRole identifies a model-consuming runtime role.
@@ -120,7 +121,7 @@ func (f *ClientFactory) Resolve(req ClientRequest) (ResolvedClientRequest, error
 		return ResolvedClientRequest{}, fmt.Errorf("model API %q is not registered", apiID)
 	}
 
-	baseURL := strings.TrimSpace(req.BaseURL)
+	baseURL := stringx.String(req.BaseURL).Trim()
 	if baseURL == "" {
 		baseURL = registry.GetBaseURL(provider.ID, api.ID)
 	}
@@ -129,7 +130,7 @@ func (f *ClientFactory) Resolve(req ClientRequest) (ResolvedClientRequest, error
 			provider.ID, api.ID)
 	}
 
-	modelID := strings.TrimSpace(req.Model)
+	modelID := stringx.String(req.Model).Trim()
 	model, modelKnown := registry.GetModel(provider.ID, modelID)
 	if modelID != "" && !modelKnown {
 		model = modelprovider.ModelDefinition{
@@ -145,7 +146,7 @@ func (f *ClientFactory) Resolve(req ClientRequest) (ResolvedClientRequest, error
 		ModelKnown: modelKnown,
 		Provider:   provider,
 		API:        api,
-		APIKey:     strings.TrimSpace(req.APIKey),
+		APIKey:     stringx.String(req.APIKey).Trim(),
 		BaseURL:    baseURL,
 		Headers:    mergeHeaders(provider.Headers, req.Headers),
 		MaxRetries: req.MaxRetries,
@@ -316,18 +317,18 @@ func clientCacheKey(req ResolvedClientRequest) string {
 }
 
 func isOpenAISubscriptionBaseURL(baseURL string) bool {
-	return strings.TrimRight(strings.TrimSpace(baseURL), "/") ==
+	return strings.TrimRight(stringx.String(baseURL).Trim(), "/") ==
 		strings.TrimRight(constants.DefaultOpenAISubscriptionBaseURL, "/")
 }
 
 func hasHeader(headers map[string]string, name string) bool {
-	name = strings.ToLower(strings.TrimSpace(name))
+	name = stringx.String(name).Normalized()
 	if name == "" {
 		return false
 	}
 
 	for key, value := range headers {
-		if strings.ToLower(strings.TrimSpace(key)) == name && strings.TrimSpace(value) != "" {
+		if stringx.String(key).Normalized() == name && stringx.String(value).Trim() != "" {
 			return true
 		}
 	}
@@ -339,8 +340,8 @@ func mergeHeaders(values ...map[string]string) map[string]string {
 	merged := make(map[string]string)
 	for _, headers := range values {
 		for key, value := range headers {
-			key = strings.TrimSpace(key)
-			value = strings.TrimSpace(value)
+			key = stringx.String(key).Trim()
+			value = stringx.String(value).Trim()
 			if key == "" || value == "" {
 				continue
 			}
@@ -369,7 +370,7 @@ func sortedHeaderKeys(headers map[string]string) []string {
 }
 
 func normalizeID(value string) string {
-	return strings.TrimSpace(strings.ToLower(value))
+	return stringx.String(value).Normalized()
 }
 
 func newOpenAIClient(

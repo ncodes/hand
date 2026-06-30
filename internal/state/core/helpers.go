@@ -7,11 +7,12 @@ import (
 
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	"github.com/wandxy/morph/pkg/nanoid"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // ValidateSessionID checks that id can be used as a persisted session ID.
 func ValidateSessionID(id string) error {
-	id = strings.TrimSpace(id)
+	id = stringx.String(id).Trim()
 	if id == "" {
 		return errors.New("session id is required")
 	}
@@ -29,7 +30,7 @@ func ValidateSessionID(id string) error {
 
 // MarkSessionArchived returns session with archive metadata applied.
 func MarkSessionArchived(session Session, archivedAt time.Time, expiresAt time.Time) (Session, error) {
-	session.ID = strings.TrimSpace(session.ID)
+	session.ID = stringx.String(session.ID).Trim()
 	if err := ValidateSessionID(session.ID); err != nil {
 		return Session{}, err
 	}
@@ -58,7 +59,7 @@ func MarkSessionArchived(session Session, archivedAt time.Time, expiresAt time.T
 
 // ClearSessionArchive returns session with archive metadata removed.
 func ClearSessionArchive(session Session) (Session, error) {
-	session.ID = strings.TrimSpace(session.ID)
+	session.ID = stringx.String(session.ID).Trim()
 	if err := ValidateSessionID(session.ID); err != nil {
 		return Session{}, err
 	}
@@ -76,12 +77,12 @@ func ClearSessionArchive(session Session) (Session, error) {
 
 // NormalizeSessionTitle normalizes session title.
 func NormalizeSessionTitle(title string) string {
-	return strings.TrimSpace(title)
+	return stringx.String(title).Trim()
 }
 
 // NormalizeSessionTitleSource normalizes session title source.
 func NormalizeSessionTitleSource(source string) string {
-	source = strings.TrimSpace(source)
+	source = stringx.String(source).Trim()
 	switch source {
 	case SessionTitleSourceGenerated, SessionTitleSourceManual:
 		return source
@@ -107,7 +108,7 @@ func CloneMessages(messages []morphmsg.Message) []morphmsg.Message {
 
 // NormalizeSessionSummary normalizes session summary.
 func NormalizeSessionSummary(summary SessionSummary) (SessionSummary, error) {
-	summary.SessionID = strings.TrimSpace(summary.SessionID)
+	summary.SessionID = stringx.String(summary.SessionID).Trim()
 	if err := ValidateSessionID(summary.SessionID); err != nil {
 		if err.Error() == "session id is required" {
 			return SessionSummary{}, errors.New("session id is required")
@@ -116,7 +117,7 @@ func NormalizeSessionSummary(summary SessionSummary) (SessionSummary, error) {
 		return SessionSummary{}, err
 	}
 
-	summary.SessionSummary = strings.TrimSpace(summary.SessionSummary)
+	summary.SessionSummary = stringx.String(summary.SessionSummary).Trim()
 	if summary.SessionSummary == "" {
 		return SessionSummary{}, errors.New("session summary is required")
 	}
@@ -139,7 +140,7 @@ func NormalizeSessionSummary(summary SessionSummary) (SessionSummary, error) {
 		summary.UpdatedAt = summary.UpdatedAt.UTC()
 	}
 
-	summary.CurrentTask = strings.TrimSpace(summary.CurrentTask)
+	summary.CurrentTask = stringx.String(summary.CurrentTask).Trim()
 	summary.Discoveries = cloneStrings(summary.Discoveries)
 	summary.OpenQuestions = cloneStrings(summary.OpenQuestions)
 	summary.NextActions = cloneStrings(summary.NextActions)
@@ -165,7 +166,7 @@ func UniqueStrings(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	unique := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if value == "" {
 			continue
 		}
@@ -181,7 +182,7 @@ func UniqueStrings(values []string) []string {
 
 // NormalizeMatchValue canonicalizes role, tool, and filter values before comparison.
 func NormalizeMatchValue(value string) string {
-	return strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(value)), " "))
+	return strings.ToLower(strings.Join(strings.Fields(stringx.String(value).Trim()), " "))
 }
 
 func cloneStrings(values []string) []string {
@@ -191,7 +192,7 @@ func cloneStrings(values []string) []string {
 
 	cloned := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if value == "" {
 			continue
 		}

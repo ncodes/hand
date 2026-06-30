@@ -16,10 +16,11 @@ import (
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	"github.com/wandxy/morph/internal/trace"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func TestLiveMemoryFlushRunsBeforeCompaction(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+	if stringx.String(os.Getenv("MORPH_E2E_LIVE")).Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -49,7 +50,7 @@ func TestLiveMemoryFlushRunsBeforeCompaction(t *testing.T) {
 }
 
 func TestLiveMemoryFlushCanProduceMemoryBeforeCompaction(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+	if stringx.String(os.Getenv("MORPH_E2E_LIVE")).Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -81,7 +82,7 @@ func TestLiveMemoryFlushCanProduceMemoryBeforeCompaction(t *testing.T) {
 }
 
 func TestLiveMemoryFlushDoesNotRunBeforeSessionSwitch(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+	if stringx.String(os.Getenv("MORPH_E2E_LIVE")).Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -113,7 +114,7 @@ func TestLiveMemoryFlushDoesNotRunBeforeSessionSwitch(t *testing.T) {
 }
 
 func TestLiveMemoryFlushRunsBeforeAgentClose(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+	if stringx.String(os.Getenv("MORPH_E2E_LIVE")).Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -293,7 +294,7 @@ func getLiveMemoryFlushMemory(
 	t.Helper()
 
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: strings.TrimSpace(sessionID),
+		SessionID: stringx.String(sessionID).Trim(),
 		Statuses: []storage.MemoryStatus{
 			storage.MemoryStatusCandidate,
 			storage.MemoryStatusActive,
@@ -378,7 +379,7 @@ func liveTracePayloadString(event storage.TraceEvent, key string) string {
 		return ""
 	}
 
-	return strings.TrimSpace(value)
+	return stringx.String(value).Trim()
 }
 
 func liveTraceEventTypes(events []storage.TraceEvent) []string {

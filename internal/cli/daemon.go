@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/wandxy/morph/internal/profile"
 	morphruntime "github.com/wandxy/morph/internal/runtime"
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -106,7 +106,7 @@ func EnsureDaemonRunning(ctx context.Context, cfg *config.Config) (func() error,
 			return nil, fmt.Errorf("start Morph daemon: cleanup after readiness failure: %w", cleanupErr)
 		}
 		return nil, fmt.Errorf("start Morph daemon: RPC did not become ready at %s:%d: %w",
-			strings.TrimSpace(cfg.RPC.Address), cfg.RPC.Port, err)
+			stringx.String(cfg.RPC.Address).Trim(), cfg.RPC.Port, err)
 	}
 
 	return cleanup, nil
@@ -146,7 +146,7 @@ func checkDaemonRPCImpl(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("config is required")
 	}
 
-	address := strings.TrimSpace(cfg.RPC.Address)
+	address := stringx.String(cfg.RPC.Address).Trim()
 	if address == "" {
 		return fmt.Errorf("rpc address is required")
 	}
@@ -159,7 +159,7 @@ func checkDaemonRPCImpl(ctx context.Context, cfg *config.Config) error {
 }
 
 func checkDaemonHealthImpl(ctx context.Context, address string, port int) (string, error) {
-	address = strings.TrimSpace(address)
+	address = stringx.String(address).Trim()
 	if address == "" {
 		return "", fmt.Errorf("rpc address is required")
 	}
@@ -191,9 +191,9 @@ func daemonStatusFromProbe(probe morphruntime.ProbeResult) DaemonStatus {
 	metadata := probe.Metadata
 	status := DaemonStatus{
 		State:     string(probe.State),
-		Profile:   strings.TrimSpace(metadata.Profile),
+		Profile:   stringx.String(metadata.Profile).Trim(),
 		PID:       metadata.PID,
-		Address:   strings.TrimSpace(metadata.RPC.Address),
+		Address:   stringx.String(metadata.RPC.Address).Trim(),
 		Port:      metadata.RPC.Port,
 		StartedAt: metadata.StartedAt,
 	}

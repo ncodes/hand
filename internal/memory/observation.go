@@ -2,10 +2,10 @@ package memory
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/wandxy/morph/internal/trace"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func (p *MemoryProvider) recordPromotionStarted(ctx context.Context, memoryID string, operation string) {
@@ -72,7 +72,7 @@ func (p *MemoryProvider) recordPromotionFallback(ctx context.Context, memoryID s
 func getPromotionRelatedHitIDs(hits []SearchHit) []string {
 	ids := make([]string, 0, len(hits))
 	for _, hit := range hits {
-		if id := strings.TrimSpace(hit.Item.ID); id != "" {
+		if id := stringx.String(hit.Item.ID).Trim(); id != "" {
 			ids = append(ids, id)
 		}
 	}

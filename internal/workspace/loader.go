@@ -11,6 +11,7 @@ import (
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/pkg/promptio"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const maxContentLength = constants.WorkspaceMaxContentLength
@@ -54,7 +55,7 @@ func NormalizeRulePaths(files []string) []string {
 	seen := make(map[string]struct{}, len(files))
 
 	for _, file := range files {
-		path := strings.TrimSpace(file)
+		path := stringx.String(file).Trim()
 		if path == "" {
 			continue
 		}
@@ -81,7 +82,7 @@ func Load(files ...string) (Result, error) {
 
 // LoadFromRoot reads workspace instruction files from root.
 func LoadFromRoot(root string, files ...string) (Result, error) {
-	root = strings.TrimSpace(root)
+	root = stringx.String(root).Trim()
 	if root == "" {
 		return Result{}, nil
 	}

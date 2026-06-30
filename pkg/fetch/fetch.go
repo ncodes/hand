@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
-	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/wandxy/morph/pkg/netpolicy"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const defaultDialTimeout = 10 * time.Second
@@ -170,7 +170,7 @@ func (f *Fetcher) ValidateURL(ctx context.Context, rawURL string) (*url.URL, err
 		return nil, errors.New("url scheme must be http or https")
 	}
 
-	if strings.TrimSpace(parsed.Hostname()) == "" {
+	if stringx.String(parsed.Hostname()).Trim() == "" {
 		return nil, errors.New("url host is required")
 	}
 
@@ -192,7 +192,7 @@ func (f *Fetcher) ValidateURL(ctx context.Context, rawURL string) (*url.URL, err
 }
 
 func (f *Fetcher) ResolveAndValidateHost(ctx context.Context, host string) ([]netip.Addr, error) {
-	host = strings.TrimSpace(host)
+	host = stringx.String(host).Trim()
 	if host == "" {
 		return nil, errors.New("url host is required")
 	}

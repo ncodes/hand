@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	appcredential "github.com/wandxy/morph/internal/credential"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -99,7 +100,7 @@ func (p GitHubCopilotSubscriptionProvider) Refresh(
 	credential appcredential.StoredCredential,
 ) (appcredential.StoredCredential, error) {
 	p = p.withDefaults()
-	refreshToken := strings.TrimSpace(credential.Refresh)
+	refreshToken := stringx.String(credential.Refresh).Trim()
 	if refreshToken == "" {
 		return appcredential.StoredCredential{}, errors.New("GitHub Copilot refresh token is required")
 	}
@@ -111,7 +112,7 @@ func (p GitHubCopilotSubscriptionProvider) AuthHeaders(
 	_ context.Context,
 	credential appcredential.StoredCredential,
 ) (map[string]string, error) {
-	token := strings.TrimSpace(credential.Token)
+	token := stringx.String(credential.Token).Trim()
 	if token == "" {
 		return nil, errors.New("GitHub Copilot access token is required")
 	}
@@ -124,13 +125,13 @@ func (p GitHubCopilotSubscriptionProvider) AuthHeaders(
 }
 
 func (p GitHubCopilotSubscriptionProvider) withDefaults() GitHubCopilotSubscriptionProvider {
-	if strings.TrimSpace(p.DeviceCodeURL) == "" {
+	if stringx.String(p.DeviceCodeURL).Trim() == "" {
 		p.DeviceCodeURL = gitHubCopilotDeviceCode
 	}
-	if strings.TrimSpace(p.AccessTokenURL) == "" {
+	if stringx.String(p.AccessTokenURL).Trim() == "" {
 		p.AccessTokenURL = gitHubCopilotAccessToken
 	}
-	if strings.TrimSpace(p.CopilotTokenURL) == "" {
+	if stringx.String(p.CopilotTokenURL).Trim() == "" {
 		p.CopilotTokenURL = gitHubCopilotToken
 	}
 	if p.HTTPClient == nil {
@@ -155,9 +156,9 @@ func (p GitHubCopilotSubscriptionProvider) startDeviceFlow(ctx context.Context) 
 	if err := p.postForm(ctx, p.DeviceCodeURL, "", form, &device); err != nil {
 		return deviceCodeResponse{}, err
 	}
-	if strings.TrimSpace(device.DeviceCode) == "" ||
-		strings.TrimSpace(device.UserCode) == "" ||
-		strings.TrimSpace(device.VerificationURI) == "" ||
+	if stringx.String(device.DeviceCode).Trim() == "" ||
+		stringx.String(device.UserCode).Trim() == "" ||
+		stringx.String(device.VerificationURI).Trim() == "" ||
 		device.ExpiresIn <= 0 {
 		return deviceCodeResponse{}, errors.New("invalid GitHub Copilot device code response")
 	}
@@ -210,11 +211,11 @@ func (p GitHubCopilotSubscriptionProvider) pollAccessTokenOnce(
 	if err := p.postForm(ctx, p.AccessTokenURL, "", form, &response); err != nil {
 		return "", "", err
 	}
-	if token := strings.TrimSpace(response.AccessToken); token != "" {
+	if token := stringx.String(response.AccessToken).Trim(); token != "" {
 		return token, deviceTokenPollComplete, nil
 	}
 
-	switch strings.TrimSpace(response.Error) {
+	switch stringx.String(response.Error).Trim() {
 	case "authorization_pending":
 		return "", deviceTokenPollPending, nil
 	case "slow_down":
@@ -223,7 +224,7 @@ func (p GitHubCopilotSubscriptionProvider) pollAccessTokenOnce(
 		return "", deviceTokenPollComplete, errors.New("invalid GitHub Copilot device token response")
 	default:
 		message := "GitHub Copilot device flow failed: " + response.Error
-		if description := strings.TrimSpace(response.ErrorDescription); description != "" {
+		if description := stringx.String(response.ErrorDescription).Trim(); description != "" {
 			message += ": " + description
 		}
 		return "", deviceTokenPollComplete, errors.New(message)
@@ -238,7 +239,7 @@ func (p GitHubCopilotSubscriptionProvider) fetchCopilotToken(
 	if err := p.getJSON(ctx, p.CopilotTokenURL, githubToken, &token); err != nil {
 		return appcredential.StoredCredential{}, err
 	}
-	copilotToken := strings.TrimSpace(token.Token)
+	copilotToken := stringx.String(token.Token).Trim()
 	if copilotToken == "" || token.ExpiresAt <= 0 {
 		return appcredential.StoredCredential{}, errors.New("invalid GitHub Copilot token response")
 	}
@@ -247,14 +248,14 @@ func (p GitHubCopilotSubscriptionProvider) fetchCopilotToken(
 	return appcredential.StoredCredential{
 		Type:      appcredential.TypeOAuth,
 		Token:     copilotToken,
-		Refresh:   strings.TrimSpace(githubToken),
+		Refresh:   stringx.String(githubToken).Trim(),
 		ExpiresAt: &expiresAt,
 		Scopes:    []string{gitHubCopilotScope},
 	}, nil
 }
 
 func (p GitHubCopilotSubscriptionProvider) enableKnownModels(ctx context.Context, token string) error {
-	baseURL := strings.TrimRight(strings.TrimSpace(p.ModelPolicyBaseURL), "/")
+	baseURL := strings.TrimRight(stringx.String(p.ModelPolicyBaseURL).Trim(), "/")
 	if baseURL == "" {
 		baseURL = getGitHubCopilotBaseURLFromToken(token)
 	}
@@ -307,11 +308,11 @@ func (p GitHubCopilotSubscriptionProvider) enableModel(
 
 func getGitHubCopilotBaseURLFromToken(token string) string {
 	for _, part := range strings.Split(token, ";") {
-		key, value, ok := strings.Cut(strings.TrimSpace(part), "=")
+		key, value, ok := strings.Cut(stringx.String(part).Trim(), "=")
 		if !ok || key != "proxy-ep" {
 			continue
 		}
-		host := strings.TrimSpace(value)
+		host := stringx.String(value).Trim()
 		if host == "" {
 			return ""
 		}
@@ -416,7 +417,7 @@ func setGitHubCopilotRequestHeaders(req *http.Request, bearerToken string) {
 	for key, value := range gitHubCopilotHeaders() {
 		req.Header.Set(key, value)
 	}
-	if token := strings.TrimSpace(bearerToken); token != "" {
+	if token := stringx.String(bearerToken).Trim(); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 }

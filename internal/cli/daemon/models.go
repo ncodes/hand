@@ -3,11 +3,12 @@ package daemon
 import (
 	"context"
 	"errors"
+
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	models "github.com/wandxy/morph/internal/model"
 	modelclient "github.com/wandxy/morph/internal/model/client"
-	"strings"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type modelClientFactoryAPI interface {
@@ -97,7 +98,7 @@ func prepareDaemonRuntimeConfig(cfg *config.Config) *config.Config {
 
 	if cfg.Search.Vector.Enabled {
 		if _, err := cfg.ResolveEmbeddingModelAuth(); err == nil {
-			if strings.TrimSpace(cfg.SummaryModelEffective()) != "" {
+			if stringx.String(cfg.SummaryModelEffective()).Trim() != "" {
 				if !needsRuntimeConfig {
 					return cfg
 				}
@@ -110,7 +111,7 @@ func prepareDaemonRuntimeConfig(cfg *config.Config) *config.Config {
 		runtimeCfg.Search.Vector.Enabled = false
 		needsRuntimeConfig = true
 	}
-	if strings.TrimSpace(cfg.SummaryModelEffective()) == "" {
+	if stringx.String(cfg.SummaryModelEffective()).Trim() == "" {
 		disabled := false
 		runtimeCfg.Memory.Enabled = &disabled
 		needsRuntimeConfig = true
@@ -129,7 +130,7 @@ func hasDaemonModelSelection(cfg *config.Config) bool {
 		return false
 	}
 
-	return strings.TrimSpace(cfg.Models.Main.Name) != "" && strings.TrimSpace(cfg.Models.Main.Provider) != ""
+	return stringx.String(cfg.Models.Main.Name).Trim() != "" && stringx.String(cfg.Models.Main.Provider).Trim() != ""
 }
 
 func buildDaemonModelClients(cfg *config.Config) (models.Client, models.Client, models.Client, error) {
@@ -159,12 +160,12 @@ func buildDaemonModelClients(cfg *config.Config) (models.Client, models.Client, 
 }
 
 func buildDaemonMainModelClient(cfg *config.Config) (models.Client, config.ModelAuth, error) {
-	if strings.TrimSpace(cfg.Models.Main.Name) == "" {
+	if stringx.String(cfg.Models.Main.Name).Trim() == "" {
 		err := errors.New("model is required")
 		daemonLog.Warn().Err(err).Msg("Starting daemon without a configured model")
 		return unavailableModelClient{err: err}, config.ModelAuth{}, nil
 	}
-	if strings.TrimSpace(cfg.Models.Main.Provider) == "" {
+	if stringx.String(cfg.Models.Main.Provider).Trim() == "" {
 		err := errors.New("model provider is required")
 		daemonLog.Warn().Err(err).Msg("Starting daemon without a configured model provider")
 		return unavailableModelClient{err: err}, config.ModelAuth{}, nil

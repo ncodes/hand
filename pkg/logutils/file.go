@@ -4,8 +4,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/wandxy/morph/pkg/stringx"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -96,13 +96,13 @@ func getLogFileSettings() logFileSettings {
 
 func getLogFilePath() string {
 	if configProvider != nil {
-		if path := strings.TrimSpace(configProvider().LogFile); path != "" {
+		if path := stringx.String(configProvider().LogFile).Trim(); path != "" {
 			return path
 		}
 	}
 
 	home, err := os.UserHomeDir()
-	if err != nil || strings.TrimSpace(home) == "" {
+	if err != nil || stringx.String(home).Trim() == "" {
 		return defaultLogFilename
 	}
 

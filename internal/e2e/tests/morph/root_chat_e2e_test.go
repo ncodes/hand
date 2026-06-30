@@ -34,6 +34,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func init() {
@@ -351,7 +352,7 @@ func Test_E2E_MorphRootChat_TimeToolSynthesizesFinalAnswer(t *testing.T) {
 			Check: e2e.CombineChecks(
 				e2e.AssertToolRoundTrip(toolCall),
 				e2e.ToolOutputString("call-1", "time", func(value string) error {
-					_, err := time.Parse(time.RFC3339, strings.TrimSpace(value))
+					_, err := time.Parse(time.RFC3339, stringx.String(value).Trim())
 					if err != nil {
 						return fmt.Errorf("expected RFC3339 time output: %w", err)
 					}
@@ -385,7 +386,7 @@ func Test_E2E_MorphRootChat_ReadFileToolSynthesizesFinalAnswer(t *testing.T) {
 			Check: e2e.CombineChecks(
 				e2e.AssertToolRoundTrip(toolCall),
 				e2e.ToolOutputJSON("call-1", "read_file", func(payload map[string]any) error {
-					if strings.TrimSpace(fmt.Sprint(payload["path"])) != "notes.txt" {
+					if stringx.String(fmt.Sprint(payload["path"])).Trim() != "notes.txt" {
 						return fmt.Errorf("expected read path notes.txt, got %v", payload["path"])
 					}
 					if !strings.Contains(fmt.Sprint(payload["content"]), "hello from file") {
@@ -424,7 +425,7 @@ func Test_E2E_MorphRootChat_WriteFileToolSynthesizesFinalAnswer(t *testing.T) {
 			Check: e2e.CombineChecks(
 				e2e.AssertToolRoundTrip(toolCall),
 				e2e.ToolOutputJSON("call-1", "write_file", func(payload map[string]any) error {
-					if strings.TrimSpace(fmt.Sprint(payload["path"])) != "drafts/out.txt" {
+					if stringx.String(fmt.Sprint(payload["path"])).Trim() != "drafts/out.txt" {
 						return fmt.Errorf("expected write path drafts/out.txt, got %v", payload["path"])
 					}
 					if fmt.Sprint(payload["created"]) != "true" {
@@ -1054,7 +1055,7 @@ func Test_E2E_MorphLiveHarness_ToolUsing(t *testing.T) {
 				if message.Role != morphmsg.RoleTool {
 					continue
 				}
-				switch strings.TrimSpace(message.Name) {
+				switch stringx.String(message.Name).Trim() {
 				case "list_files", "read_file", "search_files":
 					return nil
 				}
@@ -1266,7 +1267,7 @@ func newRootChatCommand(output io.Writer) *urfavecli.Command {
 func newWebConfig(baseURL string) *config.Config {
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
 	cfg.Web.Provider = "firecrawl"
-	cfg.Web.BaseURL = strings.TrimSpace(baseURL)
+	cfg.Web.BaseURL = stringx.String(baseURL).Trim()
 	cfg.Web.APIKey = "test-key"
 	return cfg
 }
@@ -1283,7 +1284,7 @@ func newLiveRootChatContext(t *testing.T) liveRootChatContext {
 	t.Helper()
 	resetRootChatE2E(t)
 
-	if strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE")) != "1" {
+	if stringx.String(os.Getenv("MORPH_E2E_LIVE")).Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live harness e2e")
 	}
 
@@ -1319,7 +1320,7 @@ func newLiveRootChatContext(t *testing.T) liveRootChatContext {
 		configFile:     writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "live-agent"}),
 		artifactDir:    e2e.DefaultLiveArtifactDir(os.Getenv("MORPH_E2E_LIVE_ARTIFACT_DIR")),
 		markerPath:     markerPath,
-		storageBackend: strings.TrimSpace(strings.ToLower(cfg.Storage.Backend)),
+		storageBackend: stringx.String(cfg.Storage.Backend).Normalized(),
 	}
 }
 
@@ -1338,7 +1339,7 @@ func (ctx liveRootChatContext) skipIfNonPersistentStorage(t *testing.T) {
 func resolveLiveInputs(t *testing.T) (string, string) {
 	t.Helper()
 
-	configPath := strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE_CONFIG"))
+	configPath := stringx.String(os.Getenv("MORPH_E2E_LIVE_CONFIG")).Trim()
 	if configPath == "" {
 		candidate := filepath.Join(repoRoot(t), "config.yaml")
 		if _, err := os.Stat(candidate); err == nil {
@@ -1349,7 +1350,7 @@ func resolveLiveInputs(t *testing.T) (string, string) {
 		t.Skip("set MORPH_E2E_LIVE_CONFIG or provide config.yaml at the repo root to run live harness e2e")
 	}
 
-	envPath := strings.TrimSpace(os.Getenv("MORPH_E2E_LIVE_ENV_FILE"))
+	envPath := stringx.String(os.Getenv("MORPH_E2E_LIVE_ENV_FILE")).Trim()
 	if envPath == "" {
 		candidate := filepath.Join(repoRoot(t), ".env")
 		if _, err := os.Stat(candidate); err == nil {

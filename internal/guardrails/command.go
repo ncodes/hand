@@ -3,6 +3,8 @@ package guardrails
 import (
 	"regexp"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // CommandPolicy defines command policy settings.
@@ -200,7 +202,7 @@ func normalizeCommandRules(values []string) []string {
 	out := make([]string, 0, len(values))
 
 	for _, value := range values {
-		value = strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+		value = strings.Join(strings.Fields(stringx.String(value).Trim()), " ")
 		if value == "" {
 			continue
 		}
@@ -218,9 +220,9 @@ func normalizeCommandRules(values []string) []string {
 
 func getCommandTokens(command string, args []string) []string {
 	if len(args) > 0 {
-		tokens := []string{strings.TrimSpace(command)}
+		tokens := []string{stringx.String(command).Trim()}
 		for _, arg := range args {
-			trimmed := strings.TrimSpace(arg)
+			trimmed := stringx.String(arg).Trim()
 			if trimmed == "" {
 				continue
 			}
@@ -237,7 +239,7 @@ func normalizeTokens(tokens []string) []string {
 	out := make([]string, 0, len(tokens))
 
 	for _, token := range tokens {
-		token = strings.TrimSpace(token)
+		token = stringx.String(token).Trim()
 		if token == "" {
 			continue
 		}

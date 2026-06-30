@@ -1,11 +1,10 @@
 package tui
 
 import (
-	"strings"
-
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/profile"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type runtimeInfo struct {
@@ -48,7 +47,7 @@ func runtimeInfoFromConfig(cfg *config.Config) runtimeInfo {
 	info.Storage = getRuntimeValue(cfg.Storage.Backend, info.Storage)
 	info.Streaming = getRuntimeBoolValue(cfg.StreamEnabled())
 
-	if active := strings.TrimSpace(profile.Active().Name); active != "" {
+	if active := stringx.String(profile.Active().Name).Trim(); active != "" {
 		info.Profile = active
 	}
 
@@ -56,12 +55,12 @@ func runtimeInfoFromConfig(cfg *config.Config) runtimeInfo {
 }
 
 func getRuntimeValue(value string, fallback string) string {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if value != "" {
 		return value
 	}
 
-	return strings.TrimSpace(fallback)
+	return stringx.String(fallback).Trim()
 }
 
 func getRuntimeBoolValue(enabled bool) string {

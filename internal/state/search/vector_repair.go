@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/wandxy/morph/internal/constants"
 	state "github.com/wandxy/morph/internal/state/core"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // DefaultVectorRepairBatchSize is the package-level default vector repair batch size constant.
@@ -91,7 +91,7 @@ func DirtyVectorSources(
 	sourceIDs = state.UniqueStrings(sourceIDs)
 
 	list, err := lister.List(ctx, VectorListRequest{
-		EmbeddingModel: strings.TrimSpace(model),
+		EmbeddingModel: stringx.String(model).Trim(),
 		Filter: VectorFilter{
 			SourceKind: SourceKindSessionMessage,
 			SourceIDs:  sourceIDs,
@@ -149,7 +149,7 @@ func DirtyVectorSources(
 func MessagesBySourceID(sessionID string, messages []morphmsg.Message, sourceIDs []string) []morphmsg.Message {
 	sourceSet := make(map[string]struct{}, len(sourceIDs))
 	for _, sourceID := range sourceIDs {
-		sourceID = strings.TrimSpace(sourceID)
+		sourceID = stringx.String(sourceID).Trim()
 		if sourceID != "" {
 			sourceSet[sourceID] = struct{}{}
 		}

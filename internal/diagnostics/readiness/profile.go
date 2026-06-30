@@ -3,20 +3,20 @@ package readiness
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/wandxy/morph/internal/profile"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var statPath = os.Stat
 
 func buildProfileGroup(active profile.Profile, envPath string, configPath string) Group {
 	active = profile.WithMetadataPaths(active)
-	if strings.TrimSpace(envPath) != "" {
-		active.EnvPath = strings.TrimSpace(envPath)
+	if stringx.String(envPath).Trim() != "" {
+		active.EnvPath = stringx.String(envPath).Trim()
 	}
-	if strings.TrimSpace(configPath) != "" {
-		active.ConfigPath = strings.TrimSpace(configPath)
+	if stringx.String(configPath).Trim() != "" {
+		active.ConfigPath = stringx.String(configPath).Trim()
 	}
 
 	return Group{
@@ -32,7 +32,7 @@ func buildProfileGroup(active profile.Profile, envPath string, configPath string
 }
 
 func buildPathCheck(name string, path string, wantDir bool, optional bool) Check {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" {
 		status := StatusFail
 		if optional {
@@ -66,7 +66,7 @@ func buildPathCheck(name string, path string, wantDir bool, optional bool) Check
 }
 
 func defaultString(value string, fallback string) string {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if value == "" {
 		return fallback
 	}

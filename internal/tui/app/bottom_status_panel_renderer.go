@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type bottomStatusPanelRenderer interface {
@@ -39,7 +40,7 @@ func (lipglossBottomStatusPanelRenderer) Render(panel bottomStatusPanel) string 
 }
 
 func renderBottomStatusMutedCell(text string) string {
-	text = strings.TrimSpace(text)
+	text = stringx.String(text).Trim()
 	if text == "" {
 		return ""
 	}
@@ -61,7 +62,7 @@ func renderBottomStatusMutedText(text string) string {
 func joinBottomStatusPanelRenderedSegments(segments []string, width int) string {
 	visible := make([]string, 0, len(segments))
 	for _, segment := range segments {
-		if segment = strings.TrimSpace(segment); segment != "" {
+		if segment = stringx.String(segment).Trim(); segment != "" {
 			visible = append(visible, segment)
 		}
 	}
@@ -85,7 +86,7 @@ func joinBottomStatusPanelRenderedSegments(segments []string, width int) string 
 func joinBottomStatusPanelSegments(segments []string, width int) string {
 	visible := make([]string, 0, len(segments))
 	for _, segment := range segments {
-		if segment = strings.TrimSpace(segment); segment != "" {
+		if segment = stringx.String(segment).Trim(); segment != "" {
 			visible = append(visible, segment)
 		}
 	}
@@ -107,8 +108,8 @@ func joinBottomStatusPanelSegments(segments []string, width int) string {
 
 // spaceBetweenBottomStatusPanel pushes context usage to the right edge when possible.
 func spaceBetweenBottomStatusPanel(left, right string, width int) string {
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
+	left = stringx.String(left).Trim()
+	right = stringx.String(right).Trim()
 	if left == "" {
 		return right
 	}
@@ -126,9 +127,9 @@ func spaceBetweenBottomStatusPanel(left, right string, width int) string {
 
 // spaceAroundBottomStatusPanel centers the session title while keeping metadata at the edges.
 func spaceAroundBottomStatusPanel(left, center, right string, width int) string {
-	left = strings.TrimSpace(left)
-	center = strings.TrimSpace(center)
-	right = strings.TrimSpace(right)
+	left = stringx.String(left).Trim()
+	center = stringx.String(center).Trim()
+	right = stringx.String(right).Trim()
 	if center == "" {
 		return spaceBetweenBottomStatusPanel(left, right, width)
 	}

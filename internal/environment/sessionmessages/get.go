@@ -10,6 +10,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // Get returns session messages selected by offset, message ID, or anchor window.
@@ -25,7 +26,7 @@ func Get(
 		return SessionMessagesResponse{}, err
 	}
 
-	sessionID := strings.TrimSpace(req.SessionID)
+	sessionID := stringx.String(req.SessionID).Trim()
 	if sessionID == "" {
 		currentSessionID, err := manager.CurrentSession(ctx)
 		if err != nil {
@@ -70,7 +71,7 @@ func buildSessionMessagesResponse(
 	maxChars int,
 ) SessionMessagesResponse {
 	response := SessionMessagesResponse{
-		SessionID: strings.TrimSpace(sessionID),
+		SessionID: stringx.String(sessionID).Trim(),
 		Messages:  make([]SessionMessageRecord, 0, len(records)),
 	}
 
@@ -80,9 +81,9 @@ func buildSessionMessagesResponse(
 			MessageID:  message.ID,
 			Offset:     messageRecord.Offset,
 			Role:       string(message.Role),
-			Name:       strings.TrimSpace(message.Name),
+			Name:       stringx.String(message.Name).Trim(),
 			ToolName:   getMessageToolName(message),
-			ToolCallID: strings.TrimSpace(message.ToolCallID),
+			ToolCallID: stringx.String(message.ToolCallID).Trim(),
 			CreatedAt:  formatMessageTime(message.CreatedAt),
 		}
 
@@ -119,10 +120,10 @@ func messagesToMessageRecords(start int, messages []morphmsg.Message) []storage.
 
 func getMessageToolName(message morphmsg.Message) string {
 	if message.Role == morphmsg.RoleTool {
-		return strings.TrimSpace(message.Name)
+		return stringx.String(message.Name).Trim()
 	}
 	if len(message.ToolCalls) == 1 {
-		return strings.TrimSpace(message.ToolCalls[0].Name)
+		return stringx.String(message.ToolCalls[0].Name).Trim()
 	}
 	return ""
 }
@@ -136,8 +137,8 @@ func buildToolCallRecords(toolCalls []morphmsg.ToolCall, maxChars int) []Session
 	for _, toolCall := range toolCalls {
 		input, truncated := truncateMessageContent(toolCall.Input, maxChars)
 		records = append(records, SessionToolCallRecord{
-			ID:        strings.TrimSpace(toolCall.ID),
-			Name:      strings.TrimSpace(toolCall.Name),
+			ID:        stringx.String(toolCall.ID).Trim(),
+			Name:      stringx.String(toolCall.Name).Trim(),
 			Input:     input,
 			Truncated: truncated,
 		})

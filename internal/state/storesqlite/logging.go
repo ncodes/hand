@@ -9,21 +9,22 @@ import (
 
 	base "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var sessionSearchLog = logutils.Module("state.sqlite")
 
 func (s *Store) logSearchEvent(_ string, id string, opts base.SearchMessageOptions) *zerolog.Event {
 	event := sessionSearchLog.Debug().
-		Int("query_chars", len([]rune(strings.TrimSpace(opts.Query))))
-	if id = strings.TrimSpace(id); id != "" {
+		Int("query_chars", len([]rune(stringx.String(opts.Query).Trim())))
+	if id = stringx.String(id).Trim(); id != "" {
 		event = event.Str("session_id", id)
 	}
 	if opts.IgnoreSessionID != "" {
 		event = event.Str("ignore_session_id", opts.IgnoreSessionID)
 	}
 	if opts.Role != "" {
-		event = event.Str("role", strings.TrimSpace(string(opts.Role)))
+		event = event.Str("role", stringx.String(string(opts.Role)).Trim())
 	}
 	if toolName := normalizeSearchValue(opts.ToolName); toolName != "" {
 		event = event.Str("tool_name", toolName)
@@ -83,7 +84,7 @@ func (s *Store) logCandidateDiagnostics(stage string, candidates []*searchCandid
 
 	for rank, candidate := range candidates {
 		event := sessionSearchLog.Debug().
-			Str("stage", strings.TrimSpace(stage)).
+			Str("stage", stringx.String(stage).Trim()).
 			Str("session_id", candidate.SessionID).
 			Uint("message_id", candidate.ID).
 			Float64("lexical_score", candidate.LexicalScore).

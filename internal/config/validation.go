@@ -9,6 +9,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type validationOptions struct {
@@ -65,7 +66,7 @@ func (c *Config) validate(options validationOptions) error {
 			return errors.New("summary model is invalid")
 		}
 
-		if strings.TrimSpace(c.Models.Main.Provider) == "" {
+		if stringx.String(c.Models.Main.Provider).Trim() == "" {
 			return errors.New("model provider is required")
 		}
 		if !hasModelProvider(c.Models.Main.Provider) {
@@ -99,7 +100,7 @@ func (c *Config) validate(options validationOptions) error {
 		}
 	}
 
-	if strings.TrimSpace(c.RPC.Address) == "" {
+	if stringx.String(c.RPC.Address).Trim() == "" {
 		return errors.New("rpc address is required; set MORPH_RPC_ADDRESS, provide it in config, or use --rpc.address")
 	}
 
@@ -140,7 +141,7 @@ func (c *Config) validate(options validationOptions) error {
 		return errors.New("compaction recent session tail must be greater than or equal to zero")
 	}
 
-	switch strings.TrimSpace(strings.ToLower(c.Log.Level)) {
+	switch stringx.String(c.Log.Level).Normalized() {
 	case "", "debug", "info", "warn", "error":
 	default:
 		return errors.New("log level must be one of debug, info, warn, or error; use --log.level")
@@ -168,7 +169,7 @@ func (c *Config) validateGatewaySettings(options ...gatewayValidationOptions) er
 		opts = options[0]
 	}
 
-	if strings.TrimSpace(c.Gateway.Address) == "" {
+	if stringx.String(c.Gateway.Address).Trim() == "" {
 		return errors.New("gateway address is required; set MORPH_GATEWAY_ADDRESS, provide it in config, or use --gateway.address")
 	}
 	if c.Gateway.Port < 0 {
@@ -180,7 +181,7 @@ func (c *Config) validateGatewaySettings(options ...gatewayValidationOptions) er
 	if opts.skipCredentials {
 		return validateGatewayChannelModes(c.Gateway)
 	}
-	if !isLoopbackGatewayAddress(c.Gateway.Address) && strings.TrimSpace(c.Gateway.AuthToken) == "" {
+	if !isLoopbackGatewayAddress(c.Gateway.Address) && stringx.String(c.Gateway.AuthToken).Trim() == "" {
 		return errors.New("gateway auth token is required for non-loopback binds; set MORPH_GATEWAY_AUTH_TOKEN, " +
 			"provide it in config, or use --gateway.auth-token")
 	}
@@ -224,11 +225,11 @@ func validateGatewayTelegramSettings(cfg GatewayTelegramConfig) error {
 	if !cfg.Enabled {
 		return nil
 	}
-	if strings.TrimSpace(cfg.BotToken) == "" {
+	if stringx.String(cfg.BotToken).Trim() == "" {
 		return errors.New("gateway telegram bot token is required when telegram gateway is enabled; " +
 			"set MORPH_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
 	}
-	if cfg.Mode == GatewayTelegramModeWebhook && strings.TrimSpace(cfg.WebhookSecret) == "" {
+	if cfg.Mode == GatewayTelegramModeWebhook && stringx.String(cfg.WebhookSecret).Trim() == "" {
 		return errors.New("gateway telegram webhook secret is required in webhook mode; " +
 			"set MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET, provide it in config, or use --gateway.telegram.webhook-secret")
 	}
@@ -241,7 +242,7 @@ func validateGatewayTelegramSettings(cfg GatewayTelegramConfig) error {
 }
 
 func isValidTelegramWebhookSecret(secret string) bool {
-	secret = strings.TrimSpace(secret)
+	secret = stringx.String(secret).Trim()
 	if len(secret) == 0 || len(secret) > 256 {
 		return false
 	}
@@ -294,18 +295,18 @@ func validateGatewaySlackSettings(cfg GatewaySlackConfig) error {
 	if !cfg.Enabled {
 		return nil
 	}
-	if strings.TrimSpace(cfg.BotToken) == "" {
+	if stringx.String(cfg.BotToken).Trim() == "" {
 		return errors.New("gateway slack bot token is required when slack gateway is enabled; " +
 			"set MORPH_GATEWAY_SLACK_BOT_TOKEN, provide it in config, or use --gateway.slack.bot-token")
 	}
 	switch cfg.Mode {
 	case GatewaySlackModeSocket:
-		if strings.TrimSpace(cfg.AppToken) == "" {
+		if stringx.String(cfg.AppToken).Trim() == "" {
 			return errors.New("gateway slack app token is required in socket mode; " +
 				"set MORPH_GATEWAY_SLACK_APP_TOKEN, provide it in config, or use --gateway.slack.app-token")
 		}
 	case GatewaySlackModeHTTP:
-		if strings.TrimSpace(cfg.SigningSecret) == "" {
+		if stringx.String(cfg.SigningSecret).Trim() == "" {
 			return errors.New("gateway slack signing secret is required in http mode; " +
 				"set MORPH_GATEWAY_SLACK_SIGNING_SECRET, provide it in config, or use --gateway.slack.signing-secret")
 		}
@@ -315,7 +316,7 @@ func validateGatewaySlackSettings(cfg GatewaySlackConfig) error {
 }
 
 func isLoopbackGatewayAddress(address string) bool {
-	address = strings.TrimSpace(strings.Trim(address, "[]"))
+	address = stringx.String(strings.Trim(address, "[]")).Trim()
 	if address == "" || strings.EqualFold(address, "localhost") {
 		return true
 	}
@@ -375,7 +376,7 @@ func (c *Config) validatePersonalityNames() error {
 	sort.Strings(names)
 
 	for _, name := range names {
-		trimmed := strings.TrimSpace(name)
+		trimmed := stringx.String(name).Trim()
 		if !validPersonalityName.MatchString(trimmed) {
 			return fmt.Errorf("invalid personality name %q: must match %s", trimmed, personalityNamePattern)
 		}
@@ -508,11 +509,11 @@ func (c *Config) validateRerankerSettings() error {
 }
 
 func (c *Config) validateRerankerOverride(useCase string, override RerankerOverrideConfig) error {
-	useCase = strings.TrimSpace(useCase)
+	useCase = stringx.String(useCase).Trim()
 	if useCase == "" {
 		return errors.New("reranker override use case is required")
 	}
-	if strings.TrimSpace(override.Type) != "" {
+	if stringx.String(override.Type).Trim() != "" {
 		if err := validateRerankerType(override.Type); err != nil {
 			return fmt.Errorf("reranker override %q: %w", useCase, err)
 		}
@@ -560,7 +561,7 @@ func (c *Config) validateRerankerModelRole(field string, modelID string, provide
 }
 
 func validateRerankerType(rerankerType string) error {
-	switch strings.TrimSpace(strings.ToLower(rerankerType)) {
+	switch stringx.String(rerankerType).Normalized() {
 	case constants.RerankerDeterministic, constants.RerankerNoop, constants.RerankerLLM:
 		return nil
 	default:

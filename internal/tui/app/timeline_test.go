@@ -18,6 +18,7 @@ import (
 	"github.com/wandxy/morph/internal/trace"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	agentsession "github.com/wandxy/morph/pkg/agent/session"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func transcriptCellPlainText(cell transcriptCell) string {
@@ -1436,7 +1437,7 @@ func TestRenderTranscriptCell_RendersAssistantMessageWithDotColumn(t *testing.T)
 		"  A quiet breeze begins to sing,",
 		"  And wakes the world to everything.",
 	}, lines)
-	require.Equal(t, 1, strings.Count(plain, strings.TrimSpace(assistantTranscriptIndicatorGlyph)))
+	require.Equal(t, 1, strings.Count(plain, stringx.String(assistantTranscriptIndicatorGlyph).Trim()))
 }
 
 func TestRenderTranscriptCell_RendersAssistantWorkedDuration(t *testing.T) {

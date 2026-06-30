@@ -20,6 +20,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	appcredential "github.com/wandxy/morph/internal/credential"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -102,7 +103,7 @@ func (p AnthropicSubscriptionProvider) Refresh(
 	credential appcredential.StoredCredential,
 ) (appcredential.StoredCredential, error) {
 	p = p.withDefaults()
-	refreshToken := strings.TrimSpace(credential.Refresh)
+	refreshToken := stringx.String(credential.Refresh).Trim()
 	if refreshToken == "" {
 		return appcredential.StoredCredential{}, errors.New("Anthropic subscription refresh token is required")
 	}
@@ -129,7 +130,7 @@ func (p AnthropicSubscriptionProvider) AuthHeaders(
 	_ context.Context,
 	credential appcredential.StoredCredential,
 ) (map[string]string, error) {
-	token := strings.TrimSpace(credential.Token)
+	token := stringx.String(credential.Token).Trim()
 	if token == "" {
 		return nil, errors.New("Anthropic subscription access token is required")
 	}
@@ -144,13 +145,13 @@ func (p AnthropicSubscriptionProvider) AuthHeaders(
 }
 
 func (p AnthropicSubscriptionProvider) withDefaults() AnthropicSubscriptionProvider {
-	if strings.TrimSpace(p.AuthorizeURL) == "" {
+	if stringx.String(p.AuthorizeURL).Trim() == "" {
 		p.AuthorizeURL = anthropicSubscriptionAuthorize
 	}
-	if strings.TrimSpace(p.TokenURL) == "" {
+	if stringx.String(p.TokenURL).Trim() == "" {
 		p.TokenURL = anthropicSubscriptionToken
 	}
-	if strings.TrimSpace(p.ListenAddr) == "" {
+	if stringx.String(p.ListenAddr).Trim() == "" {
 		p.ListenAddr = "127.0.0.1:0"
 	}
 	if p.HTTPClient == nil {
@@ -172,7 +173,7 @@ func (p AnthropicSubscriptionProvider) listenForCallback() (net.Listener, string
 		return nil, "", err
 	}
 
-	if redirectURI := strings.TrimSpace(p.RedirectURI); redirectURI != "" {
+	if redirectURI := stringx.String(p.RedirectURI).Trim(); redirectURI != "" {
 		return listener, redirectURI, nil
 	}
 
@@ -193,17 +194,17 @@ func (p AnthropicSubscriptionProvider) startCallbackServer(
 ) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc(anthropicSubscriptionCallbackPath, func(w http.ResponseWriter, r *http.Request) {
-		if got := strings.TrimSpace(r.URL.Query().Get("state")); got != state {
+		if got := stringx.String(r.URL.Query().Get("state")).Trim(); got != state {
 			http.Error(w, "invalid OAuth state", http.StatusBadRequest)
 			errCh <- errors.New("Anthropic OAuth state mismatch")
 			return
 		}
-		if reason := strings.TrimSpace(r.URL.Query().Get("error")); reason != "" {
+		if reason := stringx.String(r.URL.Query().Get("error")).Trim(); reason != "" {
 			http.Error(w, "OAuth error", http.StatusBadRequest)
 			errCh <- fmt.Errorf("Anthropic OAuth failed: %s", reason)
 			return
 		}
-		code := strings.TrimSpace(r.URL.Query().Get("code"))
+		code := stringx.String(r.URL.Query().Get("code")).Trim()
 		if code == "" {
 			http.Error(w, "missing OAuth code", http.StatusBadRequest)
 			errCh <- errors.New("Anthropic OAuth code is required")
@@ -297,14 +298,14 @@ func (p AnthropicSubscriptionProvider) postToken(
 	if err := json.Unmarshal(respBody, &token); err != nil {
 		return appcredential.StoredCredential{}, err
 	}
-	if strings.TrimSpace(token.AccessToken) == "" {
+	if stringx.String(token.AccessToken).Trim() == "" {
 		return appcredential.StoredCredential{}, errors.New("Anthropic token response did not include an access token")
 	}
 
 	credential := appcredential.StoredCredential{
 		Type:    appcredential.TypeOAuth,
-		Token:   strings.TrimSpace(token.AccessToken),
-		Refresh: strings.TrimSpace(token.RefreshToken),
+		Token:   stringx.String(token.AccessToken).Trim(),
+		Refresh: stringx.String(token.RefreshToken).Trim(),
 		Scopes:  strings.Fields(token.Scope),
 	}
 	if token.ExpiresIn > 0 {

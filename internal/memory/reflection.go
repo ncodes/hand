@@ -9,6 +9,7 @@ import (
 
 	statecore "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/trace"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -241,7 +242,7 @@ func (p *MemoryProvider) RunReflectionBackground(
 	var firstErr error
 	result := ReflectionResult{}
 	for _, session := range sessions {
-		sessionID := strings.TrimSpace(session.ID)
+		sessionID := stringx.String(session.ID).Trim()
 		if sessionID == "" {
 			continue
 		}
@@ -355,7 +356,7 @@ func (p *MemoryProvider) shouldReflectSession(
 func (p *MemoryProvider) hasUnreflectedReflectionSources(ctx context.Context, sessionID string) (bool, error) {
 	unreflected := false
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
-		SessionID:       strings.TrimSpace(sessionID),
+		SessionID:       stringx.String(sessionID).Trim(),
 		RerankerUseCase: RerankerUseCaseReflection,
 		Kinds:           []Kind{KindEpisodic},
 		Statuses:        []Status{StatusCandidate, StatusActive},
@@ -370,13 +371,13 @@ func (p *MemoryProvider) hasUnreflectedReflectionSources(ctx context.Context, se
 }
 
 func (p *MemoryProvider) normalizeReflectionRequest(ctx context.Context, req ReflectionRequest) (normalizedReflectionRequest, error) {
-	sessionID := strings.TrimSpace(req.SessionID)
+	sessionID := stringx.String(req.SessionID).Trim()
 	if sessionID == "" {
 		currentSessionID, err := p.manager.CurrentSession(ctx)
 		if err != nil {
 			return normalizedReflectionRequest{}, err
 		}
-		sessionID = strings.TrimSpace(currentSessionID)
+		sessionID = stringx.String(currentSessionID).Trim()
 	}
 	if sessionID == "" {
 		return normalizedReflectionRequest{}, errors.New("reflection session id is required")
@@ -456,7 +457,7 @@ func (p *MemoryProvider) loadReflectionRelated(
 		}
 
 		for _, hit := range result.Hits {
-			id := strings.TrimSpace(hit.Item.ID)
+			id := stringx.String(hit.Item.ID).Trim()
 			if id == "" {
 				continue
 			}
@@ -501,7 +502,7 @@ func (p *MemoryProvider) checkReflectionCandidateRedundancy(
 
 	for _, hit := range result.Hits {
 		related := hit.Item
-		if strings.TrimSpace(related.ID) == strings.TrimSpace(item.ID) {
+		if stringx.String(related.ID).Trim() == stringx.String(item.ID).Trim() {
 			continue
 		}
 		switch {
@@ -531,9 +532,9 @@ func hasDuplicateReflectionCandidate(item MemoryItem, existing []MemoryItem) boo
 }
 
 func getReflectionSearchText(item MemoryItem) string {
-	text := strings.TrimSpace(item.Title)
+	text := stringx.String(item.Title).Trim()
 	if text == "" {
-		text = strings.TrimSpace(item.Text)
+		text = stringx.String(item.Text).Trim()
 	}
 	if len([]rune(text)) > 240 {
 		text = string([]rune(text)[:240])
@@ -558,7 +559,7 @@ func prepareReflectionCandidate(
 	if item.Metadata == nil {
 		item.Metadata = make(map[string]string)
 	}
-	if sessionID = strings.TrimSpace(sessionID); sessionID != "" {
+	if sessionID = stringx.String(sessionID).Trim(); sessionID != "" {
 		item.Metadata["source_session_id"] = sessionID
 	}
 	item.Metadata["reflection_source_memory_ids"] = strings.Join(sourceIDs, ",")
@@ -620,7 +621,7 @@ func validateReflectionCandidate(item MemoryItem) error {
 	if item.Status != StatusCandidate {
 		return errors.New("reflection candidate must be stored as candidate")
 	}
-	if strings.TrimSpace(item.Title) == "" && strings.TrimSpace(item.Text) == "" {
+	if stringx.String(item.Title).Trim() == "" && stringx.String(item.Text).Trim() == "" {
 		return errors.New("reflection candidate text or title is required")
 	}
 	if !hasCandidateProvenance(item) {
@@ -639,10 +640,10 @@ func validateReflectionCandidate(item MemoryItem) error {
 }
 
 func checkProceduralReflectionMetadata(item MemoryItem) string {
-	if strings.TrimSpace(item.Metadata["procedural_trigger"]) == "" {
+	if stringx.String(item.Metadata["procedural_trigger"]).Trim() == "" {
 		return "procedural_trigger_required"
 	}
-	if strings.TrimSpace(item.Metadata["procedural_steps"]) == "" {
+	if stringx.String(item.Metadata["procedural_steps"]).Trim() == "" {
 		return "procedural_steps_required"
 	}
 
@@ -656,7 +657,7 @@ func getSourceLinks(sources []MemoryItem) []SourceLink {
 			links = append(links, link)
 		}
 		if len(source.SourceLinks) == 0 {
-			if sessionID := strings.TrimSpace(source.Metadata["source_session_id"]); sessionID != "" {
+			if sessionID := stringx.String(source.Metadata["source_session_id"]).Trim(); sessionID != "" {
 				links = append(links, SourceLink{
 					SessionID:     sessionID,
 					CreatedBy:     "reflection",
@@ -697,7 +698,7 @@ func cloneMemoryItems(items []MemoryItem) []MemoryItem {
 func getMemoryIDs(items []MemoryItem) []string {
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
-		if id := strings.TrimSpace(item.ID); id != "" {
+		if id := stringx.String(item.ID).Trim(); id != "" {
 			ids = append(ids, id)
 		}
 	}
@@ -706,7 +707,7 @@ func getMemoryIDs(items []MemoryItem) []string {
 }
 
 func getReflectionSourceTag(id string) string {
-	id = strings.TrimSpace(id)
+	id = stringx.String(id).Trim()
 	if id == "" {
 		return ""
 	}
@@ -748,7 +749,7 @@ func normalizeMemoryTags(tags []string) []string {
 	normalized := make([]string, 0, len(tags))
 	seen := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
-		tag = strings.TrimSpace(strings.ToLower(tag))
+		tag = stringx.String(tag).Normalized()
 		if tag == "" {
 			continue
 		}

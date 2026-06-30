@@ -7,12 +7,12 @@ import (
 	"os/exec"
 	goruntime "runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // DefaultOutputBufferBytes is the package-level default output buffer bytes constant.
@@ -68,17 +68,17 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 		return Info{}, err
 	}
 
-	command := strings.TrimSpace(req.Command)
+	command := stringx.String(req.Command).Trim()
 	if command == "" {
 		return Info{}, errors.New("command is required")
 	}
 	sessionID = normalizeProcessSessionID(sessionID)
-	label := strings.TrimSpace(req.Label)
+	label := stringx.String(req.Label).Trim()
 
 	cmd := buildCommand(context.Background(), command, req.Args)
 	configureCommand(cmd)
 
-	cmd.Dir = strings.TrimSpace(req.CWD)
+	cmd.Dir = stringx.String(req.CWD).Trim()
 	cmd.Env = os.Environ()
 	for key, value := range req.Env {
 		cmd.Env = append(cmd.Env, key+"="+value)
@@ -141,7 +141,7 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 			Label:     label,
 			Command:   command,
 			Args:      append([]string(nil), req.Args...),
-			CWD:       strings.TrimSpace(req.CWD),
+			CWD:       stringx.String(req.CWD).Trim(),
 			Status:    StatusRunning,
 			StartedAt: startedAt,
 		},
@@ -293,7 +293,7 @@ func (s *DefaultManager) lookup(sessionID string, processID string) (*trackedPro
 	}
 	sessionID = normalizeProcessSessionID(sessionID)
 
-	processID = strings.TrimSpace(processID)
+	processID = stringx.String(processID).Trim()
 	if processID == "" {
 		return nil, errors.New("process id is required")
 	}
@@ -324,7 +324,7 @@ func (s *DefaultManager) hasProcessLabelLocked(sessionID string, label string) b
 }
 
 func (s *DefaultManager) lookupByLabelLocked(sessionID string, label string) *trackedProcess {
-	label = strings.TrimSpace(label)
+	label = stringx.String(label).Trim()
 	if label == "" {
 		return nil
 	}
@@ -537,7 +537,7 @@ func (b *recentBuffer) wasTruncated() bool {
 }
 
 func buildCommand(ctx context.Context, command string, args []string) *exec.Cmd {
-	command = strings.TrimSpace(command)
+	command = stringx.String(command).Trim()
 	if len(args) > 0 {
 		return commandContext(ctx, command, args...)
 	}
@@ -550,7 +550,7 @@ func buildCommand(ctx context.Context, command string, args []string) *exec.Cmd 
 }
 
 func normalizeProcessSessionID(sessionID string) string {
-	sessionID = strings.TrimSpace(sessionID)
+	sessionID = stringx.String(sessionID).Trim()
 	if sessionID == "" {
 		return "default"
 	}

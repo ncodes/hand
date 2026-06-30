@@ -10,6 +10,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type Discoverer struct {
@@ -142,21 +143,21 @@ func getOllamaModelAPI(show showResponse) string {
 }
 
 func getTagModelID(tag tagModel) string {
-	if model := strings.TrimSpace(tag.Model); model != "" {
+	if model := stringx.String(tag.Model).Trim(); model != "" {
 		return model
 	}
 
-	return strings.TrimSpace(tag.Name)
+	return stringx.String(tag.Name).Trim()
 }
 
 func getOllamaModelDisplayName(modelID string) string {
-	modelID = strings.TrimSpace(modelID)
+	modelID = stringx.String(modelID).Trim()
 	if modelID == "" {
 		return ""
 	}
 
 	name, _, _ := strings.Cut(modelID, ":")
-	return strings.TrimSpace(name)
+	return stringx.String(name).Trim()
 }
 
 func getOllamaModelInputs(show showResponse) []modelprovider.InputKind {
@@ -170,7 +171,7 @@ func getOllamaModelInputs(show showResponse) []modelprovider.InputKind {
 
 func getOllamaContextWindow(show showResponse) int {
 	for key, value := range show.ModelInfo {
-		key = strings.ToLower(strings.TrimSpace(key))
+		key = stringx.String(key).Normalized()
 		if key != "context_length" && !strings.HasSuffix(key, ".context_length") {
 			continue
 		}
@@ -197,13 +198,13 @@ func numberToInt(value any) int {
 }
 
 func hasOllamaCapability(show showResponse, capability string) bool {
-	capability = strings.ToLower(strings.TrimSpace(capability))
+	capability = stringx.String(capability).Normalized()
 	if capability == "" {
 		return false
 	}
 
 	for _, value := range show.Capabilities {
-		if strings.ToLower(strings.TrimSpace(value)) == capability {
+		if stringx.String(value).Normalized() == capability {
 			return true
 		}
 	}
@@ -212,7 +213,7 @@ func hasOllamaCapability(show showResponse, capability string) bool {
 }
 
 func isOllamaReasoningModel(modelID string) bool {
-	modelID = strings.ToLower(strings.TrimSpace(modelID))
+	modelID = stringx.String(modelID).Normalized()
 	for _, marker := range []string{
 		"deepseek-r1",
 		"qwen3",

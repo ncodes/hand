@@ -6,6 +6,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var summaryLog = logutils.Module("agent.summary")
@@ -50,14 +51,14 @@ func (s *State) RenderSummaryInstructions() (string, bool) {
 		return "", false
 	}
 
-	sessionSummary := strings.TrimSpace(s.Current.SessionSummary)
+	sessionSummary := stringx.String(s.Current.SessionSummary).Trim()
 	if sessionSummary == "" {
 		return "", false
 	}
 
 	var sections []string
 	sections = append(sections, "# Session Summary\n\n"+sessionSummary)
-	if currentTask := strings.TrimSpace(s.Current.CurrentTask); currentTask != "" {
+	if currentTask := stringx.String(s.Current.CurrentTask).Trim(); currentTask != "" {
 		sections = append(sections, "# Current Task\n\n"+currentTask)
 	}
 	if discoveries := renderSummaryList("Discoveries", s.Current.Discoveries); discoveries != "" {

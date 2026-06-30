@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/wandxy/morph/pkg/stringx"
 	extast "github.com/yuin/goldmark/extension/ast"
 )
 
@@ -116,8 +117,8 @@ func (r *Renderer) renderTableAsLabeledRows(rows [][]string) string {
 			if index >= len(row) {
 				continue
 			}
-			header = strings.TrimSpace(header)
-			value := strings.TrimSpace(row[index])
+			header = stringx.String(header).Trim()
+			value := stringx.String(row[index]).Trim()
 			if header == "" || value == "" {
 				continue
 			}
@@ -143,7 +144,7 @@ func isMarkdownTableStart(lines []string, index int) bool {
 // isMarkdownTableRow is intentionally stricter than "contains a pipe" to avoid
 // turning prose with vertical bars into a table.
 func isMarkdownTableRow(line string) bool {
-	trimmed := strings.TrimSpace(line)
+	trimmed := stringx.String(line).Trim()
 	return strings.HasPrefix(trimmed, "|") && strings.HasSuffix(trimmed, "|") && strings.Count(trimmed, "|") >= 2
 }
 
@@ -155,7 +156,7 @@ func isMarkdownTableSeparator(line string) bool {
 		return false
 	}
 	for _, cell := range cells {
-		cell = strings.TrimSpace(cell)
+		cell = stringx.String(cell).Trim()
 		if len(cell) < 3 {
 			return false
 		}
@@ -188,7 +189,7 @@ func parseMarkdownTable(lines []string) [][]string {
 // splitMarkdownTableRow splits a table row while respecting inline code spans
 // and escaped pipes. A simple strings.Split would corrupt cells like `a|b`.
 func splitMarkdownTableRow(line string) []string {
-	line = strings.TrimSpace(line)
+	line = stringx.String(line).Trim()
 	line = strings.TrimPrefix(line, "|")
 	line = strings.TrimSuffix(line, "|")
 
@@ -214,7 +215,7 @@ func splitMarkdownTableRow(line string) []string {
 			inCodeSpan = !inCodeSpan
 			cell.WriteRune(char)
 		case char == '|' && !inCodeSpan:
-			cells = append(cells, strings.TrimSpace(cell.String()))
+			cells = append(cells, stringx.String(cell.String()).Trim())
 			cell.Reset()
 		default:
 			cell.WriteRune(char)
@@ -223,7 +224,7 @@ func splitMarkdownTableRow(line string) []string {
 	if escaped {
 		cell.WriteRune('\\')
 	}
-	cells = append(cells, strings.TrimSpace(cell.String()))
+	cells = append(cells, stringx.String(cell.String()).Trim())
 
 	return cells
 }

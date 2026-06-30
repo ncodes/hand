@@ -1,6 +1,10 @@
 package terminalmd
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
+)
 
 func normalizeCommonMarkdownArtifacts(markdown string) string {
 	lines := strings.Split(markdown, "\n")
@@ -22,10 +26,10 @@ func normalizeCommonMarkdownArtifacts(markdown string) string {
 // sanitizeHyperlinkDestination removes terminal-control characters from an OSC 8
 // destination. This prevents malformed model output from breaking the terminal
 func trimLeadingTaskMarker(text string) string {
-	text = strings.TrimSpace(text)
+	text = stringx.String(text).Trim()
 	for _, marker := range []string{"[ ]", "[x]", "[X]"} {
 		if strings.HasPrefix(text, marker) {
-			return strings.TrimSpace(strings.TrimPrefix(text, marker))
+			return stringx.String(strings.TrimPrefix(text, marker)).Trim()
 		}
 	}
 	return text
@@ -104,7 +108,7 @@ func stripHTMLTags(text string) string {
 		}
 	}
 
-	return strings.TrimSpace(builder.String())
+	return stringx.String(builder.String()).Trim()
 }
 
 // isEscapableMarkdownPunctuation reports whether CommonMark allows a punctuation

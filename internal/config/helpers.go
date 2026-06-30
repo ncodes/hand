@@ -5,17 +5,19 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func splitAndTrimCSV(value string) []string {
-	if strings.TrimSpace(value) == "" {
+	if stringx.String(value).Trim() == "" {
 		return nil
 	}
 
 	parts := strings.Split(value, ",")
 	values := make([]string, 0, len(parts))
 	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
+		trimmed := stringx.String(part).Trim()
 		if trimmed == "" {
 			continue
 		}
@@ -33,7 +35,7 @@ func dedupeAndTrim(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	out := make([]string, 0, len(values))
 	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
+		trimmed := stringx.String(value).Trim()
 		if trimmed == "" {
 			continue
 		}
@@ -77,7 +79,7 @@ func getPathsFromBase(values []string, baseDir string) []string {
 		return nil
 	}
 
-	baseDir = strings.TrimSpace(baseDir)
+	baseDir = stringx.String(baseDir).Trim()
 	if baseDir == "" {
 		return values
 	}
@@ -113,7 +115,7 @@ func getDefaultFSRoots() []string {
 }
 
 func parseOptionalBoolEnv(key string) (bool, bool) {
-	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	value := stringx.String(os.Getenv(key)).Normalized()
 	if value == "" {
 		return false, false
 	}
@@ -122,7 +124,7 @@ func parseOptionalBoolEnv(key string) (bool, bool) {
 }
 
 func parseDurationOrZero(value string) time.Duration {
-	parsed, err := time.ParseDuration(strings.TrimSpace(value))
+	parsed, err := time.ParseDuration(stringx.String(value).Trim())
 	if err != nil {
 		return 0
 	}
@@ -151,7 +153,7 @@ func normalizeRulePaths(files []string) []string {
 	seen := make(map[string]struct{}, len(files))
 
 	for _, file := range files {
-		path := strings.TrimSpace(file)
+		path := stringx.String(file).Trim()
 		if path == "" {
 			continue
 		}

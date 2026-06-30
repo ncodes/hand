@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -151,14 +152,14 @@ func IsExpired(credential StoredCredential) bool {
 }
 
 func normalizeProvider(provider string) string {
-	return strings.TrimSpace(strings.ToLower(provider))
+	return stringx.String(provider).Normalized()
 }
 
 func normalizeCredential(credential StoredCredential) StoredCredential {
-	credential.Type = strings.TrimSpace(strings.ToLower(credential.Type))
-	credential.Key = strings.TrimSpace(credential.Key)
-	credential.Token = strings.TrimSpace(credential.Token)
-	credential.Refresh = strings.TrimSpace(credential.Refresh)
+	credential.Type = stringx.String(credential.Type).Normalized()
+	credential.Key = stringx.String(credential.Key).Trim()
+	credential.Token = stringx.String(credential.Token).Trim()
+	credential.Refresh = stringx.String(credential.Refresh).Trim()
 	credential.Scopes = normalizeStrings(credential.Scopes)
 	return credential
 }
@@ -171,10 +172,10 @@ func checkStoredCredential(credential StoredCredential) (StoredCredential, error
 	if credential.Type != TypeAPIKey && credential.Type != TypeOAuth {
 		return StoredCredential{}, fmt.Errorf("credential type must be one of: %s, %s", TypeAPIKey, TypeOAuth)
 	}
-	if credential.Type == TypeAPIKey && strings.TrimSpace(credential.Key) == "" {
+	if credential.Type == TypeAPIKey && stringx.String(credential.Key).Trim() == "" {
 		return StoredCredential{}, errors.New("API key credential is required")
 	}
-	if credential.Type == TypeOAuth && strings.TrimSpace(credential.Token) == "" {
+	if credential.Type == TypeOAuth && stringx.String(credential.Token).Trim() == "" {
 		return StoredCredential{}, errors.New("OAuth token credential is required")
 	}
 
@@ -198,7 +199,7 @@ func normalizeStrings(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if value == "" {
 			continue
 		}

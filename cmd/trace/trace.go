@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	cli "github.com/urfave/cli/v3"
@@ -15,6 +14,7 @@ import (
 	"github.com/wandxy/morph/internal/datadir"
 	"github.com/wandxy/morph/internal/trace/inspect"
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var log = logutils.Module("trace")
@@ -66,9 +66,9 @@ func newViewCommand() *cli.Command {
 			_ = logutils.ConfigureLogger("morph", cfg.Log.NoColor)
 			logutils.SetLogLevel(cfg.Log.Level)
 
-			traceDir := strings.TrimSpace(cmd.String("trace-dir"))
+			traceDir := stringx.String(cmd.String("trace-dir")).Trim()
 			if traceDir == "" {
-				traceDir = strings.TrimSpace(cfg.Trace.Disk.Dir)
+				traceDir = stringx.String(cfg.Trace.Disk.Dir).Trim()
 			}
 			if traceDir == "" {
 				traceDir = datadir.DebugTraceDir()
@@ -82,7 +82,7 @@ func newViewCommand() *cli.Command {
 				return err
 			}
 
-			username := strings.TrimSpace(cmd.String("username"))
+			username := stringx.String(cmd.String("username")).Trim()
 			password := cmd.String("password")
 			if (username == "") != (password == "") {
 				return fmt.Errorf("trace viewer basic auth requires both username and password")
@@ -91,7 +91,7 @@ func newViewCommand() *cli.Command {
 				app.SetBasicAuth(username, password)
 			}
 
-			listenAddr := strings.TrimSpace(cmd.String("listen"))
+			listenAddr := stringx.String(cmd.String("listen")).Trim()
 			if listenAddr == "" {
 				listenAddr = "127.0.0.1:0"
 			}

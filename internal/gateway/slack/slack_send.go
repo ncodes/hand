@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	slack "github.com/wandxy/morph/pkg/gateway/slack"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const defaultSlackAPIBase = "https://slack.com/api"
@@ -47,7 +48,7 @@ func (e slackAPIError) Error() string {
 }
 
 func NewHTTPClient(token string) *HTTPClient {
-	return &HTTPClient{client: http.DefaultClient, baseURL: defaultSlackAPIBase, token: strings.TrimSpace(token)}
+	return &HTTPClient{client: http.DefaultClient, baseURL: defaultSlackAPIBase, token: stringx.String(token).Trim()}
 }
 
 func (c *HTTPClient) PostMessage(ctx context.Context, target slack.Target, text string) (string, error) {
@@ -74,10 +75,10 @@ func (c *HTTPClient) StartStream(ctx context.Context, target slack.Target, text 
 		Channel:  target.ChannelID,
 		ThreadTS: target.ThreadTS,
 	}
-	if strings.TrimSpace(text) != "" {
+	if stringx.String(text).Trim() != "" {
 		req.Chunks = []slack.Chunk{slack.MarkdownTextChunk(text)}
 	}
-	if strings.TrimSpace(target.ChannelType) == "im" {
+	if stringx.String(target.ChannelType).Trim() == "im" {
 		req.RecipientUserID = target.RecipientUserID
 		req.RecipientTeamID = target.RecipientTeamID
 	}
@@ -102,7 +103,7 @@ func (c *HTTPClient) AppendStream(ctx context.Context, stream slack.Stream, chun
 
 func (c *HTTPClient) StopStream(ctx context.Context, stream slack.Stream, text string) error {
 	req := slack.StopStreamRequest{Channel: stream.ChannelID, TS: stream.TS}
-	if strings.TrimSpace(text) != "" {
+	if stringx.String(text).Trim() != "" {
 		req.Chunks = []slack.Chunk{slack.MarkdownTextChunk(text)}
 	}
 
@@ -128,7 +129,7 @@ func (c *HTTPClient) call(ctx context.Context, method string, req any, out any) 
 	if err != nil {
 		return err
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+strings.TrimSpace(c.token))
+	httpReq.Header.Set("Authorization", "Bearer "+stringx.String(c.token).Trim())
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	httpResp, err := c.client.Do(httpReq)

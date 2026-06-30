@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/wandxy/morph/pkg/stringx"
 	goldast "github.com/yuin/goldmark/ast"
 	extast "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/text"
@@ -21,7 +22,7 @@ func (r *Renderer) renderWithTableBlocks(markdown string) []string {
 	// renderer. Empty chunks are ignored so multiple blank lines do not create
 	// empty transcript cells.
 	flushChunk := func() {
-		text := strings.TrimSpace(strings.Join(chunk, "\n"))
+		text := stringx.String(strings.Join(chunk, "\n")).Trim()
 		chunk = chunk[:0]
 		if text == "" {
 			return
@@ -45,7 +46,7 @@ func (r *Renderer) renderWithTableBlocks(markdown string) []string {
 			flushChunk()
 			diagramLines := []string{line}
 			index++
-			for index < len(lines) && strings.TrimSpace(lines[index]) != "" {
+			for index < len(lines) && stringx.String(lines[index]).Trim() != "" {
 				diagramLines = append(diagramLines, lines[index])
 				index++
 			}
@@ -81,7 +82,7 @@ func (r *Renderer) renderGoldmarkBlocks(markdown string) []string {
 	document := r.md.Parser().Parse(text.NewReader(source))
 	blocks := make([]string, 0)
 	for child := document.FirstChild(); child != nil; child = child.NextSibling() {
-		if block := r.renderBlock(child, source, ""); strings.TrimSpace(block) != "" {
+		if block := r.renderBlock(child, source, ""); stringx.String(block).Trim() != "" {
 			blocks = append(blocks, block)
 		}
 	}
@@ -132,7 +133,7 @@ func (r *Renderer) renderBlock(node goldast.Node, source []byte, indent string) 
 		// exposes new container nodes.
 		blocks := make([]string, 0)
 		for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-			if block := r.renderBlock(child, source, indent); strings.TrimSpace(block) != "" {
+			if block := r.renderBlock(child, source, indent); stringx.String(block).Trim() != "" {
 				blocks = append(blocks, block)
 			}
 		}
@@ -255,7 +256,7 @@ func (r *Renderer) renderListItem(node goldast.Node, source []byte, indent strin
 			firstParagraph = false
 		default:
 			block := r.renderBlock(n, source, continuation)
-			if strings.TrimSpace(block) != "" {
+			if stringx.String(block).Trim() != "" {
 				lines = append(lines, strings.Split(block, "\n")...)
 			}
 		}
@@ -271,7 +272,7 @@ func (r *Renderer) renderListItem(node goldast.Node, source []byte, indent strin
 func (r *Renderer) renderBlockquote(node goldast.Node, source []byte, indent string) string {
 	blocks := make([]string, 0)
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-		if block := r.renderBlock(child, source, ""); strings.TrimSpace(block) != "" {
+		if block := r.renderBlock(child, source, ""); stringx.String(block).Trim() != "" {
 			blocks = append(blocks, block)
 		}
 	}

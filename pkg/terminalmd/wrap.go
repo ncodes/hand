@@ -4,10 +4,11 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func wrapANSI(text string, width int, firstPrefix string, restPrefix string) []string {
-	text = strings.TrimSpace(text)
+	text = stringx.String(text).Trim()
 	if text == "" {
 		return []string{firstPrefix}
 	}
@@ -63,7 +64,7 @@ func wrapANSI(text string, width int, firstPrefix string, restPrefix string) []s
 func joinBlocks(blocks []string) string {
 	clean := make([]string, 0, len(blocks))
 	for _, block := range blocks {
-		block = strings.TrimSpace(block)
+		block = stringx.String(block).Trim()
 		if block != "" {
 			clean = append(clean, block)
 		}

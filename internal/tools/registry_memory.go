@@ -6,8 +6,9 @@ import (
 	"errors"
 	"slices"
 	"sort"
-	"strings"
 	"sync"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // InMemoryRegistry is a registry that stores tools in memory.
@@ -31,7 +32,7 @@ func (r *InMemoryRegistry) Register(def Definition) error {
 		return errors.New("tool registry is required")
 	}
 
-	def.Name = strings.TrimSpace(def.Name)
+	def.Name = stringx.String(def.Name).Trim()
 	if def.Name == "" {
 		return errors.New("tool name is required")
 	}
@@ -58,7 +59,7 @@ func (r *InMemoryRegistry) RegisterGroup(group Group) error {
 		return errors.New("tool registry is required")
 	}
 
-	group.Name = strings.TrimSpace(group.Name)
+	group.Name = stringx.String(group.Name).Trim()
 	if group.Name == "" {
 		return errors.New("tool group name is required")
 	}
@@ -84,7 +85,7 @@ func (r *InMemoryRegistry) Get(name string) (Definition, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	def, ok := r.definitions[strings.TrimSpace(name)]
+	def, ok := r.definitions[stringx.String(name).Trim()]
 	return def, ok
 }
 
@@ -96,7 +97,7 @@ func (r *InMemoryRegistry) GetGroup(name string) (Group, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	group, ok := r.groups[strings.TrimSpace(name)]
+	group, ok := r.groups[stringx.String(name).Trim()]
 	return group, ok
 }
 
@@ -182,8 +183,8 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 		result.Error = Error{Code: "tool_invocation_failed", Message: err.Error()}.String()
 		return result, nil
 	}
-	if strings.TrimSpace(result.Error) != "" {
-		result.Error = normalizeResultError(strings.TrimSpace(result.Error))
+	if stringx.String(result.Error).Trim() != "" {
+		result.Error = normalizeResultError(stringx.String(result.Error).Trim())
 	}
 
 	return result, nil
@@ -246,7 +247,7 @@ func sortedDefinitions(definitions map[string]Definition) Definitions {
 
 func filterDefinitions(definitions Definitions, opts Policy) Definitions {
 	filtered := make(Definitions, 0, len(definitions))
-	platform := strings.TrimSpace(opts.Platform)
+	platform := stringx.String(opts.Platform).Trim()
 	for _, def := range definitions {
 		if !opts.Capabilities.Supports(def.Requires) {
 			continue
@@ -276,7 +277,7 @@ func normalizeNames(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if value == "" {
 			continue
 		}
@@ -293,8 +294,8 @@ func normalizeNames(values []string) []string {
 func normalizeResultError(raw string) string {
 	var toolErr Error
 	if err := json.Unmarshal([]byte(raw), &toolErr); err == nil &&
-		strings.TrimSpace(toolErr.Code) != "" &&
-		strings.TrimSpace(toolErr.Message) != "" {
+		stringx.String(toolErr.Code).Trim() != "" &&
+		stringx.String(toolErr.Message).Trim() != "" {
 		return raw
 	}
 

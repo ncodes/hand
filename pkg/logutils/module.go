@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"strings"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type ModuleLogger struct {
@@ -20,7 +20,7 @@ type moduleEnsuringWriter struct {
 }
 
 func Module(module string) ModuleLogger {
-	return ModuleLogger{module: strings.TrimSpace(module)}
+	return ModuleLogger{module: stringx.String(module).Trim()}
 }
 
 func (logger ModuleLogger) Trace() *zerolog.Event {
@@ -69,7 +69,7 @@ func newModuleEnsuringWriter(writer io.Writer, module string) io.Writer {
 		return io.Discard
 	}
 
-	return moduleEnsuringWriter{writer: writer, module: strings.TrimSpace(module)}
+	return moduleEnsuringWriter{writer: writer, module: stringx.String(module).Trim()}
 }
 
 func (writer moduleEnsuringWriter) Write(p []byte) (int, error) {

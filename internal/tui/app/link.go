@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	xansi "github.com/charmbracelet/x/ansi"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var openExternalLink = defaultOpenExternalLink
@@ -143,7 +144,7 @@ func skipANSIEscape(line string, start int) (int, bool) {
 }
 
 func sanitizeClickableLink(raw string) string {
-	raw = strings.TrimSpace(raw)
+	raw = stringx.String(raw).Trim()
 	if raw == "" {
 		return ""
 	}

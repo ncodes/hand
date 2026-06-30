@@ -10,6 +10,7 @@ import (
 
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -117,11 +118,11 @@ func (m model) getCommandViewFrame() commandViewFrame {
 	contentWidth := max(width-4, 1)
 	contentHeight := max(height-2-commandViewTitleGap, 1)
 
-	accentColor := strings.TrimSpace(m.commandView.AccentColor)
+	accentColor := stringx.String(m.commandView.AccentColor).Trim()
 	if accentColor == "" {
 		accentColor = defaultTUITheme.NoticeForeground
 	}
-	rightColor := strings.TrimSpace(m.commandView.TitleRightColor)
+	rightColor := stringx.String(m.commandView.TitleRightColor).Trim()
 	if rightColor == "" {
 		rightColor = defaultTUITheme.MutedText
 	}
@@ -207,22 +208,22 @@ type commandViewContent struct {
 }
 
 func renderCommandViewTitle(title commandViewTitle) string {
-	leftText := strings.TrimSpace(title.Left)
-	if icon := strings.TrimSpace(title.Icon); icon != "" {
+	leftText := stringx.String(title.Left).Trim()
+	if icon := stringx.String(title.Icon).Trim(); icon != "" {
 		leftText = icon + " " + leftText
 	}
 	left := lipgloss.NewStyle().
 		Inline(true).
 		Foreground(lipgloss.Color(title.Accent)).
 		Render(leftText)
-	subtext := strings.TrimSpace(title.Subtext)
+	subtext := stringx.String(title.Subtext).Trim()
 	if subtext != "" {
 		left += lipgloss.NewStyle().
 			Inline(true).
 			Foreground(lipgloss.Color(title.Muted)).
 			Render(" - " + subtext)
 	}
-	right := strings.TrimSpace(title.Right)
+	right := stringx.String(title.Right).Trim()
 	if right != "" {
 		right = lipgloss.NewStyle().
 			Inline(true).
@@ -244,7 +245,7 @@ func (m model) newCommandViewContentViewport(content commandViewContent) viewpor
 }
 
 func newCommandViewContentViewport(content commandViewContent) viewport.Model {
-	text := strings.TrimSpace(content.Text)
+	text := stringx.String(content.Text).Trim()
 	if text == "" {
 		text = "No content available."
 	}
@@ -262,7 +263,7 @@ func newCommandViewContentViewport(content commandViewContent) viewport.Model {
 
 func renderCommandViewLines(content commandViewContent) string {
 	text := strings.TrimRight(content.Text, "\n")
-	if strings.TrimSpace(text) == "" {
+	if stringx.String(text).Trim() == "" {
 		text = "No content available."
 	}
 
@@ -278,8 +279,8 @@ func renderCommandViewLines(content commandViewContent) string {
 }
 
 func spaceBetweenCommandViewTitle(left string, right string, width int) string {
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
+	left = stringx.String(left).Trim()
+	right = stringx.String(right).Trim()
 	if right == "" {
 		return left
 	}
@@ -303,7 +304,7 @@ func renderCommandViewTitleSeparator() string {
 }
 
 func defaultCommandViewTitle(value string) string {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if value != "" {
 		return value
 	}
@@ -426,7 +427,7 @@ func (m *model) finishCommandViewSelection(msg tea.MouseReleaseMsg) (bool, tea.C
 	m.commandViewSelection.ticking = false
 
 	text := m.selectedCommandViewText()
-	if strings.TrimSpace(text) == "" {
+	if stringx.String(text).Trim() == "" {
 		m.clearCommandViewSelection()
 		return true, nil
 	}
@@ -484,7 +485,7 @@ func (m model) selectedCommandViewText() string {
 		return ""
 	}
 
-	return compactTranscriptSelectionBlankLines(strings.TrimSpace(text))
+	return compactTranscriptSelectionBlankLines(stringx.String(text).Trim())
 }
 
 func (m model) commandViewSelectionPointFromMouse(mouse tea.Mouse) (transcriptSelectionPoint, bool) {
@@ -654,7 +655,7 @@ func (m model) renderCommandViewContentText() string {
 func (m model) commandViewPlainText() string {
 	document := newRenderedTranscriptDocument(m.renderCommandViewSelectionDocument())
 
-	return strings.TrimSpace(document.PlainText)
+	return stringx.String(document.PlainText).Trim()
 }
 
 func (s commandViewSelection) offsetBounds() (int, int) {

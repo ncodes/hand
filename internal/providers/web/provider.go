@@ -3,11 +3,11 @@ package web
 import (
 	"context"
 	"errors"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -88,9 +88,9 @@ type Options struct {
 }
 
 func (o Options) Normalize() Options {
-	o.Provider = strings.TrimSpace(strings.ToLower(o.Provider))
-	o.APIKey = strings.TrimSpace(o.APIKey)
-	o.BaseURL = strings.TrimSpace(o.BaseURL)
+	o.Provider = stringx.String(o.Provider).Normalized()
+	o.APIKey = stringx.String(o.APIKey).Trim()
+	o.BaseURL = stringx.String(o.BaseURL).Trim()
 	if o.MaxCharPerResult < 0 {
 		o.MaxCharPerResult = 0
 	}
@@ -123,8 +123,8 @@ func ExtractOptionsFromContext(ctx context.Context) ExtractOptions {
 }
 
 func (o ExtractOptions) Normalize() ExtractOptions {
-	o.Format = strings.TrimSpace(strings.ToLower(o.Format))
-	o.Query = strings.TrimSpace(o.Query)
+	o.Format = stringx.String(o.Format).Normalized()
+	o.Query = stringx.String(o.Query).Trim()
 	if o.Format != "text" && o.Format != "markdown" {
 		o.Format = ""
 	}
@@ -162,7 +162,7 @@ func getExtractWebsitePolicy(ctx context.Context) guardrails.WebsitePolicy {
 
 // SupportedProvider reports whether supported provider is supported.
 func SupportedProvider(name string) bool {
-	switch strings.TrimSpace(strings.ToLower(name)) {
+	switch stringx.String(name).Normalized() {
 	case ProviderFirecrawl, ProviderParallel, ProviderTavily, ProviderExa, ProviderNative:
 		return true
 	default:
@@ -242,7 +242,7 @@ func dedupeTrimValues(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if value == "" {
 			continue
 		}
@@ -257,7 +257,7 @@ func dedupeTrimValues(values []string) []string {
 }
 
 func truncateToMaxChars(value string, maxChars int) string {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if value == "" {
 		return ""
 	}
@@ -270,11 +270,11 @@ func truncateToMaxChars(value string, maxChars int) string {
 		return value
 	}
 
-	return strings.TrimSpace(string(runes[:maxChars]))
+	return stringx.String(string(runes[:maxChars])).Trim()
 }
 
 func truncateContent(value string, maxChars int) (string, bool) {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if value == "" {
 		return "", false
 	}
@@ -287,7 +287,7 @@ func truncateContent(value string, maxChars int) (string, bool) {
 		return value, false
 	}
 
-	return strings.TrimSpace(string(runes[:maxChars])), true
+	return stringx.String(string(runes[:maxChars])).Trim(), true
 }
 
 func limitExtractContent(value string, maxBytes, maxChars int) (string, bool, bool) {
@@ -303,7 +303,7 @@ func isResponseTooLarge(err error) bool {
 }
 
 func truncateToMaxBytes(value string, maxBytes int) (string, bool) {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if value == "" || maxBytes <= 0 {
 		return value, false
 	}
@@ -317,7 +317,7 @@ func truncateToMaxBytes(value string, maxBytes int) (string, bool) {
 		data = data[:len(data)-1]
 	}
 
-	return strings.TrimSpace(string(data)), true
+	return stringx.String(string(data)).Trim(), true
 }
 
 // NewProvider returns a provider selected from config.

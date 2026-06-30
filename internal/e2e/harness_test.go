@@ -71,9 +71,9 @@ func TestNewHarness_RealConfigLoadAndEnvOverride(t *testing.T) {
 	spec.Config = ConfigInput{
 		ConfigFilePath: configPath,
 		Env: map[string]string{
-			"MORPH_NAME":          "Env Morph",
+			"MORPH_NAME":         "Env Morph",
 			"OPENROUTER_API_KEY": "env-key",
-			"MORPH_MODEL_STREAM":  "false",
+			"MORPH_MODEL_STREAM": "false",
 		},
 	}
 

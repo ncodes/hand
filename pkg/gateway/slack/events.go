@@ -3,7 +3,8 @@ package slack
 import (
 	"encoding/json"
 	"errors"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -79,15 +80,15 @@ func DecodeEventsRequest(body []byte) (EventsRequest, error) {
 		return EventsRequest{}, err
 	}
 
-	req.Type = strings.TrimSpace(req.Type)
-	req.Challenge = strings.TrimSpace(req.Challenge)
-	req.TeamID = strings.TrimSpace(req.TeamID)
-	req.EventID = strings.TrimSpace(req.EventID)
+	req.Type = stringx.String(req.Type).Trim()
+	req.Challenge = stringx.String(req.Challenge).Trim()
+	req.TeamID = stringx.String(req.TeamID).Trim()
+	req.EventID = stringx.String(req.EventID).Trim()
 	return req, nil
 }
 
 func NormalizeEventsRequest(req EventsRequest) (InboundMessage, bool, error) {
-	if strings.TrimSpace(req.Type) != EventTypeCallback {
+	if stringx.String(req.Type).Trim() != EventTypeCallback {
 		return InboundMessage{}, false, nil
 	}
 	var event Event
@@ -95,7 +96,7 @@ func NormalizeEventsRequest(req EventsRequest) (InboundMessage, bool, error) {
 		return InboundMessage{}, false, err
 	}
 
-	inbound, ok, err := NormalizeEvent(strings.TrimSpace(req.TeamID), strings.TrimSpace(req.EventID), event)
+	inbound, ok, err := NormalizeEvent(stringx.String(req.TeamID).Trim(), stringx.String(req.EventID).Trim(), event)
 	if err != nil || !ok {
 		return inbound, ok, err
 	}
@@ -104,7 +105,7 @@ func NormalizeEventsRequest(req EventsRequest) (InboundMessage, bool, error) {
 }
 
 func NormalizeSocketEnvelope(envelope SocketEnvelope) (InboundMessage, bool, error) {
-	if strings.TrimSpace(envelope.Type) != SocketTypeEventsAPI || len(envelope.Payload) == 0 {
+	if stringx.String(envelope.Type).Trim() != SocketTypeEventsAPI || len(envelope.Payload) == 0 {
 		return InboundMessage{}, false, nil
 	}
 
@@ -117,24 +118,24 @@ func NormalizeSocketEnvelope(envelope SocketEnvelope) (InboundMessage, bool, err
 		return inbound, ok, err
 	}
 
-	inbound.SocketID = strings.TrimSpace(envelope.EnvelopeID)
-	inbound.SocketType = strings.TrimSpace(envelope.Type)
+	inbound.SocketID = stringx.String(envelope.EnvelopeID).Trim()
+	inbound.SocketType = stringx.String(envelope.Type).Trim()
 	return inbound, true, nil
 }
 
 func NormalizeEvent(teamID string, eventID string, event Event) (InboundMessage, bool, error) {
-	event.Type = strings.TrimSpace(event.Type)
+	event.Type = stringx.String(event.Type).Trim()
 	if event.Type != EventMessage && event.Type != EventAppMention {
 		return InboundMessage{}, false, nil
 	}
-	if strings.TrimSpace(event.BotID) != "" || isIgnoredMessageSubtype(event.Subtype) {
+	if stringx.String(event.BotID).Trim() != "" || isIgnoredMessageSubtype(event.Subtype) {
 		return InboundMessage{}, false, nil
 	}
-	text := strings.TrimSpace(event.Text)
+	text := stringx.String(event.Text).Trim()
 	if text == "" {
 		return InboundMessage{}, false, nil
 	}
-	channelID := strings.TrimSpace(event.Channel)
+	channelID := stringx.String(event.Channel).Trim()
 	if channelID == "" {
 		return InboundMessage{}, false, ErrSlackChannelRequired
 	}
@@ -145,8 +146,8 @@ func NormalizeEvent(teamID string, eventID string, event Event) (InboundMessage,
 	teamID = firstNonEmpty(teamID, event.Team)
 	messageTS := firstNonEmpty(event.TS, event.EventTS)
 	threadTS := firstNonEmpty(event.ThreadTS, messageTS)
-	userID := strings.TrimSpace(event.User)
-	channelType := strings.TrimSpace(event.ChannelType)
+	userID := stringx.String(event.User).Trim()
+	channelType := stringx.String(event.ChannelType).Trim()
 	target := Target{
 		TeamID:      teamID,
 		ChannelID:   channelID,
@@ -160,7 +161,7 @@ func NormalizeEvent(teamID string, eventID string, event Event) (InboundMessage,
 	}
 
 	return InboundMessage{
-		EventID:   strings.TrimSpace(eventID),
+		EventID:   stringx.String(eventID).Trim(),
 		TeamID:    teamID,
 		ChannelID: channelID,
 		ThreadTS:  threadTS,
@@ -172,7 +173,7 @@ func NormalizeEvent(teamID string, eventID string, event Event) (InboundMessage,
 }
 
 func isIgnoredMessageSubtype(subtype string) bool {
-	switch strings.TrimSpace(subtype) {
+	switch stringx.String(subtype).Trim() {
 	case "", "file_share", "thread_broadcast":
 		return false
 	default:
@@ -181,7 +182,7 @@ func isIgnoredMessageSubtype(subtype string) bool {
 }
 
 func isDirectChannel(channelType string) bool {
-	switch strings.TrimSpace(channelType) {
+	switch stringx.String(channelType).Trim() {
 	case "im", "mpim":
 		return true
 	default:
@@ -191,7 +192,7 @@ func isDirectChannel(channelType string) bool {
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
+		if value = stringx.String(value).Trim(); value != "" {
 			return value
 		}
 	}

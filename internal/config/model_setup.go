@@ -1,14 +1,13 @@
 package config
 
 import (
-	"strings"
-
 	"github.com/wandxy/morph/internal/constants"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func ModelSetupEmbeddingUpdates(provider string, baseURL ...string) []ConfigUpdate {
-	provider = strings.TrimSpace(strings.ToLower(provider))
+	provider = stringx.String(provider).Normalized()
 
 	switch provider {
 	case constants.ModelProviderOpenRouter:
@@ -32,7 +31,7 @@ func ModelSetupEmbeddingUpdates(provider string, baseURL ...string) []ConfigUpda
 			{Path: "models.embedding.api", Value: modelprovider.APIOllamaEmbeddings},
 		}
 		if len(baseURL) > 0 {
-			if value := strings.TrimSpace(baseURL[0]); value != "" {
+			if value := stringx.String(baseURL[0]).Trim(); value != "" {
 				updates = append(updates, ConfigUpdate{Path: "models.embedding.baseUrl", Value: value})
 			}
 		}

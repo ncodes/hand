@@ -2,10 +2,10 @@ package e2e
 
 import (
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // ConfigOptions customizes the default e2e config.
@@ -17,7 +17,7 @@ type ConfigOptions struct {
 
 // DefaultSpec returns the default e2e scenario specification.
 func DefaultSpec(home string) HarnessSpec {
-	home = strings.TrimSpace(home)
+	home = stringx.String(home).Trim()
 	dataDir := filepath.Join(home, "data")
 
 	return HarnessSpec{
@@ -37,12 +37,12 @@ func DefaultSpec(home string) HarnessSpec {
 func DefaultConfig(opts ConfigOptions) *config.Config {
 	stream := opts.Stream
 
-	name := strings.TrimSpace(opts.Name)
+	name := stringx.String(opts.Name).Trim()
 	if name == "" {
 		name = "Test Morph"
 	}
 
-	storageBackend := strings.TrimSpace(opts.StorageBackend)
+	storageBackend := stringx.String(opts.StorageBackend).Trim()
 	if storageBackend == "" {
 		storageBackend = "sqlite"
 	}

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	appcredential "github.com/wandxy/morph/internal/credential"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type ModelCredentialSourceKind string
@@ -109,16 +110,16 @@ type ModelAuth struct {
 }
 
 func (auth ModelAuth) AuthType() string {
-	if value := strings.TrimSpace(auth.CredentialSource.Type); value != "" {
+	if value := stringx.String(auth.CredentialSource.Type).Trim(); value != "" {
 		return strings.ToLower(value)
 	}
 	if auth.CredentialSource.Kind == ModelCredentialSourceLocalProvider {
 		return string(ModelCredentialSourceLocalProvider)
 	}
-	if strings.TrimSpace(auth.APIKey) != "" {
+	if stringx.String(auth.APIKey).Trim() != "" {
 		return modelAuthTypeAPIKey
 	}
-	if value := strings.TrimSpace(string(auth.CredentialSource.Kind)); value != "" {
+	if value := stringx.String(string(auth.CredentialSource.Kind)).Trim(); value != "" {
 		return value
 	}
 

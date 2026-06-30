@@ -3,12 +3,12 @@ package sessionsearch
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type input struct {
@@ -44,22 +44,22 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("tool_error", "session search is not configured"), nil
 			}
 
-			query := strings.TrimSpace(req.Query)
+			query := stringx.String(req.Query).Trim()
 			if query == "" {
 				return common.ToolError("invalid_input", "query is required"), nil
 			}
 
-			role := strings.TrimSpace(strings.ToLower(req.Role))
+			role := stringx.String(req.Role).Normalized()
 			switch role {
 			case "", "user", "assistant", "tool":
 			default:
 				return common.ToolError("invalid_input", fmt.Sprintf("unsupported role %q", role)), nil
 			}
 
-			sessionID := strings.TrimSpace(req.SessionID)
+			sessionID := stringx.String(req.SessionID).Trim()
 			ignoreSessionID := ""
 			if sessionID == "" {
-				ignoreSessionID = strings.TrimSpace(tools.SessionIDFromContext(ctx))
+				ignoreSessionID = stringx.String(tools.SessionIDFromContext(ctx)).Trim()
 			}
 
 			results, err := runtime.SearchSession(ctx, envtypes.SessionSearchRequest{
@@ -67,7 +67,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				IgnoreSessionID: ignoreSessionID,
 				Query:           query,
 				Role:            role,
-				ToolName:        strings.TrimSpace(req.ToolName),
+				ToolName:        stringx.String(req.ToolName).Trim(),
 				MaxResults:      req.MaxResults,
 			})
 			if err != nil {

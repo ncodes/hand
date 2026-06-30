@@ -2,11 +2,11 @@ package tui
 
 import (
 	"context"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type sessionCompactor interface {
@@ -32,7 +32,7 @@ func (m *model) startCompactSession() tea.Cmd {
 }
 
 func (m model) getCurrentSessionID() string {
-	sessionID := strings.TrimSpace(m.sessionID)
+	sessionID := stringx.String(m.sessionID).Trim()
 	if sessionID != "" {
 		return sessionID
 	}
@@ -46,7 +46,7 @@ func compactSessionCmd(ctx context.Context, client sessionCompactor, sessionID s
 			ctx = context.Background()
 		}
 
-		result, err := client.Compact(ctx, strings.TrimSpace(sessionID))
+		result, err := client.Compact(ctx, stringx.String(sessionID).Trim())
 		return compactSessionCompletedMsg{Result: result, Err: err}
 	}
 }

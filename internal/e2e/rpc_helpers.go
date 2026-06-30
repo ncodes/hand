@@ -8,13 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/wandxy/morph/internal/config"
 	models "github.com/wandxy/morph/internal/model"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var rpcHelperListen = net.Listen
@@ -67,7 +67,7 @@ func WaitForRPC(address string, port int, timeout time.Duration) (*rpcclient.Cli
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		client, err := rpcHelperNewClient(context.Background(), rpcclient.Options{
-			Address: strings.TrimSpace(address),
+			Address: stringx.String(address).Trim(),
 			Port:    port,
 		})
 		if err == nil {
@@ -81,12 +81,12 @@ func WaitForRPC(address string, port int, timeout time.Duration) (*rpcclient.Cli
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	return nil, fmt.Errorf("rpc server did not become ready on %s:%d", strings.TrimSpace(address), port)
+	return nil, fmt.Errorf("rpc server did not become ready on %s:%d", stringx.String(address).Trim(), port)
 }
 
 // WriteRPCConfigFile writes a temporary RPC config file for tests.
 func WriteRPCConfigFile(dir, address string, port int, opts RPCConfigOptions) (string, error) {
-	name := strings.TrimSpace(opts.Name)
+	name := stringx.String(opts.Name).Trim()
 	if name == "" {
 		name = "yaml-agent"
 	}
@@ -104,12 +104,12 @@ log:
 `,
 		name,
 		opts.Stream,
-		strings.TrimSpace(address),
+		stringx.String(address).Trim(),
 		port,
 		opts.NoColor,
 	)
-	if strings.TrimSpace(opts.Instruct) != "" {
-		content += "session:\n  instruct: " + strings.TrimSpace(opts.Instruct) + "\n"
+	if stringx.String(opts.Instruct).Trim() != "" {
+		content += "session:\n  instruct: " + stringx.String(opts.Instruct).Trim() + "\n"
 	}
 
 	path := filepath.Join(dir, "config.yaml")
@@ -165,10 +165,10 @@ func ToolMessagePresent(expectedID, expectedName string) RequestAssert {
 			if message.Role != morphmsg.RoleTool {
 				continue
 			}
-			if strings.TrimSpace(message.ToolCallID) != expectedID {
+			if stringx.String(message.ToolCallID).Trim() != expectedID {
 				continue
 			}
-			if strings.TrimSpace(message.Name) != expectedName {
+			if stringx.String(message.Name).Trim() != expectedName {
 				return fmt.Errorf("expected tool message name %q", expectedName)
 			}
 			return nil
@@ -210,10 +210,10 @@ func ToolOutputJSON(expectedID, expectedName string, check func(map[string]any) 
 func ToolError(expectedID, expectedName, expectedCode, expectedMessage string) RequestAssert {
 	return func(req models.Request) error {
 		for _, message := range req.Messages {
-			if message.Role != morphmsg.RoleTool || strings.TrimSpace(message.ToolCallID) != expectedID {
+			if message.Role != morphmsg.RoleTool || stringx.String(message.ToolCallID).Trim() != expectedID {
 				continue
 			}
-			if strings.TrimSpace(message.Name) != expectedName {
+			if stringx.String(message.Name).Trim() != expectedName {
 				return fmt.Errorf("expected tool message name %q", expectedName)
 			}
 
@@ -227,13 +227,13 @@ func ToolError(expectedID, expectedName, expectedCode, expectedMessage string) R
 			if err := json.Unmarshal([]byte(message.Content), &payload); err != nil {
 				return err
 			}
-			if strings.TrimSpace(payload.Name) != expectedName {
+			if stringx.String(payload.Name).Trim() != expectedName {
 				return fmt.Errorf("expected tool payload name %q", expectedName)
 			}
-			if strings.TrimSpace(payload.Error.Code) != expectedCode {
+			if stringx.String(payload.Error.Code).Trim() != expectedCode {
 				return fmt.Errorf("expected tool error code %q, got %q", expectedCode, payload.Error.Code)
 			}
-			if strings.TrimSpace(payload.Error.Message) != expectedMessage {
+			if stringx.String(payload.Error.Message).Trim() != expectedMessage {
 				return fmt.Errorf("expected tool error message %q, got %q", expectedMessage, payload.Error.Message)
 			}
 
@@ -246,10 +246,10 @@ func ToolError(expectedID, expectedName, expectedCode, expectedMessage string) R
 
 func getToolEnvelopeOutput(req models.Request, expectedID, expectedName string) (string, error) {
 	for _, message := range req.Messages {
-		if message.Role != morphmsg.RoleTool || strings.TrimSpace(message.ToolCallID) != expectedID {
+		if message.Role != morphmsg.RoleTool || stringx.String(message.ToolCallID).Trim() != expectedID {
 			continue
 		}
-		if strings.TrimSpace(message.Name) != expectedName {
+		if stringx.String(message.Name).Trim() != expectedName {
 			return "", fmt.Errorf("expected tool message name %q", expectedName)
 		}
 
@@ -260,11 +260,11 @@ func getToolEnvelopeOutput(req models.Request, expectedID, expectedName string) 
 		if err := json.Unmarshal([]byte(message.Content), &envelope); err != nil {
 			return "", err
 		}
-		if strings.TrimSpace(envelope.Name) != expectedName {
+		if stringx.String(envelope.Name).Trim() != expectedName {
 			return "", fmt.Errorf("expected tool payload name %q", expectedName)
 		}
 
-		return strings.TrimSpace(envelope.Output), nil
+		return stringx.String(envelope.Output).Trim(), nil
 	}
 
 	return "", fmt.Errorf("expected tool output for tool call %q", expectedID)

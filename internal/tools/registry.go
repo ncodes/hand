@@ -3,9 +3,9 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"strings"
 
 	"github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 /*
@@ -112,7 +112,7 @@ type Definition struct {
 	Groups           []string
 	Requires         Capabilities
 	Platforms        []string
-	Handler         Handler
+	Handler          Handler
 }
 
 // Definitions is a list of tool definitions with lookup helpers.
@@ -124,7 +124,7 @@ func (d Definitions) Has(name string) bool {
 }
 
 func (d Definitions) Get(name string) (Definition, bool) {
-	name = strings.TrimSpace(name)
+	name = stringx.String(name).Trim()
 	if name == "" {
 		return Definition{}, false
 	}
@@ -145,7 +145,7 @@ func (d Definitions) Names() []string {
 
 	names := make([]string, 0, len(d))
 	for _, def := range d {
-		if strings.TrimSpace(def.Name) == "" {
+		if stringx.String(def.Name).Trim() == "" {
 			continue
 		}
 

@@ -3,10 +3,10 @@ package datadir
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/wandxy/morph/internal/datadir/files"
 	"github.com/wandxy/morph/internal/profile"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const StateFilename = files.StateFilename
@@ -23,7 +23,7 @@ func ProjectHomeDir() string {
 
 // HomeDir returns the configured Morph home directory.
 func HomeDir() string {
-	if active := profile.Active(); strings.TrimSpace(active.HomeDir) != "" {
+	if active := profile.Active(); stringx.String(active.HomeDir).Trim() != "" {
 		return active.HomeDir
 	}
 
@@ -46,7 +46,7 @@ func HomeDir() string {
 
 func loadUserHomeDir() string {
 	home, err := userHomeDir()
-	if err != nil || strings.TrimSpace(home) == "" {
+	if err != nil || stringx.String(home).Trim() == "" {
 		return ""
 	}
 

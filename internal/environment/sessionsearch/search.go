@@ -11,6 +11,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -30,15 +31,15 @@ func Search(
 		return nil, errors.New("state manager is required")
 	}
 
-	sessionID := strings.TrimSpace(req.SessionID)
-	ignoreSessionID := strings.TrimSpace(req.IgnoreSessionID)
-	query := strings.TrimSpace(req.Query)
+	sessionID := stringx.String(req.SessionID).Trim()
+	ignoreSessionID := stringx.String(req.IgnoreSessionID).Trim()
+	query := stringx.String(req.Query).Trim()
 	if query == "" {
 		return nil, errors.New("query is required")
 	}
 
-	role := strings.TrimSpace(strings.ToLower(req.Role))
-	toolName := strings.TrimSpace(strings.ToLower(req.ToolName))
+	role := stringx.String(req.Role).Normalized()
+	toolName := stringx.String(req.ToolName).Normalized()
 	limit := clampSearchResults(req.MaxResults)
 
 	results, err := manager.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{
@@ -77,12 +78,12 @@ func Search(
 			SessionCreated: formatSearchTime(session.CreatedAt),
 			SessionUpdated: formatSearchTime(session.UpdatedAt),
 			MatchCount:     result.MatchCount,
-			SessionSummary: strings.TrimSpace(summary.SessionSummary),
+			SessionSummary: stringx.String(summary.SessionSummary).Trim(),
 			Messages:       make([]SessionSearchMessageHit, 0, len(result.Messages)),
 		}
 
 		for _, hit := range result.Messages {
-			if strings.TrimSpace(hit.MatchedText) == "" {
+			if stringx.String(hit.MatchedText).Trim() == "" {
 				continue
 			}
 
@@ -127,7 +128,7 @@ func clampSearchResults(value int) int {
 }
 
 func getCaseInsensitiveMatchIndex(text string, query string) (int, int) {
-	query = strings.TrimSpace(query)
+	query = stringx.String(query).Trim()
 	if query == "" {
 		return -1, 0
 	}

@@ -3,7 +3,8 @@ package web
 import (
 	"context"
 	"net/http"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const tavilyDefaultBaseURL = "https://api.tavily.com"
@@ -60,8 +61,8 @@ func (p *TavilyProvider) Search(ctx context.Context, query string, count int) ([
 	results := make([]SearchResult, 0, len(response.Results))
 	for idx, result := range response.Results {
 		results = append(results, SearchResult{
-			Title:    strings.TrimSpace(result.Title),
-			URL:      strings.TrimSpace(result.URL),
+			Title:    stringx.String(result.Title).Trim(),
+			URL:      stringx.String(result.URL).Trim(),
 			Snippet:  truncateToMaxChars(result.Content, p.maxCharsPerResult),
 			Position: idx + 1,
 		})
@@ -112,8 +113,8 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 			maxChars)
 
 		results = append(results, ExtractResult{
-			URL:               strings.TrimSpace(result.URL),
-			Title:             strings.TrimSpace(result.Title),
+			URL:               stringx.String(result.URL).Trim(),
+			Title:             stringx.String(result.Title).Trim(),
 			Content:           content,
 			ContentFormat:     format,
 			Truncated:         truncated,
@@ -122,14 +123,14 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 	}
 	for _, result := range response.FailedResults {
 		results = append(results, ExtractResult{
-			URL:           strings.TrimSpace(result.URL),
+			URL:           stringx.String(result.URL).Trim(),
 			ContentFormat: format,
 			Error:         getFirstNonEmpty(result.Error, "extraction failed"),
 		})
 	}
 	for _, url := range response.FailedURLs {
 		results = append(results, ExtractResult{
-			URL:           strings.TrimSpace(url),
+			URL:           stringx.String(url).Trim(),
 			ContentFormat: format,
 			Error:         "extraction failed",
 		})

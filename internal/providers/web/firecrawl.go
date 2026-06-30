@@ -3,7 +3,8 @@ package web
 import (
 	"context"
 	"net/http"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const firecrawlDefaultBaseURL = "https://api.firecrawl.dev"
@@ -69,8 +70,8 @@ func (p *FirecrawlProvider) Search(ctx context.Context, query string, count int)
 	results := make([]SearchResult, 0, len(rawResults))
 	for idx, result := range rawResults {
 		results = append(results, SearchResult{
-			Title:    strings.TrimSpace(result.Title),
-			URL:      strings.TrimSpace(result.URL),
+			Title:    stringx.String(result.Title).Trim(),
+			URL:      stringx.String(result.URL).Trim(),
 			Snippet:  truncateToMaxChars(getFirstNonEmpty(result.Description, result.Snippet), p.maxCharsPerResult),
 			Position: idx + 1,
 		})
@@ -101,7 +102,7 @@ func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]Extra
 	maxChars := getExtractCharLimit(ctx, p.maxExtractCharsPerResult)
 	results := make([]ExtractResult, 0, len(urls))
 	for _, rawURL := range urls {
-		url := strings.TrimSpace(rawURL)
+		url := stringx.String(rawURL).Trim()
 
 		var response scrapeResponse
 		err := p.client.postJSONLimited(ctx, "/v2/scrape", map[string]any{
@@ -131,7 +132,7 @@ func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]Extra
 
 		results = append(results, ExtractResult{
 			URL:               getFirstNonEmpty(response.Data.Metadata.SourceURL, url),
-			Title:             strings.TrimSpace(response.Data.Metadata.Title),
+			Title:             stringx.String(response.Data.Metadata.Title).Trim(),
 			Content:           content,
 			ContentFormat:     format,
 			Truncated:         truncated,

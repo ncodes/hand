@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func TestTUIAction_SetViewportSizeBoundsValues(t *testing.T) {
@@ -308,7 +309,7 @@ func TestBottomStatusPanelRenderer_RendersFromPanelData(t *testing.T) {
 }
 
 func trimRightSnapshotLines(value string) string {
-	lines := strings.Split(strings.TrimSpace(value), "\n")
+	lines := strings.Split(stringx.String(value).Trim(), "\n")
 	for index, line := range lines {
 		lines[index] = strings.TrimRight(line, " ")
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/datadir"
 	state "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -79,7 +80,7 @@ func LoadFile() ([]state.MemoryItem, error) {
 		return nil, fmt.Errorf("failed to read pinned memory file %q: %w", file, err)
 	}
 
-	text := strings.TrimSpace(string(data))
+	text := stringx.String(string(data)).Trim()
 	if text == "" {
 		return nil, nil
 	}
@@ -88,7 +89,7 @@ func LoadFile() ([]state.MemoryItem, error) {
 		ID:     getFileMemoryID(file),
 		Kind:   state.MemoryKindPinned,
 		Status: state.MemoryStatusActive,
-		Title:  strings.TrimSpace(filepath.Base(file)),
+		Title:  stringx.String(filepath.Base(file)).Trim(),
 		Text:   text,
 		Metadata: map[string]string{
 			"source": "file",
@@ -139,8 +140,8 @@ func PrepareItems(
 				return nil, err
 			}
 		}
-		redacted.Text = strings.TrimSpace(redacted.Text)
-		redacted.Title = strings.TrimSpace(redacted.Title)
+		redacted.Text = stringx.String(redacted.Text).Trim()
+		redacted.Title = stringx.String(redacted.Title).Trim()
 		redacted = truncateItem(redacted, itemLimit)
 		if redacted.Title == "" && redacted.Text == "" {
 			continue
@@ -165,7 +166,7 @@ func PrepareItems(
 // getAutoFileFromRoot performs a case-insensitive lookup so users do not have to
 // remember exact filename casing across platforms.
 func getAutoFileFromRoot(root string) (string, bool, error) {
-	root = strings.TrimSpace(root)
+	root = stringx.String(root).Trim()
 	if root == "" {
 		return "", false, nil
 	}
@@ -200,7 +201,7 @@ func getAutoFileFromRoot(root string) (string, bool, error) {
 // getFileMemoryID makes file-pinned IDs stable across runs and distinct from
 // generated store-backed memory IDs.
 func getFileMemoryID(file string) string {
-	return "pinned_file:" + strings.TrimSpace(file)
+	return "pinned_file:" + stringx.String(file).Trim()
 }
 
 func getItemCharCount(item state.MemoryItem) int {

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"net"
 	"strconv"
-	"strings"
 	"sync"
 
 	morphagent "github.com/wandxy/morph/internal/agent"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/pkg/stringx"
 	"google.golang.org/grpc"
 
 	"github.com/wandxy/morph/internal/rpc/server"
@@ -122,6 +122,6 @@ func (h *RPCHarness) ConfigFileContents() string {
 		return ""
 	}
 	return "rpc:\n" +
-		"  address: " + strings.TrimSpace(h.address) + "\n" +
+		"  address: " + stringx.String(h.address).Trim() + "\n" +
 		"  port: " + strconv.Itoa(h.port) + "\n"
 }

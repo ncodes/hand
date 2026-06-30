@@ -14,6 +14,7 @@ import (
 
 	"github.com/wandxy/morph/internal/guardrails"
 	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func init() {
@@ -81,7 +82,7 @@ func TestJSONLFactory_OpenSessionSecondOpenAppendsWithoutDuplicateChatStarted(t 
 	require.Len(t, matches, 1)
 	data, err := os.ReadFile(matches[0])
 	require.NoError(t, err)
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	lines := strings.Split(stringx.String(string(data)).Trim(), "\n")
 	require.Len(t, lines, 3)
 
 	var types []string
@@ -147,7 +148,7 @@ func TestJSONLSession_RecordAfterCloseIsIgnored(t *testing.T) {
 	require.Len(t, matches, 1)
 	content, err := os.ReadFile(matches[0])
 	require.NoError(t, err)
-	require.Equal(t, 1, len(strings.Split(strings.TrimSpace(string(content)), "\n")))
+	require.Equal(t, 1, len(strings.Split(stringx.String(string(content)).Trim(), "\n")))
 }
 
 func TestJSONLSession_IDHandlesNilReceiver(t *testing.T) {

@@ -6,11 +6,13 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func ollamaStatusErrorForModel(resp *http.Response, model string) error {
 	body, _ := io.ReadAll(resp.Body)
-	detail := strings.TrimSpace(string(body))
+	detail := stringx.String(string(body)).Trim()
 	if detail == "" {
 		detail = resp.Status
 	}
@@ -19,9 +21,9 @@ func ollamaStatusErrorForModel(resp *http.Response, model string) error {
 }
 
 func enrichOllamaProviderError(statusCode int, detail string, model string) error {
-	detail = strings.TrimSpace(detail)
+	detail = stringx.String(detail).Trim()
 	base := fmt.Sprintf("ollama request failed with status %d: %s", statusCode, detail)
-	model = strings.TrimSpace(model)
+	model = stringx.String(model).Trim()
 	if isOllamaMissingModelMessage(statusCode, detail) && model != "" {
 		return fmt.Errorf(
 			"ollama model %q is not installed or could not be found; run %s or ollama pull %s: %s",
@@ -42,8 +44,8 @@ func enrichOllamaProviderError(statusCode int, detail string, model string) erro
 }
 
 func enrichOllamaPullError(detail string, model string) error {
-	detail = strings.TrimSpace(detail)
-	model = strings.TrimSpace(model)
+	detail = stringx.String(detail).Trim()
+	model = stringx.String(model).Trim()
 	if isOllamaMissingModelMessage(http.StatusNotFound, detail) && model != "" {
 		return fmt.Errorf(
 			"ollama model %q is not installed or could not be found; run %s or ollama pull %s: ollama pull failed: %s",
@@ -58,7 +60,7 @@ func enrichOllamaPullError(detail string, model string) error {
 }
 
 func ollamaRawToolJSONError(model string) error {
-	model = strings.TrimSpace(model)
+	model = stringx.String(model).Trim()
 	if model == "" {
 		return fmt.Errorf("ollama model returned raw tool JSON instead of a structured tool call; choose a tool-capable Ollama model or disable tools")
 	}
@@ -71,7 +73,7 @@ func isRawToolJSONOutput(text string, tools []chatTool) bool {
 		return false
 	}
 
-	text = strings.TrimSpace(text)
+	text = stringx.String(text).Trim()
 	if !strings.HasPrefix(text, "{") || !strings.HasSuffix(text, "}") {
 		return false
 	}
@@ -89,7 +91,7 @@ func isRawToolJSONOutput(text string, tools []chatTool) bool {
 
 func hasToolJSONShape(payload map[string]any) bool {
 	for key := range payload {
-		switch strings.ToLower(strings.TrimSpace(key)) {
+		switch stringx.String(key).Normalized() {
 		case "tool", "tool_name", "tool_call", "tool_calls", "function", "arguments", "parameters":
 			return true
 		}
@@ -101,7 +103,7 @@ func hasToolJSONShape(payload map[string]any) bool {
 func hasToolNameField(payload map[string]any, tools []chatTool) bool {
 	toolNames := make(map[string]struct{}, len(tools))
 	for _, tool := range tools {
-		name := strings.ToLower(strings.TrimSpace(tool.Function.Name))
+		name := stringx.String(tool.Function.Name).Normalized()
 		if name != "" {
 			toolNames[name] = struct{}{}
 		}
@@ -119,7 +121,7 @@ func hasToolNameField(payload map[string]any, tools []chatTool) bool {
 		if !ok {
 			continue
 		}
-		if _, ok := toolNames[strings.ToLower(strings.TrimSpace(name))]; ok {
+		if _, ok := toolNames[stringx.String(name).Normalized()]; ok {
 			return true
 		}
 	}
@@ -128,7 +130,7 @@ func hasToolNameField(payload map[string]any, tools []chatTool) bool {
 }
 
 func isOllamaMissingModelMessage(statusCode int, detail string) bool {
-	message := strings.ToLower(strings.TrimSpace(detail))
+	message := stringx.String(detail).Normalized()
 	return statusCode == http.StatusNotFound ||
 		strings.Contains(message, "model not found") ||
 		strings.Contains(message, "not found") ||
@@ -138,7 +140,7 @@ func isOllamaMissingModelMessage(statusCode int, detail string) bool {
 }
 
 func isOllamaToolMessage(detail string) bool {
-	message := strings.ToLower(strings.TrimSpace(detail))
+	message := stringx.String(detail).Normalized()
 	if !strings.Contains(message, "tool") && !strings.Contains(message, "function") {
 		return false
 	}
@@ -150,5 +152,5 @@ func isOllamaToolMessage(detail string) bool {
 }
 
 func ollamaPullCommand(model string) string {
-	return fmt.Sprintf("morph setup provider --provider ollama --model %s --pull", strings.TrimSpace(model))
+	return fmt.Sprintf("morph setup provider --provider ollama --model %s --pull", stringx.String(model).Trim())
 }

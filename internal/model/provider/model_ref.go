@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // ModelRef identifies a model by provider and provider-local model id.
@@ -15,7 +16,7 @@ type ModelRef struct {
 // String returns the canonical provider/model reference.
 func (r ModelRef) String() string {
 	provider := normalizeID(r.Provider)
-	model := strings.TrimSpace(r.Model)
+	model := stringx.String(r.Model).Trim()
 	if provider == "" || model == "" {
 		return ""
 	}
@@ -25,14 +26,14 @@ func (r ModelRef) String() string {
 
 // ParseLocalModelRef parses refs such as ollama/llama3.1:8b.
 func ParseLocalModelRef(value string) (ModelRef, bool) {
-	provider, model, ok := strings.Cut(strings.TrimSpace(value), "/")
+	provider, model, ok := strings.Cut(stringx.String(value).Trim(), "/")
 	if !ok {
 		return ModelRef{}, false
 	}
 
 	ref := ModelRef{
 		Provider: normalizeID(provider),
-		Model:    strings.TrimSpace(model),
+		Model:    stringx.String(model).Trim(),
 	}
 	if ref.Provider == "" || ref.Model == "" || !IsLocalProviderID(ref.Provider) {
 		return ModelRef{}, false

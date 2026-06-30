@@ -9,6 +9,7 @@ import (
 	"github.com/wandxy/morph/internal/instructions"
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const defaultLLMExtractorMaxOutputTokens int64 = 1600
@@ -19,7 +20,7 @@ func NewLLMExtractor(options LLMExtractorOptions) (*LLMExtractor, error) {
 	if options.Client == nil {
 		return nil, errors.New("memory episode extractor model client is required")
 	}
-	if strings.TrimSpace(options.Model) == "" {
+	if stringx.String(options.Model).Trim() == "" {
 		return nil, errors.New("memory episode extractor model is required")
 	}
 	if options.MaxOutputTokensEnabled != nil && !*options.MaxOutputTokensEnabled {
@@ -85,9 +86,9 @@ func llmExtractorResponseToCandidateResult(resp *models.Response) (CandidateResu
 		// logic. IDs, source links, tags, and provenance are constructed by the
 		// service from trusted window evidence.
 		result.Candidates = append(result.Candidates, episodeCandidate{
-			Kind:       strings.TrimSpace(candidate.Kind),
-			Title:      strings.TrimSpace(candidate.Title),
-			Text:       strings.TrimSpace(candidate.Text),
+			Kind:       stringx.String(candidate.Kind).Trim(),
+			Title:      stringx.String(candidate.Title).Trim(),
+			Text:       stringx.String(candidate.Text).Trim(),
 			Confidence: candidate.Confidence,
 			Metadata:   candidate.Metadata,
 		})
@@ -97,7 +98,7 @@ func llmExtractorResponseToCandidateResult(resp *models.Response) (CandidateResu
 }
 
 func normalizeLLMExtractorJSON(raw string) string {
-	raw = strings.TrimSpace(raw)
+	raw = stringx.String(raw).Trim()
 	if !strings.HasPrefix(raw, "```") {
 		return raw
 	}
@@ -105,8 +106,8 @@ func normalizeLLMExtractorJSON(raw string) string {
 	raw = strings.TrimPrefix(raw, "```json")
 	raw = strings.TrimPrefix(raw, "```JSON")
 	raw = strings.TrimPrefix(raw, "```")
-	raw = strings.TrimSuffix(strings.TrimSpace(raw), "```")
-	return strings.TrimSpace(raw)
+	raw = strings.TrimSuffix(stringx.String(raw).Trim(), "```")
+	return stringx.String(raw).Trim()
 }
 
 // getLLMExtractorStructuredOutput constrains the extractor to known candidate

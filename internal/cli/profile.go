@@ -3,12 +3,12 @@ package cli
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	cli "github.com/urfave/cli/v3"
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/profile"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // ConfigInputs are the resolved profile-aware config inputs for a command.
@@ -22,7 +22,7 @@ type ConfigInputs struct {
 func ResolveConfigInputs(cmd *cli.Command) (ConfigInputs, error) {
 	profileName := getCommandProfile(cmd)
 	resolved := profile.Active()
-	if profileName != "" || strings.TrimSpace(resolved.HomeDir) == "" {
+	if profileName != "" || stringx.String(resolved.HomeDir).Trim() == "" {
 		var err error
 		resolved, err = profile.Resolve(profile.ResolveOptions{Name: profileName})
 		if err != nil {
@@ -39,10 +39,10 @@ func ResolveConfigInputs(cmd *cli.Command) (ConfigInputs, error) {
 	}
 	if cmd != nil {
 		if cmd.IsSet("env-file") {
-			inputs.EnvPath = strings.TrimSpace(cmd.String("env-file"))
+			inputs.EnvPath = stringx.String(cmd.String("env-file")).Trim()
 		}
 		if cmd.IsSet("config") {
-			inputs.ConfigPath = strings.TrimSpace(cmd.String("config"))
+			inputs.ConfigPath = stringx.String(cmd.String("config")).Trim()
 		}
 	}
 
@@ -83,7 +83,7 @@ func AddStartupFilesystemRoots(cfg *config.Config, inputs ConfigInputs) {
 }
 
 func removeFilesystemRoot(roots []string, target string) []string {
-	target = strings.TrimSpace(target)
+	target = stringx.String(target).Trim()
 	if target == "" {
 		return roots
 	}
@@ -101,7 +101,7 @@ func removeFilesystemRoot(roots []string, target string) []string {
 }
 
 func normalizeFilesystemRootTarget(root string) string {
-	root = strings.TrimSpace(root)
+	root = stringx.String(root).Trim()
 	if root == "" {
 		return ""
 	}
@@ -121,7 +121,7 @@ func getCommandProfile(cmd *cli.Command) string {
 
 	for _, candidate := range cmd.Lineage() {
 		if candidate.IsSet("profile") {
-			return strings.TrimSpace(candidate.String("profile"))
+			return stringx.String(candidate.String("profile")).Trim()
 		}
 	}
 

@@ -2,9 +2,9 @@ package plan
 
 import (
 	"context"
-	"strings"
 
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/tools"
@@ -60,7 +60,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			sessionID := tools.SessionIDFromContext(ctx)
-			if strings.TrimSpace(sessionID) == "" {
+			if stringx.String(sessionID).Trim() == "" {
 				sessionID = "default"
 			}
 
@@ -133,7 +133,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 
 				plan = envtypes.Plan{
 					Steps:       steps,
-					Explanation: strings.TrimSpace(req.Explanation),
+					Explanation: stringx.String(req.Explanation).Trim(),
 				}
 
 				if req.ClearCompleted {
@@ -193,9 +193,9 @@ func decodePlanSteps(rawSteps []map[string]any) ([]envtypes.PlanStep, error) {
 		content, _ := item["content"].(string)
 		status, _ := item["status"].(string)
 
-		id = strings.TrimSpace(id)
-		content = strings.TrimSpace(content)
-		status = strings.TrimSpace(status)
+		id = stringx.String(id).Trim()
+		content = stringx.String(content).Trim()
+		status = stringx.String(status).Trim()
 
 		if id == "" {
 			return nil, errInvalidPlan("step id is required")
@@ -228,7 +228,7 @@ func decodePartialPlanSteps(rawSteps []map[string]any) ([]envtypes.PartialPlanSt
 
 	for _, item := range rawSteps {
 		id, _ := item["id"].(string)
-		id = strings.TrimSpace(id)
+		id = stringx.String(id).Trim()
 		if id == "" {
 			return nil, errInvalidPlan("step id is required")
 		}
@@ -241,16 +241,16 @@ func decodePartialPlanSteps(rawSteps []map[string]any) ([]envtypes.PartialPlanSt
 
 		if contentValue, ok := item["content"]; ok {
 			content, contentOK := contentValue.(string)
-			if !contentOK || strings.TrimSpace(content) == "" {
+			if !contentOK || stringx.String(content).Trim() == "" {
 				return nil, errInvalidPlan("step content is required")
 			}
-			trimmed := strings.TrimSpace(content)
+			trimmed := stringx.String(content).Trim()
 			update.Content = &trimmed
 		}
 
 		if statusValue, ok := item["status"]; ok {
 			status, statusOK := statusValue.(string)
-			status = strings.TrimSpace(status)
+			status = stringx.String(status).Trim()
 			if !statusOK || !envtypes.ValidPlanStatus(status) {
 				return nil, errInvalidPlan("step status is invalid")
 			}
@@ -278,7 +278,7 @@ func encodePlanOutput(plan envtypes.Plan, changes []trace.PlanToolChange) (tools
 		"steps":          plan.Steps,
 		"summary":        summary,
 		"active_step_id": activeStepID,
-		"explanation":    strings.TrimSpace(plan.Explanation),
+		"explanation":    stringx.String(plan.Explanation).Trim(),
 	}
 	if len(changes) > 0 {
 		output["changes"] = changes
@@ -394,7 +394,7 @@ func recordPlanEvent(ctx context.Context, sessionID string, plan envtypes.Plan, 
 		Steps:        planStepsToTracePayload(plan.Steps),
 		Summary:      planSummaryToTracePayload(summarizePlan(plan)),
 		ActiveStepID: getActivePlanStepID(plan),
-		Explanation:  strings.TrimSpace(plan.Explanation),
+		Explanation:  stringx.String(plan.Explanation).Trim(),
 		Changes:      append([]trace.PlanToolChange(nil), changes...),
 	})
 }
@@ -410,7 +410,7 @@ func recordPlanCleared(ctx context.Context, sessionID string, plan envtypes.Plan
 		Steps:        planStepsToTracePayload(plan.Steps),
 		Summary:      planSummaryToTracePayload(summarizePlan(plan)),
 		ActiveStepID: "",
-		Explanation:  strings.TrimSpace(plan.Explanation),
+		Explanation:  stringx.String(plan.Explanation).Trim(),
 	})
 }
 

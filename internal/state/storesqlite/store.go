@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	morphdb "github.com/wandxy/morph/internal/db"
 	base "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
+	"github.com/wandxy/morph/pkg/stringx"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -23,7 +23,7 @@ type Store struct {
 
 // NewStore returns a store backed by the supplied dependencies.
 func NewStore(path string) (*Store, error) {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" {
 		return nil, errors.New("session sqlite path is required")
 	}
@@ -101,7 +101,7 @@ func (s *Store) Close() error {
 }
 
 func gormOpenSQLite(path string) (*Store, error) {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" {
 		return nil, errors.New("session sqlite path is required")
 	}

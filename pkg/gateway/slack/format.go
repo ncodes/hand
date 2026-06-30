@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func FormatMrkdwn(text string) string {
@@ -29,13 +31,13 @@ func FormatMrkdwn(text string) string {
 	formatted = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^\[([^\]]+)\]\(([^)]+)\)$`).FindStringSubmatch(match)
 		label := strings.ReplaceAll(EscapeMrkdwnText(parts[1]), "|", "-")
-		url := strings.ReplaceAll(strings.TrimSpace(parts[2]), ">", "%3E")
+		url := strings.ReplaceAll(stringx.String(parts[2]).Trim(), ">", "%3E")
 		return nextPlaceholder("<" + url + "|" + label + ">")
 	})
 	formatted = regexp.MustCompile(`(?m)^#{1,6}\s+(.+)$`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^#{1,6}\s+(.+)$`).FindStringSubmatch(match)
 		inner := regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllString(parts[1], "$1")
-		return nextPlaceholder("*" + EscapeMrkdwnText(strings.TrimSpace(inner)) + "*")
+		return nextPlaceholder("*" + EscapeMrkdwnText(stringx.String(inner).Trim()) + "*")
 	})
 	formatted = regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^\*\*(.+?)\*\*$`).FindStringSubmatch(match)
@@ -80,7 +82,7 @@ func FormatStreamMarkdown(text string) string {
 	inFence := false
 	lines := strings.SplitAfter(text, "\n")
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(strings.TrimSuffix(line, "\n"))
+		trimmed := stringx.String(strings.TrimSuffix(line, "\n")).Trim()
 		fenceLine := strings.HasPrefix(trimmed, "```")
 		if fenceLine {
 			if inFence {
@@ -105,7 +107,7 @@ func FormatStreamMarkdown(text string) string {
 }
 
 func FormatStreamChunks(text string) []Chunk {
-	if strings.TrimSpace(text) == "" {
+	if stringx.String(text).Trim() == "" {
 		return nil
 	}
 
@@ -133,7 +135,7 @@ func getFencedCodeBody(text string) string {
 	if !ok {
 		return text
 	}
-	if strings.TrimSpace(header) != "" && strings.Contains(body, "\n") {
+	if stringx.String(header).Trim() != "" && strings.Contains(body, "\n") {
 		return body
 	}
 

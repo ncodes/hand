@@ -1,12 +1,12 @@
 package tui
 
 import (
-	"strings"
 	"time"
 
 	models "github.com/wandxy/morph/internal/model"
 	"github.com/wandxy/morph/internal/trace"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func newToolInvocationStartedMsg(
@@ -15,9 +15,9 @@ func newToolInvocationStartedMsg(
 	detail string,
 	startedAt time.Time,
 ) (toolInvocationStartedMsg, bool) {
-	id = strings.TrimSpace(id)
-	name = strings.TrimSpace(name)
-	detail = strings.TrimSpace(detail)
+	id = stringx.String(id).Trim()
+	name = stringx.String(name).Trim()
+	detail = stringx.String(detail).Trim()
 	if name == "" && id == "" {
 		return toolInvocationStartedMsg{}, false
 	}
@@ -53,9 +53,9 @@ func newToolInvocationCompletedMsg(
 	detail string,
 	completedAt time.Time,
 ) (toolInvocationCompletedMsg, bool) {
-	id = strings.TrimSpace(id)
-	name = strings.TrimSpace(name)
-	detail = strings.TrimSpace(detail)
+	id = stringx.String(id).Trim()
+	name = stringx.String(name).Trim()
+	detail = stringx.String(detail).Trim()
 	if name == "" && id == "" {
 		return toolInvocationCompletedMsg{}, false
 	}

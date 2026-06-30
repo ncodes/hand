@@ -2,13 +2,15 @@ package provider_ollama
 
 import (
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func NormalizeModelID(value string) string {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if provider, model, ok := strings.Cut(value, "/"); ok &&
-		strings.EqualFold(strings.TrimSpace(provider), "ollama") {
-		return strings.TrimSpace(model)
+		strings.EqualFold(stringx.String(provider).Trim(), "ollama") {
+		return stringx.String(model).Trim()
 	}
 
 	return value

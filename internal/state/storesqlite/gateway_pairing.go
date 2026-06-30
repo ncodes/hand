@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 
 	"github.com/wandxy/morph/pkg/gateway/pairing"
+	"github.com/wandxy/morph/pkg/stringx"
 	"gorm.io/gorm"
 )
 
@@ -33,7 +33,7 @@ func (s *Store) GetGatewayPairingRequest(
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = strings.TrimSpace(senderID)
+	senderID = stringx.String(senderID).Trim()
 	if source == "" {
 		return pairing.PendingRequest{}, false, errors.New("gateway pairing source is required")
 	}
@@ -91,7 +91,7 @@ func (s *Store) DeleteGatewayPairingRequest(ctx context.Context, source string, 
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = strings.TrimSpace(senderID)
+	senderID = stringx.String(senderID).Trim()
 	if source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -140,7 +140,7 @@ func (s *Store) GetGatewayPairedSender(
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = strings.TrimSpace(senderID)
+	senderID = stringx.String(senderID).Trim()
 	if source == "" {
 		return pairing.ApprovedSender{}, false, errors.New("gateway pairing source is required")
 	}
@@ -198,7 +198,7 @@ func (s *Store) DeleteGatewayPairedSender(ctx context.Context, source string, se
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = strings.TrimSpace(senderID)
+	senderID = stringx.String(senderID).Trim()
 	if source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -211,7 +211,7 @@ func (s *Store) DeleteGatewayPairedSender(ctx context.Context, source string, se
 
 func gatewayPairingRequestToModel(request pairing.PendingRequest) (gatewayPairingRequestModel, error) {
 	request.Source = normalizeGatewayPairingSource(request.Source)
-	request.SenderID = strings.TrimSpace(request.SenderID)
+	request.SenderID = stringx.String(request.SenderID).Trim()
 	if request.Source == "" {
 		return gatewayPairingRequestModel{}, errors.New("gateway pairing source is required")
 	}
@@ -227,7 +227,7 @@ func gatewayPairingRequestToModel(request pairing.PendingRequest) (gatewayPairin
 	return gatewayPairingRequestModel{
 		Source:      request.Source,
 		SenderID:    request.SenderID,
-		DisplayName: strings.TrimSpace(request.DisplayName),
+		DisplayName: stringx.String(request.DisplayName).Trim(),
 		Metadata:    metadata,
 		CreatedAt:   request.CreatedAt,
 		LastSeenAt:  request.LastSeenAt,
@@ -254,7 +254,7 @@ func gatewayPairingRequestFromModel(model gatewayPairingRequestModel) (pairing.P
 
 func gatewayPairedSenderToModel(sender pairing.ApprovedSender) (gatewayPairedSenderModel, error) {
 	sender.Source = normalizeGatewayPairingSource(sender.Source)
-	sender.SenderID = strings.TrimSpace(sender.SenderID)
+	sender.SenderID = stringx.String(sender.SenderID).Trim()
 	if sender.Source == "" {
 		return gatewayPairedSenderModel{}, errors.New("gateway pairing source is required")
 	}
@@ -270,7 +270,7 @@ func gatewayPairedSenderToModel(sender pairing.ApprovedSender) (gatewayPairedSen
 	return gatewayPairedSenderModel{
 		Source:      sender.Source,
 		SenderID:    sender.SenderID,
-		DisplayName: strings.TrimSpace(sender.DisplayName),
+		DisplayName: stringx.String(sender.DisplayName).Trim(),
 		Metadata:    metadata,
 		CreatedAt:   sender.CreatedAt,
 		UpdatedAt:   sender.UpdatedAt,
@@ -300,9 +300,9 @@ func gatewayPairingMetadataToJSON(metadata map[string]string) (string, error) {
 
 	cleaned := make(map[string]string, len(metadata))
 	for key, value := range metadata {
-		key = strings.TrimSpace(key)
+		key = stringx.String(key).Trim()
 		if key != "" {
-			cleaned[key] = strings.TrimSpace(value)
+			cleaned[key] = stringx.String(value).Trim()
 		}
 	}
 	if len(cleaned) == 0 {
@@ -318,7 +318,7 @@ func gatewayPairingMetadataToJSON(metadata map[string]string) (string, error) {
 }
 
 func gatewayPairingMetadataFromJSON(raw string) (map[string]string, error) {
-	raw = strings.TrimSpace(raw)
+	raw = stringx.String(raw).Trim()
 	if raw == "" {
 		return nil, nil
 	}
@@ -332,5 +332,5 @@ func gatewayPairingMetadataFromJSON(raw string) (map[string]string, error) {
 }
 
 func normalizeGatewayPairingSource(source string) string {
-	return strings.ToLower(strings.TrimSpace(source))
+	return stringx.String(source).Normalized()
 }

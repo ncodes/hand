@@ -8,7 +8,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"strings"
 
 	morphagent "github.com/wandxy/morph/internal/agent"
 	"github.com/wandxy/morph/internal/config"
@@ -19,6 +18,7 @@ import (
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	agentcore "github.com/wandxy/morph/pkg/agent"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var setHarnessEnv = os.Setenv
@@ -82,7 +82,7 @@ func NewHarness(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 		return nil, err
 	}
 
-	if strings.TrimSpace(opts.Spec.Isolation.TraceDir) != "" {
+	if stringx.String(opts.Spec.Isolation.TraceDir).Trim() != "" {
 		cfg.Trace.Disk.Dir = opts.Spec.Isolation.TraceDir
 	}
 
@@ -219,7 +219,7 @@ func (h *Harness) Send(ctx context.Context, req RootChatRequest) (RootChatResult
 		return RootChatResult{}, err
 	}
 
-	sessionID := strings.TrimSpace(req.SessionID)
+	sessionID := stringx.String(req.SessionID).Trim()
 	if sessionID == "" {
 		session, err := h.agent.CurrentSession(normalizeHarnessContext(ctx))
 		if err != nil {
@@ -244,7 +244,7 @@ func (h *Harness) Messages(ctx context.Context, sessionID string) ([]morphmsg.Me
 		return nil, errors.New("e2e harness message inspection is unavailable for non-persistent storage")
 	}
 
-	sessionID = strings.TrimSpace(sessionID)
+	sessionID = stringx.String(sessionID).Trim()
 	if sessionID == "" {
 		var err error
 		session, err := h.agent.CurrentSession(normalizeHarnessContext(ctx))
@@ -292,7 +292,7 @@ func openInspectStore(cfg *config.Config) (storage.Store, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
-	if strings.TrimSpace(strings.ToLower(cfg.Storage.Backend)) == "memory" {
+	if stringx.String(cfg.Storage.Backend).Normalized() == "memory" {
 		return nil, nil
 	}
 
@@ -372,14 +372,14 @@ func normalizeHarnessContext(ctx context.Context) context.Context {
 }
 
 func (h *Harness) writeStdout(text string) {
-	if h == nil || h.stdout == nil || strings.TrimSpace(text) == "" {
+	if h == nil || h.stdout == nil || stringx.String(text).Trim() == "" {
 		return
 	}
 	_, _ = io.WriteString(h.stdout, text)
 }
 
 func (h *Harness) writeStderr(text string) {
-	if h == nil || h.stderr == nil || strings.TrimSpace(text) == "" {
+	if h == nil || h.stderr == nil || stringx.String(text).Trim() == "" {
 		return
 	}
 	_, _ = io.WriteString(h.stderr, text)

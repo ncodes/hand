@@ -13,6 +13,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type httpDoer interface {
@@ -252,7 +253,7 @@ func (a *chatStreamAccumulator) add(chunk chatResponse) {
 func (a *chatStreamAccumulator) response() (*Response, error) {
 	resp := &Response{
 		Model:             a.model,
-		OutputText:        strings.TrimSpace(a.outputText.String()),
+		OutputText:        stringx.String(a.outputText.String()).Trim(),
 		ToolCalls:         a.toolCalls,
 		RequiresToolCalls: len(a.toolCalls) > 0,
 		PromptTokens:      a.promptTokens,
@@ -270,7 +271,7 @@ func (a *chatStreamAccumulator) response() (*Response, error) {
 }
 
 func normalizeRequest(req Request) (normalizedRequest, error) {
-	model := strings.TrimSpace(req.Model)
+	model := stringx.String(req.Model).Trim()
 	if model == "" {
 		return normalizedRequest{}, errors.New("model is required")
 	}
@@ -289,7 +290,7 @@ func normalizeRequest(req Request) (normalizedRequest, error) {
 
 	return normalizedRequest{
 		Model:            model,
-		Instructions:     strings.TrimSpace(req.Instructions),
+		Instructions:     stringx.String(req.Instructions).Trim(),
 		Messages:         messages,
 		Tools:            tools,
 		StructuredOutput: normalizeStructuredOutput(req.StructuredOutput),
@@ -302,9 +303,9 @@ func normalizeRequest(req Request) (normalizedRequest, error) {
 func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) {
 	normalized := make([]morphmsg.Message, 0, len(messages))
 	for _, message := range messages {
-		role := morphmsg.Role(strings.TrimSpace(strings.ToLower(string(message.Role))))
-		content := strings.TrimSpace(message.Content)
-		toolCallID := strings.TrimSpace(message.ToolCallID)
+		role := morphmsg.Role(stringx.String(string(message.Role)).Normalized())
+		content := stringx.String(message.Content).Trim()
+		toolCallID := stringx.String(message.ToolCallID).Trim()
 		toolCalls, err := normalizeToolCalls(message.ToolCalls)
 		if err != nil {
 			return nil, err
@@ -327,7 +328,7 @@ func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) 
 		normalized = append(normalized, morphmsg.Message{
 			Role:       role,
 			Content:    content,
-			Name:       strings.TrimSpace(message.Name),
+			Name:       stringx.String(message.Name).Trim(),
 			ToolCallID: toolCallID,
 			ToolCalls:  toolCalls,
 			CreatedAt:  message.CreatedAt,
@@ -344,13 +345,13 @@ func normalizeToolDefinitions(definitions []ToolDefinition) ([]ToolDefinition, e
 
 	normalized := make([]ToolDefinition, 0, len(definitions))
 	for _, definition := range definitions {
-		name := strings.TrimSpace(definition.Name)
+		name := stringx.String(definition.Name).Trim()
 		if name == "" {
 			return nil, errors.New("tool name is required")
 		}
 		normalized = append(normalized, ToolDefinition{
 			Name:         name,
-			Description:  strings.TrimSpace(definition.Description),
+			Description:  stringx.String(definition.Description).Trim(),
 			InputSchema:  definition.InputSchema,
 			ParallelSafe: definition.ParallelSafe,
 		})
@@ -366,8 +367,8 @@ func normalizeToolCalls(toolCalls []morphmsg.ToolCall) ([]morphmsg.ToolCall, err
 
 	normalized := make([]morphmsg.ToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
-		id := strings.TrimSpace(toolCall.ID)
-		name := strings.TrimSpace(toolCall.Name)
+		id := stringx.String(toolCall.ID).Trim()
+		name := stringx.String(toolCall.Name).Trim()
 		if id == "" {
 			return nil, errors.New("tool call id is required")
 		}
@@ -377,7 +378,7 @@ func normalizeToolCalls(toolCalls []morphmsg.ToolCall) ([]morphmsg.ToolCall, err
 		normalized = append(normalized, morphmsg.ToolCall{
 			ID:    id,
 			Name:  name,
-			Input: strings.TrimSpace(toolCall.Input),
+			Input: stringx.String(toolCall.Input).Trim(),
 		})
 	}
 
@@ -389,14 +390,14 @@ func normalizeStructuredOutput(value *StructuredOutput) *StructuredOutput {
 		return nil
 	}
 
-	name := strings.TrimSpace(value.Name)
+	name := stringx.String(value.Name).Trim()
 	if name == "" || len(value.Schema) == 0 {
 		return nil
 	}
 
 	return &StructuredOutput{
 		Name:        name,
-		Description: strings.TrimSpace(value.Description),
+		Description: stringx.String(value.Description).Trim(),
 		Schema:      value.Schema,
 		Strict:      value.Strict,
 	}
@@ -426,7 +427,7 @@ func buildChatRequest(req normalizedRequest, stream bool) chatRequest {
 func messageToChatMessage(message morphmsg.Message) chatMessage {
 	converted := chatMessage{
 		Role:    string(message.Role),
-		Content: strings.TrimSpace(message.Content),
+		Content: stringx.String(message.Content).Trim(),
 	}
 	if len(message.ToolCalls) > 0 {
 		converted.ToolCalls = make([]chatToolCall, 0, len(message.ToolCalls))
@@ -491,7 +492,7 @@ func buildOptions(req normalizedRequest) map[string]any {
 
 func responseFromChatResponse(resp chatResponse, tools []chatTool) (*Response, error) {
 	toolCalls := toolCallsFromChatToolCalls(resp.Message.ToolCalls, 0)
-	outputText := strings.TrimSpace(resp.Message.Content)
+	outputText := stringx.String(resp.Message.Content).Trim()
 	if outputText == "" && len(toolCalls) == 0 {
 		return nil, errors.New("model returned empty response")
 	}
@@ -517,7 +518,7 @@ func toolCallsFromChatToolCalls(providerToolCalls []chatToolCall, offset int) []
 
 	toolCalls := make([]ToolCall, 0, len(providerToolCalls))
 	for idx, providerToolCall := range providerToolCalls {
-		name := strings.TrimSpace(providerToolCall.Function.Name)
+		name := stringx.String(providerToolCall.Function.Name).Trim()
 		if name == "" {
 			continue
 		}
@@ -539,7 +540,7 @@ func stringFromRawArguments(raw json.RawMessage) string {
 
 	var asString string
 	if err := json.Unmarshal(raw, &asString); err == nil {
-		return strings.TrimSpace(asString)
+		return stringx.String(asString).Trim()
 	}
 
 	var compact bytes.Buffer
@@ -551,7 +552,7 @@ func stringFromRawArguments(raw json.RawMessage) string {
 }
 
 func defaultToolArguments(value string) string {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if value == "" {
 		return "{}"
 	}
@@ -579,7 +580,7 @@ func ollamaStatusError(resp *http.Response) error {
 }
 
 func normalizeBaseURL(value string) (string, error) {
-	value = strings.TrimRight(strings.TrimSpace(value), "/")
+	value = strings.TrimRight(stringx.String(value).Trim(), "/")
 	if value == "" {
 		return "", errors.New("ollama base URL is required")
 	}
@@ -598,8 +599,8 @@ func normalizeBaseURL(value string) (string, error) {
 func normalizeHeaders(headers map[string]string) map[string]string {
 	normalized := make(map[string]string)
 	for key, value := range headers {
-		key = strings.TrimSpace(key)
-		value = strings.TrimSpace(value)
+		key = stringx.String(key).Trim()
+		value = stringx.String(value).Trim()
 		if key == "" || value == "" {
 			continue
 		}

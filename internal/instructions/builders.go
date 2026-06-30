@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -76,7 +78,7 @@ type EnvironmentCapabilities struct {
 
 // BuildBase builds base.
 func BuildBase(name string) Instructions {
-	agentName := strings.TrimSpace(name)
+	agentName := stringx.String(name).Trim()
 	if agentName == "" {
 		agentName = "Morph"
 	}
@@ -142,23 +144,23 @@ func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 		)
 	}
 
-	if timezone := strings.TrimSpace(ctx.Timezone); timezone != "" {
+	if timezone := stringx.String(ctx.Timezone).Trim(); timezone != "" {
 		lines = append(lines, fmt.Sprintf("- Timezone: %s", timezone))
 	}
 
-	if osName := strings.TrimSpace(ctx.OS); osName != "" {
+	if osName := stringx.String(ctx.OS).Trim(); osName != "" {
 		lines = append(lines, fmt.Sprintf("- OS: %s", osName))
 	}
 
-	if arch := strings.TrimSpace(ctx.Architecture); arch != "" {
+	if arch := stringx.String(ctx.Architecture).Trim(); arch != "" {
 		lines = append(lines, fmt.Sprintf("- Architecture: %s", arch))
 	}
 
-	if platform := strings.TrimSpace(ctx.Platform); platform != "" {
+	if platform := stringx.String(ctx.Platform).Trim(); platform != "" {
 		lines = append(lines, fmt.Sprintf("- Platform: %s", platform))
 	}
 
-	if workingDirectory := strings.TrimSpace(ctx.WorkingDirectory); workingDirectory != "" {
+	if workingDirectory := stringx.String(ctx.WorkingDirectory).Trim(); workingDirectory != "" {
 		lines = append(lines, fmt.Sprintf("- Working directory: %s", workingDirectory))
 	}
 
@@ -185,31 +187,31 @@ func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 		lines = append(lines, fmt.Sprintf("- Active tools: %s", strings.Join(activeTools, ", ")))
 	}
 
-	if model := strings.TrimSpace(ctx.Model); model != "" {
+	if model := stringx.String(ctx.Model).Trim(); model != "" {
 		lines = append(lines, fmt.Sprintf("- Model: %s", model))
 	}
 
-	if summaryModel := strings.TrimSpace(ctx.SummaryModel); summaryModel != "" {
+	if summaryModel := stringx.String(ctx.SummaryModel).Trim(); summaryModel != "" {
 		lines = append(lines, fmt.Sprintf("- Summary model: %s", summaryModel))
 	}
 
-	if provider := strings.TrimSpace(ctx.ModelProvider); provider != "" {
+	if provider := stringx.String(ctx.ModelProvider).Trim(); provider != "" {
 		lines = append(lines, fmt.Sprintf("- Model provider: %s", provider))
 	}
 
-	if summaryProvider := strings.TrimSpace(ctx.SummaryProvider); summaryProvider != "" {
+	if summaryProvider := stringx.String(ctx.SummaryProvider).Trim(); summaryProvider != "" {
 		lines = append(lines, fmt.Sprintf("- Summary model provider: %s", summaryProvider))
 	}
 
-	if api := strings.TrimSpace(ctx.API); api != "" {
+	if api := stringx.String(ctx.API).Trim(); api != "" {
 		lines = append(lines, fmt.Sprintf("- API: %s", api))
 	}
 
-	if webProvider := strings.TrimSpace(ctx.WebProvider); webProvider != "" {
+	if webProvider := stringx.String(ctx.WebProvider).Trim(); webProvider != "" {
 		lines = append(lines, fmt.Sprintf("- Web provider: %s", webProvider))
 	}
 
-	if sessionID := strings.TrimSpace(ctx.SessionID); sessionID != "" {
+	if sessionID := stringx.String(ctx.SessionID).Trim(); sessionID != "" {
 		lines = append(lines, fmt.Sprintf("- Session ID: %s", sessionID))
 	}
 	if origin := renderEnvironmentSessionOrigin(ctx.SessionOrigin); origin != "" {
@@ -244,7 +246,7 @@ func BuildMemoryContext(items []MemoryContextItem, maxChars int) Instruction {
 		lines = append(lines, fmt.Sprintf("%d. %s", idx+1, renderMemoryContextItem(item)))
 	}
 
-	value := strings.TrimSpace(strings.Join(lines, "\n"))
+	value := stringx.String(strings.Join(lines, "\n")).Trim()
 	if maxChars > 0 && len([]rune(value)) > maxChars {
 		value = string([]rune(value)[:maxChars])
 	}
@@ -254,16 +256,16 @@ func BuildMemoryContext(items []MemoryContextItem, maxChars int) Instruction {
 
 func renderEnvironmentSessionOrigin(origin EnvironmentSessionOrigin) string {
 	parts := make([]string, 0, 4)
-	if source := strings.TrimSpace(origin.Source); source != "" {
+	if source := stringx.String(origin.Source).Trim(); source != "" {
 		parts = append(parts, "source="+source)
 	}
-	if accountID := strings.TrimSpace(origin.AccountID); accountID != "" {
+	if accountID := stringx.String(origin.AccountID).Trim(); accountID != "" {
 		parts = append(parts, "account="+accountID)
 	}
-	if conversationID := strings.TrimSpace(origin.ConversationID); conversationID != "" {
+	if conversationID := stringx.String(origin.ConversationID).Trim(); conversationID != "" {
 		parts = append(parts, "conversation="+conversationID)
 	}
-	if threadID := strings.TrimSpace(origin.ThreadID); threadID != "" {
+	if threadID := stringx.String(origin.ThreadID).Trim(); threadID != "" {
 		parts = append(parts, "thread="+threadID)
 	}
 
@@ -271,7 +273,7 @@ func renderEnvironmentSessionOrigin(origin EnvironmentSessionOrigin) string {
 }
 
 func renderEnvironmentSessionResponseGuidance(origin EnvironmentSessionOrigin) string {
-	switch strings.ToLower(strings.TrimSpace(origin.Source)) {
+	switch stringx.String(origin.Source).Normalized() {
 	case "telegram":
 		return "The user is reading this in Telegram. Keep replies chat-friendly, concise, and readable on mobile. " +
 			"Use Telegram MarkdownV2-compatible Markdown: prefer short paragraphs and bullets, avoid markdown tables, " +
@@ -287,13 +289,13 @@ func renderEnvironmentSessionResponseGuidance(origin EnvironmentSessionOrigin) s
 
 func renderMemoryContextItem(item MemoryContextItem) string {
 	parts := make([]string, 0, 3)
-	if kind := strings.TrimSpace(item.Kind); kind != "" {
+	if kind := stringx.String(item.Kind).Trim(); kind != "" {
 		parts = append(parts, "kind="+kind)
 	}
-	if title := strings.TrimSpace(item.Title); title != "" {
+	if title := stringx.String(item.Title).Trim(); title != "" {
 		parts = append(parts, "title="+title)
 	}
-	if text := strings.TrimSpace(item.Text); text != "" {
+	if text := stringx.String(item.Text).Trim(); text != "" {
 		parts = append(parts, "text="+text)
 	}
 	return strings.Join(parts, "; ")
@@ -396,13 +398,13 @@ Provide a concise reason tied to the user's request. Deletion is a lifecycle tra
 
 // BuildMemoryFlushGuidance builds memory flush guidance.
 func BuildMemoryFlushGuidance(trigger string) Instruction {
-	trigger = strings.TrimSpace(trigger)
+	trigger = stringx.String(trigger).Trim()
 	if trigger == "" {
 		trigger = "planned context loss"
 	}
 
 	return Instruction{
-		Value: strings.TrimSpace(`# Pre-Context-Loss Memory Flush
+		Value: stringx.String(`# Pre-Context-Loss Memory Flush
 
 The current context is about to be reduced because of ` + trigger + `.
 You have one bounded opportunity to preserve durable continuity before context is discarded or summarized.
@@ -411,26 +413,27 @@ Keep memories broad and durable. Do not preserve raw transcript snippets, transi
 When the transcript contains durable information in the priority categories above, call exactly one available memory tool to preserve the most important item before context loss.
 Use only direct write tools: memory_add, memory_update, or memory_delete.
 Include source provenance that ties writes to this session and message range whenever a write tool requires it.
-Do not call more than one tool. If there is nothing durable to preserve, do not call a tool and reply briefly with "no durable memory to flush".`),
+Do not call more than one tool. If there is nothing durable to preserve, do not call a tool and reply briefly with "no durable memory to flush".`).Trim(),
 	}
 }
 
 // BuildMemoryFlushRequest builds memory flush request.
 func BuildMemoryFlushRequest(trigger string) string {
-	trigger = strings.TrimSpace(trigger)
+	trigger = stringx.String(trigger).Trim()
 	if trigger == "" {
 		trigger = "planned context loss"
 	}
 
-	return strings.TrimSpace(`The ` + trigger + ` flush is starting now.
+	return stringx.String(`The ` + trigger + ` flush is starting now.
 Inspect the preceding session messages for durable user preferences, corrections, decisions, recurring patterns, unresolved follow-ups, and high-signal continuity facts.
 If any such durable information is present, call exactly one available direct write memory tool now: memory_add, memory_update, or memory_delete.
-If there is nothing durable to preserve, reply only with "no durable memory to flush".`)
+If there is nothing durable to preserve, reply only with "no durable memory to flush".`).Trim()
+
 }
 
 // BuildEpisodicExtractionInstructions builds episodic extraction instructions.
 func BuildEpisodicExtractionInstructions() string {
-	return strings.TrimSpace(`Extract curated episodic memory candidates from bounded session messages and task trace events.
+	return stringx.String(`Extract curated episodic memory candidates from bounded session messages and task trace events.
 Return only JSON matching the schema. Do not store raw transcript windows.
 Extract only evidence-backed decisions, outcomes, reflections, task traces, tool events, blockers, resolved issues, milestone episodes, discarded approaches, and explicit durable user corrections/preferences.
 Episodic memories may come from ordinary conversation, planning, research, writing, operations, personal preferences, coordination, troubleshooting, or coding; do not assume the session is a software project.
@@ -454,7 +457,8 @@ Distinguish successful, failed, partial, and follow-up-required outcomes with me
 Capture failed attempts, partial progress, open follow-ups, and unresolved blockers with explicit status metadata such as attempt_status, progress_status, follow_up_status, or blocker_status.
 For discarded approaches and unresolved blockers, preserve uncertainty metadata instead of overstating the evidence.
 Reject low-signal, speculative, temporary, unsafe, socially trivial, or purely conversational content with a concise reason.
-Keep candidate text concise, source-grounded, and useful for future continuity. Preserve uncertainty in metadata when evidence is incomplete.`)
+Keep candidate text concise, source-grounded, and useful for future continuity. Preserve uncertainty in metadata when evidence is incomplete.`).Trim()
+
 }
 
 // BuildSummary builds summary.
@@ -621,7 +625,7 @@ func BuildRetrievalRerank() string {
 func cleanList(values []string) []string {
 	cleaned := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if value == "" {
 			continue
 		}

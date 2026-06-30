@@ -3,12 +3,12 @@ package session
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	storage "github.com/wandxy/morph/internal/state/core"
 	agentcore "github.com/wandxy/morph/pkg/agent"
 	"github.com/wandxy/morph/pkg/gateway/bindings"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type Service interface {
@@ -43,7 +43,7 @@ func (r *Resolver) Resolve(ctx context.Context, key bindings.Key) (storage.Sessi
 		return storage.Session{}, errors.New("gateway session resolver service is required")
 	}
 
-	keyString := strings.TrimSpace(key.String())
+	keyString := stringx.String(key.String()).Trim()
 	if keyString == "" {
 		return storage.Session{}, errors.New("gateway binding key is required")
 	}

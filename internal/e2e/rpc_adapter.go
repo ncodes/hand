@@ -3,9 +3,9 @@ package e2e
 import (
 	"context"
 	"errors"
-	"strings"
 
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type rpcClientAPI interface {
@@ -57,7 +57,7 @@ func (a *RPCAdapter) Send(ctx context.Context, req RootChatRequest) (RootChatRes
 				return
 			}
 			events = append(events, Event{
-				Channel: strings.TrimSpace(event.Channel),
+				Channel: stringx.String(event.Channel).Trim(),
 				Text:    event.Text,
 			})
 		},
@@ -66,7 +66,7 @@ func (a *RPCAdapter) Send(ctx context.Context, req RootChatRequest) (RootChatRes
 		return RootChatResult{}, err
 	}
 
-	sessionID := strings.TrimSpace(req.SessionID)
+	sessionID := stringx.String(req.SessionID).Trim()
 	if sessionID == "" {
 		session, err := client.SessionAPI().Current(normalizeHarnessContext(ctx))
 		if err != nil {

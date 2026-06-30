@@ -18,6 +18,7 @@ import (
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	"github.com/wandxy/morph/internal/runtime"
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -66,7 +67,7 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 	}
 
 	return func(ctx context.Context, cmd *urfavecli.Command) error {
-		message := strings.TrimSpace(strings.Join(cmd.Args().Slice(), " "))
+		message := stringx.String(strings.Join(cmd.Args().Slice(), " ")).Trim()
 		if message == "" {
 			return urfavecli.ShowAppHelp(cmd)
 		}
@@ -135,7 +136,7 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 
 		responseOptions := rpcclient.RespondOptions{
 			Instruct:  instruct,
-			SessionID: strings.TrimSpace(cmd.String("session")),
+			SessionID: stringx.String(cmd.String("session")).Trim(),
 			Stream:    cfg.Models.Main.Stream,
 		}
 		if cfg.StreamEnabled() {
@@ -167,7 +168,7 @@ func validateRootChatModelConfig(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is required")
 	}
-	if strings.TrimSpace(cfg.Models.Main.API) == "" {
+	if stringx.String(cfg.Models.Main.API).Trim() == "" {
 		return nil
 	}
 
@@ -254,13 +255,13 @@ func rootChatModelRuntimeEqual(a rpcclient.ModelRuntime, b rpcclient.ModelRuntim
 }
 
 func normalizeRootChatModelRuntime(runtime rpcclient.ModelRuntime) rpcclient.ModelRuntime {
-	runtime.Provider = strings.TrimSpace(strings.ToLower(runtime.Provider))
-	runtime.API = strings.TrimSpace(strings.ToLower(runtime.API))
-	runtime.Model = strings.TrimSpace(runtime.Model)
+	runtime.Provider = stringx.String(runtime.Provider).Normalized()
+	runtime.API = stringx.String(runtime.API).Normalized()
+	runtime.Model = stringx.String(runtime.Model).Trim()
 	if runtime.Provider == constants.ModelProviderOllama {
 		runtime.Model = provider_ollama.NormalizeModelIDForComparison(runtime.Model)
 	}
-	runtime.BaseURL = strings.TrimRight(strings.TrimSpace(runtime.BaseURL), "/")
+	runtime.BaseURL = strings.TrimRight(stringx.String(runtime.BaseURL).Trim(), "/")
 	if runtime.ContextLength < 0 {
 		runtime.ContextLength = 0
 	}
@@ -405,7 +406,7 @@ func formatPullProgress(progress provider_ollama.PullProgress) string {
 }
 
 func FormatPullProgress(progress provider_ollama.PullProgress) string {
-	text := strings.TrimSpace(progress.Status)
+	text := stringx.String(progress.Status).Trim()
 	if text == "" {
 		return ""
 	}
@@ -467,7 +468,7 @@ func (f *chatStreamFormatter) Format(event rpcclient.Event) string {
 		return ""
 	}
 
-	channel := strings.TrimSpace(event.Channel)
+	channel := stringx.String(event.Channel).Trim()
 	if channel == "reasoning" && !f.reasoningActive {
 		f.reasoningStarted = f.now()
 		f.reasoningActive = true
@@ -591,7 +592,7 @@ func formatChatEvent(cfg *config.Config, event rpcclient.Event, noColor bool) st
 	if event.TraceEvent != nil {
 		return ""
 	}
-	if strings.TrimSpace(event.Channel) != "reasoning" || cfg == nil || noColor {
+	if stringx.String(event.Channel).Trim() != "reasoning" || cfg == nil || noColor {
 		return event.Text
 	}
 

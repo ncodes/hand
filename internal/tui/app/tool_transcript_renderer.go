@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/wandxy/morph/internal/trace"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type toolTranscriptRenderer struct{}
@@ -27,7 +28,7 @@ func (toolTranscriptRenderer) RenderGroup(
 }
 
 func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptRenderContext) string {
-	action := strings.TrimSpace(group.action)
+	action := stringx.String(group.action).Trim()
 	if action == "" {
 		action = "Tool"
 	}
@@ -55,16 +56,16 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 	details := make([]toolTranscriptDetail, 0, len(group.details))
 	if shouldRenderToolTranscriptBranches(action) {
 		for _, detail := range group.details {
-			if strings.TrimSpace(detail.text) == "" && detail.planState == nil && detail.processState == nil {
+			if stringx.String(detail.text).Trim() == "" && detail.planState == nil && detail.processState == nil {
 				continue
 			}
 			if shouldSkipToolTranscriptBranch(action, completed, detail) {
 				continue
 			}
-			if strings.TrimSpace(action) == "Plan" && getPlanToolBranchDetail(detail.planState, detail.completed) == "" {
+			if stringx.String(action).Trim() == "Plan" && getPlanToolBranchDetail(detail.planState, detail.completed) == "" {
 				continue
 			}
-			if strings.TrimSpace(action) == "Process" && getProcessToolBranchDetail(detail.processState, detail.completed) == "" {
+			if stringx.String(action).Trim() == "Process" && getProcessToolBranchDetail(detail.processState, detail.completed) == "" {
 				continue
 			}
 			details = append(details, detail)
@@ -93,7 +94,7 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 }
 
 func shouldRenderToolTranscriptBranches(action string) bool {
-	switch strings.TrimSpace(action) {
+	switch stringx.String(action).Trim() {
 	case "Session Messages", "Session Search", "Time", "Web Extract":
 		return false
 	default:
@@ -102,7 +103,7 @@ func shouldRenderToolTranscriptBranches(action string) bool {
 }
 
 func shouldSkipToolTranscriptBranch(action string, completed bool, detail toolTranscriptDetail) bool {
-	if strings.TrimSpace(action) != "Plan" || !completed || detail.planState == nil {
+	if stringx.String(action).Trim() != "Plan" || !completed || detail.planState == nil {
 		return false
 	}
 
@@ -126,7 +127,7 @@ func isGenericPlanInputState(state *trace.PlanToolState) bool {
 }
 
 func renderToolBranchDetail(detail string, duration string, style lipgloss.Style) string {
-	detail = strings.TrimSpace(detail)
+	detail = stringx.String(detail).Trim()
 	if detail == "" {
 		return style.Render(duration)
 	}
@@ -274,7 +275,7 @@ func getToolTranscriptDot(completed bool, frame int) string {
 }
 
 func getToolTranscriptTitle(action string, completed bool, details []toolTranscriptDetail) string {
-	switch strings.TrimSpace(action) {
+	switch stringx.String(action).Trim() {
 	case "Plan":
 		return getPlanToolTranscriptTitle(getPlanToolTranscriptOperation(details), completed)
 	case "Process":
@@ -345,7 +346,7 @@ func getToolTranscriptTitle(action string, completed bool, details []toolTranscr
 		return action
 	}
 
-	switch strings.TrimSpace(action) {
+	switch stringx.String(action).Trim() {
 	case "Run":
 		return "Ran"
 	case "Write":
@@ -357,7 +358,7 @@ func getToolTranscriptTitle(action string, completed bool, details []toolTranscr
 	case "Patch":
 		return "Patch"
 	default:
-		return strings.TrimSpace(action)
+		return stringx.String(action).Trim()
 	}
 }
 
@@ -500,9 +501,9 @@ func getProcessToolDetailGroupKey(detail toolTranscriptDetail) processToolDetail
 		return processToolDetailGroupKey{}
 	}
 
-	target := strings.TrimSpace(state.ProcessID)
+	target := stringx.String(state.ProcessID).Trim()
 	if state.Operation == trace.ProcessToolOperationStart || target == "" {
-		target = strings.TrimSpace(state.Command)
+		target = stringx.String(state.Command).Trim()
 	}
 
 	return processToolDetailGroupKey{operation: state.Operation, target: target}
@@ -513,7 +514,7 @@ func processToolFailedAttemptDetail(count int, detail *toolTranscriptDetail) too
 		return toolTranscriptDetail{}
 	}
 
-	message := strings.TrimSpace(detail.processState.Error)
+	message := stringx.String(detail.processState.Error).Trim()
 	if message == "" {
 		message = "unknown error"
 	}
@@ -543,7 +544,7 @@ func getProcessToolTranscriptStatus(details []toolTranscriptDetail) string {
 		if details[index].processState == nil {
 			continue
 		}
-		if status := strings.TrimSpace(details[index].processState.Status); status != "" {
+		if status := stringx.String(details[index].processState.Status).Trim(); status != "" {
 			return status
 		}
 	}

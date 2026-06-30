@@ -2,7 +2,8 @@ package pairing
 
 import (
 	"context"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type memoryStore struct {
@@ -52,7 +53,7 @@ func (s *memoryStore) ListGatewayPairingRequests(_ context.Context, source strin
 
 	var requests []PendingRequest
 	for _, request := range s.pending {
-		if strings.TrimSpace(source) == "" || request.Source == source {
+		if stringx.String(source).Trim() == "" || request.Source == source {
 			requests = append(requests, request)
 		}
 	}
@@ -70,7 +71,7 @@ func (s *memoryStore) DeleteGatewayPairingRequest(_ context.Context, source stri
 
 func (s *memoryStore) ClearGatewayPairingRequests(_ context.Context, source string) error {
 	for key, request := range s.pending {
-		if strings.TrimSpace(source) == "" || request.Source == source {
+		if stringx.String(source).Trim() == "" || request.Source == source {
 			delete(s.pending, key)
 		}
 	}
@@ -102,7 +103,7 @@ func (s *memoryStore) GetGatewayPairedSender(
 func (s *memoryStore) ListGatewayPairedSenders(_ context.Context, source string) ([]ApprovedSender, error) {
 	var senders []ApprovedSender
 	for _, sender := range s.approved {
-		if strings.TrimSpace(source) == "" || sender.Source == source {
+		if stringx.String(source).Trim() == "" || sender.Source == source {
 			senders = append(senders, sender)
 		}
 	}
@@ -115,5 +116,5 @@ func (s *memoryStore) DeleteGatewayPairedSender(_ context.Context, source string
 }
 
 func testKey(source string, senderID string) string {
-	return strings.TrimSpace(source) + "\x00" + strings.TrimSpace(senderID)
+	return stringx.String(source).Trim() + "\x00" + stringx.String(senderID).Trim()
 }

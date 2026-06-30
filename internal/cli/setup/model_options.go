@@ -7,6 +7,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	modelcatalog "github.com/wandxy/morph/internal/model"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type ModelOptions struct {
@@ -27,7 +28,7 @@ func ListModelOptions(ctx context.Context, opts ModelOptions) ([]modelcatalog.Op
 
 	options, err := modelcatalog.ListOptions(modelcatalog.OptionQuery{
 		Context:             ctx,
-		Provider:            strings.TrimSpace(opts.Provider),
+		Provider:            stringx.String(opts.Provider).Trim(),
 		Current:             opts.Current,
 		OAuthOnly:           opts.OAuthOnly,
 		Config:              opts.Config,
@@ -42,7 +43,7 @@ func ListModelOptions(ctx context.Context, opts ModelOptions) ([]modelcatalog.Op
 }
 
 func ResolveModelOptionsBaseURL(opts ModelOptions) string {
-	if value := strings.TrimSpace(opts.BaseURL); value != "" {
+	if value := stringx.String(opts.BaseURL).Trim(); value != "" {
 		return value
 	}
 
@@ -50,33 +51,33 @@ func ResolveModelOptionsBaseURL(opts ModelOptions) string {
 	if registry == nil {
 		registry = modelprovider.DefaultRegistry()
 	}
-	providerID := strings.TrimSpace(strings.ToLower(opts.Provider))
+	providerID := stringx.String(opts.Provider).Normalized()
 	provider, ok := registry.GetProvider(providerID)
 	if !ok {
 		return ""
 	}
 
-	api := strings.TrimSpace(provider.DefaultAPI)
+	api := stringx.String(provider.DefaultAPI).Trim()
 	if opts.Config != nil {
 		if strings.EqualFold(opts.Config.Models.Main.Provider, provider.ID) {
-			if value := strings.TrimSpace(opts.Config.Models.Main.BaseURL); value != "" {
+			if value := stringx.String(opts.Config.Models.Main.BaseURL).Trim(); value != "" {
 				return normalizeInheritedSetupBaseURL(provider.ID, provider.DefaultAPI, value)
 			}
-			if value := strings.TrimSpace(opts.Config.Models.Main.API); value != "" {
+			if value := stringx.String(opts.Config.Models.Main.API).Trim(); value != "" {
 				api = value
 			}
 		}
 		if providerConfig, ok := getProviderModelConfig(opts.Config, provider.ID); ok {
-			if value := strings.TrimSpace(providerConfig.BaseURL); value != "" {
+			if value := stringx.String(providerConfig.BaseURL).Trim(); value != "" {
 				return normalizeInheritedSetupBaseURL(provider.ID, provider.DefaultAPI, value)
 			}
-			if value := strings.TrimSpace(providerConfig.API); value != "" {
+			if value := stringx.String(providerConfig.API).Trim(); value != "" {
 				api = value
 			}
 		}
 	}
 
-	return strings.TrimSpace(provider.BaseURLs[strings.TrimSpace(strings.ToLower(api))])
+	return stringx.String(provider.BaseURLs[stringx.String(api).Normalized()]).Trim()
 }
 
 func getProviderModelConfig(cfg *config.Config, provider string) (config.ProviderModelConfig, bool) {
@@ -84,12 +85,12 @@ func getProviderModelConfig(cfg *config.Config, provider string) (config.Provide
 		return config.ProviderModelConfig{}, false
 	}
 
-	provider = strings.TrimSpace(strings.ToLower(provider))
+	provider = stringx.String(provider).Normalized()
 	if providerConfig, ok := cfg.Models.Providers[provider]; ok {
 		return providerConfig, true
 	}
 	for key, providerConfig := range cfg.Models.Providers {
-		if strings.EqualFold(strings.TrimSpace(key), provider) {
+		if strings.EqualFold(stringx.String(key).Trim(), provider) {
 			return providerConfig, true
 		}
 	}

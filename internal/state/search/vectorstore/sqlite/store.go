@@ -17,6 +17,7 @@ import (
 
 	morphdb "github.com/wandxy/morph/internal/db"
 	"github.com/wandxy/morph/internal/state/search/vectorstore"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -79,7 +80,7 @@ type Store struct {
 
 // NewStore returns a store backed by the supplied dependencies.
 func NewStore(path string) (*Store, error) {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" {
 		return nil, errors.New("vector sqlite path is required")
 	}
@@ -151,7 +152,7 @@ func (s *Store) Delete(ctx context.Context, req DeleteRequest) error {
 		return err
 	}
 	sourceIDs := normalizeDeleteSourceIDs(req)
-	sessionID := strings.TrimSpace(req.SessionID)
+	sessionID := stringx.String(req.SessionID).Trim()
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		rows, err := vectorRowsForDelete(tx, req.SourceKind, sourceIDs, sessionID)
@@ -190,7 +191,7 @@ func (s *Store) Search(ctx context.Context, req SearchRequest) (SearchResult, er
 	if err := vectorstore.ValidateSearchRequest(req); err != nil {
 		return SearchResult{}, err
 	}
-	if strings.TrimSpace(string(req.Filter.SourceKind)) == "" {
+	if stringx.String(string(req.Filter.SourceKind)).Trim() == "" {
 		return SearchResult{}, errors.New("vector search filter source kind is required")
 	}
 	if err := validateSearchSourceIDs(req.Filter.SourceIDs); err != nil {
@@ -237,7 +238,7 @@ WHERE vec.vector MATCH ?
 		queryBlob,
 		req.Limit,
 		string(req.Filter.SourceKind),
-		strings.TrimSpace(req.EmbeddingModel),
+		stringx.String(req.EmbeddingModel).Trim(),
 	}
 	if len(req.Filter.SourceIDs) == 1 {
 		sqlText.WriteString(`
@@ -255,22 +256,22 @@ WHERE vec.vector MATCH ?
 		}
 		sqlText.WriteString(`)`)
 	}
-	if sessionID := strings.TrimSpace(req.Filter.SessionID); sessionID != "" {
+	if sessionID := stringx.String(req.Filter.SessionID).Trim(); sessionID != "" {
 		sqlText.WriteString(`
 	AND vec.session_id = ?`)
 		args = append(args, sessionID)
 	}
-	if ignoreSessionID := strings.TrimSpace(req.Filter.IgnoreSessionID); ignoreSessionID != "" {
+	if ignoreSessionID := stringx.String(req.Filter.IgnoreSessionID).Trim(); ignoreSessionID != "" {
 		sqlText.WriteString(`
 	AND vec.session_id <> ?`)
 		args = append(args, ignoreSessionID)
 	}
-	if role := strings.TrimSpace(req.Filter.Role); role != "" {
+	if role := stringx.String(req.Filter.Role).Trim(); role != "" {
 		sqlText.WriteString(`
 	AND vec.role = ?`)
 		args = append(args, role)
 	}
-	if toolName := strings.TrimSpace(req.Filter.ToolName); toolName != "" {
+	if toolName := stringx.String(req.Filter.ToolName).Trim(); toolName != "" {
 		sqlText.WriteString(`
 	AND vec.tool_name = ?`)
 		args = append(args, toolName)
@@ -348,8 +349,8 @@ func (s *Store) List(ctx context.Context, req ListRequest) (ListResult, error) {
 	updated_at
 FROM ` + recordsTable + ` AS rv
 WHERE embedding_model = ?`
-	args := []any{strings.TrimSpace(req.EmbeddingModel)}
-	if sourceKind := strings.TrimSpace(string(req.Filter.SourceKind)); sourceKind != "" {
+	args := []any{stringx.String(req.EmbeddingModel).Trim()}
+	if sourceKind := stringx.String(string(req.Filter.SourceKind)).Trim(); sourceKind != "" {
 		sqlText += `
 	AND source_kind = ?`
 		args = append(args, sourceKind)
@@ -363,22 +364,22 @@ WHERE embedding_model = ?`
 	AND source_id IN ?`
 		args = append(args, req.Filter.SourceIDs)
 	}
-	if sessionID := strings.TrimSpace(req.Filter.SessionID); sessionID != "" {
+	if sessionID := stringx.String(req.Filter.SessionID).Trim(); sessionID != "" {
 		sqlText += `
 	AND session_id = ?`
 		args = append(args, sessionID)
 	}
-	if ignoreSessionID := strings.TrimSpace(req.Filter.IgnoreSessionID); ignoreSessionID != "" {
+	if ignoreSessionID := stringx.String(req.Filter.IgnoreSessionID).Trim(); ignoreSessionID != "" {
 		sqlText += `
 	AND session_id <> ?`
 		args = append(args, ignoreSessionID)
 	}
-	if role := strings.TrimSpace(req.Filter.Role); role != "" {
+	if role := stringx.String(req.Filter.Role).Trim(); role != "" {
 		sqlText += `
 	AND role = ?`
 		args = append(args, role)
 	}
-	if toolName := strings.TrimSpace(req.Filter.ToolName); toolName != "" {
+	if toolName := stringx.String(req.Filter.ToolName).Trim(); toolName != "" {
 		sqlText += `
 	AND tool_name = ?`
 		args = append(args, toolName)
@@ -506,9 +507,9 @@ func upsertRecord(tx *gorm.DB, record Record) error {
 WHERE id = ?`,
 			string(record.SourceKind),
 			record.SourceID,
-			strings.TrimSpace(record.SessionID),
-			strings.TrimSpace(record.Role),
-			strings.TrimSpace(record.ToolName),
+			stringx.String(record.SessionID).Trim(),
+			stringx.String(record.Role).Trim(),
+			stringx.String(record.ToolName).Trim(),
 			record.EmbeddingModel,
 			record.Dimensions,
 			record.ContentHash,
@@ -537,9 +538,9 @@ RETURNING vector_rowid`,
 			record.ID,
 			string(record.SourceKind),
 			record.SourceID,
-			strings.TrimSpace(record.SessionID),
-			strings.TrimSpace(record.Role),
-			strings.TrimSpace(record.ToolName),
+			stringx.String(record.SessionID).Trim(),
+			stringx.String(record.Role).Trim(),
+			stringx.String(record.ToolName).Trim(),
 			record.EmbeddingModel,
 			record.Dimensions,
 			record.ContentHash,
@@ -568,9 +569,9 @@ RETURNING vector_rowid`,
 		blob,
 		string(record.SourceKind),
 		record.SourceID,
-		strings.TrimSpace(record.SessionID),
-		strings.TrimSpace(record.Role),
-		strings.TrimSpace(record.ToolName),
+		stringx.String(record.SessionID).Trim(),
+		stringx.String(record.Role).Trim(),
+		stringx.String(record.ToolName).Trim(),
 		record.EmbeddingModel,
 	).Error; err != nil {
 		return fmt.Errorf("failed to insert vector index row: %w", err)
@@ -787,7 +788,7 @@ func loadRecordTags(db *gorm.DB, getRecordIDs []string) (map[string][]string, er
 func getRowIDs(rows []searchRow) []string {
 	ids := make([]string, 0, len(rows))
 	for _, row := range rows {
-		if strings.TrimSpace(row.ID) != "" {
+		if stringx.String(row.ID).Trim() != "" {
 			ids = append(ids, row.ID)
 		}
 	}
@@ -798,7 +799,7 @@ func getRowIDs(rows []searchRow) []string {
 func getRecordIDs(rows []recordRefRow) []string {
 	ids := make([]string, 0, len(rows))
 	for _, row := range rows {
-		if strings.TrimSpace(row.ID) != "" {
+		if stringx.String(row.ID).Trim() != "" {
 			ids = append(ids, row.ID)
 		}
 	}
@@ -810,7 +811,7 @@ func normalizeDeleteSourceIDs(req DeleteRequest) []string {
 	sourceIDs := make([]string, 0, len(req.SourceIDs))
 	seen := make(map[string]struct{}, len(req.SourceIDs))
 	for _, sourceID := range req.SourceIDs {
-		sourceID = strings.TrimSpace(sourceID)
+		sourceID = stringx.String(sourceID).Trim()
 		if sourceID != "" {
 			if _, ok := seen[sourceID]; ok {
 				continue
@@ -879,7 +880,7 @@ func indexTableExists(db *gorm.DB, dimensions int) (bool, error) {
 
 func validateSearchSourceIDs(sourceIDs []string) error {
 	for _, sourceID := range sourceIDs {
-		trimmed := strings.TrimSpace(sourceID)
+		trimmed := stringx.String(sourceID).Trim()
 		if trimmed == "" {
 			return errors.New("vector search filter source id is required")
 		}

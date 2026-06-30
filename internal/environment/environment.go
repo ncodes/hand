@@ -3,9 +3,9 @@ package environment
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 
 	"github.com/wandxy/morph/internal/agent/runcontext"
 	"github.com/wandxy/morph/internal/config"
@@ -357,7 +357,7 @@ func (e *environment) prepareTools() error {
 			),
 		)
 
-		webProviderName := strings.TrimSpace(strings.ToLower(e.cfg.Web.Provider))
+		webProviderName := stringx.String(e.cfg.Web.Provider).Normalized()
 		if webProviderName != "" && webProviderName != webprovider.ProviderNative {
 			definitions = append(definitions,
 				websearch.Definition(
@@ -619,7 +619,7 @@ func (e *environment) commandPolicy() guardrails.CommandPolicy {
 }
 
 func (e *environment) addInstruction(instruction instructions.Instruction) {
-	if strings.TrimSpace(instruction.Value) == "" {
+	if stringx.String(instruction.Value).Trim() == "" {
 		return
 	}
 
@@ -627,8 +627,8 @@ func (e *environment) addInstruction(instruction instructions.Instruction) {
 }
 
 func (e *environment) setInstruction(instruction instructions.Instruction) {
-	instruction.Name = strings.TrimSpace(instruction.Name)
-	instruction.Value = strings.TrimSpace(instruction.Value)
+	instruction.Name = stringx.String(instruction.Name).Trim()
+	instruction.Value = stringx.String(instruction.Value).Trim()
 
 	if instruction.Name == "" {
 		e.addInstruction(instruction)

@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	cli "github.com/urfave/cli/v3"
 
 	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func newVersionCommand(output io.Writer) *cli.Command {
@@ -37,7 +37,7 @@ func formatVersionCommandOutput() string {
 }
 
 func getAppVersion() string {
-	version := strings.TrimSpace(constants.AppVersion)
+	version := stringx.String(constants.AppVersion).Trim()
 	if version == "" {
 		return "dev"
 	}
@@ -46,7 +46,7 @@ func getAppVersion() string {
 }
 
 func getCommitHash() string {
-	commit := strings.TrimSpace(constants.CommitHash)
+	commit := stringx.String(constants.CommitHash).Trim()
 	if commit == "" {
 		return "unknown"
 	}

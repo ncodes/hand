@@ -1,6 +1,6 @@
 package telegram
 
-import "strings"
+import "github.com/wandxy/morph/pkg/stringx"
 
 const (
 	MessageTextLimit = 4096
@@ -8,7 +8,7 @@ const (
 )
 
 func ChunkText(text string, limit int) []string {
-	text = strings.TrimSpace(text)
+	text = stringx.String(text).Trim()
 	if text == "" {
 		return nil
 	}
@@ -28,11 +28,11 @@ func ChunkText(text string, limit int) []string {
 }
 
 func SupportsNativeDraft(target Target) bool {
-	return target.ChatType == "private" && strings.TrimSpace(target.ThreadID) == ""
+	return target.ChatType == "private" && stringx.String(target.ThreadID).Trim() == ""
 }
 
 func WithCursor(text string) string {
-	text = strings.TrimSpace(text)
+	text = stringx.String(text).Trim()
 	if text == "" {
 		return DraftCursor
 	}

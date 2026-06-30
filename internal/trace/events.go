@@ -2,7 +2,8 @@ package trace
 
 import (
 	"slices"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -54,7 +55,7 @@ const (
 	EvtMemoryExtractionCandidateGenerated         = "memory.extraction.candidate_generated"
 	EvtMemoryExtractionCandidateRejected          = "memory.extraction.candidate_rejected"
 	EvtMemoryExtractionConfidenceScored           = "memory.extraction.confidence_scored"
-	EvtMemoryExtractionAdmissionMorphoff           = "memory.extraction.admission_morphoff"
+	EvtMemoryExtractionAdmissionMorphoff          = "memory.extraction.admission_morphoff"
 	EvtMemoryExtractionMemoryWritten              = "memory.extraction.memory_written"
 	EvtMemoryExtractionDuplicateSkipped           = "memory.extraction.duplicate_skipped"
 	EvtMemoryExtractionFailed                     = "memory.extraction.failed"
@@ -206,6 +207,6 @@ func EpisodicMemoryTraceEventTypes() []string {
 
 // IsEpisodicMemoryTraceEventType reports whether eventType belongs to episodic memory workflows.
 func IsEpisodicMemoryTraceEventType(eventType string) bool {
-	eventType = strings.TrimSpace(eventType)
+	eventType = stringx.String(eventType).Trim()
 	return slices.Contains(episodicMemoryTraceEventTypes, eventType)
 }

@@ -7,10 +7,10 @@ import (
 	"os"
 	"os/exec"
 	goruntime "runtime"
-	"strings"
 	"time"
 
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
@@ -71,12 +71,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return result, nil
 			}
 
-			if strings.TrimSpace(req.Command) == "" {
+			if stringx.String(req.Command).Trim() == "" {
 				return common.ToolError("invalid_input", "command is required"), nil
 			}
 
 			cwd := req.Cwd
-			if strings.TrimSpace(cwd) == "" {
+			if stringx.String(cwd).Trim() == "" {
 				cwd = runtime.FilePolicy().Roots[0]
 			}
 
@@ -103,7 +103,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			log.Info().
 				Str("tool", "run_command").
 				Str("phase", "start").
-				Bool("cwd_provided", strings.TrimSpace(req.Cwd) != "").
+				Bool("cwd_provided", stringx.String(req.Cwd).Trim() != "").
 				Int("args_count", len(req.Args)).
 				Int("env_overrides", len(req.Env)).
 				Bool("shell_mode", len(req.Args) == 0).
@@ -254,7 +254,7 @@ func buildRunCommandOutput(exitCode int, stdout, stderr string, timedOut bool, t
 }
 
 func buildCommand(ctx context.Context, command string, args []string) *exec.Cmd {
-	command = strings.TrimSpace(command)
+	command = stringx.String(command).Trim()
 	if len(args) > 0 {
 		return commandContext(ctx, command, args...)
 	}

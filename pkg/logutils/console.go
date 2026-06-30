@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const consoleModuleField = "module"
@@ -50,7 +50,7 @@ func formatConsoleModule(value any, noColor bool) string {
 		return ""
 	}
 
-	module := strings.TrimSpace(fmt.Sprint(value))
+	module := stringx.String(fmt.Sprint(value)).Trim()
 	if module == "" {
 		return ""
 	}

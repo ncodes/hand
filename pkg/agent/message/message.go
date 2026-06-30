@@ -2,8 +2,9 @@ package message
 
 import (
 	"errors"
-	"strings"
 	"time"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type Role string
@@ -37,7 +38,7 @@ func New(role Role, content string) (Message, error) {
 		return Message{}, err
 	}
 
-	trimmedContent := strings.TrimSpace(content)
+	trimmedContent := stringx.String(content).Trim()
 	if trimmedContent == "" {
 		return Message{}, errors.New("message content is required")
 	}
@@ -64,9 +65,9 @@ func Normalize(message Message) (Message, error) {
 		return Message{}, err
 	}
 
-	toolCallID := strings.TrimSpace(message.ToolCallID)
-	name := strings.TrimSpace(message.Name)
-	content := strings.TrimSpace(message.Content)
+	toolCallID := stringx.String(message.ToolCallID).Trim()
+	name := stringx.String(message.Name).Trim()
+	content := stringx.String(message.Content).Trim()
 
 	if content == "" && !(role == RoleAssistant && len(toolCalls) > 0) {
 		return Message{}, errors.New("message content is required")
@@ -122,9 +123,9 @@ func normalizeToolCalls(toolCalls []ToolCall) ([]ToolCall, error) {
 
 	normalized := make([]ToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
-		id := strings.TrimSpace(toolCall.ID)
-		name := strings.TrimSpace(toolCall.Name)
-		input := strings.TrimSpace(toolCall.Input)
+		id := stringx.String(toolCall.ID).Trim()
+		name := stringx.String(toolCall.Name).Trim()
+		input := stringx.String(toolCall.Input).Trim()
 
 		if id == "" {
 			return nil, errors.New("tool call id is required")
@@ -141,7 +142,7 @@ func normalizeToolCalls(toolCalls []ToolCall) ([]ToolCall, error) {
 }
 
 func normalizeRole(role Role) (Role, error) {
-	switch Role(strings.ToLower(strings.TrimSpace(string(role)))) {
+	switch Role(stringx.String(string(role)).Normalized()) {
 	case RoleDeveloper:
 		return RoleDeveloper, nil
 	case RoleUser:

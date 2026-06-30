@@ -13,6 +13,7 @@ import (
 	"github.com/coder/hnsw"
 
 	"github.com/wandxy/morph/internal/state/search/vectorstore"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // Record aliases vectorstore.Record at this package boundary.
@@ -117,7 +118,7 @@ func (s *Store) Delete(_ context.Context, req DeleteRequest) error {
 	}
 
 	sourceIDs := sourceIDsToSet(req.SourceIDs)
-	sessionID := strings.TrimSpace(req.SessionID)
+	sessionID := stringx.String(req.SessionID).Trim()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -148,7 +149,7 @@ func (s *Store) Search(_ context.Context, req SearchRequest) (SearchResult, erro
 	if err := vectorstore.ValidateSearchRequest(req); err != nil {
 		return SearchResult{}, err
 	}
-	if strings.TrimSpace(string(req.Filter.SourceKind)) == "" {
+	if stringx.String(string(req.Filter.SourceKind)).Trim() == "" {
 		return SearchResult{}, errors.New("vector search filter source kind is required")
 	}
 	if err := validateSearchSourceIDs(req.Filter.SourceIDs); err != nil {
@@ -163,14 +164,14 @@ func (s *Store) Search(_ context.Context, req SearchRequest) (SearchResult, erro
 	defer s.mu.RUnlock()
 
 	filter := searchFilter{
-		embeddingModel:  strings.TrimSpace(req.EmbeddingModel),
+		embeddingModel:  stringx.String(req.EmbeddingModel).Trim(),
 		dimensions:      req.Dimensions,
 		sourceKind:      req.Filter.SourceKind,
 		sourceIDs:       sourceIDsToSet(req.Filter.SourceIDs),
-		sessionID:       strings.TrimSpace(req.Filter.SessionID),
-		ignoreSessionID: strings.TrimSpace(req.Filter.IgnoreSessionID),
-		role:            strings.TrimSpace(req.Filter.Role),
-		toolName:        strings.TrimSpace(req.Filter.ToolName),
+		sessionID:       stringx.String(req.Filter.SessionID).Trim(),
+		ignoreSessionID: stringx.String(req.Filter.IgnoreSessionID).Trim(),
+		role:            stringx.String(req.Filter.Role).Trim(),
+		toolName:        stringx.String(req.Filter.ToolName).Trim(),
 		tags:            tagsToSet(req.Filter.Tags),
 		tagGroups:       tagGroups(req.Filter.TagGroups),
 	}
@@ -229,13 +230,13 @@ func (s *Store) List(_ context.Context, req ListRequest) (ListResult, error) {
 	}
 
 	filter := searchFilter{
-		embeddingModel:  strings.TrimSpace(req.EmbeddingModel),
+		embeddingModel:  stringx.String(req.EmbeddingModel).Trim(),
 		sourceKind:      req.Filter.SourceKind,
 		sourceIDs:       sourceIDsToSet(req.Filter.SourceIDs),
-		sessionID:       strings.TrimSpace(req.Filter.SessionID),
-		ignoreSessionID: strings.TrimSpace(req.Filter.IgnoreSessionID),
-		role:            strings.TrimSpace(req.Filter.Role),
-		toolName:        strings.TrimSpace(req.Filter.ToolName),
+		sessionID:       stringx.String(req.Filter.SessionID).Trim(),
+		ignoreSessionID: stringx.String(req.Filter.IgnoreSessionID).Trim(),
+		role:            stringx.String(req.Filter.Role).Trim(),
+		toolName:        stringx.String(req.Filter.ToolName).Trim(),
 		tags:            tagsToSet(req.Filter.Tags),
 		tagGroups:       tagGroups(req.Filter.TagGroups),
 	}
@@ -391,7 +392,7 @@ func checkRecordMatchesList(record Record, filter searchFilter) bool {
 func (s *Store) addToIndex(record Record) {
 	vector, _ := float32Vector(record.Vector)
 	key := indexKey{
-		model:      strings.TrimSpace(record.EmbeddingModel),
+		model:      stringx.String(record.EmbeddingModel).Trim(),
 		dimensions: record.Dimensions,
 		sourceKind: record.SourceKind,
 	}
@@ -405,7 +406,7 @@ func (s *Store) addToIndex(record Record) {
 
 func (s *Store) removeFromIndex(record Record) {
 	key := indexKey{
-		model:      strings.TrimSpace(record.EmbeddingModel),
+		model:      stringx.String(record.EmbeddingModel).Trim(),
 		dimensions: record.Dimensions,
 		sourceKind: record.SourceKind,
 	}
@@ -421,7 +422,7 @@ func (s *Store) removeFromIndex(record Record) {
 
 func validateSearchSourceIDs(sourceIDs []string) error {
 	for _, sourceID := range sourceIDs {
-		trimmed := strings.TrimSpace(sourceID)
+		trimmed := stringx.String(sourceID).Trim()
 		if trimmed == "" {
 			return errors.New("vector search filter source id is required")
 		}
@@ -436,7 +437,7 @@ func validateSearchSourceIDs(sourceIDs []string) error {
 func sourceIDsToSet(sourceIDs []string) map[string]struct{} {
 	set := make(map[string]struct{}, len(sourceIDs))
 	for _, sourceID := range sourceIDs {
-		sourceID = strings.TrimSpace(sourceID)
+		sourceID = stringx.String(sourceID).Trim()
 		if sourceID != "" {
 			set[sourceID] = struct{}{}
 		}
@@ -569,7 +570,7 @@ func cloneRecord(record Record) Record {
 }
 
 func getModelMetadataKey(model string, dimensions int) string {
-	return fmt.Sprintf("%s:%d", strings.TrimSpace(model), dimensions)
+	return fmt.Sprintf("%s:%d", stringx.String(model).Trim(), dimensions)
 }
 
 var _ vectorstore.Store = (*Store)(nil)

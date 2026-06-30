@@ -8,6 +8,7 @@ import (
 	"github.com/wandxy/morph/internal/trace"
 	agent "github.com/wandxy/morph/pkg/agent"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type userMessageAcceptedMsg struct {
@@ -70,7 +71,7 @@ func agentEventToTUIMessage(event agent.Event) (any, bool) {
 		return nil, false
 	}
 
-	channel := strings.TrimSpace(event.Channel)
+	channel := stringx.String(event.Channel).Trim()
 	if channel == "" {
 		channel = "assistant"
 	}
@@ -95,7 +96,7 @@ func traceEventFromAgentEvent(event agent.Event) (trace.Event, bool) {
 func traceEventToTUIMessage(event trace.Event) (any, bool) {
 	typedPayload, payloadOK := trace.DecodePayload(event.Type, event.Payload)
 
-	switch strings.TrimSpace(event.Type) {
+	switch stringx.String(event.Type).Trim() {
 	case trace.EvtUserMessageAccepted:
 		payload, ok := typedPayload.(trace.UserMessageAcceptedPayload)
 		if text := firstNonEmptyTUI(payload.Message, payload.Text); payloadOK && ok && text != "" {
@@ -161,7 +162,7 @@ func traceEventToTUIMessage(event trace.Event) (any, bool) {
 }
 
 func isUserStoppedSessionError(message string) bool {
-	message = strings.TrimSpace(strings.ToLower(message))
+	message = stringx.String(message).Normalized()
 	if message == "" {
 		return false
 	}
@@ -251,9 +252,9 @@ func safetyPayloadToTUIMessage(kind string, payload any) (any, bool) {
 	}
 
 	msg := safetyEventMsg{
-		Kind:       strings.TrimSpace(kind),
-		Action:     strings.TrimSpace(typedPayload.Action),
-		Refusal:    strings.TrimSpace(typedPayload.Refusal),
+		Kind:       stringx.String(kind).Trim(),
+		Action:     stringx.String(typedPayload.Action).Trim(),
+		Refusal:    stringx.String(typedPayload.Refusal).Trim(),
 		Blocked:    typedPayload.Blocked,
 		Redacted:   typedPayload.Redacted,
 		FindingIDs: getSafetyFindingIDsFromTypedPayload(typedPayload),
@@ -267,7 +268,7 @@ func safetyPayloadToTUIMessage(kind string, payload any) (any, bool) {
 
 func firstNonEmptyTUI(values ...string) string {
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if value != "" {
 			return value
 		}
@@ -283,7 +284,7 @@ func getSafetyFindingIDsFromTypedPayload(payload trace.SafetyEventPayload) []str
 
 	ids := make([]string, 0, len(payload.Findings))
 	for _, finding := range payload.Findings {
-		id := strings.TrimSpace(finding["id"])
+		id := stringx.String(finding["id"]).Trim()
 		if id != "" {
 			ids = append(ids, id)
 		}

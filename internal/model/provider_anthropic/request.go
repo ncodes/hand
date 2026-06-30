@@ -2,9 +2,9 @@ package provider_anthropic
 
 import (
 	"errors"
-	"strings"
 
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const defaultMaxOutputTokens int64 = 4096
@@ -22,7 +22,7 @@ type normalizedGenerateRequest struct {
 }
 
 func normalizeGenerateRequest(req Request) (normalizedGenerateRequest, error) {
-	model := strings.TrimSpace(req.Model)
+	model := stringx.String(req.Model).Trim()
 	if model == "" {
 		return normalizedGenerateRequest{}, errors.New("model is required")
 	}
@@ -47,7 +47,7 @@ func normalizeGenerateRequest(req Request) (normalizedGenerateRequest, error) {
 
 	return normalizedGenerateRequest{
 		Model:            model,
-		Instructions:     strings.TrimSpace(req.Instructions),
+		Instructions:     stringx.String(req.Instructions).Trim(),
 		Messages:         messages,
 		Tools:            tools,
 		StructuredOutput: normalizeStructuredOutput(req.StructuredOutput),
@@ -63,8 +63,8 @@ func normalizeStructuredOutput(value *StructuredOutput) *StructuredOutput {
 	}
 
 	return &StructuredOutput{
-		Name:        strings.TrimSpace(value.Name),
-		Description: strings.TrimSpace(value.Description),
+		Name:        stringx.String(value.Name).Trim(),
+		Description: stringx.String(value.Description).Trim(),
 		Schema:      value.Schema,
 		Strict:      value.Strict,
 	}
@@ -73,9 +73,9 @@ func normalizeStructuredOutput(value *StructuredOutput) *StructuredOutput {
 func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) {
 	normalized := make([]morphmsg.Message, 0, len(messages))
 	for _, message := range messages {
-		role := morphmsg.Role(strings.TrimSpace(strings.ToLower(string(message.Role))))
-		content := strings.TrimSpace(message.Content)
-		toolCallID := strings.TrimSpace(message.ToolCallID)
+		role := morphmsg.Role(stringx.String(string(message.Role)).Normalized())
+		content := stringx.String(message.Content).Trim()
+		toolCallID := stringx.String(message.ToolCallID).Trim()
 		toolCalls, err := normalizeToolCalls(message.ToolCalls)
 		if err != nil {
 			return nil, err
@@ -97,7 +97,7 @@ func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) 
 		normalized = append(normalized, morphmsg.Message{
 			Role:       role,
 			Content:    content,
-			Name:       strings.TrimSpace(message.Name),
+			Name:       stringx.String(message.Name).Trim(),
 			ToolCallID: toolCallID,
 			ToolCalls:  toolCalls,
 			CreatedAt:  message.CreatedAt,
@@ -114,13 +114,13 @@ func normalizeToolDefinitions(definitions []ToolDefinition) ([]ToolDefinition, e
 
 	normalized := make([]ToolDefinition, 0, len(definitions))
 	for _, definition := range definitions {
-		name := strings.TrimSpace(definition.Name)
+		name := stringx.String(definition.Name).Trim()
 		if name == "" {
 			return nil, errors.New("tool name is required")
 		}
 		normalized = append(normalized, ToolDefinition{
 			Name:         name,
-			Description:  strings.TrimSpace(definition.Description),
+			Description:  stringx.String(definition.Description).Trim(),
 			InputSchema:  definition.InputSchema,
 			ParallelSafe: definition.ParallelSafe,
 		})
@@ -136,8 +136,8 @@ func normalizeToolCalls(toolCalls []morphmsg.ToolCall) ([]morphmsg.ToolCall, err
 
 	normalized := make([]morphmsg.ToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
-		id := strings.TrimSpace(toolCall.ID)
-		name := strings.TrimSpace(toolCall.Name)
+		id := stringx.String(toolCall.ID).Trim()
+		name := stringx.String(toolCall.Name).Trim()
 		if id == "" {
 			return nil, errors.New("tool call id is required")
 		}
@@ -147,7 +147,7 @@ func normalizeToolCalls(toolCalls []morphmsg.ToolCall) ([]morphmsg.ToolCall, err
 		normalized = append(normalized, morphmsg.ToolCall{
 			ID:    id,
 			Name:  name,
-			Input: strings.TrimSpace(toolCall.Input),
+			Input: stringx.String(toolCall.Input).Trim(),
 		})
 	}
 

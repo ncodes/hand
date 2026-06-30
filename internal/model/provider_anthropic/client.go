@@ -3,13 +3,13 @@ package provider_anthropic
 import (
 	"context"
 	"errors"
-	"strings"
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 
 	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // AnthropicClient sends normalized model requests through the Anthropic Messages API.
@@ -44,7 +44,7 @@ var newAnthropicMessageStreamCaller = func(opts ...option.RequestOption) func(
 // NewAnthropicClient returns a client configured with the supplied API key and SDK options.
 func NewAnthropicClient(apiKey string, opts ...option.RequestOption) (*AnthropicClient, error) {
 	clientOptions := make([]option.RequestOption, 0, len(opts)+1)
-	if trimmed := strings.TrimSpace(apiKey); trimmed != "" {
+	if trimmed := stringx.String(apiKey).Trim(); trimmed != "" {
 		clientOptions = append(clientOptions, option.WithAPIKey(trimmed))
 	}
 	clientOptions = append(clientOptions, opts...)

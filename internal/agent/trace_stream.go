@@ -1,11 +1,11 @@
 package agent
 
 import (
-	"strings"
 	"time"
 
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/trace"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // fanoutTraceSession writes trace records to a primary session and mirrors
@@ -34,12 +34,12 @@ func newFanoutTraceSession(
 		primary = trace.NoopSession()
 	}
 
-	if value := strings.TrimSpace(primary.ID()); value != "" {
+	if value := stringx.String(primary.ID()).Trim(); value != "" {
 		sessionID = value
 	}
 
 	return fanoutTraceSession{
-		sessionID: strings.TrimSpace(sessionID),
+		sessionID: stringx.String(sessionID).Trim(),
 		primary:   primary,
 		redactor:  guardrails.NewRedactor(),
 		onEvent:   onEvent,
@@ -49,7 +49,7 @@ func newFanoutTraceSession(
 // ID returns the primary trace session ID when available, otherwise the fallback session ID.
 func (s fanoutTraceSession) ID() string {
 	if s.primary != nil {
-		if id := strings.TrimSpace(s.primary.ID()); id != "" {
+		if id := stringx.String(s.primary.ID()).Trim(); id != "" {
 			return id
 		}
 	}
@@ -70,7 +70,7 @@ func (s fanoutTraceSession) Record(eventType string, payload any) {
 	// before they leave the trace subsystem.
 	event := trace.Event{
 		SessionID: s.ID(),
-		Type:      strings.TrimSpace(eventType),
+		Type:      stringx.String(eventType).Trim(),
 		Timestamp: time.Now().UTC(),
 	}
 	if payload != nil {
@@ -89,7 +89,7 @@ func (s fanoutTraceSession) Close() {
 
 // isStreamableTraceEvent whitelists trace events that are useful during a live response.
 func isStreamableTraceEvent(eventType string) bool {
-	switch strings.TrimSpace(eventType) {
+	switch stringx.String(eventType).Trim() {
 	case trace.EvtToolInvocationStarted,
 		trace.EvtToolInvocationCompleted,
 		trace.EvtInputSafetyBlocked,

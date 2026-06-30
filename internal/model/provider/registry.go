@@ -1,9 +1,8 @@
 package provider
 
 import (
-	"strings"
-
 	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -129,7 +128,7 @@ func NewRegistry(
 	}
 
 	for _, model := range models {
-		model.ID = strings.TrimSpace(model.ID)
+		model.ID = stringx.String(model.ID).Trim()
 		model.Owner = normalizeID(model.Owner)
 		model.Provider = normalizeID(model.Provider)
 		model.API = normalizeID(model.API)
@@ -204,7 +203,7 @@ func (r *Registry) GetModel(providerID, modelID string) (ModelDefinition, bool) 
 	}
 
 	providerID = normalizeID(providerID)
-	modelID = strings.TrimSpace(modelID)
+	modelID = stringx.String(modelID).Trim()
 	if providerID == "" || modelID == "" {
 		return ModelDefinition{}, false
 	}
@@ -279,7 +278,7 @@ func (r *Registry) GetBaseURL(providerID, apiID string) string {
 		apiID = provider.DefaultAPI
 	}
 
-	return strings.TrimSpace(provider.BaseURLs[apiID])
+	return stringx.String(provider.BaseURLs[apiID]).Trim()
 }
 
 // SupportsProviderAPI reports whether the provider can use the given API.
@@ -300,11 +299,11 @@ func (r *Registry) SupportsProviderAPI(providerID, apiID string) bool {
 	if provider.DefaultAPI == apiID {
 		return true
 	}
-	return strings.TrimSpace(provider.BaseURLs[apiID]) != ""
+	return stringx.String(provider.BaseURLs[apiID]).Trim() != ""
 }
 
 func normalizeID(value string) string {
-	return strings.TrimSpace(strings.ToLower(value))
+	return stringx.String(value).Normalized()
 }
 
 func cloneStringMap(values map[string]string) map[string]string {
@@ -315,7 +314,7 @@ func cloneStringMap(values map[string]string) map[string]string {
 	cloned := make(map[string]string, len(values))
 	for key, value := range values {
 		key = normalizeID(key)
-		value = strings.TrimSpace(value)
+		value = stringx.String(value).Trim()
 		if key == "" || value == "" {
 			continue
 		}
@@ -336,7 +335,7 @@ func cloneLocalProviderDefinition(value *LocalProviderDefinition) *LocalProvider
 	cloned := *value
 	cloned.NativeChatAPI = normalizeID(cloned.NativeChatAPI)
 	cloned.EmbeddingsAPI = normalizeID(cloned.EmbeddingsAPI)
-	cloned.AuthMarker = strings.TrimSpace(cloned.AuthMarker)
+	cloned.AuthMarker = stringx.String(cloned.AuthMarker).Trim()
 	cloned.OpenAICompatibleChatAPIs = normalizeIDList(cloned.OpenAICompatibleChatAPIs)
 
 	return &cloned

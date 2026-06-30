@@ -8,6 +8,7 @@ import (
 	"time"
 
 	slack "github.com/wandxy/morph/pkg/gateway/slack"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const defaultSlackStreamFlushInterval = 150 * time.Millisecond
@@ -43,7 +44,7 @@ func (s *Sender) StreamTurn(
 	}
 
 	stream, err := s.api.StartStream(ctx, target, "")
-	if err != nil || strings.TrimSpace(stream.TS) == "" {
+	if err != nil || stringx.String(stream.TS).Trim() == "" {
 		reply, runErr := run(func(string) {})
 		if runErr != nil {
 			return runErr
@@ -224,7 +225,7 @@ func (a *slackStreamAppender) nextChunk() (slack.Chunk, bool) {
 }
 
 func getSlackStreamChunks(text string) []slack.Chunk {
-	if strings.TrimSpace(text) == "" {
+	if stringx.String(text).Trim() == "" {
 		return nil
 	}
 
@@ -266,10 +267,10 @@ func getSlackAPIErrorCode(err error) string {
 	}
 
 	if apiErr, ok := errors.AsType[slackAPIError](err); ok {
-		return strings.TrimSpace(apiErr.Code)
+		return stringx.String(apiErr.Code).Trim()
 	}
 
-	return strings.TrimSpace(err.Error())
+	return stringx.String(err.Error()).Trim()
 }
 
 type slackStreamFormatter struct {
@@ -316,7 +317,7 @@ func getSlackStreamSafeFormatIndex(text string, final bool) int {
 		}
 
 		lineEnd := lineStart + newline + 1
-		line := strings.TrimSpace(text[lineStart : lineEnd-1])
+		line := stringx.String(text[lineStart : lineEnd-1]).Trim()
 		if strings.HasPrefix(line, "```") {
 			inFence = !inFence
 			if !inFence {

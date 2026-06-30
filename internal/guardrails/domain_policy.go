@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"os"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type domainRule struct {
@@ -20,7 +22,7 @@ func appendDomainRules(existing []domainRule, values []string, source string) []
 
 		existing = append(existing, domainRule{
 			Pattern: rule,
-			Source:  strings.TrimSpace(source),
+			Source:  stringx.String(source).Trim(),
 		})
 	}
 
@@ -29,7 +31,7 @@ func appendDomainRules(existing []domainRule, values []string, source string) []
 
 func appendDomainRulesFromFiles(existing []domainRule, files []string) []domainRule {
 	for _, file := range files {
-		existing = appendDomainRules(existing, loadPolicyFile(file), strings.TrimSpace(file))
+		existing = appendDomainRules(existing, loadPolicyFile(file), stringx.String(file).Trim())
 	}
 
 	return existing
@@ -51,7 +53,7 @@ func getFirstMatchingDomainRule(rules []domainRule, host string) (domainRule, bo
 }
 
 func loadPolicyFile(path string) []string {
-	path = strings.TrimSpace(path)
+	path = stringx.String(path).Trim()
 	if path == "" {
 		return nil
 	}
@@ -65,7 +67,7 @@ func loadPolicyFile(path string) []string {
 	var values []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+		line := stringx.String(scanner.Text()).Trim()
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}

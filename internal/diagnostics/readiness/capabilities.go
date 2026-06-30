@@ -2,10 +2,10 @@ package readiness
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var resolveWebAPIKeySource = func(cfg *config.Config) (config.WebCredentialSource, error) {
@@ -29,7 +29,7 @@ func buildWebCheck(cfg *config.Config) Check {
 		return check("web tools", StatusWarn, "network capability is disabled")
 	}
 
-	provider := strings.TrimSpace(strings.ToLower(cfg.Web.Provider))
+	provider := stringx.String(cfg.Web.Provider).Normalized()
 	if provider == "" || provider == "native" {
 		return check("web tools", StatusWarn, "native web extraction is configured; web search requires a configured web provider")
 	}
@@ -54,7 +54,7 @@ func buildWebCheck(cfg *config.Config) Check {
 }
 
 func webAuthAction(provider string) Action {
-	if strings.TrimSpace(provider) == "" {
+	if stringx.String(provider).Trim() == "" {
 		provider = constants.WebProviderExa
 	}
 

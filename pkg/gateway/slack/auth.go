@@ -8,8 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -35,15 +36,15 @@ type SignatureVerifier struct {
 }
 
 func (v SignatureVerifier) Check(timestamp string, signature string, body []byte) error {
-	secret := strings.TrimSpace(v.Secret)
+	secret := stringx.String(v.Secret).Trim()
 	if secret == "" {
 		return ErrSigningSecretRequired
 	}
-	signature = strings.TrimSpace(signature)
+	signature = stringx.String(signature).Trim()
 	if signature == "" {
 		return ErrSignatureMissing
 	}
-	timestamp = strings.TrimSpace(timestamp)
+	timestamp = stringx.String(timestamp).Trim()
 	if timestamp == "" {
 		return ErrTimestampMissing
 	}
@@ -74,8 +75,8 @@ func (v SignatureVerifier) Check(timestamp string, signature string, body []byte
 }
 
 func SignRequest(secret string, timestamp string, body []byte) string {
-	mac := hmac.New(sha256.New, []byte(strings.TrimSpace(secret)))
-	mac.Write([]byte(fmt.Sprintf("%s:%s:", signatureVersion, strings.TrimSpace(timestamp))))
+	mac := hmac.New(sha256.New, []byte(stringx.String(secret).Trim()))
+	mac.Write([]byte(fmt.Sprintf("%s:%s:", signatureVersion, stringx.String(timestamp).Trim())))
 	mac.Write(body)
 	return signatureVersion + "=" + hex.EncodeToString(mac.Sum(nil))
 }

@@ -3,11 +3,12 @@ package tui
 import (
 	"bytes"
 	"encoding/json"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func getUserFacingErrorMessage(message string) string {
-	message = strings.TrimSpace(message)
+	message = stringx.String(message).Trim()
 	if message == "" {
 		return ""
 	}
@@ -55,7 +56,7 @@ func getErrorMessageFromPayload(payload map[string]any) string {
 func getErrorMessageFromValue(value any) string {
 	switch typed := value.(type) {
 	case string:
-		return strings.TrimSpace(typed)
+		return stringx.String(typed).Trim()
 	case map[string]any:
 		return getStringPayloadField(typed, "message")
 	default:
@@ -65,5 +66,5 @@ func getErrorMessageFromValue(value any) string {
 
 func getStringPayloadField(payload map[string]any, field string) string {
 	value, _ := payload[field].(string)
-	return strings.TrimSpace(value)
+	return stringx.String(value).Trim()
 }

@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 //go:embed assets/*
@@ -43,7 +45,7 @@ func (a *App) SetBasicAuth(username, password string) {
 		return
 	}
 
-	a.username = strings.TrimSpace(username)
+	a.username = stringx.String(username).Trim()
 	a.password = password
 }
 
@@ -125,7 +127,7 @@ func (a *App) handleSessions(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (a *App) handleSession(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/api/sessions/"))
+	id := stringx.String(strings.TrimPrefix(r.URL.Path, "/api/sessions/")).Trim()
 	if id == "" {
 		http.NotFound(w, r)
 		return
@@ -191,5 +193,5 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]any{"error": strings.TrimSpace(message)})
+	writeJSON(w, status, map[string]any{"error": stringx.String(message).Trim()})
 }

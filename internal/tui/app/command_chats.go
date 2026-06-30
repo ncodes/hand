@@ -13,6 +13,7 @@ import (
 
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var chatsNow = time.Now
@@ -206,14 +207,14 @@ func renderChatsCommandRow(session storage.Session, _ string, width int, now tim
 
 func orderChatsCommandSessions(sessions []storage.Session, currentSessionID string) []storage.Session {
 	ordered := append([]storage.Session(nil), sessions...)
-	currentSessionID = strings.TrimSpace(currentSessionID)
+	currentSessionID = stringx.String(currentSessionID).Trim()
 	if currentSessionID == "" {
 		return ordered
 	}
 
 	currentIndex := -1
 	for index, session := range ordered {
-		if strings.TrimSpace(session.ID) == currentSessionID {
+		if stringx.String(session.ID).Trim() == currentSessionID {
 			currentIndex = index
 			break
 		}
@@ -257,7 +258,7 @@ func (m model) renderSessionListCommandViewContent(content commandViewContent) s
 	now := chatsNow().UTC()
 	for index := offset; index < end; index++ {
 		isCurrent := isCurrentChatSession(sessions[index], m.getCurrentSessionID())
-		if m.chatsRenaming && strings.TrimSpace(sessions[index].ID) == m.chatsRenameSessionID {
+		if m.chatsRenaming && stringx.String(sessions[index].ID).Trim() == m.chatsRenameSessionID {
 			rows = append(rows, m.renderChatsRenameRow(content.Width))
 			continue
 		}
@@ -313,7 +314,7 @@ func renderSelectedChatsCommandRowWithForeground(row string, width int, foregrou
 	width = max(width, 1)
 	row = truncateChatsCommandRow(row, width)
 	row += strings.Repeat(" ", max(width-lipgloss.Width(row), 0))
-	if strings.TrimSpace(foreground) == "" {
+	if stringx.String(foreground).Trim() == "" {
 		foreground = defaultTUITheme.JumpToBottomForeground
 	}
 
@@ -329,7 +330,7 @@ func getChatsCommandRowForeground(_ bool) string {
 }
 
 func isCurrentChatSession(session storage.Session, currentSessionID string) bool {
-	return strings.TrimSpace(session.ID) == strings.TrimSpace(currentSessionID)
+	return stringx.String(session.ID).Trim() == stringx.String(currentSessionID).Trim()
 }
 
 func truncateChatsCommandRow(row string, width int) string {
@@ -445,7 +446,7 @@ func getArchiveCommandTitleRight() string {
 
 func (m *model) startRenameSelectedChatSession() (tea.Model, tea.Cmd) {
 	session := m.commandView.Chats[m.commandViewItemSelected]
-	sessionID := strings.TrimSpace(session.ID)
+	sessionID := stringx.String(session.ID).Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat rename unavailable")
 	}
@@ -485,12 +486,12 @@ func (m *model) clearChatsRename() {
 }
 
 func (m *model) renameSelectedChatSession() (tea.Model, tea.Cmd) {
-	sessionID := strings.TrimSpace(m.chatsRenameSessionID)
+	sessionID := stringx.String(m.chatsRenameSessionID).Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat rename unavailable")
 	}
 
-	title := strings.TrimSpace(m.renameInput.Value())
+	title := stringx.String(m.renameInput.Value()).Trim()
 	if title == "" {
 		return *m, m.setStatus("chat rename unavailable")
 	}
@@ -516,12 +517,12 @@ func renameChatSessionCmd(ctx context.Context, client sessionRenamer, sessionID 
 			ctx = context.Background()
 		}
 
-		sessionID = strings.TrimSpace(sessionID)
+		sessionID = stringx.String(sessionID).Trim()
 		if sessionID == "" {
 			return chatRenamedMsg{Err: errors.New("chat id is required")}
 		}
 
-		title = strings.TrimSpace(title)
+		title = stringx.String(title).Trim()
 		if title == "" {
 			return chatRenamedMsg{Err: errors.New("chat title is required")}
 		}
@@ -536,13 +537,13 @@ func (m *model) completeRenameChatSession(msg chatRenamedMsg) (tea.Model, tea.Cm
 		return *m, m.setStatus("chat rename unavailable")
 	}
 
-	sessionID := strings.TrimSpace(msg.Session.ID)
+	sessionID := stringx.String(msg.Session.ID).Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat rename unavailable")
 	}
 
 	for index, session := range m.commandView.Chats {
-		if strings.TrimSpace(session.ID) == sessionID {
+		if stringx.String(session.ID).Trim() == sessionID {
 			m.commandView.Chats[index] = msg.Session
 			break
 		}
@@ -559,7 +560,7 @@ func (m *model) completeRenameChatSession(msg chatRenamedMsg) (tea.Model, tea.Cm
 
 func (m *model) confirmArchiveSelectedChatSession() (tea.Model, tea.Cmd) {
 	session := m.commandView.Chats[m.commandViewItemSelected]
-	sessionID := strings.TrimSpace(session.ID)
+	sessionID := stringx.String(session.ID).Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat archive unavailable")
 	}
@@ -577,7 +578,7 @@ func (m *model) confirmArchiveSelectedChatSession() (tea.Model, tea.Cmd) {
 
 func (m *model) archiveSelectedChatSession() (tea.Model, tea.Cmd) {
 	session := m.commandView.Chats[m.commandViewItemSelected]
-	sessionID := strings.TrimSpace(session.ID)
+	sessionID := stringx.String(session.ID).Trim()
 	if sessionID == "" {
 		m.chatsArchiveConfirm = false
 		m.commandView.TitleRight = getChatsCommandTitleRight(false)
@@ -619,7 +620,7 @@ func archiveChatSessionCmd(ctx context.Context, client sessionArchiver, sessionI
 			ctx = context.Background()
 		}
 
-		sessionID = strings.TrimSpace(sessionID)
+		sessionID = stringx.String(sessionID).Trim()
 		if sessionID == "" {
 			return chatArchivedMsg{Err: errors.New("chat id is required")}
 		}
@@ -634,14 +635,14 @@ func (m *model) completeArchiveChatSession(msg chatArchivedMsg) (tea.Model, tea.
 		return *m, m.setStatus("chat archive unavailable")
 	}
 
-	sessionID := strings.TrimSpace(msg.ID)
+	sessionID := stringx.String(msg.ID).Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat archive unavailable")
 	}
 
 	nextSessions := make([]storage.Session, 0, len(m.commandView.Chats))
 	for _, session := range m.commandView.Chats {
-		if strings.TrimSpace(session.ID) != sessionID {
+		if stringx.String(session.ID).Trim() != sessionID {
 			nextSessions = append(nextSessions, session)
 		}
 	}
@@ -722,7 +723,7 @@ func (m *model) updateArchiveCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *model) unarchiveSelectedArchivedChatSession() (tea.Model, tea.Cmd) {
 	session := m.commandView.Chats[m.commandViewItemSelected]
-	sessionID := strings.TrimSpace(session.ID)
+	sessionID := stringx.String(session.ID).Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat restore unavailable")
 	}
@@ -749,7 +750,7 @@ func unarchiveChatSessionCmd(ctx context.Context, client sessionUnarchiver, sess
 			ctx = context.Background()
 		}
 
-		sessionID = strings.TrimSpace(sessionID)
+		sessionID = stringx.String(sessionID).Trim()
 		if sessionID == "" {
 			return chatUnarchivedMsg{Err: errors.New("chat id is required")}
 		}
@@ -764,14 +765,14 @@ func (m *model) completeUnarchiveArchivedChatSession(msg chatUnarchivedMsg) (tea
 		return *m, m.setStatus("chat restore unavailable")
 	}
 
-	sessionID := strings.TrimSpace(msg.Session.ID)
+	sessionID := stringx.String(msg.Session.ID).Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat restore unavailable")
 	}
 
 	nextSessions := make([]storage.Session, 0, len(m.commandView.Chats))
 	for _, session := range m.commandView.Chats {
-		if strings.TrimSpace(session.ID) != sessionID {
+		if stringx.String(session.ID).Trim() != sessionID {
 			nextSessions = append(nextSessions, session)
 		}
 	}
@@ -795,7 +796,7 @@ func (m *model) completeUnarchiveArchivedChatSession(msg chatUnarchivedMsg) (tea
 
 func (m *model) selectChatsCommandSession() (tea.Model, tea.Cmd) {
 	session := m.commandView.Chats[m.commandViewItemSelected]
-	sessionID := strings.TrimSpace(session.ID)
+	sessionID := stringx.String(session.ID).Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat switch unavailable")
 	}
@@ -835,7 +836,7 @@ func switchChatSessionCmd(ctx context.Context, client sessionSwitcher, sessionID
 			ctx = context.Background()
 		}
 
-		sessionID = strings.TrimSpace(sessionID)
+		sessionID = stringx.String(sessionID).Trim()
 		if sessionID == "" {
 			return sessionTimelineLoadFailedMsg{Err: errors.New("chat id is required")}
 		}

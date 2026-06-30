@@ -1,13 +1,13 @@
 package tui
 
 import (
-	"strings"
 	"time"
 
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	storage "github.com/wandxy/morph/internal/state/core"
 	tuistate "github.com/wandxy/morph/internal/tui/state"
 	tuitranscript "github.com/wandxy/morph/internal/tui/transcript"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type tuiAction interface {
@@ -144,7 +144,7 @@ func (action setSessionTitleAction) apply(state *tuiState) {
 		return
 	}
 
-	state.sessionTitle = strings.TrimSpace(action.Title)
+	state.sessionTitle = stringx.String(action.Title).Trim()
 	if state.sessionTitle == "" {
 		state.sessionTitle = defaultSessionTitle
 	}
@@ -155,7 +155,7 @@ func (action setSessionAction) apply(state *tuiState) {
 		return
 	}
 
-	state.sessionID = strings.TrimSpace(action.ID)
+	state.sessionID = stringx.String(action.ID).Trim()
 	if state.sessionID == "" {
 		state.sessionID = defaultSessionID
 	}
@@ -167,7 +167,7 @@ func (action setSessionContextAction) apply(state *tuiState) {
 		return
 	}
 
-	state.context = strings.TrimSpace(action.Context)
+	state.context = stringx.String(action.Context).Trim()
 }
 
 func (action showCommandViewAction) apply(state *tuiState) {
@@ -177,21 +177,21 @@ func (action showCommandViewAction) apply(state *tuiState) {
 
 	state.commandView = commandViewState{
 		Visible:         true,
-		Kind:            strings.TrimSpace(action.Kind),
-		TitleIcon:       strings.TrimSpace(action.TitleIcon),
-		TitleLeft:       strings.TrimSpace(action.TitleLeft),
-		TitleSubtext:    strings.TrimSpace(action.TitleSubtext),
-		TitleRight:      strings.TrimSpace(action.TitleRight),
-		AccentColor:     strings.TrimSpace(action.AccentColor),
-		TitleRightColor: strings.TrimSpace(action.TitleRightColor),
-		Content:         strings.TrimSpace(action.Content),
+		Kind:            stringx.String(action.Kind).Trim(),
+		TitleIcon:       stringx.String(action.TitleIcon).Trim(),
+		TitleLeft:       stringx.String(action.TitleLeft).Trim(),
+		TitleSubtext:    stringx.String(action.TitleSubtext).Trim(),
+		TitleRight:      stringx.String(action.TitleRight).Trim(),
+		AccentColor:     stringx.String(action.AccentColor).Trim(),
+		TitleRightColor: stringx.String(action.TitleRightColor).Trim(),
+		Content:         stringx.String(action.Content).Trim(),
 		Height:          max(action.Height, 0),
 		Chats:           append([]storage.Session(nil), action.Chats...),
 		Models:          append([]rpcclient.ModelOption(nil), action.Models...),
 		Providers:       append([]rpcclient.ProviderOption(nil), action.Providers...),
-		ModelProvider:   strings.TrimSpace(action.ModelProvider),
-		ModelAuthType:   strings.TrimSpace(action.ModelAuthType),
-		PendingModelID:  strings.TrimSpace(action.PendingModelID),
+		ModelProvider:   stringx.String(action.ModelProvider).Trim(),
+		ModelAuthType:   stringx.String(action.ModelAuthType).Trim(),
+		PendingModelID:  stringx.String(action.PendingModelID).Trim(),
 	}
 	state.commandViewOffset = 0
 	state.commandViewItemSelected = 0

@@ -3,7 +3,8 @@ package e2e
 import (
 	"context"
 	"errors"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // Entrypoint identifies the execution boundary a scenario uses.
@@ -56,7 +57,7 @@ type ConfigInput struct {
 
 // Mode returns the effective config-loading mode for the scenario.
 func (c ConfigInput) Mode() ConfigMode {
-	if strings.TrimSpace(c.EnvFilePath) != "" || strings.TrimSpace(c.ConfigFilePath) != "" || len(c.Env) > 0 {
+	if stringx.String(c.EnvFilePath).Trim() != "" || stringx.String(c.ConfigFilePath).Trim() != "" || len(c.Env) > 0 {
 		return ConfigModeRealInput
 	}
 	return ConfigModeInMemory
@@ -84,13 +85,13 @@ type Isolation struct {
 
 // Validate ensures the required isolated resources are configured.
 func (i Isolation) Validate() error {
-	if strings.TrimSpace(i.WorkspaceDir) == "" {
+	if stringx.String(i.WorkspaceDir).Trim() == "" {
 		return errors.New("e2e workspace dir is required")
 	}
-	if strings.TrimSpace(i.DataDir) == "" {
+	if stringx.String(i.DataDir).Trim() == "" {
 		return errors.New("e2e data dir is required")
 	}
-	if strings.TrimSpace(i.StoragePath) == "" {
+	if stringx.String(i.StoragePath).Trim() == "" {
 		return errors.New("e2e storage path is required")
 	}
 	return nil
@@ -143,7 +144,7 @@ type RootChatRequest struct {
 
 // Validate enforces the Phase 0 root chat request contract.
 func (r RootChatRequest) Validate() error {
-	if strings.TrimSpace(r.Message) == "" {
+	if stringx.String(r.Message).Trim() == "" {
 		return errors.New("e2e root chat message is required")
 	}
 	return nil

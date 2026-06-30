@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/rivo/uniseg"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const transcriptSelectionAutoScrollInterval = 60 * time.Millisecond
@@ -82,7 +83,7 @@ func (m *model) finishTranscriptSelection(msg tea.MouseReleaseMsg) (bool, tea.Cm
 	m.applyTranscriptSelectionStyle()
 
 	text := m.selectedTranscriptText()
-	if strings.TrimSpace(text) == "" {
+	if stringx.String(text).Trim() == "" {
 		m.restoreTranscriptContentAfterSelection()
 		return true, nil
 	}
@@ -296,7 +297,7 @@ func (m model) selectedTranscriptText() string {
 	}
 	text = removeTranscriptSelectionBodyIndent(text, getPanelHorizontalPadding(m.getMainPaneWidth()))
 
-	return compactTranscriptSelectionBlankLines(strings.TrimSpace(text))
+	return compactTranscriptSelectionBlankLines(stringx.String(text).Trim())
 }
 
 func removeTranscriptSelectionBodyIndent(text string, padding int) string {
@@ -329,7 +330,7 @@ func compactTranscriptSelectionBlankLines(text string) string {
 		if isTranscriptSelectionVisualPaddingLine(line) {
 			continue
 		}
-		if strings.TrimSpace(line) == "" {
+		if stringx.String(line).Trim() == "" {
 			if blank {
 				continue
 			}
@@ -346,7 +347,7 @@ func compactTranscriptSelectionBlankLines(text string) string {
 }
 
 func isTranscriptSelectionVisualPaddingLine(line string) bool {
-	line = strings.TrimSpace(line)
+	line = stringx.String(line).Trim()
 	if line == "" {
 		return false
 	}

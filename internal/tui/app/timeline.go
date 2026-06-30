@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -15,6 +14,7 @@ import (
 	"github.com/wandxy/morph/internal/trace"
 	tuirpc "github.com/wandxy/morph/internal/tui/rpc"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type sessionTimelineLoader = tuirpc.SessionTimelineLoader
@@ -51,7 +51,7 @@ func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader, s
 
 	return func() tea.Msg {
 		timeline, err := client.Timeline(ctx, rpcclient.SessionTimelineOptions{
-			SessionID: strings.TrimSpace(sessionID),
+			SessionID: stringx.String(sessionID).Trim(),
 		})
 		if err != nil {
 			return sessionTimelineLoadFailedMsg{Err: err}
@@ -130,7 +130,7 @@ func getStartupSessionID(ctx context.Context, client startupSessionLoader, remem
 }
 
 func getKnownStartupSessionID(sessions []storage.Session, id string) string {
-	id = strings.TrimSpace(id)
+	id = stringx.String(id).Trim()
 	if id == "" {
 		return ""
 	}
@@ -139,7 +139,7 @@ func getKnownStartupSessionID(sessions []storage.Session, id string) string {
 	}
 
 	for _, session := range sessions {
-		if strings.TrimSpace(session.ID) == id {
+		if stringx.String(session.ID).Trim() == id {
 			return id
 		}
 	}
@@ -194,8 +194,8 @@ func (m *model) refreshSessionTitleFromSession(session storage.Session) {
 }
 
 func getSessionDisplayName(session storage.Session) string {
-	title := strings.TrimSpace(session.Title)
-	sessionID := strings.TrimSpace(session.ID)
+	title := stringx.String(session.Title).Trim()
+	sessionID := stringx.String(session.ID).Trim()
 	if title != "" {
 		if sessionID == storage.DefaultSessionID {
 			return fmt.Sprintf("%s (%s)", title, sessionID)
@@ -312,7 +312,7 @@ func getTimelineToolCallDetails(messages []agentapi.SessionTimelineMessage) map[
 	details := map[string]timelineToolCallDetail{}
 	for _, message := range messages {
 		for _, toolCall := range message.Message.ToolCalls {
-			id := strings.TrimSpace(toolCall.ID)
+			id := stringx.String(toolCall.ID).Trim()
 			if id == "" {
 				continue
 			}

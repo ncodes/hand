@@ -17,6 +17,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/diagnostics"
 	"github.com/wandxy/morph/internal/diagnostics/readiness"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var doctorOutput io.Writer = os.Stdout
@@ -139,7 +140,7 @@ func renderJSONReport(w io.Writer, diagnosticsReport diagnostics.Report, readine
 	payload := jsonReport{
 		OK:      !diagnosticsReport.HasFailures() && !readinessReport.HasFailures(),
 		Summary: getDoctorSummary(diagnosticsReport, readinessReport),
-		Safety:  strings.TrimSpace(safety),
+		Safety:  stringx.String(safety).Trim(),
 		Groups:  doctorGroupsToJSON(diagnosticsReport, readinessReport),
 	}
 
@@ -345,7 +346,7 @@ func renderCheckLine(w io.Writer, status string, name string, message string, cf
 }
 
 func wrapCheckMessage(message string, width int, firstPrefix string, restPrefix string, cfg *config.Config) []string {
-	message = strings.TrimSpace(message)
+	message = stringx.String(message).Trim()
 	if message == "" {
 		return []string{firstPrefix}
 	}
@@ -406,8 +407,8 @@ func appendWrapWord(
 }
 
 func formatAction(action readiness.Action, cfg *config.Config) string {
-	command := strings.TrimSpace(action.Command)
-	description := strings.TrimSpace(action.Description)
+	command := stringx.String(action.Command).Trim()
+	description := stringx.String(action.Description).Trim()
 	if cfg != nil && cfg.Log.NoColor {
 		command = "`" + command + "`"
 		if description == "" {

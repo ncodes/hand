@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/url"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -46,10 +48,10 @@ func Telegram(chatID string, topicID string) (Key, error) {
 }
 
 func NewKey(parts Parts) (Key, error) {
-	source := strings.ToLower(strings.TrimSpace(parts.Source))
-	accountID := strings.TrimSpace(parts.AccountID)
-	conversationID := strings.TrimSpace(parts.ConversationID)
-	threadID := strings.TrimSpace(parts.ThreadID)
+	source := stringx.String(parts.Source).Normalized()
+	accountID := stringx.String(parts.AccountID).Trim()
+	conversationID := stringx.String(parts.ConversationID).Trim()
+	threadID := stringx.String(parts.ThreadID).Trim()
 
 	if source == "" {
 		return "", errors.New("gateway binding source is required")
@@ -119,5 +121,5 @@ func unescape(value string) (string, error) {
 		return "", errors.New("gateway binding key is invalid")
 	}
 
-	return strings.TrimSpace(unescaped), nil
+	return stringx.String(unescaped).Trim(), nil
 }

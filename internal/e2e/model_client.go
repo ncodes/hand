@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // RequestAssert validates a scripted model request in e2e tests.
@@ -49,7 +49,7 @@ func NewToolClient(toolCall models.ToolCall, finalText string) *Client {
 	return NewClient(
 		ToolStep(toolCall),
 		Step{
-			Response: &models.Response{OutputText: strings.TrimSpace(finalText)},
+			Response: &models.Response{OutputText: stringx.String(finalText).Trim()},
 			Check:    AssertToolRoundTrip(toolCall),
 		},
 	)
@@ -58,7 +58,7 @@ func NewToolClient(toolCall models.ToolCall, finalText string) *Client {
 // OutputTextStep returns a scripted text response step.
 func OutputTextStep(text string) Step {
 	return Step{
-		Response: &models.Response{OutputText: strings.TrimSpace(text)},
+		Response: &models.Response{OutputText: stringx.String(text).Trim()},
 	}
 }
 
@@ -72,9 +72,9 @@ func StreamStep(text string, deltas ...models.StreamDelta) Step {
 // ToolStep returns a scripted tool-call response step.
 func ToolStep(toolCall models.ToolCall) Step {
 	trimmed := models.ToolCall{
-		ID:    strings.TrimSpace(toolCall.ID),
-		Name:  strings.TrimSpace(toolCall.Name),
-		Input: strings.TrimSpace(toolCall.Input),
+		ID:    stringx.String(toolCall.ID).Trim(),
+		Name:  stringx.String(toolCall.Name).Trim(),
+		Input: stringx.String(toolCall.Input).Trim(),
 	}
 
 	return Step{
@@ -87,8 +87,8 @@ func ToolStep(toolCall models.ToolCall) Step {
 
 // AssertToolRoundTrip returns an assertion for a complete tool-call round trip.
 func AssertToolRoundTrip(toolCall models.ToolCall) RequestAssert {
-	expectedID := strings.TrimSpace(toolCall.ID)
-	expectedName := strings.TrimSpace(toolCall.Name)
+	expectedID := stringx.String(toolCall.ID).Trim()
+	expectedName := stringx.String(toolCall.Name).Trim()
 
 	return func(req models.Request) error {
 		if len(req.Messages) < 3 {
@@ -102,7 +102,7 @@ func AssertToolRoundTrip(toolCall models.ToolCall) RequestAssert {
 			switch {
 			case message.Role == morphmsg.RoleAssistant && len(message.ToolCalls) > 0:
 				assistantMessage = &message
-			case message.Role == morphmsg.RoleTool && strings.TrimSpace(message.ToolCallID) == expectedID:
+			case message.Role == morphmsg.RoleTool && stringx.String(message.ToolCallID).Trim() == expectedID:
 				toolMessage = &message
 			}
 		}
@@ -118,13 +118,13 @@ func AssertToolRoundTrip(toolCall models.ToolCall) RequestAssert {
 		}
 
 		call := assistantMessage.ToolCalls[0]
-		if strings.TrimSpace(call.ID) != expectedID {
+		if stringx.String(call.ID).Trim() != expectedID {
 			return fmt.Errorf("expected assistant tool call id %q", expectedID)
 		}
-		if strings.TrimSpace(call.Name) != expectedName {
+		if stringx.String(call.Name).Trim() != expectedName {
 			return fmt.Errorf("expected assistant tool call name %q", expectedName)
 		}
-		if strings.TrimSpace(toolMessage.Name) != expectedName {
+		if stringx.String(toolMessage.Name).Trim() != expectedName {
 			return fmt.Errorf("expected tool message name %q", expectedName)
 		}
 

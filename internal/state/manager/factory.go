@@ -2,7 +2,6 @@ package manager
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/wandxy/morph/internal/config"
 	morphdb "github.com/wandxy/morph/internal/db"
@@ -13,6 +12,7 @@ import (
 	vectorsqlite "github.com/wandxy/morph/internal/state/search/vectorstore/sqlite"
 	storagememory "github.com/wandxy/morph/internal/state/storememory"
 	storagesqlite "github.com/wandxy/morph/internal/state/storesqlite"
+	"github.com/wandxy/morph/pkg/stringx"
 	"gorm.io/gorm"
 )
 
@@ -51,7 +51,7 @@ func OpenStoreWithRerankerClient(
 	}
 
 	cfg.Normalize()
-	switch strings.TrimSpace(strings.ToLower(cfg.Storage.Backend)) {
+	switch stringx.String(cfg.Storage.Backend).Normalized() {
 	case "", "sqlite":
 		if err := validateSearchVectorConfig(cfg); err != nil {
 			return nil, err
@@ -261,7 +261,7 @@ func configuredRerankerOverrides(cfg *config.Config, client models.Client) (map[
 		if err != nil {
 			return nil, err
 		}
-		overrides[strings.TrimSpace(strings.ToLower(useCase))] = reranker
+		overrides[stringx.String(useCase).Normalized()] = reranker
 	}
 
 	return overrides, nil

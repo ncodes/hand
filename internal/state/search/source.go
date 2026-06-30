@@ -7,16 +7,17 @@ import (
 
 	"github.com/wandxy/morph/internal/state/search/vectorstore"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // StableSessionMessageID returns the stable vector source ID for a session message.
 func StableSessionMessageID(sessionID string, messageID uint) string {
-	return fmt.Sprintf("%s:%s:%d", SourceKindSessionMessage, strings.TrimSpace(sessionID), messageID)
+	return fmt.Sprintf("%s:%s:%d", SourceKindSessionMessage, stringx.String(sessionID).Trim(), messageID)
 }
 
 // StableMemoryItemID returns the stable vector source ID for a memory item.
 func StableMemoryItemID(memoryID string) string {
-	return fmt.Sprintf("%s:%s", SourceKindMemoryItem, strings.TrimSpace(memoryID))
+	return fmt.Sprintf("%s:%s", SourceKindMemoryItem, stringx.String(memoryID).Trim())
 }
 
 // MemoryIDFromSourceID extracts a memory ID from a vector source ID.
@@ -25,7 +26,7 @@ func MemoryIDFromSourceID(sourceID string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if value == "" {
 		return "", false
 	}
@@ -35,7 +36,7 @@ func MemoryIDFromSourceID(sourceID string) (string, bool) {
 
 // SourceIDForMessage returns the vector source ID for a session message.
 func SourceIDForMessage(sessionID string, messageID uint) string {
-	return StableSessionMessageID(strings.TrimSpace(sessionID), messageID)
+	return StableSessionMessageID(stringx.String(sessionID).Trim(), messageID)
 }
 
 // SourceIDsFromMessages returns vector source IDs for session messages.

@@ -3,7 +3,6 @@ package memory
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	models "github.com/wandxy/morph/internal/model"
 	statecore "github.com/wandxy/morph/internal/state/core"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // ProviderDefaultMemory is the package-level provider default memory constant.
@@ -88,7 +88,7 @@ type MemoryProvider struct {
 // both memory and SQLite backends share the same provider logic and differ only
 // in the StateManager they pass in.
 func NewProvider(name string, opts Options) (Provider, error) {
-	switch strings.TrimSpace(strings.ToLower(name)) {
+	switch stringx.String(name).Normalized() {
 	case "", ProviderDefaultMemory:
 		switch getEffectiveBackend(opts) {
 		case "memory", "sqlite":
@@ -102,10 +102,10 @@ func NewProvider(name string, opts Options) (Provider, error) {
 }
 
 func getEffectiveBackend(opts Options) string {
-	if backend := strings.TrimSpace(strings.ToLower(opts.MemoryBackend)); backend != "" {
+	if backend := stringx.String(opts.MemoryBackend).Normalized(); backend != "" {
 		return backend
 	}
-	if backend := strings.TrimSpace(strings.ToLower(opts.StorageBackend)); backend != "" {
+	if backend := stringx.String(opts.StorageBackend).Normalized(); backend != "" {
 		return backend
 	}
 	return constants.DefaultStorageBackend
@@ -286,7 +286,7 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 
 	obs := p.observability()
 	startFields := buildObservationFields(p.Name(), "search", map[string]any{
-		"query_chars":  len([]rune(strings.TrimSpace(query.Text))),
+		"query_chars":  len([]rune(stringx.String(query.Text).Trim())),
 		"kind_count":   len(query.Kinds),
 		"status_count": len(query.Statuses),
 		"limit":        query.Limit,
@@ -355,7 +355,7 @@ func (p *MemoryProvider) Delete(ctx context.Context, req DeleteRequest) error {
 		return err
 	}
 
-	memoryID := strings.TrimSpace(req.ID)
+	memoryID := stringx.String(req.ID).Trim()
 	if memoryID == "" {
 		return errors.New("memory id is required")
 	}

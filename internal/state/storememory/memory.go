@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"sort"
-	"strings"
 	"time"
 
 	statememory "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
 	"github.com/wandxy/morph/pkg/nanoid"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearchQuery) (statememory.MemorySearchResult, error) {
@@ -107,7 +107,7 @@ func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (
 
 	now := time.Now().UTC()
 	item = item.Clone()
-	item.ID = strings.TrimSpace(item.ID)
+	item.ID = stringx.String(item.ID).Trim()
 	if item.ID == "" {
 		item.ID = nanoid.MustGenerate("mem_")
 	}
@@ -139,7 +139,7 @@ func (s *Store) PatchMemory(ctx context.Context, patch statememory.MemoryPatch) 
 		return statememory.MemoryItem{}, errors.New("store is required")
 	}
 
-	id := strings.TrimSpace(patch.ID)
+	id := stringx.String(patch.ID).Trim()
 	if id == "" {
 		return statememory.MemoryItem{}, errors.New("memory id is required")
 	}
@@ -175,7 +175,7 @@ func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRe
 		return errors.New("store is required")
 	}
 
-	id := strings.TrimSpace(req.ID)
+	id := stringx.String(req.ID).Trim()
 	if id == "" {
 		return errors.New("memory id is required")
 	}

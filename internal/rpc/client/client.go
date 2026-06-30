@@ -21,6 +21,7 @@ import (
 	agent "github.com/wandxy/morph/pkg/agent"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	agentsession "github.com/wandxy/morph/pkg/agent/session"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // Client wraps a gRPC connection to the Morph RPC services.
@@ -203,7 +204,7 @@ type Options struct {
 
 // NewClient returns a client configured with the supplied dependencies.
 func NewClient(ctx context.Context, opts Options) (*Client, error) {
-	address := strings.TrimSpace(opts.Address)
+	address := stringx.String(opts.Address).Trim()
 	if address == "" {
 		return nil, fmt.Errorf("rpc address is required")
 	}
@@ -264,8 +265,8 @@ func prepareRPCConnection(reconnector rpcReconnector) {
 func (c *Client) Respond(ctx context.Context, message string, opts RespondOptions) (string, error) {
 	req := &morphpb.RespondRequest{
 		Message:  message,
-		Instruct: strings.TrimSpace(opts.Instruct),
-		Id:       strings.TrimSpace(opts.SessionID),
+		Instruct: stringx.String(opts.Instruct).Trim(),
+		Id:       stringx.String(opts.SessionID).Trim(),
 	}
 	if opts.Stream != nil {
 		req.Stream = opts.Stream
@@ -309,7 +310,7 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 				}
 			}
 		case morphpb.RespondEvent_ERROR:
-			message := strings.TrimSpace(event.GetError())
+			message := stringx.String(event.GetError()).Trim()
 			if message == "" {
 				message = "respond stream failed"
 			}
@@ -325,17 +326,17 @@ func protoRespondTraceEventToTraceEvent(event *morphpb.RespondEvent) (trace.Even
 		return trace.Event{}, false
 	}
 
-	eventType := strings.TrimSpace(event.GetTraceType())
+	eventType := stringx.String(event.GetTraceType()).Trim()
 	if eventType == "" {
 		return trace.Event{}, false
 	}
 
 	traceEvent := trace.Event{
-		SessionID: strings.TrimSpace(event.GetTraceSessionId()),
+		SessionID: stringx.String(event.GetTraceSessionId()).Trim(),
 		Type:      eventType,
 		Timestamp: protoTimestampToTime(event.GetTimestamp()),
 	}
-	if payloadJSON := strings.TrimSpace(event.GetTracePayloadJson()); payloadJSON != "" {
+	if payloadJSON := stringx.String(event.GetTracePayloadJson()).Trim(); payloadJSON != "" {
 		var payload any
 		if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
 			return trace.Event{}, false
@@ -422,7 +423,7 @@ func (s *ModelService) ListModels(ctx context.Context, opts ...ModelListOptions)
 
 	listOpts := getModelListOptions(opts...)
 	prepareRPCConnection(s.reconnector)
-	resp, err := client.ListModels(ctx, &morphpb.ListModelsRequest{Provider: strings.TrimSpace(listOpts.Provider)})
+	resp, err := client.ListModels(ctx, &morphpb.ListModelsRequest{Provider: stringx.String(listOpts.Provider).Trim()})
 	if err != nil {
 		return ModelList{}, err
 	}
@@ -433,8 +434,8 @@ func (s *ModelService) ListModels(ctx context.Context, opts ...ModelListOptions)
 	}
 
 	return ModelList{
-		Provider: strings.TrimSpace(resp.GetProvider()),
-		AuthType: strings.TrimSpace(resp.GetAuthType()),
+		Provider: stringx.String(resp.GetProvider()).Trim(),
+		AuthType: stringx.String(resp.GetAuthType()).Trim(),
 		Models:   models,
 	}, nil
 }
@@ -468,8 +469,8 @@ func (s *ModelService) SelectModel(
 	selectOpts := getModelSelectOptions(opts...)
 	prepareRPCConnection(s.reconnector)
 	resp, err := client.SelectModel(ctx, &morphpb.SelectModelRequest{
-		Id:       strings.TrimSpace(id),
-		Provider: strings.TrimSpace(selectOpts.Provider),
+		Id:       stringx.String(id).Trim(),
+		Provider: stringx.String(selectOpts.Provider).Trim(),
 	})
 	if err != nil {
 		return ModelOption{}, err
@@ -486,8 +487,8 @@ func (s *ModelService) SetProviderAPIKey(ctx context.Context, provider string, a
 
 	prepareRPCConnection(s.reconnector)
 	_, err = client.SetProviderAPIKey(ctx, &morphpb.SetProviderAPIKeyRequest{
-		Provider: strings.TrimSpace(provider),
-		ApiKey:   strings.TrimSpace(apiKey),
+		Provider: stringx.String(provider).Trim(),
+		ApiKey:   stringx.String(apiKey).Trim(),
 	})
 	return err
 }
@@ -502,7 +503,7 @@ func (s *SessionService) CreateWithOptions(ctx context.Context, opts CreateSessi
 		return storage.Session{}, err
 	}
 
-	req := &morphpb.CreateSessionRequest{Id: strings.TrimSpace(opts.ID)}
+	req := &morphpb.CreateSessionRequest{Id: stringx.String(opts.ID).Trim()}
 	if opts.AutoSwitch != nil {
 		req.AutoSwitch = opts.AutoSwitch
 	}
@@ -561,7 +562,7 @@ func (s *SessionService) Use(ctx context.Context, id string) error {
 	}
 
 	prepareRPCConnection(s.reconnector)
-	_, err = client.Use(ctx, &morphpb.UseSessionRequest{Id: strings.TrimSpace(id)})
+	_, err = client.Use(ctx, &morphpb.UseSessionRequest{Id: stringx.String(id).Trim()})
 	return err
 }
 
@@ -572,7 +573,7 @@ func (s *SessionService) Archive(ctx context.Context, id string) error {
 	}
 
 	prepareRPCConnection(s.reconnector)
-	_, err = client.Archive(ctx, &morphpb.ArchiveSessionRequest{Id: strings.TrimSpace(id)})
+	_, err = client.Archive(ctx, &morphpb.ArchiveSessionRequest{Id: stringx.String(id).Trim()})
 	return err
 }
 
@@ -583,7 +584,7 @@ func (s *SessionService) Unarchive(ctx context.Context, id string) (storage.Sess
 	}
 
 	prepareRPCConnection(s.reconnector)
-	resp, err := client.Unarchive(ctx, &morphpb.UnarchiveSessionRequest{Id: strings.TrimSpace(id)})
+	resp, err := client.Unarchive(ctx, &morphpb.UnarchiveSessionRequest{Id: stringx.String(id).Trim()})
 	if err != nil {
 		return storage.Session{}, err
 	}
@@ -599,8 +600,8 @@ func (s *SessionService) Rename(ctx context.Context, id string, title string) (s
 
 	prepareRPCConnection(s.reconnector)
 	resp, err := client.Rename(ctx, &morphpb.RenameSessionRequest{
-		Id:    strings.TrimSpace(id),
-		Title: strings.TrimSpace(title),
+		Id:    stringx.String(id).Trim(),
+		Title: stringx.String(title).Trim(),
 	})
 	if err != nil {
 		return storage.Session{}, err
@@ -635,7 +636,7 @@ func (s *SessionService) Compact(ctx context.Context, id string) (CompactSession
 	}
 
 	prepareRPCConnection(s.reconnector)
-	resp, err := client.Compact(ctx, &morphpb.CompactSessionRequest{Id: strings.TrimSpace(id)})
+	resp, err := client.Compact(ctx, &morphpb.CompactSessionRequest{Id: stringx.String(id).Trim()})
 	if err != nil {
 		return CompactSessionResult{}, err
 	}
@@ -663,7 +664,7 @@ func (s *SessionService) Repair(
 	resp, err := client.Repair(ctx, &morphpb.RepairSessionRequest{
 		Type: morphpb.RepairSessionRequest_VECTOR,
 		Vector: &morphpb.VectorRepairOption{
-			Id:   strings.TrimSpace(opts.SessionID),
+			Id:   stringx.String(opts.SessionID).Trim(),
 			Full: opts.Full,
 		},
 	})
@@ -693,7 +694,7 @@ func (s *SessionService) Status(ctx context.Context, id string) (ContextStatus, 
 
 	prepareRPCConnection(s.reconnector)
 	resp, err := client.Status(ctx, &morphpb.GetSessionStatusRequest{
-		Context: &morphpb.GetSessionStatusRequestContext{Id: strings.TrimSpace(id)},
+		Context: &morphpb.GetSessionStatusRequestContext{Id: stringx.String(id).Trim()},
 	})
 	if err != nil {
 		return ContextStatus{}, err
@@ -729,7 +730,7 @@ func (s *SessionService) Timeline(
 
 	prepareRPCConnection(s.reconnector)
 	resp, err := client.Timeline(ctx, &morphpb.GetSessionTimelineRequest{
-		Id:            strings.TrimSpace(opts.SessionID),
+		Id:            stringx.String(opts.SessionID).Trim(),
 		MessageOffset: int32(opts.MessageOffset),
 		MessageLimit:  int32(opts.MessageLimit),
 		TraceOffset:   int32(opts.TraceOffset),
@@ -749,7 +750,7 @@ func (s *GatewayService) ListPairings(ctx context.Context, source string) (Gatew
 	}
 
 	prepareRPCConnection(s.reconnector)
-	resp, err := client.ListPairings(ctx, &morphpb.ListGatewayPairingsRequest{Source: strings.TrimSpace(source)})
+	resp, err := client.ListPairings(ctx, &morphpb.ListGatewayPairingsRequest{Source: stringx.String(source).Trim()})
 	if err != nil {
 		return GatewayPairingList{}, err
 	}
@@ -837,8 +838,8 @@ func (s *GatewayService) ApprovePairing(
 
 	prepareRPCConnection(s.reconnector)
 	resp, err := client.ApprovePairing(ctx, &morphpb.ApproveGatewayPairingRequest{
-		Source: strings.TrimSpace(source),
-		Code:   strings.TrimSpace(code),
+		Source: stringx.String(source).Trim(),
+		Code:   stringx.String(code).Trim(),
 	})
 	if err != nil {
 		return GatewayPairedSender{}, false, err
@@ -855,8 +856,8 @@ func (s *GatewayService) RevokePairing(ctx context.Context, source string, sende
 
 	prepareRPCConnection(s.reconnector)
 	_, err = client.RevokePairing(ctx, &morphpb.RevokeGatewayPairingRequest{
-		Source:   strings.TrimSpace(source),
-		SenderId: strings.TrimSpace(senderID),
+		Source:   stringx.String(source).Trim(),
+		SenderId: stringx.String(senderID).Trim(),
 	})
 
 	return err
@@ -870,7 +871,7 @@ func (s *GatewayService) ClearPendingPairings(ctx context.Context, source string
 
 	prepareRPCConnection(s.reconnector)
 	_, err = client.ClearPendingPairings(ctx, &morphpb.ClearPendingGatewayPairingsRequest{
-		Source: strings.TrimSpace(source),
+		Source: stringx.String(source).Trim(),
 	})
 
 	return err
@@ -947,9 +948,9 @@ func timelineMessageFromProto(message *morphpb.SessionTimelineMessage) agentapi.
 	toolCalls := make([]morphmsg.ToolCall, 0, len(message.GetToolCalls()))
 	for _, toolCall := range message.GetToolCalls() {
 		toolCalls = append(toolCalls, morphmsg.ToolCall{
-			ID:    strings.TrimSpace(toolCall.GetId()),
-			Name:  strings.TrimSpace(toolCall.GetName()),
-			Input: strings.TrimSpace(toolCall.GetInput()),
+			ID:    stringx.String(toolCall.GetId()).Trim(),
+			Name:  stringx.String(toolCall.GetName()).Trim(),
+			Input: stringx.String(toolCall.GetInput()).Trim(),
 		})
 	}
 
@@ -973,7 +974,7 @@ func timelineTraceEventFromProto(event *morphpb.SessionTimelineTraceEvent) (agen
 	}
 
 	var payload any
-	if payloadJSON := strings.TrimSpace(event.GetPayloadJson()); payloadJSON != "" {
+	if payloadJSON := stringx.String(event.GetPayloadJson()).Trim(); payloadJSON != "" {
 		if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
 			return agentapi.SessionTimelineTraceEvent{}, err
 		}
@@ -983,7 +984,7 @@ func timelineTraceEventFromProto(event *morphpb.SessionTimelineTraceEvent) (agen
 		Event: agentsession.TraceEvent{
 			ID:        uint(event.GetId()),
 			Sequence:  int(event.GetSequence()),
-			Type:      strings.TrimSpace(event.GetType()),
+			Type:      stringx.String(event.GetType()).Trim(),
 			Timestamp: protoTimestampToTime(event.GetTimestamp()),
 			Payload:   payload,
 		},
@@ -1009,12 +1010,12 @@ func gatewayStatusFromProto(status *morphpb.GatewayStatus) GatewayStatus {
 	}
 
 	return GatewayStatus{
-		State:        strings.TrimSpace(status.GetState()),
-		Address:      strings.TrimSpace(status.GetAddress()),
+		State:        stringx.String(status.GetState()).Trim(),
+		Address:      stringx.String(status.GetAddress()).Trim(),
 		Port:         int(status.GetPort()),
-		SlackMode:    strings.TrimSpace(status.GetSlackMode()),
-		TelegramMode: strings.TrimSpace(status.GetTelegramMode()),
-		LastError:    strings.TrimSpace(status.GetLastError()),
+		SlackMode:    stringx.String(status.GetSlackMode()).Trim(),
+		TelegramMode: stringx.String(status.GetTelegramMode()).Trim(),
+		LastError:    stringx.String(status.GetLastError()).Trim(),
 	}
 }
 
@@ -1026,9 +1027,9 @@ func protoGatewayPairingRequestToGatewayPairingRequest(
 	}
 
 	return GatewayPairingRequest{
-		Source:      strings.TrimSpace(request.GetSource()),
-		SenderID:    strings.TrimSpace(request.GetSenderId()),
-		DisplayName: strings.TrimSpace(request.GetDisplayName()),
+		Source:      stringx.String(request.GetSource()).Trim(),
+		SenderID:    stringx.String(request.GetSenderId()).Trim(),
+		DisplayName: stringx.String(request.GetDisplayName()).Trim(),
 		CreatedAt:   protoTimestampToTime(request.GetCreatedAt()),
 		LastSeenAt:  protoTimestampToTime(request.GetLastSeenAt()),
 		ExpiresAt:   protoTimestampToTime(request.GetExpiresAt()),
@@ -1041,9 +1042,9 @@ func protoGatewayPairedSenderToGatewayPairedSender(sender *morphpb.GatewayPaired
 	}
 
 	return GatewayPairedSender{
-		Source:      strings.TrimSpace(sender.GetSource()),
-		SenderID:    strings.TrimSpace(sender.GetSenderId()),
-		DisplayName: strings.TrimSpace(sender.GetDisplayName()),
+		Source:      stringx.String(sender.GetSource()).Trim(),
+		SenderID:    stringx.String(sender.GetSenderId()).Trim(),
+		DisplayName: stringx.String(sender.GetDisplayName()).Trim(),
 		CreatedAt:   protoTimestampToTime(sender.GetCreatedAt()),
 		UpdatedAt:   protoTimestampToTime(sender.GetUpdatedAt()),
 	}
@@ -1055,13 +1056,13 @@ func protoProviderOptionToProviderOption(option *morphpb.ProviderOption) Provide
 	}
 
 	return ProviderOption{
-		ID:             strings.TrimSpace(option.GetId()),
-		Name:           strings.TrimSpace(option.GetName()),
-		Type:           strings.TrimSpace(option.GetType()),
+		ID:             stringx.String(option.GetId()).Trim(),
+		Name:           stringx.String(option.GetName()).Trim(),
+		Type:           stringx.String(option.GetType()).Trim(),
 		ModelCount:     int(option.GetModelCount()),
 		SupportsAPIKey: option.GetSupportsApiKey(),
 		SupportsOAuth:  option.GetSupportsOauth(),
-		AuthType:       strings.TrimSpace(option.GetAuthType()),
+		AuthType:       stringx.String(option.GetAuthType()).Trim(),
 		Current:        option.GetCurrent(),
 	}
 }
@@ -1072,10 +1073,10 @@ func protoModelOptionToModelOption(option *morphpb.ModelOption) ModelOption {
 	}
 
 	return ModelOption{
-		ID:            strings.TrimSpace(option.GetId()),
-		Name:          strings.TrimSpace(option.GetName()),
-		Provider:      strings.TrimSpace(option.GetProvider()),
-		API:           strings.TrimSpace(option.GetApi()),
+		ID:            stringx.String(option.GetId()).Trim(),
+		Name:          stringx.String(option.GetName()).Trim(),
+		Provider:      stringx.String(option.GetProvider()).Trim(),
+		API:           stringx.String(option.GetApi()).Trim(),
 		ContextWindow: int(option.GetContextWindow()),
 		MaxTokens:     int(option.GetMaxTokens()),
 		Input:         append([]string(nil), option.GetInput()...),
@@ -1091,10 +1092,10 @@ func protoRuntimeModelToModelRuntime(runtime *morphpb.RuntimeModelResponse) Mode
 	}
 
 	return ModelRuntime{
-		Provider:      strings.TrimSpace(runtime.GetProvider()),
-		API:           strings.TrimSpace(runtime.GetApi()),
-		Model:         strings.TrimSpace(runtime.GetModel()),
-		BaseURL:       strings.TrimRight(strings.TrimSpace(runtime.GetBaseUrl()), "/"),
+		Provider:      stringx.String(runtime.GetProvider()).Trim(),
+		API:           stringx.String(runtime.GetApi()).Trim(),
+		Model:         stringx.String(runtime.GetModel()).Trim(),
+		BaseURL:       strings.TrimRight(stringx.String(runtime.GetBaseUrl()).Trim(), "/"),
 		ContextLength: int(runtime.GetContextLength()),
 	}
 }

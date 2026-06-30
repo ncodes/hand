@@ -2,14 +2,16 @@ package terminalmd
 
 import (
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 func isMermaidLanguage(language string) bool {
-	return strings.EqualFold(strings.TrimSpace(language), "mermaid")
+	return strings.EqualFold(stringx.String(language).Trim(), "mermaid")
 }
 
 func IsMermaidDiagramStart(line string) bool {
-	trimmed := strings.TrimSpace(line)
+	trimmed := stringx.String(line).Trim()
 	if trimmed == "" {
 		return false
 	}

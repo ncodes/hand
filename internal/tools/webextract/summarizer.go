@@ -11,6 +11,7 @@ import (
 	models "github.com/wandxy/morph/internal/model"
 	webprovider "github.com/wandxy/morph/internal/providers/web"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // Summarizer produces a concise summary for extracted web content.
@@ -86,7 +87,7 @@ func (s ExtractSummarizer) SummarizeExtract(ctx context.Context, input SummaryIn
 		return "", errors.New("web extract summarizer is not configured")
 	}
 
-	content := strings.TrimSpace(input.Content)
+	content := stringx.String(input.Content).Trim()
 	if input.MaxSummaryChunkChars > 0 && getRuneLength(content) > input.MaxSummaryChunkChars {
 		return s.summarizeChunked(ctx, input)
 	}
@@ -151,11 +152,11 @@ func (s ExtractSummarizer) completeSummary(
 	if resp.RequiresToolCalls {
 		return "", errors.New("web extract summary requested tool calls")
 	}
-	if strings.TrimSpace(resp.OutputText) == "" {
+	if stringx.String(resp.OutputText).Trim() == "" {
 		return "", errors.New("web extract summary is empty")
 	}
 
-	return strings.TrimSpace(resp.OutputText), nil
+	return stringx.String(resp.OutputText).Trim(), nil
 }
 
 func summarizeExtractResults(
@@ -172,7 +173,7 @@ func summarizeExtractResults(
 	copy(summarized, results)
 	for idx := range summarized {
 		result := &summarized[idx]
-		if strings.TrimSpace(result.Error) != "" || strings.TrimSpace(result.Content) == "" {
+		if stringx.String(result.Error).Trim() != "" || stringx.String(result.Content).Trim() == "" {
 			continue
 		}
 
@@ -183,7 +184,7 @@ func summarizeExtractResults(
 		result.SourceContentChars = sourceChars
 		if options.SummarizeRefusalThresholdChars > 0 && sourceChars > options.SummarizeRefusalThresholdChars {
 			result.SummaryRefused = true
-			if strings.TrimSpace(result.Error) == "" {
+			if stringx.String(result.Error).Trim() == "" {
 				result.Error = "content exceeds summarization threshold"
 			}
 			continue
@@ -217,43 +218,43 @@ func summarizeExtractResults(
 
 func renderSummaryPrompt(input SummaryInput) string {
 	parts := []string{
-		"URL: " + strings.TrimSpace(input.URL),
-		"Title: " + strings.TrimSpace(input.Title),
+		"URL: " + stringx.String(input.URL).Trim(),
+		"Title: " + stringx.String(input.Title).Trim(),
 	}
-	if query := strings.TrimSpace(input.Query); query != "" {
+	if query := stringx.String(input.Query).Trim(); query != "" {
 		parts = append(parts, "Query: "+query)
 	}
-	parts = append(parts, "Content:\n"+strings.TrimSpace(input.Content))
+	parts = append(parts, "Content:\n"+stringx.String(input.Content).Trim())
 
 	return strings.Join(parts, "\n\n")
 }
 
 func renderChunkSummaryPrompt(input SummaryInput, chunk string, chunkIndex, chunkCount int) string {
 	parts := []string{
-		"URL: " + strings.TrimSpace(input.URL),
-		"Title: " + strings.TrimSpace(input.Title),
+		"URL: " + stringx.String(input.URL).Trim(),
+		"Title: " + stringx.String(input.Title).Trim(),
 		"Chunk: " + strconv.Itoa(chunkIndex) + " of " + strconv.Itoa(chunkCount),
 	}
-	if query := strings.TrimSpace(input.Query); query != "" {
+	if query := stringx.String(input.Query).Trim(); query != "" {
 		parts = append(parts, "Query: "+query)
 	}
-	parts = append(parts, "Chunk Content:\n"+strings.TrimSpace(chunk))
+	parts = append(parts, "Chunk Content:\n"+stringx.String(chunk).Trim())
 
 	return strings.Join(parts, "\n\n")
 }
 
 func renderSynthesisPrompt(input SummaryInput, chunkSummaries []string) string {
 	parts := []string{
-		"URL: " + strings.TrimSpace(input.URL),
-		"Title: " + strings.TrimSpace(input.Title),
+		"URL: " + stringx.String(input.URL).Trim(),
+		"Title: " + stringx.String(input.Title).Trim(),
 	}
-	if query := strings.TrimSpace(input.Query); query != "" {
+	if query := stringx.String(input.Query).Trim(); query != "" {
 		parts = append(parts, "Query: "+query)
 	}
 
 	sections := make([]string, 0, len(chunkSummaries))
 	for idx, summary := range chunkSummaries {
-		sections = append(sections, "Chunk "+strconv.Itoa(idx+1)+" Summary:\n"+strings.TrimSpace(summary))
+		sections = append(sections, "Chunk "+strconv.Itoa(idx+1)+" Summary:\n"+stringx.String(summary).Trim())
 	}
 	parts = append(parts, "Chunk Summaries:\n"+strings.Join(sections, "\n\n"))
 
@@ -261,7 +262,7 @@ func renderSynthesisPrompt(input SummaryInput, chunkSummaries []string) string {
 }
 
 func splitIntoChunks(content string, chunkChars int) []string {
-	content = strings.TrimSpace(content)
+	content = stringx.String(content).Trim()
 	if content == "" {
 		return nil
 	}
@@ -273,7 +274,7 @@ func splitIntoChunks(content string, chunkChars int) []string {
 	chunks := make([]string, 0, (len(runes)+chunkChars-1)/chunkChars)
 	for start := 0; start < len(runes); start += chunkChars {
 		end := min(start+chunkChars, len(runes))
-		chunk := strings.TrimSpace(string(runes[start:end]))
+		chunk := stringx.String(string(runes[start:end])).Trim()
 		if chunk == "" {
 			continue
 		}
@@ -292,7 +293,7 @@ func getMaxSummaryOutputTokens(maxSummaryChars int) int64 {
 }
 
 func truncateToChars(value string, maxChars int) (string, bool) {
-	value = strings.TrimSpace(value)
+	value = stringx.String(value).Trim()
 	if value == "" || maxChars <= 0 {
 		return value, false
 	}
@@ -302,9 +303,9 @@ func truncateToChars(value string, maxChars int) (string, bool) {
 		return value, false
 	}
 
-	return strings.TrimSpace(string(runes[:maxChars])), true
+	return stringx.String(string(runes[:maxChars])).Trim(), true
 }
 
 func getRuneLength(value string) int {
-	return len([]rune(strings.TrimSpace(value)))
+	return len([]rune(stringx.String(value).Trim()))
 }

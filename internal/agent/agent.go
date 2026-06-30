@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	agentsummary "github.com/wandxy/morph/internal/agent/context/summary"
@@ -27,6 +26,7 @@ import (
 	pkgcache "github.com/wandxy/morph/pkg/cache"
 	"github.com/wandxy/morph/pkg/gateway/pairing"
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 var jsonMarshal = json.Marshal
@@ -187,11 +187,11 @@ func (a *Agent) ListModels(_ context.Context, opts ...ModelListOptions) (ModelLi
 		return ModelList{}, errors.New("config is required")
 	}
 
-	provider := strings.TrimSpace(strings.ToLower(getModelListOptions(opts...).Provider))
+	provider := stringx.String(getModelListOptions(opts...).Provider).Normalized()
 	if provider == "" {
 		provider = a.cfg.Models.Main.Provider
 	}
-	provider = strings.TrimSpace(strings.ToLower(provider))
+	provider = stringx.String(provider).Normalized()
 	if provider == "" {
 		return ModelList{}, errors.New("model provider is required")
 	}
@@ -258,9 +258,9 @@ func (a *Agent) getProviderAuthType(provider string, modelID string) string {
 
 	cfg := *a.cfg
 	cfg.Models.Providers = cloneAgentProviderModelConfigs(a.cfg.Models.Providers)
-	cfg.Models.Main.Provider = strings.TrimSpace(strings.ToLower(provider))
-	cfg.Models.Main.Name = strings.TrimSpace(modelID)
-	if cfg.Models.Main.Provider != strings.TrimSpace(strings.ToLower(a.cfg.Models.Main.Provider)) {
+	cfg.Models.Main.Provider = stringx.String(provider).Normalized()
+	cfg.Models.Main.Name = stringx.String(modelID).Trim()
+	if cfg.Models.Main.Provider != stringx.String(a.cfg.Models.Main.Provider).Normalized() {
 		cfg.Models.Main.APIKey = ""
 	}
 
@@ -276,7 +276,7 @@ func (a *Agent) getCurrentModelForProvider(provider string) string {
 	if a == nil || a.cfg == nil {
 		return ""
 	}
-	if strings.TrimSpace(strings.ToLower(provider)) != strings.TrimSpace(strings.ToLower(a.cfg.Models.Main.Provider)) {
+	if stringx.String(provider).Normalized() != stringx.String(a.cfg.Models.Main.Provider).Normalized() {
 		return ""
 	}
 
@@ -302,12 +302,12 @@ func (a *Agent) SelectModel(ctx context.Context, id string, opts ...ModelSelectO
 		return models.Option{}, errors.New("agent is required")
 	}
 
-	id = strings.TrimSpace(id)
+	id = stringx.String(id).Trim()
 	if id == "" {
 		return models.Option{}, errors.New("model id is required")
 	}
 
-	provider := strings.TrimSpace(strings.ToLower(getModelSelectOptions(opts...).Provider))
+	provider := stringx.String(getModelSelectOptions(opts...).Provider).Normalized()
 	list, err := a.ListModels(ctx, ModelListOptions{Provider: provider})
 	if err != nil {
 		return models.Option{}, err
@@ -315,13 +315,13 @@ func (a *Agent) SelectModel(ctx context.Context, id string, opts ...ModelSelectO
 
 	var selected models.Option
 	for _, option := range list.Models {
-		if strings.TrimSpace(option.ID) == id {
+		if stringx.String(option.ID).Trim() == id {
 			selected = option
 			selected.Current = true
 			break
 		}
 	}
-	if strings.TrimSpace(selected.ID) == "" {
+	if stringx.String(selected.ID).Trim() == "" {
 		return models.Option{}, fmt.Errorf("model %q is not available for provider %q with %s auth",
 			id, list.Provider, list.AuthType)
 	}
@@ -340,10 +340,10 @@ func (a *Agent) SelectModel(ctx context.Context, id string, opts ...ModelSelectO
 func (a *Agent) checkModelSelectionAuth(provider string, selected models.Option) error {
 	cfg := *a.cfg
 	cfg.Models.Providers = cloneAgentProviderModelConfigs(a.cfg.Models.Providers)
-	cfg.Models.Main.Provider = strings.TrimSpace(strings.ToLower(provider))
-	cfg.Models.Main.Name = strings.TrimSpace(selected.ID)
-	cfg.Models.Main.API = strings.TrimSpace(selected.API)
-	if cfg.Models.Main.Provider != strings.TrimSpace(strings.ToLower(a.cfg.Models.Main.Provider)) {
+	cfg.Models.Main.Provider = stringx.String(provider).Normalized()
+	cfg.Models.Main.Name = stringx.String(selected.ID).Trim()
+	cfg.Models.Main.API = stringx.String(selected.API).Trim()
+	if cfg.Models.Main.Provider != stringx.String(a.cfg.Models.Main.Provider).Normalized() {
 		cfg.Models.Main.APIKey = ""
 	}
 
@@ -362,11 +362,11 @@ func (a *Agent) SetProviderAPIKey(_ context.Context, provider string, apiKey str
 		return errors.New("config is required")
 	}
 
-	provider = strings.TrimSpace(strings.ToLower(provider))
+	provider = stringx.String(provider).Normalized()
 	if provider == "" {
 		return errors.New("model provider is required")
 	}
-	apiKey = strings.TrimSpace(apiKey)
+	apiKey = stringx.String(apiKey).Trim()
 	if apiKey == "" {
 		return errors.New("provider API key is required")
 	}
@@ -387,20 +387,20 @@ func (a *Agent) SetProviderAPIKey(_ context.Context, provider string, apiKey str
 }
 
 func saveMainModelSelection(envPath string, configPath string, provider string, option models.Option) error {
-	configPath = strings.TrimSpace(configPath)
+	configPath = stringx.String(configPath).Trim()
 	if configPath == "" {
 		return errors.New("profile config path is required")
 	}
 
-	provider = strings.TrimSpace(strings.ToLower(provider))
+	provider = stringx.String(provider).Normalized()
 	if provider == "" {
 		return errors.New("model provider is required")
 	}
-	modelID := strings.TrimSpace(option.ID)
+	modelID := stringx.String(option.ID).Trim()
 	if modelID == "" {
 		return errors.New("model id is required")
 	}
-	api := strings.TrimSpace(option.API)
+	api := stringx.String(option.API).Trim()
 	if _, err := config.SetConfigValues(envPath, configPath, []config.ConfigUpdate{
 		{Path: "models.main.provider", Value: provider},
 		{Path: "models.main.name", Value: modelID},
@@ -416,16 +416,16 @@ func saveMainModelSelection(envPath string, configPath string, provider string, 
 }
 
 func saveProviderAPIKey(envPath string, configPath string, provider string, apiKey string) error {
-	configPath = strings.TrimSpace(configPath)
+	configPath = stringx.String(configPath).Trim()
 	if configPath == "" {
 		return errors.New("profile config path is required")
 	}
 
-	provider = strings.TrimSpace(strings.ToLower(provider))
+	provider = stringx.String(provider).Normalized()
 	if provider == "" {
 		return errors.New("model provider is required")
 	}
-	apiKey = strings.TrimSpace(apiKey)
+	apiKey = stringx.String(apiKey).Trim()
 	if apiKey == "" {
 		return errors.New("provider API key is required")
 	}
@@ -466,7 +466,7 @@ func (a *Agent) Close() error {
 
 	ctx := normalizeContext(a.ctx)
 	sessionID, err := a.stateMgr.CurrentSession(ctx)
-	if err == nil && strings.TrimSpace(sessionID) != "" {
+	if err == nil && stringx.String(sessionID).Trim() != "" {
 		// Controlled shutdown can lose recent context, so give memory extraction
 		// one last chance to preserve useful facts before closing storage.
 		traceSession := trace.NoopSession()
@@ -492,7 +492,7 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts agentcore.RespondO
 		return "", errors.New("model client is required")
 	}
 
-	if strings.TrimSpace(msg) == "" {
+	if stringx.String(msg).Trim() == "" {
 		return "", errors.New("message is required")
 	}
 
@@ -595,11 +595,11 @@ func invokeToolWithEnvironment(
 		result["error"] = err.Error()
 	}
 
-	if strings.TrimSpace(toolResult.Error) != "" {
-		result["error"] = normalizeToolError(strings.TrimSpace(toolResult.Error))
+	if stringx.String(toolResult.Error).Trim() != "" {
+		result["error"] = normalizeToolError(stringx.String(toolResult.Error).Trim())
 	}
 
-	if strings.TrimSpace(toolResult.Output) != "" {
+	if stringx.String(toolResult.Output).Trim() != "" {
 		result["output"] = sanitizeToolOutputForModel(ctx, toolCall.Name, toolResult.Output, cfg)
 	}
 
@@ -608,7 +608,7 @@ func invokeToolWithEnvironment(
 
 // sanitizeToolOutputForModel applies output guardrails before tool output is returned to the model.
 func sanitizeToolOutputForModel(ctx context.Context, toolName string, output string, cfg *config.Config) string {
-	output = strings.TrimSpace(output)
+	output = stringx.String(output).Trim()
 	if output == "" {
 		return ""
 	}
@@ -618,7 +618,7 @@ func sanitizeToolOutputForModel(ctx context.Context, toolName string, output str
 
 	result := guardrails.CheckUntrustedContentSafety(
 		output,
-		"tool."+strings.TrimSpace(toolName),
+		"tool."+stringx.String(toolName).Trim(),
 		guardrails.NewRedactorWithOptions(guardrails.RedactorOptions{
 			DisablePII: !cfg.OutputPIIRedactionEnabled(),
 		}),
@@ -626,7 +626,7 @@ func sanitizeToolOutputForModel(ctx context.Context, toolName string, output str
 	if result.Blocked || result.Redacted {
 		recordToolOutputSafety(ctx, toolName, output, result)
 	}
-	return strings.TrimSpace(result.Content)
+	return stringx.String(result.Content).Trim()
 }
 
 // recordToolOutputSafety records redaction/blocking decisions for tool output.
@@ -646,7 +646,7 @@ func recordToolOutputSafety(
 		action = "blocked"
 	}
 	recorder.Record(trace.EvtToolOutputSafetyApplied, trace.SafetyEventPayload{
-		Source:        "tool." + strings.TrimSpace(toolName),
+		Source:        "tool." + stringx.String(toolName).Trim(),
 		Action:        action,
 		ContentLength: len([]rune(output)),
 		Blocked:       result.Blocked,
@@ -1178,7 +1178,7 @@ func (a *Agent) sessionOriginSource() string {
 		return ""
 	}
 
-	switch strings.ToLower(strings.TrimSpace(a.cfg.Platform)) {
+	switch stringx.String(a.cfg.Platform).Normalized() {
 	case "", constants.DefaultPlatform:
 		return storage.SessionOriginSourceTerminal
 	default:
@@ -1207,7 +1207,7 @@ func (a *Agent) cachedRecallSummary(sessionID string, messageCount int) (storage
 
 // storeRecallSummary stores a defensive copy in the recall summary cache.
 func (a *Agent) storeRecallSummary(summary storage.SessionSummary) {
-	if a == nil || a.recallSummaryCache == nil || strings.TrimSpace(summary.SessionID) == "" {
+	if a == nil || a.recallSummaryCache == nil || stringx.String(summary.SessionID).Trim() == "" {
 		return
 	}
 
@@ -1231,8 +1231,8 @@ func getDurationOrDefault(value, fallback time.Duration) time.Duration {
 func normalizeToolError(raw string) any {
 	var toolErr tools.Error
 	if err := json.Unmarshal([]byte(raw), &toolErr); err == nil &&
-		strings.TrimSpace(toolErr.Code) != "" &&
-		strings.TrimSpace(toolErr.Message) != "" {
+		stringx.String(toolErr.Code).Trim() != "" &&
+		stringx.String(toolErr.Message).Trim() != "" {
 		return toolErr
 	}
 
@@ -1261,7 +1261,7 @@ func modelToolDefinitionFromToolDefinition(definition tools.Definition) models.T
 func assistantToolCallMessageFromResponse(resp *models.Response) (morphmsg.Message, error) {
 	return normalizeTurnMessage(morphmsg.Message{
 		Role:      morphmsg.RoleAssistant,
-		Content:   strings.TrimSpace(resp.OutputText),
+		Content:   stringx.String(resp.OutputText).Trim(),
 		ToolCalls: modelToolCallsToContextToolCalls(resp.ToolCalls),
 	})
 }

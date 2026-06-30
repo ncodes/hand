@@ -15,6 +15,7 @@ import (
 	modelcatalog "github.com/wandxy/morph/internal/model"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 type modelSelector interface {
@@ -54,7 +55,7 @@ type providerAPIKeySetMsg struct {
 func newProviderAPIKeyInput(placeholder string) textinput.Model {
 	input := textinput.New()
 	input.Prompt = ""
-	input.Placeholder = strings.TrimSpace(placeholder)
+	input.Placeholder = stringx.String(placeholder).Trim()
 	if input.Placeholder == "" {
 		input.Placeholder = "API key"
 	}
@@ -164,7 +165,7 @@ func (m *model) startModelsCommand() tea.Cmd {
 
 func loadModelsCmd(provider string, currentModel string) tea.Cmd {
 	return func() tea.Msg {
-		provider = strings.TrimSpace(provider)
+		provider = stringx.String(provider).Trim()
 		if provider == "" {
 			return modelsLoadedMsg{Err: errors.New("model provider is required")}
 		}
@@ -253,21 +254,21 @@ func renderProvidersCommandRow(provider rpcclient.ProviderOption, width int, sel
 }
 
 func getProviderOptionDisplayName(provider rpcclient.ProviderOption) string {
-	if strings.TrimSpace(provider.Name) != "" {
-		return strings.TrimSpace(provider.Name)
+	if stringx.String(provider.Name).Trim() != "" {
+		return stringx.String(provider.Name).Trim()
 	}
 
 	return getProviderDisplayName(provider.ID)
 }
 
 func getProviderDisplayName(providerID string) string {
-	providerID = strings.TrimSpace(providerID)
+	providerID = stringx.String(providerID).Trim()
 	if providerID == "" {
 		return ""
 	}
 
 	if provider, ok := modelprovider.DefaultRegistry().GetProvider(providerID); ok {
-		if name := strings.TrimSpace(provider.DisplayName); name != "" {
+		if name := stringx.String(provider.DisplayName).Trim(); name != "" {
 			return name
 		}
 	}
@@ -280,14 +281,14 @@ func getProviderOptionDetail(provider rpcclient.ProviderOption) string {
 	if provider.Current {
 		parts = append(parts, "current")
 	}
-	if authType := strings.TrimSpace(provider.AuthType); authType != "" && authType != "none" {
+	if authType := stringx.String(provider.AuthType).Trim(); authType != "" && authType != "none" {
 		parts = append(parts, authType)
 	}
 	if provider.ModelCount > 0 {
 		parts = append(parts, fmt.Sprintf("%d models", provider.ModelCount))
 	}
 	if len(parts) == 0 {
-		return strings.TrimSpace(provider.Type)
+		return stringx.String(provider.Type).Trim()
 	}
 
 	return strings.Join(parts, " · ")
@@ -351,7 +352,7 @@ func (m model) filteredCommandModels() []rpcclient.ModelOption {
 }
 
 func filterModelOptions(models []rpcclient.ModelOption, query string) []rpcclient.ModelOption {
-	query = strings.TrimSpace(strings.ToLower(query))
+	query = stringx.String(query).Normalized()
 	if query == "" {
 		return models
 	}
@@ -425,11 +426,11 @@ func renderCommandListEntryRow(label string, detail string, width int, contentWi
 }
 
 func getModelOptionDisplayName(model rpcclient.ModelOption) string {
-	if strings.TrimSpace(model.Name) != "" {
-		return strings.TrimSpace(model.Name)
+	if stringx.String(model.Name).Trim() != "" {
+		return stringx.String(model.Name).Trim()
 	}
 
-	return strings.TrimSpace(model.ID)
+	return stringx.String(model.ID).Trim()
 }
 
 func getModelOptionContextLength(model rpcclient.ModelOption) string {
@@ -476,7 +477,7 @@ func normalizeModelOptionDetailCells(detail string) string {
 	cells := strings.Split(detail, "·")
 	normalized := make([]string, 0, len(cells))
 	for _, cell := range cells {
-		cell = strings.TrimSpace(cell)
+		cell = stringx.String(cell).Trim()
 		if cell != "" {
 			normalized = append(normalized, cell)
 		}
@@ -486,7 +487,7 @@ func normalizeModelOptionDetailCells(detail string) string {
 }
 
 func padCommandCell(value string, width int, alignRight bool) string {
-	value = truncateCommandMenuText(strings.TrimSpace(value), max(width, 1))
+	value = truncateCommandMenuText(stringx.String(value).Trim(), max(width, 1))
 	padding := strings.Repeat(" ", max(width-lipgloss.Width(value), 0))
 	if alignRight {
 		return padding + value
@@ -662,7 +663,7 @@ func (m *model) updateProviderAPIKeyCommandView(msg tea.Msg) (tea.Model, tea.Cmd
 }
 
 func normalizeProviderAPIKeyPaste(value string) string {
-	return strings.TrimSpace(value)
+	return stringx.String(value).Trim()
 }
 
 func getModelsCommandTitleRight() string {
@@ -675,7 +676,7 @@ func getProvidersCommandTitleRight() string {
 
 func (m *model) selectCurrentProviderOption() (tea.Model, tea.Cmd) {
 	provider := m.commandView.Providers[m.commandViewItemSelected]
-	providerID := strings.TrimSpace(provider.ID)
+	providerID := stringx.String(provider.ID).Trim()
 	if providerID == "" {
 		return *m, m.setStatus("provider selection unavailable")
 	}
@@ -718,7 +719,7 @@ func (m *model) selectCurrentModelOption() (tea.Model, tea.Cmd) {
 	}
 
 	model := models[min(max(m.commandViewItemSelected, 0), len(models)-1)]
-	modelID := strings.TrimSpace(model.ID)
+	modelID := stringx.String(model.ID).Trim()
 	if modelID == "" {
 		return *m, m.setStatus("model selection unavailable")
 	}
@@ -753,7 +754,7 @@ func selectModelCmd(ctx context.Context, client modelSelector, provider string, 
 			ctx = context.Background()
 		}
 
-		modelID = strings.TrimSpace(modelID)
+		modelID = stringx.String(modelID).Trim()
 		if modelID == "" {
 			return modelSelectedMsg{Err: errors.New("model id is required")}
 		}
@@ -772,14 +773,14 @@ func (m *model) completeSelectModel(msg modelSelectedMsg) (tea.Model, tea.Cmd) {
 		return *m, m.setStatus("model selection unavailable")
 	}
 
-	modelID := strings.TrimSpace(msg.Model.ID)
+	modelID := stringx.String(msg.Model.ID).Trim()
 	if modelID == "" {
 		return *m, m.setStatus("model selection unavailable")
 	}
 
 	m.applySelectedModelToRuntime(msg.Model)
 	for index := range m.commandView.Models {
-		m.commandView.Models[index].Current = strings.TrimSpace(m.commandView.Models[index].ID) == modelID
+		m.commandView.Models[index].Current = stringx.String(m.commandView.Models[index].ID).Trim() == modelID
 	}
 	m.commandView.Models = orderModelsCommandOptions(m.commandView.Models)
 	m.commandViewItemSelected = 0
@@ -800,7 +801,7 @@ func getModelSelectionLoginCommand(err error) string {
 		return ""
 	}
 
-	command := strings.TrimSpace(message[index:])
+	command := stringx.String(message[index:]).Trim()
 	return "run " + command + " in a new terminal"
 }
 
@@ -812,15 +813,15 @@ func (m model) shouldPromptForProviderAPIKey(option rpcclient.ModelOption) bool 
 		return false
 	}
 
-	return strings.TrimSpace(m.commandView.ModelProvider) != ""
+	return stringx.String(m.commandView.ModelProvider).Trim() != ""
 }
 
 func (m model) hasModelAuth(option rpcclient.ModelOption) bool {
-	provider := strings.TrimSpace(m.commandView.ModelProvider)
+	provider := stringx.String(m.commandView.ModelProvider).Trim()
 	if provider == "" {
-		provider = strings.TrimSpace(option.Provider)
+		provider = stringx.String(option.Provider).Trim()
 	}
-	modelID := strings.TrimSpace(option.ID)
+	modelID := stringx.String(option.ID).Trim()
 	if provider == "" || modelID == "" {
 		return false
 	}
@@ -844,9 +845,9 @@ func (m model) hasModelAuth(option rpcclient.ModelOption) bool {
 }
 
 func (m *model) showProviderAPIKeyPrompt(option rpcclient.ModelOption) (tea.Model, tea.Cmd) {
-	provider := strings.TrimSpace(m.commandView.ModelProvider)
+	provider := stringx.String(m.commandView.ModelProvider).Trim()
 	if provider == "" {
-		provider = strings.TrimSpace(option.Provider)
+		provider = stringx.String(option.Provider).Trim()
 	}
 	if provider == "" {
 		return *m, m.setStatus("model selection unavailable")
@@ -861,7 +862,7 @@ func (m *model) showProviderAPIKeyPrompt(option rpcclient.ModelOption) (tea.Mode
 		TitleRightColor: defaultTUITheme.MutedText,
 		Kind:            commandViewKindProviderAPIKey,
 		ModelProvider:   provider,
-		PendingModelID:  strings.TrimSpace(option.ID),
+		PendingModelID:  stringx.String(option.ID).Trim(),
 		Height:          commandViewMinHeight,
 	})
 
@@ -877,9 +878,9 @@ func (m model) renderProviderAPIKeyCommandViewContent(content commandViewContent
 }
 
 func (m *model) submitProviderAPIKey() (tea.Model, tea.Cmd) {
-	provider := strings.TrimSpace(m.commandView.ModelProvider)
-	modelID := strings.TrimSpace(m.commandView.PendingModelID)
-	apiKey := strings.TrimSpace(m.apiKeyInput.Value())
+	provider := stringx.String(m.commandView.ModelProvider).Trim()
+	modelID := stringx.String(m.commandView.PendingModelID).Trim()
+	apiKey := stringx.String(m.apiKeyInput.Value()).Trim()
 	if provider == "" || modelID == "" {
 		return *m, m.setStatus("provider API key unavailable")
 	}
@@ -941,7 +942,7 @@ func (m *model) completeProviderAPIKeySet(msg providerAPIKeySetMsg) (tea.Model, 
 }
 
 func (m *model) applySelectedModelToRuntime(option rpcclient.ModelOption) {
-	modelID := strings.TrimSpace(option.ID)
+	modelID := stringx.String(option.ID).Trim()
 	if modelID == "" {
 		return
 	}
@@ -949,9 +950,9 @@ func (m *model) applySelectedModelToRuntime(option rpcclient.ModelOption) {
 	m.modelName = getModelDisplayName(modelID)
 	m.runtimeInfo.Model = modelID
 	m.runtimeInfo.SummaryModel = modelID
-	if provider := strings.TrimSpace(option.Provider); provider != "" {
+	if provider := stringx.String(option.Provider).Trim(); provider != "" {
 		m.runtimeInfo.Provider = provider
-	} else if provider := strings.TrimSpace(m.commandView.ModelProvider); provider != "" {
+	} else if provider := stringx.String(m.commandView.ModelProvider).Trim(); provider != "" {
 		m.runtimeInfo.Provider = provider
 	}
 	m.setTranscriptContentForActiveTurn()

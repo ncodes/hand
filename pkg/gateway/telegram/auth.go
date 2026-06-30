@@ -3,7 +3,8 @@ package telegram
 import (
 	"crypto/subtle"
 	"errors"
-	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const WebhookSecretHeader = "X-Telegram-Bot-Api-Secret-Token"
@@ -11,12 +12,12 @@ const WebhookSecretHeader = "X-Telegram-Bot-Api-Secret-Token"
 var ErrWebhookSecretMismatch = errors.New("telegram webhook secret mismatch")
 
 func CheckWebhookSecret(header string, secret string) error {
-	secret = strings.TrimSpace(secret)
+	secret = stringx.String(secret).Trim()
 	if secret == "" {
 		return nil
 	}
 
-	header = strings.TrimSpace(header)
+	header = stringx.String(header).Trim()
 	if header == "" {
 		return ErrWebhookSecretMismatch
 	}

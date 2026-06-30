@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
@@ -70,7 +71,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return result, nil
 			}
 
-			if strings.TrimSpace(req.Pattern) == "" {
+			if stringx.String(req.Pattern).Trim() == "" {
 				return common.ToolError("invalid_input", "pattern is required"), nil
 			}
 
@@ -88,7 +89,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("tool", "search_files").
 				Str("phase", "start").
 				Str("path", common.NormalizedDisplayPath(req.Path)).
-				Int("pattern_chars", len([]rune(strings.TrimSpace(req.Pattern)))).
+				Int("pattern_chars", len([]rune(stringx.String(req.Pattern).Trim()))).
 				Bool("case_sensitive", req.CaseSensitive).
 				Bool("include_hidden", req.IncludeHidden).
 				Int("max_results", limit).
@@ -189,11 +190,11 @@ func searchWithRipgrep(
 		return nil, err
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	lines := strings.Split(stringx.String(string(output)).Trim(), "\n")
 	matches := make([]contentMatch, 0, len(lines))
 
 	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
+		if stringx.String(line).Trim() == "" {
 			continue
 		}
 

@@ -3,6 +3,8 @@ package instructions
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 // Instruction represents a single named instruction with a value string.
@@ -40,12 +42,12 @@ func (i Instructions) Append(instructions ...Instruction) Instructions {
 	appended := make(Instructions, 0, len(i)+len(instructions))
 	appended = append(appended, i...)
 	for _, instruction := range instructions {
-		if strings.TrimSpace(instruction.Value) == "" {
+		if stringx.String(instruction.Value).Trim() == "" {
 			continue
 		}
 		appended = append(appended, Instruction{
-			Name:  strings.TrimSpace(instruction.Name),
-			Value: strings.TrimSpace(instruction.Value),
+			Name:  stringx.String(instruction.Name).Trim(),
+			Value: stringx.String(instruction.Value).Trim(),
 		})
 	}
 
@@ -94,7 +96,7 @@ func (i *Instructions) UnmarshalJSON(data []byte) error {
 
 // GetByName searches for an Instruction by Name and returns it with true if found.
 func (i Instructions) GetByName(name string) (Instruction, bool) {
-	name = strings.TrimSpace(name)
+	name = stringx.String(name).Trim()
 	if name == "" {
 		return Instruction{}, false
 	}
@@ -109,7 +111,7 @@ func (i Instructions) GetByName(name string) (Instruction, bool) {
 
 // WithoutName returns a new Instructions slice excluding any Instruction with the given Name.
 func (i Instructions) WithoutName(name string) Instructions {
-	name = strings.TrimSpace(name)
+	name = stringx.String(name).Trim()
 	if name == "" {
 		return i
 	}
@@ -126,8 +128,8 @@ func (i Instructions) WithoutName(name string) Instructions {
 
 // Set adds, replaces, or removes a named instruction.
 func (i Instructions) Set(instruction Instruction) Instructions {
-	instruction.Name = strings.TrimSpace(instruction.Name)
-	instruction.Value = strings.TrimSpace(instruction.Value)
+	instruction.Name = stringx.String(instruction.Name).Trim()
+	instruction.Value = stringx.String(instruction.Value).Trim()
 
 	if instruction.Name == "" {
 		if instruction.Value == "" {

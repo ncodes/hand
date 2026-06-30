@@ -3,9 +3,9 @@ package telegram
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/stringx"
 
 	"github.com/wandxy/morph/internal/config"
 	gatewaysession "github.com/wandxy/morph/internal/gateway/session"
@@ -79,9 +79,9 @@ func (a *TelegramAdapter) DispatchUpdate(ctx context.Context, update tg.Update) 
 }
 
 func (a *TelegramAdapter) authorize(ctx context.Context, inbound tg.InboundMessage) (bool, error) {
-	senderID := strings.TrimSpace(inbound.SenderID)
+	senderID := stringx.String(inbound.SenderID).Trim()
 	if senderID == "" && inbound.Target.ChatType == "private" {
-		senderID = strings.TrimSpace(inbound.Target.ChatID)
+		senderID = stringx.String(inbound.Target.ChatID).Trim()
 	}
 	if senderID == "" {
 		return false, nil
@@ -126,13 +126,13 @@ func (a *TelegramAdapter) authorize(ctx context.Context, inbound tg.InboundMessa
 }
 
 func hasAllowedSender(allowed []string, senderID string) bool {
-	senderID = strings.TrimSpace(senderID)
+	senderID = stringx.String(senderID).Trim()
 	if senderID == "" {
 		return false
 	}
 
 	for _, allowedID := range allowed {
-		if strings.TrimSpace(allowedID) == senderID {
+		if stringx.String(allowedID).Trim() == senderID {
 			return true
 		}
 	}
@@ -141,5 +141,5 @@ func hasAllowedSender(allowed []string, senderID string) bool {
 }
 
 func gatewayPairingSecret(cfg config.GatewayConfig) string {
-	return strings.TrimSpace(cfg.PairingSecret)
+	return stringx.String(cfg.PairingSecret).Trim()
 }

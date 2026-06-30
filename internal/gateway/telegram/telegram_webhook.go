@@ -6,13 +6,13 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/gateway/dispatch"
 	"github.com/wandxy/morph/pkg/gateway/httpjson"
 	tg "github.com/wandxy/morph/pkg/gateway/telegram"
 	gatewaytypes "github.com/wandxy/morph/pkg/gateway/types"
+	"github.com/wandxy/morph/pkg/stringx"
 )
 
 const (
@@ -21,9 +21,9 @@ const (
 )
 
 func SetWebhook(ctx context.Context, cfg config.GatewayTelegramConfig, url string) error {
-	url = strings.TrimSpace(url)
-	botToken := strings.TrimSpace(cfg.BotToken)
-	webhookSecret := strings.TrimSpace(cfg.WebhookSecret)
+	url = stringx.String(url).Trim()
+	botToken := stringx.String(cfg.BotToken).Trim()
+	webhookSecret := stringx.String(cfg.WebhookSecret).Trim()
 	if botToken == "" {
 		return errors.New("gateway telegram bot token is required")
 	}
