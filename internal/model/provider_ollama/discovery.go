@@ -125,12 +125,20 @@ func modelDefinitionFromOllamaModel(tag tagModel, show showResponse) modelprovid
 		Name:          getOllamaModelDisplayName(modelID),
 		Owner:         constants.ModelProviderOllama,
 		Provider:      constants.ModelProviderOllama,
-		API:           modelprovider.APIOllamaNative,
+		API:           getOllamaModelAPI(show),
 		Input:         getOllamaModelInputs(show),
 		Reasoning:     isOllamaReasoningModel(modelID),
 		SupportsTools: hasOllamaCapability(show, "tools"),
 		ContextWindow: getOllamaContextWindow(show),
 	}
+}
+
+func getOllamaModelAPI(show showResponse) string {
+	if hasOllamaCapability(show, "embedding") && !hasOllamaCapability(show, "completion") {
+		return modelprovider.APIOllamaEmbeddings
+	}
+
+	return modelprovider.APIOllamaNative
 }
 
 func getTagModelID(tag tagModel) string {

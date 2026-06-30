@@ -37,6 +37,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'guides/tui',
         'guides/provider-auth',
+        'guides/local-models',
         'guides/config',
         'guides/sessions',
         'guides/memory',

@@ -353,11 +353,25 @@ func (r providerRunner) getSetupBaseURL(
 	}
 	if cfg != nil && strings.EqualFold(cfg.Models.Main.Provider, provider.ID) {
 		if value := strings.TrimSpace(cfg.Models.Main.BaseURL); value != "" {
-			return value
+			return normalizeInheritedSetupBaseURL(provider.ID, api, value)
 		}
 	}
 
 	return strings.TrimSpace(provider.BaseURLs[strings.TrimSpace(strings.ToLower(api))])
+}
+
+func normalizeInheritedSetupBaseURL(provider string, api string, value string) string {
+	value = strings.TrimRight(strings.TrimSpace(value), "/")
+	if strings.TrimSpace(strings.ToLower(provider)) != constants.ModelProviderOllama ||
+		strings.TrimSpace(strings.ToLower(api)) != modelprovider.APIOllamaNative {
+		return value
+	}
+
+	if strings.HasSuffix(strings.ToLower(value), "/v1") {
+		return strings.TrimRight(value[:len(value)-len("/v1")], "/")
+	}
+
+	return value
 }
 
 func (r providerRunner) getSetupModel(
@@ -1185,11 +1199,11 @@ func persistProviderSelection(opts ProviderOptions, selection setupSelection) er
 		{Path: "models.main.provider", Value: selection.provider},
 		{Path: "models.main.name", Value: selection.model},
 		{Path: "models.main.api", Value: selection.api},
-		{Path: "models.main.baseURL", Value: selection.baseURL},
+		{Path: "models.main.baseUrl", Value: selection.baseURL},
 		{Path: "models.summary.provider", Value: selection.provider},
 		{Path: "models.summary.name", Value: selection.model},
 		{Path: "models.summary.api", Value: selection.api},
-		{Path: "models.summary.baseURL", Value: selection.baseURL},
+		{Path: "models.summary.baseUrl", Value: selection.baseURL},
 	}
 	updates = append(updates, config.ModelSetupEmbeddingUpdates(selection.provider, selection.baseURL)...)
 	if selection.apiKey != "" {

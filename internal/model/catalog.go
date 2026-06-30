@@ -98,7 +98,7 @@ func ListOptions(query OptionQuery) ([]Option, error) {
 	current := strings.TrimSpace(query.Current)
 	options := listRegistryOptions(registry, provider, current, query.OAuthOnly)
 
-    hasExplicitConfig := hasExplicitProviderModelDefinitions(query.Config, provider)
+	hasExplicitConfig := hasExplicitProviderModelDefinitions(query.Config, provider)
 	explicitOptions := listExplicitConfigOptions(query.Config, registry, provider, current, query.OAuthOnly)
 	if len(explicitOptions) > 0 {
 		options = mergeOptions(explicitOptions, options, false)
@@ -521,6 +521,9 @@ func modelDefinitionsToOptions(
 	options := make([]Option, 0, len(models))
 	for _, model := range models {
 		if strings.TrimSpace(model.ID) == "" {
+			continue
+		}
+		if !isGenerationAPI(model.API) {
 			continue
 		}
 		option := modelDefinitionToOption(model, current)

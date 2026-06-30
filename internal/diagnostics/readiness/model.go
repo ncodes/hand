@@ -124,25 +124,12 @@ func getOllamaReadinessBaseURL(cfg *config.Config) string {
 func getOllamaReadinessModel(models []modelprovider.ModelDefinition, modelID string) (modelprovider.ModelDefinition, bool) {
 	modelID = strings.TrimSpace(modelID)
 	for _, model := range models {
-		if ollamaModelIDMatches(model.ID, modelID) {
+		if provider_ollama.ModelIDMatches(model.ID, modelID) {
 			return model, true
 		}
 	}
 
 	return modelprovider.ModelDefinition{}, false
-}
-
-func ollamaModelIDMatches(installed string, requested string) bool {
-	installed = strings.TrimSpace(installed)
-	requested = strings.TrimSpace(requested)
-	if strings.EqualFold(installed, requested) {
-		return true
-	}
-	if !strings.Contains(requested, ":") && strings.EqualFold(installed, requested+":latest") {
-		return true
-	}
-
-	return false
 }
 
 func buildOllamaContextCheck(cfg *config.Config, model modelprovider.ModelDefinition) Check {

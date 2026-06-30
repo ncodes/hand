@@ -101,6 +101,41 @@ func TestSetConfigValues_UpdatesMultipleFieldsAtomically(t *testing.T) {
 	require.Equal(t, 2*time.Hour, cfg.Session.DefaultIdleExpiry)
 }
 
+func TestSetConfigValues_CanonicalizesBaseURLPath(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: test-agent
+models:
+    main:
+        provider: ollama
+        name: lfm2.5-thinking:latest
+        api: ollama-native
+        baseURL: http://127.0.0.1:11434/v1
+search:
+    vector:
+        enabled: false
+storage:
+    backend: memory
+`), 0o600))
+
+	updatedPaths, err := SetConfigValuesRelaxed("", configPath, []ConfigUpdate{
+		{Path: "models.main.baseURL", Value: "http://127.0.0.1:11434"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"models.main.baseUrl"}, updatedPaths)
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Main.BaseURL)
+
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	rendered := string(data)
+	require.NotContains(t, rendered, "baseURL:")
+	require.Contains(t, rendered, "baseUrl: http://127.0.0.1:11434")
+}
+
 func TestSetConfigValuesRelaxed_AllowsMissingGatewayCredentials(t *testing.T) {
 	clearEnvKeys(t, "MORPH_CONFIG", "MORPH_ENV_FILE", "MORPH_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)

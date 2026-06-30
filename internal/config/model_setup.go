@@ -16,14 +16,14 @@ func ModelSetupEmbeddingUpdates(provider string, baseURL ...string) []ConfigUpda
 			{Path: "models.embedding.provider", Value: provider},
 			{Path: "models.embedding.name", Value: constants.DefaultProfileEmbeddingModel},
 			{Path: "models.embedding.api", Value: modelprovider.APIOpenRouterEmbeddings},
-			{Path: "models.embedding.baseURL", Value: ""},
+			{Path: "models.embedding.baseUrl", Value: ""},
 		}
 	case constants.ModelProviderOpenAI:
 		return []ConfigUpdate{
 			{Path: "models.embedding.provider", Value: provider},
 			{Path: "models.embedding.name", Value: constants.DefaultProfileEmbeddingModel},
 			{Path: "models.embedding.api", Value: modelprovider.APIOpenAIEmbeddings},
-			{Path: "models.embedding.baseURL", Value: ""},
+			{Path: "models.embedding.baseUrl", Value: ""},
 		}
 	case constants.ModelProviderOllama:
 		updates := []ConfigUpdate{
@@ -33,7 +33,7 @@ func ModelSetupEmbeddingUpdates(provider string, baseURL ...string) []ConfigUpda
 		}
 		if len(baseURL) > 0 {
 			if value := strings.TrimSpace(baseURL[0]); value != "" {
-				updates = append(updates, ConfigUpdate{Path: "models.embedding.baseURL", Value: value})
+				updates = append(updates, ConfigUpdate{Path: "models.embedding.baseUrl", Value: value})
 			}
 		}
 

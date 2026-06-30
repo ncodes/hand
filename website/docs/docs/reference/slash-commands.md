@@ -28,10 +28,10 @@ When input starts with `/`, the TUI shows a filtered command menu. Tab or arrow 
 | `/clear` | Clear the on-screen transcript (does not delete stored history) | Local UI |
 | `/compact` | Force summary compaction on the current session | RPC `SessionService.Compact` |
 | `/copy` | Copy the visible transcript to the system clipboard | Local clipboard |
-| `/models` | Browse and select models for the current provider | Local catalog + RPC `ModelService` |
-| `/providers` | Browse model providers and auth types | Local catalog |
+| `/models` | Browse and select models for the current provider | Local-aware catalog + RPC `ModelService` |
+| `/providers` | Browse model providers, auth types, and local provider types | Local-aware catalog |
 | `/new-chat` | Create a new session and switch to it | RPC `SessionService.Create` |
-| `/setup` | Open profile setup (name, auth method) | Local onboarding flow |
+| `/setup` | Open profile setup for hosted or local providers | Local onboarding flow |
 
 ### `/chats` and `/archive`
 
@@ -55,9 +55,14 @@ The catalog is loaded locally. Selecting a model or entering an API key may call
 `SetProviderAPIKey`. For credential setup outside the TUI, use `morph auth login` — see
 [Provider Auth](../guides/provider-auth).
 
+For Ollama, the catalog includes installed models discovered from the local runtime and suggested models that may need
+to be pulled. Use refresh in setup/model surfaces after changing local models outside Morph.
+
 ### `/setup`
 
-Opens the dismissible onboarding flow for agent name and provider auth. Useful on first run or after switching profiles.
+Opens the dismissible onboarding flow for agent name, provider selection, auth, and local provider setup. Ollama setup
+supports base URL editing, installed/suggested model selection, missing-model pull, skip, and retry behavior. See
+[Local Models](../guides/local-models).
 
 ## Errors
 

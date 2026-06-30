@@ -51,9 +51,13 @@ blank so setup can choose a provider and model; validation then tells you which 
 | `stream` | `*bool` | `true` |
 | `contextLength` | int | `128000` |
 
-**Providers:** `openrouter`, `openai`, `openai-codex`, `anthropic`, `github-copilot`.  
-**Generation APIs:** `openai-completions`, `openai-responses`, `anthropic-messages`.  
-**Embedding APIs:** `openai-embeddings`, `openrouter-embeddings`.
+**Providers:** `openrouter`, `openai`, `openai-codex`, `anthropic`, `github-copilot`, `ollama`.  
+**Generation APIs:** `openai-completions`, `openai-responses`, `anthropic-messages`, `ollama-native`.  
+**Embedding APIs:** `openai-embeddings`, `openrouter-embeddings`, `ollama-embeddings`.
+
+For Ollama native chat, use `models.main.provider: ollama`, `models.main.api: ollama-native`, and a base URL without
+`/v1`, such as `http://127.0.0.1:11434`. For Ollama OpenAI-compatible chat, use
+`models.main.api: openai-completions` and a `/v1` base URL. See [Local Models](../guides/local-models).
 
 ### `models.summary`
 
@@ -75,6 +79,10 @@ blank so setup can choose a provider and model; validation then tells you which 
 | `apiKey` | string | `""` |
 | `baseUrl` | string | `""` |
 
+When the embedding provider is Ollama and `baseUrl` is empty, Morph reuses the main Ollama base URL when the main
+provider is also Ollama. Morph normalizes a main base URL ending in `/v1` back to the native Ollama root before calling
+`/api/embeddings`.
+
 Required when `search.vector.enabled` and `search.vector.required` are both true.
 
 ### `models.providers.<provider>`
@@ -83,8 +91,13 @@ Required when `search.vector.enabled` and `search.vector.required` are both true
 | --- | --- | --- |
 | `apiKey` | string | `""` |
 | `apiKeyEnv` | `[]string` | `[]` |
+| `api` | string | provider default |
+| `baseUrl` | string | provider default |
+| `headers` | map | `{}` |
 
-Per-provider credential env names. See [Provider Auth](../guides/provider-auth).
+Per-provider credential env names, API defaults, base URLs, and extra headers. Local providers such as Ollama use a
+non-secret auth marker internally when the runtime does not require a real API key. See
+[Provider Auth](../guides/provider-auth) and [Local Models](../guides/local-models).
 
 ## `rpc`
 

@@ -48,6 +48,8 @@ though they may fail fast on the specific config, auth, or daemon state they req
 | `--chat` | `-c` | Send root arguments as a one-shot chat message |
 | `--instruct` | | Per-request instruction; **cleared when the response finishes** |
 | `--session` | | Session ID for the chat request (default: current session) |
+| `--pull` | | Pull the selected Ollama model before one-shot chat when using the Ollama provider |
+| `--pull-quiet` | | Suppress Ollama pull progress output |
 
 :::tip[Two `--instruct` semantics]
 Root `--chat --instruct` applies to **one request**. `morph daemon --instruct` sets a **server instruction** that
@@ -180,6 +182,27 @@ Profile subcommands do **not** take `--profile` — they manage which profile is
 
 See [Profiles](../concepts/profiles) and [Profiles and Config](../getting-started/profiles-and-config).
 
+### `setup` — guided provider setup
+
+| Invocation | Behavior |
+| --- | --- |
+| `morph setup provider` | Interactive provider and model setup |
+| `morph setup provider ollama` | Start setup with Ollama selected |
+| `morph setup provider --provider ollama --model <model>` | Non-interactive local provider setup |
+
+Local provider flags:
+
+| Flag | Description |
+| --- | --- |
+| `--provider` | Provider ID to persist, such as `ollama` |
+| `--model` | Model ID to persist |
+| `--base-url` | Provider endpoint, such as `http://127.0.0.1:11434` for native Ollama |
+| `--api` | Provider API mode, such as `ollama-native` or `openai-completions` |
+| `--pull` | Pull the selected Ollama model when missing |
+| `--pull-quiet` | Suppress Ollama pull progress output |
+
+See [Local Models](../guides/local-models) for the complete Ollama setup flow.
+
 ### `session` — sessions over RPC
 
 Requires a subcommand. Uses daemon RPC; start the daemon first.
@@ -244,6 +267,20 @@ morph --profile work daemon
 morph --chat "summarize the failing tests"
 morph -c --session ses_abc123 --instruct "be brief" "continue"
 
+# Local Ollama one-shot chat
+morph --provider ollama \
+  --model <model-id> \
+  --base-url http://127.0.0.1:11434 \
+  --pull \
+  -c "hello"
+
+# Local Ollama setup
+morph setup provider \
+  --provider ollama \
+  --base-url http://127.0.0.1:11434 \
+  --model <model-id> \
+  --pull
+
 # Config and doctor
 morph config set session.maxIterations 30
 morph doctor --json
@@ -258,6 +295,7 @@ MORPH_PROFILE=work morph session compact
 
 - [Slash Commands](./slash-commands): in-TUI `/` commands
 - [Config Reference](./config): every config key and default
+- [Local Models](../guides/local-models): local Ollama setup and diagnostics
 - [Environment Variables](./environment-variables): `MORPH_*` overrides
 - [RPC Reference](./rpc): gRPC services used by CLI clients
 - [FAQ](./faq): common CLI questions

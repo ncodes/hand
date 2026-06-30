@@ -1419,11 +1419,11 @@ func (m *model) persistSetupModelSelection(option rpcclient.ModelOption, apiKey 
 		{Path: "models.main.provider", Value: provider},
 		{Path: "models.main.name", Value: modelID},
 		{Path: "models.main.api", Value: api},
-		{Path: "models.main.baseURL", Value: baseURL},
+		{Path: "models.main.baseUrl", Value: baseURL},
 		{Path: "models.summary.provider", Value: provider},
 		{Path: "models.summary.name", Value: modelID},
 		{Path: "models.summary.api", Value: api},
-		{Path: "models.summary.baseURL", Value: baseURL},
+		{Path: "models.summary.baseUrl", Value: baseURL},
 	}
 	updates = append(updates, config.ModelSetupEmbeddingUpdates(provider, baseURL)...)
 	if apiKey = strings.TrimSpace(apiKey); apiKey != "" {

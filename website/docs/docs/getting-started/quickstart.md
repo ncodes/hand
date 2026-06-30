@@ -11,7 +11,7 @@ This guide gets Morph installed, configured, and ready for your first chat.
 
 You need:
 
-- A model provider account or API key.
+- A model provider account/API key, or a local Ollama runtime.
 - A terminal on the machine where you want Morph to run.
 
 Morph can store subscription accounts or API keys. If you already pay for ChatGPT, Claude, or GitHub Copilot,
@@ -19,7 +19,8 @@ subscription login is often fastest. Morph stores OAuth credentials for supporte
 
 API keys are also supported. They are often better for OpenRouter, servers, service accounts, and automation.
 
-See [Provider Auth](../guides/provider-auth) for provider notes and API key links.
+Local Ollama is also supported without a real API key. See [Local Models](../guides/local-models) for the local setup
+path, or [Provider Auth](../guides/provider-auth) for hosted provider notes and API key links.
 
 ## Install Morph
 
@@ -152,6 +153,28 @@ morph config get models.main.provider models.main.name models.main.api
 
 To learn about credentials and available models for each provider, see the [Provider Auth](../guides/provider-auth) guide.
 
+### Local Ollama
+
+If you want a local model, install Ollama and start it:
+
+```bash
+ollama serve
+```
+
+In another terminal, let Morph configure the profile. Replace `<model-id>` with a model from the
+[Ollama model library](https://ollama.com/library):
+
+```bash
+morph setup provider \
+  --provider ollama \
+  --base-url http://127.0.0.1:11434 \
+  --model <model-id> \
+  --pull
+```
+
+You can also choose Ollama from TUI `/setup`. Local Ollama does not require `morph auth login`. For details, see
+[Local Models](../guides/local-models).
+
 ## Store Credentials
 
 Now authenticate the provider you selected in [Choose A Provider](#choose-a-provider). Morph cannot work until the active
@@ -205,6 +228,8 @@ morph doctor
 ```
 
 If credentials are missing, check that `models.main.provider` matches the provider you logged into.
+
+Skip this step when you configured local Ollama. Morph uses a local auth marker for Ollama instead of a real secret.
 
 ## Start Your First Chat
 

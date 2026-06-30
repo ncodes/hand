@@ -808,6 +808,35 @@ func TestNewMainAction_AllowsExplicitModelOverrideWhenDaemonModelMatches(t *test
 	require.Equal(t, "hello", stub.ChatInput)
 }
 
+func TestNewMainAction_AllowsOllamaModelOverrideWhenLatestTagIsImplicit(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
+		"MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	stub := &agentstub.AgentServiceStub{
+		Reply: "hello back",
+		RuntimeModelResult: rpcclient.ModelRuntime{
+			Provider: constants.ModelProviderOllama,
+			API:      modelprovider.APIOllamaNative,
+			Model:    "lfm2.5-thinking:latest",
+			BaseURL:  constants.DefaultOllamaBaseURL,
+		},
+	}
+	cmd := newMainActionTestCommand(io.Discard, func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--provider", "ollama",
+		"--model", "lfm2.5-thinking",
+		"hello",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "hello", stub.ChatInput)
+}
+
 func TestNewMainAction_RejectsExplicitModelOverrideWhenDaemonIdentityUnavailable(t *testing.T) {
 	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
 		"MORPH_CONFIG", "MORPH_ENV_FILE")

@@ -257,6 +257,9 @@ func normalizeRootChatModelRuntime(runtime rpcclient.ModelRuntime) rpcclient.Mod
 	runtime.Provider = strings.TrimSpace(strings.ToLower(runtime.Provider))
 	runtime.API = strings.TrimSpace(strings.ToLower(runtime.API))
 	runtime.Model = strings.TrimSpace(runtime.Model)
+	if runtime.Provider == constants.ModelProviderOllama {
+		runtime.Model = provider_ollama.NormalizeModelIDForComparison(runtime.Model)
+	}
 	runtime.BaseURL = strings.TrimRight(strings.TrimSpace(runtime.BaseURL), "/")
 	if runtime.ContextLength < 0 {
 		runtime.ContextLength = 0

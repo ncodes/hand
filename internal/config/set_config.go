@@ -330,9 +330,16 @@ func NormalizeConfigPathAlias(path string) string {
 	switch strings.ToLower(path) {
 	case "search.enablerank":
 		return "search.enableRerank"
-	default:
-		return path
 	}
+
+	parts := strings.Split(path, ".")
+	for index, part := range parts {
+		if strings.EqualFold(strings.TrimSpace(part), "baseURL") {
+			parts[index] = "baseUrl"
+		}
+	}
+
+	return strings.Join(parts, ".")
 }
 
 func findConfigField(container reflect.Type, part string) (reflect.StructField, string, bool) {
@@ -535,6 +542,7 @@ func setYAMLNodePath(root *yaml.Node, steps []configPathStep, valueNode *yaml.No
 		}
 		if i == len(steps)-1 {
 			setMappingValue(current, step.key, valueNode)
+			removeLegacyMappingAliases(current, step.key)
 			return nil
 		}
 
@@ -584,4 +592,21 @@ func setMappingValue(node *yaml.Node, key string, value *yaml.Node) {
 		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key},
 		value,
 	)
+}
+
+func removeLegacyMappingAliases(node *yaml.Node, key string) {
+	if key != "baseUrl" {
+		return
+	}
+
+	removeMappingValue(node, "baseURL")
+}
+
+func removeMappingValue(node *yaml.Node, key string) {
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			node.Content = append(node.Content[:i], node.Content[i+2:]...)
+			return
+		}
+	}
 }

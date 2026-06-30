@@ -23,6 +23,7 @@ control after config is ready, see [Gateway Management](./gateway-management).
 | RPC or gateway commands fail | **daemon** group shows whether `runtime.json` exists and RPC is reachable |
 | Gateway tokens or modes changed | **gateway** group lists missing bot tokens, webhook secrets, or auth on non-loopback binds |
 | Memory or search seems inactive | **memory** and **search** groups show effective feature flags and embedding auth |
+| Local model setup fails | **models** and **search** groups show Ollama reachability, selected model availability, and embedding readiness |
 | Before production or shared deploy | Surfaces WARN items (compaction off, vector search off, non-loopback gateway) you may want to address |
 
 Doctor is read-only. It does not start the daemon, reload config, or mutate profile files.
@@ -231,6 +232,11 @@ OAuth variants. Resolution order is documented in [Provider Auth](../guides/prov
 
 `morph auth status` lists stored credentials per provider; doctor verifies they satisfy the **configured model roles**.
 
+For local Ollama, model checks also probe the configured base URL. Doctor reports whether Ollama is reachable, whether
+the selected chat model is installed, whether selected-model context metadata is available, and whether a configured
+Ollama embedding model is installed. Local providers use a non-secret auth marker instead of a real API key when the
+runtime does not require auth. See [Local Models](../guides/local-models).
+
 ### session
 
 Reports [compaction](../concepts/sessions) effective settings:
@@ -265,6 +271,9 @@ Vector **WARN** means hybrid/semantic search is off; lexical search may still wo
 
 When vector search is required, fix embedding auth with the same commands doctor suggests (`morph auth login …`,
 `morph config set models.providers.…`).
+
+For Ollama embeddings, doctor checks the local runtime and selected embedding model instead of asking for a hosted API
+key. A typical fix is `ollama pull nomic-embed-text` or updating `models.embedding.baseUrl`.
 
 ### safety
 
@@ -350,6 +359,7 @@ Pages that link here for readiness detail:
 - [Profiles and Config](../getting-started/profiles-and-config): profile layout and `morph profile doctor`.
 - [Configuration Guide](../guides/config): keys doctor validates.
 - [Provider Auth](../guides/provider-auth): credential setup for **models** checks.
+- [Local Models](../guides/local-models): Ollama setup, pull, diagnostics, and embeddings.
 - [Memory Guide](../guides/memory): **memory** group fields.
 - [Search and Traces](../guides/search-and-traces): **search** / vector / rerank checks.
 - [Gateway guides](../guides/gateway/): Telegram, Slack, and HTTP setup for **gateway** checks.

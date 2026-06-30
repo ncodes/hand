@@ -194,10 +194,12 @@ func (m *model) completeModelsCommand(msg modelsLoadedMsg) tea.Cmd {
 		TitleRight:      getModelsCommandTitleRight(),
 		TitleRightColor: defaultTUITheme.MutedText,
 		Kind:            commandViewKindModels,
-		Models:          msg.List.Models,
+		Models:          orderModelsCommandOptions(msg.List.Models),
 		ModelProvider:   msg.List.Provider,
 		ModelAuthType:   msg.List.AuthType,
 	})
+	m.commandViewItemSelected = 0
+	m.commandViewOffset = 0
 	m.modelFilterInput = newModelFilterInput()
 
 	return nil
@@ -439,6 +441,18 @@ func getModelOptionContextLength(model rpcclient.ModelOption) string {
 }
 
 func getModelOptionMutedDetail(model rpcclient.ModelOption) string {
+	detail := getModelOptionCapabilityDetail(model)
+	if !model.Current {
+		return detail
+	}
+	if detail == "" {
+		return "(current)"
+	}
+
+	return "(current) · " + normalizeModelOptionDetailCells(detail)
+}
+
+func getModelOptionCapabilityDetail(model rpcclient.ModelOption) string {
 	contextLength := getModelOptionContextLength(model)
 	if !model.Reasoning && contextLength == "" {
 		return ""
@@ -456,6 +470,19 @@ func getModelOptionMutedDetail(model rpcclient.ModelOption) string {
 
 	return strings.Repeat(" ", modelOptionReasoningWidth+3) +
 		padCommandCell(contextLength, modelOptionContextWidth, true)
+}
+
+func normalizeModelOptionDetailCells(detail string) string {
+	cells := strings.Split(detail, "·")
+	normalized := make([]string, 0, len(cells))
+	for _, cell := range cells {
+		cell = strings.TrimSpace(cell)
+		if cell != "" {
+			normalized = append(normalized, cell)
+		}
+	}
+
+	return strings.Join(normalized, " · ")
 }
 
 func padCommandCell(value string, width int, alignRight bool) string {

@@ -300,6 +300,64 @@ func TestRunProviderConfiguresOllamaFromDiscoveredModels(t *testing.T) {
 	require.NotContains(t, output.String(), "Pull qwen3:8b if missing?")
 }
 
+func TestRunProviderNormalizesInheritedOllamaOpenAICompatibleBaseURL(t *testing.T) {
+	configPath := setupProviderTestProfile(t, "local")
+	_, err := config.SetConfigValuesRelaxed("", configPath, []config.ConfigUpdate{
+		{Path: "models.main.provider", Value: constants.ModelProviderOllama},
+		{Path: "models.main.name", Value: "openai-compatible:latest"},
+		{Path: "models.main.api", Value: modelprovider.APIOpenAICompletions},
+		{Path: "models.main.baseURL", Value: "http://127.0.0.1:11434/v1"},
+	})
+	require.NoError(t, err)
+
+	originalDiscover := discoverOllamaModels
+	originalPull := pullOllamaModel
+	t.Cleanup(func() {
+		discoverOllamaModels = originalDiscover
+		pullOllamaModel = originalPull
+	})
+
+	var discoveredBaseURL string
+	discoverOllamaModels = func(_ context.Context, baseURL string) ([]modelprovider.ModelDefinition, error) {
+		discoveredBaseURL = baseURL
+		return []modelprovider.ModelDefinition{{
+			ID:       "native:latest",
+			Provider: constants.ModelProviderOllama,
+			API:      modelprovider.APIOllamaNative,
+			Input:    []modelprovider.InputKind{modelprovider.InputText},
+		}}, nil
+	}
+	pullOllamaModel = func(
+		context.Context,
+		string,
+		string,
+		map[string]string,
+		func(provider_ollama.PullProgress),
+	) error {
+		t.Fatal("pull should not run for a discovered model")
+		return nil
+	}
+
+	_, err = RunProvider(context.Background(), ProviderOptions{
+		Output:     io.Discard,
+		ConfigPath: configPath,
+		Provider:   constants.ModelProviderOllama,
+		Model:      "native:latest",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:11434", discoveredBaseURL)
+	cfg, err := config.Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, modelprovider.APIOllamaNative, cfg.Models.Main.API)
+	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Main.BaseURL)
+	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Embedding.BaseURL)
+	rawConfig, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	require.NotContains(t, string(rawConfig), "baseURL:")
+	require.Contains(t, string(rawConfig), "baseUrl: http://127.0.0.1:11434")
+}
+
 func TestRunProviderUsesDefaultOllamaDiscoverer(t *testing.T) {
 	configPath := setupProviderTestProfile(t, "local")
 
@@ -393,7 +451,10 @@ func TestRunProviderValidatesSelectedOllamaModelReachability(t *testing.T) {
 	})
 
 	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
-		return []modelprovider.ModelDefinition{{ID: "qwen3:8b"}}, nil
+		return []modelprovider.ModelDefinition{{
+			ID:  "qwen3:8b",
+			API: modelprovider.APIOllamaNative,
+		}}, nil
 	}
 	pullOllamaModel = func(
 		context.Context,
@@ -1980,7 +2041,10 @@ func TestProviderRunnerMergesLiveAndCataloguedOllamaModels(t *testing.T) {
 	})
 
 	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
-		return []modelprovider.ModelDefinition{{ID: "local:latest"}}, nil
+		return []modelprovider.ModelDefinition{{
+			ID:  "local:latest",
+			API: modelprovider.APIOllamaNative,
+		}}, nil
 	}
 
 	runner := providerRunner{registry: modelprovider.DefaultRegistry()}
@@ -2009,7 +2073,10 @@ func TestListModelOptionsUsesLocalAwareCatalogPath(t *testing.T) {
 
 	discoverOllamaModels = func(_ context.Context, baseURL string) ([]modelprovider.ModelDefinition, error) {
 		require.Equal(t, "http://configured.local:11434", baseURL)
-		return []modelprovider.ModelDefinition{{ID: "local:latest"}}, nil
+		return []modelprovider.ModelDefinition{{
+			ID:  "local:latest",
+			API: modelprovider.APIOllamaNative,
+		}}, nil
 	}
 
 	cfg := config.NewProfileConfig()
@@ -2030,6 +2097,36 @@ func TestListModelOptionsUsesLocalAwareCatalogPath(t *testing.T) {
 	require.Equal(t, "local:latest", options[0].ID)
 	require.False(t, options[0].LocalMissing)
 	require.True(t, getSetupModelOption(t, options, constants.DefaultOllamaModel).LocalMissing)
+}
+
+func TestListModelOptionsExcludesDiscoveredOllamaEmbeddingModels(t *testing.T) {
+	originalDiscover := discoverOllamaModels
+	t.Cleanup(func() {
+		discoverOllamaModels = originalDiscover
+	})
+
+	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+		return []modelprovider.ModelDefinition{
+			{
+				ID:  "chat:latest",
+				API: modelprovider.APIOllamaNative,
+			},
+			{
+				ID:  "nomic-embed-text:latest",
+				API: modelprovider.APIOllamaEmbeddings,
+			},
+		}, nil
+	}
+
+	options, hasInstalled, err := ListModelOptions(context.Background(), ModelOptions{
+		Provider: constants.ModelProviderOllama,
+		Refresh:  true,
+	})
+
+	require.NoError(t, err)
+	require.True(t, hasInstalled)
+	require.Contains(t, getSetupModelIDs(options), "chat:latest")
+	require.NotContains(t, getSetupModelIDs(options), "nomic-embed-text:latest")
 }
 
 func TestResolveModelOptionsBaseURLUsesExplicitAndProfileConfig(t *testing.T) {
@@ -2057,6 +2154,27 @@ func TestResolveModelOptionsBaseURLUsesExplicitAndProfileConfig(t *testing.T) {
 	}))
 }
 
+func TestResolveModelOptionsBaseURLNormalizesInheritedOllamaOpenAICompatibleBaseURL(t *testing.T) {
+	cfg := config.NewProfileConfig()
+	cfg.Models.Main.Provider = constants.ModelProviderOllama
+	cfg.Models.Main.API = modelprovider.APIOpenAICompletions
+	cfg.Models.Main.BaseURL = "http://main.local:11434/v1"
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		constants.ModelProviderOllama: {BaseURL: "http://provider.local:11434/v1"},
+	}
+
+	require.Equal(t, "http://main.local:11434", ResolveModelOptionsBaseURL(ModelOptions{
+		Provider: constants.ModelProviderOllama,
+		Config:   cfg,
+	}))
+
+	cfg.Models.Main.Provider = ""
+	require.Equal(t, "http://provider.local:11434", ResolveModelOptionsBaseURL(ModelOptions{
+		Provider: constants.ModelProviderOllama,
+		Config:   cfg,
+	}))
+}
+
 func TestSetupWizardLabelsMissingOllamaCatalogModels(t *testing.T) {
 	originalDiscover := discoverOllamaModels
 	t.Cleanup(func() {
@@ -2064,7 +2182,10 @@ func TestSetupWizardLabelsMissingOllamaCatalogModels(t *testing.T) {
 	})
 
 	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
-		return []modelprovider.ModelDefinition{{ID: "local:latest"}}, nil
+		return []modelprovider.ModelDefinition{{
+			ID:  "local:latest",
+			API: modelprovider.APIOllamaNative,
+		}}, nil
 	}
 
 	model := setupWizardModel{
@@ -2094,7 +2215,10 @@ func TestProviderRunnerDetectsMissingSelectedLocalModel(t *testing.T) {
 	})
 
 	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
-		return []modelprovider.ModelDefinition{{ID: "installed:latest"}}, nil
+		return []modelprovider.ModelDefinition{{
+			ID:  "installed:latest",
+			API: modelprovider.APIOllamaNative,
+		}}, nil
 	}
 
 	missing, err := providerRunner{}.checkLocalModelMissing(
@@ -2205,7 +2329,7 @@ func TestRunProviderUsesExistingBaseURLForMatchingProvider(t *testing.T) {
 	_, err := config.SetConfigValuesRelaxed("", configPath, []config.ConfigUpdate{
 		{Path: "models.main.provider", Value: constants.ModelProviderOpenAI},
 		{Path: "models.main.name", Value: "gpt-5.5"},
-		{Path: "models.main.baseURL", Value: "https://custom.example/v1"},
+		{Path: "models.main.baseUrl", Value: "https://custom.example/v1"},
 	})
 	require.NoError(t, err)
 

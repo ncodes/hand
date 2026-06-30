@@ -20,6 +20,10 @@ Credentials are [profile](../concepts/profiles)-local. By default, `morph auth l
 
 Do not commit `auth.json`, `.env`, or real provider tokens.
 
+Local providers are different. Ollama does not require a real secret for the default local runtime, so Morph uses a
+non-secret local auth marker internally. You do not need to run `morph auth login ollama`; configure it through
+`morph setup provider` or TUI `/setup` instead. See [Local Models](./local-models).
+
 ## Subscription Login
 
 Subscription login stores an OAuth credential. Run the login command without `--api-key`:
@@ -113,12 +117,16 @@ For each model request, Morph resolves a credential for the role's provider and 
    `models.providers.<provider>.apiKeyEnv`, or the provider's default key variable (`OPENAI_API_KEY`,
    `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`).
 4. **Provider config** — `models.providers.<provider>.apiKey`.
+5. **Local provider marker** — for local providers such as Ollama when no real auth is required.
 
 Two consequences are worth knowing. A stored credential from `morph auth login` ranks **above** environment variables,
 so once you have logged in you do not also need to export a key, and a stored credential takes precedence over an
 ambient one in your shell. If Morph finds an OAuth credential for a model that is not available through OAuth, it skips
 that credential and checks later API-key sources. If none exist, it reports that the selected model is not available
 through OAuth for that provider.
+
+For Ollama embeddings, the same local marker lets the embedding role use `/api/embeddings` without treating the marker
+as a bearer token.
 
 Run `morph doctor` after changing model config or credentials. Its readiness checks resolve the **main** and **summary**
 model credentials (and the **embedding** credential when vector search is enabled), report which source satisfied each,
@@ -129,6 +137,7 @@ and print the exact next command to run when one is missing. See [Doctor](../ope
 - [Config Reference](../reference/config): every `models.*` and `reranker` key and its default.
 - [Environment Variables](../reference/environment-variables): the provider key and OAuth token variables.
 - [Configuration Guide](./config): set model roles and providers with `morph config set`.
+- [Local Models](./local-models): configure Ollama without API keys.
 - [Doctor](../operations/doctor): verify credentials resolve for the active profile.
 - [Profiles](../concepts/profiles): how `auth.json` and config are isolated per profile.
 - [Sessions](../concepts/sessions): where the summary model is used.

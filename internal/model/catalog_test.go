@@ -410,6 +410,41 @@ func TestListOptions_UsesConfiguredOllamaDiscoveryBaseURL(t *testing.T) {
 	}
 }
 
+func TestListOptions_FiltersDiscoveredOllamaEmbeddingModels(t *testing.T) {
+	resetLocalDiscoveryCache(t)
+
+	options, err := ListOptions(OptionQuery{
+		Context:        context.Background(),
+		Provider:       constants.ModelProviderOllama,
+		Current:        "chat:latest",
+		LocalDiscovery: true,
+		Refresh:        true,
+		DiscoverLocalModels: func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+			return []modelprovider.ModelDefinition{
+				{
+					ID:       "chat:latest",
+					Name:     "Chat",
+					Provider: constants.ModelProviderOllama,
+					API:      modelprovider.APIOllamaNative,
+					Input:    []modelprovider.InputKind{modelprovider.InputText},
+				},
+				{
+					ID:       "nomic-embed-text:latest",
+					Name:     "nomic-embed-text",
+					Provider: constants.ModelProviderOllama,
+					API:      modelprovider.APIOllamaEmbeddings,
+					Input:    []modelprovider.InputKind{modelprovider.InputText},
+				},
+			}, nil
+		},
+	})
+
+	require.NoError(t, err)
+	require.Contains(t, getOptionIDs(options), "chat:latest")
+	require.NotContains(t, getOptionIDs(options), "nomic-embed-text:latest")
+	require.Equal(t, OptionSourceDiscovery, findOption(t, options, "chat:latest").Source)
+}
+
 func TestCatalogHelpersHandleFallbacks(t *testing.T) {
 	require.Empty(t, getProviderDefaultAPI(nil, "missing"))
 	require.Equal(t, modelprovider.APIOllamaNative, getProviderDefaultAPI(nil, constants.ModelProviderOllama))
@@ -439,7 +474,11 @@ func TestCatalogHelpersHandleFallbacks(t *testing.T) {
 	converted := modelDefinitionsToOptions(
 		[]modelprovider.ModelDefinition{
 			{ID: " "},
-			{ID: "vision:latest", Input: []modelprovider.InputKind{" ", modelprovider.InputImage}},
+			{
+				ID:    "vision:latest",
+				API:   modelprovider.APIOllamaNative,
+				Input: []modelprovider.InputKind{" ", modelprovider.InputImage},
+			},
 		},
 		"vision:latest",
 		"http://local",

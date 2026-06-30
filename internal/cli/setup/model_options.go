@@ -60,7 +60,7 @@ func ResolveModelOptionsBaseURL(opts ModelOptions) string {
 	if opts.Config != nil {
 		if strings.EqualFold(opts.Config.Models.Main.Provider, provider.ID) {
 			if value := strings.TrimSpace(opts.Config.Models.Main.BaseURL); value != "" {
-				return value
+				return normalizeInheritedSetupBaseURL(provider.ID, provider.DefaultAPI, value)
 			}
 			if value := strings.TrimSpace(opts.Config.Models.Main.API); value != "" {
 				api = value
@@ -68,7 +68,7 @@ func ResolveModelOptionsBaseURL(opts ModelOptions) string {
 		}
 		if providerConfig, ok := getProviderModelConfig(opts.Config, provider.ID); ok {
 			if value := strings.TrimSpace(providerConfig.BaseURL); value != "" {
-				return value
+				return normalizeInheritedSetupBaseURL(provider.ID, provider.DefaultAPI, value)
 			}
 			if value := strings.TrimSpace(providerConfig.API); value != "" {
 				api = value

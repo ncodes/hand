@@ -85,6 +85,20 @@ Retrieval is intentionally small — a few high-scoring hits with per-item and t
 focused. Vector search and reranking improve recall when configured; see [Config Guide](./config) for `search` and
 `models.embedding`, and [Provider Auth](./provider-auth) for the embedding role.
 
+Embedding models are configured independently from chat models. Ollama embeddings are supported through
+`/api/embeddings`, so a profile can use hosted chat with local vectors or local chat with a separate local embedding
+model. A common local setup is:
+
+```bash
+ollama pull nomic-embed-text
+morph config set models.embedding.provider ollama
+morph config set models.embedding.name nomic-embed-text
+morph config set models.embedding.api ollama-embeddings
+morph config set models.embedding.baseUrl http://127.0.0.1:11434
+```
+
+See [Local Models](./local-models#local-embeddings) for base URL behavior and diagnostics.
+
 ## Agent Writes During a Turn
 
 When memory write is enabled and the memory capability is on, the agent can call `memory_add`, `memory_update`, and
@@ -200,6 +214,10 @@ morph doctor
 - Only **active** items are injected. New candidates are not retrieved until promotion succeeds.
 - Search hits below the relevance threshold are dropped at turn assembly.
 - Confirm `memory.retrieval.enabled` is on and pinned content fits within its budget.
+- If you changed `models.embedding.name`, run `morph session repair <session-id> --full` to rebuild session-message
+  vectors for the active embedding model.
+- Vector index tables are dimension-specific, but retrieval also filters by embedding model so same-dimension models do
+  not share search results accidentally.
 
 ### Background extraction quiet
 
@@ -219,6 +237,7 @@ Trace files under the profile's `traces/` directory record memory events (`memor
 - [Session Guide](./sessions): compaction and flush timing.
 - [Config Guide](./config): changing profile settings safely.
 - [Provider Auth](./provider-auth): summary and embedding model credentials.
+- [Local Models](./local-models): Ollama embeddings and local vector diagnostics.
 - [Tools](../concepts/tools): memory tools and the `cap.mem` capability.
 - [Safety and Guardrails](../concepts/safety-and-guardrails): scans applied to memory reads and writes.
 - [Profiles](../concepts/profiles): memory is isolated per profile.

@@ -128,6 +128,22 @@ Morph resolves credentials in order: role config → stored `auth.json` → envi
 
 Gateway turns use the same model runtime as the TUI. Fix **models** before debugging Slack or Telegram reply issues.
 
+### Local Ollama problems
+
+When `models.main.provider` or `models.embedding.provider` is `ollama`, Morph checks the local runtime instead of
+requiring a real API key.
+
+| Problem | What to do |
+| --- | --- |
+| Ollama not reachable | Start Ollama with `ollama serve`, or edit the base URL in `/setup` or config |
+| Native Ollama base URL ends with `/v1` | Use `http://127.0.0.1:11434` for `ollama-native` |
+| OpenAI-compatible base URL is missing `/v1` | Use `http://127.0.0.1:11434/v1` for `openai-completions` |
+| Selected chat model missing | Run `ollama pull <model>` or `morph setup provider --provider ollama --model <model> --pull` |
+| Embedding model missing | Run `ollama pull nomic-embed-text`, or choose another installed embedding model |
+| Tool calls fail or appear as raw JSON | Try a model with stronger tool-call support or switch that workflow to a hosted/tool-capable model |
+
+For the full local model flow, see [Local Models](./local-models).
+
 ## Config Validation Failures
 
 Symptoms: `morph config set` rejects a value; doctor **config validation** fails; daemon refuses invalid config.
@@ -230,6 +246,8 @@ Symptoms: search returns nothing; doctor **search** or **memory** warnings; prom
 - Confirm messages were **persisted** — only stored session content is indexed.
 - **Vector search** needs `search.vector.enabled`, embedding model auth, and (when `search.vector.required` is true)
   a passing **embedding** check in doctor. Lexical BM25 search works without vectors.
+- **Ollama embeddings** use `/api/embeddings` and do not require a real API key. Confirm Ollama is reachable and the
+  embedding model is installed with `ollama list`.
 - **Stale hybrid rankings** — `morph session repair` for the affected session. See [Search and Traces](./search-and-traces).
 
 ### Memory

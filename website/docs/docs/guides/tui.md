@@ -117,6 +117,13 @@ On first run, or when credentials are missing, the TUI walks you through naming 
 chatting without editing config by morph. You can reopen this later with `/setup`, and inspect what is available with
 `/models` and `/providers`. For configuring provider credentials in depth, see [Provider Auth](./provider-auth).
 
+`/setup` also supports local providers. Choose **Use local providers**, select **Ollama**, edit the base URL when needed,
+and then choose a model. Installed Ollama models appear before suggested models; suggested models are marked when they
+are not installed yet. You can refresh discovery after changing models outside Morph, pull a missing model before
+saving, or skip the pull and keep the selected model in config.
+
+For local setup details, base URL rules, and Ollama embeddings, see [Local Models](./local-models).
+
 ## Exiting
 
 Press **Ctrl+C** to exit; press it again to confirm. If the TUI started a temporary daemon for this run, that daemon is
@@ -141,5 +148,6 @@ stopped as you leave; a daemon that was already running keeps running.
 - [Sessions](../concepts/sessions) and the [Session Guide](./sessions): manage conversations.
 - [Daemon and RPC](../concepts/daemon-and-rpc): the process the TUI talks to.
 - [Provider Auth](./provider-auth): set up provider credentials.
+- [Local Models](./local-models): configure Ollama chat and embeddings.
 - [Tools](../concepts/tools): what the tool activity in the transcript represents.
 - [TUI Internals](../development/tui): how the interface is implemented.

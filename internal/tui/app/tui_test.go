@@ -1509,6 +1509,10 @@ search:
 	require.Equal(t, constants.DefaultOllamaEmbeddingModel, cfg.Models.Embedding.Name)
 	require.Equal(t, modelprovider.APIOllamaEmbeddings, cfg.Models.Embedding.API)
 	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Embedding.BaseURL)
+	rawConfig, err := os.ReadFile(filepath.Join(home, "config.yaml"))
+	require.NoError(t, err)
+	require.NotContains(t, string(rawConfig), "baseURL:")
+	require.Contains(t, string(rawConfig), "baseUrl: http://127.0.0.1:11434")
 }
 
 func TestModel_CompleteSetupModelSelectionRefreshesRuntimeModelClient(t *testing.T) {

@@ -105,6 +105,35 @@ func TestDiscoverer_DiscoverModelsKeepsTagsWhenShowFails(t *testing.T) {
 	require.Zero(t, models[0].ContextWindow)
 }
 
+func TestDiscoverer_DiscoverModelsMarksEmbeddingOnlyModels(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			_, _ = w.Write([]byte(`{"models":[{"name":"nomic-embed-text:latest"}]}`))
+		case "/api/show":
+			_, _ = w.Write([]byte(`{
+				"capabilities":["embedding"],
+				"model_info":{"bert.context_length":2048}
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	discoverer, err := NewDiscoverer(server.URL)
+	require.NoError(t, err)
+
+	models, err := discoverer.DiscoverModels(t.Context())
+
+	require.NoError(t, err)
+	require.Len(t, models, 1)
+	require.Equal(t, "nomic-embed-text:latest", models[0].ID)
+	require.Equal(t, modelprovider.APIOllamaEmbeddings, models[0].API)
+	require.Equal(t, []modelprovider.InputKind{modelprovider.InputText}, models[0].Input)
+	require.Equal(t, 2048, models[0].ContextWindow)
+}
+
 func TestDiscoverer_DiscoverModelsSkipsBlankTagModel(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

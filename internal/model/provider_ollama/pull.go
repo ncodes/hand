@@ -72,7 +72,7 @@ func (p *Puller) EnsureModel(ctx context.Context, model string, onProgress func(
 		return errors.New("ollama puller is required")
 	}
 
-	model = normalizePullModelName(model)
+	model = NormalizeModelID(model)
 	if model == "" {
 		return errors.New("ollama model is required")
 	}
@@ -96,7 +96,7 @@ func (p *Puller) HasModel(ctx context.Context, model string) (bool, error) {
 		return false, errors.New("ollama puller is required")
 	}
 
-	model = normalizePullModelName(model)
+	model = NormalizeModelID(model)
 	if model == "" {
 		return false, errors.New("ollama model is required")
 	}
@@ -132,7 +132,7 @@ func (p *Puller) PullModel(ctx context.Context, model string, onProgress func(Pu
 		return errors.New("ollama puller is required")
 	}
 
-	model = normalizePullModelName(model)
+	model = NormalizeModelID(model)
 	if model == "" {
 		return errors.New("ollama model is required")
 	}
@@ -189,16 +189,6 @@ func (p *Puller) setHeaders(req *http.Request) {
 	for key, value := range p.headers {
 		req.Header.Set(key, value)
 	}
-}
-
-func normalizePullModelName(value string) string {
-	value = strings.TrimSpace(value)
-	if provider, model, ok := strings.Cut(value, "/"); ok &&
-		strings.EqualFold(strings.TrimSpace(provider), "ollama") {
-		return strings.TrimSpace(model)
-	}
-
-	return value
 }
 
 func isOllamaCloudModel(model string) bool {

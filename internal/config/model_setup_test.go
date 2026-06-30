@@ -14,21 +14,21 @@ func TestModelSetupEmbeddingUpdates(t *testing.T) {
 		{Path: "models.embedding.provider", Value: constants.ModelProviderOpenAI},
 		{Path: "models.embedding.name", Value: constants.DefaultProfileEmbeddingModel},
 		{Path: "models.embedding.api", Value: modelprovider.APIOpenAIEmbeddings},
-		{Path: "models.embedding.baseURL", Value: ""},
+		{Path: "models.embedding.baseUrl", Value: ""},
 	}, ModelSetupEmbeddingUpdates(constants.ModelProviderOpenAI))
 
 	require.Equal(t, []ConfigUpdate{
 		{Path: "models.embedding.provider", Value: constants.ModelProviderOpenRouter},
 		{Path: "models.embedding.name", Value: constants.DefaultProfileEmbeddingModel},
 		{Path: "models.embedding.api", Value: modelprovider.APIOpenRouterEmbeddings},
-		{Path: "models.embedding.baseURL", Value: ""},
+		{Path: "models.embedding.baseUrl", Value: ""},
 	}, ModelSetupEmbeddingUpdates(constants.ModelProviderOpenRouter))
 
 	require.Equal(t, []ConfigUpdate{
 		{Path: "models.embedding.provider", Value: constants.ModelProviderOllama},
 		{Path: "models.embedding.name", Value: constants.DefaultOllamaEmbeddingModel},
 		{Path: "models.embedding.api", Value: modelprovider.APIOllamaEmbeddings},
-		{Path: "models.embedding.baseURL", Value: "http://127.0.0.1:11434"},
+		{Path: "models.embedding.baseUrl", Value: "http://127.0.0.1:11434"},
 	}, ModelSetupEmbeddingUpdates(constants.ModelProviderOllama, "http://127.0.0.1:11434"))
 
 	require.Equal(t, []ConfigUpdate{

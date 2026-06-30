@@ -33,10 +33,11 @@ func TestModel_StartModelsCommandLoadsModels(t *testing.T) {
 	require.Equal(t, "OpenRouter", runModel.commandView.TitleSubtext)
 	require.Equal(t, "openrouter", runModel.commandView.ModelProvider)
 	require.NotEmpty(t, runModel.commandView.Models)
-	require.Equal(t, constants.DefaultProfileModel, runModel.commandView.Models[0].ID)
-	require.True(t, runModel.commandView.Models[0].DisplayDefault)
-	current := findCommandModelOption(t, runModel.commandView.Models, "openai/gpt-4o-mini")
-	require.True(t, current.Current)
+	require.Zero(t, runModel.commandViewItemSelected)
+	require.Equal(t, "openai/gpt-4o-mini", runModel.commandView.Models[0].ID)
+	require.True(t, runModel.commandView.Models[0].Current)
+	defaultModel := findCommandModelOption(t, runModel.commandView.Models, constants.DefaultProfileModel)
+	require.True(t, defaultModel.DisplayDefault)
 }
 
 func TestLoadModelsCmdUsesBackgroundContextWhenMissing(t *testing.T) {
@@ -242,7 +243,7 @@ func TestModel_RenderModelsCommandViewHighlightsCurrentAndSelection(t *testing.T
 	require.Contains(t, content, "reasoning")
 	require.Contains(t, content, "GPT 4o")
 	require.Contains(t, content, "128k")
-	require.NotContains(t, content, "current")
+	require.Contains(t, content, "(current)")
 }
 
 func TestModel_RenderModelsCommandViewHandlesEmptyAndContextLength(t *testing.T) {
@@ -271,6 +272,12 @@ func TestModel_RenderModelsCommandViewHandlesEmptyAndContextLength(t *testing.T)
 	require.Equal(t, "reasoning · 1000k", getModelOptionMutedDetail(rpcclient.ModelOption{
 		Reasoning:     true,
 		ContextWindow: 1000000,
+	}))
+	require.Equal(t, "(current)", getModelOptionMutedDetail(rpcclient.ModelOption{Current: true}))
+	require.Equal(t, "(current) · reasoning · 128k", getModelOptionMutedDetail(rpcclient.ModelOption{
+		Current:       true,
+		Reasoning:     true,
+		ContextWindow: 128000,
 	}))
 	require.Empty(t, getModelOptionMutedDetail(rpcclient.ModelOption{SupportsOAuth: true}))
 }
@@ -525,6 +532,29 @@ func TestModel_ModelsCommandReportsUnavailableStates(t *testing.T) {
 	updated, cmd = runModel.selectCurrentProviderOption()
 	require.NotNil(t, cmd)
 	require.Equal(t, "provider selection unavailable", updated.(model).status.Text())
+}
+
+func TestModel_CompleteModelsCommandHighlightsCurrentModelFirst(t *testing.T) {
+	runModel := newModel()
+	runModel.commandViewItemSelected = 2
+	runModel.commandViewOffset = 2
+
+	cmd := runModel.completeModelsCommand(modelsLoadedMsg{
+		List: rpcclient.ModelList{
+			Provider: "openai",
+			Models: []rpcclient.ModelOption{
+				{ID: "default", DisplayDefault: true},
+				{ID: "other"},
+				{ID: "current", Current: true},
+			},
+		},
+	})
+
+	require.Nil(t, cmd)
+	require.Zero(t, runModel.commandViewItemSelected)
+	require.Zero(t, runModel.commandViewOffset)
+	require.Equal(t, "current", runModel.commandView.Models[0].ID)
+	require.True(t, runModel.commandView.Models[0].Current)
 }
 
 func TestModel_ModelSelectionEdgeCases(t *testing.T) {
