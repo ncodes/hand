@@ -40,11 +40,18 @@ func buildModelGroup(ctx context.Context, cfg *config.Config) Group {
 }
 
 func buildOllamaReadinessChecks(ctx context.Context, cfg *config.Config) []Check {
-	if cfg == nil || strings.TrimSpace(strings.ToLower(cfg.Models.Main.Provider)) != constants.ModelProviderOllama {
+	if cfg == nil {
 		return nil
 	}
 
-	baseURL := strings.TrimSpace(cfg.Models.Main.BaseURL)
+	mainIsOllama := strings.TrimSpace(strings.ToLower(cfg.Models.Main.Provider)) == constants.ModelProviderOllama
+	embeddingIsOllama := cfg.Search.Vector.Enabled &&
+		strings.TrimSpace(strings.ToLower(cfg.ModelEmbeddingProviderEffective())) == constants.ModelProviderOllama
+	if !mainIsOllama && !embeddingIsOllama {
+		return nil
+	}
+
+	baseURL := getOllamaReadinessBaseURL(cfg)
 	modelID := strings.TrimSpace(cfg.Models.Main.Name)
 	models, err := discoverOllamaModels(ctx, baseURL)
 	if err != nil {
@@ -62,6 +69,11 @@ func buildOllamaReadinessChecks(ctx context.Context, cfg *config.Config) []Check
 		StatusPass,
 		fmt.Sprintf("reachable at %s, discovered %d model(s)", baseURL, len(models)),
 	)}
+	if !mainIsOllama {
+		checks = append(checks, buildOllamaEmbeddingCheck(cfg, models)...)
+		return checks
+	}
+
 	selected, ok := getOllamaReadinessModel(models, modelID)
 	if !ok {
 		return append(checks, check(
@@ -79,18 +91,58 @@ func buildOllamaReadinessChecks(ctx context.Context, cfg *config.Config) []Check
 	))
 	checks = append(checks, buildOllamaContextCheck(cfg, selected))
 	checks = append(checks, buildOllamaToolSupportCheck(selected))
+	checks = append(checks, buildOllamaEmbeddingCheck(cfg, models)...)
 
 	return checks
 }
 
+func getOllamaReadinessBaseURL(cfg *config.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	if strings.TrimSpace(strings.ToLower(cfg.Models.Main.Provider)) == constants.ModelProviderOllama {
+		if value := strings.TrimSpace(cfg.Models.Main.BaseURL); value != "" {
+			return value
+		}
+	}
+	if auth, err := cfg.ResolveEmbeddingModelAuth(); err == nil &&
+		strings.TrimSpace(strings.ToLower(auth.Provider)) == constants.ModelProviderOllama {
+		return strings.TrimSpace(auth.BaseURL)
+	}
+	if value := strings.TrimSpace(cfg.Models.Embedding.BaseURL); value != "" {
+		return value
+	}
+	if providerConfig, ok := cfg.Models.Providers[constants.ModelProviderOllama]; ok {
+		if value := strings.TrimSpace(providerConfig.BaseURL); value != "" {
+			return value
+		}
+	}
+
+	return constants.DefaultOllamaBaseURL
+}
+
 func getOllamaReadinessModel(models []modelprovider.ModelDefinition, modelID string) (modelprovider.ModelDefinition, bool) {
+	modelID = strings.TrimSpace(modelID)
 	for _, model := range models {
-		if strings.EqualFold(strings.TrimSpace(model.ID), modelID) {
+		if ollamaModelIDMatches(model.ID, modelID) {
 			return model, true
 		}
 	}
 
 	return modelprovider.ModelDefinition{}, false
+}
+
+func ollamaModelIDMatches(installed string, requested string) bool {
+	installed = strings.TrimSpace(installed)
+	requested = strings.TrimSpace(requested)
+	if strings.EqualFold(installed, requested) {
+		return true
+	}
+	if !strings.Contains(requested, ":") && strings.EqualFold(installed, requested+":latest") {
+		return true
+	}
+
+	return false
 }
 
 func buildOllamaContextCheck(cfg *config.Config, model modelprovider.ModelDefinition) Check {
@@ -130,6 +182,33 @@ func buildOllamaToolSupportCheck(model modelprovider.ModelDefinition) Check {
 		StatusWarn,
 		fmt.Sprintf("model %q does not report tool support; tool-using workflows may fail", modelID),
 	)
+}
+
+func buildOllamaEmbeddingCheck(cfg *config.Config, models []modelprovider.ModelDefinition) []Check {
+	if cfg == nil ||
+		!cfg.Search.Vector.Enabled ||
+		strings.TrimSpace(strings.ToLower(cfg.ModelEmbeddingProviderEffective())) != constants.ModelProviderOllama {
+		return nil
+	}
+
+	modelID := strings.TrimSpace(cfg.Models.Embedding.Name)
+	if modelID == "" {
+		return []Check{check("ollama embeddings", StatusFail, "embedding model is required")}
+	}
+	if _, ok := getOllamaReadinessModel(models, modelID); ok {
+		return []Check{check(
+			"ollama embeddings",
+			StatusPass,
+			fmt.Sprintf("embedding model %q is installed", modelID),
+		)}
+	}
+
+	return []Check{check(
+		"ollama embeddings",
+		StatusWarn,
+		fmt.Sprintf("embedding model %q is not installed; vector search will fail until it is pulled", modelID),
+		commandAction(ollamaSetupPullCommand(getOllamaReadinessBaseURL(cfg), modelID), "pull the selected Ollama embedding model"),
+	)}
 }
 
 func ollamaSetupPullCommand(baseURL string, modelID string) string {

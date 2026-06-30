@@ -1505,7 +1505,10 @@ search:
 	require.Equal(t, "lfm2.5-thinking:latest", cfg.Models.Summary.Name)
 	require.Equal(t, modelprovider.APIOllamaNative, cfg.Models.Summary.API)
 	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Summary.BaseURL)
-	require.False(t, cfg.Search.Vector.Enabled)
+	require.Equal(t, constants.ModelProviderOllama, cfg.Models.Embedding.Provider)
+	require.Equal(t, constants.DefaultOllamaEmbeddingModel, cfg.Models.Embedding.Name)
+	require.Equal(t, modelprovider.APIOllamaEmbeddings, cfg.Models.Embedding.API)
+	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Embedding.BaseURL)
 }
 
 func TestModel_CompleteSetupModelSelectionRefreshesRuntimeModelClient(t *testing.T) {
@@ -2312,17 +2315,6 @@ search:
 	cfg, err := config.Load("", filepath.Join(home, "config.yaml"))
 	require.NoError(t, err)
 	require.False(t, cfg.Search.Vector.Enabled)
-}
-
-func TestModelSetupEmbeddingUpdates(t *testing.T) {
-	require.Equal(t, []config.ConfigUpdate{
-		{Path: "models.embedding.provider", Value: "openai"},
-		{Path: "models.embedding.name", Value: "text-embedding-3-small"},
-	}, config.ModelSetupEmbeddingUpdates("openai"))
-
-	require.Equal(t, []config.ConfigUpdate{
-		{Path: "search.vector.enabled", Value: "false"},
-	}, config.ModelSetupEmbeddingUpdates("openai-codex"))
 }
 
 func TestModel_SetupProviderWheelMovesSelection(t *testing.T) {

@@ -293,7 +293,10 @@ func TestRunProviderConfiguresOllamaFromDiscoveredModels(t *testing.T) {
 	require.Equal(t, "qwen3:8b", cfg.Models.Main.Name)
 	require.Equal(t, modelprovider.APIOllamaNative, cfg.Models.Main.API)
 	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Main.BaseURL)
-	require.False(t, cfg.Search.Vector.Enabled)
+	require.Equal(t, constants.ModelProviderOllama, cfg.Models.Embedding.Provider)
+	require.Equal(t, constants.DefaultOllamaEmbeddingModel, cfg.Models.Embedding.Name)
+	require.Equal(t, modelprovider.APIOllamaEmbeddings, cfg.Models.Embedding.API)
+	require.Equal(t, "http://127.0.0.1:11434", cfg.Models.Embedding.BaseURL)
 	require.NotContains(t, output.String(), "Pull qwen3:8b if missing?")
 }
 

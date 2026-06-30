@@ -26,6 +26,7 @@ const (
 type EmbeddingProviderOptions struct {
 	HTTPClient        *http.Client
 	Provider          string
+	API               string
 	APIKey            string
 	EndpointURL       string
 	MaxInputsPerBatch int
@@ -38,6 +39,7 @@ type EmbeddingProviderOptions struct {
 type EmbeddingProvider struct {
 	client            *http.Client
 	provider          string
+	api               string
 	registry          *modelprovider.Registry
 	apiKey            string
 	endpointURL       string
@@ -54,11 +56,16 @@ func NewEmbeddingProvider(opts EmbeddingProviderOptions) (*EmbeddingProvider, er
 		return nil, errors.New("embedding provider is required")
 	}
 
-	endpointURL := strings.TrimRight(strings.TrimSpace(opts.EndpointURL), "/")
+	api := normalizeEmbeddingAPI(provider, opts.API)
+	endpointURL := normalizeEmbeddingEndpointURL(api, opts.EndpointURL)
 	if endpointURL == "" {
 		return nil, errors.New("embedding endpoint URL is required")
 	}
-	if strings.TrimSpace(opts.APIKey) == "" {
+	apiKey := strings.TrimSpace(opts.APIKey)
+	if apiKey == "" && api == modelprovider.APIOllamaEmbeddings {
+		apiKey = constants.OllamaLocalAuthMarker
+	}
+	if apiKey == "" {
 		return nil, errors.New("embedding API key is required")
 	}
 
@@ -93,8 +100,9 @@ func NewEmbeddingProvider(opts EmbeddingProviderOptions) (*EmbeddingProvider, er
 	return &EmbeddingProvider{
 		client:            client,
 		provider:          provider,
+		api:               api,
 		registry:          modelprovider.DefaultRegistry(),
-		apiKey:            strings.TrimSpace(opts.APIKey),
+		apiKey:            apiKey,
 		endpointURL:       endpointURL,
 		maxInputsPerBatch: maxInputs,
 		maxInputTextBytes: maxTextBytes,
@@ -243,6 +251,10 @@ func (p *EmbeddingProvider) embedBatchAttempt(
 		defer cancel()
 	}
 
+	if p.api == modelprovider.APIOllamaEmbeddings {
+		return p.embedOllamaBatchAttempt(ctx, model, inputs)
+	}
+
 	payload := embeddingProviderRequest{
 		Model:          p.getEmbeddingProviderModelID(model),
 		Input:          getEmbeddingTexts(inputs),
@@ -256,7 +268,9 @@ func (p *EmbeddingProvider) embedBatchAttempt(
 	}
 	httpReq.Header.Set("Accept", "application/json")
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	if p.shouldSendAuthorization() {
+		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
@@ -281,6 +295,81 @@ func (p *EmbeddingProvider) embedBatchAttempt(
 	}
 
 	return result, false, nil
+}
+
+func (p *EmbeddingProvider) embedOllamaBatchAttempt(
+	ctx context.Context,
+	model string,
+	inputs []EmbeddingInput,
+) (EmbeddingResult, bool, error) {
+	items := make([]Embedding, 0, len(inputs))
+	dimensions := 0
+	for _, input := range inputs {
+		vector, retry, err := p.embedOllamaInput(ctx, model, input)
+		if err != nil {
+			return EmbeddingResult{}, retry, err
+		}
+		if dimensions == 0 {
+			dimensions = len(vector)
+		} else if dimensions != len(vector) {
+			return EmbeddingResult{}, false, errors.New("embedding vector dimensions do not match result dimensions")
+		}
+		items = append(items, Embedding{
+			ID:          input.ID,
+			ContentHash: VectorContentHash(input.Text),
+			Vector:      vector,
+		})
+	}
+
+	return EmbeddingResult{
+		Model:      strings.TrimSpace(model),
+		Items:      items,
+		Dimensions: dimensions,
+	}, false, nil
+}
+
+func (p *EmbeddingProvider) embedOllamaInput(
+	ctx context.Context,
+	model string,
+	input EmbeddingInput,
+) ([]float64, bool, error) {
+	payload := ollamaEmbeddingProviderRequest{
+		Model:  p.getEmbeddingProviderModelID(model),
+		Prompt: input.Text,
+	}
+	body, _ := json.Marshal(payload)
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpointURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, false, err
+	}
+	httpReq.Header.Set("Accept", "application/json")
+	httpReq.Header.Set("Content-Type", "application/json")
+	if p.shouldSendAuthorization() {
+		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return nil, true, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		message := getProviderErrorMessage(resp)
+		return nil, retryableEmbeddingStatus(resp.StatusCode),
+			fmt.Errorf("embedding request failed: %s", message)
+	}
+
+	var decoded ollamaEmbeddingProviderResponse
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		return nil, false, err
+	}
+	if len(decoded.Embedding) == 0 {
+		return nil, false, errors.New("embedding vector is required")
+	}
+
+	return append([]float64(nil), decoded.Embedding...), false, nil
 }
 
 func openAIEmbeddingResponseToEmbeddingResult(
@@ -374,6 +463,55 @@ func (p *EmbeddingProvider) getEmbeddingProviderModelID(model string) string {
 	return model
 }
 
+func (p *EmbeddingProvider) shouldSendAuthorization() bool {
+	if p == nil {
+		return false
+	}
+	if p.api != modelprovider.APIOllamaEmbeddings {
+		return strings.TrimSpace(p.apiKey) != ""
+	}
+
+	switch strings.TrimSpace(p.apiKey) {
+	case constants.OllamaLocalAuthMarker, constants.LocalProviderAuthMarker, "":
+		return false
+	default:
+		return true
+	}
+}
+
+func normalizeEmbeddingAPI(provider string, api string) string {
+	api = strings.TrimSpace(strings.ToLower(api))
+	if api != "" {
+		return api
+	}
+
+	switch provider {
+	case constants.ModelProviderOllama:
+		return modelprovider.APIOllamaEmbeddings
+	case constants.ModelProviderOpenRouter:
+		return modelprovider.APIOpenRouterEmbeddings
+	default:
+		return modelprovider.APIOpenAIEmbeddings
+	}
+}
+
+func normalizeEmbeddingEndpointURL(api string, value string) string {
+	value = strings.TrimRight(strings.TrimSpace(value), "/")
+	if api != modelprovider.APIOllamaEmbeddings || value == "" {
+		return value
+	}
+
+	lower := strings.ToLower(value)
+	if strings.HasSuffix(lower, "/api/embeddings") {
+		return value
+	}
+	if strings.HasSuffix(lower, "/v1") {
+		value = strings.TrimRight(value[:len(value)-len("/v1")], "/")
+	}
+
+	return value + "/api/embeddings"
+}
+
 func getEmbeddingTexts(inputs []EmbeddingInput) []string {
 	values := make([]string, 0, len(inputs))
 	for _, input := range inputs {
@@ -465,6 +603,15 @@ type embeddingProviderResponse struct {
 
 type embeddingProviderResponseData struct {
 	Index     int       `json:"index"`
+	Embedding []float64 `json:"embedding"`
+}
+
+type ollamaEmbeddingProviderRequest struct {
+	Model  string `json:"model"`
+	Prompt string `json:"prompt"`
+}
+
+type ollamaEmbeddingProviderResponse struct {
 	Embedding []float64 `json:"embedding"`
 }
 

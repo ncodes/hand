@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/wandxy/morph/internal/constants"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 )
 
 func TestEmbeddingProvider_EmbedReturnsValidatedEmbeddings(t *testing.T) {
@@ -98,6 +101,177 @@ func TestEmbeddingProvider_EmbedConstructsOpenRouterEmbeddingModelID(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, "text-embedding-3-small", result.Model)
 	require.Equal(t, []float64{1, 0}, result.Items[0].Vector)
+}
+
+func TestEmbeddingProvider_EmbedUsesOllamaEmbeddingsAPI(t *testing.T) {
+	var captured []ollamaEmbeddingProviderRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/api/embeddings", r.URL.Path)
+		require.Empty(t, r.Header.Get("Authorization"))
+
+		var req ollamaEmbeddingProviderRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		captured = append(captured, req)
+
+		require.NoError(t, json.NewEncoder(w).Encode(ollamaEmbeddingProviderResponse{
+			Embedding: []float64{float64(len(captured)), 1},
+		}))
+	}))
+	defer server.Close()
+
+	provider := newTestEmbeddingProvider(t, server.URL, EmbeddingProviderOptions{
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaEmbeddings,
+		APIKey:   constants.OllamaLocalAuthMarker,
+	})
+	result, err := provider.Embed(context.Background(), EmbeddingRequest{
+		Model: constants.DefaultOllamaEmbeddingModel,
+		Inputs: []EmbeddingInput{
+			{ID: "left", Text: "first"},
+			{ID: "right", Text: "second"},
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []ollamaEmbeddingProviderRequest{
+		{Model: constants.DefaultOllamaEmbeddingModel, Prompt: "first"},
+		{Model: constants.DefaultOllamaEmbeddingModel, Prompt: "second"},
+	}, captured)
+	require.Equal(t, EmbeddingResult{
+		Model:      constants.DefaultOllamaEmbeddingModel,
+		Dimensions: 2,
+		Items: []Embedding{
+			{ID: "left", ContentHash: VectorContentHash("first"), Vector: []float64{1, 1}},
+			{ID: "right", ContentHash: VectorContentHash("second"), Vector: []float64{2, 1}},
+		},
+	}, result)
+}
+
+func TestEmbeddingProvider_EmbedUsesOllamaCustomAuthorizationHeader(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "Bearer custom-key", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(`{"embedding":[1,2]}`))
+	}))
+	defer server.Close()
+
+	provider := newTestEmbeddingProvider(t, server.URL, EmbeddingProviderOptions{
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaEmbeddings,
+		APIKey:   "custom-key",
+	})
+	result, err := provider.Embed(context.Background(), EmbeddingRequest{
+		Model:  constants.DefaultOllamaEmbeddingModel,
+		Inputs: []EmbeddingInput{{ID: "one", Text: "first"}},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []float64{1, 2}, result.Items[0].Vector)
+}
+
+func TestEmbeddingProvider_RejectsMalformedOllamaEmbeddings(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		err  string
+	}{
+		{
+			name: "empty vector",
+			body: `{"embedding":[]}`,
+			err:  "embedding vector is required",
+		},
+		{
+			name: "malformed json",
+			body: `{`,
+			err:  "unexpected EOF",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+
+			provider := newTestEmbeddingProvider(t, server.URL, EmbeddingProviderOptions{
+				Provider: constants.ModelProviderOllama,
+				API:      modelprovider.APIOllamaEmbeddings,
+				APIKey:   constants.OllamaLocalAuthMarker,
+			})
+			_, err := provider.Embed(context.Background(), EmbeddingRequest{
+				Model:  constants.DefaultOllamaEmbeddingModel,
+				Inputs: []EmbeddingInput{{ID: "one", Text: "first"}},
+			})
+
+			require.EqualError(t, err, tt.err)
+		})
+	}
+}
+
+func TestEmbeddingProvider_RejectsOllamaDimensionChanges(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			_, _ = w.Write([]byte(`{"embedding":[1]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"embedding":[1,2]}`))
+	}))
+	defer server.Close()
+
+	provider := newTestEmbeddingProvider(t, server.URL, EmbeddingProviderOptions{
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaEmbeddings,
+		APIKey:   constants.OllamaLocalAuthMarker,
+	})
+	_, err := provider.Embed(context.Background(), EmbeddingRequest{
+		Model: constants.DefaultOllamaEmbeddingModel,
+		Inputs: []EmbeddingInput{
+			{ID: "left", Text: "first"},
+			{ID: "right", Text: "second"},
+		},
+	})
+
+	require.EqualError(t, err, "embedding vector dimensions do not match result dimensions")
+}
+
+func TestEmbeddingProvider_ReturnsOllamaProviderErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "model missing", http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	provider := newTestEmbeddingProvider(t, server.URL, EmbeddingProviderOptions{
+		Provider:   constants.ModelProviderOllama,
+		API:        modelprovider.APIOllamaEmbeddings,
+		APIKey:     constants.OllamaLocalAuthMarker,
+		MaxRetries: 0,
+	})
+	_, err := provider.Embed(context.Background(), EmbeddingRequest{
+		Model:  constants.DefaultOllamaEmbeddingModel,
+		Inputs: []EmbeddingInput{{ID: "one", Text: "first"}},
+	})
+
+	require.EqualError(t, err, "embedding request failed: model missing")
+}
+
+func TestEmbeddingProvider_ReturnsOllamaClientErrors(t *testing.T) {
+	provider := newTestEmbeddingProvider(t, "http://example.test", EmbeddingProviderOptions{
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaEmbeddings,
+		APIKey:   constants.OllamaLocalAuthMarker,
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("network down")
+		})},
+		MaxRetries: 0,
+	})
+	_, err := provider.Embed(context.Background(), EmbeddingRequest{
+		Model:  constants.DefaultOllamaEmbeddingModel,
+		Inputs: []EmbeddingInput{{ID: "one", Text: "first"}},
+	})
+
+	require.ErrorContains(t, err, "network down")
 }
 
 func TestEmbeddingProvider_EmbedsInBatches(t *testing.T) {
@@ -376,6 +550,33 @@ func TestNewEmbeddingProvider_ValidatesOptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "https://openrouter.ai/api/v1/embeddings", provider.endpointURL)
+
+	provider, err = NewEmbeddingProvider(EmbeddingProviderOptions{
+		Provider:    constants.ModelProviderOllama,
+		API:         modelprovider.APIOllamaEmbeddings,
+		EndpointURL: "http://127.0.0.1:11434/v1",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:11434/api/embeddings", provider.endpointURL)
+	require.Equal(t, constants.OllamaLocalAuthMarker, provider.apiKey)
+}
+
+func TestEmbeddingProvider_NormalizesEmbeddingRoutes(t *testing.T) {
+	require.Equal(t, modelprovider.APIOpenRouterEmbeddings, normalizeEmbeddingAPI(constants.ModelProviderOpenRouter, ""))
+	require.Equal(t, modelprovider.APIOllamaEmbeddings, normalizeEmbeddingAPI(constants.ModelProviderOllama, ""))
+	require.Equal(t, modelprovider.APIOpenAIEmbeddings, normalizeEmbeddingAPI(constants.ModelProviderOpenAI, ""))
+	require.Equal(t, "custom-api", normalizeEmbeddingAPI(constants.ModelProviderOpenAI, " CUSTOM-API "))
+
+	require.Equal(
+		t,
+		"http://127.0.0.1:11434/api/embeddings",
+		normalizeEmbeddingEndpointURL(modelprovider.APIOllamaEmbeddings, "http://127.0.0.1:11434/api/embeddings/"),
+	)
+	require.Equal(
+		t,
+		"https://api.openai.com/v1/embeddings",
+		normalizeEmbeddingEndpointURL(modelprovider.APIOpenAIEmbeddings, "https://api.openai.com/v1/embeddings/"),
+	)
 }
 
 func TestEmbeddingProvider_RejectsInvalidRequests(t *testing.T) {
@@ -405,6 +606,100 @@ func TestEmbeddingProvider_RejectsInvalidEndpointURL(t *testing.T) {
 	require.ErrorContains(t, err, `missing protocol scheme`)
 }
 
+func TestEmbeddingProvider_RejectsInvalidOllamaEndpointURL(t *testing.T) {
+	provider := newTestEmbeddingProvider(t, "://bad", EmbeddingProviderOptions{
+		Provider: constants.ModelProviderOllama,
+		API:      modelprovider.APIOllamaEmbeddings,
+		APIKey:   constants.OllamaLocalAuthMarker,
+	})
+	_, err := provider.Embed(context.Background(), EmbeddingRequest{
+		Model:  constants.DefaultOllamaEmbeddingModel,
+		Inputs: []EmbeddingInput{{ID: "one", Text: "one"}},
+	})
+
+	require.ErrorContains(t, err, `missing protocol scheme`)
+}
+
+func TestEmbeddingProvider_ShouldSendAuthorizationHandlesNilReceiver(t *testing.T) {
+	var provider *EmbeddingProvider
+	require.False(t, provider.shouldSendAuthorization())
+}
+
+func TestEmbeddingProvider_GetEmbeddingProviderModelIDFallbacks(t *testing.T) {
+	provider := &EmbeddingProvider{provider: constants.ModelProviderOpenRouter}
+	require.Equal(t, "unknown-model", provider.getEmbeddingProviderModelID(" unknown-model "))
+	require.Equal(t, "openai/text-embedding-3-small", provider.getEmbeddingProviderModelID("openai/text-embedding-3-small"))
+
+	provider = &EmbeddingProvider{provider: constants.ModelProviderOllama}
+	require.Equal(t, constants.DefaultOllamaEmbeddingModel, provider.getEmbeddingProviderModelID(constants.DefaultOllamaEmbeddingModel))
+}
+
+func TestEmbeddingProvider_GetEmbeddingRequestSourceKind(t *testing.T) {
+	tests := []struct {
+		name   string
+		inputs []EmbeddingInput
+		want   string
+	}{
+		{
+			name: "empty inputs",
+			want: "",
+		},
+		{
+			name: "empty first source kind",
+			inputs: []EmbeddingInput{
+				{ID: "one", Text: "one"},
+			},
+			want: "",
+		},
+		{
+			name: "same source kind",
+			inputs: []EmbeddingInput{
+				{ID: "one", Text: "one", SourceKind: SourceKindMemoryItem},
+				{ID: "two", Text: "two", SourceKind: SourceKindMemoryItem},
+			},
+			want: string(SourceKindMemoryItem),
+		},
+		{
+			name: "mixed source kind",
+			inputs: []EmbeddingInput{
+				{ID: "one", Text: "one", SourceKind: SourceKindMemoryItem},
+				{ID: "two", Text: "two", SourceKind: SourceKindSessionMessage},
+			},
+			want: "mixed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, getEmbeddingRequestSourceKind(tt.inputs))
+		})
+	}
+}
+
+func TestEmbeddingProvider_GetEmbeddingProviderErrorKind(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "nil", want: ""},
+		{name: "canceled", err: context.Canceled, want: "context_canceled"},
+		{name: "deadline", err: context.DeadlineExceeded, want: "timeout"},
+		{name: "provider request", err: errors.New("embedding request failed: unavailable"), want: "provider_request_failed"},
+		{name: "json", err: errors.New("json decode failed"), want: "decode_failed"},
+		{name: "model", err: errors.New("model mismatch"), want: "model_mismatch"},
+		{name: "dimensions", err: errors.New("dimensions changed"), want: "dimension_mismatch"},
+		{name: "timeout text", err: errors.New("request timeout"), want: "timeout"},
+		{name: "fallback", err: errors.New("network down"), want: "operation_failed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, getEmbeddingProviderErrorKind(tt.err))
+		})
+	}
+}
+
 func TestEmbeddingProvider_ReturnsClientErrors(t *testing.T) {
 	provider := newTestEmbeddingProvider(t, "http://example.test/embeddings", EmbeddingProviderOptions{
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
@@ -431,7 +726,9 @@ func newTestEmbeddingProvider(
 	if opts.Provider == "" {
 		opts.Provider = "openai"
 	}
-	opts.APIKey = "test-key"
+	if opts.APIKey == "" {
+		opts.APIKey = "test-key"
+	}
 	opts.EndpointURL = endpointURL
 	opts.Timeout = time.Second
 	provider, err := NewEmbeddingProvider(opts)

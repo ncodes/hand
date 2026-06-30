@@ -173,12 +173,6 @@ func validateSearchVectorConfig(cfg *config.Config) error {
 		return nil
 	}
 
-	switch cfg.ModelEmbeddingProviderEffective() {
-	case "openai", "openrouter":
-	default:
-		return errors.New("embedding provider must be one of: openai, openrouter")
-	}
-
 	if cfg.Models.Embedding.Name == "" {
 		return errors.New("embedding model is required")
 	}
@@ -218,6 +212,7 @@ func defaultStoreEmbeddingProvider(cfg *config.Config) (search.Embedder, error) 
 
 	return search.NewEmbeddingProvider(search.EmbeddingProviderOptions{
 		Provider:    auth.Provider,
+		API:         auth.API,
 		APIKey:      auth.APIKey,
 		EndpointURL: auth.BaseURL,
 	})

@@ -81,6 +81,7 @@ func defaultModels() []ModelDefinition {
 		ollamaReasoningModel("phi4-mini:latest", "Phi 4 Mini", []InputKind{InputText}, 131072, 0),
 		ollamaReasoningModel("phi4-mini-reasoning:latest", "Phi 4 Mini Reasoning", []InputKind{InputText}, 131072, 0),
 		ollamaReasoningModel("lfm2.5-thinking:latest", "LFM 2.5 Thinking", []InputKind{InputText}, 131072, 0),
+		ollamaEmbeddingModel(constants.DefaultOllamaEmbeddingModel, "Nomic Embed Text", 8192),
 
 		// GitHub Copilot models
 		gitHubCopilotAnthropicModel("claude-haiku-4.5", "Claude Haiku 4.5", []InputKind{InputText, InputImage}, 144000, 32000),
@@ -504,6 +505,18 @@ func ollamaReasoningModel(
 	model.Reasoning = true
 
 	return model
+}
+
+func ollamaEmbeddingModel(id string, name string, contextWindow int) ModelDefinition {
+	return ModelDefinition{
+		ID:            id,
+		Name:          name,
+		Owner:         constants.ModelProviderOllama,
+		Provider:      constants.ModelProviderOllama,
+		API:           APIOllamaEmbeddings,
+		Input:         []InputKind{InputText},
+		ContextWindow: contextWindow,
+	}
 }
 
 func gitHubCopilotResponsesModel(

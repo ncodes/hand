@@ -210,6 +210,19 @@ func TestConfig_EmbeddingModelAPIEffectiveUsesProviderEmbeddingAPI(t *testing.T)
 	}
 
 	require.Equal(t, modelprovider.APIOpenAIEmbeddings, cfg.EmbeddingModelAPIEffective())
+
+	cfg = &Config{
+		Models: ModelsConfig{
+			Main: MainModelConfig{
+				Provider: constants.ModelProviderOllama,
+			},
+			Embedding: EmbeddingModelConfig{
+				Provider: constants.ModelProviderOllama,
+			},
+		},
+	}
+
+	require.Equal(t, modelprovider.APIOllamaEmbeddings, cfg.EmbeddingModelAPIEffective())
 }
 
 func TestConfig_EmbeddingModelAPIEffectiveReturnsEmptyWithoutEmbeddingAPI(t *testing.T) {
@@ -930,6 +943,29 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	require.Equal(t, "embedding-role-key", auth.APIKey)
 	require.Equal(t, ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig}, auth.CredentialSource)
 
+	cfg = &Config{
+		Models: ModelsConfig{
+			Main: MainModelConfig{
+				Name:     constants.DefaultOllamaModel,
+				Provider: constants.ModelProviderOllama,
+				BaseURL:  "http://127.0.0.1:11435/v1",
+			},
+			Embedding: EmbeddingModelConfig{
+				Name:     constants.DefaultOllamaEmbeddingModel,
+				Provider: constants.ModelProviderOllama,
+			},
+		},
+	}
+	auth, err = cfg.ResolveEmbeddingModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, ModelAuth{
+		Provider:         constants.ModelProviderOllama,
+		API:              modelprovider.APIOllamaEmbeddings,
+		APIKey:           constants.OllamaLocalAuthMarker,
+		BaseURL:          "http://127.0.0.1:11435",
+		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceLocalProvider, Name: constants.ModelProviderOllama},
+	}, auth)
+
 	t.Setenv("OPENAI_API_KEY", "")
 	_, err = (&Config{Models: ModelsConfig{Embedding: EmbeddingModelConfig{Provider: "openai"}}}).ResolveEmbeddingModelAuth()
 	require.EqualError(t, err, `embedding API key is required for provider "openai"; set a provider API key, provider env var, or role apiKey`)
@@ -1120,6 +1156,26 @@ func TestConfig_ModelEmbeddingProviderEffective(t *testing.T) {
 		},
 	}
 	require.Equal(t, "openai", cfg.ModelEmbeddingProviderEffective())
+}
+
+func TestConfig_GetEmbeddingProviderRoleBaseURL(t *testing.T) {
+	var cfg *Config
+	require.Empty(t, cfg.getEmbeddingProviderRoleBaseURL(constants.ModelProviderOllama))
+
+	cfg = &Config{
+		Models: ModelsConfig{
+			Main: MainModelConfig{
+				Provider: constants.ModelProviderOpenAI,
+				BaseURL:  "https://api.openai.com/v1",
+			},
+		},
+	}
+	require.Empty(t, cfg.getEmbeddingProviderRoleBaseURL(constants.ModelProviderOllama))
+	require.Empty(t, cfg.getEmbeddingProviderRoleBaseURL(constants.ModelProviderOpenAI))
+
+	cfg.Models.Main.Provider = constants.ModelProviderOllama
+	cfg.Models.Main.BaseURL = "http://127.0.0.1:11434/v1"
+	require.Equal(t, "http://127.0.0.1:11434", cfg.getEmbeddingProviderRoleBaseURL(constants.ModelProviderOllama))
 }
 
 func TestConfig_SummaryModelEffective(t *testing.T) {

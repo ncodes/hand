@@ -107,12 +107,18 @@ func TestBuild_ReportsOllamaReadiness(t *testing.T) {
 	var discoveredBaseURL string
 	discoverOllamaModels = func(_ context.Context, baseURL string) ([]modelprovider.ModelDefinition, error) {
 		discoveredBaseURL = baseURL
-		return []modelprovider.ModelDefinition{{
-			ID:            "llama3.2:3b",
-			Provider:      constants.ModelProviderOllama,
-			ContextWindow: 8192,
-			SupportsTools: true,
-		}}, nil
+		return []modelprovider.ModelDefinition{
+			{
+				ID:            "llama3.2:3b",
+				Provider:      constants.ModelProviderOllama,
+				ContextWindow: 8192,
+				SupportsTools: true,
+			},
+			{
+				ID:       constants.DefaultOllamaEmbeddingModel,
+				Provider: constants.ModelProviderOllama,
+			},
+		}, nil
 	}
 
 	cfg := readyConfig()
@@ -120,6 +126,11 @@ func TestBuild_ReportsOllamaReadiness(t *testing.T) {
 	cfg.Models.Main.Name = "llama3.2:3b"
 	cfg.Models.Main.BaseURL = "http://127.0.0.1:11434"
 	cfg.Models.Main.ContextLength = 4096
+	cfg.Models.Embedding.Provider = constants.ModelProviderOllama
+	cfg.Models.Embedding.Name = constants.DefaultOllamaEmbeddingModel
+	cfg.Models.Embedding.API = modelprovider.APIOllamaEmbeddings
+	cfg.Models.Embedding.BaseURL = "http://127.0.0.1:11434"
+	cfg.Search.Vector.Enabled = true
 
 	report := Build(context.Background(), Options{
 		Config:  cfg,
@@ -137,6 +148,167 @@ func TestBuild_ReportsOllamaReadiness(t *testing.T) {
 	tools := findReadinessCheck(t, report, "models", "ollama tools")
 	require.Equal(t, StatusPass, tools.Status)
 	require.Contains(t, tools.Message, "reports tool support")
+	embeddings := findReadinessCheck(t, report, "models", "ollama embeddings")
+	require.Equal(t, StatusPass, embeddings.Status)
+	require.Contains(t, embeddings.Message, "embedding model")
+}
+
+func TestBuildOllamaReadinessChecksSkipsNilConfig(t *testing.T) {
+	require.Nil(t, buildOllamaReadinessChecks(context.Background(), nil))
+}
+
+func TestBuild_ReportsOllamaEmbeddingReadinessWithHostedMainModel(t *testing.T) {
+	originalDiscover := discoverOllamaModels
+	t.Cleanup(func() {
+		discoverOllamaModels = originalDiscover
+	})
+
+	var discoveredBaseURL string
+	discoverOllamaModels = func(_ context.Context, baseURL string) ([]modelprovider.ModelDefinition, error) {
+		discoveredBaseURL = baseURL
+		return []modelprovider.ModelDefinition{{
+			ID:       constants.DefaultOllamaEmbeddingModel,
+			Provider: constants.ModelProviderOllama,
+		}}, nil
+	}
+
+	cfg := readyConfig()
+	cfg.Models.Embedding.Provider = constants.ModelProviderOllama
+	cfg.Models.Embedding.Name = constants.DefaultOllamaEmbeddingModel
+	cfg.Models.Embedding.API = modelprovider.APIOllamaEmbeddings
+	cfg.Models.Embedding.BaseURL = "http://127.0.0.1:11435"
+	cfg.Search.Vector.Enabled = true
+
+	report := Build(context.Background(), Options{
+		Config:  cfg,
+		Profile: profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()}),
+	})
+
+	require.Equal(t, "http://127.0.0.1:11435", discoveredBaseURL)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "models", "ollama").Status)
+	embeddings := findReadinessCheck(t, report, "models", "ollama embeddings")
+	require.Equal(t, StatusPass, embeddings.Status)
+	require.Contains(t, embeddings.Message, constants.DefaultOllamaEmbeddingModel)
+}
+
+func TestBuild_ReportsOllamaEmbeddingReadinessWithImplicitLatestTag(t *testing.T) {
+	originalDiscover := discoverOllamaModels
+	t.Cleanup(func() {
+		discoverOllamaModels = originalDiscover
+	})
+
+	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+		return []modelprovider.ModelDefinition{{
+			ID:       constants.DefaultOllamaEmbeddingModel + ":latest",
+			Provider: constants.ModelProviderOllama,
+		}}, nil
+	}
+
+	cfg := readyConfig()
+	cfg.Models.Embedding.Provider = constants.ModelProviderOllama
+	cfg.Models.Embedding.Name = constants.DefaultOllamaEmbeddingModel
+	cfg.Models.Embedding.API = modelprovider.APIOllamaEmbeddings
+	cfg.Models.Embedding.BaseURL = "http://127.0.0.1:11435"
+	cfg.Search.Vector.Enabled = true
+
+	report := Build(context.Background(), Options{
+		Config:  cfg,
+		Profile: profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()}),
+	})
+
+	embeddings := findReadinessCheck(t, report, "models", "ollama embeddings")
+	require.Equal(t, StatusPass, embeddings.Status)
+	require.Contains(t, embeddings.Message, constants.DefaultOllamaEmbeddingModel)
+}
+
+func TestBuild_WarnsWhenOllamaEmbeddingModelIsMissing(t *testing.T) {
+	originalDiscover := discoverOllamaModels
+	t.Cleanup(func() {
+		discoverOllamaModels = originalDiscover
+	})
+
+	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+		return []modelprovider.ModelDefinition{{ID: "chat:latest"}}, nil
+	}
+
+	cfg := readyConfig()
+	cfg.Models.Embedding.Provider = constants.ModelProviderOllama
+	cfg.Models.Embedding.Name = constants.DefaultOllamaEmbeddingModel
+	cfg.Models.Embedding.API = modelprovider.APIOllamaEmbeddings
+	cfg.Models.Embedding.BaseURL = "http://127.0.0.1:11435"
+	cfg.Search.Vector.Enabled = true
+
+	report := Build(context.Background(), Options{
+		Config:  cfg,
+		Profile: profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()}),
+	})
+
+	embeddings := findReadinessCheck(t, report, "models", "ollama embeddings")
+	require.Equal(t, StatusWarn, embeddings.Status)
+	require.Contains(t, embeddings.Message, "is not installed")
+	require.Equal(
+		t,
+		"morph setup provider --provider ollama --base-url http://127.0.0.1:11435 --model nomic-embed-text --pull",
+		embeddings.Actions[0].Command,
+	)
+}
+
+func TestBuild_FailsWhenOllamaEmbeddingModelIsEmpty(t *testing.T) {
+	originalDiscover := discoverOllamaModels
+	t.Cleanup(func() {
+		discoverOllamaModels = originalDiscover
+	})
+
+	discoverOllamaModels = func(context.Context, string) ([]modelprovider.ModelDefinition, error) {
+		return nil, nil
+	}
+
+	cfg := readyConfig()
+	cfg.Models.Embedding.Provider = constants.ModelProviderOllama
+	cfg.Models.Embedding.Name = ""
+	cfg.Models.Embedding.API = modelprovider.APIOllamaEmbeddings
+	cfg.Models.Embedding.BaseURL = "http://127.0.0.1:11435"
+	cfg.Search.Vector.Enabled = true
+
+	report := Build(context.Background(), Options{
+		Config:  cfg,
+		Profile: profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: t.TempDir()}),
+	})
+
+	embeddings := findReadinessCheck(t, report, "models", "ollama embeddings")
+	require.Equal(t, StatusFail, embeddings.Status)
+	require.Equal(t, "embedding model is required", embeddings.Message)
+}
+
+func TestGetOllamaReadinessBaseURL(t *testing.T) {
+	require.Empty(t, getOllamaReadinessBaseURL(nil))
+
+	cfg := readyConfig()
+	cfg.Models.Main.Provider = constants.ModelProviderOllama
+	cfg.Models.Main.BaseURL = "http://main.local:11434"
+	require.Equal(t, "http://main.local:11434", getOllamaReadinessBaseURL(cfg))
+
+	cfg = readyConfig()
+	cfg.Models.Embedding.Provider = constants.ModelProviderOllama
+	cfg.Models.Embedding.API = modelprovider.APIOllamaEmbeddings
+	cfg.Models.Embedding.BaseURL = "http://embedding.local:11434"
+	require.Equal(t, "http://embedding.local:11434", getOllamaReadinessBaseURL(cfg))
+
+	cfg = readyConfig()
+	cfg.Models.Embedding.Provider = "missing"
+	cfg.Models.Embedding.BaseURL = "http://role.local:11434"
+	require.Equal(t, "http://role.local:11434", getOllamaReadinessBaseURL(cfg))
+
+	cfg = readyConfig()
+	cfg.Models.Embedding.Provider = "missing"
+	cfg.Models.Providers[constants.ModelProviderOllama] = config.ProviderModelConfig{
+		BaseURL: "http://provider.local:11434",
+	}
+	require.Equal(t, "http://provider.local:11434", getOllamaReadinessBaseURL(cfg))
+
+	cfg = readyConfig()
+	cfg.Models.Embedding.Provider = "missing"
+	require.Equal(t, constants.DefaultOllamaBaseURL, getOllamaReadinessBaseURL(cfg))
 }
 
 func TestBuild_ReportsMissingOllamaModel(t *testing.T) {

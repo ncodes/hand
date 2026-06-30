@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/datadir"
 	models "github.com/wandxy/morph/internal/model"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
@@ -345,7 +346,7 @@ func TestOpenStore_ValidatesVectorConfig(t *testing.T) {
 				Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "unsupported"}},
 				Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 			},
-			err: "embedding provider must be one of: openai, openrouter",
+			err: "embedding provider must be one of: anthropic, github-copilot, ollama, openai, openai-codex, openrouter",
 		},
 		{
 			name: "negative reranker max candidates",
@@ -390,6 +391,34 @@ func TestOpenStore_ValidatesVectorConfig(t *testing.T) {
 			require.EqualError(t, err, tt.err)
 		})
 	}
+}
+
+func TestOpenStore_AcceptsOllamaEmbeddingProvider(t *testing.T) {
+	homeDir := t.TempDir()
+	setProfileHome(t, homeDir)
+
+	originalProvider := newStoreEmbeddingProvider
+	t.Cleanup(func() {
+		newStoreEmbeddingProvider = originalProvider
+	})
+
+	newStoreEmbeddingProvider = func(*config.Config) (search.Embedder, error) {
+		return &storeTestEmbeddingProvider{}, nil
+	}
+
+	store, err := OpenStore(&config.Config{
+		Storage: config.StorageConfig{Backend: "memory"},
+		Models: config.ModelsConfig{
+			Embedding: config.EmbeddingModelConfig{
+				Name:     constants.DefaultOllamaEmbeddingModel,
+				Provider: constants.ModelProviderOllama,
+			},
+		},
+		Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+	})
+
+	require.NoError(t, err)
+	require.IsType(t, &storagememory.Store{}, store)
 }
 
 func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {

@@ -179,6 +179,12 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.True(t, ollamaModel.SupportsTools)
 	require.True(t, ollamaModel.DisplayDefault)
 	require.Equal(t, 131072, ollamaModel.ContextWindow)
+	ollamaEmbedding, ok := registry.GetModel(constants.ModelProviderOllama, constants.DefaultOllamaEmbeddingModel)
+	require.True(t, ok)
+	require.Equal(t, constants.ModelProviderOllama, ollamaEmbedding.Owner)
+	require.Equal(t, APIOllamaEmbeddings, ollamaEmbedding.API)
+	require.Equal(t, []InputKind{InputText}, ollamaEmbedding.Input)
+	require.Equal(t, 8192, ollamaEmbedding.ContextWindow)
 	for _, modelID := range []string{
 		"llama3.2:3b",
 		"llama3.1:8b",

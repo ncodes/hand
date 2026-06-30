@@ -1191,7 +1191,7 @@ func persistProviderSelection(opts ProviderOptions, selection setupSelection) er
 		{Path: "models.summary.api", Value: selection.api},
 		{Path: "models.summary.baseURL", Value: selection.baseURL},
 	}
-	updates = append(updates, config.ModelSetupEmbeddingUpdates(selection.provider)...)
+	updates = append(updates, config.ModelSetupEmbeddingUpdates(selection.provider, selection.baseURL)...)
 	if selection.apiKey != "" {
 		updates = append(updates, config.ConfigUpdate{
 			Path:  fmt.Sprintf("models.providers.%s.apiKey", selection.provider),

@@ -551,6 +551,9 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 	api := c.EmbeddingModelAPIEffective()
 	baseURL := strings.TrimSpace(c.Models.Embedding.BaseURL)
 	if baseURL == "" {
+		baseURL = c.getEmbeddingProviderRoleBaseURL(provider)
+	}
+	if baseURL == "" {
 		baseURL = c.getProviderBaseURLConfig(provider)
 	}
 	if baseURL == "" {
@@ -604,6 +607,9 @@ func (c *Config) EmbeddingModelAPIEffective() string {
 	if modelRegistry.SupportsProviderAPI(provider, modelprovider.APIOpenAIEmbeddings) {
 		return modelprovider.APIOpenAIEmbeddings
 	}
+	if modelRegistry.SupportsProviderAPI(provider, modelprovider.APIOllamaEmbeddings) {
+		return modelprovider.APIOllamaEmbeddings
+	}
 
 	return ""
 }
@@ -619,6 +625,26 @@ func (c *Config) ModelEmbeddingProviderEffective() string {
 	}
 
 	return c.Models.Main.Provider
+}
+
+func (c *Config) getEmbeddingProviderRoleBaseURL(provider string) string {
+	if c == nil || strings.TrimSpace(strings.ToLower(provider)) != constants.ModelProviderOllama {
+		return ""
+	}
+	if !strings.EqualFold(c.Models.Main.Provider, provider) {
+		return ""
+	}
+
+	return normalizeOllamaEmbeddingBaseURL(c.Models.Main.BaseURL)
+}
+
+func normalizeOllamaEmbeddingBaseURL(value string) string {
+	value = strings.TrimRight(strings.TrimSpace(value), "/")
+	if strings.HasSuffix(strings.ToLower(value), "/v1") {
+		value = strings.TrimRight(value[:len(value)-len("/v1")], "/")
+	}
+
+	return value
 }
 
 func (c *Config) ResolveModelAuth() (ModelAuth, error) {
