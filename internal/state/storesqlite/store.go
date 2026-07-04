@@ -48,6 +48,8 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 		&stateModel{},
 		&summaryModel{},
 		&messageModel{},
+		&automationJobModel{},
+		&automationRunModel{},
 		&gatewayBindingModel{},
 		&traceEventModel{},
 		&gatewayPairingRequestModel{},
@@ -69,6 +71,14 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 
 func (s *Store) Session() base.SessionStore {
 	return s
+}
+
+func (s *Store) Automation() (base.AutomationStore, bool) {
+	if s == nil || s.db == nil {
+		return nil, false
+	}
+
+	return s, true
 }
 
 func (s *Store) Memory() (base.MemoryStore, bool) {

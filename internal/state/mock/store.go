@@ -38,6 +38,7 @@ type Store struct {
 	ArchiveFunc               func(context.Context, string, storage.SessionArchiveRequest) (storage.Session, error)
 	UnarchiveFunc             func(context.Context, string) (storage.Session, error)
 	DeleteExpiredArchivesFunc func(context.Context, time.Time) error
+	AutomationStore           storage.AutomationStore
 	MemoryStore               storage.MemoryStore
 	TraceStore                storage.TraceStore
 	VectorSearchSupported     bool
@@ -45,6 +46,14 @@ type Store struct {
 
 func (s *Store) Session() storage.SessionStore {
 	return s
+}
+
+func (s *Store) Automation() (storage.AutomationStore, bool) {
+	if s == nil || s.AutomationStore == nil {
+		return nil, false
+	}
+
+	return s.AutomationStore, true
 }
 
 func (s *Store) Memory() (storage.MemoryStore, bool) {

@@ -66,6 +66,107 @@ func (m *Manager) sessions() storage.SessionStore {
 	return m.store.Session()
 }
 
+func (m *Manager) AutomationStore() (storage.AutomationStore, bool) {
+	if m == nil || m.store == nil {
+		return nil, false
+	}
+
+	return m.store.Automation()
+}
+
+func (m *Manager) CreateAutomationJob(
+	ctx context.Context,
+	job storage.AutomationJob,
+) (storage.AutomationJob, error) {
+	store, ok := m.AutomationStore()
+	if !ok {
+		return storage.AutomationJob{}, errors.New("automation store is not supported")
+	}
+
+	return store.CreateJob(ctx, job)
+}
+
+func (m *Manager) GetAutomationJob(
+	ctx context.Context,
+	id string,
+) (storage.AutomationJob, bool, error) {
+	store, ok := m.AutomationStore()
+	if !ok {
+		return storage.AutomationJob{}, false, errors.New("automation store is not supported")
+	}
+
+	return store.GetJob(ctx, id)
+}
+
+func (m *Manager) ListAutomationJobs(
+	ctx context.Context,
+	query storage.AutomationJobQuery,
+) (storage.AutomationJobResult, error) {
+	store, ok := m.AutomationStore()
+	if !ok {
+		return storage.AutomationJobResult{}, errors.New("automation store is not supported")
+	}
+
+	return store.ListJobs(ctx, query)
+}
+
+func (m *Manager) PatchAutomationJob(
+	ctx context.Context,
+	patch storage.AutomationJobPatch,
+) (storage.AutomationJob, error) {
+	store, ok := m.AutomationStore()
+	if !ok {
+		return storage.AutomationJob{}, errors.New("automation store is not supported")
+	}
+
+	return store.PatchJob(ctx, patch)
+}
+
+func (m *Manager) DeleteAutomationJob(ctx context.Context, id string) error {
+	store, ok := m.AutomationStore()
+	if !ok {
+		return errors.New("automation store is not supported")
+	}
+
+	return store.DeleteJob(ctx, id)
+}
+
+func (m *Manager) CreateAutomationRun(
+	ctx context.Context,
+	run storage.AutomationRun,
+) (storage.AutomationRun, error) {
+	store, ok := m.AutomationStore()
+	if !ok {
+		return storage.AutomationRun{}, errors.New("automation store is not supported")
+	}
+
+	return store.CreateRun(ctx, run)
+}
+
+func (m *Manager) FinishAutomationRun(
+	ctx context.Context,
+	patch storage.AutomationRunPatch,
+) (storage.AutomationRun, error) {
+	store, ok := m.AutomationStore()
+	if !ok {
+		return storage.AutomationRun{}, errors.New("automation store is not supported")
+	}
+
+	return store.FinishRun(ctx, patch)
+}
+
+func (m *Manager) ListAutomationRuns(
+	ctx context.Context,
+	query storage.AutomationRunQuery,
+) (storage.AutomationRunResult, error) {
+	store, ok := m.AutomationStore()
+	if !ok {
+		return storage.AutomationRunResult{}, errors.New("automation store is not supported")
+	}
+
+	return store.ListRuns(ctx, query)
+}
+
 func (m *Manager) MemoryStore() (storage.MemoryStore, bool) {
 	if m == nil || m.store == nil {
 		return nil, false

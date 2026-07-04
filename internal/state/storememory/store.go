@@ -20,6 +20,8 @@ type Store struct {
 	gatewayBindings map[string]base.GatewayBinding
 	pairingRequests map[string]pairing.PendingRequest
 	pairedSenders   map[string]pairing.ApprovedSender
+	automationJobs  map[string]base.AutomationJob
+	automationRuns  map[string]base.AutomationRun
 	memoryItems     map[string]base.MemoryItem
 	traceEvents     map[string][]base.TraceEvent
 	traceSequences  map[string]int
@@ -37,6 +39,8 @@ func NewStore() *Store {
 		gatewayBindings: make(map[string]base.GatewayBinding),
 		pairingRequests: make(map[string]pairing.PendingRequest),
 		pairedSenders:   make(map[string]pairing.ApprovedSender),
+		automationJobs:  make(map[string]base.AutomationJob),
+		automationRuns:  make(map[string]base.AutomationRun),
 		memoryItems:     make(map[string]base.MemoryItem),
 		traceEvents:     make(map[string][]base.TraceEvent),
 		traceSequences:  make(map[string]int),
@@ -45,6 +49,14 @@ func NewStore() *Store {
 
 func (s *Store) Session() base.SessionStore {
 	return s
+}
+
+func (s *Store) Automation() (base.AutomationStore, bool) {
+	if s == nil {
+		return nil, false
+	}
+
+	return s, true
 }
 
 func (s *Store) Memory() (base.MemoryStore, bool) {

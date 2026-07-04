@@ -21,6 +21,16 @@ import (
 var (
 	testSessionA       = nanoid.MustFromSeed(storage.SessionIDPrefix, "project-a", "SessionTestSeedValue123")
 	testMissingSession = nanoid.MustFromSeed(storage.SessionIDPrefix, "missing", "SessionTestSeedValue123")
+	testAutomationJob  = nanoid.MustFromSeed(
+		storage.AutomationJobIDPrefix,
+		"daily-headlines",
+		"AutomationJobSeedValue123",
+	)
+	testAutomationRun = nanoid.MustFromSeed(
+		storage.AutomationRunIDPrefix,
+		"daily-headlines-run",
+		"AutomationRunSeedValue123",
+	)
 )
 
 type storeWithoutSession struct{}
@@ -30,6 +40,10 @@ func (storeWithoutSession) Session() storage.SessionStore {
 }
 
 func (storeWithoutSession) Memory() (storage.MemoryStore, bool) {
+	return nil, false
+}
+
+func (storeWithoutSession) Automation() (storage.AutomationStore, bool) {
 	return nil, false
 }
 
@@ -99,6 +113,23 @@ func TestManager_MemoryStore(t *testing.T) {
 	memoryStore, ok = manager.MemoryStore()
 	require.False(t, ok)
 	require.Nil(t, memoryStore)
+}
+
+func TestManager_AutomationStore(t *testing.T) {
+	store := storagememory.NewStore()
+	manager, err := NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	automationStore, ok := manager.AutomationStore()
+	require.True(t, ok)
+	require.Same(t, store, automationStore)
+
+	manager, err = NewManager(&storagemock.Store{}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	automationStore, ok = manager.AutomationStore()
+	require.False(t, ok)
+	require.Nil(t, automationStore)
 }
 
 func TestManager_GatewayBindingOperations(t *testing.T) {
@@ -195,14 +226,20 @@ func TestManager_GatewayPairingOperations(t *testing.T) {
 }
 
 func TestManager_UsesAggregateStoreCapabilities(t *testing.T) {
+	automationStore := storagememory.NewStore()
 	memoryStore := storagememory.NewStore()
 	traceStore := storagememory.NewStore()
 	manager, err := NewManager(&storagemock.Store{
+		AutomationStore:       automationStore,
 		MemoryStore:           memoryStore,
 		TraceStore:            traceStore,
 		VectorSearchSupported: true,
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
+
+	gotAutomationStore, ok := manager.AutomationStore()
+	require.True(t, ok)
+	require.Same(t, automationStore, gotAutomationStore)
 
 	gotMemoryStore, ok := manager.MemoryStore()
 	require.True(t, ok)
@@ -212,6 +249,95 @@ func TestManager_UsesAggregateStoreCapabilities(t *testing.T) {
 	require.True(t, ok)
 	require.Same(t, traceStore, gotTraceStore)
 	require.True(t, manager.SupportsVectorSearch())
+}
+
+func TestManager_AutomationOperationsUseAutomationStore(t *testing.T) {
+	ctx := context.Background()
+	manager, err := NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	job, err := manager.CreateAutomationJob(ctx, storage.AutomationJob{
+		ID:      testAutomationJob,
+		Name:    "Daily headlines",
+		Enabled: true,
+		Payload: storage.AutomationPayload{Kind: storage.AutomationPayloadPrompt, Prompt: "Summarize headlines"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, testAutomationJob, job.ID)
+
+	loaded, ok, err := manager.GetAutomationJob(ctx, testAutomationJob)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "Daily headlines", loaded.Name)
+
+	name := "Daily local headlines"
+	patched, err := manager.PatchAutomationJob(ctx, storage.AutomationJobPatch{
+		ID:   testAutomationJob,
+		Name: &name,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Daily local headlines", patched.Name)
+
+	jobs, err := manager.ListAutomationJobs(ctx, storage.AutomationJobQuery{})
+	require.NoError(t, err)
+	require.Len(t, jobs.Jobs, 1)
+	require.Equal(t, testAutomationJob, jobs.Jobs[0].ID)
+
+	run, err := manager.CreateAutomationRun(ctx, storage.AutomationRun{
+		ID:    testAutomationRun,
+		JobID: testAutomationJob,
+	})
+	require.NoError(t, err)
+	require.Equal(t, storage.AutomationRunStatusRunning, run.Status)
+
+	finished, err := manager.FinishAutomationRun(ctx, storage.AutomationRunPatch{
+		ID:     testAutomationRun,
+		Status: storage.AutomationRunStatusOK,
+		Output: "done",
+	})
+	require.NoError(t, err)
+	require.Equal(t, storage.AutomationRunStatusOK, finished.Status)
+	require.Equal(t, "done", finished.Output)
+
+	runs, err := manager.ListAutomationRuns(ctx, storage.AutomationRunQuery{JobID: testAutomationJob})
+	require.NoError(t, err)
+	require.Len(t, runs.Runs, 1)
+	require.Equal(t, testAutomationRun, runs.Runs[0].ID)
+
+	require.NoError(t, manager.DeleteAutomationJob(ctx, testAutomationJob))
+	_, ok, err = manager.GetAutomationJob(ctx, testAutomationJob)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestManager_AutomationOperationsRequireAutomationStore(t *testing.T) {
+	ctx := context.Background()
+	manager, err := NewManager(&storagemock.Store{}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	_, err = manager.CreateAutomationJob(ctx, storage.AutomationJob{})
+	require.EqualError(t, err, "automation store is not supported")
+
+	_, _, err = manager.GetAutomationJob(ctx, testAutomationJob)
+	require.EqualError(t, err, "automation store is not supported")
+
+	_, err = manager.ListAutomationJobs(ctx, storage.AutomationJobQuery{})
+	require.EqualError(t, err, "automation store is not supported")
+
+	_, err = manager.PatchAutomationJob(ctx, storage.AutomationJobPatch{ID: testAutomationJob})
+	require.EqualError(t, err, "automation store is not supported")
+
+	err = manager.DeleteAutomationJob(ctx, testAutomationJob)
+	require.EqualError(t, err, "automation store is not supported")
+
+	_, err = manager.CreateAutomationRun(ctx, storage.AutomationRun{})
+	require.EqualError(t, err, "automation store is not supported")
+
+	_, err = manager.FinishAutomationRun(ctx, storage.AutomationRunPatch{ID: testAutomationRun})
+	require.EqualError(t, err, "automation store is not supported")
+
+	_, err = manager.ListAutomationRuns(ctx, storage.AutomationRunQuery{})
+	require.EqualError(t, err, "automation store is not supported")
 }
 
 func TestManager_MemoryOperationsUseMemoryStore(t *testing.T) {
@@ -494,6 +620,10 @@ func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	memoryStore, ok := manager.MemoryStore()
 	require.False(t, ok)
 	require.Nil(t, memoryStore)
+
+	automationStore, ok := manager.AutomationStore()
+	require.False(t, ok)
+	require.Nil(t, automationStore)
 
 	traceStore, ok := manager.TraceStore()
 	require.False(t, ok)

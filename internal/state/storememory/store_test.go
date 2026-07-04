@@ -73,6 +73,10 @@ func TestMemoryStore_AggregateCapabilities(t *testing.T) {
 	sessionStore := store.Session()
 	require.Same(t, store, sessionStore)
 
+	automationStore, ok := store.Automation()
+	require.True(t, ok)
+	require.Same(t, store, automationStore)
+
 	memoryStore, ok := store.Memory()
 	require.True(t, ok)
 	require.Same(t, store, memoryStore)
@@ -83,6 +87,10 @@ func TestMemoryStore_AggregateCapabilities(t *testing.T) {
 
 	var nilStore *Store
 	require.Nil(t, nilStore.Session())
+	automationStore, ok = nilStore.Automation()
+	require.False(t, ok)
+	require.Nil(t, automationStore)
+
 	memoryStore, ok = nilStore.Memory()
 	require.False(t, ok)
 	require.Nil(t, memoryStore)

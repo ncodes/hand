@@ -174,7 +174,10 @@ func (s *storageStoreStub) ListGatewayPairedSenders(context.Context, string) ([]
 func (s *storageStoreStub) DeleteGatewayPairedSender(context.Context, string, string) error {
 	return nil
 }
-func (s *storageStoreStub) Session() storage.SessionStore       { return s }
+func (s *storageStoreStub) Session() storage.SessionStore { return s }
+func (s *storageStoreStub) Automation() (storage.AutomationStore, bool) {
+	return nil, false
+}
 func (s *storageStoreStub) Memory() (storage.MemoryStore, bool) { return nil, false }
 func (s *storageStoreStub) Trace() (storage.TraceStore, bool)   { return nil, false }
 func (s *storageStoreStub) SupportsVectorSearch() bool          { return false }

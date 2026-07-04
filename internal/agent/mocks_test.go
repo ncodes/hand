@@ -378,6 +378,8 @@ func (s *stateStoreStub) DeleteGatewayPairedSender(_ context.Context, source str
 
 func (s *stateStoreStub) Session() storage.SessionStore { return s }
 
+func (s *stateStoreStub) Automation() (storage.AutomationStore, bool) { return nil, false }
+
 func (s *stateStoreStub) Memory() (storage.MemoryStore, bool) { return nil, false }
 
 func (s *stateStoreStub) Trace() (storage.TraceStore, bool) { return s, true }

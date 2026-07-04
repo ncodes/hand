@@ -33,6 +33,8 @@ func TestSQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
 	require.True(t, store.db.Migrator().HasTable(&stateModel{}))
 	require.True(t, store.db.Migrator().HasTable(&summaryModel{}))
 	require.True(t, store.db.Migrator().HasTable(&messageModel{}))
+	require.True(t, store.db.Migrator().HasTable(&automationJobModel{}))
+	require.True(t, store.db.Migrator().HasTable(&automationRunModel{}))
 	require.True(t, store.db.Migrator().HasTable(&memoryItemModel{}))
 	require.True(t, store.db.Migrator().HasTable(&memoryItemTagModel{}))
 	require.True(t, store.db.Migrator().HasTable(&traceEventModel{}))
@@ -52,6 +54,10 @@ func TestSQLiteStore_AggregateCapabilities(t *testing.T) {
 	sessionStore := store.Session()
 	require.Same(t, store, sessionStore)
 
+	automationStore, ok := store.Automation()
+	require.True(t, ok)
+	require.Same(t, store, automationStore)
+
 	memoryStore, ok := store.Memory()
 	require.True(t, ok)
 	require.Same(t, store, memoryStore)
@@ -66,6 +72,10 @@ func TestSQLiteStore_AggregateCapabilities(t *testing.T) {
 
 	var nilStore *Store
 	require.Nil(t, nilStore.Session())
+	automationStore, ok = nilStore.Automation()
+	require.False(t, ok)
+	require.Nil(t, automationStore)
+
 	memoryStore, ok = nilStore.Memory()
 	require.False(t, ok)
 	require.Nil(t, memoryStore)
@@ -129,6 +139,8 @@ func TestSQLiteStore_StorageInitializationErrors(t *testing.T) {
 			&stateModel{},
 			&summaryModel{},
 			&messageModel{},
+			&automationJobModel{},
+			&automationRunModel{},
 			&gatewayBindingModel{},
 			&traceEventModel{},
 			&gatewayPairingRequestModel{},
@@ -152,6 +164,8 @@ func TestSQLiteStore_StorageInitializationErrors(t *testing.T) {
 			&stateModel{},
 			&summaryModel{},
 			&messageModel{},
+			&automationJobModel{},
+			&automationRunModel{},
 			&gatewayBindingModel{},
 			&traceEventModel{},
 			&gatewayPairingRequestModel{},
