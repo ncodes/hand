@@ -194,3 +194,20 @@ func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRe
 
 	return s.handleVectorStoreError(s.deleteMemoryVector(ctx, id))
 }
+
+func (s *Store) HardDeleteMemory(ctx context.Context, req statememory.MemoryDeleteRequest) error {
+	if s == nil {
+		return errors.New("store is required")
+	}
+
+	id := stringx.String(req.ID).Trim()
+	if id == "" {
+		return errors.New("memory id is required")
+	}
+
+	s.mu.Lock()
+	delete(s.memoryItems, id)
+	s.mu.Unlock()
+
+	return s.handleVectorStoreError(s.deleteMemoryVector(ctx, id))
+}

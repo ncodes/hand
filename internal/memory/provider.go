@@ -56,6 +56,7 @@ type StateManager interface {
 	UpsertMemory(context.Context, MemoryItem) (MemoryItem, error)
 	PatchMemory(context.Context, MemoryPatch) (MemoryItem, error)
 	DeleteMemory(context.Context, DeleteRequest) error
+	HardDeleteMemory(context.Context, DeleteRequest) error
 	CurrentSession(context.Context) (string, error)
 	CountMessages(context.Context, string, statecore.MessageQueryOptions) (int, error)
 	GetMessages(context.Context, string, statecore.MessageQueryOptions) ([]morphmsg.Message, error)

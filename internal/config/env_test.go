@@ -51,7 +51,8 @@ func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 		"MORPH_MEMORY_EPISODIC_MAX_RETRIES", "MORPH_MEMORY_REFLECTION_ENABLED",
 		"MORPH_MEMORY_REFLECTION_INTERVAL", "MORPH_MEMORY_REFLECTION_LIMIT",
 		"MORPH_MEMORY_REFLECTION_RELATED_LIMIT", "MORPH_MEMORY_PROMOTION_ENABLED",
-		"MORPH_MEMORY_PROMOTION_INTERVAL", "MORPH_MEMORY_PROMOTION_LIMIT")
+		"MORPH_MEMORY_PROMOTION_INTERVAL", "MORPH_MEMORY_PROMOTION_LIMIT",
+		"MORPH_MEMORY_PROMOTION_EVALUATED_RETENTION")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -113,6 +114,7 @@ MORPH_MEMORY_REFLECTION_RELATED_LIMIT=4
 MORPH_MEMORY_PROMOTION_ENABLED=true
 MORPH_MEMORY_PROMOTION_INTERVAL=3m
 MORPH_MEMORY_PROMOTION_LIMIT=8
+MORPH_MEMORY_PROMOTION_EVALUATED_RETENTION=48h
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -216,6 +218,7 @@ rules:
 	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
 	require.Equal(t, 3*time.Minute, cfg.Memory.Promotion.Interval)
 	require.Equal(t, 8, cfg.Memory.Promotion.Limit)
+	require.Equal(t, 48*time.Hour, cfg.Memory.Promotion.EvaluatedRetention)
 }
 
 func TestLoad_UsesModelStreamFromConfigAndEnv(t *testing.T) {

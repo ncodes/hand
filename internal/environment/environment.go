@@ -254,9 +254,10 @@ func (e *environment) prepareMemory() error {
 			RelatedLimit: e.cfg.Memory.Reflection.RelatedLimit,
 		},
 		PromotionBackground: memory.PromotionBackgroundOptions{
-			Enabled:  *e.cfg.Memory.Promotion.Enabled,
-			Interval: e.cfg.Memory.Promotion.Interval,
-			Limit:    e.cfg.Memory.Promotion.Limit,
+			Enabled:            *e.cfg.Memory.Promotion.Enabled,
+			Interval:           e.cfg.Memory.Promotion.Interval,
+			Limit:              e.cfg.Memory.Promotion.Limit,
+			EvaluatedRetention: e.cfg.Memory.Promotion.EvaluatedRetention,
 		},
 	}
 	provider, err := newMemoryProvider(e.cfg.Memory.Provider, opts)

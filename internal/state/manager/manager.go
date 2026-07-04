@@ -139,6 +139,15 @@ func (m *Manager) DeleteMemory(ctx context.Context, req storage.MemoryDeleteRequ
 	return store.DeleteMemory(ctx, req)
 }
 
+func (m *Manager) HardDeleteMemory(ctx context.Context, req storage.MemoryDeleteRequest) error {
+	store, ok := m.MemoryStore()
+	if !ok {
+		return errors.New("memory store is not supported")
+	}
+
+	return store.HardDeleteMemory(ctx, req)
+}
+
 func (m *Manager) TraceStore() (storage.TraceStore, bool) {
 	if m == nil || m.store == nil {
 		return nil, false

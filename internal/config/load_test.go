@@ -204,7 +204,7 @@ func TestLoad_UsesConfigFileValues(t *testing.T) {
 		"MORPH_MEMORY_REFLECTION_ENABLED", "MORPH_MEMORY_REFLECTION_INTERVAL",
 		"MORPH_MEMORY_REFLECTION_LIMIT", "MORPH_MEMORY_REFLECTION_RELATED_LIMIT",
 		"MORPH_MEMORY_PROMOTION_ENABLED", "MORPH_MEMORY_PROMOTION_INTERVAL",
-		"MORPH_MEMORY_PROMOTION_LIMIT")
+		"MORPH_MEMORY_PROMOTION_LIMIT", "MORPH_MEMORY_PROMOTION_EVALUATED_RETENTION")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -257,6 +257,7 @@ memory:
     enabled: true
     interval: 2m
     limit: 7
+    evaluatedRetention: 72h
 log:
   level: error
   file: /tmp/config-morph.log
@@ -355,6 +356,7 @@ rules:
 	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
 	require.Equal(t, 2*time.Minute, cfg.Memory.Promotion.Interval)
 	require.Equal(t, 7, cfg.Memory.Promotion.Limit)
+	require.Equal(t, 72*time.Hour, cfg.Memory.Promotion.EvaluatedRetention)
 	require.False(t, getBoolValue(cfg.Cap.Filesystem))
 	require.False(t, getBoolValue(cfg.Cap.Network))
 	require.False(t, getBoolValue(cfg.Cap.Exec))

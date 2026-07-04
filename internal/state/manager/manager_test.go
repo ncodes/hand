@@ -251,6 +251,21 @@ func TestManager_MemoryOperationsUseMemoryStore(t *testing.T) {
 	result, err = manager.SearchMemory(context.Background(), storage.MemorySearchQuery{Text: "manager"})
 	require.NoError(t, err)
 	require.Empty(t, result.Hits)
+
+	item, err = manager.UpsertMemory(context.Background(), storage.MemoryItem{
+		Kind:   storage.MemoryKindSemantic,
+		Status: storage.MemoryStatusCandidate,
+		Text:   "hard delete manager owned memory",
+	})
+	require.NoError(t, err)
+	require.NoError(t, manager.HardDeleteMemory(context.Background(), storage.MemoryDeleteRequest{ID: item.ID}))
+
+	result, err = manager.SearchMemory(context.Background(), storage.MemorySearchQuery{
+		IDs:      []string{item.ID},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusDeleted},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
 }
 
 func TestManager_MemoryOperationsRequireMemoryStore(t *testing.T) {
@@ -270,6 +285,9 @@ func TestManager_MemoryOperationsRequireMemoryStore(t *testing.T) {
 	require.EqualError(t, err, "memory store is not supported")
 
 	err = manager.DeleteMemory(context.Background(), storage.MemoryDeleteRequest{ID: "mem_123"})
+	require.EqualError(t, err, "memory store is not supported")
+
+	err = manager.HardDeleteMemory(context.Background(), storage.MemoryDeleteRequest{ID: "mem_123"})
 	require.EqualError(t, err, "memory store is not supported")
 }
 

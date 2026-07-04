@@ -39,6 +39,7 @@ const (
 	DefaultProfileMemoryPromotionEnabled        = true
 	DefaultProfileMemoryPromotionInterval       = 3 * time.Minute
 	DefaultProfileMemoryPromotionLimit          = 10
+	DefaultProfileMemoryPromotionRetention      = 7 * 24 * time.Hour
 	DefaultProfileMemoryWriteEnabled            = true
 	DefaultMemoryEpisodicEnabled                = false
 	DefaultMemoryReflectionEnabled              = false

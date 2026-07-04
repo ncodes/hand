@@ -155,9 +155,10 @@ var DefaultConfig = Config{
 			RelatedLimit: constants.DefaultProfileMemoryReflectionRelatedLimit,
 		},
 		Promotion: PromotionMemoryConfig{
-			Enabled:  new(constants.DefaultProfileMemoryPromotionEnabled),
-			Interval: constants.DefaultProfileMemoryPromotionInterval,
-			Limit:    constants.DefaultProfileMemoryPromotionLimit,
+			Enabled:            new(constants.DefaultProfileMemoryPromotionEnabled),
+			Interval:           constants.DefaultProfileMemoryPromotionInterval,
+			Limit:              constants.DefaultProfileMemoryPromotionLimit,
+			EvaluatedRetention: constants.DefaultProfileMemoryPromotionRetention,
 		},
 		Write: WriteMemoryConfig{
 			Enabled: new(constants.DefaultProfileMemoryWriteEnabled),

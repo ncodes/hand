@@ -1161,6 +1161,34 @@ func TestSQLiteMemoryStore_SearchMemoryRelaxesQuestionAndPreferenceTerms(t *test
 	}, "alpha beta gamma delta color", 10))
 }
 
+func TestSQLiteMemoryStore_HardDeleteMemoryRemovesRecordSearchRowsTagsAndVector(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+	item, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_hard_delete",
+		Kind:   statememory.MemoryKindSemantic,
+		Status: statememory.MemoryStatusCandidate,
+		Text:   "Hard deleted sqlite candidate should disappear.",
+		Tags:   []string{"cleanup"},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, store.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: item.ID}))
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		IDs:      []string{item.ID},
+		Statuses: []statememory.MemoryStatus{statememory.MemoryStatusCandidate, statememory.MemoryStatusDeleted},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+
+	var itemCount int64
+	require.NoError(t, store.db.Model(&memoryItemModel{}).Where("id = ?", item.ID).Count(&itemCount).Error)
+	require.Zero(t, itemCount)
+	var tagCount int64
+	require.NoError(t, store.db.Model(&memoryItemTagModel{}).Where("memory_id = ?", item.ID).Count(&tagCount).Error)
+	require.Zero(t, tagCount)
+}
+
 func TestSQLiteMemoryStore_BM25RanksByLexicalRelevanceBeforeRecency(t *testing.T) {
 	store, err := NewStoreFromDB(openMemoryTestDB(t))
 	require.NoError(t, err)
@@ -1239,6 +1267,7 @@ func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
 	_, err = (&Store{}).PatchMemory(context.Background(), statememory.MemoryPatch{})
 	require.EqualError(t, err, "store is required")
 	require.EqualError(t, nilStore.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{}), "store is required")
+	require.EqualError(t, nilStore.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{}), "store is required")
 
 	store, err := NewStoreFromDB(openMemoryTestDB(t))
 	require.NoError(t, err)
@@ -1250,6 +1279,8 @@ func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
 	require.EqualError(t, err, "memory item not found")
 	require.EqualError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{}), "memory id is required")
 	require.NoError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "missing"}))
+	require.EqualError(t, store.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{}), "memory id is required")
+	require.NoError(t, store.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "missing"}))
 
 	searchErr := errors.New("memory search failed")
 	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:memory-search-error", func(tx *gorm.DB) {
@@ -1276,6 +1307,44 @@ func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
 	err = store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "mem_error"})
 	require.ErrorIs(t, err, deleteErr)
 	require.NoError(t, store.db.Callback().Update().Remove("test:memory-delete-error"))
+
+	hardDeleteErr := errors.New("memory hard delete failed")
+	require.NoError(t, store.db.Callback().Delete().Before("gorm:delete").Register("test:memory-hard-delete-error", func(tx *gorm.DB) {
+		if callbackTable(tx) == "memory_items" {
+			tx.AddError(hardDeleteErr)
+		}
+	}))
+	err = store.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "mem_error"})
+	require.ErrorIs(t, err, hardDeleteErr)
+	require.NoError(t, store.db.Callback().Delete().Remove("test:memory-hard-delete-error"))
+
+	tagDeleteErr := errors.New("memory hard delete tag failed")
+	require.NoError(t, store.db.Callback().Delete().Before("gorm:delete").Register("test:memory-hard-delete-tag-error", func(tx *gorm.DB) {
+		if callbackTable(tx) == "memory_item_tags" {
+			tx.AddError(tagDeleteErr)
+		}
+	}))
+	err = store.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "mem_error"})
+	require.ErrorIs(t, err, tagDeleteErr)
+	require.NoError(t, store.db.Callback().Delete().Remove("test:memory-hard-delete-tag-error"))
+
+	require.NoError(t, deleteMemorySearchRow(nil, "mem"))
+}
+
+func TestSQLiteMemoryStore_HardDeleteMemoryReturnsSearchRowDeleteError(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_search_row_error",
+		Status: statememory.MemoryStatusCandidate,
+		Text:   "search row delete error",
+	})
+	require.NoError(t, err)
+	require.NoError(t, store.db.Exec(`DROP TABLE `+memorySearchTable).Error)
+
+	err = store.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "mem_search_row_error"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to delete memory search row")
 }
 
 func TestSQLiteMemoryStore_PatchTransactionErrors(t *testing.T) {

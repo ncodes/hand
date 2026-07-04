@@ -167,6 +167,32 @@ func TestMemoryStore_SearchMemoryRelaxesQuestionAndPreferenceTerms(t *testing.T)
 	require.Empty(t, result.Hits)
 }
 
+func TestMemoryStore_HardDeleteMemoryRemovesRecordAndVector(t *testing.T) {
+	store := NewStore()
+	item, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_hard_delete",
+		Kind:   statememory.MemoryKindSemantic,
+		Status: statememory.MemoryStatusCandidate,
+		Text:   "Hard deleted candidate should disappear.",
+	})
+	require.NoError(t, err)
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		IDs:      []string{item.ID},
+		Statuses: []statememory.MemoryStatus{statememory.MemoryStatusCandidate},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{item.ID}, memoryHitIDs(result.Hits))
+
+	require.NoError(t, store.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: item.ID}))
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		IDs:      []string{item.ID},
+		Statuses: []statememory.MemoryStatus{statememory.MemoryStatusCandidate, statememory.MemoryStatusDeleted},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+}
+
 func TestMemoryStore_DefaultsToCandidateAndActiveOnlySearch(t *testing.T) {
 	store := NewStore()
 
@@ -1151,6 +1177,8 @@ func TestMemoryStore_NilReceiverAndValidationErrors(t *testing.T) {
 
 	err = nilStore.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "mem"})
 	require.EqualError(t, err, "store is required")
+	err = nilStore.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "mem"})
+	require.EqualError(t, err, "store is required")
 
 	store := NewStore()
 	_, err = store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{})
@@ -1161,6 +1189,8 @@ func TestMemoryStore_NilReceiverAndValidationErrors(t *testing.T) {
 	require.EqualError(t, err, "memory item not found")
 	require.EqualError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{}), "memory id is required")
 	require.NoError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "missing"}))
+	require.EqualError(t, store.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{}), "memory id is required")
+	require.NoError(t, store.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "missing"}))
 }
 
 func memoryItemIDs(items []statememory.MemoryItem) []string {

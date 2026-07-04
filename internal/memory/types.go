@@ -181,10 +181,11 @@ type PromotionRequest struct {
 // candidates. A candidate with PromotionEvaluatedAt set is intentionally skipped
 // so rejected candidates do not churn forever.
 type PromotionBackgroundOptions struct {
-	Enabled  bool
-	Interval time.Duration
-	Limit    int
-	Reason   string
+	Enabled            bool
+	Interval           time.Duration
+	Limit              int
+	Reason             string
+	EvaluatedRetention time.Duration
 }
 
 // LifecycleResult records memory status changes from a promotion or replacement.

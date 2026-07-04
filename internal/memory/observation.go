@@ -69,6 +69,55 @@ func (p *MemoryProvider) recordPromotionFallback(ctx context.Context, memoryID s
 	logDebugAndTrace(ctx, p.observability(), "memory promotion fallback", trace.EvtMemoryPromotionFallback, fields)
 }
 
+func (p *MemoryProvider) recordPromotionBackgroundCompleted(ctx context.Context, count int, opts PromotionBackgroundOptions, started time.Time) {
+	fields := buildObservationFields(p.Name(), "background_promotion", map[string]any{
+		"result_count": count,
+		"limit":        opts.Limit,
+		"duration_ms":  time.Since(started).Milliseconds(),
+	})
+	logDebugAndTrace(ctx, p.observability(), "memory promotion background pass completed", trace.EvtMemoryPromotionBackgroundCompleted, fields)
+}
+
+func (p *MemoryProvider) recordPromotionBackgroundFailed(ctx context.Context, err error, count int, opts PromotionBackgroundOptions, started time.Time) {
+	fields := buildObservationFields(p.Name(), "background_promotion", map[string]any{
+		"result_count": count,
+		"limit":        opts.Limit,
+		"duration_ms":  time.Since(started).Milliseconds(),
+		"error":        err.Error(),
+	})
+	logDebugAndTrace(ctx, p.observability(), "memory promotion background pass failed", trace.EvtMemoryPromotionBackgroundFailed, fields)
+}
+
+func (p *MemoryProvider) recordPromotionCleanupCompleted(ctx context.Context, count int, opts PromotionBackgroundOptions, started time.Time) {
+	fields := buildObservationFields(p.Name(), "promotion_cleanup", map[string]any{
+		"result_count": count,
+		"limit":        opts.Limit,
+		"retention_ms": opts.EvaluatedRetention.Milliseconds(),
+		"duration_ms":  time.Since(started).Milliseconds(),
+	})
+	logDebugAndTrace(ctx, p.observability(), "memory promotion cleanup pass completed", trace.EvtMemoryPromotionCleanupCompleted, fields)
+}
+
+func (p *MemoryProvider) recordPromotionCleanupFailed(ctx context.Context, err error, count int, opts PromotionBackgroundOptions, started time.Time) {
+	fields := buildObservationFields(p.Name(), "promotion_cleanup", map[string]any{
+		"result_count": count,
+		"limit":        opts.Limit,
+		"retention_ms": opts.EvaluatedRetention.Milliseconds(),
+		"duration_ms":  time.Since(started).Milliseconds(),
+		"error":        err.Error(),
+	})
+	logDebugAndTrace(ctx, p.observability(), "memory promotion cleanup pass failed", trace.EvtMemoryPromotionCleanupFailed, fields)
+}
+
+func (p *MemoryProvider) recordPromotionCleanupSkipped(ctx context.Context, opts PromotionBackgroundOptions) {
+	fields := buildObservationFields(p.Name(), "promotion_cleanup", map[string]any{
+		"limit":        opts.Limit,
+		"retention_ms": opts.EvaluatedRetention.Milliseconds(),
+		"reason":       "retention_disabled",
+	})
+	logDebugAndTrace(ctx, p.observability(), "memory promotion cleanup pass skipped", trace.EvtMemoryPromotionCleanupSkipped, fields)
+}
+
 func getPromotionRelatedHitIDs(hits []SearchHit) []string {
 	ids := make([]string, 0, len(hits))
 	for _, hit := range hits {

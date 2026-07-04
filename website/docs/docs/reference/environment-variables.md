@@ -185,6 +185,7 @@ No `MORPH_*` override exists for `fs.noProfileAccess` or `compaction.recentSessi
 | `MORPH_MEMORY_PROMOTION_ENABLED` | `memory.promotion.enabled` |
 | `MORPH_MEMORY_PROMOTION_INTERVAL` | `memory.promotion.interval` |
 | `MORPH_MEMORY_PROMOTION_LIMIT` | `memory.promotion.limit` |
+| `MORPH_MEMORY_PROMOTION_EVALUATED_RETENTION` | `memory.promotion.evaluatedRetention` |
 
 ## Web
 

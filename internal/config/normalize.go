@@ -252,6 +252,9 @@ func (c *Config) normalizeFields() {
 	if c.Memory.Promotion.Enabled == nil {
 		c.Memory.Promotion.Enabled = new(constants.DefaultProfileMemoryPromotionEnabled)
 	}
+	if c.Memory.Promotion.EvaluatedRetention == 0 {
+		c.Memory.Promotion.EvaluatedRetention = constants.DefaultProfileMemoryPromotionRetention
+	}
 	if c.Memory.Write.Enabled == nil {
 		c.Memory.Write.Enabled = new(constants.DefaultProfileMemoryWriteEnabled)
 	}

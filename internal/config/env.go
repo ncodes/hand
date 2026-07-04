@@ -444,6 +444,9 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.Memory.Promotion.Limit = count
 		}
 	}
+	if value := stringx.String(os.Getenv("MORPH_MEMORY_PROMOTION_EVALUATED_RETENTION")).Trim(); value != "" {
+		cfg.Memory.Promotion.EvaluatedRetention = parseDurationOrZero(value)
+	}
 	if value, ok := parseOptionalBoolEnv("MORPH_MEMORY_WRITE_ENABLED"); ok {
 		cfg.Memory.Write.Enabled = new(value)
 	}

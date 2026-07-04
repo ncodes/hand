@@ -80,6 +80,11 @@ const (
 	EvtMemoryPromotionCompleted                   = "memory.promotion.completed"
 	EvtMemoryPromotionFailed                      = "memory.promotion.failed"
 	EvtMemoryPromotionFallback                    = "memory.promotion.fallback"
+	EvtMemoryPromotionBackgroundCompleted         = "memory.promotion_background.completed"
+	EvtMemoryPromotionBackgroundFailed            = "memory.promotion_background.failed"
+	EvtMemoryPromotionCleanupCompleted            = "memory.promotion_cleanup.completed"
+	EvtMemoryPromotionCleanupFailed               = "memory.promotion_cleanup.failed"
+	EvtMemoryPromotionCleanupSkipped              = "memory.promotion_cleanup.skipped"
 	EvtWorkspaceRulesTruncated                    = "workspace.rules.truncated"
 	EvtPlanUpdated                                = "plan.updated"
 	EvtPlanCleared                                = "plan.cleared"
@@ -189,6 +194,11 @@ var allTraceEventTypes = []string{
 	EvtMemoryPromotionCompleted,
 	EvtMemoryPromotionFailed,
 	EvtMemoryPromotionFallback,
+	EvtMemoryPromotionBackgroundCompleted,
+	EvtMemoryPromotionBackgroundFailed,
+	EvtMemoryPromotionCleanupCompleted,
+	EvtMemoryPromotionCleanupFailed,
+	EvtMemoryPromotionCleanupSkipped,
 	EvtWorkspaceRulesTruncated,
 	EvtPlanUpdated,
 	EvtPlanCleared,

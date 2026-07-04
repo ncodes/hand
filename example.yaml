@@ -117,6 +117,7 @@
 #     enabled: true
 #     interval: "1m"
 #     limit: 10
+#     evaluatedRetention: "168h"
 #   write:
 #     enabled: true
 # reranker:

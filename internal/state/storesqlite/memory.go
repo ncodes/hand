@@ -322,6 +322,40 @@ func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRe
 	return s.handleVectorStoreError(s.deleteMemoryVector(ctx, id))
 }
 
+func (s *Store) HardDeleteMemory(ctx context.Context, req statememory.MemoryDeleteRequest) error {
+	if s == nil || s.db == nil {
+		return errors.New("store is required")
+	}
+
+	id := stringx.String(req.ID).Trim()
+	if id == "" {
+		return errors.New("memory id is required")
+	}
+
+	rowsAffected := int64(0)
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("memory_id = ?", id).Delete(&memoryItemTagModel{}).Error; err != nil {
+			return err
+		}
+		if err := deleteMemorySearchRow(tx, id); err != nil {
+			return err
+		}
+		result := tx.Where("id = ?", id).Delete(&memoryItemModel{})
+		if result.Error != nil {
+			return result.Error
+		}
+		rowsAffected = result.RowsAffected
+		return nil
+	}); err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return nil
+	}
+
+	return s.handleVectorStoreError(s.deleteMemoryVector(ctx, id))
+}
+
 func (s *Store) searchMemoryRecords(
 	ctx context.Context,
 	query statememory.MemorySearchQuery,
@@ -798,8 +832,8 @@ func replaceMemorySearchRow(tx *gorm.DB, item statememory.MemoryItem) error {
 		return nil
 	}
 
-	if err := tx.Exec(`DELETE FROM `+memorySearchTable+` WHERE memory_id = ?`, item.ID).Error; err != nil {
-		return fmt.Errorf("failed to delete memory search row: %w", err)
+	if err := deleteMemorySearchRow(tx, item.ID); err != nil {
+		return err
 	}
 
 	if err := tx.Exec(
@@ -812,6 +846,18 @@ func replaceMemorySearchRow(tx *gorm.DB, item statememory.MemoryItem) error {
 		getMemoryMetadataSearchText(item.Metadata),
 	).Error; err != nil {
 		return fmt.Errorf("failed to insert memory search row: %w", err)
+	}
+
+	return nil
+}
+
+func deleteMemorySearchRow(tx *gorm.DB, memoryID string) error {
+	if tx == nil {
+		return nil
+	}
+
+	if err := tx.Exec(`DELETE FROM `+memorySearchTable+` WHERE memory_id = ?`, memoryID).Error; err != nil {
+		return fmt.Errorf("failed to delete memory search row: %w", err)
 	}
 
 	return nil

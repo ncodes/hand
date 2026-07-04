@@ -199,6 +199,7 @@ type MemoryEventPayload struct {
 	SkipCount                int               `json:"skip_count,omitempty"`
 	FailureCount             int               `json:"failure_count,omitempty"`
 	DurationMS               int64             `json:"duration_ms,omitempty"`
+	RetentionMS              int64             `json:"retention_ms,omitempty"`
 	SearchMinScore           float64           `json:"search_min_score,omitempty"`
 	SearchFilteredCount      int               `json:"search_filtered_count,omitempty"`
 	Confidence               float64           `json:"confidence,omitempty"`
@@ -392,7 +393,12 @@ func DecodePayload(eventType string, payload any) (any, bool) {
 		EvtMemoryPromotionDecision,
 		EvtMemoryPromotionCompleted,
 		EvtMemoryPromotionFailed,
-		EvtMemoryPromotionFallback:
+		EvtMemoryPromotionFallback,
+		EvtMemoryPromotionBackgroundCompleted,
+		EvtMemoryPromotionBackgroundFailed,
+		EvtMemoryPromotionCleanupCompleted,
+		EvtMemoryPromotionCleanupFailed,
+		EvtMemoryPromotionCleanupSkipped:
 		return decodePayloadAs[MemoryEventPayload](payload)
 	case EvtWorkspaceRulesTruncated:
 		return decodePayloadAs[WorkspaceRulesTruncatedPayload](payload)

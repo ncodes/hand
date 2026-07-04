@@ -205,7 +205,8 @@ func TestMemoryProvider_PromoteCandidateRejectsCrossKindNearDuplicates(t *testin
 			{Hits: []SearchHit{{Item: active, Score: promotionCrossKindDuplicateScoreThreshold}}},
 		},
 	}
-	provider := &MemoryProvider{manager: manager}
+	tracer := &fakeTracer{}
+	provider := &MemoryProvider{manager: manager, obs: fakeObservability{tracer: tracer}}
 
 	result, err := provider.PromoteCandidate(context.Background(), PromotionRequest{ID: "mem_candidate_semantic"})
 
@@ -226,7 +227,8 @@ func TestMemoryProvider_PromoteCandidateIgnoresReflectionSourceDuplicate(t *test
 			{Hits: []SearchHit{{Item: source, Score: 1}}},
 		},
 	}
-	provider := &MemoryProvider{manager: manager}
+	tracer := &fakeTracer{}
+	provider := &MemoryProvider{manager: manager, obs: fakeObservability{tracer: tracer}}
 
 	result, err := provider.PromoteCandidate(context.Background(), PromotionRequest{ID: "mem_candidate_procedural"})
 
@@ -493,7 +495,8 @@ func TestMemoryProvider_RunPromotionBackgroundUsesEvaluationFilterAndLimit(t *te
 			{},
 		},
 	}
-	provider := &MemoryProvider{manager: manager}
+	tracer := &fakeTracer{}
+	provider := &MemoryProvider{manager: manager, obs: fakeObservability{tracer: tracer}}
 
 	count, err := provider.RunPromotionBackground(context.Background(), PromotionBackgroundOptions{Limit: 1})
 
@@ -507,6 +510,9 @@ func TestMemoryProvider_RunPromotionBackgroundUsesEvaluationFilterAndLimit(t *te
 	require.Equal(t, "mem_eligible", manager.upsertItems[0].ID)
 	require.Equal(t, StatusActive, manager.upsertItems[0].Status)
 	require.False(t, manager.upsertItems[0].PromotionEvaluatedAt.IsZero())
+	fields := traceFieldsForEvent(t, tracer, trace.EvtMemoryPromotionBackgroundCompleted)
+	require.Equal(t, 1, fields["result_count"])
+	require.Equal(t, 1, fields["limit"])
 }
 
 func TestMemoryProvider_RunPromotionBackgroundReturnsErrorsAndCapsLimits(t *testing.T) {
@@ -520,10 +526,16 @@ func TestMemoryProvider_RunPromotionBackgroundReturnsErrorsAndCapsLimits(t *test
 	require.EqualError(t, err, "memory provider is required")
 	require.Zero(t, count)
 
-	provider = &MemoryProvider{manager: fakeMemoryManager{searchErr: errors.New("candidate search failed")}}
+	tracer := &fakeTracer{}
+	provider = &MemoryProvider{
+		manager: fakeMemoryManager{searchErr: errors.New("candidate search failed")},
+		obs:     fakeObservability{tracer: tracer},
+	}
 	count, err = provider.RunPromotionBackground(context.Background(), PromotionBackgroundOptions{})
 	require.EqualError(t, err, "candidate search failed")
 	require.Zero(t, count)
+	fields := traceFieldsForEvent(t, tracer, trace.EvtMemoryPromotionBackgroundFailed)
+	require.Equal(t, "candidate search failed", fields["error"])
 
 	manager := &recordingMemoryManager{
 		searchResults: []SearchResult{{Hits: []SearchHit{{
@@ -545,6 +557,128 @@ func TestMemoryProvider_RunPromotionBackgroundReturnsErrorsAndCapsLimits(t *test
 	require.Equal(t, maxPromotionBackgroundLimit, manager.searchQueries[0].Limit)
 	require.NotNil(t, manager.searchQueries[0].PromotionEvaluated)
 	require.False(t, *manager.searchQueries[0].PromotionEvaluated)
+}
+
+func TestMemoryProvider_RunPromotionCleanupDeletesOnlyExpiredEvaluatedCandidates(t *testing.T) {
+	now := time.Now().UTC()
+	oldEvaluated := lifecycleCandidate("mem_old", KindSemantic, "Old rejected candidate.")
+	oldEvaluated.PromotionEvaluatedAt = now.Add(-48 * time.Hour)
+	recentEvaluated := lifecycleCandidate("mem_recent", KindSemantic, "Recent rejected candidate.")
+	recentEvaluated.PromotionEvaluatedAt = now.Add(-time.Hour)
+	unevaluated := lifecycleCandidate("mem_unevaluated", KindSemantic, "Unevaluated candidate.")
+	active := lifecycleCandidate("mem_active", KindSemantic, "Promoted memory.")
+	active.Status = StatusActive
+	active.PromotionEvaluatedAt = oldEvaluated.PromotionEvaluatedAt
+	manager := &recordingMemoryManager{
+		searchResults: []SearchResult{{
+			Hits: []SearchHit{
+				{Item: MemoryItem{}},
+				{Item: oldEvaluated},
+				{Item: recentEvaluated},
+				{Item: unevaluated},
+				{Item: active},
+			},
+		}},
+	}
+	tracer := &fakeTracer{}
+	provider := &MemoryProvider{manager: manager, obs: fakeObservability{tracer: tracer}}
+
+	count, err := provider.RunPromotionCleanup(context.Background(), PromotionBackgroundOptions{
+		Limit:              10,
+		EvaluatedRetention: 24 * time.Hour,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	require.Len(t, manager.searchQueries, 1)
+	require.Equal(t, []Status{StatusCandidate}, manager.searchQueries[0].Statuses)
+	require.NotNil(t, manager.searchQueries[0].PromotionEvaluated)
+	require.True(t, *manager.searchQueries[0].PromotionEvaluated)
+	require.False(t, manager.searchQueries[0].PromotionEvaluatedBefore.IsZero())
+	require.Equal(t, []DeleteRequest{{
+		ID:     "mem_old",
+		Reason: "promotion_evaluated_candidate_retention",
+	}}, manager.hardDeleteRequests)
+	fields := traceFieldsForEvent(t, tracer, trace.EvtMemoryPromotionCleanupCompleted)
+	require.Equal(t, 1, fields["result_count"])
+	require.Equal(t, 10, fields["limit"])
+	require.Equal(t, int64((24 * time.Hour).Milliseconds()), fields["retention_ms"])
+}
+
+func TestMemoryProvider_RunPromotionCleanupCapsReturnedCandidatesAtLimit(t *testing.T) {
+	now := time.Now().UTC()
+	first := lifecycleCandidate("mem_first", KindSemantic, "First old rejected candidate.")
+	first.PromotionEvaluatedAt = now.Add(-48 * time.Hour)
+	second := lifecycleCandidate("mem_second", KindSemantic, "Second old rejected candidate.")
+	second.PromotionEvaluatedAt = now.Add(-48 * time.Hour)
+	manager := &recordingMemoryManager{
+		searchResults: []SearchResult{{
+			Hits: []SearchHit{
+				{Item: first},
+				{Item: second},
+			},
+		}},
+	}
+	provider := &MemoryProvider{manager: manager}
+
+	count, err := provider.RunPromotionCleanup(context.Background(), PromotionBackgroundOptions{
+		Limit:              1,
+		EvaluatedRetention: 24 * time.Hour,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	require.Equal(t, 1, manager.searchQueries[0].Limit)
+	require.Equal(t, []DeleteRequest{{
+		ID:     "mem_first",
+		Reason: "promotion_evaluated_candidate_retention",
+	}}, manager.hardDeleteRequests)
+}
+
+func TestMemoryProvider_RunPromotionCleanupSkipsDisabledRetentionAndReturnsErrors(t *testing.T) {
+	var missing *MemoryProvider
+	count, err := missing.RunPromotionCleanup(context.Background(), PromotionBackgroundOptions{})
+	require.EqualError(t, err, "memory provider is required")
+	require.Zero(t, count)
+
+	manager := &recordingMemoryManager{}
+	tracer := &fakeTracer{}
+	provider := &MemoryProvider{manager: manager, obs: fakeObservability{tracer: tracer}}
+	count, err = provider.RunPromotionCleanup(context.Background(), PromotionBackgroundOptions{
+		EvaluatedRetention: -time.Hour,
+	})
+	require.NoError(t, err)
+	require.Zero(t, count)
+	require.Empty(t, manager.searchQueries)
+	fields := traceFieldsForEvent(t, tracer, trace.EvtMemoryPromotionCleanupSkipped)
+	require.Equal(t, "retention_disabled", fields["reason"])
+
+	manager = &recordingMemoryManager{searchErrs: []error{errors.New("cleanup search failed")}}
+	tracer = &fakeTracer{}
+	provider = &MemoryProvider{manager: manager, obs: fakeObservability{tracer: tracer}}
+	count, err = provider.RunPromotionCleanup(context.Background(), PromotionBackgroundOptions{
+		EvaluatedRetention: time.Hour,
+	})
+	require.EqualError(t, err, "cleanup search failed")
+	require.Zero(t, count)
+	fields = traceFieldsForEvent(t, tracer, trace.EvtMemoryPromotionCleanupFailed)
+	require.Equal(t, "cleanup search failed", fields["error"])
+
+	oldEvaluated := lifecycleCandidate("mem_old", KindSemantic, "Old rejected candidate.")
+	oldEvaluated.PromotionEvaluatedAt = time.Now().UTC().Add(-48 * time.Hour)
+	manager = &recordingMemoryManager{
+		searchResults:  []SearchResult{{Hits: []SearchHit{{Item: oldEvaluated}}}},
+		hardDeleteErrs: []error{errors.New("cleanup delete failed")},
+	}
+	tracer = &fakeTracer{}
+	provider = &MemoryProvider{manager: manager, obs: fakeObservability{tracer: tracer}}
+	count, err = provider.RunPromotionCleanup(context.Background(), PromotionBackgroundOptions{
+		EvaluatedRetention: time.Hour,
+	})
+	require.EqualError(t, err, "cleanup delete failed")
+	require.Zero(t, count)
+	fields = traceFieldsForEvent(t, tracer, trace.EvtMemoryPromotionCleanupFailed)
+	require.Equal(t, "cleanup delete failed", fields["error"])
 }
 
 func TestMemoryProvider_LifecycleValidationAndPolicyErrors(t *testing.T) {

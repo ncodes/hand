@@ -60,6 +60,7 @@ const (
 	defaultPromotionBackgroundInterval = time.Minute
 	defaultPromotionBackgroundLimit    = 10
 	maxPromotionBackgroundLimit        = 50
+	defaultPromotionEvaluatedRetention = 7 * 24 * time.Hour
 )
 
 type defaultPromotionPolicy struct{}
@@ -253,6 +254,9 @@ func normalizePromotionBackgroundOptions(opts PromotionBackgroundOptions) Promot
 	if stringx.String(opts.Reason).Trim() == "" {
 		opts.Reason = "background_promotion"
 	}
+	if opts.EvaluatedRetention == 0 {
+		opts.EvaluatedRetention = defaultPromotionEvaluatedRetention
+	}
 
 	return opts
 }
@@ -286,6 +290,7 @@ func (p *MemoryProvider) runPromotionBackgroundLoop(ctx context.Context, opts Pr
 			return
 		case <-ticker.C:
 			_, _ = p.RunPromotionBackground(ctx, opts)
+			_, _ = p.RunPromotionCleanup(ctx, opts)
 		}
 	}
 }
@@ -297,6 +302,7 @@ func (p *MemoryProvider) RunPromotionBackground(
 	ctx context.Context,
 	opts PromotionBackgroundOptions,
 ) (int, error) {
+	started := time.Now().UTC()
 	if p == nil || p.manager == nil {
 		return 0, errors.New("memory provider is required")
 	}
@@ -311,6 +317,7 @@ func (p *MemoryProvider) RunPromotionBackground(
 		Limit:              opts.Limit,
 	})
 	if err != nil {
+		p.recordPromotionBackgroundFailed(ctx, err, 0, opts, started)
 		return 0, err
 	}
 
@@ -330,11 +337,67 @@ func (p *MemoryProvider) RunPromotionBackground(
 			ID:     item.ID,
 			Reason: opts.Reason,
 		}); err != nil {
+			p.recordPromotionBackgroundFailed(ctx, err, count, opts, started)
 			return count, err
 		}
 		count++
 	}
 
+	p.recordPromotionBackgroundCompleted(ctx, count, opts, started)
+	return count, nil
+}
+
+func (p *MemoryProvider) RunPromotionCleanup(ctx context.Context, opts PromotionBackgroundOptions) (int, error) {
+	started := time.Now().UTC()
+	if p == nil || p.manager == nil {
+		return 0, errors.New("memory provider is required")
+	}
+
+	opts = normalizePromotionBackgroundOptions(opts)
+	if opts.EvaluatedRetention <= 0 {
+		p.recordPromotionCleanupSkipped(ctx, opts)
+		return 0, nil
+	}
+
+	cutoff := time.Now().UTC().Add(-opts.EvaluatedRetention)
+	evaluated := true
+	result, err := p.manager.SearchMemory(ctx, SearchQuery{
+		Statuses:                 []Status{StatusCandidate},
+		PromotionEvaluated:       &evaluated,
+		PromotionEvaluatedBefore: cutoff,
+		Limit:                    opts.Limit,
+	})
+	if err != nil {
+		p.recordPromotionCleanupFailed(ctx, err, 0, opts, started)
+		return 0, err
+	}
+
+	count := 0
+	for _, hit := range result.Hits {
+		item := hit.Item.Clone()
+		if stringx.String(item.ID).Trim() == "" {
+			continue
+		}
+		if item.Status != StatusCandidate || item.PromotionEvaluatedAt.IsZero() {
+			continue
+		}
+		if !item.PromotionEvaluatedAt.Before(cutoff) {
+			continue
+		}
+		if count >= opts.Limit {
+			break
+		}
+		if err := p.manager.HardDeleteMemory(ctx, DeleteRequest{
+			ID:     item.ID,
+			Reason: "promotion_evaluated_candidate_retention",
+		}); err != nil {
+			p.recordPromotionCleanupFailed(ctx, err, count, opts, started)
+			return count, err
+		}
+		count++
+	}
+
+	p.recordPromotionCleanupCompleted(ctx, count, opts, started)
 	return count, nil
 }
 

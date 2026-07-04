@@ -34,6 +34,7 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	require.False(t, cfg.MemoryEpisodicEnabled())
 	require.False(t, cfg.MemoryReflectionEnabled())
 	require.True(t, cfg.MemoryPromotionEnabled())
+	require.Equal(t, 7*24*time.Hour, cfg.Memory.Promotion.EvaluatedRetention)
 	require.True(t, cfg.MemoryWriteEnabled())
 
 	cfg = &Config{Memory: MemoryConfig{Enabled: new(false)}}
@@ -54,9 +55,10 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 			RelatedLimit: 2,
 		},
 		Promotion: PromotionMemoryConfig{
-			Enabled:  new(true),
-			Interval: time.Minute,
-			Limit:    7,
+			Enabled:            new(true),
+			Interval:           time.Minute,
+			Limit:              7,
+			EvaluatedRetention: 48 * time.Hour,
 		},
 		Write: WriteMemoryConfig{
 			Enabled: new(true),
@@ -70,6 +72,7 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
 	require.Equal(t, time.Minute, cfg.Memory.Promotion.Interval)
 	require.Equal(t, 7, cfg.Memory.Promotion.Limit)
+	require.Equal(t, 48*time.Hour, cfg.Memory.Promotion.EvaluatedRetention)
 	require.True(t, getBoolValue(cfg.Memory.Write.Enabled))
 
 	cfg = &Config{Memory: MemoryConfig{Pinned: PinnedMemoryConfig{MaxChars: 120, MaxItemChars: 60}}}

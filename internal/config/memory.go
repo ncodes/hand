@@ -59,9 +59,10 @@ type ReflectionMemoryConfig struct {
 
 // PromotionMemoryConfig controls memory lifecycle promotion.
 type PromotionMemoryConfig struct {
-	Enabled  *bool         `yaml:"enabled"`
-	Interval time.Duration `yaml:"interval"`
-	Limit    int           `yaml:"limit"`
+	Enabled            *bool         `yaml:"enabled"`
+	Interval           time.Duration `yaml:"interval"`
+	Limit              int           `yaml:"limit"`
+	EvaluatedRetention time.Duration `yaml:"evaluatedRetention"`
 }
 
 // WriteMemoryConfig toggles model-initiated memory writes.

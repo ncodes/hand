@@ -276,6 +276,13 @@ func (s memorySearchStore) DeleteMemory(
 	return nil
 }
 
+func (s memorySearchStore) HardDeleteMemory(
+	context.Context,
+	storage.MemoryDeleteRequest,
+) error {
+	return nil
+}
+
 func (s *memorySearchErrorStore) Memory() (storage.MemoryStore, bool) {
 	return s, true
 }
@@ -309,6 +316,13 @@ func (s memorySearchErrorStore) PatchMemory(
 }
 
 func (s memorySearchErrorStore) DeleteMemory(
+	context.Context,
+	storage.MemoryDeleteRequest,
+) error {
+	return nil
+}
+
+func (s memorySearchErrorStore) HardDeleteMemory(
 	context.Context,
 	storage.MemoryDeleteRequest,
 ) error {

@@ -124,6 +124,7 @@ func TestDefaultMemoryProvider_NewFromManagerKeepsConfiguredReflectionGenerator(
 	require.Same(t, generator, provider.reflectionGenerator)
 	require.Equal(t, maxReflectionLimit, provider.reflectionBackground.Limit)
 	require.Equal(t, maxPromotionBackgroundLimit, provider.promotionBackground.Limit)
+	require.Equal(t, defaultPromotionEvaluatedRetention, provider.promotionBackground.EvaluatedRetention)
 }
 
 func TestMemoryProvider_CapabilitiesConfigureObservabilityAndClose(t *testing.T) {

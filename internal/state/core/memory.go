@@ -154,6 +154,7 @@ type MemoryStore interface {
 	UpsertMemory(context.Context, MemoryItem) (MemoryItem, error)
 	PatchMemory(context.Context, MemoryPatch) (MemoryItem, error)
 	DeleteMemory(context.Context, MemoryDeleteRequest) error
+	HardDeleteMemory(context.Context, MemoryDeleteRequest) error
 }
 
 func (item MemoryItem) Clone() MemoryItem {

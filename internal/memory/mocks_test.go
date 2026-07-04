@@ -97,13 +97,14 @@ func (g *fakeGuardrails) Redact(_ context.Context, item MemoryItem) (MemoryItem,
 }
 
 type fakeMemoryManager struct {
-	searchResult SearchResult
-	searchErr    error
-	upsertItem   MemoryItem
-	upsertErr    error
-	patchItem    MemoryItem
-	patchErr     error
-	deleteErr    error
+	searchResult  SearchResult
+	searchErr     error
+	upsertItem    MemoryItem
+	upsertErr     error
+	patchItem     MemoryItem
+	patchErr      error
+	deleteErr     error
+	hardDeleteErr error
 }
 
 func (s fakeMemoryManager) SearchMemory(context.Context, SearchQuery) (SearchResult, error) {
@@ -131,6 +132,14 @@ func (s fakeMemoryManager) PatchMemory(_ context.Context, patch MemoryPatch) (Me
 }
 
 func (s fakeMemoryManager) DeleteMemory(context.Context, DeleteRequest) error {
+	return s.deleteErr
+}
+
+func (s fakeMemoryManager) HardDeleteMemory(context.Context, DeleteRequest) error {
+	if s.hardDeleteErr != nil {
+		return s.hardDeleteErr
+	}
+
 	return s.deleteErr
 }
 
@@ -164,6 +173,8 @@ type recordingMemoryManager struct {
 	upsertErr             error
 	patchErrs             []error
 	patches               []MemoryPatch
+	hardDeleteErrs        []error
+	hardDeleteRequests    []DeleteRequest
 	currentSessionErr     error
 	messageCounts         map[string]int
 	sessions              []statecore.Session
@@ -218,6 +229,19 @@ func (m *recordingMemoryManager) PatchMemory(_ context.Context, patch MemoryPatc
 		}
 	}
 	return MemoryItem{ID: patch.ID}, nil
+}
+
+func (m *recordingMemoryManager) HardDeleteMemory(_ context.Context, req DeleteRequest) error {
+	m.hardDeleteRequests = append(m.hardDeleteRequests, req)
+	if len(m.hardDeleteErrs) > 0 {
+		err := m.hardDeleteErrs[0]
+		m.hardDeleteErrs = m.hardDeleteErrs[1:]
+		if err != nil {
+			return err
+		}
+	}
+
+	return m.fakeMemoryManager.HardDeleteMemory(context.Background(), req)
 }
 
 func (m *recordingMemoryManager) CurrentSession(ctx context.Context) (string, error) {
