@@ -24,6 +24,7 @@ require (
 	github.com/openai/openai-go/v3 v3.29.0
 	github.com/pquerna/otp v1.5.0
 	github.com/rivo/uniseg v0.4.7
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.11.1
 	github.com/yuin/goldmark v1.7.13
