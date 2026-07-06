@@ -36,13 +36,17 @@ func TestAutomationJob_CloneCopiesPayloadMetadata(t *testing.T) {
 	job := AutomationJob{
 		ID: testAutomationJobID,
 		Payload: AutomationPayload{
-			Metadata: map[string]string{"topic": "news"},
+			ToolGroups: []string{"memory"},
+			Metadata:   map[string]string{"topic": "news"},
 		},
 	}
 
 	cloned := job.Clone()
+	cloned.Payload.ToolGroups[0] = "shell"
 	cloned.Payload.Metadata["topic"] = "weather"
 
+	require.Equal(t, []string{"memory"}, job.Payload.ToolGroups)
+	require.Equal(t, []string{"shell"}, cloned.Payload.ToolGroups)
 	require.Equal(t, "news", job.Payload.Metadata["topic"])
 	require.Equal(t, "weather", cloned.Payload.Metadata["topic"])
 }
@@ -56,9 +60,12 @@ func TestApplyAutomationJobPatch(t *testing.T) {
 	enabled := false
 	schedule := AutomationSchedule{Kind: AutomationScheduleEvery, Every: time.Hour}
 	payload := AutomationPayload{
-		Kind:     AutomationPayloadPrompt,
-		Prompt:   "Summarize headlines",
-		Metadata: map[string]string{"source": "bbc"},
+		Kind:          AutomationPayloadPrompt,
+		Prompt:        "Summarize headlines",
+		MaxRuntime:    time.Minute,
+		MaxIterations: 3,
+		ToolGroups:    []string{"memory"},
+		Metadata:      map[string]string{"source": "bbc"},
 	}
 	delivery := AutomationDelivery{Mode: AutomationDeliveryLocal, Channel: "chat"}
 	profile := "work"
@@ -94,6 +101,9 @@ func TestApplyAutomationJobPatch(t *testing.T) {
 	require.Equal(t, schedule, job.Schedule)
 	require.Equal(t, AutomationPayloadPrompt, job.Payload.Kind)
 	require.Equal(t, "Summarize headlines", job.Payload.Prompt)
+	require.Equal(t, time.Minute, job.Payload.MaxRuntime)
+	require.Equal(t, 3, job.Payload.MaxIterations)
+	require.Equal(t, []string{"memory"}, job.Payload.ToolGroups)
 	require.Equal(t, "bbc", job.Payload.Metadata["source"])
 	require.Equal(t, delivery, job.Delivery)
 	require.Equal(t, "work", job.Profile)

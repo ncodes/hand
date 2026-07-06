@@ -90,6 +90,30 @@ func TestAgent_RespondRunsToolLoopWithPublicDependencies(t *testing.T) {
 	require.Len(t, store.messages[session.DefaultID], 4)
 }
 
+func TestAgent_RespondUsesRequestToolGroups(t *testing.T) {
+	registry := &stubToolRegistry{}
+	client := &stubModelClient{
+		complete: func(context.Context, model.Request) (*model.Response, error) {
+			return &model.Response{OutputText: "done"}, nil
+		},
+	}
+	core, err := New(Options{
+		ModelClient:   client,
+		SessionStore:  newStubSessionStore(),
+		ToolRegistry:  registry,
+		ToolPolicy:    tool.Policy{GroupNames: []string{"default"}},
+		MaxIterations: 1,
+	})
+	require.NoError(t, err)
+
+	reply, err := core.Respond(context.Background(), "hello", RespondOptions{
+		ToolGroups: []string{"memory", "shell"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "done", reply)
+	require.Equal(t, []string{"memory", "shell"}, registry.policy.GroupNames)
+}
+
 func TestAgent_RespondRunsParallelSafeToolsConcurrentlyAndAppendsInOrder(t *testing.T) {
 	store := newStubSessionStore()
 	completed := make(chan string, 2)

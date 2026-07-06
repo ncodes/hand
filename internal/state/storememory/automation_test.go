@@ -229,11 +229,14 @@ func TestMemoryStore_AutomationRunLifecycle(t *testing.T) {
 	_, err = store.CreateRun(ctx, state.AutomationRun{ID: testAutomationRunB, JobID: testAutomationJobB})
 	require.EqualError(t, err, "automation job not found")
 
-	generated, err := store.CreateRun(ctx, state.AutomationRun{JobID: testAutomationJobA})
+	generated, err := store.CreateRun(ctx, state.AutomationRun{
+		JobID:     testAutomationJobA,
+		StartedAt: startedAt.Add(2 * time.Minute),
+	})
 	require.NoError(t, err)
 	require.NoError(t, state.ValidateAutomationRunID(generated.ID))
 	require.Equal(t, state.AutomationRunStatusRunning, generated.Status)
-	require.False(t, generated.StartedAt.IsZero())
+	require.Equal(t, startedAt.Add(2*time.Minute), generated.StartedAt)
 
 	_, err = store.CreateRun(ctx, state.AutomationRun{ID: "bad", JobID: testAutomationJobA})
 	require.EqualError(t, err, "automation run id must be a valid autorun_ nanoid")
@@ -288,7 +291,7 @@ func TestMemoryStore_AutomationRunLifecycle(t *testing.T) {
 
 	list, err := store.ListRuns(ctx, state.AutomationRunQuery{JobID: testAutomationJobA})
 	require.NoError(t, err)
-	require.Equal(t, []string{testAutomationRunC, testAutomationRunB, testAutomationRunA, generated.ID}, automationRunIDs(list.Runs))
+	require.Equal(t, []string{generated.ID, testAutomationRunC, testAutomationRunB, testAutomationRunA}, automationRunIDs(list.Runs))
 
 	list, err = store.ListRuns(ctx, state.AutomationRunQuery{
 		IDs:    []string{testAutomationRunA},

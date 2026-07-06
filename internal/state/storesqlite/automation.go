@@ -60,7 +60,8 @@ func (s *Store) CreateJob(ctx context.Context, job state.AutomationJob) (state.A
 
 	now := time.Now().UTC()
 	job = job.Clone()
-	job.ID = stringx.String(job.ID).Trim()
+	jobID := stringx.String(job.ID)
+	job.ID = jobID.Trim()
 	if job.ID == "" {
 		job.ID = nanoid.MustGenerate(state.AutomationJobIDPrefix)
 	}
@@ -86,7 +87,8 @@ func (s *Store) GetJob(ctx context.Context, id string) (state.AutomationJob, boo
 	if s == nil || s.db == nil {
 		return state.AutomationJob{}, false, errors.New("store is required")
 	}
-	id = stringx.String(id).Trim()
+	jobID := stringx.String(id)
+	id = jobID.Trim()
 	if err := state.ValidateAutomationJobID(id); err != nil {
 		return state.AutomationJob{}, false, err
 	}
@@ -122,10 +124,12 @@ func (s *Store) ListJobs(ctx context.Context, query state.AutomationJobQuery) (s
 	} else if !query.IncludeDisabled {
 		db = db.Where("enabled = ?", true)
 	}
-	if profile := stringx.String(query.Profile).Trim(); profile != "" {
+	queryProfile := stringx.String(query.Profile)
+	if profile := queryProfile.Trim(); profile != "" {
 		db = db.Where("profile = ?", profile)
 	}
-	if target := stringx.String(query.SessionTarget).Trim(); target != "" {
+	queryTarget := stringx.String(query.SessionTarget)
+	if target := queryTarget.Trim(); target != "" {
 		db = db.Where("session_target = ?", target)
 	}
 	if query.Limit > 0 {
@@ -159,7 +163,8 @@ func (s *Store) PatchJob(ctx context.Context, patch state.AutomationJobPatch) (s
 	if s == nil || s.db == nil {
 		return state.AutomationJob{}, errors.New("store is required")
 	}
-	patch.ID = stringx.String(patch.ID).Trim()
+	patchID := stringx.String(patch.ID)
+	patch.ID = patchID.Trim()
 	if err := state.ValidateAutomationJobID(patch.ID); err != nil {
 		return state.AutomationJob{}, err
 	}
@@ -190,7 +195,8 @@ func (s *Store) DeleteJob(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
-	id = stringx.String(id).Trim()
+	jobID := stringx.String(id)
+	id = jobID.Trim()
 	if err := state.ValidateAutomationJobID(id); err != nil {
 		return err
 	}
@@ -205,7 +211,8 @@ func (s *Store) CreateRun(ctx context.Context, run state.AutomationRun) (state.A
 
 	now := time.Now().UTC()
 	run = run.Clone()
-	run.ID = stringx.String(run.ID).Trim()
+	runID := stringx.String(run.ID)
+	run.ID = runID.Trim()
 	if run.ID == "" {
 		run.ID = nanoid.MustGenerate(state.AutomationRunIDPrefix)
 	}
@@ -214,7 +221,8 @@ func (s *Store) CreateRun(ctx context.Context, run state.AutomationRun) (state.A
 		return state.AutomationRun{}, err
 	}
 
-	run.JobID = stringx.String(run.JobID).Trim()
+	jobID := stringx.String(run.JobID)
+	run.JobID = jobID.Trim()
 	if err := state.ValidateAutomationJobID(run.JobID); err != nil {
 		return state.AutomationRun{}, err
 	}
@@ -252,7 +260,8 @@ func (s *Store) FinishRun(ctx context.Context, patch state.AutomationRunPatch) (
 		return state.AutomationRun{}, errors.New("store is required")
 	}
 
-	patch.ID = stringx.String(patch.ID).Trim()
+	runID := stringx.String(patch.ID)
+	patch.ID = runID.Trim()
 	if err := state.ValidateAutomationRunID(patch.ID); err != nil {
 		return state.AutomationRun{}, err
 	}
@@ -289,7 +298,8 @@ func (s *Store) ListRuns(ctx context.Context, query state.AutomationRunQuery) (s
 	}
 
 	db := s.db.WithContext(ctx).Model(&automationRunModel{})
-	if jobID := stringx.String(query.JobID).Trim(); jobID != "" {
+	queryJobID := stringx.String(query.JobID)
+	if jobID := queryJobID.Trim(); jobID != "" {
 		if err := state.ValidateAutomationJobID(jobID); err != nil {
 			return state.AutomationRunResult{}, err
 		}
@@ -434,15 +444,16 @@ func automationValidatedIDs(ids []string, validate func(string) error) ([]string
 		return nil, nil
 	}
 	values := make([]string, 0, len(ids))
-	for _, id := range ids {
-		id = stringx.String(id).Trim()
-		if id == "" {
+	for _, rawID := range ids {
+		id := stringx.String(rawID)
+		trimmedID := id.Trim()
+		if trimmedID == "" {
 			continue
 		}
-		if err := validate(id); err != nil {
+		if err := validate(trimmedID); err != nil {
 			return nil, err
 		}
-		values = append(values, id)
+		values = append(values, trimmedID)
 	}
 	return values, nil
 }

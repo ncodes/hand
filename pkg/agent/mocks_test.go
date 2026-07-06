@@ -111,12 +111,14 @@ func (c *stubModelClient) CompleteStream(
 type stubToolRegistry struct {
 	mu          sync.Mutex
 	calls       []tool.Call
+	policy      tool.Policy
 	definitions []tool.Definition
 	resolveErr  error
 	invoke      func(context.Context, tool.Call) message.Message
 }
 
-func (r *stubToolRegistry) Resolve(tool.Policy) ([]tool.Definition, error) {
+func (r *stubToolRegistry) Resolve(policy tool.Policy) ([]tool.Definition, error) {
+	r.policy = policy
 	if r.resolveErr != nil {
 		return nil, r.resolveErr
 	}

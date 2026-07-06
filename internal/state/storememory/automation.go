@@ -18,7 +18,8 @@ func (s *Store) CreateJob(_ context.Context, job state.AutomationJob) (state.Aut
 
 	now := time.Now().UTC()
 	job = job.Clone()
-	job.ID = stringx.String(job.ID).Trim()
+	jobID := stringx.String(job.ID)
+	job.ID = jobID.Trim()
 	if job.ID == "" {
 		job.ID = nanoid.MustGenerate(state.AutomationJobIDPrefix)
 	}
@@ -50,7 +51,8 @@ func (s *Store) GetJob(_ context.Context, id string) (state.AutomationJob, bool,
 	if s == nil {
 		return state.AutomationJob{}, false, errors.New("store is required")
 	}
-	id = stringx.String(id).Trim()
+	jobID := stringx.String(id)
+	id = jobID.Trim()
 	if err := state.ValidateAutomationJobID(id); err != nil {
 		return state.AutomationJob{}, false, err
 	}
@@ -107,7 +109,8 @@ func (s *Store) PatchJob(_ context.Context, patch state.AutomationJobPatch) (sta
 	if s == nil {
 		return state.AutomationJob{}, errors.New("store is required")
 	}
-	patch.ID = stringx.String(patch.ID).Trim()
+	patchID := stringx.String(patch.ID)
+	patch.ID = patchID.Trim()
 	if err := state.ValidateAutomationJobID(patch.ID); err != nil {
 		return state.AutomationJob{}, err
 	}
@@ -129,7 +132,8 @@ func (s *Store) DeleteJob(_ context.Context, id string) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
-	id = stringx.String(id).Trim()
+	jobID := stringx.String(id)
+	id = jobID.Trim()
 	if err := state.ValidateAutomationJobID(id); err != nil {
 		return err
 	}
@@ -148,14 +152,16 @@ func (s *Store) CreateRun(_ context.Context, run state.AutomationRun) (state.Aut
 
 	now := time.Now().UTC()
 	run = run.Clone()
-	run.ID = stringx.String(run.ID).Trim()
+	runID := stringx.String(run.ID)
+	run.ID = runID.Trim()
 	if run.ID == "" {
 		run.ID = nanoid.MustGenerate(state.AutomationRunIDPrefix)
 	}
 	if err := state.ValidateAutomationRunID(run.ID); err != nil {
 		return state.AutomationRun{}, err
 	}
-	run.JobID = stringx.String(run.JobID).Trim()
+	jobID := stringx.String(run.JobID)
+	run.JobID = jobID.Trim()
 	if err := state.ValidateAutomationJobID(run.JobID); err != nil {
 		return state.AutomationRun{}, err
 	}
@@ -189,7 +195,8 @@ func (s *Store) FinishRun(_ context.Context, patch state.AutomationRunPatch) (st
 	if s == nil {
 		return state.AutomationRun{}, errors.New("store is required")
 	}
-	patch.ID = stringx.String(patch.ID).Trim()
+	runID := stringx.String(patch.ID)
+	patch.ID = runID.Trim()
 	if err := state.ValidateAutomationRunID(patch.ID); err != nil {
 		return state.AutomationRun{}, err
 	}
@@ -211,7 +218,8 @@ func (s *Store) ListRuns(_ context.Context, query state.AutomationRunQuery) (sta
 	if s == nil {
 		return state.AutomationRunResult{}, errors.New("store is required")
 	}
-	if id := stringx.String(query.JobID).Trim(); id != "" {
+	queryJobID := stringx.String(query.JobID)
+	if id := queryJobID.Trim(); id != "" {
 		if err := state.ValidateAutomationJobID(id); err != nil {
 			return state.AutomationRunResult{}, err
 		}
@@ -256,15 +264,16 @@ func automationIDSet(ids []string, validate func(string) error) (map[string]stru
 		return nil, nil
 	}
 	values := make(map[string]struct{}, len(ids))
-	for _, id := range ids {
-		id = stringx.String(id).Trim()
-		if id == "" {
+	for _, rawID := range ids {
+		id := stringx.String(rawID)
+		trimmedID := id.Trim()
+		if trimmedID == "" {
 			continue
 		}
-		if err := validate(id); err != nil {
+		if err := validate(trimmedID); err != nil {
 			return nil, err
 		}
-		values[id] = struct{}{}
+		values[trimmedID] = struct{}{}
 	}
 	return values, nil
 }
@@ -281,10 +290,12 @@ func automationJobMatchesQuery(job state.AutomationJob, query state.AutomationJo
 	if !query.IncludeDisabled && query.Enabled == nil && !job.Enabled {
 		return false
 	}
-	if profile := stringx.String(query.Profile).Trim(); profile != "" && job.Profile != profile {
+	queryProfile := stringx.String(query.Profile)
+	if profile := queryProfile.Trim(); profile != "" && job.Profile != profile {
 		return false
 	}
-	if target := stringx.String(query.SessionTarget).Trim(); target != "" && job.SessionTarget != target {
+	queryTarget := stringx.String(query.SessionTarget)
+	if target := queryTarget.Trim(); target != "" && job.SessionTarget != target {
 		return false
 	}
 	return true

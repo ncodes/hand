@@ -74,7 +74,9 @@ type AutomationPayload struct {
 	Model         string                `json:"model,omitempty"`
 	Provider      string                `json:"provider,omitempty"`
 	BaseURL       string                `json:"baseUrl,omitempty"`
+	MaxRuntime    time.Duration         `json:"maxRuntime,omitempty"`
 	MaxIterations int                   `json:"maxIterations,omitempty"`
+	ToolGroups    []string              `json:"toolGroups,omitempty"`
 	Metadata      map[string]string     `json:"metadata,omitempty"`
 }
 
@@ -203,22 +205,24 @@ type AutomationStore interface {
 }
 
 func ValidateAutomationJobID(id string) error {
-	id = stringx.String(id).Trim()
-	if id == "" {
+	jobID := stringx.String(id)
+	trimmedID := jobID.Trim()
+	if trimmedID == "" {
 		return errors.New("automation job id is required")
 	}
-	if !strings.HasPrefix(id, AutomationJobIDPrefix) || nanoid.ValidateID(id) != nil {
+	if !strings.HasPrefix(trimmedID, AutomationJobIDPrefix) || nanoid.ValidateID(trimmedID) != nil {
 		return errors.New("automation job id must be a valid auto_ nanoid")
 	}
 	return nil
 }
 
 func ValidateAutomationRunID(id string) error {
-	id = stringx.String(id).Trim()
-	if id == "" {
+	runID := stringx.String(id)
+	trimmedID := runID.Trim()
+	if trimmedID == "" {
 		return errors.New("automation run id is required")
 	}
-	if !strings.HasPrefix(id, AutomationRunIDPrefix) || nanoid.ValidateID(id) != nil {
+	if !strings.HasPrefix(trimmedID, AutomationRunIDPrefix) || nanoid.ValidateID(trimmedID) != nil {
 		return errors.New("automation run id must be a valid autorun_ nanoid")
 	}
 	return nil
@@ -230,6 +234,9 @@ func (job AutomationJob) Clone() AutomationJob {
 }
 
 func (payload AutomationPayload) Clone() AutomationPayload {
+	if len(payload.ToolGroups) > 0 {
+		payload.ToolGroups = append([]string(nil), payload.ToolGroups...)
+	}
 	if len(payload.Metadata) > 0 {
 		metadata := make(map[string]string, len(payload.Metadata))
 		maps.Copy(metadata, payload.Metadata)
@@ -294,13 +301,16 @@ func ApplyAutomationRunPatch(run AutomationRun, patch AutomationRunPatch, now ti
 	}
 	run.Output = patch.Output
 	run.Error = patch.Error
-	run.SessionID = stringx.String(patch.SessionID).Trim()
+	sessionID := stringx.String(patch.SessionID)
+	run.SessionID = sessionID.Trim()
 	if patch.DeliveryStatus != "" {
 		run.DeliveryStatus = patch.DeliveryStatus
 	}
 	run.DeliveryError = patch.DeliveryError
-	run.Model = stringx.String(patch.Model).Trim()
-	run.Provider = stringx.String(patch.Provider).Trim()
+	model := stringx.String(patch.Model)
+	provider := stringx.String(patch.Provider)
+	run.Model = model.Trim()
+	run.Provider = provider.Trim()
 	if patch.Usage != nil {
 		run.Usage = *patch.Usage
 	}

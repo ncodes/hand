@@ -8,6 +8,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/model"
+	modelclient "github.com/wandxy/morph/internal/model/client"
+	"github.com/wandxy/morph/internal/state/core"
+	agentcore "github.com/wandxy/morph/pkg/agent"
 	"github.com/wandxy/morph/pkg/nanoid"
 )
 
@@ -16,6 +20,109 @@ var (
 	testServiceJobB = nanoid.MustFromSeed(JobIDPrefix, "service-b", "AutomationServiceJobSeed")
 	testServiceJobC = nanoid.MustFromSeed(JobIDPrefix, "service-c", "AutomationServiceJobSeed")
 )
+
+var testAutomationExecutionSessionID = nanoid.MustFromSeed(
+	core.SessionIDPrefix,
+	"automation-execution",
+	"AutomationExecutionSessionSeed",
+)
+
+type automationModelClientFactoryStub struct {
+	err      error
+	errAt    int
+	requests []modelclient.ClientRequest
+}
+
+func (f *automationModelClientFactoryStub) NewClient(req modelclient.ClientRequest) (model.Client, error) {
+	f.requests = append(f.requests, req)
+	if f.err != nil && (f.errAt <= 0 || len(f.requests) == f.errAt) {
+		return nil, f.err
+	}
+
+	return automationModelClientStub{}, nil
+}
+
+type automationModelClientStub struct{}
+
+func (automationModelClientStub) Complete(context.Context, model.Request) (*model.Response, error) {
+	return &model.Response{OutputText: "ok"}, nil
+}
+
+func (automationModelClientStub) CompleteStream(
+	context.Context,
+	model.Request,
+	func(model.StreamDelta),
+) (*model.Response, error) {
+	return &model.Response{OutputText: "ok"}, nil
+}
+
+type automationRuntimeAgentStub struct {
+	startErr       error
+	createErr      error
+	currentErr     error
+	respondErr     error
+	output         string
+	createdSession core.Session
+	currentSession core.Session
+
+	started        bool
+	closed         bool
+	created        bool
+	respondContext context.Context
+	respondPrompt  string
+	respondOptions agentcore.RespondOptions
+}
+
+func (a *automationRuntimeAgentStub) Start(context.Context) error {
+	a.started = true
+	return a.startErr
+}
+
+func (a *automationRuntimeAgentStub) Respond(
+	ctx context.Context,
+	prompt string,
+	opts agentcore.RespondOptions,
+) (string, error) {
+	a.respondContext = ctx
+	a.respondPrompt = prompt
+	a.respondOptions = opts
+	if a.respondErr != nil {
+		return "", a.respondErr
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	return a.output, nil
+}
+
+func (a *automationRuntimeAgentStub) CreateSession(context.Context, string) (core.Session, error) {
+	a.created = true
+	if a.createErr != nil {
+		return core.Session{}, a.createErr
+	}
+	if a.createdSession.ID == "" {
+		a.createdSession.ID = testAutomationExecutionSessionID
+	}
+
+	return a.createdSession, nil
+}
+
+func (a *automationRuntimeAgentStub) CurrentSession(context.Context) (core.Session, error) {
+	if a.currentErr != nil {
+		return core.Session{}, a.currentErr
+	}
+	if a.currentSession.ID == "" {
+		a.currentSession.ID = core.DefaultSessionID
+	}
+
+	return a.currentSession, nil
+}
+
+func (a *automationRuntimeAgentStub) Close() error {
+	a.closed = true
+	return nil
+}
 
 type automationTestClock struct {
 	mu  sync.Mutex

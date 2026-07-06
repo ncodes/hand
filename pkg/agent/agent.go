@@ -37,6 +37,7 @@ type Options struct {
 type RespondOptions struct {
 	Instruct    string
 	SessionID   string
+	ToolGroups  []string
 	Stream      *bool
 	TraceEvents bool
 	OnEvent     func(Event)
@@ -82,7 +83,8 @@ func (a *Agent) Respond(ctx context.Context, input string, opts RespondOptions) 
 		return "", errors.New("agent is required")
 	}
 
-	input = stringx.String(input).Trim()
+	inputValue := stringx.String(input)
+	input = inputValue.Trim()
 	if input == "" {
 		return "", errors.New("message is required")
 	}
@@ -189,7 +191,7 @@ func (a *Agent) buildRequest(
 	emitted []message.Message,
 	opts RespondOptions,
 ) (model.Request, error) {
-	definitions, err := a.resolveToolDefinitions()
+	definitions, err := a.resolveToolDefinitions(opts)
 	if err != nil {
 		return model.Request{}, err
 	}
@@ -338,7 +340,8 @@ func BuildToolCallBatches(
 	var current []model.ToolCall
 
 	for _, toolCall := range toolCalls {
-		name := stringx.String(toolCall.Name).Trim()
+		toolName := stringx.String(toolCall.Name)
+		name := toolName.Trim()
 		if name != "" && parallelSafe[name] {
 			current = append(current, toolCall)
 			continue
@@ -370,7 +373,8 @@ func getParallelSafeToolNames(definitions []model.ToolDefinition) map[string]boo
 
 	names := make(map[string]bool)
 	for _, definition := range definitions {
-		name := stringx.String(definition.Name).Trim()
+		definitionName := stringx.String(definition.Name)
+		name := definitionName.Trim()
 		if name != "" && definition.ParallelSafe {
 			names[name] = true
 		}
@@ -398,12 +402,16 @@ func getToolCallResultsError(results []toolCallResult) error {
 	return contextErr
 }
 
-func (a *Agent) resolveToolDefinitions() ([]model.ToolDefinition, error) {
+func (a *Agent) resolveToolDefinitions(opts RespondOptions) ([]model.ToolDefinition, error) {
 	if a.opts.ToolRegistry == nil {
 		return nil, nil
 	}
 
-	definitions, err := a.opts.ToolRegistry.Resolve(a.opts.ToolPolicy)
+	policy := a.opts.ToolPolicy
+	if len(opts.ToolGroups) > 0 {
+		policy.GroupNames = append([]string(nil), opts.ToolGroups...)
+	}
+	definitions, err := a.opts.ToolRegistry.Resolve(policy)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +428,8 @@ func (a *Agent) buildInstructions(
 	blocks := make([]string, 0, 3)
 	if a.opts.PromptProvider != nil {
 		runContext := a.opts.RunContext
-		if stringx.String(runContext.SessionID).Trim() == "" {
+		runSessionID := stringx.String(runContext.SessionID)
+		if runSessionID.Trim() == "" {
 			runContext.SessionID = sessionID
 		}
 
@@ -439,12 +448,14 @@ func (a *Agent) buildInstructions(
 		if err != nil {
 			return "", err
 		}
-		if stringx.String(environmentInstruction.Value).Trim() != "" {
-			blocks = append(blocks, stringx.String(environmentInstruction.Value).Trim())
+		environmentValue := stringx.String(environmentInstruction.Value)
+		if value := environmentValue.Trim(); value != "" {
+			blocks = append(blocks, value)
 		}
 	}
 
-	if instruct := stringx.String(opts.Instruct).Trim(); instruct != "" {
+	instructionOverride := stringx.String(opts.Instruct)
+	if instruct := instructionOverride.Trim(); instruct != "" {
 		blocks = append(blocks, instruct)
 	}
 
@@ -453,7 +464,8 @@ func (a *Agent) buildInstructions(
 
 func appendInstructionValues(blocks []string, instructions prompt.Instructions) []string {
 	for _, instruction := range instructions {
-		if value := stringx.String(instruction.Value).Trim(); value != "" {
+		instructionValue := stringx.String(instruction.Value)
+		if value := instructionValue.Trim(); value != "" {
 			blocks = append(blocks, value)
 		}
 	}
@@ -468,7 +480,8 @@ func modelToolNames(definitions []model.ToolDefinition) []string {
 
 	names := make([]string, 0, len(definitions))
 	for _, definition := range definitions {
-		if name := stringx.String(definition.Name).Trim(); name != "" {
+		definitionName := stringx.String(definition.Name)
+		if name := definitionName.Trim(); name != "" {
 			names = append(names, name)
 		}
 	}
