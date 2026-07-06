@@ -14,7 +14,7 @@ import (
 	"github.com/wandxy/morph/internal/trace"
 	tuirpc "github.com/wandxy/morph/internal/tui/rpc"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type sessionTimelineLoader = tuirpc.SessionTimelineLoader
@@ -50,8 +50,9 @@ func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader, s
 	}
 
 	return func() tea.Msg {
+		stringValue1 := str.String(sessionID)
 		timeline, err := client.Timeline(ctx, rpcclient.SessionTimelineOptions{
-			SessionID: stringx.String(sessionID).Trim(),
+			SessionID: stringValue1.Trim(),
 		})
 		if err != nil {
 			return sessionTimelineLoadFailedMsg{Err: err}
@@ -130,7 +131,8 @@ func getStartupSessionID(ctx context.Context, client startupSessionLoader, remem
 }
 
 func getKnownStartupSessionID(sessions []storage.Session, id string) string {
-	id = stringx.String(id).Trim()
+	stringValue2 := str.String(id)
+	id = stringValue2.Trim()
 	if id == "" {
 		return ""
 	}
@@ -139,7 +141,8 @@ func getKnownStartupSessionID(sessions []storage.Session, id string) string {
 	}
 
 	for _, session := range sessions {
-		if stringx.String(session.ID).Trim() == id {
+		stringValue3 := str.String(session.ID)
+		if stringValue3.Trim() == id {
 			return id
 		}
 	}
@@ -194,8 +197,10 @@ func (m *model) refreshSessionTitleFromSession(session storage.Session) {
 }
 
 func getSessionDisplayName(session storage.Session) string {
-	title := stringx.String(session.Title).Trim()
-	sessionID := stringx.String(session.ID).Trim()
+	stringValue4 := str.String(session.Title)
+	title := stringValue4.Trim()
+	stringValue5 := str.String(session.ID)
+	sessionID := stringValue5.Trim()
 	if title != "" {
 		if sessionID == storage.DefaultSessionID {
 			return fmt.Sprintf("%s (%s)", title, sessionID)
@@ -312,7 +317,8 @@ func getTimelineToolCallDetails(messages []agentapi.SessionTimelineMessage) map[
 	details := map[string]timelineToolCallDetail{}
 	for _, message := range messages {
 		for _, toolCall := range message.Message.ToolCalls {
-			id := stringx.String(toolCall.ID).Trim()
+			stringValue6 := str.String(toolCall.ID)
+			id := stringValue6.Trim()
 			if id == "" {
 				continue
 			}

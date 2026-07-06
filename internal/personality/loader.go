@@ -11,7 +11,7 @@ import (
 	"github.com/wandxy/morph/internal/datadir"
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/pkg/promptio"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const fileName = constants.PersonalityFileName
@@ -41,12 +41,13 @@ type LoadOptions struct {
 
 // Load reads the configured personality instructions.
 func Load(opts LoadOptions) (Result, error) {
-	opts.ProfileHome = stringx.String(opts.ProfileHome).Trim()
+	stringValue1 := str.String(opts.ProfileHome)
+	opts.ProfileHome = stringValue1.Trim()
 	if opts.ProfileHome == "" {
 		opts.ProfileHome = datadir.ProjectHomeDir()
 	}
-
-	if opts.AllowWorkspace && stringx.String(opts.WorkspaceRoot).Trim() == "" {
+	stringValue2 := str.String(opts.WorkspaceRoot)
+	if opts.AllowWorkspace && stringValue2.Trim() == "" {
 		root, err := getwd()
 		if err != nil {
 			return Result{}, fmt.Errorf("resolve workspace root: %w", err)
@@ -61,10 +62,12 @@ func loadWithOptions(opts LoadOptions) (Result, error) {
 	sections := make([]string, 0, 3)
 	safetyEvents := make([]guardrails.SafetyTracePayloadOptions, 0, 2)
 	seenPaths := make(map[string]struct{}, 2)
-
-	profileHome := stringx.String(opts.ProfileHome).Trim()
-	workspaceRoot := stringx.String(opts.WorkspaceRoot).Trim()
-	personalityName := stringx.String(opts.PersonalityName).Trim()
+	stringValue3 := str.String(opts.ProfileHome)
+	profileHome := stringValue3.Trim()
+	stringValue4 := str.String(opts.WorkspaceRoot)
+	workspaceRoot := stringValue4.Trim()
+	stringValue5 := str.String(opts.PersonalityName)
+	personalityName := stringValue5.Trim()
 
 	if personalityName == "" {
 		globalPath := filepath.Join(profileHome, fileName)
@@ -131,12 +134,13 @@ func loadNamedPersonality(
 	opts LoadOptions,
 	seenPaths map[string]struct{},
 ) (string, bool, []guardrails.SafetyTracePayloadOptions, error) {
-	name := stringx.String(opts.PersonalityName).Trim()
+	stringValue6 := str.String(opts.PersonalityName)
+	name := stringValue6.Trim()
 	personalityConfig := opts.PersonalityConfig
 	sections := make([]string, 0, 2)
 	safetyEvents := make([]guardrails.SafetyTracePayloadOptions, 0, 2)
-
-	if stringx.String(personalityConfig.Soul).Trim() != "" {
+	stringValue7 := str.String(personalityConfig.Soul)
+	if stringValue7.Trim() != "" {
 		section, found, events, err := loadFile(
 			personalityConfig.Soul,
 			opts.WorkspaceRoot,
@@ -151,10 +155,11 @@ func loadNamedPersonality(
 		}
 		safetyEvents = append(safetyEvents, events...)
 	}
-
-	if stringx.String(personalityConfig.Instruct).Trim() != "" {
+	stringValue8 := str.String(personalityConfig.Instruct)
+	if stringValue8.Trim() != "" {
 		displayName := fmt.Sprintf("personality:%s.instruct", name)
-		content := stringx.String(personalityConfig.Instruct).Trim()
+		stringValue9 := str.String(personalityConfig.Instruct)
+		content := stringValue9.Trim()
 		scanned := guardrails.SafetyScan(content, displayName)
 		if scanned.Blocked {
 			safetyEvents = append(safetyEvents, loadedContentSafetyEvent(displayName, content, scanned.Findings))
@@ -214,7 +219,8 @@ func loadFile(
 	if err != nil {
 		return "", false, nil, fmt.Errorf("read personality file %q: %w", path, err)
 	}
-	contentText := stringx.String(string(content)).Trim()
+	stringValue10 := str.String(string(content))
+	contentText := stringValue10.Trim()
 	if contentText == "" {
 		return "", false, nil, nil
 	}
@@ -229,7 +235,8 @@ func loadFile(
 	if scanned.Blocked {
 		safetyEvents = append(safetyEvents, loadedContentSafetyEvent(displayPath, contentText, scanned.Findings))
 	}
-	label := stringx.String(opts.Label).Trim()
+	stringValue11 := str.String(opts.Label)
+	label := stringValue11.Trim()
 	if label == "" {
 		label = displayPath
 	}
@@ -261,8 +268,8 @@ func getDisplayPath(path, workspaceRoot string) (string, error) {
 			}
 		}
 	}
-
-	if cleanedHome := stringx.String(datadir.ProjectHomeDir()).Trim(); cleanedHome != "" {
+	stringValue12 := str.String(datadir.ProjectHomeDir())
+	if cleanedHome := stringValue12.Trim(); cleanedHome != "" {
 		relativePath, err := filepath.Rel(cleanedHome, path)
 		if err == nil {
 			relativePath = filepath.ToSlash(relativePath)

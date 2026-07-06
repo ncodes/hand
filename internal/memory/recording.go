@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/morph/pkg/nanoid"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // RecordSemanticMemory records a candidate that captures a durable fact,
@@ -64,7 +64,8 @@ func (p *MemoryProvider) recordMemoryCandidate(ctx context.Context, item MemoryI
 // slices are shared mutable data otherwise.
 func prepareMemoryCandidate(item MemoryItem) MemoryItem {
 	item = item.Clone()
-	item.ID = stringx.String(item.ID).Trim()
+	stringValue1 := str.String(item.ID)
+	item.ID = stringValue1.Trim()
 	if item.Status == "" {
 		item.Status = StatusCandidate
 	}
@@ -90,7 +91,9 @@ func validateMemoryCandidate(item MemoryItem) error {
 	if item.Status != StatusCandidate {
 		return errors.New("memory candidate must be stored as candidate")
 	}
-	if stringx.String(item.Title).Trim() == "" && stringx.String(item.Text).Trim() == "" {
+	stringValue2 := str.String(item.Title)
+	stringValue3 := str.String(item.Text)
+	if stringValue2.Trim() == "" && stringValue3.Trim() == "" {
 		return errors.New("memory candidate text or title is required")
 	}
 	if !hasCandidateProvenance(item) {
@@ -107,11 +110,13 @@ func validateMemoryCandidate(item MemoryItem) error {
 // the model or extractor attached as metadata. Low-importance or execution-only
 // details should not enter the candidate lifecycle.
 func checkCandidateAdmissionRejection(item MemoryItem) string {
-	switch stringx.String(item.Metadata["memory_importance"]).Normalized() {
+	stringValue4 := str.String(item.Metadata["memory_importance"])
+	switch stringValue4.Normalized() {
 	case "low":
 		return "low_importance_candidate"
 	}
-	switch stringx.String(item.Metadata["memory_granularity"]).Normalized() {
+	stringValue5 := str.String(item.Metadata["memory_granularity"])
+	switch stringValue5.Normalized() {
 	case "execution_detail":
 		return "execution_detail"
 	}
@@ -123,15 +128,17 @@ func checkCandidateAdmissionRejection(item MemoryItem) string {
 // session, message range, summary, or explicit source-session metadata.
 func hasCandidateProvenance(item MemoryItem) bool {
 	for _, link := range item.SourceLinks {
-		if stringx.String(link.SessionID).Trim() != "" ||
+		stringValue7 := str.String(link.SessionID)
+		stringValue8 := str.String(link.SummaryID)
+		if stringValue7.Trim() != "" ||
 			len(link.MessageIDs) > 0 ||
-			len(link.Offsets) > 0 ||
-			stringx.String(link.SummaryID).Trim() != "" {
+			len(link.Offsets) > 0 || stringValue8.
+			Trim() != "" {
 			return true
 		}
 	}
-
-	return stringx.String(item.Metadata["source_session_id"]).Trim() != ""
+	stringValue6 := str.String(item.Metadata["source_session_id"])
+	return stringValue6.Trim() != ""
 }
 
 // getKindAwareMemoryID makes IDs self-describing in logs and database
@@ -141,7 +148,8 @@ func getKindAwareMemoryID(kind Kind) string {
 }
 
 func getKindAwareMemoryIDPrefix(kind Kind) string {
-	kindPart := stringx.String(string(kind)).Trim()
+	stringValue9 := str.String(string(kind))
+	kindPart := stringValue9.Trim()
 	if kindPart == "" {
 		kindPart = "unknown"
 	}

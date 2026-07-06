@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type rpcClientAPI interface {
@@ -56,8 +56,9 @@ func (a *RPCAdapter) Send(ctx context.Context, req RootChatRequest) (RootChatRes
 			if event.TraceEvent != nil {
 				return
 			}
+			stringValue2 := str.String(event.Channel)
 			events = append(events, Event{
-				Channel: stringx.String(event.Channel).Trim(),
+				Channel: stringValue2.Trim(),
 				Text:    event.Text,
 			})
 		},
@@ -65,8 +66,8 @@ func (a *RPCAdapter) Send(ctx context.Context, req RootChatRequest) (RootChatRes
 	if err != nil {
 		return RootChatResult{}, err
 	}
-
-	sessionID := stringx.String(req.SessionID).Trim()
+	stringValue1 := str.String(req.SessionID)
+	sessionID := stringValue1.Trim()
 	if sessionID == "" {
 		session, err := client.SessionAPI().Current(normalizeHarnessContext(ctx))
 		if err != nil {

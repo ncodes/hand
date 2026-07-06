@@ -7,7 +7,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // newTranscript creates the scrollable conversation viewport.
@@ -95,7 +95,9 @@ func (m *model) renderTranscriptContent() string {
 		transcriptWidth = m.getMainPaneWidth()
 	}
 	content := strings.Trim(m.renderHeaderWithWidth(transcriptWidth), "\n")
-	if cellsText := strings.Trim(m.renderTranscriptBodyCells(cells), "\n"); stringx.String(cellsText).Trim() != "" {
+	cellsText := strings.Trim(m.renderTranscriptBodyCells(cells), "\n")
+	cellsTextValue := str.String(cellsText)
+	if cellsTextValue.Trim() != "" {
 		content = strings.Join([]string{content, cellsText}, "\n\n")
 	}
 
@@ -109,7 +111,8 @@ func (m model) renderTranscriptBodyCells(cells []transcriptCell) string {
 		contentWidth = max(width, 1)
 	}
 	cellsText := renderTranscriptCellsWithFrame(cells, contentWidth, m.toolAnimationFrame)
-	if stringx.String(cellsText).Trim() == "" {
+	stringValue2 := str.String(cellsText)
+	if stringValue2.Trim() == "" {
 		return ""
 	}
 
@@ -253,7 +256,8 @@ func (m *model) addTranscriptMessage(msg any) {
 }
 
 func (m *model) mergeCompletedToolTranscriptCell(completed toolTranscriptCell) bool {
-	id := stringx.String(completed.id).Trim()
+	stringValue3 := str.String(completed.id)
+	id := stringValue3.Trim()
 	if id == "" {
 		return false
 	}
@@ -265,7 +269,8 @@ func (m *model) mergeCompletedToolTranscriptCell(completed toolTranscriptCell) b
 
 	for index := len(m.messages) - 1; index >= startIndex; index-- {
 		existing, ok := m.messages[index].(toolTranscriptCell)
-		if !ok || stringx.String(existing.id).Trim() != id {
+		stringValue4 := str.String(existing.id)
+		if !ok || stringValue4.Trim() != id {
 			continue
 		}
 
@@ -281,10 +286,12 @@ func (m *model) mergeCompletedToolTranscriptCell(completed toolTranscriptCell) b
 
 func mergeToolTranscriptCells(existing toolTranscriptCell, completed toolTranscriptCell) toolTranscriptCell {
 	merged := existing
-	if stringx.String(merged.action).Trim() == "" {
+	stringValue5 := str.String(merged.action)
+	if stringValue5.Trim() == "" {
 		merged.action = completed.action
 	}
-	if stringx.String(merged.detail).Trim() == "" {
+	stringValue6 := str.String(merged.detail)
+	if stringValue6.Trim() == "" {
 		merged.detail = completed.detail
 	}
 	merged.planState = mergePlanToolDisplayState(merged.planState, completed.planState)
@@ -295,7 +302,8 @@ func mergeToolTranscriptCells(existing toolTranscriptCell, completed toolTranscr
 	if !completed.completedAt.IsZero() {
 		merged.completedAt = completed.completedAt
 	}
-	if stringx.String(merged.id).Trim() == "" {
+	stringValue7 := str.String(merged.id)
+	if stringValue7.Trim() == "" {
 		merged.id = completed.id
 	}
 	merged.completed = true
@@ -350,12 +358,14 @@ func (m *model) appendAssistantDelta(delta string) {
 
 func (m *model) completeAssistantResponse(text string, duration time.Duration) {
 	reply := text
-	if stringx.String(reply).Trim() == "" {
+	stringValue8 := str.String(reply)
+	if stringValue8.Trim() == "" {
 		reply = m.stream.Finalize()
 	} else {
 		m.stream.Reset()
 	}
-	if stringx.String(reply).Trim() == "" {
+	stringValue9 := str.String(reply)
+	if stringValue9.Trim() == "" {
 		m.applyAction(setLiveTranscriptCellAction{})
 		m.collapseCurrentReasoningTranscript()
 		m.setTranscriptContentAfterResponseCompletion()
@@ -532,7 +542,8 @@ func normalizeThoughtDuration(duration time.Duration) time.Duration {
 }
 
 func newReasoningTranscriptCell(text string, startedAt time.Time) transcriptCell {
-	if stringx.String(text).Trim() == "" {
+	stringValue10 := str.String(text)
+	if stringValue10.Trim() == "" {
 		return nil
 	}
 
@@ -540,7 +551,8 @@ func newReasoningTranscriptCell(text string, startedAt time.Time) transcriptCell
 }
 
 func appendReasoningTranscriptCell(cell transcriptCell, delta string) transcriptCell {
-	if stringx.String(delta).Trim() == "" {
+	stringValue11 := str.String(delta)
+	if stringValue11.Trim() == "" {
 		return cell
 	}
 
@@ -554,5 +566,6 @@ func appendReasoningTranscriptCell(cell transcriptCell, delta string) transcript
 }
 
 func isReasoningDeltaChannel(channel string) bool {
-	return stringx.String(channel).Normalized() == "reasoning"
+	stringValue12 := str.String(channel)
+	return stringValue12.Normalized() == "reasoning"
 }

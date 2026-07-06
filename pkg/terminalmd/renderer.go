@@ -1,7 +1,7 @@
 package terminalmd
 
 import (
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 	"github.com/yuin/goldmark"
 	emoji "github.com/yuin/goldmark-emoji"
 	"github.com/yuin/goldmark/extension"
@@ -106,15 +106,16 @@ func (r *Renderer) Render(markdown string) (string, error) {
 	if r == nil {
 		r = NewRenderer(Options{})
 	}
-
-	markdown = stringx.String(markdown).Trim()
+	stringValue1 := str.String(markdown)
+	markdown = stringValue1.Trim()
 	if markdown == "" {
 		return "", nil
 	}
 
 	markdown = normalizeCommonMarkdownArtifacts(markdown)
 	blocks := r.renderWithTableBlocks(markdown)
-	return stringx.String(joinBlocks(blocks)).Trim(), nil
+	stringValue2 := str.String(joinBlocks(blocks))
+	return stringValue2.Trim(), nil
 }
 
 // normalizeOptions fills the small set of defaults needed for predictable

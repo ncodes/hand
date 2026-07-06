@@ -8,7 +8,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // InMemoryRegistry is a registry that stores tools in memory.
@@ -31,8 +31,8 @@ func (r *InMemoryRegistry) Register(def Definition) error {
 	if r == nil {
 		return errors.New("tool registry is required")
 	}
-
-	def.Name = stringx.String(def.Name).Trim()
+	stringValue1 := str.String(def.Name)
+	def.Name = stringValue1.Trim()
 	if def.Name == "" {
 		return errors.New("tool name is required")
 	}
@@ -58,8 +58,8 @@ func (r *InMemoryRegistry) RegisterGroup(group Group) error {
 	if r == nil {
 		return errors.New("tool registry is required")
 	}
-
-	group.Name = stringx.String(group.Name).Trim()
+	stringValue2 := str.String(group.Name)
+	group.Name = stringValue2.Trim()
 	if group.Name == "" {
 		return errors.New("tool group name is required")
 	}
@@ -84,8 +84,8 @@ func (r *InMemoryRegistry) Get(name string) (Definition, bool) {
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
-	def, ok := r.definitions[stringx.String(name).Trim()]
+	stringValue3 := str.String(name)
+	def, ok := r.definitions[stringValue3.Trim()]
 	return def, ok
 }
 
@@ -96,8 +96,8 @@ func (r *InMemoryRegistry) GetGroup(name string) (Group, bool) {
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
-	group, ok := r.groups[stringx.String(name).Trim()]
+	stringValue4 := str.String(name)
+	group, ok := r.groups[stringValue4.Trim()]
 	return group, ok
 }
 
@@ -183,8 +183,10 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 		result.Error = Error{Code: "tool_invocation_failed", Message: err.Error()}.String()
 		return result, nil
 	}
-	if stringx.String(result.Error).Trim() != "" {
-		result.Error = normalizeResultError(stringx.String(result.Error).Trim())
+	stringValue5 := str.String(result.Error)
+	if stringValue5.Trim() != "" {
+		stringValue6 := str.String(result.Error)
+		result.Error = normalizeResultError(stringValue6.Trim())
 	}
 
 	return result, nil
@@ -247,7 +249,8 @@ func sortedDefinitions(definitions map[string]Definition) Definitions {
 
 func filterDefinitions(definitions Definitions, opts Policy) Definitions {
 	filtered := make(Definitions, 0, len(definitions))
-	platform := stringx.String(opts.Platform).Trim()
+	stringValue7 := str.String(opts.Platform)
+	platform := stringValue7.Trim()
 	for _, def := range definitions {
 		if !opts.Capabilities.Supports(def.Requires) {
 			continue
@@ -277,7 +280,8 @@ func normalizeNames(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
-		value = stringx.String(value).Trim()
+		stringValue8 := str.String(value)
+		value = stringValue8.Trim()
 		if value == "" {
 			continue
 		}
@@ -293,10 +297,12 @@ func normalizeNames(values []string) []string {
 
 func normalizeResultError(raw string) string {
 	var toolErr Error
-	if err := json.Unmarshal([]byte(raw), &toolErr); err == nil &&
-		stringx.String(toolErr.Code).Trim() != "" &&
-		stringx.String(toolErr.Message).Trim() != "" {
-		return raw
+	if err := json.Unmarshal([]byte(raw), &toolErr); err == nil {
+		code := str.String(toolErr.Code)
+		message := str.String(toolErr.Message)
+		if code.Trim() != "" && message.Trim() != "" {
+			return raw
+		}
 	}
 
 	return Error{Code: "tool_failed", Message: raw}.String()

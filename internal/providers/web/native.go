@@ -18,7 +18,7 @@ import (
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/pkg/fetch"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 	"golang.org/x/net/html"
 )
 
@@ -107,7 +107,8 @@ func (p *NativeProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 	results := make([]ExtractResult, 0, len(urls))
 
 	for _, rawURL := range urls {
-		result := p.extract(ctx, stringx.String(rawURL).Trim(), format, maxChars)
+		stringValue1 := str.String(rawURL)
+		result := p.extract(ctx, stringValue1.Trim(), format, maxChars)
 		results = append(results, result)
 	}
 
@@ -145,15 +146,16 @@ func (p *NativeProvider) extract(ctx context.Context, rawURL, format string, max
 	}
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		status := stringx.String(response.Status).Trim()
+		stringValue3 := str.String(response.Status)
+		status := stringValue3.Trim()
 		if status == "" {
 			status = fmt.Sprintf("%d", response.StatusCode)
 		}
 		result.Error = fmt.Sprintf("web extraction request failed: %s", status)
 		return result
 	}
-
-	contentType := stringx.String(response.Header.Get("Content-Type")).Trim()
+	stringValue2 := str.String(response.Header.Get("Content-Type"))
+	contentType := stringValue2.Trim()
 	mediaType, _, _ := mime.ParseMediaType(contentType)
 	if mediaType != "" && mediaType != "text/html" && mediaType != "application/xhtml+xml" && mediaType != "text/plain" {
 		result.Error = "unsupported content type: " + mediaType
@@ -162,7 +164,8 @@ func (p *NativeProvider) extract(ctx context.Context, rawURL, format string, max
 
 	var extracted nativeDocument
 	if mediaType == "text/plain" {
-		extracted.Content = stringx.String(string(response.Body)).Trim()
+		stringValue4 := str.String(string(response.Body))
+		extracted.Content = stringValue4.Trim()
 	} else {
 		extracted, err = extractNativeHTML(response.Body, extractionURL, format)
 		if err != nil {
@@ -266,17 +269,19 @@ func extractNativeHTML(data []byte, pageURL *url.URL, format string) (nativeDocu
 	if err != nil {
 		return nativeDocument{}, err
 	}
-
+	stringValue5 := str.String(article.Title())
+	stringValue6 := str.String(content.String())
 	return nativeDocument{
-		Title:   stringx.String(article.Title()).Trim(),
-		Content: stringx.String(content.String()).Trim(),
+		Title:   stringValue5.Trim(),
+		Content: stringValue6.Trim(),
 	}, nil
 }
 
 func renderNativeMarkdown(root *html.Node) string {
 	lines := make([]string, 0, 16)
 	appendLine := func(line string) {
-		line = stringx.String(line).Trim()
+		stringValue8 := str.String(line)
+		line = stringValue8.Trim()
 		if line == "" {
 			if len(lines) > 0 && lines[len(lines)-1] != "" {
 				lines = append(lines, "")
@@ -325,8 +330,8 @@ func renderNativeMarkdown(root *html.Node) string {
 	}
 
 	walk(root)
-
-	return stringx.String(strings.Join(compactNativeLines(lines), "\n")).Trim()
+	stringValue7 := str.String(strings.Join(compactNativeLines(lines), "\n"))
+	return stringValue7.Trim()
 }
 
 func collectNativeText(node *html.Node) string {
@@ -352,7 +357,8 @@ func compactNativeLines(lines []string) []string {
 	blank := false
 
 	for _, line := range lines {
-		line = stringx.String(line).Trim()
+		stringValue9 := str.String(line)
+		line = stringValue9.Trim()
 		if line == "" {
 			if len(compacted) == 0 || blank {
 				continue

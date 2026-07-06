@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var (
@@ -103,8 +103,8 @@ func (d *Dispatcher) Enqueue(job Job) (bool, error) {
 	if d == nil {
 		return false, ErrDispatcherClosed
 	}
-
-	id := stringx.String(job.ID).Trim()
+	stringValue1 := str.String(job.ID)
+	id := stringValue1.Trim()
 	if id == "" {
 		return false, ErrJobIDRequired
 	}

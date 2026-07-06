@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/morph/internal/config"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func buildGatewayGroup(cfg *config.Config) Group {
@@ -25,9 +25,10 @@ func buildGatewayListenerCheck(cfg config.GatewayConfig) Check {
 	if !cfg.Enabled {
 		return check("listener", StatusPass, "disabled")
 	}
-
-	address := stringx.String(cfg.Address).Trim()
-	if !isReadinessLoopbackGatewayAddress(address) && stringx.String(cfg.AuthToken).Trim() == "" {
+	stringValue1 := str.String(cfg.Address)
+	address := stringValue1.Trim()
+	stringValue2 := str.String(cfg.AuthToken)
+	if !isReadinessLoopbackGatewayAddress(address) && stringValue2.Trim() == "" {
 		return check(
 			"listener",
 			StatusWarn,
@@ -37,7 +38,8 @@ func buildGatewayListenerCheck(cfg config.GatewayConfig) Check {
 	}
 
 	auth := "loopback"
-	if stringx.String(cfg.AuthToken).Trim() != "" {
+	stringValue3 := str.String(cfg.AuthToken)
+	if stringValue3.Trim() != "" {
 		auth = "configured"
 	}
 	return check("listener", StatusPass, fmt.Sprintf("enabled on %s:%d, auth=%s", address, cfg.Port, auth))
@@ -48,9 +50,10 @@ func buildGatewayTelegramCheck(cfg config.GatewayConfig) Check {
 	if !tg.Enabled {
 		return check("telegram", StatusPass, "disabled")
 	}
-
-	mode := stringx.String(tg.Mode).Trim()
-	if stringx.String(tg.BotToken).Trim() == "" {
+	stringValue4 := str.String(tg.Mode)
+	mode := stringValue4.Trim()
+	stringValue5 := str.String(tg.BotToken)
+	if stringValue5.Trim() == "" {
 		return check(
 			"telegram",
 			StatusWarn,
@@ -61,7 +64,8 @@ func buildGatewayTelegramCheck(cfg config.GatewayConfig) Check {
 			),
 		)
 	}
-	if mode == config.GatewayTelegramModeWebhook && stringx.String(tg.WebhookSecret).Trim() == "" {
+	stringValue6 := str.String(tg.WebhookSecret)
+	if mode == config.GatewayTelegramModeWebhook && stringValue6.Trim() == "" {
 		return check(
 			"telegram",
 			StatusWarn,
@@ -81,9 +85,10 @@ func buildGatewaySlackCheck(cfg config.GatewayConfig) Check {
 	if !slack.Enabled {
 		return check("slack", StatusPass, "disabled")
 	}
-
-	mode := stringx.String(slack.Mode).Trim()
-	if stringx.String(slack.BotToken).Trim() == "" {
+	stringValue7 := str.String(slack.Mode)
+	mode := stringValue7.Trim()
+	stringValue8 := str.String(slack.BotToken)
+	if stringValue8.Trim() == "" {
 		return check(
 			"slack",
 			StatusWarn,
@@ -93,7 +98,8 @@ func buildGatewaySlackCheck(cfg config.GatewayConfig) Check {
 	}
 	switch mode {
 	case config.GatewaySlackModeSocket:
-		if stringx.String(slack.AppToken).Trim() == "" {
+		stringValue9 := str.String(slack.AppToken)
+		if stringValue9.Trim() == "" {
 			return check(
 				"slack",
 				StatusWarn,
@@ -102,7 +108,8 @@ func buildGatewaySlackCheck(cfg config.GatewayConfig) Check {
 			)
 		}
 	case config.GatewaySlackModeHTTP:
-		if stringx.String(slack.SigningSecret).Trim() == "" {
+		stringValue10 := str.String(slack.SigningSecret)
+		if stringValue10.Trim() == "" {
 			return check(
 				"slack",
 				StatusWarn,
@@ -119,7 +126,8 @@ func buildGatewaySlackCheck(cfg config.GatewayConfig) Check {
 }
 
 func isReadinessLoopbackGatewayAddress(address string) bool {
-	address = stringx.String(strings.Trim(address, "[]")).Trim()
+	stringValue11 := str.String(strings.Trim(address, "[]"))
+	address = stringValue11.Trim()
 	if address == "" || strings.EqualFold(address, "localhost") {
 		return true
 	}

@@ -8,19 +8,20 @@ import (
 	"time"
 
 	base "github.com/wandxy/morph/internal/state/core"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func (s *Store) AppendTraceEvent(_ context.Context, event base.TraceEvent) (base.TraceEvent, error) {
 	if s == nil {
 		return base.TraceEvent{}, errors.New("store is required")
 	}
-
-	event.SessionID = stringx.String(event.SessionID).Trim()
+	stringValue1 := str.String(event.SessionID)
+	event.SessionID = stringValue1.Trim()
 	if err := base.ValidateSessionID(event.SessionID); err != nil {
 		return base.TraceEvent{}, err
 	}
-	event.Type = stringx.String(event.Type).Trim()
+	stringValue2 := str.String(event.Type)
+	event.Type = stringValue2.Trim()
 	if event.Type == "" {
 		return base.TraceEvent{}, errors.New("trace event type is required")
 	}
@@ -57,7 +58,8 @@ func (s *Store) ListTraceEvents(_ context.Context, query base.TraceQuery) (base.
 	defer s.mu.RUnlock()
 
 	events := make([]base.TraceEvent, 0)
-	if sessionID := stringx.String(query.SessionID).Trim(); sessionID != "" {
+	stringValue3 := str.String(query.SessionID)
+	if sessionID := stringValue3.Trim(); sessionID != "" {
 		for _, event := range s.traceEvents[sessionID] {
 			if base.TraceEventMatchesQuery(event, query) {
 				events = append(events, base.CloneTraceEvent(event))
@@ -111,8 +113,8 @@ func (s *Store) PruneTraceEvents(_ context.Context, sessionID string, maxEvents 
 	if maxEvents < 0 {
 		return errors.New("max trace events must be greater than or equal to zero")
 	}
-
-	sessionID = stringx.String(sessionID).Trim()
+	stringValue4 := str.String(sessionID)
+	sessionID = stringValue4.Trim()
 	if err := base.ValidateSessionID(sessionID); err != nil {
 		return err
 	}

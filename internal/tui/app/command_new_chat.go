@@ -6,7 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	storage "github.com/wandxy/morph/internal/state/core"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type sessionCreator interface {
@@ -45,7 +45,8 @@ func (m *model) completeNewChat(msg newChatCompletedMsg) tea.Cmd {
 	if msg.Err != nil {
 		return m.setStatus("new chat failed")
 	}
-	if stringx.String(msg.Session.ID).Trim() == "" {
+	stringValue1 := str.String(msg.Session.ID)
+	if stringValue1.Trim() == "" {
 		return m.setStatus("new chat failed")
 	}
 

@@ -3,7 +3,7 @@ package trace
 import (
 	"slices"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -217,6 +217,7 @@ func EpisodicMemoryTraceEventTypes() []string {
 
 // IsEpisodicMemoryTraceEventType reports whether eventType belongs to episodic memory workflows.
 func IsEpisodicMemoryTraceEventType(eventType string) bool {
-	eventType = stringx.String(eventType).Trim()
+	stringValue1 := str.String(eventType)
+	eventType = stringValue1.Trim()
 	return slices.Contains(episodicMemoryTraceEventTypes, eventType)
 }

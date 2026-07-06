@@ -12,7 +12,7 @@ import (
 	"time"
 
 	tg "github.com/wandxy/morph/pkg/gateway/telegram"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const defaultTelegramAPIBase = "https://api.telegram.org"
@@ -45,10 +45,11 @@ type telegramHTTPClient struct {
 }
 
 func newTelegramHTTPClient(token string) *telegramHTTPClient {
+	stringValue1 := str.String(token)
 	return &telegramHTTPClient{
 		client:  http.DefaultClient,
 		baseURL: defaultTelegramAPIBase,
-		token:   stringx.String(token).Trim(),
+		token:   stringValue1.Trim(),
 	}
 }
 
@@ -67,9 +68,11 @@ func (c *telegramHTTPClient) GetUpdates(ctx context.Context, offset int64) ([]tg
 }
 
 func (c *telegramHTTPClient) SetWebhook(ctx context.Context, url string, secret string) error {
+	stringValue2 := str.String(url)
+	stringValue3 := str.String(secret)
 	req := map[string]any{
-		"url":          stringx.String(url).Trim(),
-		"secret_token": stringx.String(secret).Trim(),
+		"url":          stringValue2.Trim(),
+		"secret_token": stringValue3.Trim(),
 	}
 	return c.call(ctx, "setWebhook", req, nil)
 }
@@ -167,7 +170,8 @@ func (c *telegramHTTPClient) call(ctx context.Context, method string, req any, o
 		return telegramConflictError{description: apiResp.Description}
 	}
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		if stringx.String(apiResp.Description).Trim() != "" {
+		stringValue4 := str.String(apiResp.Description)
+		if stringValue4.Trim() != "" {
 			return fmt.Errorf("telegram api http status %d: %s", httpResp.StatusCode, apiResp.Description)
 		}
 		return fmt.Errorf("telegram api http status %d", httpResp.StatusCode)
@@ -428,8 +432,10 @@ func isTelegramParseError(err error) bool {
 func telegramSendRequest(target tg.Target, message telegramText) map[string]any {
 	req := telegramTargetRequest(target)
 	req["text"] = message.Text
-	if stringx.String(message.ParseMode).Trim() != "" {
-		req["parse_mode"] = stringx.String(message.ParseMode).Trim()
+	stringValue5 := str.String(message.ParseMode)
+	if stringValue5.Trim() != "" {
+		stringValue6 := str.String(message.ParseMode)
+		req["parse_mode"] = stringValue6.Trim()
 	}
 	if target.ReplyToMessageID != 0 {
 		req["reply_parameters"] = map[string]any{"message_id": target.ReplyToMessageID}
@@ -450,9 +456,11 @@ func telegramTargetRequest(target tg.Target) map[string]any {
 }
 
 func telegramThreadIDValue(threadID string) any {
-	value, err := strconv.ParseInt(stringx.String(threadID).Trim(), 10, 64)
+	stringValue7 := str.String(threadID)
+	value, err := strconv.ParseInt(stringValue7.Trim(), 10, 64)
 	if err != nil {
-		return stringx.String(threadID).Trim()
+		stringValue8 := str.String(threadID)
+		return stringValue8.Trim()
 	}
 
 	return value

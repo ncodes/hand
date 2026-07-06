@@ -18,7 +18,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	morphtrace "github.com/wandxy/morph/internal/trace"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var (
@@ -335,11 +335,16 @@ type rawEvent struct {
 
 // NewStore returns a store backed by the supplied dependencies.
 func NewStore(directory string) *Store {
-	return &Store{directory: stringx.String(directory).Trim()}
+	stringValue1 := str.String(directory)
+	return &Store{directory: stringValue1.Trim()}
 }
 
 func (s *Store) Validate() error {
-	if s == nil || stringx.String(s.directory).Trim() == "" {
+	if s == nil {
+		return errors.New("trace directory is required")
+	}
+	directory := str.String(s.directory)
+	if directory.Trim() == "" {
 		return errors.New("trace directory is required")
 	}
 
@@ -419,8 +424,10 @@ func (s *Store) GetSession(id string) (SessionDetail, error) {
 }
 
 func getSessionPath(directory, id string) (string, error) {
-	directory = stringx.String(directory).Trim()
-	id = stringx.String(id).Trim()
+	stringValue3 := str.String(directory)
+	directory = stringValue3.Trim()
+	stringValue4 := str.String(id)
+	id = stringValue4.Trim()
 	if directory == "" || id == "" {
 		return "", os.ErrNotExist
 	}
@@ -430,7 +437,8 @@ func getSessionPath(directory, id string) (string, error) {
 
 // LoadSessionFile loads session file.
 func LoadSessionFile(path string) (SessionDetail, error) {
-	path = stringx.String(path).Trim()
+	stringValue5 := str.String(path)
+	path = stringValue5.Trim()
 	if path == "" {
 		return SessionDetail{}, errors.New("trace session path is required")
 	}
@@ -615,12 +623,13 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		morphtrace.EvtSummaryParseFailed, morphtrace.EvtSummaryApplied,
 		morphtrace.EvtRecallSummaryRequested, morphtrace.EvtRecallSummarySaved, morphtrace.EvtRecallSummaryFailed:
 		if payload, ok := typedPayload.(morphtrace.SummaryEventPayload); payloadOK && ok {
+			stringValue6 := str.String(payload.Error)
 			timelineEvent.SummaryEvent = &SummaryEventView{
 				SessionID:          payload.SessionID,
 				SourceEndOffset:    payload.SourceEndOffset,
 				SourceMessageCount: payload.SourceMessageCount,
 				UpdatedAt:          payload.UpdatedAt,
-				Error:              stringx.String(payload.Error).Trim(),
+				Error:              stringValue6.Trim(),
 			}
 
 			return
@@ -628,6 +637,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 	case morphtrace.EvtContextCompactionPending, morphtrace.EvtContextCompactionRunning,
 		morphtrace.EvtContextCompactionSucceeded, morphtrace.EvtContextCompactionFailed:
 		if payload, ok := typedPayload.(morphtrace.CompactionEventPayload); payloadOK && ok {
+			stringValue7 := str.String(payload.Error)
 			timelineEvent.CompactionEvent = &CompactionEventView{
 				SessionID:          payload.SessionID,
 				Status:             payload.Status,
@@ -638,7 +648,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 				StartedAt:          payload.StartedAt,
 				CompletedAt:        payload.CompletedAt,
 				FailedAt:           payload.FailedAt,
-				Error:              stringx.String(payload.Error).Trim(),
+				Error:              stringValue7.Trim(),
 			}
 
 			return
@@ -655,13 +665,15 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		}
 	case morphtrace.EvtPlanUpdated, morphtrace.EvtPlanCleared, morphtrace.EvtPlanHydrated:
 		if payload, ok := typedPayload.(morphtrace.PlanEventPayload); payloadOK && ok {
+			stringValue8 := str.String(payload.Explanation)
+			stringValue9 := str.String(payload.Source)
 			timelineEvent.PlanEvent = &PlanEventView{
 				SessionID:    payload.SessionID,
 				Steps:        planStepViewsFromPayload(payload.Steps),
 				Summary:      planSummaryViewFromPayload(payload.Summary),
 				ActiveStepID: payload.ActiveStepID,
-				Explanation:  stringx.String(payload.Explanation).Trim(),
-				Source:       stringx.String(payload.Source).Trim(),
+				Explanation:  stringValue8.Trim(),
+				Source:       stringValue9.Trim(),
 			}
 			return
 		}
@@ -669,14 +681,18 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		morphtrace.EvtToolOutputSafetyApplied, morphtrace.EvtLoadedContentSafetyBlocked,
 		morphtrace.EvtMemorySafetyBlocked:
 		if payload, ok := typedPayload.(morphtrace.SafetyEventPayload); payloadOK && ok {
+			stringValue10 := str.String(payload.SessionID)
+			stringValue11 := str.String(payload.Source)
+			stringValue12 := str.String(payload.Action)
+			stringValue13 := str.String(payload.Refusal)
 			timelineEvent.SafetyEvent = &SafetyEventView{
-				SessionID:     stringx.String(payload.SessionID).Trim(),
-				Source:        stringx.String(payload.Source).Trim(),
-				Action:        stringx.String(payload.Action).Trim(),
+				SessionID:     stringValue10.Trim(),
+				Source:        stringValue11.Trim(),
+				Action:        stringValue12.Trim(),
 				ContentLength: payload.ContentLength,
 				Blocked:       payload.Blocked,
 				Redacted:      payload.Redacted,
-				Refusal:       stringx.String(payload.Refusal).Trim(),
+				Refusal:       stringValue13.Trim(),
 				Findings:      payload.Findings,
 			}
 			return
@@ -805,10 +821,14 @@ func pairToolInvocations(timeline []TimelineEvent) {
 	starts := map[string]int{}
 	for index := range timeline {
 		toolInvocation := timeline[index].ToolInvocation
-		if toolInvocation == nil || stringx.String(toolInvocation.ID).Trim() == "" {
+		if toolInvocation == nil {
 			continue
 		}
-		id := stringx.String(toolInvocation.ID).Trim()
+		toolInvocationID := str.String(toolInvocation.ID)
+		id := toolInvocationID.Trim()
+		if id == "" {
+			continue
+		}
 		switch toolInvocation.Phase {
 		case "started":
 			starts[id] = index
@@ -846,7 +866,8 @@ func compactJSON(value []byte) string {
 
 	var out bytes.Buffer
 	if err := json.Compact(&out, value); err != nil {
-		return stringx.String(string(value)).Trim()
+		stringValue16 := str.String(string(value))
+		return stringValue16.Trim()
 	}
 
 	return out.String()
@@ -854,7 +875,8 @@ func compactJSON(value []byte) string {
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		value = stringx.String(value).Trim()
+		stringValue17 := str.String(value)
+		value = stringValue17.Trim()
 		if value != "" {
 			return value
 		}

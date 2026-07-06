@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -88,7 +88,8 @@ func IsValidID(id string) bool {
 }
 
 func ValidateID(id string) error {
-	id = stringx.String(id).Trim()
+	stringValue1 := str.String(id)
+	id = stringValue1.Trim()
 	if id == "" {
 		return fmt.Errorf("prefixed nanoid is required")
 	}

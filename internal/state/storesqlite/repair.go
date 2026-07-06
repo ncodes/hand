@@ -8,12 +8,13 @@ import (
 
 	state "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // RebuildVectorStore refreshes all vector rows for one active session in batches.
 func (s *Store) RebuildVectorStore(ctx context.Context, id string) error {
-	id = stringx.String(id).Trim()
+	stringValue1 := str.String(id)
+	id = stringValue1.Trim()
 	if err := state.ValidateSessionID(id); err != nil {
 		return err
 	}
@@ -33,8 +34,8 @@ func (s *Store) RepairVectorStore(ctx context.Context, opts search.VectorRepairO
 	if s.vectors == nil {
 		return search.VectorRepairResult{}, nil
 	}
-
-	sessionID := stringx.String(opts.SessionID).Trim()
+	stringValue2 := str.String(opts.SessionID)
+	sessionID := stringValue2.Trim()
 	if sessionID != "" {
 		if err := state.ValidateSessionID(sessionID); err != nil {
 			return search.VectorRepairResult{}, err
@@ -164,7 +165,8 @@ func (s *Store) repairVectorBatch(
 func getMessageModelsBySourceID(records []messageModel, sourceIDs []string) []messageModel {
 	sourceSet := make(map[string]struct{}, len(sourceIDs))
 	for _, sourceID := range sourceIDs {
-		sourceID = stringx.String(sourceID).Trim()
+		stringValue3 := str.String(sourceID)
+		sourceID = stringValue3.Trim()
 		if sourceID != "" {
 			sourceSet[sourceID] = struct{}{}
 		}

@@ -9,7 +9,7 @@ import (
 	"github.com/wandxy/morph/internal/constants"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var discoverOllamaModels = func(ctx context.Context, baseURL string) ([]modelprovider.ModelDefinition, error) {
@@ -44,16 +44,18 @@ func buildOllamaReadinessChecks(ctx context.Context, cfg *config.Config) []Check
 	if cfg == nil {
 		return nil
 	}
-
-	mainIsOllama := stringx.String(cfg.Models.Main.Provider).Normalized() == constants.ModelProviderOllama
-	embeddingIsOllama := cfg.Search.Vector.Enabled &&
-		stringx.String(cfg.ModelEmbeddingProviderEffective()).Normalized() == constants.ModelProviderOllama
+	stringValue1 := str.String(cfg.Models.Main.Provider)
+	mainIsOllama := stringValue1.Normalized() == constants.ModelProviderOllama
+	stringValue2 := str.String(cfg.ModelEmbeddingProviderEffective())
+	embeddingIsOllama := cfg.Search.Vector.Enabled && stringValue2.
+		Normalized() == constants.ModelProviderOllama
 	if !mainIsOllama && !embeddingIsOllama {
 		return nil
 	}
 
 	baseURL := getOllamaReadinessBaseURL(cfg)
-	modelID := stringx.String(cfg.Models.Main.Name).Trim()
+	stringValue3 := str.String(cfg.Models.Main.Name)
+	modelID := stringValue3.Trim()
 	models, err := discoverOllamaModels(ctx, baseURL)
 	if err != nil {
 		return []Check{check(
@@ -101,20 +103,27 @@ func getOllamaReadinessBaseURL(cfg *config.Config) string {
 	if cfg == nil {
 		return ""
 	}
-	if stringx.String(cfg.Models.Main.Provider).Normalized() == constants.ModelProviderOllama {
-		if value := stringx.String(cfg.Models.Main.BaseURL).Trim(); value != "" {
+	stringValue4 := str.String(cfg.Models.Main.Provider)
+	if stringValue4.Normalized() == constants.ModelProviderOllama {
+		stringValue7 := str.String(cfg.Models.Main.BaseURL)
+		if value := stringValue7.Trim(); value != "" {
 			return value
 		}
 	}
-	if auth, err := cfg.ResolveEmbeddingModelAuth(); err == nil &&
-		stringx.String(auth.Provider).Normalized() == constants.ModelProviderOllama {
-		return stringx.String(auth.BaseURL).Trim()
+	if auth, err := cfg.ResolveEmbeddingModelAuth(); err == nil {
+		authProvider := str.String(auth.Provider)
+		if authProvider.Normalized() == constants.ModelProviderOllama {
+			stringValue8 := str.String(auth.BaseURL)
+			return stringValue8.Trim()
+		}
 	}
-	if value := stringx.String(cfg.Models.Embedding.BaseURL).Trim(); value != "" {
+	stringValue6 := str.String(cfg.Models.Embedding.BaseURL)
+	if value := stringValue6.Trim(); value != "" {
 		return value
 	}
 	if providerConfig, ok := cfg.Models.Providers[constants.ModelProviderOllama]; ok {
-		if value := stringx.String(providerConfig.BaseURL).Trim(); value != "" {
+		stringValue9 := str.String(providerConfig.BaseURL)
+		if value := stringValue9.Trim(); value != "" {
 			return value
 		}
 	}
@@ -123,7 +132,8 @@ func getOllamaReadinessBaseURL(cfg *config.Config) string {
 }
 
 func getOllamaReadinessModel(models []modelprovider.ModelDefinition, modelID string) (modelprovider.ModelDefinition, bool) {
-	modelID = stringx.String(modelID).Trim()
+	stringValue10 := str.String(modelID)
+	modelID = stringValue10.Trim()
 	for _, model := range models {
 		if provider_ollama.ModelIDMatches(model.ID, modelID) {
 			return model, true
@@ -134,7 +144,8 @@ func getOllamaReadinessModel(models []modelprovider.ModelDefinition, modelID str
 }
 
 func buildOllamaContextCheck(cfg *config.Config, model modelprovider.ModelDefinition) Check {
-	modelID := stringx.String(model.ID).Trim()
+	stringValue11 := str.String(model.ID)
+	modelID := stringValue11.Trim()
 	if model.ContextWindow <= 0 {
 		return check("ollama context", StatusWarn, fmt.Sprintf("context metadata is unavailable for model %q", modelID))
 	}
@@ -160,7 +171,8 @@ func buildOllamaContextCheck(cfg *config.Config, model modelprovider.ModelDefini
 }
 
 func buildOllamaToolSupportCheck(model modelprovider.ModelDefinition) Check {
-	modelID := stringx.String(model.ID).Trim()
+	stringValue12 := str.String(model.ID)
+	modelID := stringValue12.Trim()
 	if model.SupportsTools {
 		return check("ollama tools", StatusPass, fmt.Sprintf("model %q reports tool support", modelID))
 	}
@@ -173,13 +185,14 @@ func buildOllamaToolSupportCheck(model modelprovider.ModelDefinition) Check {
 }
 
 func buildOllamaEmbeddingCheck(cfg *config.Config, models []modelprovider.ModelDefinition) []Check {
+	stringValue13 := str.String(cfg.ModelEmbeddingProviderEffective())
 	if cfg == nil ||
-		!cfg.Search.Vector.Enabled ||
-		stringx.String(cfg.ModelEmbeddingProviderEffective()).Normalized() != constants.ModelProviderOllama {
+		!cfg.Search.Vector.Enabled || stringValue13.
+		Normalized() != constants.ModelProviderOllama {
 		return nil
 	}
-
-	modelID := stringx.String(cfg.Models.Embedding.Name).Trim()
+	stringValue14 := str.String(cfg.Models.Embedding.Name)
+	modelID := stringValue14.Trim()
 	if modelID == "" {
 		return []Check{check("ollama embeddings", StatusFail, "embedding model is required")}
 	}
@@ -201,11 +214,15 @@ func buildOllamaEmbeddingCheck(cfg *config.Config, models []modelprovider.ModelD
 
 func ollamaSetupPullCommand(baseURL string, modelID string) string {
 	parts := []string{"morph setup provider --provider ollama"}
-	if stringx.String(baseURL).Trim() != "" {
-		parts = append(parts, "--base-url "+stringx.String(baseURL).Trim())
+	stringValue15 := str.String(baseURL)
+	if stringValue15.Trim() != "" {
+		stringValue17 := str.String(baseURL)
+		parts = append(parts, "--base-url "+stringValue17.Trim())
 	}
-	if stringx.String(modelID).Trim() != "" {
-		parts = append(parts, "--model "+stringx.String(modelID).Trim())
+	stringValue16 := str.String(modelID)
+	if stringValue16.Trim() != "" {
+		stringValue18 := str.String(modelID)
+		parts = append(parts, "--model "+stringValue18.Trim())
 	}
 	parts = append(parts, "--pull")
 
@@ -301,14 +318,15 @@ func isMissingAuthError(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	message := stringx.String(err.Error()).Normalized()
+	stringValue19 := str.String(err.Error())
+	message := stringValue19.Normalized()
 	return strings.Contains(message, "api key is required") ||
 		strings.Contains(message, "morph auth login")
 }
 
 func missingAuthActions(provider string) []Action {
-	provider = stringx.String(provider).Normalized()
+	stringValue20 := str.String(provider)
+	provider = stringValue20.Normalized()
 	if provider == "" {
 		return nil
 	}
@@ -322,7 +340,8 @@ func missingAuthActions(provider string) []Action {
 }
 
 func providerAPIKeyActions(provider string) []Action {
-	provider = stringx.String(provider).Normalized()
+	stringValue21 := str.String(provider)
+	provider = stringValue21.Normalized()
 	if provider == "" {
 		return nil
 	}
@@ -347,14 +366,18 @@ func formatCredentialSource(auth config.ModelAuth) string {
 	case config.ModelCredentialSourceProviderConfig:
 		return "provider-config"
 	case config.ModelCredentialSourceProviderEnv:
-		if stringx.String(source.Type).Trim() != "" {
-			return stringx.String(source.Type).Trim() + " env"
+		stringValue22 := str.String(source.Type)
+		if stringValue22.Trim() != "" {
+			stringValue24 := str.String(source.Type)
+			return stringValue24.Trim() + " env"
 		}
 		return "environment"
 	case config.ModelCredentialSourceTokenStore:
 		parts := []string{"token-store"}
-		if stringx.String(source.Type).Trim() != "" {
-			parts = append(parts, stringx.String(source.Type).Trim())
+		stringValue23 := str.String(source.Type)
+		if stringValue23.Trim() != "" {
+			stringValue25 := str.String(source.Type)
+			parts = append(parts, stringValue25.Trim())
 		}
 		if source.HasExpiry {
 			parts = append(parts, "refreshable")

@@ -12,7 +12,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	models "github.com/wandxy/morph/internal/model"
 	modelclient "github.com/wandxy/morph/internal/model/client"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type liveModelClientFactory interface {
@@ -78,7 +78,9 @@ func NewLiveClients(cfg *config.Config) (models.Client, models.Client, error) {
 
 // NewLiveHarness returns an e2e harness wired to live model clients.
 func NewLiveHarness(ctx context.Context, home, envFile, configFile string) (*Harness, error) {
-	cfg, err := loadLiveConfig(stringx.String(envFile).Trim(), stringx.String(configFile).Trim())
+	stringValue1 := str.String(envFile)
+	stringValue2 := str.String(configFile)
+	cfg, err := loadLiveConfig(stringValue1.Trim(), stringValue2.Trim())
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +100,9 @@ func NewLiveHarness(ctx context.Context, home, envFile, configFile string) (*Har
 
 // NewLiveRPCHarness returns an RPC e2e harness wired to live model clients.
 func NewLiveRPCHarness(ctx context.Context, home, envFile, configFile string) (*RPCHarness, error) {
-	cfg, err := loadLiveConfig(stringx.String(envFile).Trim(), stringx.String(configFile).Trim())
+	stringValue3 := str.String(envFile)
+	stringValue4 := str.String(configFile)
+	cfg, err := loadLiveConfig(stringValue3.Trim(), stringValue4.Trim())
 	if err != nil {
 		return nil, err
 	}
@@ -136,8 +140,10 @@ func liveClientRequest(
 
 // DefaultLiveArtifactDir returns the directory used for live e2e artifacts.
 func DefaultLiveArtifactDir(override string) string {
-	if stringx.String(override).Trim() != "" {
-		return stringx.String(override).Trim()
+	stringValue5 := str.String(override)
+	if stringValue5.Trim() != "" {
+		stringValue6 := str.String(override)
+		return stringValue6.Trim()
 	}
 
 	return filepath.Join(os.TempDir(), "morph-live-artifacts")
@@ -151,14 +157,17 @@ func RunLiveScenario(
 	run func(string) (string, error),
 	check func(string) error,
 ) (LiveArtifact, error) {
+	stringValue7 := str.String(name)
+	stringValue8 := str.String(prompt)
 	artifact := LiveArtifact{
-		Scenario:  stringx.String(name).Trim(),
-		Prompt:    stringx.String(prompt).Trim(),
+		Scenario:  stringValue7.Trim(),
+		Prompt:    stringValue8.Trim(),
 		StartedAt: liveNow().UTC(),
 	}
 
 	output, runErr := run(prompt)
-	artifact.Output = stringx.String(output).Trim()
+	stringValue9 := str.String(output)
+	artifact.Output = stringValue9.Trim()
 	artifact.FinishedAt = liveNow().UTC()
 
 	if runErr != nil {
@@ -191,7 +200,8 @@ func RunLiveScenario(
 
 // WriteLiveArtifact describes an artifact written during a live e2e run.
 func WriteLiveArtifact(dir string, artifact LiveArtifact) error {
-	dir = stringx.String(dir).Trim()
+	stringValue10 := str.String(dir)
+	dir = stringValue10.Trim()
 	if dir == "" {
 		return nil
 	}
@@ -213,7 +223,8 @@ func WriteLiveArtifact(dir string, artifact LiveArtifact) error {
 }
 
 func sanitizeLiveArtifactName(name string) string {
-	name = stringx.String(name).Normalized()
+	stringValue11 := str.String(name)
+	name = stringValue11.Normalized()
 	if name == "" {
 		return ""
 	}
@@ -243,6 +254,6 @@ func checkOutput(check func(string) error, output string) error {
 	if check == nil {
 		return nil
 	}
-
-	return check(stringx.String(output).Trim())
+	stringValue12 := str.String(output)
+	return check(stringValue12.Trim())
 }

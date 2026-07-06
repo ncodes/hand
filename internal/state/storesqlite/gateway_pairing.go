@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	"github.com/wandxy/morph/pkg/gateway/pairing"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 	"gorm.io/gorm"
 )
 
@@ -33,7 +33,8 @@ func (s *Store) GetGatewayPairingRequest(
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = stringx.String(senderID).Trim()
+	stringValue1 := str.String(senderID)
+	senderID = stringValue1.Trim()
 	if source == "" {
 		return pairing.PendingRequest{}, false, errors.New("gateway pairing source is required")
 	}
@@ -91,7 +92,8 @@ func (s *Store) DeleteGatewayPairingRequest(ctx context.Context, source string, 
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = stringx.String(senderID).Trim()
+	stringValue2 := str.String(senderID)
+	senderID = stringValue2.Trim()
 	if source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -140,7 +142,8 @@ func (s *Store) GetGatewayPairedSender(
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = stringx.String(senderID).Trim()
+	stringValue3 := str.String(senderID)
+	senderID = stringValue3.Trim()
 	if source == "" {
 		return pairing.ApprovedSender{}, false, errors.New("gateway pairing source is required")
 	}
@@ -198,7 +201,8 @@ func (s *Store) DeleteGatewayPairedSender(ctx context.Context, source string, se
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	senderID = stringx.String(senderID).Trim()
+	stringValue4 := str.String(senderID)
+	senderID = stringValue4.Trim()
 	if source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -211,7 +215,8 @@ func (s *Store) DeleteGatewayPairedSender(ctx context.Context, source string, se
 
 func gatewayPairingRequestToModel(request pairing.PendingRequest) (gatewayPairingRequestModel, error) {
 	request.Source = normalizeGatewayPairingSource(request.Source)
-	request.SenderID = stringx.String(request.SenderID).Trim()
+	stringValue5 := str.String(request.SenderID)
+	request.SenderID = stringValue5.Trim()
 	if request.Source == "" {
 		return gatewayPairingRequestModel{}, errors.New("gateway pairing source is required")
 	}
@@ -223,11 +228,11 @@ func gatewayPairingRequestToModel(request pairing.PendingRequest) (gatewayPairin
 	if err != nil {
 		return gatewayPairingRequestModel{}, err
 	}
-
+	stringValue6 := str.String(request.DisplayName)
 	return gatewayPairingRequestModel{
 		Source:      request.Source,
 		SenderID:    request.SenderID,
-		DisplayName: stringx.String(request.DisplayName).Trim(),
+		DisplayName: stringValue6.Trim(),
 		Metadata:    metadata,
 		CreatedAt:   request.CreatedAt,
 		LastSeenAt:  request.LastSeenAt,
@@ -254,7 +259,8 @@ func gatewayPairingRequestFromModel(model gatewayPairingRequestModel) (pairing.P
 
 func gatewayPairedSenderToModel(sender pairing.ApprovedSender) (gatewayPairedSenderModel, error) {
 	sender.Source = normalizeGatewayPairingSource(sender.Source)
-	sender.SenderID = stringx.String(sender.SenderID).Trim()
+	stringValue7 := str.String(sender.SenderID)
+	sender.SenderID = stringValue7.Trim()
 	if sender.Source == "" {
 		return gatewayPairedSenderModel{}, errors.New("gateway pairing source is required")
 	}
@@ -266,11 +272,11 @@ func gatewayPairedSenderToModel(sender pairing.ApprovedSender) (gatewayPairedSen
 	if err != nil {
 		return gatewayPairedSenderModel{}, err
 	}
-
+	stringValue8 := str.String(sender.DisplayName)
 	return gatewayPairedSenderModel{
 		Source:      sender.Source,
 		SenderID:    sender.SenderID,
-		DisplayName: stringx.String(sender.DisplayName).Trim(),
+		DisplayName: stringValue8.Trim(),
 		Metadata:    metadata,
 		CreatedAt:   sender.CreatedAt,
 		UpdatedAt:   sender.UpdatedAt,
@@ -300,9 +306,11 @@ func gatewayPairingMetadataToJSON(metadata map[string]string) (string, error) {
 
 	cleaned := make(map[string]string, len(metadata))
 	for key, value := range metadata {
-		key = stringx.String(key).Trim()
+		stringValue9 := str.String(key)
+		key = stringValue9.Trim()
 		if key != "" {
-			cleaned[key] = stringx.String(value).Trim()
+			stringValue10 := str.String(value)
+			cleaned[key] = stringValue10.Trim()
 		}
 	}
 	if len(cleaned) == 0 {
@@ -318,7 +326,8 @@ func gatewayPairingMetadataToJSON(metadata map[string]string) (string, error) {
 }
 
 func gatewayPairingMetadataFromJSON(raw string) (map[string]string, error) {
-	raw = stringx.String(raw).Trim()
+	stringValue11 := str.String(raw)
+	raw = stringValue11.Trim()
 	if raw == "" {
 		return nil, nil
 	}
@@ -332,5 +341,6 @@ func gatewayPairingMetadataFromJSON(raw string) (map[string]string, error) {
 }
 
 func normalizeGatewayPairingSource(source string) string {
-	return stringx.String(source).Normalized()
+	stringValue12 := str.String(source)
+	return stringValue12.Normalized()
 }

@@ -18,7 +18,7 @@ import (
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	agentcore "github.com/wandxy/morph/pkg/agent"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var setHarnessEnv = os.Setenv
@@ -81,8 +81,8 @@ func NewHarness(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 		restoreEnv()
 		return nil, err
 	}
-
-	if stringx.String(opts.Spec.Isolation.TraceDir).Trim() != "" {
+	stringValue1 := str.String(opts.Spec.Isolation.TraceDir)
+	if stringValue1.Trim() != "" {
 		cfg.Trace.Disk.Dir = opts.Spec.Isolation.TraceDir
 	}
 
@@ -218,8 +218,8 @@ func (h *Harness) Send(ctx context.Context, req RootChatRequest) (RootChatResult
 		h.writeStderr(err.Error())
 		return RootChatResult{}, err
 	}
-
-	sessionID := stringx.String(req.SessionID).Trim()
+	stringValue2 := str.String(req.SessionID)
+	sessionID := stringValue2.Trim()
 	if sessionID == "" {
 		session, err := h.agent.CurrentSession(normalizeHarnessContext(ctx))
 		if err != nil {
@@ -243,8 +243,8 @@ func (h *Harness) Messages(ctx context.Context, sessionID string) ([]morphmsg.Me
 	if h.inspectStore == nil {
 		return nil, errors.New("e2e harness message inspection is unavailable for non-persistent storage")
 	}
-
-	sessionID = stringx.String(sessionID).Trim()
+	stringValue3 := str.String(sessionID)
+	sessionID = stringValue3.Trim()
 	if sessionID == "" {
 		var err error
 		session, err := h.agent.CurrentSession(normalizeHarnessContext(ctx))
@@ -292,7 +292,8 @@ func openInspectStore(cfg *config.Config) (storage.Store, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
-	if stringx.String(cfg.Storage.Backend).Normalized() == "memory" {
+	stringValue4 := str.String(cfg.Storage.Backend)
+	if stringValue4.Normalized() == "memory" {
 		return nil, nil
 	}
 
@@ -372,14 +373,16 @@ func normalizeHarnessContext(ctx context.Context) context.Context {
 }
 
 func (h *Harness) writeStdout(text string) {
-	if h == nil || h.stdout == nil || stringx.String(text).Trim() == "" {
+	stringValue5 := str.String(text)
+	if h == nil || h.stdout == nil || stringValue5.Trim() == "" {
 		return
 	}
 	_, _ = io.WriteString(h.stdout, text)
 }
 
 func (h *Harness) writeStderr(text string) {
-	if h == nil || h.stderr == nil || stringx.String(text).Trim() == "" {
+	stringValue6 := str.String(text)
+	if h == nil || h.stderr == nil || stringValue6.Trim() == "" {
 		return
 	}
 	_, _ = io.WriteString(h.stderr, text)

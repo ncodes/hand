@@ -1,6 +1,6 @@
-// Package stringx provides small string wrapper types for common normalization
+// Package str provides small string wrapper types for common normalization
 // operations used across Morph.
-package stringx
+package str
 
 import (
 	"strings"

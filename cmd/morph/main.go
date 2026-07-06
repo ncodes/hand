@@ -24,7 +24,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/profile"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var log = logutils.Module("morph")
@@ -158,17 +158,21 @@ func newRootAction() func(context.Context, *cli.Command) error {
 }
 
 func getEnvFile(args []string) string {
-	if value := stringx.String(os.Getenv("MORPH_ENV_FILE")).Trim(); value != "" {
+	stringValue1 := str.String(os.Getenv("MORPH_ENV_FILE"))
+	if value := stringValue1.Trim(); value != "" {
 		return value
 	}
 
 	for i := range args {
-		arg := stringx.String(args[i]).Trim()
+		stringValue2 := str.String(args[i])
+		arg := stringValue2.Trim()
 		if arg == "--env-file" && i+1 < len(args) {
-			return stringx.String(args[i+1]).Trim()
+			stringValue3 := str.String(args[i+1])
+			return stringValue3.Trim()
 		}
 		if value, ok := strings.CutPrefix(arg, "--env-file="); ok {
-			return stringx.String(value).Trim()
+			stringValue4 := str.String(value)
+			return stringValue4.Trim()
 		}
 	}
 
@@ -189,18 +193,22 @@ func configureProfileDefaults(args []string) error {
 
 func getProfileArg(args []string) string {
 	for i := range args {
-		arg := stringx.String(args[i]).Trim()
+		stringValue5 := str.String(args[i])
+		arg := stringValue5.Trim()
 		if arg == "--" {
 			return ""
 		}
 		if (arg == "--profile" || arg == "-p") && i+1 < len(args) {
-			return stringx.String(args[i+1]).Trim()
+			stringValue6 := str.String(args[i+1])
+			return stringValue6.Trim()
 		}
 		if value, ok := strings.CutPrefix(arg, "--profile="); ok {
-			return stringx.String(value).Trim()
+			stringValue7 := str.String(value)
+			return stringValue7.Trim()
 		}
 		if value, ok := strings.CutPrefix(arg, "-p="); ok {
-			return stringx.String(value).Trim()
+			stringValue8 := str.String(value)
+			return stringValue8.Trim()
 		}
 	}
 

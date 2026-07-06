@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"regexp"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // SafetyCategory classifies safety findings by policy area.
@@ -196,7 +196,8 @@ func (finding SafetyFinding) LogFields() map[string]string {
 		"id":       string(finding.ID),
 		"category": string(finding.Category),
 	}
-	if source := stringx.String(finding.Source).Trim(); source != "" {
+	stringValue1 := str.String(finding.Source)
+	if source := stringValue1.Trim(); source != "" {
 		fields["source"] = source
 	}
 

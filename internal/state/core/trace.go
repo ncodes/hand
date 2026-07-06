@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // ErrTraceStoreUnsupported is returned when a store does not persist trace events.
@@ -73,7 +73,8 @@ func cloneTracePayload(payload any) any {
 
 // TraceEventMatchesQuery reports whether event satisfies query filters.
 func TraceEventMatchesQuery(event TraceEvent, query TraceQuery) bool {
-	if sessionID := stringx.String(query.SessionID).Trim(); sessionID != "" && event.SessionID != sessionID {
+	stringValue1 := str.String(query.SessionID)
+	if sessionID := stringValue1.Trim(); sessionID != "" && event.SessionID != sessionID {
 		return false
 	}
 	if types := NormalizeTraceTypes(query.Types); len(types) > 0 && !slices.Contains(types, event.Type) {
@@ -91,7 +92,8 @@ func NormalizeTraceTypes(types []string) []string {
 	seen := make(map[string]struct{}, len(types))
 	results := make([]string, 0, len(types))
 	for _, eventType := range types {
-		eventType = stringx.String(eventType).Trim()
+		stringValue2 := str.String(eventType)
+		eventType = stringValue2.Trim()
 		if eventType == "" {
 			continue
 		}

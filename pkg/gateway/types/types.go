@@ -3,7 +3,7 @@ package types
 import (
 	"errors"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -39,11 +39,16 @@ type ErrorResponse struct {
 }
 
 func NormalizeRespondRequest(req RespondRequest) RespondRequest {
-	req.ConversationID = stringx.String(req.ConversationID).Trim()
-	req.Message = stringx.String(req.Message).Trim()
-	req.UserID = stringx.String(req.UserID).Trim()
-	req.Source = stringx.String(req.Source).Trim()
-	req.Instruct = stringx.String(req.Instruct).Trim()
+	stringValue1 := str.String(req.ConversationID)
+	req.ConversationID = stringValue1.Trim()
+	stringValue2 := str.String(req.Message)
+	req.Message = stringValue2.Trim()
+	stringValue3 := str.String(req.UserID)
+	req.UserID = stringValue3.Trim()
+	stringValue4 := str.String(req.Source)
+	req.Source = stringValue4.Trim()
+	stringValue5 := str.String(req.Instruct)
+	req.Instruct = stringValue5.Trim()
 	if req.Source == "" {
 		req.Source = SourceGenericHTTP
 	}
@@ -64,8 +69,10 @@ func ValidateRespondRequest(req RespondRequest) error {
 }
 
 func NewErrorResponse(code string, message string) ErrorResponse {
+	stringValue6 := str.String(code)
+	stringValue7 := str.String(message)
 	return ErrorResponse{
-		Code:    stringx.String(code).Trim(),
-		Message: stringx.String(message).Trim(),
+		Code:    stringValue6.Trim(),
+		Message: stringValue7.Trim(),
 	}
 }

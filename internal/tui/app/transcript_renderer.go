@@ -8,7 +8,7 @@ import (
 	"github.com/muesli/reflow/wordwrap"
 
 	"github.com/wandxy/morph/internal/trace"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type transcriptRenderer interface {
@@ -105,8 +105,8 @@ func compactMatchedToolTranscriptCells(cells []transcriptCell) []transcriptCell 
 			compacted = append(compacted, cell)
 			continue
 		}
-
-		id := stringx.String(toolCell.id).Trim()
+		stringValue1 := str.String(toolCell.id)
+		id := stringValue1.Trim()
 		if id == "" {
 			compacted = append(compacted, cell)
 			continue
@@ -201,7 +201,8 @@ func compactConsecutiveProcessToolAttemptCells(cells []transcriptCell) []transcr
 }
 
 func isProcessToolTranscriptCell(cell toolTranscriptCell) bool {
-	return stringx.String(cell.action).Trim() == "Process" && cell.processState != nil
+	stringValue2 := str.String(cell.action)
+	return stringValue2.Trim() == "Process" && cell.processState != nil
 }
 
 func isEquivalentProcessToolAttempt(current toolTranscriptCell, next toolTranscriptCell) bool {
@@ -224,10 +225,11 @@ func getProcessToolCellGroupKey(cell toolTranscriptCell) processToolDetailGroupK
 	if cell.processState == nil {
 		return processToolDetailGroupKey{}
 	}
-
-	target := stringx.String(cell.processState.ProcessID).Trim()
+	stringValue3 := str.String(cell.processState.ProcessID)
+	target := stringValue3.Trim()
 	if cell.processState.Operation == trace.ProcessToolOperationStart || target == "" {
-		target = stringx.String(cell.processState.Command).Trim()
+		stringValue4 := str.String(cell.processState.Command)
+		target = stringValue4.Trim()
 	}
 
 	return processToolDetailGroupKey{operation: cell.processState.Operation, target: target}
@@ -236,12 +238,14 @@ func getProcessToolCellGroupKey(cell toolTranscriptCell) processToolDetailGroupK
 func renderUserTranscriptCell(body string, width int) string {
 	contentWidth := max(width, 1)
 	wrapWidth := max(contentWidth-lipgloss.Width(userTranscriptPrompt), 1)
-
-	lines := strings.Split(stringx.String(body).Trim(), "\n")
+	stringValue5 := str.String(body)
+	lines := strings.Split(stringValue5.Trim(), "\n")
 	rendered := make([]string, 0, len(lines))
 	for _, line := range lines {
-		for _, wrapped := range strings.Split(wordwrap.String(stringx.String(line).Trim(), wrapWidth), "\n") {
-			if stringx.String(wrapped).Trim() != "" {
+		stringValue6 := str.String(line)
+		for _, wrapped := range strings.Split(wordwrap.String(stringValue6.Trim(), wrapWidth), "\n") {
+			stringValue7 := str.String(wrapped)
+			if stringValue7.Trim() != "" {
 				rendered = append(rendered, renderUserTranscriptLine(wrapped, contentWidth, len(rendered) == 0))
 			}
 		}
@@ -299,7 +303,8 @@ func renderUserTranscriptVerticalPadding(width int, glyph string) string {
 }
 
 func renderAssistantTranscriptCell(cell assistantTranscriptCell, width int) string {
-	rendered := stringx.String(renderMarkdownForTranscript(cell.text, width)).Trim()
+	stringValue8 := str.String(renderMarkdownForTranscript(cell.text, width))
+	rendered := stringValue8.Trim()
 	if rendered == "" {
 		return ""
 	}
@@ -342,11 +347,12 @@ func renderReasoningTranscriptCell(body string, width int) string {
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolTitle))
 	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolBranch))
 	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolDetail))
-
-	lines := strings.Split(stringx.String(body).Trim(), "\n")
+	stringValue9 := str.String(body)
+	lines := strings.Split(stringValue9.Trim(), "\n")
 	reasoningLines := make([]string, 0, len(lines))
 	for _, line := range lines {
-		line = stringx.String(line).Trim()
+		stringValue10 := str.String(line)
+		line = stringValue10.Trim()
 		if line != "" {
 			reasoningLines = append(reasoningLines, line)
 		}
@@ -359,7 +365,8 @@ func renderReasoningTranscriptCell(body string, width int) string {
 	first := true
 	for _, line := range reasoningLines {
 		for _, wrapped := range strings.Split(wordwrap.String(line, wrapWidth), "\n") {
-			wrapped = stringx.String(wrapped).Trim()
+			stringValue11 := str.String(wrapped)
+			wrapped = stringValue11.Trim()
 			if wrapped == "" {
 				continue
 			}
@@ -377,7 +384,8 @@ func renderReasoningTranscriptCell(body string, width int) string {
 }
 
 func renderThoughtTranscriptCell(body string) string {
-	duration := stringx.String(body).Trim()
+	stringValue12 := str.String(body)
+	duration := stringValue12.Trim()
 	if duration == "" {
 		return ""
 	}
@@ -388,7 +396,8 @@ func renderThoughtTranscriptCell(body string) string {
 }
 
 func renderErrorTranscriptCell(message string, width int) string {
-	message = stringx.String(message).Trim()
+	stringValue13 := str.String(message)
+	message = stringValue13.Trim()
 	if message == "" {
 		return ""
 	}
@@ -413,15 +422,18 @@ func renderErrorTranscriptCell(message string, width int) string {
 	content := []string{title}
 	if command, description, instruction, ok := getErrorTranscriptCommandInstruction(message); ok {
 		content[0] = title + descriptionStyle.Render(" - "+description)
+		stringValue14 := str.String(wordwrap.String(command, bodyWidth))
+		stringValue15 := str.String(wordwrap.String(instruction, bodyWidth))
 		content = append(
 			content,
 			"",
-			commandStyle.Render(stringx.String(wordwrap.String(command, bodyWidth)).Trim()),
+			commandStyle.Render(stringValue14.Trim()),
 			"",
-			bodyStyle.Render(stringx.String(wordwrap.String(instruction, bodyWidth)).Trim()),
+			bodyStyle.Render(stringValue15.Trim()),
 		)
 	} else {
-		content = append(content, "", bodyStyle.Render(stringx.String(wordwrap.String(message, bodyWidth)).Trim()))
+		stringValue16 := str.String(wordwrap.String(message, bodyWidth))
+		content = append(content, "", bodyStyle.Render(stringValue16.Trim()))
 	}
 
 	return lipgloss.NewStyle().
@@ -432,14 +444,15 @@ func renderErrorTranscriptCell(message string, width int) string {
 }
 
 func getErrorTranscriptCommandInstruction(message string) (string, string, string, bool) {
-	message = stringx.String(message).Trim()
+	stringValue17 := str.String(message)
+	message = stringValue17.Trim()
 	const prefix = "run "
 	const suffix = " in a new terminal"
 	if !strings.HasPrefix(message, prefix) || !strings.HasSuffix(message, suffix) {
 		return "", "", "", false
 	}
-
-	command := stringx.String(strings.TrimSuffix(strings.TrimPrefix(message, prefix), suffix)).Trim()
+	stringValue18 := str.String(strings.TrimSuffix(strings.TrimPrefix(message, prefix), suffix))
+	command := stringValue18.Trim()
 	if command == "" {
 		return "", "", "", false
 	}

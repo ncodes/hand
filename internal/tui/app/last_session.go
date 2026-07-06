@@ -8,7 +8,7 @@ import (
 
 	"github.com/wandxy/morph/internal/datadir/files"
 	"github.com/wandxy/morph/internal/profile"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type appTUIState struct {
@@ -35,12 +35,13 @@ func loadLastSessionID() (string, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return "", fmt.Errorf("parse tui state: %w", err)
 	}
-
-	return stringx.String(state.LastSessions[getActiveProfileName()]).Trim(), nil
+	stringValue1 := str.String(state.LastSessions[getActiveProfileName()])
+	return stringValue1.Trim(), nil
 }
 
 func saveLastSessionID(id string) error {
-	id = stringx.String(id).Trim()
+	stringValue2 := str.String(id)
+	id = stringValue2.Trim()
 	if id == "" {
 		return nil
 	}
@@ -92,7 +93,8 @@ func loadAppTUIState(path string) (appTUIState, error) {
 
 func appTUIStatePath() string {
 	active := profile.WithMetadataPaths(profile.Active())
-	home := stringx.String(active.HomeDir).Trim()
+	stringValue3 := str.String(active.HomeDir)
+	home := stringValue3.Trim()
 	if home == "" {
 		return ""
 	}
@@ -101,8 +103,10 @@ func appTUIStatePath() string {
 }
 
 func getProfileRootDir(active profile.Profile) string {
-	home := stringx.String(active.HomeDir).Trim()
-	name := stringx.String(active.Name).Trim()
+	stringValue4 := str.String(active.HomeDir)
+	home := stringValue4.Trim()
+	stringValue5 := str.String(active.Name)
+	name := stringValue5.Trim()
 	if name != "" &&
 		filepath.Base(home) == name &&
 		filepath.Base(filepath.Dir(home)) == "profiles" {
@@ -113,7 +117,8 @@ func getProfileRootDir(active profile.Profile) string {
 }
 
 func getActiveProfileName() string {
-	name := stringx.String(profile.Active().Name).Trim()
+	stringValue6 := str.String(profile.Active().Name)
+	name := stringValue6.Trim()
 	if name == "" {
 		return profile.DefaultName
 	}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/profile"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // ConfigInputs are the resolved profile-aware config inputs for a command.
@@ -22,7 +22,8 @@ type ConfigInputs struct {
 func ResolveConfigInputs(cmd *cli.Command) (ConfigInputs, error) {
 	profileName := getCommandProfile(cmd)
 	resolved := profile.Active()
-	if profileName != "" || stringx.String(resolved.HomeDir).Trim() == "" {
+	stringValue1 := str.String(resolved.HomeDir)
+	if profileName != "" || stringValue1.Trim() == "" {
 		var err error
 		resolved, err = profile.Resolve(profile.ResolveOptions{Name: profileName})
 		if err != nil {
@@ -39,10 +40,12 @@ func ResolveConfigInputs(cmd *cli.Command) (ConfigInputs, error) {
 	}
 	if cmd != nil {
 		if cmd.IsSet("env-file") {
-			inputs.EnvPath = stringx.String(cmd.String("env-file")).Trim()
+			stringValue2 := str.String(cmd.String("env-file"))
+			inputs.EnvPath = stringValue2.Trim()
 		}
 		if cmd.IsSet("config") {
-			inputs.ConfigPath = stringx.String(cmd.String("config")).Trim()
+			stringValue3 := str.String(cmd.String("config"))
+			inputs.ConfigPath = stringValue3.Trim()
 		}
 	}
 
@@ -83,7 +86,8 @@ func AddStartupFilesystemRoots(cfg *config.Config, inputs ConfigInputs) {
 }
 
 func removeFilesystemRoot(roots []string, target string) []string {
-	target = stringx.String(target).Trim()
+	stringValue4 := str.String(target)
+	target = stringValue4.Trim()
 	if target == "" {
 		return roots
 	}
@@ -101,7 +105,8 @@ func removeFilesystemRoot(roots []string, target string) []string {
 }
 
 func normalizeFilesystemRootTarget(root string) string {
-	root = stringx.String(root).Trim()
+	stringValue5 := str.String(root)
+	root = stringValue5.Trim()
 	if root == "" {
 		return ""
 	}
@@ -121,7 +126,8 @@ func getCommandProfile(cmd *cli.Command) string {
 
 	for _, candidate := range cmd.Lineage() {
 		if candidate.IsSet("profile") {
-			return stringx.String(candidate.String("profile")).Trim()
+			stringValue6 := str.String(candidate.String("profile"))
+			return stringValue6.Trim()
 		}
 	}
 

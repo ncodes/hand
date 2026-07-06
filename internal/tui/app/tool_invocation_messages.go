@@ -6,7 +6,7 @@ import (
 	models "github.com/wandxy/morph/internal/model"
 	"github.com/wandxy/morph/internal/trace"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func newToolInvocationStartedMsg(
@@ -15,9 +15,12 @@ func newToolInvocationStartedMsg(
 	detail string,
 	startedAt time.Time,
 ) (toolInvocationStartedMsg, bool) {
-	id = stringx.String(id).Trim()
-	name = stringx.String(name).Trim()
-	detail = stringx.String(detail).Trim()
+	stringValue1 := str.String(id)
+	id = stringValue1.Trim()
+	stringValue2 := str.String(name)
+	name = stringValue2.Trim()
+	stringValue3 := str.String(detail)
+	detail = stringValue3.Trim()
 	if name == "" && id == "" {
 		return toolInvocationStartedMsg{}, false
 	}
@@ -53,9 +56,12 @@ func newToolInvocationCompletedMsg(
 	detail string,
 	completedAt time.Time,
 ) (toolInvocationCompletedMsg, bool) {
-	id = stringx.String(id).Trim()
-	name = stringx.String(name).Trim()
-	detail = stringx.String(detail).Trim()
+	stringValue4 := str.String(id)
+	id = stringValue4.Trim()
+	stringValue5 := str.String(name)
+	name = stringValue5.Trim()
+	stringValue6 := str.String(detail)
+	detail = stringValue6.Trim()
 	if name == "" && id == "" {
 		return toolInvocationCompletedMsg{}, false
 	}

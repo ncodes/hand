@@ -14,7 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func TestSetOutput_SetsCustomConsoleWriterAndDefaultsToStderr(t *testing.T) {
@@ -430,7 +430,8 @@ func consoleModuleANSIColor(t *testing.T, formatted string) int {
 
 func TestEnsureLogModule_AddsFallbackModuleOnlyWhenMissing(t *testing.T) {
 	withModule := ensureLogModule([]byte(`{"level":"info","module":"daemon","message":"hello"}`+"\n"), "morph")
-	require.JSONEq(t, `{"level":"info","module":"daemon","message":"hello"}`, stringx.String(string(withModule)).Trim())
+	stringValue1 := str.String(string(withModule))
+	require.JSONEq(t, `{"level":"info","module":"daemon","message":"hello"}`, stringValue1.Trim())
 	require.True(t, bytes.HasSuffix(withModule, []byte("\n")))
 
 	withoutModule := ensureLogModule([]byte(`{"level":"info","message":"hello"}`), "morph")

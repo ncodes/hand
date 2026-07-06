@@ -6,7 +6,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var (
@@ -15,7 +15,8 @@ var (
 )
 
 func CheckBearer(header string, token string) error {
-	token = stringx.String(token).Trim()
+	stringValue1 := str.String(token)
+	token = stringValue1.Trim()
 	if token == "" {
 		return nil
 	}

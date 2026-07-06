@@ -7,7 +7,7 @@ import (
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/guardrails"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -88,9 +88,12 @@ type Options struct {
 }
 
 func (o Options) Normalize() Options {
-	o.Provider = stringx.String(o.Provider).Normalized()
-	o.APIKey = stringx.String(o.APIKey).Trim()
-	o.BaseURL = stringx.String(o.BaseURL).Trim()
+	stringValue1 := str.String(o.Provider)
+	o.Provider = stringValue1.Normalized()
+	stringValue2 := str.String(o.APIKey)
+	o.APIKey = stringValue2.Trim()
+	stringValue3 := str.String(o.BaseURL)
+	o.BaseURL = stringValue3.Trim()
 	if o.MaxCharPerResult < 0 {
 		o.MaxCharPerResult = 0
 	}
@@ -123,8 +126,10 @@ func ExtractOptionsFromContext(ctx context.Context) ExtractOptions {
 }
 
 func (o ExtractOptions) Normalize() ExtractOptions {
-	o.Format = stringx.String(o.Format).Normalized()
-	o.Query = stringx.String(o.Query).Trim()
+	stringValue4 := str.String(o.Format)
+	o.Format = stringValue4.Normalized()
+	stringValue5 := str.String(o.Query)
+	o.Query = stringValue5.Trim()
 	if o.Format != "text" && o.Format != "markdown" {
 		o.Format = ""
 	}
@@ -162,7 +167,8 @@ func getExtractWebsitePolicy(ctx context.Context) guardrails.WebsitePolicy {
 
 // SupportedProvider reports whether supported provider is supported.
 func SupportedProvider(name string) bool {
-	switch stringx.String(name).Normalized() {
+	stringValue6 := str.String(name)
+	switch stringValue6.Normalized() {
 	case ProviderFirecrawl, ProviderParallel, ProviderTavily, ProviderExa, ProviderNative:
 		return true
 	default:
@@ -242,7 +248,8 @@ func dedupeTrimValues(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
-		value = stringx.String(value).Trim()
+		stringValue7 := str.String(value)
+		value = stringValue7.Trim()
 		if value == "" {
 			continue
 		}
@@ -257,7 +264,8 @@ func dedupeTrimValues(values []string) []string {
 }
 
 func truncateToMaxChars(value string, maxChars int) string {
-	value = stringx.String(value).Trim()
+	stringValue8 := str.String(value)
+	value = stringValue8.Trim()
 	if value == "" {
 		return ""
 	}
@@ -269,12 +277,13 @@ func truncateToMaxChars(value string, maxChars int) string {
 	if len(runes) <= maxChars {
 		return value
 	}
-
-	return stringx.String(string(runes[:maxChars])).Trim()
+	stringValue9 := str.String(string(runes[:maxChars]))
+	return stringValue9.Trim()
 }
 
 func truncateContent(value string, maxChars int) (string, bool) {
-	value = stringx.String(value).Trim()
+	stringValue10 := str.String(value)
+	value = stringValue10.Trim()
 	if value == "" {
 		return "", false
 	}
@@ -286,8 +295,8 @@ func truncateContent(value string, maxChars int) (string, bool) {
 	if len(runes) <= maxChars {
 		return value, false
 	}
-
-	return stringx.String(string(runes[:maxChars])).Trim(), true
+	stringValue11 := str.String(string(runes[:maxChars]))
+	return stringValue11.Trim(), true
 }
 
 func limitExtractContent(value string, maxBytes, maxChars int) (string, bool, bool) {
@@ -303,7 +312,8 @@ func isResponseTooLarge(err error) bool {
 }
 
 func truncateToMaxBytes(value string, maxBytes int) (string, bool) {
-	value = stringx.String(value).Trim()
+	stringValue12 := str.String(value)
+	value = stringValue12.Trim()
 	if value == "" || maxBytes <= 0 {
 		return value, false
 	}
@@ -316,8 +326,8 @@ func truncateToMaxBytes(value string, maxBytes int) (string, bool) {
 	for len(data) > 0 && !utf8.Valid(data) {
 		data = data[:len(data)-1]
 	}
-
-	return stringx.String(string(data)).Trim(), true
+	stringValue13 := str.String(string(data))
+	return stringValue13.Trim(), true
 }
 
 // NewProvider returns a provider selected from config.

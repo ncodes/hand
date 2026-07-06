@@ -8,7 +8,7 @@ import (
 
 	"github.com/wandxy/morph/internal/datadir"
 	tuicomposer "github.com/wandxy/morph/internal/tui/composer"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const maxPromptHistory = tuicomposer.MaxPromptHistory
@@ -30,7 +30,8 @@ func normalizePromptHistory(history []string) []string {
 }
 
 func (m *model) addPromptHistory(value string) tea.Cmd {
-	value = stringx.String(value).Trim()
+	stringValue1 := str.String(value)
+	value = stringValue1.Trim()
 	if value == "" {
 		return nil
 	}

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type Role string
@@ -37,8 +37,8 @@ func New(role Role, content string) (Message, error) {
 	if err != nil {
 		return Message{}, err
 	}
-
-	trimmedContent := stringx.String(content).Trim()
+	stringValue1 := str.String(content)
+	trimmedContent := stringValue1.Trim()
 	if trimmedContent == "" {
 		return Message{}, errors.New("message content is required")
 	}
@@ -64,10 +64,12 @@ func Normalize(message Message) (Message, error) {
 	if err != nil {
 		return Message{}, err
 	}
-
-	toolCallID := stringx.String(message.ToolCallID).Trim()
-	name := stringx.String(message.Name).Trim()
-	content := stringx.String(message.Content).Trim()
+	stringValue2 := str.String(message.ToolCallID)
+	toolCallID := stringValue2.Trim()
+	stringValue3 := str.String(message.Name)
+	name := stringValue3.Trim()
+	stringValue4 := str.String(message.Content)
+	content := stringValue4.Trim()
 
 	if content == "" && !(role == RoleAssistant && len(toolCalls) > 0) {
 		return Message{}, errors.New("message content is required")
@@ -123,9 +125,12 @@ func normalizeToolCalls(toolCalls []ToolCall) ([]ToolCall, error) {
 
 	normalized := make([]ToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
-		id := stringx.String(toolCall.ID).Trim()
-		name := stringx.String(toolCall.Name).Trim()
-		input := stringx.String(toolCall.Input).Trim()
+		stringValue5 := str.String(toolCall.ID)
+		id := stringValue5.Trim()
+		stringValue6 := str.String(toolCall.Name)
+		name := stringValue6.Trim()
+		stringValue7 := str.String(toolCall.Input)
+		input := stringValue7.Trim()
 
 		if id == "" {
 			return nil, errors.New("tool call id is required")
@@ -142,7 +147,8 @@ func normalizeToolCalls(toolCalls []ToolCall) ([]ToolCall, error) {
 }
 
 func normalizeRole(role Role) (Role, error) {
-	switch Role(stringx.String(string(role)).Normalized()) {
+	stringValue8 := str.String(string(role))
+	switch Role(stringValue8.Normalized()) {
 	case RoleDeveloper:
 		return RoleDeveloper, nil
 	case RoleUser:

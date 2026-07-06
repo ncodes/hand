@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // CommandPolicy defines command policy settings.
@@ -202,7 +202,8 @@ func normalizeCommandRules(values []string) []string {
 	out := make([]string, 0, len(values))
 
 	for _, value := range values {
-		value = strings.Join(strings.Fields(stringx.String(value).Trim()), " ")
+		stringValue1 := str.String(value)
+		value = strings.Join(strings.Fields(stringValue1.Trim()), " ")
 		if value == "" {
 			continue
 		}
@@ -220,9 +221,11 @@ func normalizeCommandRules(values []string) []string {
 
 func getCommandTokens(command string, args []string) []string {
 	if len(args) > 0 {
-		tokens := []string{stringx.String(command).Trim()}
+		stringValue2 := str.String(command)
+		tokens := []string{stringValue2.Trim()}
 		for _, arg := range args {
-			trimmed := stringx.String(arg).Trim()
+			stringValue3 := str.String(arg)
+			trimmed := stringValue3.Trim()
 			if trimmed == "" {
 				continue
 			}
@@ -239,7 +242,8 @@ func normalizeTokens(tokens []string) []string {
 	out := make([]string, 0, len(tokens))
 
 	for _, token := range tokens {
-		token = stringx.String(token).Trim()
+		stringValue4 := str.String(token)
+		token = stringValue4.Trim()
 		if token == "" {
 			continue
 		}

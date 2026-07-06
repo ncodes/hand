@@ -3,7 +3,7 @@ package planstore
 import (
 	"sync"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // Store defines the persistence operations required by this package.
@@ -73,26 +73,30 @@ func (s *MemoryPlanStore) Merge(
 	for _, update := range updates {
 		if idx, ok := indexByID[update.ID]; ok {
 			if update.Content != nil {
-				current.Steps[idx].Content = stringx.String(*update.Content).Trim()
+				stringValue3 := str.String(*update.Content)
+				current.Steps[idx].Content = stringValue3.Trim()
 			}
 			if update.Status != nil {
-				current.Steps[idx].Status = stringx.String(*update.Status).Trim()
+				stringValue4 := str.String(*update.Status)
+				current.Steps[idx].Status = stringValue4.Trim()
 			}
 			continue
 		}
-
-		step := PlanStep{ID: stringx.String(update.ID).Trim()}
+		stringValue2 := str.String(update.ID)
+		step := PlanStep{ID: stringValue2.Trim()}
 		if update.Content != nil {
-			step.Content = stringx.String(*update.Content).Trim()
+			stringValue5 := str.String(*update.Content)
+			step.Content = stringValue5.Trim()
 		}
 		if update.Status != nil {
-			step.Status = stringx.String(*update.Status).Trim()
+			stringValue6 := str.String(*update.Status)
+			step.Status = stringValue6.Trim()
 		}
 		current.Steps = append(current.Steps, step)
 		indexByID[step.ID] = len(current.Steps) - 1
 	}
-
-	current.Explanation = stringx.String(explanation).Trim()
+	stringValue1 := str.String(explanation)
+	current.Explanation = stringValue1.Trim()
 	if clearCompleted {
 		filtered := current.Steps[:0]
 		for _, step := range current.Steps {
@@ -147,7 +151,8 @@ func ClonePlan(plan Plan) Plan {
 }
 
 func normalizeSessionID(sessionID string) string {
-	sessionID = stringx.String(sessionID).Trim()
+	stringValue7 := str.String(sessionID)
+	sessionID = stringValue7.Trim()
 	if sessionID == "" {
 		return "default"
 	}

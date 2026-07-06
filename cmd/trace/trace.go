@@ -14,7 +14,7 @@ import (
 	"github.com/wandxy/morph/internal/datadir"
 	"github.com/wandxy/morph/internal/trace/inspect"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var log = logutils.Module("trace")
@@ -65,10 +65,11 @@ func newViewCommand() *cli.Command {
 			config.Set(cfg)
 			_ = logutils.ConfigureLogger("morph", cfg.Log.NoColor)
 			logutils.SetLogLevel(cfg.Log.Level)
-
-			traceDir := stringx.String(cmd.String("trace-dir")).Trim()
+			stringValue1 := str.String(cmd.String("trace-dir"))
+			traceDir := stringValue1.Trim()
 			if traceDir == "" {
-				traceDir = stringx.String(cfg.Trace.Disk.Dir).Trim()
+				stringValue4 := str.String(cfg.Trace.Disk.Dir)
+				traceDir = stringValue4.Trim()
 			}
 			if traceDir == "" {
 				traceDir = datadir.DebugTraceDir()
@@ -81,8 +82,8 @@ func newViewCommand() *cli.Command {
 			if err := app.Validate(); err != nil {
 				return err
 			}
-
-			username := stringx.String(cmd.String("username")).Trim()
+			stringValue2 := str.String(cmd.String("username"))
+			username := stringValue2.Trim()
 			password := cmd.String("password")
 			if (username == "") != (password == "") {
 				return fmt.Errorf("trace viewer basic auth requires both username and password")
@@ -90,8 +91,8 @@ func newViewCommand() *cli.Command {
 			if username != "" {
 				app.SetBasicAuth(username, password)
 			}
-
-			listenAddr := stringx.String(cmd.String("listen")).Trim()
+			stringValue3 := str.String(cmd.String("listen"))
+			listenAddr := stringValue3.Trim()
 			if listenAddr == "" {
 				listenAddr = "127.0.0.1:0"
 			}

@@ -3,7 +3,7 @@ package status
 import (
 	"time"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -31,10 +31,12 @@ func New() Model {
 }
 
 func (m Model) Text() string {
-	if text := stringx.String(m.text).Trim(); text != "" {
+	stringValue1 := str.String(m.text)
+	if text := stringValue1.Trim(); text != "" {
 		return text
 	}
-	if text := stringx.String(m.defaultText).Trim(); text != "" {
+	stringValue2 := str.String(m.defaultText)
+	if text := stringValue2.Trim(); text != "" {
 		return text
 	}
 
@@ -62,11 +64,13 @@ func (m *Model) SetHideAfter(duration time.Duration) {
 }
 
 func (m *Model) SetDefault(text string) {
-	m.defaultText = stringx.String(text).Trim()
+	stringValue3 := str.String(text)
+	m.defaultText = stringValue3.Trim()
 }
 
 func (m *Model) SetTransient(text string, now time.Time) bool {
-	m.text = stringx.String(text).Trim()
+	stringValue4 := str.String(text)
+	m.text = stringValue4.Trim()
 	if m.text == "" {
 		m.startedAt = time.Time{}
 		return false

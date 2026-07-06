@@ -2,7 +2,7 @@ package memory
 
 import (
 	"github.com/wandxy/morph/internal/agent/runcontext"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -51,16 +51,19 @@ func ApplyRunProvenance(
 }
 
 func setMetadata(metadata map[string]string, key string, value string) {
-	if value = stringx.String(value).Trim(); value != "" {
+	stringValue1 := str.String(value)
+	if value = stringValue1.Trim(); value != "" {
 		metadata[key] = value
 	}
 }
 
 func getRunChildSessionID(runCtx runcontext.Context) string {
-	if stringx.String(runCtx.Lineage.ParentSessionID).Trim() == "" {
+	stringValue2 := str.String(runCtx.Lineage.ParentSessionID)
+	if stringValue2.Trim() == "" {
 		return ""
 	}
-	if stringx.String(runCtx.Lineage.ChildSessionID).Trim() != "" {
+	stringValue3 := str.String(runCtx.Lineage.ChildSessionID)
+	if stringValue3.Trim() != "" {
 		return runCtx.Lineage.ChildSessionID
 	}
 
@@ -90,6 +93,7 @@ func fillSourceLinkProvenance(link *SourceLink, runCtx runcontext.Context, trigg
 		link.StateMode = runCtx.State.Mode
 	}
 	if link.SourceTrigger == "" {
-		link.SourceTrigger = stringx.String(trigger).Trim()
+		stringValue4 := str.String(trigger)
+		link.SourceTrigger = stringValue4.Trim()
 	}
 }

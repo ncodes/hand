@@ -11,7 +11,7 @@ import (
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/profile"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var profileOutput io.Writer = os.Stdout
@@ -50,7 +50,8 @@ func newUseCommand() *cli.Command {
 		Usage:     "Set the machine-local current profile",
 		ArgsUsage: "<name>",
 		Action: func(_ context.Context, cmd *cli.Command) error {
-			name := stringx.String(cmd.Args().First()).Trim()
+			stringValue1 := str.String(cmd.Args().First())
+			name := stringValue1.Trim()
 			if name == "" {
 				return fmt.Errorf("profile name is required")
 			}
@@ -130,7 +131,8 @@ func newInitCommand() *cli.Command {
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
-			name := stringx.String(cmd.Args().First()).Trim()
+			stringValue2 := str.String(cmd.Args().First())
+			name := stringValue2.Trim()
 			if name == "" {
 				return fmt.Errorf("profile name is required")
 			}
@@ -227,7 +229,8 @@ func newDoctorCommand() *cli.Command {
 }
 
 func loadCommandProfile(name string) (profile.Profile, error) {
-	name = stringx.String(name).Trim()
+	stringValue3 := str.String(name)
+	name = stringValue3.Trim()
 	if name != "" {
 		return profile.Resolve(profile.ResolveOptions{Name: name})
 	}
@@ -237,7 +240,8 @@ func loadCommandProfile(name string) (profile.Profile, error) {
 
 func loadActiveProfile() (profile.Profile, error) {
 	active := profile.WithMetadataPaths(profile.Active())
-	if stringx.String(active.HomeDir).Trim() != "" {
+	stringValue4 := str.String(active.HomeDir)
+	if stringValue4.Trim() != "" {
 		return active, nil
 	}
 

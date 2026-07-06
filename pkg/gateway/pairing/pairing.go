@@ -10,7 +10,7 @@ import (
 
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -94,9 +94,10 @@ type Options struct {
 }
 
 func NewManager(opts Options) *Manager {
+	stringValue1 := str.String(opts.Secret)
 	manager := &Manager{
 		store:        opts.Store,
-		secret:       stringx.String(opts.Secret).Trim(),
+		secret:       stringValue1.Trim(),
 		period:       DefaultPeriodSeconds,
 		skew:         DefaultSkew,
 		digits:       DefaultDigits,
@@ -189,8 +190,8 @@ func (m *Manager) Code(source string, senderID string, at time.Time) (string, er
 	if err := m.checkReady(); err != nil {
 		return "", err
 	}
-
-	secret := deriveTOTPSecret(m.secret, normalizeSource(source), stringx.String(senderID).Trim())
+	stringValue2 := str.String(senderID)
+	secret := deriveTOTPSecret(m.secret, normalizeSource(source), stringValue2.Trim())
 	return totp.GenerateCodeCustom(secret, at.UTC(), m.validateOpts())
 }
 
@@ -201,9 +202,10 @@ func (m *Manager) Verify(source string, senderID string, code string, at time.Ti
 	if m.verifyCode != nil {
 		return m.verifyCode(source, senderID, code, at)
 	}
-
-	secret := deriveTOTPSecret(m.secret, normalizeSource(source), stringx.String(senderID).Trim())
-	return totp.ValidateCustom(stringx.String(code).Trim(), secret, at.UTC(), m.validateOpts())
+	stringValue3 := str.String(senderID)
+	secret := deriveTOTPSecret(m.secret, normalizeSource(source), stringValue3.Trim())
+	stringValue4 := str.String(code)
+	return totp.ValidateCustom(stringValue4.Trim(), secret, at.UTC(), m.validateOpts())
 }
 
 func (m *Manager) Approve(ctx context.Context, source string, code string) (ApprovedSender, bool, error) {
@@ -212,7 +214,8 @@ func (m *Manager) Approve(ctx context.Context, source string, code string) (Appr
 	}
 
 	source = normalizeSource(source)
-	code = stringx.String(code).Trim()
+	stringValue5 := str.String(code)
+	code = stringValue5.Trim()
 	if source == "" {
 		return ApprovedSender{}, false, errors.New("gateway pairing source is required")
 	}
@@ -269,16 +272,16 @@ func (m *Manager) Revoke(ctx context.Context, source string, senderID string) er
 	if m == nil || m.store == nil {
 		return errors.New("gateway pairing store is required")
 	}
-
-	return m.store.DeleteGatewayPairedSender(ctx, normalizeSource(source), stringx.String(senderID).Trim())
+	stringValue6 := str.String(senderID)
+	return m.store.DeleteGatewayPairedSender(ctx, normalizeSource(source), stringValue6.Trim())
 }
 
 func (m *Manager) IsApproved(ctx context.Context, source string, senderID string) (bool, error) {
 	if m == nil || m.store == nil {
 		return false, errors.New("gateway pairing store is required")
 	}
-
-	_, ok, err := m.store.GetGatewayPairedSender(ctx, normalizeSource(source), stringx.String(senderID).Trim())
+	stringValue7 := str.String(senderID)
+	_, ok, err := m.store.GetGatewayPairedSender(ctx, normalizeSource(source), stringValue7.Trim())
 	return ok, err
 }
 
@@ -295,7 +298,8 @@ func (m *Manager) checkReady() error {
 	if m == nil || m.store == nil {
 		return errors.New("gateway pairing store is required")
 	}
-	if stringx.String(m.secret).Trim() == "" {
+	stringValue8 := str.String(m.secret)
+	if stringValue8.Trim() == "" {
 		return ErrSecretRequired
 	}
 
@@ -303,23 +307,28 @@ func (m *Manager) checkReady() error {
 }
 
 func normalizeIdentity(identity Identity) Identity {
+	stringValue9 := str.String(identity.SenderID)
+	stringValue10 := str.String(identity.DisplayName)
 	return Identity{
 		Source:      normalizeSource(identity.Source),
-		SenderID:    stringx.String(identity.SenderID).Trim(),
-		DisplayName: stringx.String(identity.DisplayName).Trim(),
+		SenderID:    stringValue9.Trim(),
+		DisplayName: stringValue10.Trim(),
 		Metadata:    cloneMap(identity.Metadata),
 	}
 }
 
 func normalizeSource(source string) string {
-	return stringx.String(source).Normalized()
+	stringValue11 := str.String(source)
+	return stringValue11.Normalized()
 }
 
 func deriveTOTPSecret(secret string, source string, senderID string) string {
-	mac := hmac.New(sha256.New, []byte(stringx.String(secret).Trim()))
+	stringValue12 := str.String(secret)
+	mac := hmac.New(sha256.New, []byte(stringValue12.Trim()))
 	mac.Write([]byte(source))
 	mac.Write([]byte{0})
-	mac.Write([]byte(stringx.String(senderID).Trim()))
+	stringValue13 := str.String(senderID)
+	mac.Write([]byte(stringValue13.Trim()))
 	sum := mac.Sum(nil)
 
 	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(sum)
@@ -332,11 +341,13 @@ func cloneMap(values map[string]string) map[string]string {
 
 	clone := make(map[string]string, len(values))
 	for key, value := range values {
-		key = stringx.String(key).Trim()
+		stringValue14 := str.String(key)
+		key = stringValue14.Trim()
 		if key == "" {
 			continue
 		}
-		clone[key] = stringx.String(value).Trim()
+		stringValue15 := str.String(value)
+		clone[key] = stringValue15.Trim()
 	}
 	if len(clone) == 0 {
 		return nil

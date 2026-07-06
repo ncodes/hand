@@ -17,7 +17,7 @@ import (
 	morphrpc "github.com/wandxy/morph/internal/rpc"
 	"github.com/wandxy/morph/internal/rpc/server"
 	morphruntime "github.com/wandxy/morph/internal/runtime"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 	"google.golang.org/grpc"
 )
 
@@ -128,7 +128,10 @@ func openRPCListenerImpl(cfg *config.Config) (net.Listener, error) {
 	if tcpAddr, ok := lis.Addr().(*net.TCPAddr); ok {
 		cfg.RPC.Port = tcpAddr.Port
 	}
-	if active := profile.Active(); stringx.String(active.HomeDir).Trim() != "" || stringx.String(active.RuntimePath).Trim() != "" {
+	active := profile.Active()
+	activeHomeDir := str.String(active.HomeDir)
+	activeRuntimePath := str.String(active.RuntimePath)
+	if activeHomeDir.Trim() != "" || activeRuntimePath.Trim() != "" {
 		if _, err := writeRuntimeMetadata(cfg.RPC.Address, cfg.RPC.Port); err != nil {
 			_ = lis.Close()
 			return nil, err
@@ -151,7 +154,8 @@ var serveRPC = func(
 	var pairingSecret string
 	if cfg != nil {
 		gatewayCfg = cfg.Gateway
-		pairingSecret = stringx.String(cfg.Gateway.PairingSecret).Trim()
+		stringValue3 := str.String(cfg.Gateway.PairingSecret)
+		pairingSecret = stringValue3.Trim()
 	}
 
 	grpcSrv := server.New(agent, server.Options{

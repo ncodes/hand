@@ -12,7 +12,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // chatCompletionsHandler handles chat completions requests.
@@ -202,10 +202,11 @@ func extractChatCompletionsResponse(resp *openai.ChatCompletion) (*Response, err
 	if err != nil {
 		return nil, err
 	}
-
-	outputText := stringx.String(message.Content).Trim()
+	stringValue1 := str.String(message.Content)
+	outputText := stringValue1.Trim()
 	if outputText == "" {
-		outputText = stringx.String(message.Refusal).Trim()
+		stringValue2 := str.String(message.Refusal)
+		outputText = stringValue2.Trim()
 	}
 	if outputText == "" && len(toolCalls) == 0 {
 		return nil, errors.New("model returned empty response")
@@ -244,19 +245,21 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 
 	normalized := make([]ToolCall, 0, len(toolCalls))
 	for idx, toolCall := range toolCalls {
-		id := stringx.String(toolCall.ID).Trim()
-		name := stringx.String(toolCall.Function.Name).Trim()
+		stringValue3 := str.String(toolCall.ID)
+		id := stringValue3.Trim()
+		stringValue4 := str.String(toolCall.Function.Name)
+		name := stringValue4.Trim()
 		if name == "" {
 			return nil, errors.New("tool call name is required")
 		}
 		if id == "" {
 			id = getFallbackToolCallID(name, idx)
 		}
-
+		stringValue5 := str.String(toolCall.Function.Arguments)
 		normalized = append(normalized, ToolCall{
 			ID:    id,
 			Name:  name,
-			Input: stringx.String(toolCall.Function.Arguments).Trim(),
+			Input: stringValue5.Trim(),
 		})
 	}
 
@@ -264,5 +267,6 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 }
 
 func getFallbackToolCallID(name string, index int) string {
-	return "functions." + stringx.String(name).Trim() + ":" + strconv.Itoa(index)
+	stringValue6 := str.String(name)
+	return "functions." + stringValue6.Trim() + ":" + strconv.Itoa(index)
 }

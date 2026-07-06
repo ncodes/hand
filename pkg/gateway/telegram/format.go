@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const ParseModeMarkdownV2 = "MarkdownV2"
@@ -39,7 +39,8 @@ func FormatMarkdownV2(text string) string {
 	formatted = regexp.MustCompile(`(?m)^#{1,6}\s+(.+)$`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^#{1,6}\s+(.+)$`).FindStringSubmatch(match)
 		inner := regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllString(parts[1], "$1")
-		return nextPlaceholder("*" + EscapeMarkdownV2(stringx.String(inner).Trim()) + "*")
+		stringValue1 := str.String(inner)
+		return nextPlaceholder("*" + EscapeMarkdownV2(stringValue1.Trim()) + "*")
 	})
 	formatted = regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^\*\*(.+?)\*\*$`).FindStringSubmatch(match)

@@ -9,7 +9,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var retrievalLog = logutils.Module("storage.retrieval")
@@ -93,7 +93,8 @@ func RerankWithFallback(
 		rerankDebugLogEvent(req, "fallback").Err(err).Msg("rerank primary result rejected, using fallback")
 		return rerankFallback(ctx, fallback, req)
 	}
-	if stringx.String(result.Reranker).Trim() == "" {
+	stringValue1 := str.String(result.Reranker)
+	if stringValue1.Trim() == "" {
 		result.Reranker = primary.Name()
 	}
 
@@ -124,7 +125,8 @@ func ValidateRerankResult(candidates []Candidate, result RerankResult) error {
 
 	seenIDs := make(map[string]struct{}, len(result.Items))
 	for _, item := range result.Items {
-		candidateID := stringx.String(item.CandidateID).Trim()
+		stringValue2 := str.String(item.CandidateID)
+		candidateID := stringValue2.Trim()
 		if candidateID == "" {
 			return errors.New("rerank item candidate id is required")
 		}
@@ -166,7 +168,8 @@ func rerankFallback(ctx context.Context, fallback Reranker, req RerankRequest) (
 	}
 
 	result, err := fallback.Rerank(ctx, req)
-	if stringx.String(result.Reranker).Trim() == "" {
+	stringValue3 := str.String(result.Reranker)
+	if stringValue3.Trim() == "" {
 		result.Reranker = fallback.Name()
 	}
 
@@ -178,7 +181,8 @@ func ValidateReranker(reranker Reranker) error {
 	if reranker == nil {
 		return nil
 	}
-	switch stringx.String(reranker.Name()).Normalized() {
+	stringValue4 := str.String(reranker.Name())
+	switch stringValue4.Normalized() {
 	case RerankerNoop, RerankerDeterministic, RerankerLLM:
 		return nil
 	default:
@@ -195,15 +199,18 @@ func rerankDebugLogEvent(req RerankRequest, reranker string) *zerolog.Event {
 }
 
 func rerankBaseLogEvent(event *zerolog.Event, req RerankRequest, reranker string) *zerolog.Event {
+	stringValue5 := str.String(req.Caller)
+	stringValue6 := str.String(req.TraceID)
+	stringValue7 := str.String(string(req.SourceKind))
 	event = event.
 		Str("reranker", reranker).
-		Str("caller", stringx.String(req.Caller).Trim()).
-		Str("trace_id", stringx.String(req.TraceID).Trim()).
-		Str("source_kind", stringx.String(string(req.SourceKind)).Trim()).
+		Str("caller", stringValue5.Trim()).
+		Str("trace_id", stringValue6.Trim()).
+		Str("source_kind", stringValue7.Trim()).
 		Int("candidate_count", len(req.Candidates)).
 		Int("max_candidates", req.Options.MaxCandidates)
-
-	if query := stringx.String(req.Query).Trim(); query != "" {
+	stringValue8 := str.String(req.Query)
+	if query := stringValue8.Trim(); query != "" {
 		event = event.Int("query_chars", len([]rune(query)))
 	}
 

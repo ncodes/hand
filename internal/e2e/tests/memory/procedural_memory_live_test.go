@@ -12,11 +12,12 @@ import (
 	e2e "github.com/wandxy/morph/internal/e2e"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func TestLiveProceduralMemoryCreatedFromProductionConfig(t *testing.T) {
-	if stringx.String(os.Getenv("MORPH_E2E_LIVE")).Trim() != "1" {
+	stringValue1 := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if stringValue1.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 

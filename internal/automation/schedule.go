@@ -8,7 +8,7 @@ import (
 
 	"github.com/robfig/cron/v3"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -57,7 +57,8 @@ type ScheduleErrorOptions struct {
 }
 
 func ParseSchedule(value string, opts ParseScheduleOptions) (Schedule, error) {
-	value = stringx.String(value).Trim()
+	stringValue1 := str.String(value)
+	value = stringValue1.Trim()
 	if value == "" {
 		return Schedule{}, errors.New("automation schedule is required")
 	}
@@ -175,7 +176,8 @@ func ApplyScheduleSuccess(job Job, result NextRunResult, now time.Time) Job {
 }
 
 func parseIntervalSchedule(value string) (Schedule, error) {
-	duration, err := time.ParseDuration(stringx.String(value).Trim())
+	stringValue2 := str.String(value)
+	duration, err := time.ParseDuration(stringValue2.Trim())
 	if err != nil {
 		return Schedule{}, fmt.Errorf("invalid automation interval schedule: %w", err)
 	}
@@ -208,7 +210,8 @@ func parseScheduleTime(value string, location *time.Location) (time.Time, error)
 }
 
 func parseCronSchedule(value string, location *time.Location, defaultTimezone string) (Schedule, bool, error) {
-	timezone := stringx.String(defaultTimezone).Trim()
+	stringValue3 := str.String(defaultTimezone)
+	timezone := stringValue3.Trim()
 	if timezone == "" && location != nil {
 		timezone = location.String()
 		if _, err := time.LoadLocation(timezone); err != nil {
@@ -218,8 +221,10 @@ func parseCronSchedule(value string, location *time.Location, defaultTimezone st
 	for _, prefix := range []string{"TZ=", "CRON_TZ="} {
 		if after, ok := strings.CutPrefix(value, prefix); ok {
 			timezone, value, _ = strings.Cut(after, " ")
-			timezone = stringx.String(timezone).Trim()
-			value = stringx.String(value).Trim()
+			stringValue4 := str.String(timezone)
+			timezone = stringValue4.Trim()
+			stringValue5 := str.String(value)
+			value = stringValue5.Trim()
 			if timezone == "" || value == "" {
 				return Schedule{}, true, errors.New("automation cron timezone and expression are required")
 			}
@@ -264,7 +269,8 @@ func nextIntervalRun(schedule Schedule, opts NextRunOptions, now time.Time) (Nex
 }
 
 func nextCronRun(schedule Schedule, opts NextRunOptions, now time.Time) (NextRunResult, error) {
-	expr := stringx.String(schedule.Cron).Trim()
+	stringValue6 := str.String(schedule.Cron)
+	expr := stringValue6.Trim()
 	if expr == "" {
 		return NextRunResult{}, errors.New("automation cron schedule expression is required")
 	}
@@ -286,7 +292,8 @@ func nextCronRun(schedule Schedule, opts NextRunOptions, now time.Time) (NextRun
 }
 
 func getScheduleLocation(value string, fallback *time.Location, fallbackName string) (*time.Location, error) {
-	value = stringx.String(value).Trim()
+	stringValue7 := str.String(value)
+	value = stringValue7.Trim()
 	if value != "" {
 		location, err := time.LoadLocation(value)
 		if err != nil {
@@ -297,7 +304,8 @@ func getScheduleLocation(value string, fallback *time.Location, fallbackName str
 	if fallback != nil {
 		return fallback, nil
 	}
-	fallbackName = stringx.String(fallbackName).Trim()
+	stringValue8 := str.String(fallbackName)
+	fallbackName = stringValue8.Trim()
 	if fallbackName != "" {
 		location, err := time.LoadLocation(fallbackName)
 		if err != nil {

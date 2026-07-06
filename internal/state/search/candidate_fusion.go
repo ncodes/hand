@@ -7,7 +7,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	state "github.com/wandxy/morph/internal/state/core"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -64,7 +64,8 @@ func (candidates SearchCandidateSet[K, C]) Merge(vectorCandidates []C, keyForCan
 		match.VectorScore = vectorMatch.VectorScore
 		match.VectorRank = vectorMatch.VectorRank
 		match.HasVector = true
-		if stringx.String(match.MatchedText).Trim() == "" {
+		stringValue1 := str.String(match.MatchedText)
+		if stringValue1.Trim() == "" {
 			match.MatchedText = vectorMatch.MatchedText
 			match.MatchedToolName = vectorMatch.MatchedToolName
 		}

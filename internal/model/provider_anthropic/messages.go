@@ -11,7 +11,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func buildMessagesRequest(req normalizedGenerateRequest) (anthropic.MessageNewParams, error) {
@@ -94,7 +94,8 @@ func assistantMessageToAnthropicBlocks(message morphmsg.Message) ([]anthropic.Co
 }
 
 func getToolCallInput(value string) (any, error) {
-	value = stringx.String(value).Trim()
+	stringValue1 := str.String(value)
+	value = stringValue1.Trim()
 	if value == "" {
 		return map[string]any{}, nil
 	}
@@ -132,23 +133,26 @@ func extractMessageResponse(resp *anthropic.Message) (*Response, error) {
 		case "text":
 			outputText.WriteString(block.Text)
 		case "tool_use":
-			name := stringx.String(block.Name).Trim()
+			stringValue3 := str.String(block.Name)
+			name := stringValue3.Trim()
 			if name == "" {
 				return nil, errors.New("tool call name is required")
 			}
-			id := stringx.String(block.ID).Trim()
+			stringValue4 := str.String(block.ID)
+			id := stringValue4.Trim()
 			if id == "" {
 				id = getFallbackToolCallID(name, len(toolCalls))
 			}
+			stringValue5 := str.String(string(block.Input))
 			toolCalls = append(toolCalls, ToolCall{
 				ID:    id,
 				Name:  name,
-				Input: stringx.String(string(block.Input)).Trim(),
+				Input: stringValue5.Trim(),
 			})
 		}
 	}
-
-	text := stringx.String(outputText.String()).Trim()
+	stringValue2 := str.String(outputText.String())
+	text := stringValue2.Trim()
 	if text == "" && len(toolCalls) == 0 {
 		return nil, errors.New("model returned empty response")
 	}

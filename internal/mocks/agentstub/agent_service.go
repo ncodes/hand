@@ -10,7 +10,7 @@ import (
 	"github.com/wandxy/morph/internal/state/search"
 	agent "github.com/wandxy/morph/pkg/agent"
 	"github.com/wandxy/morph/pkg/gateway/pairing"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // AgentServiceStub is a test stub for agent service.
@@ -144,7 +144,8 @@ func (s *AgentServiceStub) SelectModel(_ context.Context, id string, opts ...age
 	if s.SelectModelErr != nil {
 		return models.Option{}, s.SelectModelErr
 	}
-	if stringx.String(s.SelectedModel.ID).Trim() != "" {
+	stringValue1 := str.String(s.SelectedModel.ID)
+	if stringValue1.Trim() != "" {
 		return s.SelectedModel, s.Err
 	}
 
@@ -173,7 +174,8 @@ func (s *AgentServiceStub) SaveGatewayBinding(_ context.Context, binding storage
 }
 
 func (s *AgentServiceStub) GetGatewayBinding(_ context.Context, key string) (storage.GatewayBinding, bool, error) {
-	if stringx.String(s.GatewayBinding.Key).Trim() == "" {
+	stringValue2 := str.String(s.GatewayBinding.Key)
+	if stringValue2.Trim() == "" {
 		s.GatewayBinding.Key = key
 	}
 
@@ -203,7 +205,8 @@ func (s *AgentServiceStub) ListGatewayPairingRequests(
 	_ context.Context,
 	source string,
 ) ([]pairing.PendingRequest, error) {
-	if stringx.String(source).Trim() == "" {
+	stringValue3 := str.String(source)
+	if stringValue3.Trim() == "" {
 		return s.PairingRequests, s.Err
 	}
 
@@ -233,7 +236,8 @@ func (s *AgentServiceStub) ClearGatewayPairingRequests(_ context.Context, source
 	s.ClearedPairingSource = source
 	var kept []pairing.PendingRequest
 	for _, request := range s.PairingRequests {
-		if stringx.String(source).Trim() == "" || request.Source == source {
+		stringValue4 := str.String(source)
+		if stringValue4.Trim() == "" || request.Source == source {
 			continue
 		}
 		kept = append(kept, request)
@@ -262,7 +266,8 @@ func (s *AgentServiceStub) GetGatewayPairedSender(
 }
 
 func (s *AgentServiceStub) ListGatewayPairedSenders(_ context.Context, source string) ([]pairing.ApprovedSender, error) {
-	if stringx.String(source).Trim() == "" {
+	stringValue5 := str.String(source)
+	if stringValue5.Trim() == "" {
 		return s.PairedSenders, s.Err
 	}
 
@@ -435,7 +440,8 @@ func (s *AgentServiceStub) UnarchiveSession(_ context.Context, id string) (stora
 	if s.UnarchiveSessionErr != nil {
 		return storage.Session{}, s.UnarchiveSessionErr
 	}
-	if stringx.String(s.UnarchivedSession.ID).Trim() != "" {
+	stringValue6 := str.String(s.UnarchivedSession.ID)
+	if stringValue6.Trim() != "" {
 		return s.UnarchivedSession, s.Err
 	}
 	return storage.Session{ID: id}, s.Err
@@ -451,7 +457,8 @@ func (s *AgentServiceStub) RenameSession(_ context.Context, id string, title str
 	if s.RenameSessionErr != nil {
 		return storage.Session{}, s.RenameSessionErr
 	}
-	if stringx.String(s.RenamedSession.ID).Trim() != "" {
+	stringValue7 := str.String(s.RenamedSession.ID)
+	if stringValue7.Trim() != "" {
 		return s.RenamedSession, s.Err
 	}
 	return storage.Session{ID: id, Title: title, TitleSource: storage.SessionTitleSourceManual}, s.Err
@@ -462,7 +469,9 @@ func (s *AgentServiceStub) Current(ctx context.Context) (storage.Session, error)
 }
 
 func (s *AgentServiceStub) CurrentSession(context.Context) (storage.Session, error) {
-	if stringx.String(s.CurrentSessionResult.ID).Trim() != "" || stringx.String(s.CurrentSessionResult.Title).Trim() != "" {
+	stringValue8 := str.String(s.CurrentSessionResult.ID)
+	stringValue9 := str.String(s.CurrentSessionResult.Title)
+	if stringValue8.Trim() != "" || stringValue9.Trim() != "" {
 		return s.CurrentSessionResult, s.Err
 	}
 

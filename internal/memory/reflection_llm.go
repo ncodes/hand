@@ -9,7 +9,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const defaultReflectionMaxOutputTokens int64 = 1600
@@ -38,7 +38,8 @@ func NewLLMReflectionGenerator(options LLMReflectionGeneratorOptions) (*LLMRefle
 	if options.Client == nil {
 		return nil, errors.New("memory reflection model client is required")
 	}
-	if stringx.String(options.Model).Trim() == "" {
+	stringValue1 := str.String(options.Model)
+	if stringValue1.Trim() == "" {
 		return nil, errors.New("memory reflection model is required")
 	}
 	if options.MaxOutputTokensEnabled != nil && !*options.MaxOutputTokensEnabled {
@@ -122,8 +123,9 @@ type reflectionModelProcedural struct {
 }
 
 func reflectionGenerationRequestToModelPayload(req ReflectionGenerationRequest) reflectionModelRequest {
+	stringValue2 := str.String(req.SessionID)
 	return reflectionModelRequest{
-		SessionID: stringx.String(req.SessionID).Trim(),
+		SessionID: stringValue2.Trim(),
 		Sources:   memoryItemsToReflectionModelMemories(req.Sources),
 		Related:   memoryItemsToReflectionModelMemories(req.Related),
 		Limit:     req.Limit,
@@ -133,12 +135,17 @@ func reflectionGenerationRequestToModelPayload(req ReflectionGenerationRequest) 
 func memoryItemsToReflectionModelMemories(items []MemoryItem) []reflectionModelMemory {
 	memories := make([]reflectionModelMemory, 0, len(items))
 	for _, item := range items {
+		stringValue3 := str.String(item.ID)
+		stringValue4 := str.String(string(item.Kind))
+		stringValue5 := str.String(string(item.Status))
+		stringValue6 := str.String(item.Title)
+		stringValue7 := str.String(item.Text)
 		memories = append(memories, reflectionModelMemory{
-			ID:         stringx.String(item.ID).Trim(),
-			Kind:       stringx.String(string(item.Kind)).Trim(),
-			Status:     stringx.String(string(item.Status)).Trim(),
-			Title:      stringx.String(item.Title).Trim(),
-			Text:       stringx.String(item.Text).Trim(),
+			ID:         stringValue3.Trim(),
+			Kind:       stringValue4.Trim(),
+			Status:     stringValue5.Trim(),
+			Title:      stringValue6.Trim(),
+			Text:       stringValue7.Trim(),
 			Tags:       append([]string(nil), item.Tags...),
 			Metadata:   cloneMetadata(item.Metadata),
 			Confidence: item.Confidence,
@@ -164,15 +171,19 @@ func reflectionModelResponseToGenerationResult(resp *models.Response) (Reflectio
 		if kind == KindProcedural {
 			metadata = setProceduralReflectionMetadata(metadata, candidate.Procedural)
 		}
+		stringValue8 :=
 
-		// Candidate IDs, source links, reflection tags, and provenance metadata are
-		// intentionally absent here. The provider reconstructs them from trusted
-		// source memories before writing.
+			// Candidate IDs, source links, reflection tags, and provenance metadata are
+			// intentionally absent here. The provider reconstructs them from trusted
+			// source memories before writing.
+
+			str.String(candidate.Title)
+		stringValue9 := str.String(candidate.Text)
 		items = append(items, MemoryItem{
 			Kind:       kind,
 			Status:     StatusCandidate,
-			Title:      stringx.String(candidate.Title).Trim(),
-			Text:       stringx.String(candidate.Text).Trim(),
+			Title:      stringValue8.Trim(),
+			Text:       stringValue9.Trim(),
 			Tags:       append([]string(nil), candidate.Tags...),
 			Metadata:   metadata,
 			Confidence: candidate.Confidence,
@@ -186,17 +197,19 @@ func memoryKindFromReflectionCandidate(candidate reflectionModelCandidate) Kind 
 	if hasProceduralReflectionFields(candidate.Procedural) {
 		return KindProcedural
 	}
-
-	return Kind(stringx.String(candidate.Kind).Trim())
+	stringValue10 := str.String(candidate.Kind)
+	return Kind(stringValue10.Trim())
 }
 
 func hasProceduralReflectionFields(procedural reflectionModelProcedural) bool {
-	return stringx.String(procedural.Trigger).Trim() != "" ||
+	stringValue11 := str.String(procedural.Trigger)
+	return stringValue11.Trim() != "" ||
 		len(getNonBlankStrings(procedural.Steps)) > 0
 }
 
 func normalizeReflectionJSON(raw string) string {
-	raw = stringx.String(raw).Trim()
+	stringValue12 := str.String(raw)
+	raw = stringValue12.Trim()
 	if !strings.HasPrefix(raw, "```") {
 		return raw
 	}
@@ -204,8 +217,10 @@ func normalizeReflectionJSON(raw string) string {
 	raw = strings.TrimPrefix(raw, "```json")
 	raw = strings.TrimPrefix(raw, "```JSON")
 	raw = strings.TrimPrefix(raw, "```")
-	raw = strings.TrimSuffix(stringx.String(raw).Trim(), "```")
-	return stringx.String(raw).Trim()
+	stringValue13 := str.String(raw)
+	raw = strings.TrimSuffix(stringValue13.Trim(), "```")
+	stringValue14 := str.String(raw)
+	return stringValue14.Trim()
 }
 
 // getReflectionInstructions tells the model what to omit as much as what to emit.
@@ -297,12 +312,14 @@ func setProceduralReflectionMetadata(
 	metadata map[string]string,
 	procedural reflectionModelProcedural,
 ) map[string]string {
+	stringValue15 := str.String(procedural.Trigger)
+	stringValue16 := str.String(procedural.ExpectedBehavior)
 	values := map[string]string{
-		"procedural_trigger":           stringx.String(procedural.Trigger).Trim(),
+		"procedural_trigger":           stringValue15.Trim(),
 		"procedural_steps":             strings.Join(getNonBlankStrings(procedural.Steps), "; "),
 		"procedural_constraints":       strings.Join(getNonBlankStrings(procedural.Constraints), "; "),
 		"procedural_examples":          strings.Join(getNonBlankStrings(procedural.Examples), "; "),
-		"procedural_expected_behavior": stringx.String(procedural.ExpectedBehavior).Trim(),
+		"procedural_expected_behavior": stringValue16.Trim(),
 	}
 	for key, value := range values {
 		if value == "" {
@@ -324,9 +341,11 @@ func reflectionMetadataEntriesToMap(entries []reflectionModelMetadataEntry) map[
 
 	metadata := make(map[string]string, len(entries))
 	for _, entry := range entries {
-		key := stringx.String(entry.Key).Trim()
+		stringValue17 := str.String(entry.Key)
+		key := stringValue17.Trim()
 		if key != "" {
-			metadata[key] = stringx.String(entry.Value).Trim()
+			stringValue18 := str.String(entry.Value)
+			metadata[key] = stringValue18.Trim()
 		}
 	}
 	if len(metadata) == 0 {
@@ -339,7 +358,8 @@ func reflectionMetadataEntriesToMap(entries []reflectionModelMetadataEntry) map[
 func getNonBlankStrings(values []string) []string {
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
-		if value := stringx.String(value).Trim(); value != "" {
+		stringValue19 := str.String(value)
+		if value := stringValue19.Trim(); value != "" {
 			normalized = append(normalized, value)
 		}
 	}

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/wandxy/morph/internal/instructions"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 /*
@@ -124,7 +124,8 @@ func (d Definitions) Has(name string) bool {
 }
 
 func (d Definitions) Get(name string) (Definition, bool) {
-	name = stringx.String(name).Trim()
+	stringValue1 := str.String(name)
+	name = stringValue1.Trim()
 	if name == "" {
 		return Definition{}, false
 	}
@@ -145,7 +146,8 @@ func (d Definitions) Names() []string {
 
 	names := make([]string, 0, len(d))
 	for _, def := range d {
-		if stringx.String(def.Name).Trim() == "" {
+		stringValue2 := str.String(def.Name)
+		if stringValue2.Trim() == "" {
 			continue
 		}
 

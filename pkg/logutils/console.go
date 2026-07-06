@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const consoleModuleField = "module"
@@ -49,8 +49,8 @@ func formatConsoleModule(value any, noColor bool) string {
 	if value == nil {
 		return ""
 	}
-
-	module := stringx.String(fmt.Sprint(value)).Trim()
+	stringValue1 := str.String(fmt.Sprint(value))
+	module := stringValue1.Trim()
 	if module == "" {
 		return ""
 	}

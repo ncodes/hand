@@ -3,7 +3,7 @@ package composer
 import (
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // InputKind classifies composer input before submission.
@@ -26,26 +26,31 @@ type Input struct {
 
 // ParseInput classifies raw composer input as a command or chat message.
 func ParseInput(value string) Input {
-	text := stringx.String(value).Trim()
+	stringValue1 := str.String(value)
+	text := stringValue1.Trim()
 	if text == "" {
 		return Input{Kind: InputEmpty}
 	}
 
 	if command, ok := strings.CutPrefix(text, "/"); ok {
-		name, args, _ := strings.Cut(stringx.String(command).Trim(), " ")
+		stringValue2 := str.String(command)
+		name, args, _ := strings.Cut(stringValue2.Trim(), " ")
+		stringValue3 := str.String(name)
+		stringValue4 := str.String(args)
 		return Input{
 			Kind: InputCommand,
 			Text: text,
-			Name: stringx.String(name).Normalized(),
-			Args: stringx.String(args).Trim(),
+			Name: stringValue3.Normalized(),
+			Args: stringValue4.Trim(),
 		}
 	}
 
 	if command, ok := strings.CutPrefix(text, "!"); ok {
+		stringValue5 := str.String(command)
 		return Input{
 			Kind: InputLocalCommand,
 			Text: text,
-			Args: stringx.String(command).Trim(),
+			Args: stringValue5.Trim(),
 		}
 	}
 

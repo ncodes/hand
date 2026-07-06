@@ -25,7 +25,7 @@ import (
 	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
 	_ "github.com/wandxy/morph/internal/model/provider_openai"
 	tuirender "github.com/wandxy/morph/internal/tui/render"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var (
@@ -206,11 +206,16 @@ func normalizeProviderOptions(opts ProviderOptions) ProviderOptions {
 	if opts.Registry == nil {
 		opts.Registry = modelprovider.DefaultRegistry()
 	}
-	opts.Provider = stringx.String(opts.Provider).Normalized()
-	opts.Model = stringx.String(opts.Model).Trim()
-	opts.BaseURL = stringx.String(opts.BaseURL).Trim()
-	opts.API = stringx.String(opts.API).Trim()
-	opts.APIKey = stringx.String(opts.APIKey).Trim()
+	stringValue1 := str.String(opts.Provider)
+	opts.Provider = stringValue1.Normalized()
+	stringValue2 := str.String(opts.Model)
+	opts.Model = stringValue2.Trim()
+	stringValue3 := str.String(opts.BaseURL)
+	opts.BaseURL = stringValue3.Trim()
+	stringValue4 := str.String(opts.API)
+	opts.API = stringValue4.Trim()
+	stringValue5 := str.String(opts.APIKey)
+	opts.APIKey = stringValue5.Trim()
 
 	return opts
 }
@@ -242,7 +247,8 @@ func (r providerRunner) getSetupSelection(
 
 	api := opts.API
 	if api == "" {
-		api = stringx.String(providerDef.DefaultAPI).Trim()
+		stringValue6 := str.String(providerDef.DefaultAPI)
+		api = stringValue6.Trim()
 	}
 	if err := config.ValidateModelGenerationAPIForProvider("model API", provider, api); err != nil {
 		return setupSelection{}, err
@@ -280,7 +286,8 @@ func (r providerRunner) shouldRunPagedSetup(
 
 	api := opts.API
 	if api == "" {
-		api = stringx.String(providerDef.DefaultAPI).Trim()
+		stringValue7 := str.String(providerDef.DefaultAPI)
+		api = stringValue7.Trim()
 	}
 	if err := config.ValidateModelGenerationAPIForProvider("model API", opts.Provider, api); err != nil {
 		return false, err
@@ -333,10 +340,13 @@ func (r providerRunner) getSetupProvider(
 
 	choices := make([]selectChoice, 0, len(options))
 	for _, option := range options {
+		stringValue8 := str.String(option.ID)
+		stringValue9 := str.String(option.Name)
+		stringValue10 := str.String(option.ID)
 		choices = append(choices, selectChoice{
-			ID:          stringx.String(option.ID).Trim(),
-			Label:       stringx.String(option.Name).Trim(),
-			Description: stringx.String(option.ID).Trim(),
+			ID:          stringValue8.Trim(),
+			Label:       stringValue9.Trim(),
+			Description: stringValue10.Trim(),
 		})
 	}
 
@@ -353,18 +363,23 @@ func (r providerRunner) getSetupBaseURL(
 		return opts.BaseURL
 	}
 	if cfg != nil && strings.EqualFold(cfg.Models.Main.Provider, provider.ID) {
-		if value := stringx.String(cfg.Models.Main.BaseURL).Trim(); value != "" {
+		stringValue13 := str.String(cfg.Models.Main.BaseURL)
+		if value := stringValue13.Trim(); value != "" {
 			return normalizeInheritedSetupBaseURL(provider.ID, api, value)
 		}
 	}
-
-	return stringx.String(provider.BaseURLs[stringx.String(api).Normalized()]).Trim()
+	stringValue11 := str.String(api)
+	stringValue12 := str.String(provider.BaseURLs[stringValue11.Normalized()])
+	return stringValue12.Trim()
 }
 
 func normalizeInheritedSetupBaseURL(provider string, api string, value string) string {
-	value = strings.TrimRight(stringx.String(value).Trim(), "/")
-	if stringx.String(provider).Normalized() != constants.ModelProviderOllama ||
-		stringx.String(api).Normalized() != modelprovider.APIOllamaNative {
+	stringValue14 := str.String(value)
+	value = strings.TrimRight(stringValue14.Trim(), "/")
+	stringValue15 := str.String(provider)
+	stringValue16 := str.String(api)
+	if stringValue15.Normalized() != constants.ModelProviderOllama || stringValue16.
+		Normalized() != modelprovider.APIOllamaNative {
 		return value
 	}
 
@@ -401,12 +416,14 @@ func (r providerRunner) getSetupModel(
 
 	choices := make([]selectChoice, 0, len(options))
 	for _, option := range options {
-		name := stringx.String(option.Name).Trim()
+		stringValue17 := str.String(option.Name)
+		name := stringValue17.Trim()
 		if name == "" || strings.EqualFold(name, option.ID) {
 			name = option.ID
 		}
+		stringValue18 := str.String(option.ID)
 		choices = append(choices, selectChoice{
-			ID:          stringx.String(option.ID).Trim(),
+			ID:          stringValue18.Trim(),
 			Label:       name,
 			Description: getSetupModelDescription(option),
 		})
@@ -484,10 +501,13 @@ func (m *setupWizardModel) showProviderPage() {
 	})
 	m.choices = make([]selectChoice, 0, len(options))
 	for _, option := range options {
+		stringValue19 := str.String(option.ID)
+		stringValue20 := str.String(option.Name)
+		stringValue21 := str.String(option.ID)
 		m.choices = append(m.choices, selectChoice{
-			ID:          stringx.String(option.ID).Trim(),
-			Label:       stringx.String(option.Name).Trim(),
-			Description: stringx.String(option.ID).Trim(),
+			ID:          stringValue19.Trim(),
+			Label:       stringValue20.Trim(),
+			Description: stringValue21.Trim(),
 		})
 	}
 	m.step = setupWizardStepProvider
@@ -502,14 +522,15 @@ func (m *setupWizardModel) setProvider(provider string) error {
 
 	api := m.opts.API
 	if api == "" {
-		api = stringx.String(providerDef.DefaultAPI).Trim()
+		stringValue23 := str.String(providerDef.DefaultAPI)
+		api = stringValue23.Trim()
 	}
 	if err := config.ValidateModelGenerationAPIForProvider("model API", provider, api); err != nil {
 		return err
 	}
-
+	stringValue22 := str.String(providerDef.ID)
 	m.selection = setupSelection{
-		provider: stringx.String(providerDef.ID).Trim(),
+		provider: stringValue22.Trim(),
 		api:      api,
 		baseURL:  m.runner.getSetupBaseURL(m.opts, m.cfg, providerDef, api),
 		apiKey:   m.opts.APIKey,
@@ -539,12 +560,14 @@ func (m *setupWizardModel) showModelPage(provider modelprovider.ProviderDefiniti
 
 	m.choices = make([]selectChoice, 0, len(options))
 	for _, option := range options {
-		name := stringx.String(option.Name).Trim()
+		stringValue24 := str.String(option.Name)
+		name := stringValue24.Trim()
 		if name == "" || strings.EqualFold(name, option.ID) {
 			name = option.ID
 		}
+		stringValue25 := str.String(option.ID)
 		m.choices = append(m.choices, selectChoice{
-			ID:          stringx.String(option.ID).Trim(),
+			ID:          stringValue25.Trim(),
 			Label:       name,
 			Description: getSetupModelDescription(option),
 		})
@@ -571,8 +594,8 @@ func (m *setupWizardModel) setModel(modelID string) error {
 	if err != nil {
 		return err
 	}
-
-	m.selection.model = stringx.String(modelID).Trim()
+	stringValue26 := str.String(modelID)
+	m.selection.model = stringValue26.Trim()
 	m.selection.localModelMissing = missing
 	return m.advanceAfterModel()
 }
@@ -643,7 +666,8 @@ func (m setupWizardModel) updateAPIKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 
 	switch msg.Key().Code {
 	case tea.KeyEnter:
-		apiKey := stringx.String(m.apiKeyInput.Value()).Trim()
+		stringValue27 := str.String(m.apiKeyInput.Value())
+		apiKey := stringValue27.Trim()
 		if apiKey == "" {
 			m.err = errors.New("api key is required")
 			return m, tea.Quit
@@ -753,11 +777,13 @@ func (m setupWizardModel) goBackFromLockedModel() (tea.Model, tea.Cmd) {
 }
 
 func (m setupWizardModel) hasLockedProvider() bool {
-	return stringx.String(m.opts.Provider).Trim() != ""
+	stringValue28 := str.String(m.opts.Provider)
+	return stringValue28.Trim() != ""
 }
 
 func (m setupWizardModel) hasLockedModel() bool {
-	return stringx.String(m.opts.Model).Trim() != ""
+	stringValue29 := str.String(m.opts.Model)
+	return stringValue29.Trim() != ""
 }
 
 func (m setupWizardModel) chooseSelected() (tea.Model, tea.Cmd) {
@@ -768,8 +794,8 @@ func (m setupWizardModel) chooseSelected() (tea.Model, tea.Cmd) {
 	if m.selected < 0 || m.selected >= len(m.choices) {
 		m.selected = 0
 	}
-
-	choice := stringx.String(m.choices[m.selected].ID).Trim()
+	stringValue30 := str.String(m.choices[m.selected].ID)
+	choice := stringValue30.Trim()
 	var err error
 	switch m.step {
 	case setupWizardStepProvider:
@@ -874,7 +900,8 @@ func (r providerRunner) getModelOptions(
 }
 
 func getSetupModelDescription(option modelcatalog.Option) string {
-	description := stringx.String(option.ID).Trim()
+	stringValue31 := str.String(option.ID)
+	description := stringValue31.Trim()
 	if option.LocalMissing {
 		if description == "" {
 			return "not installed"
@@ -905,7 +932,8 @@ func getSetupModelPageTitle(provider modelprovider.ProviderDefinition) string {
 
 func getSetupModelPageDescription(provider modelprovider.ProviderDefinition, baseURL string) string {
 	if provider.ID == constants.ModelProviderOllama {
-		baseURL = stringx.String(baseURL).Trim()
+		stringValue32 := str.String(baseURL)
+		baseURL = stringValue32.Trim()
 		if baseURL == "" {
 			baseURL = "the configured Ollama base URL"
 		}
@@ -939,7 +967,9 @@ func (r providerRunner) checkLocalModelMissing(
 		return false, err
 	}
 	for _, model := range models {
-		if strings.EqualFold(stringx.String(model.ID).Trim(), stringx.String(modelID).Trim()) {
+		stringValue33 := str.String(model.ID)
+		stringValue34 := str.String(modelID)
+		if strings.EqualFold(stringValue33.Trim(), stringValue34.Trim()) {
 			return false, nil
 		}
 	}
@@ -951,14 +981,15 @@ func hasExplicitProviderModels(cfg *config.Config, provider string) bool {
 	if cfg == nil || len(cfg.Models.Providers) == 0 {
 		return false
 	}
-
-	provider = stringx.String(provider).Normalized()
+	stringValue35 := str.String(provider)
+	provider = stringValue35.Normalized()
 	if providerConfig, ok := cfg.Models.Providers[provider]; ok {
 		return len(providerConfig.Models) > 0
 	}
 
 	for key, providerConfig := range cfg.Models.Providers {
-		if strings.EqualFold(stringx.String(key).Trim(), provider) {
+		stringValue36 := str.String(key)
+		if strings.EqualFold(stringValue36.Trim(), provider) {
 			return len(providerConfig.Models) > 0
 		}
 	}
@@ -1150,10 +1181,12 @@ func isMissingModelCredentialError(err error) bool {
 }
 
 func getProviderDisplayName(provider modelprovider.ProviderDefinition) string {
-	if value := stringx.String(provider.DisplayName).Trim(); value != "" {
+	stringValue37 := str.String(provider.DisplayName)
+	if value := stringValue37.Trim(); value != "" {
 		return value
 	}
-	if value := stringx.String(provider.ID).Trim(); value != "" {
+	stringValue38 := str.String(provider.ID)
+	if value := stringValue38.Trim(); value != "" {
 		return value
 	}
 
@@ -1181,7 +1214,8 @@ func (r providerRunner) selectChoice(
 	if selected.err != nil {
 		return "", selected.err
 	}
-	if stringx.String(selected.choice).Trim() == "" {
+	stringValue39 := str.String(selected.choice)
+	if stringValue39.Trim() == "" {
 		return "", errors.New("setup selection cancelled")
 	}
 
@@ -1226,8 +1260,9 @@ func persistProviderSelection(opts ProviderOptions, selection setupSelection) er
 }
 
 func newSelectorModel(title string, choices []selectChoice) selectorModel {
+	stringValue40 := str.String(title)
 	return selectorModel{
-		title:   stringx.String(title).Trim(),
+		title:   stringValue40.Trim(),
 		choices: choices,
 	}
 }
@@ -1287,8 +1322,8 @@ func (m selectorModel) chooseSelected() (tea.Model, tea.Cmd) {
 	if m.selected < 0 || m.selected >= len(m.choices) {
 		m.selected = 0
 	}
-
-	m.choice = stringx.String(m.choices[m.selected].ID).Trim()
+	stringValue41 := str.String(m.choices[m.selected].ID)
+	m.choice = stringValue41.Trim()
 
 	return m, tea.Quit
 }
@@ -1318,7 +1353,8 @@ func renderSetupChoices(title string, description string, choices []selectChoice
 		builder.WriteString(renderSetupTitle(title))
 		builder.WriteByte('\n')
 	}
-	if stringx.String(description).Trim() != "" {
+	stringValue42 := str.String(description)
+	if stringValue42.Trim() != "" {
 		builder.WriteString(renderSetupDescription(description))
 		builder.WriteString("\n\n")
 	}
@@ -1331,8 +1367,10 @@ func renderSetupChoices(title string, description string, choices []selectChoice
 		builder.WriteString(prefix)
 		builder.WriteString(strconv.Itoa(index + 1))
 		builder.WriteString(". ")
-		builder.WriteString(stringx.String(choice.Label).Trim())
-		if description := stringx.String(choice.Description).Trim(); description != "" &&
+		stringValue43 := str.String(choice.Label)
+		builder.WriteString(stringValue43.Trim())
+		stringValue44 := str.String(choice.Description)
+		if description := stringValue44.Trim(); description != "" &&
 			!strings.EqualFold(description, choice.Label) {
 			builder.WriteString(" (")
 			builder.WriteString(description)
@@ -1347,11 +1385,13 @@ func renderSetupChoices(title string, description string, choices []selectChoice
 }
 
 func renderSetupTitle(value string) string {
-	return lipgloss.NewStyle().Bold(true).Render(stringx.String(value).Trim())
+	stringValue45 := str.String(value)
+	return lipgloss.NewStyle().Bold(true).Render(stringValue45.Trim())
 }
 
 func renderSetupDescription(value string) string {
-	return renderSetupMuted(stringx.String(value).Trim())
+	stringValue46 := str.String(value)
+	return renderSetupMuted(stringValue46.Trim())
 }
 
 func renderSetupChoiceHint(includeBack bool) string {
@@ -1401,7 +1441,8 @@ func renderSetupAccentStyle() lipgloss.Style {
 func renderSetupIndentedLayer(value string) string {
 	lines := strings.Split(value, "\n")
 	for index, line := range lines {
-		if stringx.String(line).Trim() != "" {
+		stringValue47 := str.String(line)
+		if stringValue47.Trim() != "" {
 			lines[index] = setupOptionIndent + line
 		}
 	}
@@ -1410,7 +1451,8 @@ func renderSetupIndentedLayer(value string) string {
 }
 
 func numericSelectionIndex(msg tea.KeyPressMsg, length int) (int, bool) {
-	value := stringx.String(msg.Key().Text).Trim()
+	stringValue48 := str.String(msg.Key().Text)
+	value := stringValue48.Trim()
 	if value == "" && msg.Key().Code >= '0' && msg.Key().Code <= '9' {
 		value = string(msg.Key().Code)
 	}
@@ -1425,7 +1467,8 @@ func isSetupCancelKey(msg tea.KeyPressMsg) bool {
 }
 
 func parseSelectionIndex(value string, length int) (int, bool) {
-	number, err := strconv.Atoi(stringx.String(value).Trim())
+	stringValue49 := str.String(value)
+	number, err := strconv.Atoi(stringValue49.Trim())
 	if err != nil || number < 1 || number > length {
 		return 0, false
 	}

@@ -3,7 +3,7 @@ package terminalmd
 import (
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func normalizeCommonMarkdownArtifacts(markdown string) string {
@@ -26,10 +26,12 @@ func normalizeCommonMarkdownArtifacts(markdown string) string {
 // sanitizeHyperlinkDestination removes terminal-control characters from an OSC 8
 // destination. This prevents malformed model output from breaking the terminal
 func trimLeadingTaskMarker(text string) string {
-	text = stringx.String(text).Trim()
+	stringValue1 := str.String(text)
+	text = stringValue1.Trim()
 	for _, marker := range []string{"[ ]", "[x]", "[X]"} {
 		if strings.HasPrefix(text, marker) {
-			return stringx.String(strings.TrimPrefix(text, marker)).Trim()
+			stringValue2 := str.String(strings.TrimPrefix(text, marker))
+			return stringValue2.Trim()
 		}
 	}
 	return text
@@ -107,8 +109,8 @@ func stripHTMLTags(text string) string {
 			builder.WriteByte(char)
 		}
 	}
-
-	return stringx.String(builder.String()).Trim()
+	stringValue3 := str.String(builder.String())
+	return stringValue3.Trim()
 }
 
 // isEscapableMarkdownPunctuation reports whether CommonMark allows a punctuation

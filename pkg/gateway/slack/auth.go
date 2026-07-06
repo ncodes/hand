@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -36,15 +36,18 @@ type SignatureVerifier struct {
 }
 
 func (v SignatureVerifier) Check(timestamp string, signature string, body []byte) error {
-	secret := stringx.String(v.Secret).Trim()
+	stringValue1 := str.String(v.Secret)
+	secret := stringValue1.Trim()
 	if secret == "" {
 		return ErrSigningSecretRequired
 	}
-	signature = stringx.String(signature).Trim()
+	stringValue2 := str.String(signature)
+	signature = stringValue2.Trim()
 	if signature == "" {
 		return ErrSignatureMissing
 	}
-	timestamp = stringx.String(timestamp).Trim()
+	stringValue3 := str.String(timestamp)
+	timestamp = stringValue3.Trim()
 	if timestamp == "" {
 		return ErrTimestampMissing
 	}
@@ -75,8 +78,10 @@ func (v SignatureVerifier) Check(timestamp string, signature string, body []byte
 }
 
 func SignRequest(secret string, timestamp string, body []byte) string {
-	mac := hmac.New(sha256.New, []byte(stringx.String(secret).Trim()))
-	mac.Write([]byte(fmt.Sprintf("%s:%s:", signatureVersion, stringx.String(timestamp).Trim())))
+	stringValue4 := str.String(secret)
+	mac := hmac.New(sha256.New, []byte(stringValue4.Trim()))
+	stringValue5 := str.String(timestamp)
+	mac.Write([]byte(fmt.Sprintf("%s:%s:", signatureVersion, stringValue5.Trim())))
 	mac.Write(body)
 	return signatureVersion + "=" + hex.EncodeToString(mac.Sum(nil))
 }

@@ -14,7 +14,7 @@ import (
 	"github.com/wandxy/morph/internal/profile"
 	state "github.com/wandxy/morph/internal/state/core"
 	agentcore "github.com/wandxy/morph/pkg/agent"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -39,7 +39,7 @@ type RuntimeAgent interface {
 
 type AgentFactory func(context.Context, *config.Config, models.Client, models.Client) RuntimeAgent
 
-type ProfileResolver func(stringx.String) (profile.Profile, error)
+type ProfileResolver func(str.String) (profile.Profile, error)
 
 type ConfigLoader func(string, string) (*config.Config, error)
 
@@ -105,7 +105,7 @@ func (r *AgentRunner) RunAutomation(ctx context.Context, job Job) (RunResult, er
 	if err != nil {
 		return RunResult{}, err
 	}
-	targetValue := stringx.String(job.SessionTarget)
+	targetValue := str.String(job.SessionTarget)
 	target, err := parseSessionTarget(targetValue)
 	if err != nil {
 		return RunResult{}, err
@@ -122,7 +122,7 @@ func (r *AgentRunner) RunAutomation(ctx context.Context, job Job) (RunResult, er
 	ctx, cancel := r.contextWithPayloadTimeout(ctx, payload)
 	defer cancel()
 
-	profileName := stringx.String(job.Profile)
+	profileName := str.String(job.Profile)
 	activeProfile, err := r.resolveProfile(profileName)
 	if err != nil {
 		return RunResult{}, err
@@ -179,12 +179,12 @@ type sessionTarget struct {
 
 func preparePayload(payload Payload) (Payload, error) {
 	payload = payload.Clone()
-	kind := stringx.String(payload.Kind)
-	prompt := stringx.String(payload.Prompt)
-	systemEvent := stringx.String(payload.SystemEvent)
-	model := stringx.String(payload.Model)
-	provider := stringx.String(payload.Provider)
-	baseURL := stringx.String(payload.BaseURL)
+	kind := str.String(payload.Kind)
+	prompt := str.String(payload.Prompt)
+	systemEvent := str.String(payload.SystemEvent)
+	model := str.String(payload.Model)
+	provider := str.String(payload.Provider)
+	baseURL := str.String(payload.BaseURL)
 
 	payload.Kind = PayloadKind(kind.Normalized())
 	if payload.Kind == "" {
@@ -219,7 +219,7 @@ func preparePayload(payload Payload) (Payload, error) {
 	return payload, nil
 }
 
-func parseSessionTarget(value stringx.String) (sessionTarget, error) {
+func parseSessionTarget(value str.String) (sessionTarget, error) {
 	trimmed := value.Trim()
 	if trimmed == "" {
 		trimmed = SessionTargetIsolated
@@ -230,7 +230,7 @@ func parseSessionTarget(value stringx.String) (sessionTarget, error) {
 		return sessionTarget{Kind: trimmed}, nil
 	}
 	if rawSessionID, ok := strings.CutPrefix(trimmed, SessionTargetPrefix); ok {
-		sessionID := stringx.String(rawSessionID)
+		sessionID := str.String(rawSessionID)
 		trimmedSessionID := sessionID.Trim()
 		if err := state.ValidateSessionID(trimmedSessionID); err != nil {
 			return sessionTarget{}, err
@@ -249,7 +249,7 @@ func normalizeToolGroups(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))
 	for _, raw := range values {
-		value := stringx.String(raw)
+		value := str.String(raw)
 		group := value.Normalized()
 		if group == "" {
 			continue
@@ -279,11 +279,11 @@ func (r *AgentRunner) contextWithPayloadTimeout(
 	return context.WithTimeout(ctx, timeout)
 }
 
-func resolveAutomationProfile(name stringx.String) (profile.Profile, error) {
+func resolveAutomationProfile(name str.String) (profile.Profile, error) {
 	active := profile.Active()
 	trimmed := name.Trim()
-	activeName := stringx.String(active.Name)
-	activeHomeDir := stringx.String(active.HomeDir)
+	activeName := str.String(active.Name)
+	activeHomeDir := str.String(active.HomeDir)
 
 	if trimmed == "" {
 		if activeName.Trim() != "" {

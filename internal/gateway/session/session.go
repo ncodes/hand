@@ -8,7 +8,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	agentcore "github.com/wandxy/morph/pkg/agent"
 	"github.com/wandxy/morph/pkg/gateway/bindings"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type Service interface {
@@ -42,8 +42,8 @@ func (r *Resolver) Resolve(ctx context.Context, key bindings.Key) (storage.Sessi
 	if r == nil || r.service == nil {
 		return storage.Session{}, errors.New("gateway session resolver service is required")
 	}
-
-	keyString := stringx.String(key.String()).Trim()
+	stringValue1 := str.String(key.String())
+	keyString := stringValue1.Trim()
 	if keyString == "" {
 		return storage.Session{}, errors.New("gateway binding key is required")
 	}

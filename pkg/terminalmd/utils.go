@@ -3,13 +3,14 @@ package terminalmd
 import (
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 	goldast "github.com/yuin/goldmark/ast"
 	extast "github.com/yuin/goldmark/extension/ast"
 )
 
 func isFenceLine(line string) bool {
-	trimmed := stringx.String(line).Trim()
+	stringValue1 := str.String(line)
+	trimmed := stringValue1.Trim()
 	return strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")
 }
 

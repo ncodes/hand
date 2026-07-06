@@ -7,12 +7,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func ollamaStatusErrorForModel(resp *http.Response, model string) error {
 	body, _ := io.ReadAll(resp.Body)
-	detail := stringx.String(string(body)).Trim()
+	stringValue1 := str.String(string(body))
+	detail := stringValue1.Trim()
 	if detail == "" {
 		detail = resp.Status
 	}
@@ -21,9 +22,11 @@ func ollamaStatusErrorForModel(resp *http.Response, model string) error {
 }
 
 func enrichOllamaProviderError(statusCode int, detail string, model string) error {
-	detail = stringx.String(detail).Trim()
+	stringValue2 := str.String(detail)
+	detail = stringValue2.Trim()
 	base := fmt.Sprintf("ollama request failed with status %d: %s", statusCode, detail)
-	model = stringx.String(model).Trim()
+	stringValue3 := str.String(model)
+	model = stringValue3.Trim()
 	if isOllamaMissingModelMessage(statusCode, detail) && model != "" {
 		return fmt.Errorf(
 			"ollama model %q is not installed or could not be found; run %s or ollama pull %s: %s",
@@ -44,8 +47,10 @@ func enrichOllamaProviderError(statusCode int, detail string, model string) erro
 }
 
 func enrichOllamaPullError(detail string, model string) error {
-	detail = stringx.String(detail).Trim()
-	model = stringx.String(model).Trim()
+	stringValue4 := str.String(detail)
+	detail = stringValue4.Trim()
+	stringValue5 := str.String(model)
+	model = stringValue5.Trim()
 	if isOllamaMissingModelMessage(http.StatusNotFound, detail) && model != "" {
 		return fmt.Errorf(
 			"ollama model %q is not installed or could not be found; run %s or ollama pull %s: ollama pull failed: %s",
@@ -60,7 +65,8 @@ func enrichOllamaPullError(detail string, model string) error {
 }
 
 func ollamaRawToolJSONError(model string) error {
-	model = stringx.String(model).Trim()
+	stringValue6 := str.String(model)
+	model = stringValue6.Trim()
 	if model == "" {
 		return fmt.Errorf("ollama model returned raw tool JSON instead of a structured tool call; choose a tool-capable Ollama model or disable tools")
 	}
@@ -72,8 +78,8 @@ func isRawToolJSONOutput(text string, tools []chatTool) bool {
 	if len(tools) == 0 {
 		return false
 	}
-
-	text = stringx.String(text).Trim()
+	stringValue7 := str.String(text)
+	text = stringValue7.Trim()
 	if !strings.HasPrefix(text, "{") || !strings.HasSuffix(text, "}") {
 		return false
 	}
@@ -91,7 +97,8 @@ func isRawToolJSONOutput(text string, tools []chatTool) bool {
 
 func hasToolJSONShape(payload map[string]any) bool {
 	for key := range payload {
-		switch stringx.String(key).Normalized() {
+		stringValue8 := str.String(key)
+		switch stringValue8.Normalized() {
 		case "tool", "tool_name", "tool_call", "tool_calls", "function", "arguments", "parameters":
 			return true
 		}
@@ -103,7 +110,8 @@ func hasToolJSONShape(payload map[string]any) bool {
 func hasToolNameField(payload map[string]any, tools []chatTool) bool {
 	toolNames := make(map[string]struct{}, len(tools))
 	for _, tool := range tools {
-		name := stringx.String(tool.Function.Name).Normalized()
+		stringValue9 := str.String(tool.Function.Name)
+		name := stringValue9.Normalized()
 		if name != "" {
 			toolNames[name] = struct{}{}
 		}
@@ -121,7 +129,8 @@ func hasToolNameField(payload map[string]any, tools []chatTool) bool {
 		if !ok {
 			continue
 		}
-		if _, ok := toolNames[stringx.String(name).Normalized()]; ok {
+		stringValue10 := str.String(name)
+		if _, ok := toolNames[stringValue10.Normalized()]; ok {
 			return true
 		}
 	}
@@ -130,7 +139,8 @@ func hasToolNameField(payload map[string]any, tools []chatTool) bool {
 }
 
 func isOllamaMissingModelMessage(statusCode int, detail string) bool {
-	message := stringx.String(detail).Normalized()
+	stringValue11 := str.String(detail)
+	message := stringValue11.Normalized()
 	return statusCode == http.StatusNotFound ||
 		strings.Contains(message, "model not found") ||
 		strings.Contains(message, "not found") ||
@@ -140,7 +150,8 @@ func isOllamaMissingModelMessage(statusCode int, detail string) bool {
 }
 
 func isOllamaToolMessage(detail string) bool {
-	message := stringx.String(detail).Normalized()
+	stringValue12 := str.String(detail)
+	message := stringValue12.Normalized()
 	if !strings.Contains(message, "tool") && !strings.Contains(message, "function") {
 		return false
 	}
@@ -152,5 +163,6 @@ func isOllamaToolMessage(detail string) bool {
 }
 
 func ollamaPullCommand(model string) string {
-	return fmt.Sprintf("morph setup provider --provider ollama --model %s --pull", stringx.String(model).Trim())
+	stringValue13 := str.String(model)
+	return fmt.Sprintf("morph setup provider --provider ollama --model %s --pull", stringValue13.Trim())
 }

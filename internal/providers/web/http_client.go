@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type httpClient struct {
@@ -48,8 +48,8 @@ func (p *httpClient) postJSONLimited(
 	if client == nil {
 		client = http.DefaultClient
 	}
-
-	baseURL := strings.TrimRight(stringx.String(p.baseURL).Trim(), "/")
+	stringValue1 := str.String(p.baseURL)
+	baseURL := strings.TrimRight(stringValue1.Trim(), "/")
 	if baseURL == "" {
 		return errors.New("web provider base URL is required")
 	}
@@ -67,7 +67,8 @@ func (p *httpClient) postJSONLimited(
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	for key, value := range headers {
-		if stringx.String(value).Trim() == "" {
+		stringValue2 := str.String(value)
+		if stringValue2.Trim() == "" {
 			continue
 		}
 		req.Header.Set(key, value)
@@ -81,7 +82,8 @@ func (p *httpClient) postJSONLimited(
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4*1024))
-		message := stringx.String(string(data)).Trim()
+		stringValue3 := str.String(string(data))
+		message := stringValue3.Trim()
 		if message == "" {
 			message = resp.Status
 		}
@@ -104,18 +106,20 @@ func (p *httpClient) postJSONLimited(
 }
 
 func (p *httpClient) authorizationHeaders() map[string]string {
-	if stringx.String(p.apiKey).Trim() == "" {
+	stringValue4 := str.String(p.apiKey)
+	if stringValue4.Trim() == "" {
 		return nil
 	}
-
+	stringValue5 := str.String(p.apiKey)
 	return map[string]string{
-		"Authorization": "Bearer " + stringx.String(p.apiKey).Trim(),
+		"Authorization": "Bearer " + stringValue5.Trim(),
 	}
 }
 
 func getFirstNonEmpty(values ...string) string {
 	for _, value := range values {
-		value = stringx.String(value).Trim()
+		stringValue6 := str.String(value)
+		value = stringValue6.Trim()
 		if value != "" {
 			return value
 		}
@@ -126,7 +130,8 @@ func getFirstNonEmpty(values ...string) string {
 
 func getFirstHighlight(values []string) string {
 	for _, value := range values {
-		value = stringx.String(value).Trim()
+		stringValue7 := str.String(value)
+		value = stringValue7.Trim()
 		if value != "" {
 			return value
 		}

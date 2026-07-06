@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -16,8 +16,8 @@ func (p *MemoryProvider) Update(ctx context.Context, req UpdateRequest) (UpdateR
 	if p == nil || p.manager == nil {
 		return UpdateResult{}, errors.New("memory provider is required")
 	}
-
-	memoryID := stringx.String(req.ID).Trim()
+	stringValue1 := str.String(req.ID)
+	memoryID := stringValue1.Trim()
 	if memoryID == "" {
 		return UpdateResult{}, errors.New("memory id is required")
 	}
@@ -32,8 +32,10 @@ func (p *MemoryProvider) Update(ctx context.Context, req UpdateRequest) (UpdateR
 		replacement.Metadata = make(map[string]string)
 	}
 	replacement.Metadata[supersedesMemoryIDMetadataKey] = previous.ID
-	if sessionID := stringx.String(previous.Metadata["source_session_id"]).Trim(); sessionID != "" {
-		if stringx.String(replacement.Metadata["source_session_id"]).Trim() == "" {
+	stringValue2 := str.String(previous.Metadata["source_session_id"])
+	if sessionID := stringValue2.Trim(); sessionID != "" {
+		stringValue3 := str.String(replacement.Metadata["source_session_id"])
+		if stringValue3.Trim() == "" {
 			replacement.Metadata["source_session_id"] = sessionID
 		}
 	}
@@ -97,7 +99,8 @@ func (p *MemoryProvider) supersedeMemory(
 ) (MemoryItem, error) {
 	status := StatusSuperseded
 	metadata := buildLifecycleMetadata(item.Metadata, "supersede", reason, item.Status)
-	metadata[supersededByMemoryIDMetadataKey] = stringx.String(replacementID).Trim()
+	stringValue4 := str.String(replacementID)
+	metadata[supersededByMemoryIDMetadataKey] = stringValue4.Trim()
 
 	return p.manager.PatchMemory(ctx, MemoryPatch{
 		ID:       item.ID,
@@ -112,7 +115,8 @@ func (p *MemoryProvider) restoreMemory(ctx context.Context, item MemoryItem) err
 }
 
 func getUpdatePromotionReason(reason string) string {
-	reason = stringx.String(reason).Trim()
+	stringValue5 := str.String(reason)
+	reason = stringValue5.Trim()
 	if reason == "" {
 		return "tool_memory_update"
 	}

@@ -7,7 +7,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // SessionFailedPayload is the trace payload for session failed.
@@ -306,7 +306,8 @@ type ToolInvocationCompletedPayload struct {
 
 // DecodePayload converts a stored trace payload into its concrete event payload type.
 func DecodePayload(eventType string, payload any) (any, bool) {
-	switch stringx.String(eventType).Trim() {
+	stringValue1 := str.String(eventType)
+	switch stringValue1.Trim() {
 	case EvtChatStarted:
 		return decodePayloadAs[Metadata](payload)
 	case EvtSessionFailed:
@@ -407,7 +408,8 @@ func DecodePayload(eventType string, payload any) (any, bool) {
 		EvtPlanHydrated:
 		return decodePayloadAs[PlanEventPayload](payload)
 	default:
-		if strings.HasPrefix(stringx.String(eventType).Trim(), "memory.") {
+		stringValue2 := str.String(eventType)
+		if strings.HasPrefix(stringValue2.Trim(), "memory.") {
 			return decodePayloadAs[MemoryEventPayload](payload)
 		}
 		return nil, false
@@ -429,17 +431,25 @@ func ToolInvocationStartedPayloadFrom(payload any) (ToolInvocationStartedPayload
 	case ToolInvocationStartedPayload:
 		return value, value.ID != "" || value.Name != ""
 	case models.ToolCall:
+		stringValue3 := str.String(value.ID)
+		stringValue4 := str.String(value.Name)
+		stringValue5 := str.String(value.ID)
+		stringValue6 := str.String(value.Name)
 		return ToolInvocationStartedPayload{
-			ID:    stringx.String(value.ID).Trim(),
-			Name:  stringx.String(value.Name).Trim(),
+			ID:    stringValue3.Trim(),
+			Name:  stringValue4.Trim(),
 			Input: value.Input,
-		}, stringx.String(value.ID).Trim() != "" || stringx.String(value.Name).Trim() != ""
+		}, stringValue5.Trim() != "" || stringValue6.Trim() != ""
 	case morphmsg.ToolCall:
+		stringValue7 := str.String(value.ID)
+		stringValue8 := str.String(value.Name)
+		stringValue9 := str.String(value.ID)
+		stringValue10 := str.String(value.Name)
 		return ToolInvocationStartedPayload{
-			ID:    stringx.String(value.ID).Trim(),
-			Name:  stringx.String(value.Name).Trim(),
+			ID:    stringValue7.Trim(),
+			Name:  stringValue8.Trim(),
 			Input: value.Input,
-		}, stringx.String(value.ID).Trim() != "" || stringx.String(value.Name).Trim() != ""
+		}, stringValue9.Trim() != "" || stringValue10.Trim() != ""
 	}
 
 	fields := PayloadFields(payload)
@@ -465,11 +475,15 @@ func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPay
 	case ToolInvocationCompletedPayload:
 		return value, value.ToolCallID != "" || value.Name != ""
 	case morphmsg.Message:
+		stringValue11 := str.String(value.ToolCallID)
+		stringValue12 := str.String(value.Name)
+		stringValue13 := str.String(value.ToolCallID)
+		stringValue14 := str.String(value.Name)
 		return ToolInvocationCompletedPayload{
-			ToolCallID: stringx.String(value.ToolCallID).Trim(),
-			Name:       stringx.String(value.Name).Trim(),
+			ToolCallID: stringValue11.Trim(),
+			Name:       stringValue12.Trim(),
 			Content:    value.Content,
-		}, stringx.String(value.ToolCallID).Trim() != "" || stringx.String(value.Name).Trim() != ""
+		}, stringValue13.Trim() != "" || stringValue14.Trim() != ""
 	}
 
 	fields := PayloadFields(payload)
@@ -492,7 +506,8 @@ func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPay
 // PlanToolInputState extracts plan state from a plan tool input payload.
 func PlanToolInputState(input string) *PlanToolState {
 	fields := map[string]any{}
-	if err := json.Unmarshal([]byte(stringx.String(input).Trim()), &fields); err != nil {
+	stringValue15 := str.String(input)
+	if err := json.Unmarshal([]byte(stringValue15.Trim()), &fields); err != nil {
 		return nil
 	}
 	steps, hasSteps := fields["steps"]
@@ -514,7 +529,8 @@ func PlanToolInputState(input string) *PlanToolState {
 // PlanToolOutputState extracts plan state from a plan tool output payload.
 func PlanToolOutputState(output string) *PlanToolState {
 	fields := map[string]any{}
-	if err := json.Unmarshal([]byte(stringx.String(output).Trim()), &fields); err != nil {
+	stringValue16 := str.String(output)
+	if err := json.Unmarshal([]byte(stringValue16.Trim()), &fields); err != nil {
 		return nil
 	}
 	fields = unwrapPlanToolOutputFields(fields)
@@ -534,11 +550,12 @@ func PlanToolOutputState(output string) *PlanToolState {
 // ProcessToolInputState extracts process state from a process tool input payload.
 func ProcessToolInputState(input string) *ProcessToolState {
 	fields := map[string]any{}
-	if err := json.Unmarshal([]byte(stringx.String(input).Trim()), &fields); err != nil {
+	stringValue17 := str.String(input)
+	if err := json.Unmarshal([]byte(stringValue17.Trim()), &fields); err != nil {
 		return nil
 	}
-
-	operation := ProcessToolOperation(stringx.String(PayloadString(fields, "action")).Normalized())
+	stringValue18 := str.String(PayloadString(fields, "action"))
+	operation := ProcessToolOperation(stringValue18.Normalized())
 	switch operation {
 	case ProcessToolOperationStart:
 		command := formatProcessCommand(PayloadString(fields, "command"), payloadStringSlice(fields["args"]))
@@ -555,7 +572,8 @@ func ProcessToolInputState(input string) *ProcessToolState {
 // ProcessToolOutputState extracts process state from a process tool output payload.
 func ProcessToolOutputState(output string) *ProcessToolState {
 	fields := map[string]any{}
-	if err := json.Unmarshal([]byte(stringx.String(output).Trim()), &fields); err != nil {
+	stringValue19 := str.String(output)
+	if err := json.Unmarshal([]byte(stringValue19.Trim()), &fields); err != nil {
 		return nil
 	}
 
@@ -603,12 +621,14 @@ func unwrapToolOutputFields(fields map[string]any) map[string]any {
 	}
 
 	output, ok := fields["output"].(string)
-	if !ok || stringx.String(output).Trim() == "" {
+	stringValue20 := str.String(output)
+	if !ok || stringValue20.Trim() == "" {
 		return fields
 	}
 
 	unwrapped := map[string]any{}
-	if err := json.Unmarshal([]byte(stringx.String(output).Trim()), &unwrapped); err != nil {
+	stringValue21 := str.String(output)
+	if err := json.Unmarshal([]byte(stringValue21.Trim()), &unwrapped); err != nil {
 		return fields
 	}
 	if len(unwrapped) == 0 {
@@ -624,12 +644,14 @@ func unwrapPlanToolOutputFields(fields map[string]any) map[string]any {
 	}
 
 	output, ok := fields["output"].(string)
-	if !ok || stringx.String(output).Trim() == "" {
+	stringValue22 := str.String(output)
+	if !ok || stringValue22.Trim() == "" {
 		return fields
 	}
 
 	unwrapped := map[string]any{}
-	if err := json.Unmarshal([]byte(stringx.String(output).Trim()), &unwrapped); err != nil {
+	stringValue23 := str.String(output)
+	if err := json.Unmarshal([]byte(stringValue23.Trim()), &unwrapped); err != nil {
 		return fields
 	}
 	if len(unwrapped) == 0 {
@@ -681,7 +703,8 @@ func PayloadString(fields map[string]any, keys ...string) string {
 		if !ok {
 			continue
 		}
-		if text = stringx.String(text).Trim(); text != "" {
+		stringValue24 := str.String(text)
+		if text = stringValue24.Trim(); text != "" {
 			return text
 		}
 	}
@@ -753,7 +776,8 @@ func processToolErrorState(value any) *ProcessToolState {
 	case nil:
 		return nil
 	case string:
-		if message := stringx.String(typed).Trim(); message != "" {
+		stringValue25 := str.String(typed)
+		if message := stringValue25.Trim(); message != "" {
 			return &ProcessToolState{Status: "failed", Error: message}
 		}
 		return nil
@@ -802,7 +826,8 @@ func planToolChangesFromAny(value any) []PlanToolChange {
 }
 
 func formatProcessCommand(command string, args []string) string {
-	command = stringx.String(command).Trim()
+	stringValue26 := str.String(command)
+	command = stringValue26.Trim()
 	if command == "" {
 		return ""
 	}
@@ -841,7 +866,8 @@ func payloadStringSlice(value any) []string {
 		if !ok {
 			continue
 		}
-		if text = stringx.String(text).Trim(); text != "" {
+		stringValue27 := str.String(text)
+		if text = stringValue27.Trim(); text != "" {
 			result = append(result, text)
 		}
 	}

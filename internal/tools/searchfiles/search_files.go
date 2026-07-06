@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
@@ -70,8 +70,8 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
-
-			if stringx.String(req.Pattern).Trim() == "" {
+			stringValue1 := str.String(req.Pattern)
+			if stringValue1.Trim() == "" {
 				return common.ToolError("invalid_input", "pattern is required"), nil
 			}
 
@@ -84,12 +84,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if limit <= 0 || limit > common.MaxSearchResults {
 				limit = common.MaxSearchResults
 			}
-
+			stringValue2 := str.String(req.Pattern)
 			log.Info().
 				Str("tool", "search_files").
 				Str("phase", "start").
 				Str("path", common.NormalizedDisplayPath(req.Path)).
-				Int("pattern_chars", len([]rune(stringx.String(req.Pattern).Trim()))).
+				Int("pattern_chars", len([]rune(stringValue2.Trim()))).
 				Bool("case_sensitive", req.CaseSensitive).
 				Bool("include_hidden", req.IncludeHidden).
 				Int("max_results", limit).
@@ -189,12 +189,13 @@ func searchWithRipgrep(
 
 		return nil, err
 	}
-
-	lines := strings.Split(stringx.String(string(output)).Trim(), "\n")
+	stringValue3 := str.String(string(output))
+	lines := strings.Split(stringValue3.Trim(), "\n")
 	matches := make([]contentMatch, 0, len(lines))
 
 	for _, line := range lines {
-		if stringx.String(line).Trim() == "" {
+		stringValue4 := str.String(line)
+		if stringValue4.Trim() == "" {
 			continue
 		}
 

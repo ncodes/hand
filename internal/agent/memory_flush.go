@@ -13,7 +13,7 @@ import (
 	"github.com/wandxy/morph/internal/trace"
 	agentcore "github.com/wandxy/morph/pkg/agent"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const memoryFlushTriggerCompression = "compression"
@@ -226,8 +226,10 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 				break
 			}
 			callCount++
-			if _, ok := memoryFlushToolNames[stringx.String(toolCall.Name).Trim()]; !ok {
-				recordMemoryFlushSkipped(traceSession, trigger, "unsupported_tool:"+stringx.String(toolCall.Name).Trim())
+			stringValue1 := str.String(toolCall.Name)
+			if _, ok := memoryFlushToolNames[stringValue1.Trim()]; !ok {
+				stringValue2 := str.String(toolCall.Name)
+				recordMemoryFlushSkipped(traceSession, trigger, "unsupported_tool:"+stringValue2.Trim())
 				continue
 			}
 			agentLog.Debug().
@@ -267,15 +269,16 @@ func getMemoryFlushToolError(message morphmsg.Message) error {
 	}
 
 	var payload map[string]any
-	if err := json.Unmarshal([]byte(stringx.String(message.Content).Trim()), &payload); err != nil {
+	stringValue3 := str.String(message.Content)
+	if err := json.Unmarshal([]byte(stringValue3.Trim()), &payload); err != nil {
 		return nil
 	}
 	errorValue, ok := payload["error"]
 	if !ok {
 		return nil
 	}
-
-	toolName := stringx.String(message.Name).Trim()
+	stringValue4 := str.String(message.Name)
+	toolName := stringValue4.Trim()
 	if toolName == "" {
 		toolName = getStringValue(payload["name"])
 	}
@@ -308,7 +311,8 @@ func getToolErrorText(value any) string {
 }
 
 func getToolErrorStringText(value string) string {
-	value = stringx.String(value).Trim()
+	stringValue5 := str.String(value)
+	value = stringValue5.Trim()
 	if value == "" {
 		return ""
 	}
@@ -358,7 +362,8 @@ func (t *Turn) availableMemoryFlushToolDefinitions() ([]models.ToolDefinition, e
 
 func getStringValue(value any) string {
 	text, _ := value.(string)
-	return stringx.String(text).Trim()
+	stringValue6 := str.String(text)
+	return stringValue6.Trim()
 }
 
 // recordMemoryFlushFailure records a failed or timed-out memory flush.
@@ -405,7 +410,8 @@ func recordMemoryFlushCompleted(
 
 // recordMemoryFlushSkipped records a non-fatal reason memory flush did no work.
 func recordMemoryFlushSkipped(traceSession trace.Session, trigger string, reason string) {
-	reason = stringx.String(reason).Trim()
+	stringValue7 := str.String(reason)
+	reason = stringValue7.Trim()
 	agentLog.Debug().
 		Str("trigger", trigger).
 		Str("reason", reason).

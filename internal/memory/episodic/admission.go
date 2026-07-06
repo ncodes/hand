@@ -2,7 +2,7 @@ package episodic
 
 import (
 	storage "github.com/wandxy/morph/internal/state/core"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // admitCandidateItems applies deterministic admission after model extraction
@@ -32,11 +32,13 @@ func admitCandidateItems(
 // not worth durable memory. This mirrors the prompt guidance and gives a stable
 // reason independent of model wording.
 func checkEpisodeCandidateAdmissionRejection(item storage.MemoryItem) string {
-	switch stringx.String(item.Metadata["memory_importance"]).Normalized() {
+	stringValue1 := str.String(item.Metadata["memory_importance"])
+	switch stringValue1.Normalized() {
 	case "low":
 		return "low_importance_candidate"
 	}
-	switch stringx.String(item.Metadata["memory_granularity"]).Normalized() {
+	stringValue2 := str.String(item.Metadata["memory_granularity"])
+	switch stringValue2.Normalized() {
 	case "execution_detail":
 		return "execution_detail"
 	}
@@ -89,13 +91,15 @@ func getCanonicalCandidateGroup(item storage.MemoryItem) string {
 // all improve the chance a candidate survives group collapse.
 func getCandidateAdmissionScore(item storage.MemoryItem) int {
 	score := getCandidateKindPriority(getCandidateKind(item)) * 100
-	switch stringx.String(item.Metadata["memory_importance"]).Normalized() {
+	stringValue3 := str.String(item.Metadata["memory_importance"])
+	switch stringValue3.Normalized() {
 	case "high":
 		score += 30
 	case "medium":
 		score += 20
 	}
-	switch stringx.String(item.Metadata["memory_granularity"]).Normalized() {
+	stringValue4 := str.String(item.Metadata["memory_granularity"])
+	switch stringValue4.Normalized() {
 	case "summary":
 		score += 10
 	case "episode":
@@ -107,5 +111,6 @@ func getCandidateAdmissionScore(item storage.MemoryItem) int {
 }
 
 func getCandidateKind(item storage.MemoryItem) string {
-	return stringx.String(item.Metadata["candidate_kind"]).Trim()
+	stringValue5 := str.String(item.Metadata["candidate_kind"])
+	return stringValue5.Trim()
 }

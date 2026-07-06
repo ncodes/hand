@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // Embedder creates vector embeddings for model inputs.
@@ -44,7 +44,8 @@ type Embedding struct {
 
 // ValidateEmbeddingRequest checks that an embedding request has model input.
 func ValidateEmbeddingRequest(req EmbeddingRequest) error {
-	if stringx.String(req.Model).Trim() == "" {
+	stringValue1 := str.String(req.Model)
+	if stringValue1.Trim() == "" {
 		return errors.New("embedding model is required")
 	}
 
@@ -54,7 +55,8 @@ func ValidateEmbeddingRequest(req EmbeddingRequest) error {
 
 	seenIDs := make(map[string]struct{}, len(req.Inputs))
 	for _, input := range req.Inputs {
-		inputID := stringx.String(input.ID).Trim()
+		stringValue2 := str.String(input.ID)
+		inputID := stringValue2.Trim()
 		if inputID == "" {
 			return errors.New("embedding input id is required")
 		}
@@ -68,7 +70,8 @@ func ValidateEmbeddingRequest(req EmbeddingRequest) error {
 		if err := validateOptionalSourceKind(input.SourceKind, "embedding input source kind"); err != nil {
 			return err
 		}
-		if stringx.String(input.Text).Trim() == "" {
+		stringValue3 := str.String(input.Text)
+		if stringValue3.Trim() == "" {
 			return errors.New("embedding input text is required")
 		}
 	}
@@ -81,10 +84,13 @@ func ValidateEmbeddingResult(req EmbeddingRequest, result EmbeddingResult) error
 	if err := ValidateEmbeddingRequest(req); err != nil {
 		return err
 	}
-	if stringx.String(result.Model).Trim() == "" {
+	stringValue4 := str.String(result.Model)
+	if stringValue4.Trim() == "" {
 		return errors.New("embedding result model is required")
 	}
-	if stringx.String(result.Model).Trim() != stringx.String(req.Model).Trim() {
+	stringValue5 := str.String(result.Model)
+	stringValue6 := str.String(req.Model)
+	if stringValue5.Trim() != stringValue6.Trim() {
 		return errors.New("embedding result model must match request model")
 	}
 	if result.Dimensions <= 0 {
@@ -99,7 +105,8 @@ func ValidateEmbeddingResult(req EmbeddingRequest, result EmbeddingResult) error
 	}
 	seenIDs := make(map[string]struct{}, len(result.Items))
 	for _, item := range result.Items {
-		itemID := stringx.String(item.ID).Trim()
+		stringValue7 := str.String(item.ID)
+		itemID := stringValue7.Trim()
 		if itemID == "" {
 			return errors.New("embedding id is required")
 		}
@@ -122,7 +129,8 @@ func ValidateEmbeddingResult(req EmbeddingRequest, result EmbeddingResult) error
 				return errors.New("embedding vector value must be finite")
 			}
 		}
-		if stringx.String(item.ContentHash).Trim() == "" {
+		stringValue8 := str.String(item.ContentHash)
+		if stringValue8.Trim() == "" {
 			return errors.New("embedding content hash is required")
 		}
 		if item.ContentHash != expectedHash {

@@ -12,7 +12,7 @@ import (
 	"github.com/wandxy/morph/pkg/agent/prompt"
 	"github.com/wandxy/morph/pkg/agent/session"
 	"github.com/wandxy/morph/pkg/agent/tool"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const defaultMaxIterations = 8
@@ -83,7 +83,7 @@ func (a *Agent) Respond(ctx context.Context, input string, opts RespondOptions) 
 		return "", errors.New("agent is required")
 	}
 
-	inputValue := stringx.String(input)
+	inputValue := str.String(input)
 	input = inputValue.Trim()
 	if input == "" {
 		return "", errors.New("message is required")
@@ -340,7 +340,7 @@ func BuildToolCallBatches(
 	var current []model.ToolCall
 
 	for _, toolCall := range toolCalls {
-		toolName := stringx.String(toolCall.Name)
+		toolName := str.String(toolCall.Name)
 		name := toolName.Trim()
 		if name != "" && parallelSafe[name] {
 			current = append(current, toolCall)
@@ -373,7 +373,7 @@ func getParallelSafeToolNames(definitions []model.ToolDefinition) map[string]boo
 
 	names := make(map[string]bool)
 	for _, definition := range definitions {
-		definitionName := stringx.String(definition.Name)
+		definitionName := str.String(definition.Name)
 		name := definitionName.Trim()
 		if name != "" && definition.ParallelSafe {
 			names[name] = true
@@ -428,7 +428,7 @@ func (a *Agent) buildInstructions(
 	blocks := make([]string, 0, 3)
 	if a.opts.PromptProvider != nil {
 		runContext := a.opts.RunContext
-		runSessionID := stringx.String(runContext.SessionID)
+		runSessionID := str.String(runContext.SessionID)
 		if runSessionID.Trim() == "" {
 			runContext.SessionID = sessionID
 		}
@@ -448,13 +448,13 @@ func (a *Agent) buildInstructions(
 		if err != nil {
 			return "", err
 		}
-		environmentValue := stringx.String(environmentInstruction.Value)
+		environmentValue := str.String(environmentInstruction.Value)
 		if value := environmentValue.Trim(); value != "" {
 			blocks = append(blocks, value)
 		}
 	}
 
-	instructionOverride := stringx.String(opts.Instruct)
+	instructionOverride := str.String(opts.Instruct)
 	if instruct := instructionOverride.Trim(); instruct != "" {
 		blocks = append(blocks, instruct)
 	}
@@ -464,7 +464,7 @@ func (a *Agent) buildInstructions(
 
 func appendInstructionValues(blocks []string, instructions prompt.Instructions) []string {
 	for _, instruction := range instructions {
-		instructionValue := stringx.String(instruction.Value)
+		instructionValue := str.String(instruction.Value)
 		if value := instructionValue.Trim(); value != "" {
 			blocks = append(blocks, value)
 		}
@@ -480,7 +480,7 @@ func modelToolNames(definitions []model.ToolDefinition) []string {
 
 	names := make([]string, 0, len(definitions))
 	for _, definition := range definitions {
-		definitionName := stringx.String(definition.Name)
+		definitionName := str.String(definition.Name)
 		if name := definitionName.Trim(); name != "" {
 			names = append(names, name)
 		}

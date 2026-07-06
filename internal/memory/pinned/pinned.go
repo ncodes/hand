@@ -10,7 +10,7 @@ import (
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/datadir"
 	state "github.com/wandxy/morph/internal/state/core"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -79,17 +79,17 @@ func LoadFile() ([]state.MemoryItem, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read pinned memory file %q: %w", file, err)
 	}
-
-	text := stringx.String(string(data)).Trim()
+	stringValue1 := str.String(string(data))
+	text := stringValue1.Trim()
 	if text == "" {
 		return nil, nil
 	}
-
+	stringValue2 := str.String(filepath.Base(file))
 	return []state.MemoryItem{{
 		ID:     getFileMemoryID(file),
 		Kind:   state.MemoryKindPinned,
 		Status: state.MemoryStatusActive,
-		Title:  stringx.String(filepath.Base(file)).Trim(),
+		Title:  stringValue2.Trim(),
 		Text:   text,
 		Metadata: map[string]string{
 			"source": "file",
@@ -140,8 +140,10 @@ func PrepareItems(
 				return nil, err
 			}
 		}
-		redacted.Text = stringx.String(redacted.Text).Trim()
-		redacted.Title = stringx.String(redacted.Title).Trim()
+		stringValue3 := str.String(redacted.Text)
+		redacted.Text = stringValue3.Trim()
+		stringValue4 := str.String(redacted.Title)
+		redacted.Title = stringValue4.Trim()
 		redacted = truncateItem(redacted, itemLimit)
 		if redacted.Title == "" && redacted.Text == "" {
 			continue
@@ -166,7 +168,8 @@ func PrepareItems(
 // getAutoFileFromRoot performs a case-insensitive lookup so users do not have to
 // remember exact filename casing across platforms.
 func getAutoFileFromRoot(root string) (string, bool, error) {
-	root = stringx.String(root).Trim()
+	stringValue5 := str.String(root)
+	root = stringValue5.Trim()
 	if root == "" {
 		return "", false, nil
 	}
@@ -201,7 +204,8 @@ func getAutoFileFromRoot(root string) (string, bool, error) {
 // getFileMemoryID makes file-pinned IDs stable across runs and distinct from
 // generated store-backed memory IDs.
 func getFileMemoryID(file string) string {
-	return "pinned_file:" + stringx.String(file).Trim()
+	stringValue6 := str.String(file)
+	return "pinned_file:" + stringValue6.Trim()
 }
 
 func getItemCharCount(item state.MemoryItem) int {

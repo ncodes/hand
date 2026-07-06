@@ -7,7 +7,7 @@ import (
 
 	"github.com/wandxy/morph/internal/memory"
 	"github.com/wandxy/morph/internal/trace"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // Observability adapts zerolog and trace.Session to the provider-local
@@ -82,7 +82,8 @@ type tracer struct {
 }
 
 func (t tracer) Record(_ context.Context, event string, payload any) {
-	if t.traceSession == nil || stringx.String(event).Trim() == "" {
+	stringValue1 := str.String(event)
+	if t.traceSession == nil || stringValue1.Trim() == "" {
 		return
 	}
 	payload, ok := trace.DecodePayload(event, payload)

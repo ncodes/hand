@@ -5,7 +5,7 @@ import (
 
 	"github.com/wandxy/morph/internal/trace"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type transcriptCellFactory struct{}
@@ -24,7 +24,8 @@ type toolTranscriptCellInput struct {
 var defaultTranscriptCellFactory = transcriptCellFactory{}
 
 func (transcriptCellFactory) User(text string) transcriptCell {
-	if text = stringx.String(text).Trim(); text == "" {
+	stringValue1 := str.String(text)
+	if text = stringValue1.Trim(); text == "" {
 		return nil
 	}
 
@@ -32,7 +33,8 @@ func (transcriptCellFactory) User(text string) transcriptCell {
 }
 
 func (transcriptCellFactory) Assistant(text string) transcriptCell {
-	if text = stringx.String(text).Trim(); text == "" {
+	stringValue2 := str.String(text)
+	if text = stringValue2.Trim(); text == "" {
 		return nil
 	}
 
@@ -65,8 +67,9 @@ func (transcriptCellFactory) Tool(input toolTranscriptCellInput) transcriptCell 
 }
 
 func (transcriptCellFactory) Safety(msg safetyEventMsg) transcriptCell {
+	stringValue3 := str.String(msg.Action)
 	return safetyTranscriptCell{
-		action:     stringx.String(msg.Action).Trim(),
+		action:     stringValue3.Trim(),
 		findingIDs: msg.FindingIDs,
 	}
 }
@@ -80,7 +83,8 @@ func (transcriptCellFactory) Error(message string) transcriptCell {
 }
 
 func (transcriptCellFactory) System(text string) transcriptCell {
-	if text = stringx.String(text).Trim(); text == "" {
+	stringValue4 := str.String(text)
+	if text = stringValue4.Trim(); text == "" {
 		return nil
 	}
 
@@ -144,7 +148,8 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 	message morphmsg.Message,
 	toolCalls map[string]timelineToolCallDetail,
 ) transcriptCell {
-	content := stringx.String(message.Content).Trim()
+	stringValue5 := str.String(message.Content)
+	content := stringValue5.Trim()
 	if content == "" && len(message.ToolCalls) == 0 {
 		return nil
 	}
@@ -155,11 +160,13 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 	case morphmsg.RoleAssistant:
 		return factory.Assistant(content)
 	case morphmsg.RoleTool:
-		name := stringx.String(message.Name).Trim()
+		stringValue6 := str.String(message.Name)
+		name := stringValue6.Trim()
 		if name == "" {
 			name = "tool"
 		}
-		toolCall := toolCalls[stringx.String(message.ToolCallID).Trim()]
+		stringValue7 := str.String(message.ToolCallID)
+		toolCall := toolCalls[stringValue7.Trim()]
 		planState := mergePlanToolDisplayState(toolCall.planState, getToolOutputDisplayState(name, content))
 		processState := mergeProcessToolDisplayState(toolCall.processState, getToolOutputProcessDisplayState(name, content))
 		return factory.Tool(toolTranscriptCellInput{
@@ -173,6 +180,7 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 			Completed:    true,
 		})
 	default:
-		return factory.System(stringx.String(string(message.Role)).Trim() + ": " + content)
+		stringValue8 := str.String(string(message.Role))
+		return factory.System(stringValue8.Trim() + ": " + content)
 	}
 }

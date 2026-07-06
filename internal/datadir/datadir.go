@@ -6,7 +6,7 @@ import (
 
 	"github.com/wandxy/morph/internal/datadir/files"
 	"github.com/wandxy/morph/internal/profile"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const StateFilename = files.StateFilename
@@ -23,7 +23,9 @@ func ProjectHomeDir() string {
 
 // HomeDir returns the configured Morph home directory.
 func HomeDir() string {
-	if active := profile.Active(); stringx.String(active.HomeDir).Trim() != "" {
+	active := profile.Active()
+	activeHomeDir := str.String(active.HomeDir)
+	if activeHomeDir.Trim() != "" {
 		return active.HomeDir
 	}
 
@@ -46,7 +48,8 @@ func HomeDir() string {
 
 func loadUserHomeDir() string {
 	home, err := userHomeDir()
-	if err != nil || stringx.String(home).Trim() == "" {
+	stringValue2 := str.String(home)
+	if err != nil || stringValue2.Trim() == "" {
 		return ""
 	}
 

@@ -6,7 +6,7 @@ import (
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/datadir"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func init() {
@@ -24,7 +24,8 @@ func init() {
 		}
 
 		settings.NoColor = cfg.Log.NoColor
-		if path := stringx.String(cfg.Log.File).Trim(); path != "" {
+		stringValue1 := str.String(cfg.Log.File)
+		if path := stringValue1.Trim(); path != "" {
 			settings.LogFile = path
 		}
 		settings.MaxSizeMB = cfg.Log.MaxSizeMB

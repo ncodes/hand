@@ -13,7 +13,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type httpDoer interface {
@@ -251,9 +251,10 @@ func (a *chatStreamAccumulator) add(chunk chatResponse) {
 }
 
 func (a *chatStreamAccumulator) response() (*Response, error) {
+	stringValue1 := str.String(a.outputText.String())
 	resp := &Response{
 		Model:             a.model,
-		OutputText:        stringx.String(a.outputText.String()).Trim(),
+		OutputText:        stringValue1.Trim(),
 		ToolCalls:         a.toolCalls,
 		RequiresToolCalls: len(a.toolCalls) > 0,
 		PromptTokens:      a.promptTokens,
@@ -271,7 +272,8 @@ func (a *chatStreamAccumulator) response() (*Response, error) {
 }
 
 func normalizeRequest(req Request) (normalizedRequest, error) {
-	model := stringx.String(req.Model).Trim()
+	stringValue2 := str.String(req.Model)
+	model := stringValue2.Trim()
 	if model == "" {
 		return normalizedRequest{}, errors.New("model is required")
 	}
@@ -287,10 +289,10 @@ func normalizeRequest(req Request) (normalizedRequest, error) {
 	if err != nil {
 		return normalizedRequest{}, err
 	}
-
+	stringValue3 := str.String(req.Instructions)
 	return normalizedRequest{
 		Model:            model,
-		Instructions:     stringx.String(req.Instructions).Trim(),
+		Instructions:     stringValue3.Trim(),
 		Messages:         messages,
 		Tools:            tools,
 		StructuredOutput: normalizeStructuredOutput(req.StructuredOutput),
@@ -303,9 +305,12 @@ func normalizeRequest(req Request) (normalizedRequest, error) {
 func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) {
 	normalized := make([]morphmsg.Message, 0, len(messages))
 	for _, message := range messages {
-		role := morphmsg.Role(stringx.String(string(message.Role)).Normalized())
-		content := stringx.String(message.Content).Trim()
-		toolCallID := stringx.String(message.ToolCallID).Trim()
+		stringValue4 := str.String(string(message.Role))
+		role := morphmsg.Role(stringValue4.Normalized())
+		stringValue5 := str.String(message.Content)
+		content := stringValue5.Trim()
+		stringValue6 := str.String(message.ToolCallID)
+		toolCallID := stringValue6.Trim()
 		toolCalls, err := normalizeToolCalls(message.ToolCalls)
 		if err != nil {
 			return nil, err
@@ -324,11 +329,11 @@ func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) 
 		if role == morphmsg.RoleTool && toolCallID == "" {
 			return nil, errors.New("tool call id is required")
 		}
-
+		stringValue7 := str.String(message.Name)
 		normalized = append(normalized, morphmsg.Message{
 			Role:       role,
 			Content:    content,
-			Name:       stringx.String(message.Name).Trim(),
+			Name:       stringValue7.Trim(),
 			ToolCallID: toolCallID,
 			ToolCalls:  toolCalls,
 			CreatedAt:  message.CreatedAt,
@@ -345,13 +350,15 @@ func normalizeToolDefinitions(definitions []ToolDefinition) ([]ToolDefinition, e
 
 	normalized := make([]ToolDefinition, 0, len(definitions))
 	for _, definition := range definitions {
-		name := stringx.String(definition.Name).Trim()
+		stringValue8 := str.String(definition.Name)
+		name := stringValue8.Trim()
 		if name == "" {
 			return nil, errors.New("tool name is required")
 		}
+		stringValue9 := str.String(definition.Description)
 		normalized = append(normalized, ToolDefinition{
 			Name:         name,
-			Description:  stringx.String(definition.Description).Trim(),
+			Description:  stringValue9.Trim(),
 			InputSchema:  definition.InputSchema,
 			ParallelSafe: definition.ParallelSafe,
 		})
@@ -367,18 +374,21 @@ func normalizeToolCalls(toolCalls []morphmsg.ToolCall) ([]morphmsg.ToolCall, err
 
 	normalized := make([]morphmsg.ToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
-		id := stringx.String(toolCall.ID).Trim()
-		name := stringx.String(toolCall.Name).Trim()
+		stringValue10 := str.String(toolCall.ID)
+		id := stringValue10.Trim()
+		stringValue11 := str.String(toolCall.Name)
+		name := stringValue11.Trim()
 		if id == "" {
 			return nil, errors.New("tool call id is required")
 		}
 		if name == "" {
 			return nil, errors.New("tool call name is required")
 		}
+		stringValue12 := str.String(toolCall.Input)
 		normalized = append(normalized, morphmsg.ToolCall{
 			ID:    id,
 			Name:  name,
-			Input: stringx.String(toolCall.Input).Trim(),
+			Input: stringValue12.Trim(),
 		})
 	}
 
@@ -389,15 +399,15 @@ func normalizeStructuredOutput(value *StructuredOutput) *StructuredOutput {
 	if value == nil {
 		return nil
 	}
-
-	name := stringx.String(value.Name).Trim()
+	stringValue13 := str.String(value.Name)
+	name := stringValue13.Trim()
 	if name == "" || len(value.Schema) == 0 {
 		return nil
 	}
-
+	stringValue14 := str.String(value.Description)
 	return &StructuredOutput{
 		Name:        name,
-		Description: stringx.String(value.Description).Trim(),
+		Description: stringValue14.Trim(),
 		Schema:      value.Schema,
 		Strict:      value.Strict,
 	}
@@ -425,9 +435,10 @@ func buildChatRequest(req normalizedRequest, stream bool) chatRequest {
 }
 
 func messageToChatMessage(message morphmsg.Message) chatMessage {
+	stringValue15 := str.String(message.Content)
 	converted := chatMessage{
 		Role:    string(message.Role),
-		Content: stringx.String(message.Content).Trim(),
+		Content: stringValue15.Trim(),
 	}
 	if len(message.ToolCalls) > 0 {
 		converted.ToolCalls = make([]chatToolCall, 0, len(message.ToolCalls))
@@ -492,7 +503,8 @@ func buildOptions(req normalizedRequest) map[string]any {
 
 func responseFromChatResponse(resp chatResponse, tools []chatTool) (*Response, error) {
 	toolCalls := toolCallsFromChatToolCalls(resp.Message.ToolCalls, 0)
-	outputText := stringx.String(resp.Message.Content).Trim()
+	stringValue16 := str.String(resp.Message.Content)
+	outputText := stringValue16.Trim()
 	if outputText == "" && len(toolCalls) == 0 {
 		return nil, errors.New("model returned empty response")
 	}
@@ -518,7 +530,8 @@ func toolCallsFromChatToolCalls(providerToolCalls []chatToolCall, offset int) []
 
 	toolCalls := make([]ToolCall, 0, len(providerToolCalls))
 	for idx, providerToolCall := range providerToolCalls {
-		name := stringx.String(providerToolCall.Function.Name).Trim()
+		stringValue17 := str.String(providerToolCall.Function.Name)
+		name := stringValue17.Trim()
 		if name == "" {
 			continue
 		}
@@ -540,7 +553,8 @@ func stringFromRawArguments(raw json.RawMessage) string {
 
 	var asString string
 	if err := json.Unmarshal(raw, &asString); err == nil {
-		return stringx.String(asString).Trim()
+		stringValue18 := str.String(asString)
+		return stringValue18.Trim()
 	}
 
 	var compact bytes.Buffer
@@ -552,7 +566,8 @@ func stringFromRawArguments(raw json.RawMessage) string {
 }
 
 func defaultToolArguments(value string) string {
-	value = stringx.String(value).Trim()
+	stringValue19 := str.String(value)
+	value = stringValue19.Trim()
 	if value == "" {
 		return "{}"
 	}
@@ -580,7 +595,8 @@ func ollamaStatusError(resp *http.Response) error {
 }
 
 func normalizeBaseURL(value string) (string, error) {
-	value = strings.TrimRight(stringx.String(value).Trim(), "/")
+	stringValue20 := str.String(value)
+	value = strings.TrimRight(stringValue20.Trim(), "/")
 	if value == "" {
 		return "", errors.New("ollama base URL is required")
 	}
@@ -599,8 +615,10 @@ func normalizeBaseURL(value string) (string, error) {
 func normalizeHeaders(headers map[string]string) map[string]string {
 	normalized := make(map[string]string)
 	for key, value := range headers {
-		key = stringx.String(key).Trim()
-		value = stringx.String(value).Trim()
+		stringValue21 := str.String(key)
+		key = stringValue21.Trim()
+		stringValue22 := str.String(value)
+		value = stringValue22.Trim()
 		if key == "" || value == "" {
 			continue
 		}

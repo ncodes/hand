@@ -16,7 +16,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/trace"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -176,7 +176,8 @@ func (s Service) extractWindow(
 		// least one candidate.
 		result.SkipCount = len(existing.Hits)
 		for _, hit := range existing.Hits {
-			id := stringx.String(hit.Item.ID).Trim()
+			stringValue1 := str.String(hit.Item.ID)
+			id := stringValue1.Trim()
 			if id != "" {
 				result.SkippedIDs = append(result.SkippedIDs, id)
 			}
@@ -305,7 +306,9 @@ func (s Service) checkEpisodicCandidateRedundancy(
 
 	for _, hit := range result.Hits {
 		related := hit.Item
-		if stringx.String(related.ID).Trim() == stringx.String(item.ID).Trim() {
+		stringValue2 := str.String(related.ID)
+		stringValue3 := str.String(item.ID)
+		if stringValue2.Trim() == stringValue3.Trim() {
 			continue
 		}
 		fields := getEpisodicRejectionTraceFields(item, related, hit.Score)
@@ -328,21 +331,28 @@ func getEpisodicRejectionTraceFields(
 	related storage.MemoryItem,
 	score float64,
 ) map[string]any {
+	stringValue4 := str.String(candidate.ID)
+	stringValue5 := str.String(candidate.Title)
+	stringValue6 := str.String(candidate.Text)
+	stringValue7 := str.String(related.ID)
+	stringValue8 := str.String(related.Metadata["candidate_kind"])
+	stringValue9 := str.String(related.Title)
 	return map[string]any{
-		"candidate_memory_id":    stringx.String(candidate.ID).Trim(),
-		"candidate_title":        truncateRunes(stringx.String(candidate.Title).Trim(), 120),
-		"candidate_text_chars":   len([]rune(stringx.String(candidate.Text).Trim())),
-		"related_memory_id":      stringx.String(related.ID).Trim(),
+		"candidate_memory_id":    stringValue4.Trim(),
+		"candidate_title":        truncateRunes(stringValue5.Trim(), 120),
+		"candidate_text_chars":   len([]rune(stringValue6.Trim())),
+		"related_memory_id":      stringValue7.Trim(),
 		"related_memory_kind":    string(related.Kind),
 		"related_memory_status":  string(related.Status),
-		"related_candidate_kind": stringx.String(related.Metadata["candidate_kind"]).Trim(),
-		"related_title":          truncateRunes(stringx.String(related.Title).Trim(), 120),
+		"related_candidate_kind": stringValue8.Trim(),
+		"related_title":          truncateRunes(stringValue9.Trim(), 120),
 		"related_score":          score,
 	}
 }
 
 func (s Service) normalizeRequest(ctx context.Context, req Request) (normalizedRequest, error) {
-	sessionID := stringx.String(req.SessionID).Trim()
+	stringValue10 := str.String(req.SessionID)
+	sessionID := stringValue10.Trim()
 	if sessionID == "" {
 		currentSessionID, err := s.manager.CurrentSession(ctx)
 		if err != nil {
@@ -403,8 +413,8 @@ func (s Service) normalizeRequest(ctx context.Context, req Request) (normalizedR
 	if maxTokens > MaxWindowTokens {
 		maxTokens = MaxWindowTokens
 	}
-
-	trigger := stringx.String(req.Trigger).Trim()
+	stringValue11 := str.String(req.Trigger)
+	trigger := stringValue11.Trim()
 	if trigger == "" {
 		trigger = defaultTrigger
 	}
@@ -520,9 +530,10 @@ func (s Service) loadTraceEvidence(ctx context.Context, sessionID string) ([]tas
 		if !trace.IsEpisodicMemoryTraceEventType(event.Type) {
 			continue
 		}
+		stringValue12 := str.String(event.Type)
 		traces = append(traces, taskTraceEvidence{
 			Ref:       getTraceEventRef(event),
-			Type:      stringx.String(event.Type).Trim(),
+			Type:      stringValue12.Trim(),
 			Timestamp: getTraceEventTimestamp(event),
 			Payload:   tracePayloadToText(event.Payload),
 		})
@@ -559,9 +570,11 @@ func tracePayloadToText(payload any) string {
 }
 
 func getEpisodicSearchText(item storage.MemoryItem) string {
-	text := stringx.String(item.Text).Trim()
+	stringValue13 := str.String(item.Text)
+	text := stringValue13.Trim()
 	if text == "" {
-		text = stringx.String(item.Title).Trim()
+		stringValue14 := str.String(item.Title)
+		text = stringValue14.Trim()
 	}
 	if len([]rune(text)) > 240 {
 		text = string([]rune(text)[:240])
@@ -570,17 +583,21 @@ func getEpisodicSearchText(item storage.MemoryItem) string {
 }
 
 func normalizeEpisodicText(item storage.MemoryItem) string {
-	return strings.Join(strings.Fields(stringx.String(item.Title+"\n"+item.Text).Normalized()), " ")
+	stringValue15 := str.String(item.Title + "\n" + item.Text)
+	return strings.Join(strings.Fields(stringValue15.Normalized()), " ")
 }
 
 func hasSameEpisodeCandidateKind(a storage.MemoryItem, b storage.MemoryItem) bool {
-	return stringx.String(a.Metadata["candidate_kind"]).Trim() == stringx.String(b.Metadata["candidate_kind"]).Trim()
+	stringValue16 := str.String(a.Metadata["candidate_kind"])
+	stringValue17 := str.String(b.Metadata["candidate_kind"])
+	return stringValue16.Trim() == stringValue17.Trim()
 }
 
 func getTraceEvidenceRefs(events []taskTraceEvidence) []string {
 	refs := make([]string, 0, len(events))
 	for _, event := range events {
-		if ref := stringx.String(event.Ref).Trim(); ref != "" {
+		stringValue18 := str.String(event.Ref)
+		if ref := stringValue18.Trim(); ref != "" {
 			refs = append(refs, ref)
 		}
 	}
@@ -617,13 +634,15 @@ func episodeCandidateToMemoryItem(
 	evidence messageEvidence,
 	candidate episodeCandidate,
 ) (storage.MemoryItem, bool) {
-	candidate.Kind = stringx.String(candidate.Kind).Trim()
+	stringValue19 := str.String(candidate.Kind)
+	candidate.Kind = stringValue19.Trim()
 	if !isValidEpisodeCandidateKind(candidate.Kind) {
 		return storage.MemoryItem{}, false
 	}
-
-	text := stringx.String(truncateRunes(candidate.Text, req.getWindowCharLimit())).Trim()
-	title := stringx.String(candidate.Title).Trim()
+	stringValue20 := str.String(truncateRunes(candidate.Text, req.getWindowCharLimit()))
+	text := stringValue20.Trim()
+	stringValue21 := str.String(candidate.Title)
+	title := stringValue21.Trim()
 	if title == "" && text == "" {
 		return storage.MemoryItem{}, false
 	}
@@ -679,7 +698,8 @@ func episodeCandidateToMemoryItem(
 }
 
 func normalizeMetadataValue(value string) string {
-	return stringx.String(value).Trim()
+	stringValue22 := str.String(value)
+	return stringValue22.Trim()
 }
 
 func getSourceQuality(evidence messageEvidence) string {
@@ -720,26 +740,31 @@ func (r normalizedRequest) getWindowCharLimit() int {
 
 func messageToLine(message morphmsg.Message) string {
 	parts := make([]string, 0, 2+len(message.ToolCalls))
-	if content := stringx.String(sanitizeUTF8(message.Content)).Trim(); content != "" {
+	stringValue23 := str.String(sanitizeUTF8(message.Content))
+	if content := stringValue23.Trim(); content != "" {
 		parts = append(parts, content)
 	}
 	for _, call := range message.ToolCalls {
-		name := stringx.String(call.Name).Trim()
-		input := stringx.String(sanitizeUTF8(call.Input)).Trim()
+		stringValue26 := str.String(call.Name)
+		name := stringValue26.Trim()
+		stringValue27 := str.String(sanitizeUTF8(call.Input))
+		input := stringValue27.Trim()
 		if name == "" && input == "" {
 			continue
 		}
-		parts = append(parts, stringx.String("tool_call "+name+": "+input).Trim())
+		stringValue28 := str.String("tool_call " + name + ": " + input)
+		parts = append(parts, stringValue28.Trim())
 	}
 	if len(parts) == 0 {
 		return ""
 	}
-
-	role := stringx.String(string(message.Role)).Trim()
+	stringValue24 := str.String(string(message.Role))
+	role := stringValue24.Trim()
 	if role == "" {
 		role = "message"
 	}
-	if toolName := stringx.String(message.Name).Trim(); message.Role == morphmsg.RoleTool && toolName != "" {
+	stringValue25 := str.String(message.Name)
+	if toolName := stringValue25.Trim(); message.Role == morphmsg.RoleTool && toolName != "" {
 		role += ":" + toolName
 	}
 	return role + ": " + strings.Join(parts, " ")
@@ -773,19 +798,22 @@ func getCandidateMemoryIDSource(
 	metadata map[string]string,
 	sourceLinks []storage.MemorySourceLink,
 ) string {
-	parts := []string{
-		stringx.String(sessionID).Trim(),
-		stringx.String(kind).Trim(),
-		normalizeMemoryIDText(title),
+	stringValue29 := str.String(sessionID)
+	stringValue30 := str.String(kind)
+	parts := []string{stringValue29.
+		Trim(), stringValue30.
+		Trim(), normalizeMemoryIDText(title),
 		normalizeMemoryIDText(text),
 	}
 	for _, key := range getEpisodeIdentityMetadataKeys() {
-		if value := stringx.String(metadata[key]).Trim(); value != "" {
+		stringValue31 := str.String(metadata[key])
+		if value := stringValue31.Trim(); value != "" {
 			parts = append(parts, key+"="+normalizeMemoryIDText(value))
 		}
 	}
 	for _, link := range sourceLinks {
-		parts = append(parts, stringx.String(link.SessionID).Trim())
+		stringValue32 := str.String(link.SessionID)
+		parts = append(parts, stringValue32.Trim())
 		parts = append(parts, uintSliceToMemoryIDText(link.MessageIDs))
 		parts = append(parts, intSliceToMemoryIDText(link.Offsets))
 	}
@@ -794,7 +822,8 @@ func getCandidateMemoryIDSource(
 }
 
 func normalizeMemoryIDText(value string) string {
-	return strings.Join(strings.Fields(stringx.String(value).Normalized()), " ")
+	stringValue33 := str.String(value)
+	return strings.Join(strings.Fields(stringValue33.Normalized()), " ")
 }
 
 func uintSliceToMemoryIDText(values []uint) string {
@@ -820,7 +849,8 @@ func getSourceRangeTag(sessionID string, start int, end int) string {
 }
 
 func getSourceRangeHash(id string, start int, end int) string {
-	sum := sha256.Sum256(fmt.Appendf(nil, "%s:%d:%d", stringx.String(id).Trim(), start, end))
+	stringValue34 := str.String(id)
+	sum := sha256.Sum256(fmt.Appendf(nil, "%s:%d:%d", stringValue34.Trim(), start, end))
 	return hex.EncodeToString(sum[:8])
 }
 

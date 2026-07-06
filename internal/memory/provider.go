@@ -12,7 +12,7 @@ import (
 	models "github.com/wandxy/morph/internal/model"
 	statecore "github.com/wandxy/morph/internal/state/core"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // ProviderDefaultMemory is the package-level provider default memory constant.
@@ -89,7 +89,8 @@ type MemoryProvider struct {
 // both memory and SQLite backends share the same provider logic and differ only
 // in the StateManager they pass in.
 func NewProvider(name string, opts Options) (Provider, error) {
-	switch stringx.String(name).Normalized() {
+	stringValue1 := str.String(name)
+	switch stringValue1.Normalized() {
 	case "", ProviderDefaultMemory:
 		switch getEffectiveBackend(opts) {
 		case "memory", "sqlite":
@@ -103,10 +104,12 @@ func NewProvider(name string, opts Options) (Provider, error) {
 }
 
 func getEffectiveBackend(opts Options) string {
-	if backend := stringx.String(opts.MemoryBackend).Normalized(); backend != "" {
+	stringValue2 := str.String(opts.MemoryBackend)
+	if backend := stringValue2.Normalized(); backend != "" {
 		return backend
 	}
-	if backend := stringx.String(opts.StorageBackend).Normalized(); backend != "" {
+	stringValue3 := str.String(opts.StorageBackend)
+	if backend := stringValue3.Normalized(); backend != "" {
 		return backend
 	}
 	return constants.DefaultStorageBackend
@@ -286,8 +289,9 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 	}
 
 	obs := p.observability()
+	stringValue4 := str.String(query.Text)
 	startFields := buildObservationFields(p.Name(), "search", map[string]any{
-		"query_chars":  len([]rune(stringx.String(query.Text).Trim())),
+		"query_chars":  len([]rune(stringValue4.Trim())),
 		"kind_count":   len(query.Kinds),
 		"status_count": len(query.Statuses),
 		"limit":        query.Limit,
@@ -355,8 +359,8 @@ func (p *MemoryProvider) Delete(ctx context.Context, req DeleteRequest) error {
 	if err := validateDelete(ctx, p.guardrails, req); err != nil {
 		return err
 	}
-
-	memoryID := stringx.String(req.ID).Trim()
+	stringValue5 := str.String(req.ID)
+	memoryID := stringValue5.Trim()
 	if memoryID == "" {
 		return errors.New("memory id is required")
 	}

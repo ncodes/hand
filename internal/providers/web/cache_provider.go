@@ -8,7 +8,7 @@ import (
 
 	pkgcache "github.com/wandxy/morph/pkg/cache"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var webLog = logutils.Module("providers.web")
@@ -37,10 +37,10 @@ func NewCachedProvider(provider Provider, opts CacheOptions) Provider {
 	if now == nil {
 		now = time.Now
 	}
-
+	stringValue1 := str.String(opts.ProviderName)
 	return &cachedProvider{
 		provider:     provider,
-		providerName: stringx.String(opts.ProviderName).Normalized(),
+		providerName: stringValue1.Normalized(),
 		search: pkgcache.New(pkgcache.Options[string, []SearchResult]{
 			TTL:   opts.TTL,
 			Now:   now,
@@ -112,13 +112,15 @@ func (p *cachedProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 		}
 
 		results[missIndexes[idx]] = result
-		if stringx.String(result.Error).Trim() == "" {
+		stringValue2 := str.String(result.Error)
+		if stringValue2.Trim() == "" {
 			p.storeExtract(missKeys[idx], result)
 		}
 	}
 	for idx := len(fetched); idx < len(missIndexes); idx++ {
+		stringValue3 := str.String(missURLs[idx])
 		results[missIndexes[idx]] = ExtractResult{
-			URL:   stringx.String(missURLs[idx]).Trim(),
+			URL:   stringValue3.Trim(),
 			Error: "web extraction provider returned no result",
 		}
 	}
@@ -159,19 +161,19 @@ func (p *cachedProvider) storeExtract(key string, result ExtractResult) {
 }
 
 func (p *cachedProvider) searchKey(query string, count int) string {
+	stringValue4 := str.String(query)
 	return strings.Join([]string{
-		p.providerName,
-		stringx.String(query).Trim(),
-		strconv.Itoa(count),
+		p.providerName, stringValue4.
+			Trim(), strconv.Itoa(count),
 	}, "\x00")
 }
 
 func (p *cachedProvider) extractKey(ctx context.Context, rawURL string) string {
 	opts := ExtractOptionsFromContext(ctx)
+	stringValue5 := str.String(rawURL)
 	return strings.Join([]string{
-		p.providerName,
-		stringx.String(rawURL).Trim(),
-		opts.Format,
+		p.providerName, stringValue5.
+			Trim(), opts.Format,
 		strconv.Itoa(opts.MaxChars),
 		opts.Query,
 	}, "\x00")

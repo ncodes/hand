@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 
 	"github.com/wandxy/morph/internal/agent/runcontext"
 	"github.com/wandxy/morph/internal/config"
@@ -357,8 +357,8 @@ func (e *environment) prepareTools() error {
 				},
 			),
 		)
-
-		webProviderName := stringx.String(e.cfg.Web.Provider).Normalized()
+		stringValue1 := str.String(e.cfg.Web.Provider)
+		webProviderName := stringValue1.Normalized()
 		if webProviderName != "" && webProviderName != webprovider.ProviderNative {
 			definitions = append(definitions,
 				websearch.Definition(
@@ -620,7 +620,8 @@ func (e *environment) commandPolicy() guardrails.CommandPolicy {
 }
 
 func (e *environment) addInstruction(instruction instructions.Instruction) {
-	if stringx.String(instruction.Value).Trim() == "" {
+	stringValue2 := str.String(instruction.Value)
+	if stringValue2.Trim() == "" {
 		return
 	}
 
@@ -628,8 +629,10 @@ func (e *environment) addInstruction(instruction instructions.Instruction) {
 }
 
 func (e *environment) setInstruction(instruction instructions.Instruction) {
-	instruction.Name = stringx.String(instruction.Name).Trim()
-	instruction.Value = stringx.String(instruction.Value).Trim()
+	stringValue3 := str.String(instruction.Name)
+	instruction.Name = stringValue3.Trim()
+	stringValue4 := str.String(instruction.Value)
+	instruction.Value = stringValue4.Trim()
 
 	if instruction.Name == "" {
 		e.addInstruction(instruction)

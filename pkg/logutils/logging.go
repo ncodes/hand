@@ -8,7 +8,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var (
@@ -88,7 +88,8 @@ func SetFileOutput(out io.Writer) {
 }
 
 func ConfigureLogger(programName string, noColor bool) *zerolog.Logger {
-	if stringx.String(programName).Trim() == "" {
+	stringValue1 := str.String(programName)
+	if stringValue1.Trim() == "" {
 		programName = "agent"
 	}
 
@@ -105,7 +106,8 @@ func GetLogger(programName string) *zerolog.Logger {
 }
 
 func SetLogLevel(level string) {
-	switch stringx.String(level).Normalized() {
+	stringValue2 := str.String(level)
+	switch stringValue2.Normalized() {
 	case "debug":
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	case "warn":

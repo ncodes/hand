@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	slack "github.com/wandxy/morph/pkg/gateway/slack"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const defaultSlackAPIBase = "https://slack.com/api"
@@ -48,7 +48,8 @@ func (e slackAPIError) Error() string {
 }
 
 func NewHTTPClient(token string) *HTTPClient {
-	return &HTTPClient{client: http.DefaultClient, baseURL: defaultSlackAPIBase, token: stringx.String(token).Trim()}
+	stringValue1 := str.String(token)
+	return &HTTPClient{client: http.DefaultClient, baseURL: defaultSlackAPIBase, token: stringValue1.Trim()}
 }
 
 func (c *HTTPClient) PostMessage(ctx context.Context, target slack.Target, text string) (string, error) {
@@ -75,10 +76,12 @@ func (c *HTTPClient) StartStream(ctx context.Context, target slack.Target, text 
 		Channel:  target.ChannelID,
 		ThreadTS: target.ThreadTS,
 	}
-	if stringx.String(text).Trim() != "" {
+	stringValue2 := str.String(text)
+	if stringValue2.Trim() != "" {
 		req.Chunks = []slack.Chunk{slack.MarkdownTextChunk(text)}
 	}
-	if stringx.String(target.ChannelType).Trim() == "im" {
+	stringValue3 := str.String(target.ChannelType)
+	if stringValue3.Trim() == "im" {
 		req.RecipientUserID = target.RecipientUserID
 		req.RecipientTeamID = target.RecipientTeamID
 	}
@@ -103,7 +106,8 @@ func (c *HTTPClient) AppendStream(ctx context.Context, stream slack.Stream, chun
 
 func (c *HTTPClient) StopStream(ctx context.Context, stream slack.Stream, text string) error {
 	req := slack.StopStreamRequest{Channel: stream.ChannelID, TS: stream.TS}
-	if stringx.String(text).Trim() != "" {
+	stringValue4 := str.String(text)
+	if stringValue4.Trim() != "" {
 		req.Chunks = []slack.Chunk{slack.MarkdownTextChunk(text)}
 	}
 
@@ -129,7 +133,8 @@ func (c *HTTPClient) call(ctx context.Context, method string, req any, out any) 
 	if err != nil {
 		return err
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+stringx.String(c.token).Trim())
+	stringValue5 := str.String(c.token)
+	httpReq.Header.Set("Authorization", "Bearer "+stringValue5.Trim())
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	httpResp, err := c.client.Do(httpReq)

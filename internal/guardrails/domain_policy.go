@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type domainRule struct {
@@ -19,10 +19,10 @@ func appendDomainRules(existing []domainRule, values []string, source string) []
 		if rule == "" {
 			continue
 		}
-
+		stringValue1 := str.String(source)
 		existing = append(existing, domainRule{
 			Pattern: rule,
-			Source:  stringx.String(source).Trim(),
+			Source:  stringValue1.Trim(),
 		})
 	}
 
@@ -31,7 +31,8 @@ func appendDomainRules(existing []domainRule, values []string, source string) []
 
 func appendDomainRulesFromFiles(existing []domainRule, files []string) []domainRule {
 	for _, file := range files {
-		existing = appendDomainRules(existing, loadPolicyFile(file), stringx.String(file).Trim())
+		stringValue2 := str.String(file)
+		existing = appendDomainRules(existing, loadPolicyFile(file), stringValue2.Trim())
 	}
 
 	return existing
@@ -53,7 +54,8 @@ func getFirstMatchingDomainRule(rules []domainRule, host string) (domainRule, bo
 }
 
 func loadPolicyFile(path string) []string {
-	path = stringx.String(path).Trim()
+	stringValue3 := str.String(path)
+	path = stringValue3.Trim()
 	if path == "" {
 		return nil
 	}
@@ -67,7 +69,8 @@ func loadPolicyFile(path string) []string {
 	var values []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := stringx.String(scanner.Text()).Trim()
+		stringValue4 := str.String(scanner.Text())
+		line := stringValue4.Trim()
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -152,14 +152,19 @@ func IsExpired(credential StoredCredential) bool {
 }
 
 func normalizeProvider(provider string) string {
-	return stringx.String(provider).Normalized()
+	stringValue1 := str.String(provider)
+	return stringValue1.Normalized()
 }
 
 func normalizeCredential(credential StoredCredential) StoredCredential {
-	credential.Type = stringx.String(credential.Type).Normalized()
-	credential.Key = stringx.String(credential.Key).Trim()
-	credential.Token = stringx.String(credential.Token).Trim()
-	credential.Refresh = stringx.String(credential.Refresh).Trim()
+	stringValue2 := str.String(credential.Type)
+	credential.Type = stringValue2.Normalized()
+	stringValue3 := str.String(credential.Key)
+	credential.Key = stringValue3.Trim()
+	stringValue4 := str.String(credential.Token)
+	credential.Token = stringValue4.Trim()
+	stringValue5 := str.String(credential.Refresh)
+	credential.Refresh = stringValue5.Trim()
 	credential.Scopes = normalizeStrings(credential.Scopes)
 	return credential
 }
@@ -172,10 +177,12 @@ func checkStoredCredential(credential StoredCredential) (StoredCredential, error
 	if credential.Type != TypeAPIKey && credential.Type != TypeOAuth {
 		return StoredCredential{}, fmt.Errorf("credential type must be one of: %s, %s", TypeAPIKey, TypeOAuth)
 	}
-	if credential.Type == TypeAPIKey && stringx.String(credential.Key).Trim() == "" {
+	stringValue6 := str.String(credential.Key)
+	if credential.Type == TypeAPIKey && stringValue6.Trim() == "" {
 		return StoredCredential{}, errors.New("API key credential is required")
 	}
-	if credential.Type == TypeOAuth && stringx.String(credential.Token).Trim() == "" {
+	stringValue7 := str.String(credential.Token)
+	if credential.Type == TypeOAuth && stringValue7.Trim() == "" {
 		return StoredCredential{}, errors.New("OAuth token credential is required")
 	}
 
@@ -199,7 +206,8 @@ func normalizeStrings(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
-		value = stringx.String(value).Trim()
+		stringValue8 := str.String(value)
+		value = stringValue8.Trim()
 		if value == "" {
 			continue
 		}

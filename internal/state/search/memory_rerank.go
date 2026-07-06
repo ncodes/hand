@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	state "github.com/wandxy/morph/internal/state/core"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // MemoryRerankOptions controls memory rerank.
@@ -23,7 +23,8 @@ func FilterMemoryHitsForEvidence(
 	query state.MemorySearchQuery,
 	hits []state.MemorySearchHit,
 ) []state.MemorySearchHit {
-	if stringx.String(query.Text).Trim() == "" {
+	stringValue1 := str.String(query.Text)
+	if stringValue1.Trim() == "" {
 		return hits
 	}
 
@@ -91,7 +92,8 @@ func RerankMemoryHits(
 }
 
 func getMemoryRerankCaller(query state.MemorySearchQuery) string {
-	if caller := stringx.String(query.RerankerUseCase).Normalized(); caller != "" {
+	stringValue2 := str.String(query.RerankerUseCase)
+	if caller := stringValue2.Normalized(); caller != "" {
 		return caller
 	}
 
@@ -128,7 +130,8 @@ func dedupeMemoryHits(hits []state.MemorySearchHit) []state.MemorySearchHit {
 
 	byID := make(map[string]state.MemorySearchHit, len(hits))
 	for _, hit := range hits {
-		id := stringx.String(hit.Item.ID).Trim()
+		stringValue3 := str.String(hit.Item.ID)
+		id := stringValue3.Trim()
 		if id == "" {
 			continue
 		}
@@ -205,11 +208,13 @@ func memoryCandidate(query state.MemorySearchQuery, hit state.MemorySearchHit) C
 }
 
 func getMemoryCandidateText(item state.MemoryItem) string {
-	text := stringx.String(strings.Join([]string{item.Title, item.Text}, "\n")).Trim()
+	stringValue4 := str.String(strings.Join([]string{item.Title, item.Text}, "\n"))
+	text := stringValue4.Trim()
 	if text != "" {
 		return text
 	}
-	return stringx.String(item.ID).Trim()
+	stringValue5 := str.String(item.ID)
+	return stringValue5.Trim()
 }
 
 func getMemoryCandidateFusedScore(query state.MemorySearchQuery, hit state.MemorySearchHit) float64 {
@@ -276,7 +281,8 @@ func memorySourceQualityBoost(links []state.MemorySourceLink) float64 {
 
 	score := 0.0
 	for _, link := range links {
-		if stringx.String(link.SessionID).Trim() != "" {
+		stringValue6 := str.String(link.SessionID)
+		if stringValue6.Trim() != "" {
 			score += 0.04
 		}
 		if len(link.MessageIDs) > 0 {
@@ -285,10 +291,13 @@ func memorySourceQualityBoost(links []state.MemorySourceLink) float64 {
 		if len(link.Offsets) > 0 {
 			score += 0.02
 		}
-		if stringx.String(link.SummaryID).Trim() != "" {
+		stringValue7 := str.String(link.SummaryID)
+		if stringValue7.Trim() != "" {
 			score += 0.02
 		}
-		if stringx.String(link.CreatedBy).Trim() != "" || stringx.String(link.CreatedReason).Trim() != "" {
+		stringValue8 := str.String(link.CreatedBy)
+		stringValue9 := str.String(link.CreatedReason)
+		if stringValue8.Trim() != "" || stringValue9.Trim() != "" {
 			score += 0.02
 		}
 	}

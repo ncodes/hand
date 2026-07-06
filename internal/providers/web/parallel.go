@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const parallelDefaultBaseURL = "https://api.parallel.ai"
@@ -63,9 +63,11 @@ func (p *ParallelProvider) Search(ctx context.Context, query string, count int) 
 
 	results := make([]SearchResult, 0, len(response.Results))
 	for idx, result := range response.Results {
+		stringValue1 := str.String(result.Title)
+		stringValue2 := str.String(result.URL)
 		results = append(results, SearchResult{
-			Title:    stringx.String(result.Title).Trim(),
-			URL:      stringx.String(result.URL).Trim(),
+			Title:    stringValue1.Trim(),
+			URL:      stringValue2.Trim(),
 			Snippet:  truncateToMaxChars(getFirstNonEmpty(strings.Join(result.Excerpts, " "), result.Snippet), p.maxCharsPerResult),
 			Position: idx + 1,
 		})
@@ -105,10 +107,11 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 			getFirstNonEmpty(result.FullContent, strings.Join(result.Excerpts, "\n\n")),
 			p.maxExtractResponseBytes,
 			maxChars)
-
+		stringValue3 := str.String(result.URL)
+		stringValue4 := str.String(result.Title)
 		results = append(results, ExtractResult{
-			URL:               stringx.String(result.URL).Trim(),
-			Title:             stringx.String(result.Title).Trim(),
+			URL:               stringValue3.Trim(),
+			Title:             stringValue4.Trim(),
 			Content:           content,
 			ContentFormat:     format,
 			Truncated:         truncated,
@@ -116,8 +119,9 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 		})
 	}
 	for _, result := range response.Errors {
+		stringValue5 := str.String(result.URL)
 		results = append(results, ExtractResult{
-			URL:           stringx.String(result.URL).Trim(),
+			URL:           stringValue5.Trim(),
 			ContentFormat: format,
 			Error:         getFirstNonEmpty(result.Content, result.ErrorType, "extraction failed"),
 		})
@@ -127,11 +131,14 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 }
 
 func (p *ParallelProvider) parallelHeaders() map[string]string {
-	if p == nil || p.client == nil || stringx.String(p.client.apiKey).Trim() == "" {
+	if p == nil || p.client == nil {
 		return nil
 	}
-
+	apiKey := str.String(p.client.apiKey)
+	if apiKey.Trim() == "" {
+		return nil
+	}
 	return map[string]string{
-		"x-api-key": stringx.String(p.client.apiKey).Trim(),
+		"x-api-key": apiKey.Trim(),
 	}
 }

@@ -10,7 +10,7 @@ import (
 	urfavecli "github.com/urfave/cli/v3"
 
 	morphcli "github.com/wandxy/morph/internal/cli"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var daemonOutput io.Writer = os.Stdout
@@ -58,7 +58,8 @@ func newStatusCommand() *urfavecli.Command {
 }
 
 func writeDaemonStatus(out io.Writer, status morphcli.DaemonStatus) error {
-	if stringx.String(status.State).Trim() == "" {
+	stringValue1 := str.String(status.State)
+	if stringValue1.Trim() == "" {
 		status.State = "unknown"
 	}
 
@@ -78,7 +79,8 @@ func writeDaemonStatus(out io.Writer, status morphcli.DaemonStatus) error {
 }
 
 func formatStatusValue(value string) string {
-	value = stringx.String(value).Trim()
+	stringValue2 := str.String(value)
+	value = stringValue2.Trim()
 	if value == "" {
 		return "-"
 	}

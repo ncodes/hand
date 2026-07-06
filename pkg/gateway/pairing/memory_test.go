@@ -3,7 +3,7 @@ package pairing
 import (
 	"context"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type memoryStore struct {
@@ -53,7 +53,8 @@ func (s *memoryStore) ListGatewayPairingRequests(_ context.Context, source strin
 
 	var requests []PendingRequest
 	for _, request := range s.pending {
-		if stringx.String(source).Trim() == "" || request.Source == source {
+		stringValue1 := str.String(source)
+		if stringValue1.Trim() == "" || request.Source == source {
 			requests = append(requests, request)
 		}
 	}
@@ -71,7 +72,8 @@ func (s *memoryStore) DeleteGatewayPairingRequest(_ context.Context, source stri
 
 func (s *memoryStore) ClearGatewayPairingRequests(_ context.Context, source string) error {
 	for key, request := range s.pending {
-		if stringx.String(source).Trim() == "" || request.Source == source {
+		stringValue2 := str.String(source)
+		if stringValue2.Trim() == "" || request.Source == source {
 			delete(s.pending, key)
 		}
 	}
@@ -103,7 +105,8 @@ func (s *memoryStore) GetGatewayPairedSender(
 func (s *memoryStore) ListGatewayPairedSenders(_ context.Context, source string) ([]ApprovedSender, error) {
 	var senders []ApprovedSender
 	for _, sender := range s.approved {
-		if stringx.String(source).Trim() == "" || sender.Source == source {
+		stringValue3 := str.String(source)
+		if stringValue3.Trim() == "" || sender.Source == source {
 			senders = append(senders, sender)
 		}
 	}
@@ -116,5 +119,7 @@ func (s *memoryStore) DeleteGatewayPairedSender(_ context.Context, source string
 }
 
 func testKey(source string, senderID string) string {
-	return stringx.String(source).Trim() + "\x00" + stringx.String(senderID).Trim()
+	stringValue4 := str.String(source)
+	stringValue5 := str.String(senderID)
+	return stringValue4.Trim() + "\x00" + stringValue5.Trim()
 }

@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/wandxy/morph/internal/constants"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // DefaultOutputBufferBytes is the package-level default output buffer bytes constant.
@@ -67,18 +67,19 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 	if err := ctx.Err(); err != nil {
 		return Info{}, err
 	}
-
-	command := stringx.String(req.Command).Trim()
+	stringValue1 := str.String(req.Command)
+	command := stringValue1.Trim()
 	if command == "" {
 		return Info{}, errors.New("command is required")
 	}
 	sessionID = normalizeProcessSessionID(sessionID)
-	label := stringx.String(req.Label).Trim()
+	stringValue2 := str.String(req.Label)
+	label := stringValue2.Trim()
 
 	cmd := buildCommand(context.Background(), command, req.Args)
 	configureCommand(cmd)
-
-	cmd.Dir = stringx.String(req.CWD).Trim()
+	stringValue3 := str.String(req.CWD)
+	cmd.Dir = stringValue3.Trim()
 	cmd.Env = os.Environ()
 	for key, value := range req.Env {
 		cmd.Env = append(cmd.Env, key+"="+value)
@@ -131,6 +132,7 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 	}
 
 	processID := s.nextProcessIDLocked(sessionID)
+	stringValue4 := str.String(req.CWD)
 	process := &trackedProcess{
 		cmd:    cmd,
 		stdout: stdout,
@@ -141,7 +143,7 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 			Label:     label,
 			Command:   command,
 			Args:      append([]string(nil), req.Args...),
-			CWD:       stringx.String(req.CWD).Trim(),
+			CWD:       stringValue4.Trim(),
 			Status:    StatusRunning,
 			StartedAt: startedAt,
 		},
@@ -292,8 +294,8 @@ func (s *DefaultManager) lookup(sessionID string, processID string) (*trackedPro
 		return nil, errors.New("process manager is required")
 	}
 	sessionID = normalizeProcessSessionID(sessionID)
-
-	processID = stringx.String(processID).Trim()
+	stringValue5 := str.String(processID)
+	processID = stringValue5.Trim()
 	if processID == "" {
 		return nil, errors.New("process id is required")
 	}
@@ -324,7 +326,8 @@ func (s *DefaultManager) hasProcessLabelLocked(sessionID string, label string) b
 }
 
 func (s *DefaultManager) lookupByLabelLocked(sessionID string, label string) *trackedProcess {
-	label = stringx.String(label).Trim()
+	stringValue6 := str.String(label)
+	label = stringValue6.Trim()
 	if label == "" {
 		return nil
 	}
@@ -537,7 +540,8 @@ func (b *recentBuffer) wasTruncated() bool {
 }
 
 func buildCommand(ctx context.Context, command string, args []string) *exec.Cmd {
-	command = stringx.String(command).Trim()
+	stringValue7 := str.String(command)
+	command = stringValue7.Trim()
 	if len(args) > 0 {
 		return commandContext(ctx, command, args...)
 	}
@@ -550,7 +554,8 @@ func buildCommand(ctx context.Context, command string, args []string) *exec.Cmd 
 }
 
 func normalizeProcessSessionID(sessionID string) string {
-	sessionID = stringx.String(sessionID).Trim()
+	stringValue8 := str.String(sessionID)
+	sessionID = stringValue8.Trim()
 	if sessionID == "" {
 		return "default"
 	}

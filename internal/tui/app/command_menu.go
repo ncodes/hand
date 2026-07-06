@@ -5,7 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -59,7 +59,8 @@ func renderCommandMenuRow(command slashCommandDefinition, selected bool, width i
 }
 
 func truncateCommandMenuText(value string, width int) string {
-	value = strings.Join(strings.Fields(stringx.String(value).Trim()), " ")
+	stringValue1 := str.String(value)
+	value = strings.Join(strings.Fields(stringValue1.Trim()), " ")
 	if width <= 0 || lipgloss.Width(value) <= width {
 		return value
 	}
@@ -80,7 +81,8 @@ func (m model) isCommandMenuVisible() bool {
 }
 
 func isCommandMenuVisibleForValue(value string) bool {
-	return strings.HasPrefix(stringx.String(value).Trim(), "/")
+	stringValue2 := str.String(value)
+	return strings.HasPrefix(stringValue2.Trim(), "/")
 }
 
 func (m model) getCommandMenuHeight() int {
@@ -146,8 +148,8 @@ func getSlashCommandPrefix(value string) string {
 	if input.Kind != composerInputCommand {
 		return ""
 	}
-
-	return stringx.String(input.Name).Trim()
+	stringValue3 := str.String(input.Name)
+	return stringValue3.Trim()
 }
 
 func clampCommandMenuOffset(offset int, height int, commandCount int) int {

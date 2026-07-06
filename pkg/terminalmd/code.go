@@ -7,7 +7,7 @@ import (
 	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/alecthomas/chroma/v2/lexers"
 	chromastyles "github.com/alecthomas/chroma/v2/styles"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func (r *Renderer) renderCode(language []byte, source []byte, indent string) string {
@@ -15,8 +15,8 @@ func (r *Renderer) renderCode(language []byte, source []byte, indent string) str
 	if code == "" {
 		return ""
 	}
-
-	languageName := stringx.String(string(language)).Trim()
+	stringValue1 := str.String(string(language))
+	languageName := stringValue1.Trim()
 	if isMermaidLanguage(languageName) {
 		return r.renderMermaidDiagram(code, indent)
 	}

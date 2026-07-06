@@ -7,7 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/wandxy/morph/internal/trace"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const autoCompactionLabel = "Automatic compaction"
@@ -26,8 +26,8 @@ func manualCompactionStateFromTraceEvent(eventType string, payload any) manualCo
 	if compaction.Auto {
 		label = autoCompactionLabel
 	}
-
-	switch stringx.String(eventType).Trim() {
+	stringValue1 := str.String(eventType)
+	switch stringValue1.Trim() {
 	case trace.EvtContextCompactionPending, trace.EvtContextCompactionRunning:
 		return manualCompactionState{Status: "running", Label: label}
 	case trace.EvtContextCompactionSucceeded:
@@ -40,11 +40,13 @@ func manualCompactionStateFromTraceEvent(eventType string, payload any) manualCo
 }
 
 func (state manualCompactionState) isVisible() bool {
-	return stringx.String(state.Status).Trim() != ""
+	stringValue2 := str.String(state.Status)
+	return stringValue2.Trim() != ""
 }
 
 func (state manualCompactionState) isInProgress() bool {
-	switch stringx.String(state.Status).Normalized() {
+	stringValue3 := str.String(state.Status)
+	switch stringValue3.Normalized() {
 	case "pending", "running", "started":
 		return true
 	default:
@@ -53,18 +55,20 @@ func (state manualCompactionState) isInProgress() bool {
 }
 
 func (state manualCompactionState) displayText() string {
-	label := stringx.String(state.Label).Trim()
+	stringValue4 := str.String(state.Label)
+	label := stringValue4.Trim()
 	if label == "" {
 		label = manualCompactionLabel
 	}
-
-	switch stringx.String(state.Status).Normalized() {
+	stringValue5 := str.String(state.Status)
+	switch stringValue5.Normalized() {
 	case "pending", "running", "started":
 		return label + " started"
 	case "succeeded", "completed":
 		return label + " completed"
 	case "failed":
-		if err := stringx.String(state.Error).Trim(); err != "" {
+		stringValue6 := str.String(state.Error)
+		if err := stringValue6.Trim(); err != "" {
 			return label + " failed: " + err
 		}
 		return label + " failed"

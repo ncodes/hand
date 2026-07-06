@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -130,8 +130,8 @@ func (p *MemoryProvider) PromoteCandidate(ctx context.Context, req PromotionRequ
 	if p == nil || p.manager == nil {
 		return LifecycleResult{}, errors.New("memory provider is required")
 	}
-
-	memoryID := stringx.String(req.ID).Trim()
+	stringValue1 := str.String(req.ID)
+	memoryID := stringValue1.Trim()
 	if memoryID == "" {
 		return LifecycleResult{}, errors.New("candidate memory id is required")
 	}
@@ -166,13 +166,16 @@ func (p *MemoryProvider) PromoteCandidate(ctx context.Context, req PromotionRequ
 			guardrailResult = err.Error()
 		}
 	}
+	stringValue2 :=
 
-	// The policy receives clones so policy implementations cannot mutate the
-	// loaded candidate or related memories through shared map/slice state.
+		// The policy receives clones so policy implementations cannot mutate the
+		// loaded candidate or related memories through shared map/slice state.
+
+		str.String(req.Reason)
 	decision, err := p.promotionPolicyOrDefault().EvaluatePromotion(ctx, PromotionPolicyRequest{
 		Candidate:          candidate.Clone(),
 		Related:            cloneMemoryItems(related),
-		Reason:             stringx.String(req.Reason).Trim(),
+		Reason:             stringValue2.Trim(),
 		Strict:             req.Strict,
 		AdmissionResult:    admissionResult,
 		GuardrailResult:    guardrailResult,
@@ -251,7 +254,8 @@ func normalizePromotionBackgroundOptions(opts PromotionBackgroundOptions) Promot
 	if opts.Limit > maxPromotionBackgroundLimit {
 		opts.Limit = maxPromotionBackgroundLimit
 	}
-	if stringx.String(opts.Reason).Trim() == "" {
+	stringValue3 := str.String(opts.Reason)
+	if stringValue3.Trim() == "" {
 		opts.Reason = "background_promotion"
 	}
 	if opts.EvaluatedRetention == 0 {
@@ -324,10 +328,12 @@ func (p *MemoryProvider) RunPromotionBackground(
 	count := 0
 	for _, hit := range result.Hits {
 		item := hit.Item.Clone()
+		stringValue4 :=
 
-		// Empty IDs are unusable for lifecycle operations. Evaluated candidates are
-		// excluded by the storage query above.
-		if stringx.String(item.ID).Trim() == "" {
+			// Empty IDs are unusable for lifecycle operations. Evaluated candidates are
+			// excluded by the storage query above.
+			str.String(item.ID)
+		if stringValue4.Trim() == "" {
 			continue
 		}
 		if count >= opts.Limit {
@@ -375,7 +381,8 @@ func (p *MemoryProvider) RunPromotionCleanup(ctx context.Context, opts Promotion
 	count := 0
 	for _, hit := range result.Hits {
 		item := hit.Item.Clone()
-		if stringx.String(item.ID).Trim() == "" {
+		stringValue5 := str.String(item.ID)
+		if stringValue5.Trim() == "" {
 			continue
 		}
 		if item.Status != StatusCandidate || item.PromotionEvaluatedAt.IsZero() {
@@ -435,9 +442,10 @@ func (p *MemoryProvider) loadMemoryByID(
 	id string,
 	statuses []Status,
 ) (MemoryItem, error) {
+	stringValue6 := str.String(id)
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
 		RerankerUseCase: RerankerUseCasePromotion,
-		IDs:             []string{stringx.String(id).Trim()},
+		IDs:             []string{stringValue6.Trim()},
 		Statuses:        statuses,
 		Limit:           1,
 	})
@@ -477,8 +485,10 @@ func (p *MemoryProvider) relatedPromotionMemories(
 	reflectionSourceIDs := getReflectionSourceMemoryIDs(candidate)
 	for _, hit := range result.Hits {
 		item := hit.Item.Clone()
-		id := stringx.String(item.ID).Trim()
-		if id == stringx.String(candidate.ID).Trim() {
+		stringValue7 := str.String(item.ID)
+		id := stringValue7.Trim()
+		stringValue8 := str.String(candidate.ID)
+		if id == stringValue8.Trim() {
 			continue
 		}
 		if _, ok := reflectionSourceIDs[id]; ok {
@@ -495,9 +505,11 @@ func (p *MemoryProvider) relatedPromotionMemories(
 // of a candidate. It falls back to text and caps length to keep related lookup
 // bounded.
 func getPromotionSearchText(item MemoryItem) string {
-	text := stringx.String(item.Title).Trim()
+	stringValue9 := str.String(item.Title)
+	text := stringValue9.Trim()
 	if text == "" {
-		text = stringx.String(item.Text).Trim()
+		stringValue10 := str.String(item.Text)
+		text = stringValue10.Trim()
 	}
 	if len([]rune(text)) > 240 {
 		text = string([]rune(text)[:240])
@@ -539,7 +551,8 @@ func checkPromotionConflictState(candidate MemoryItem, related []SearchHit) stri
 func getReflectionSourceMemoryIDs(item MemoryItem) map[string]struct{} {
 	ids := make(map[string]struct{})
 	for id := range strings.SplitSeq(item.Metadata["reflection_source_memory_ids"], ",") {
-		id = stringx.String(id).Trim()
+		stringValue11 := str.String(id)
+		id = stringValue11.Trim()
 		if id != "" {
 			ids[id] = struct{}{}
 		}
@@ -558,8 +571,10 @@ func getPromotionRelatedItems(hits []SearchHit) []MemoryItem {
 // normalizeLifecycleText gives duplicate checks a stable comparison string
 // without relying on model-provided dedupe keys.
 func normalizeLifecycleText(item MemoryItem) string {
-	title := stringx.String(item.Title).Trim()
-	text := stringx.String(item.Text).Trim()
+	stringValue12 := str.String(item.Title)
+	title := stringValue12.Trim()
+	stringValue13 := str.String(item.Text)
+	text := stringValue13.Trim()
 	combined := strings.Join([]string{title, text}, "\n")
 	normalized := strings.ToLower(combined)
 	fields := strings.Fields(normalized)
@@ -573,8 +588,10 @@ func hasReflectionEvidence(item MemoryItem) bool {
 	if item.Reflected {
 		return true
 	}
-	return stringx.String(item.Metadata["reflection_source_memory_ids"]).Trim() != "" ||
-		stringx.String(item.Metadata["reflection_origin"]).Trim() != ""
+	stringValue14 := str.String(item.Metadata["reflection_source_memory_ids"])
+	stringValue15 := str.String(item.Metadata["reflection_origin"])
+	return stringValue14.Trim() != "" || stringValue15.
+		Trim() != ""
 }
 
 // buildLifecycleMetadata writes provider-owned lifecycle audit metadata while
@@ -589,10 +606,12 @@ func buildLifecycleMetadata(
 	if next == nil {
 		next = make(map[string]string)
 	}
-	next[lifecycleMetadataAction] = stringx.String(action).Trim()
+	stringValue16 := str.String(action)
+	next[lifecycleMetadataAction] = stringValue16.Trim()
 	next[lifecycleMetadataPreviousStatus] = string(previous)
 	next[lifecycleMetadataAt] = time.Now().UTC().Format(time.RFC3339Nano)
-	if reason = stringx.String(reason).Trim(); reason != "" {
+	stringValue17 := str.String(reason)
+	if reason = stringValue17.Trim(); reason != "" {
 		next[lifecycleMetadataReason] = reason
 	}
 	return next

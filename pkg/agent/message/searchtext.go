@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/morph/pkg/jsonterms"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func MessageSearchText(message Message) string {
@@ -66,7 +66,8 @@ func SearchableMessageText(message Message, toolName string) (string, string) {
 			if toolName != "" {
 				return "", ""
 			}
-			return stringx.String(message.Content).Trim(), ""
+			stringValue3 := str.String(message.Content)
+			return stringValue3.Trim(), ""
 		}
 
 		matchedToolName := getAssistantToolNameMatch(message.ToolCalls, toolName)
@@ -76,8 +77,10 @@ func SearchableMessageText(message Message, toolName string) (string, string) {
 
 		if toolName != "" {
 			for _, toolCall := range message.ToolCalls {
-				if strings.EqualFold(stringx.String(toolCall.Name).Trim(), toolName) {
-					return ToolCallSearchText(toolCall), stringx.String(toolCall.Name).Trim()
+				stringValue4 := str.String(toolCall.Name)
+				if strings.EqualFold(stringValue4.Trim(), toolName) {
+					stringValue5 := str.String(toolCall.Name)
+					return ToolCallSearchText(toolCall), stringValue5.Trim()
 				}
 			}
 		}
@@ -88,19 +91,22 @@ func SearchableMessageText(message Message, toolName string) (string, string) {
 		}
 
 		if matchedToolName == "" && len(message.ToolCalls) == 1 {
-			matchedToolName = stringx.String(message.ToolCalls[0].Name).Trim()
+			stringValue6 := str.String(message.ToolCalls[0].Name)
+			matchedToolName = stringValue6.Trim()
 		}
 
 		return searchText, matchedToolName
 	case RoleTool:
-		messageToolName := stringx.String(message.Name).Trim()
+		messageName := str.String(message.Name)
+		messageToolName := messageName.Trim()
 		if toolName != "" && !strings.EqualFold(messageToolName, toolName) {
 			return "", ""
 		}
 
 		searchText := MessageSearchText(message)
 		if searchText == "" {
-			searchText = stringx.String(message.Content).Trim()
+			stringValue7 := str.String(message.Content)
+			searchText = stringValue7.Trim()
 		}
 
 		return searchText, messageToolName
@@ -108,7 +114,8 @@ func SearchableMessageText(message Message, toolName string) (string, string) {
 		if toolName != "" {
 			return "", ""
 		}
-		return stringx.String(message.Content).Trim(), ""
+		messageContent := str.String(message.Content)
+		return messageContent.Trim(), ""
 	}
 }
 
@@ -118,8 +125,10 @@ func getAssistantToolNameMatch(toolCalls []ToolCall, toolName string) string {
 	}
 
 	for _, toolCall := range toolCalls {
-		if strings.EqualFold(stringx.String(toolCall.Name).Trim(), toolName) {
-			return stringx.String(toolCall.Name).Trim()
+		stringValue8 := str.String(toolCall.Name)
+		if strings.EqualFold(stringValue8.Trim(), toolName) {
+			stringValue9 := str.String(toolCall.Name)
+			return stringValue9.Trim()
 		}
 	}
 
@@ -128,8 +137,8 @@ func getAssistantToolNameMatch(toolCalls []ToolCall, toolName string) string {
 
 func getAssistantSearchText(message Message) string {
 	parts := make([]string, 0, 2)
-
-	if content := stringx.String(message.Content).Trim(); content != "" {
+	stringValue10 := str.String(message.Content)
+	if content := stringValue10.Trim(); content != "" {
 		parts = append(parts, content)
 	}
 
@@ -141,7 +150,8 @@ func getAssistantSearchText(message Message) string {
 }
 
 func normalizeSearchTextScalar(value string) string {
-	value = stringx.String(value).Normalized()
+	stringValue11 := str.String(value)
+	value = stringValue11.Normalized()
 	if value == "" {
 		return ""
 	}
@@ -156,7 +166,8 @@ func dedupeSearchTextLines(lines []string) string {
 	seen := make(map[string]struct{}, len(lines))
 	out := make([]string, 0, len(lines))
 	for _, line := range lines {
-		line = stringx.String(line).Trim()
+		stringValue12 := str.String(line)
+		line = stringValue12.Trim()
 		if line == "" {
 			continue
 		}

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type Update struct {
@@ -64,13 +64,13 @@ func NormalizeUpdate(update Update) (InboundMessage, bool, error) {
 	if msg.From != nil && msg.From.IsBot {
 		return InboundMessage{}, false, nil
 	}
-
-	text := stringx.String(msg.Text).Trim()
+	stringValue1 := str.String(msg.Text)
+	text := stringValue1.Trim()
 	if text == "" {
 		return InboundMessage{}, false, nil
 	}
-
-	chatID := stringx.String(strconv.FormatInt(msg.Chat.ID, 10)).Trim()
+	stringValue2 := str.String(strconv.FormatInt(msg.Chat.ID, 10))
+	chatID := stringValue2.Trim()
 	if chatID == "" || chatID == "0" {
 		return InboundMessage{}, false, ErrTelegramChatRequired
 	}
@@ -84,15 +84,17 @@ func NormalizeUpdate(update Update) (InboundMessage, bool, error) {
 	senderName := ""
 	if msg.From != nil && msg.From.ID != 0 {
 		senderID = strconv.FormatInt(msg.From.ID, 10)
-		senderName = stringx.String(strings.Join([]string{msg.From.FirstName, msg.From.LastName}, " ")).Trim()
-		if username := stringx.String(msg.From.Username).Trim(); username != "" {
+		stringValue4 := str.String(strings.Join([]string{msg.From.FirstName, msg.From.LastName}, " "))
+		senderName = stringValue4.Trim()
+		stringValue5 := str.String(msg.From.Username)
+		if username := stringValue5.Trim(); username != "" {
 			if senderName != "" {
 				senderName += " "
 			}
 			senderName += "@" + username
 		}
 	}
-
+	stringValue3 := str.String(msg.Chat.Type)
 	return InboundMessage{
 		UpdateID:   update.UpdateID,
 		MessageID:  msg.MessageID,
@@ -103,7 +105,7 @@ func NormalizeUpdate(update Update) (InboundMessage, bool, error) {
 			ChatID:           chatID,
 			ThreadID:         threadID,
 			ReplyToMessageID: msg.MessageID,
-			ChatType:         stringx.String(msg.Chat.Type).Trim(),
+			ChatType:         stringValue3.Trim(),
 		},
 	}, true, nil
 }

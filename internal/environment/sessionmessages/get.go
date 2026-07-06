@@ -10,7 +10,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // Get returns session messages selected by offset, message ID, or anchor window.
@@ -25,8 +25,8 @@ func Get(
 	if err := req.Validate(); err != nil {
 		return SessionMessagesResponse{}, err
 	}
-
-	sessionID := stringx.String(req.SessionID).Trim()
+	stringValue1 := str.String(req.SessionID)
+	sessionID := stringValue1.Trim()
 	if sessionID == "" {
 		currentSessionID, err := manager.CurrentSession(ctx)
 		if err != nil {
@@ -70,20 +70,23 @@ func buildSessionMessagesResponse(
 	records []storage.MessageRecord,
 	maxChars int,
 ) SessionMessagesResponse {
+	stringValue2 := str.String(sessionID)
 	response := SessionMessagesResponse{
-		SessionID: stringx.String(sessionID).Trim(),
+		SessionID: stringValue2.Trim(),
 		Messages:  make([]SessionMessageRecord, 0, len(records)),
 	}
 
 	for _, messageRecord := range records {
 		message := messageRecord.Message
+		stringValue3 := str.String(message.Name)
+		stringValue4 := str.String(message.ToolCallID)
 		record := SessionMessageRecord{
 			MessageID:  message.ID,
 			Offset:     messageRecord.Offset,
 			Role:       string(message.Role),
-			Name:       stringx.String(message.Name).Trim(),
+			Name:       stringValue3.Trim(),
 			ToolName:   getMessageToolName(message),
-			ToolCallID: stringx.String(message.ToolCallID).Trim(),
+			ToolCallID: stringValue4.Trim(),
 			CreatedAt:  formatMessageTime(message.CreatedAt),
 		}
 
@@ -120,10 +123,12 @@ func messagesToMessageRecords(start int, messages []morphmsg.Message) []storage.
 
 func getMessageToolName(message morphmsg.Message) string {
 	if message.Role == morphmsg.RoleTool {
-		return stringx.String(message.Name).Trim()
+		stringValue5 := str.String(message.Name)
+		return stringValue5.Trim()
 	}
 	if len(message.ToolCalls) == 1 {
-		return stringx.String(message.ToolCalls[0].Name).Trim()
+		stringValue6 := str.String(message.ToolCalls[0].Name)
+		return stringValue6.Trim()
 	}
 	return ""
 }
@@ -136,9 +141,11 @@ func buildToolCallRecords(toolCalls []morphmsg.ToolCall, maxChars int) []Session
 	records := make([]SessionToolCallRecord, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
 		input, truncated := truncateMessageContent(toolCall.Input, maxChars)
+		stringValue7 := str.String(toolCall.ID)
+		stringValue8 := str.String(toolCall.Name)
 		records = append(records, SessionToolCallRecord{
-			ID:        stringx.String(toolCall.ID).Trim(),
-			Name:      stringx.String(toolCall.Name).Trim(),
+			ID:        stringValue7.Trim(),
+			Name:      stringValue8.Trim(),
 			Input:     input,
 			Truncated: truncated,
 		})

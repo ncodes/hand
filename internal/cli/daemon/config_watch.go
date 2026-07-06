@@ -11,7 +11,7 @@ import (
 	urfavecli "github.com/urfave/cli/v3"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/diagnostics"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var osStat = os.Stat
@@ -69,7 +69,8 @@ func loadDaemonConfig(cmd *urfavecli.Command) (daemonConfigSnapshot, error) {
 }
 
 func getConfigFileFingerprint(path string) (configFileFingerprint, error) {
-	path = stringx.String(path).Trim()
+	stringValue1 := str.String(path)
+	path = stringValue1.Trim()
 	if path == "" {
 		return configFileFingerprint{}, errors.New("config path is required")
 	}
@@ -102,7 +103,8 @@ type configWatcher struct {
 }
 
 func newFSNotifyConfigWatcher(configPath string) (configWatcher, error) {
-	configPath = stringx.String(configPath).Trim()
+	stringValue2 := str.String(configPath)
+	configPath = stringValue2.Trim()
 	if configPath == "" {
 		return configWatcher{}, errors.New("config path is required")
 	}
@@ -130,7 +132,8 @@ func newFSNotifyConfigWatcher(configPath string) (configWatcher, error) {
 }
 
 func isConfigFileWatchEvent(event fsnotify.Event, configPath string) bool {
-	if stringx.String(event.Name).Trim() == "" {
+	stringValue3 := str.String(event.Name)
+	if stringValue3.Trim() == "" {
 		return false
 	}
 

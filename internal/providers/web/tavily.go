@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const tavilyDefaultBaseURL = "https://api.tavily.com"
@@ -60,9 +60,11 @@ func (p *TavilyProvider) Search(ctx context.Context, query string, count int) ([
 
 	results := make([]SearchResult, 0, len(response.Results))
 	for idx, result := range response.Results {
+		stringValue1 := str.String(result.Title)
+		stringValue2 := str.String(result.URL)
 		results = append(results, SearchResult{
-			Title:    stringx.String(result.Title).Trim(),
-			URL:      stringx.String(result.URL).Trim(),
+			Title:    stringValue1.Trim(),
+			URL:      stringValue2.Trim(),
 			Snippet:  truncateToMaxChars(result.Content, p.maxCharsPerResult),
 			Position: idx + 1,
 		})
@@ -111,10 +113,11 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 			getFirstNonEmpty(result.RawContent, result.Content),
 			p.maxExtractResponseBytes,
 			maxChars)
-
+		stringValue3 := str.String(result.URL)
+		stringValue4 := str.String(result.Title)
 		results = append(results, ExtractResult{
-			URL:               stringx.String(result.URL).Trim(),
-			Title:             stringx.String(result.Title).Trim(),
+			URL:               stringValue3.Trim(),
+			Title:             stringValue4.Trim(),
 			Content:           content,
 			ContentFormat:     format,
 			Truncated:         truncated,
@@ -122,15 +125,17 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 		})
 	}
 	for _, result := range response.FailedResults {
+		stringValue5 := str.String(result.URL)
 		results = append(results, ExtractResult{
-			URL:           stringx.String(result.URL).Trim(),
+			URL:           stringValue5.Trim(),
 			ContentFormat: format,
 			Error:         getFirstNonEmpty(result.Error, "extraction failed"),
 		})
 	}
 	for _, url := range response.FailedURLs {
+		stringValue6 := str.String(url)
 		results = append(results, ExtractResult{
-			URL:           stringx.String(url).Trim(),
+			URL:           stringValue6.Trim(),
 			ContentFormat: format,
 			Error:         "extraction failed",
 		})

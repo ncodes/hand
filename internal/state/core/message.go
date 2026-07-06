@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -29,7 +29,8 @@ type MessageRecord struct {
 
 // NormalizeMessageQueryOrder validates and canonicalizes message query order.
 func NormalizeMessageQueryOrder(order string) (string, error) {
-	switch stringx.String(order).Normalized() {
+	stringValue1 := str.String(order)
+	switch stringValue1.Normalized() {
 	case "", MessageOrderAsc:
 		return MessageOrderAsc, nil
 	case MessageOrderDesc:

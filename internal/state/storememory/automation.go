@@ -8,7 +8,7 @@ import (
 
 	state "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/pkg/nanoid"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func (s *Store) CreateJob(_ context.Context, job state.AutomationJob) (state.AutomationJob, error) {
@@ -18,7 +18,7 @@ func (s *Store) CreateJob(_ context.Context, job state.AutomationJob) (state.Aut
 
 	now := time.Now().UTC()
 	job = job.Clone()
-	jobID := stringx.String(job.ID)
+	jobID := str.String(job.ID)
 	job.ID = jobID.Trim()
 	if job.ID == "" {
 		job.ID = nanoid.MustGenerate(state.AutomationJobIDPrefix)
@@ -51,7 +51,7 @@ func (s *Store) GetJob(_ context.Context, id string) (state.AutomationJob, bool,
 	if s == nil {
 		return state.AutomationJob{}, false, errors.New("store is required")
 	}
-	jobID := stringx.String(id)
+	jobID := str.String(id)
 	id = jobID.Trim()
 	if err := state.ValidateAutomationJobID(id); err != nil {
 		return state.AutomationJob{}, false, err
@@ -109,7 +109,7 @@ func (s *Store) PatchJob(_ context.Context, patch state.AutomationJobPatch) (sta
 	if s == nil {
 		return state.AutomationJob{}, errors.New("store is required")
 	}
-	patchID := stringx.String(patch.ID)
+	patchID := str.String(patch.ID)
 	patch.ID = patchID.Trim()
 	if err := state.ValidateAutomationJobID(patch.ID); err != nil {
 		return state.AutomationJob{}, err
@@ -132,7 +132,7 @@ func (s *Store) DeleteJob(_ context.Context, id string) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
-	jobID := stringx.String(id)
+	jobID := str.String(id)
 	id = jobID.Trim()
 	if err := state.ValidateAutomationJobID(id); err != nil {
 		return err
@@ -152,7 +152,7 @@ func (s *Store) CreateRun(_ context.Context, run state.AutomationRun) (state.Aut
 
 	now := time.Now().UTC()
 	run = run.Clone()
-	runID := stringx.String(run.ID)
+	runID := str.String(run.ID)
 	run.ID = runID.Trim()
 	if run.ID == "" {
 		run.ID = nanoid.MustGenerate(state.AutomationRunIDPrefix)
@@ -160,7 +160,7 @@ func (s *Store) CreateRun(_ context.Context, run state.AutomationRun) (state.Aut
 	if err := state.ValidateAutomationRunID(run.ID); err != nil {
 		return state.AutomationRun{}, err
 	}
-	jobID := stringx.String(run.JobID)
+	jobID := str.String(run.JobID)
 	run.JobID = jobID.Trim()
 	if err := state.ValidateAutomationJobID(run.JobID); err != nil {
 		return state.AutomationRun{}, err
@@ -195,7 +195,7 @@ func (s *Store) FinishRun(_ context.Context, patch state.AutomationRunPatch) (st
 	if s == nil {
 		return state.AutomationRun{}, errors.New("store is required")
 	}
-	runID := stringx.String(patch.ID)
+	runID := str.String(patch.ID)
 	patch.ID = runID.Trim()
 	if err := state.ValidateAutomationRunID(patch.ID); err != nil {
 		return state.AutomationRun{}, err
@@ -218,7 +218,7 @@ func (s *Store) ListRuns(_ context.Context, query state.AutomationRunQuery) (sta
 	if s == nil {
 		return state.AutomationRunResult{}, errors.New("store is required")
 	}
-	queryJobID := stringx.String(query.JobID)
+	queryJobID := str.String(query.JobID)
 	if id := queryJobID.Trim(); id != "" {
 		if err := state.ValidateAutomationJobID(id); err != nil {
 			return state.AutomationRunResult{}, err
@@ -265,7 +265,7 @@ func automationIDSet(ids []string, validate func(string) error) (map[string]stru
 	}
 	values := make(map[string]struct{}, len(ids))
 	for _, rawID := range ids {
-		id := stringx.String(rawID)
+		id := str.String(rawID)
 		trimmedID := id.Trim()
 		if trimmedID == "" {
 			continue
@@ -290,11 +290,11 @@ func automationJobMatchesQuery(job state.AutomationJob, query state.AutomationJo
 	if !query.IncludeDisabled && query.Enabled == nil && !job.Enabled {
 		return false
 	}
-	queryProfile := stringx.String(query.Profile)
+	queryProfile := str.String(query.Profile)
 	if profile := queryProfile.Trim(); profile != "" && job.Profile != profile {
 		return false
 	}
-	queryTarget := stringx.String(query.SessionTarget)
+	queryTarget := str.String(query.SessionTarget)
 	if target := queryTarget.Trim(); target != "" && job.SessionTarget != target {
 		return false
 	}

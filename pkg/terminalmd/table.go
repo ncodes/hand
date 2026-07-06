@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 	extast "github.com/yuin/goldmark/extension/ast"
 )
 
@@ -117,8 +117,10 @@ func (r *Renderer) renderTableAsLabeledRows(rows [][]string) string {
 			if index >= len(row) {
 				continue
 			}
-			header = stringx.String(header).Trim()
-			value := stringx.String(row[index]).Trim()
+			stringValue1 := str.String(header)
+			header = stringValue1.Trim()
+			stringValue2 := str.String(row[index])
+			value := stringValue2.Trim()
 			if header == "" || value == "" {
 				continue
 			}
@@ -144,7 +146,8 @@ func isMarkdownTableStart(lines []string, index int) bool {
 // isMarkdownTableRow is intentionally stricter than "contains a pipe" to avoid
 // turning prose with vertical bars into a table.
 func isMarkdownTableRow(line string) bool {
-	trimmed := stringx.String(line).Trim()
+	stringValue3 := str.String(line)
+	trimmed := stringValue3.Trim()
 	return strings.HasPrefix(trimmed, "|") && strings.HasSuffix(trimmed, "|") && strings.Count(trimmed, "|") >= 2
 }
 
@@ -156,7 +159,8 @@ func isMarkdownTableSeparator(line string) bool {
 		return false
 	}
 	for _, cell := range cells {
-		cell = stringx.String(cell).Trim()
+		stringValue4 := str.String(cell)
+		cell = stringValue4.Trim()
 		if len(cell) < 3 {
 			return false
 		}
@@ -189,7 +193,8 @@ func parseMarkdownTable(lines []string) [][]string {
 // splitMarkdownTableRow splits a table row while respecting inline code spans
 // and escaped pipes. A simple strings.Split would corrupt cells like `a|b`.
 func splitMarkdownTableRow(line string) []string {
-	line = stringx.String(line).Trim()
+	stringValue5 := str.String(line)
+	line = stringValue5.Trim()
 	line = strings.TrimPrefix(line, "|")
 	line = strings.TrimSuffix(line, "|")
 
@@ -215,7 +220,8 @@ func splitMarkdownTableRow(line string) []string {
 			inCodeSpan = !inCodeSpan
 			cell.WriteRune(char)
 		case char == '|' && !inCodeSpan:
-			cells = append(cells, stringx.String(cell.String()).Trim())
+			cellValue := str.String(cell.String())
+			cells = append(cells, cellValue.Trim())
 			cell.Reset()
 		default:
 			cell.WriteRune(char)
@@ -224,7 +230,8 @@ func splitMarkdownTableRow(line string) []string {
 	if escaped {
 		cell.WriteRune('\\')
 	}
-	cells = append(cells, stringx.String(cell.String()).Trim())
+	stringValue6 := str.String(cell.String())
+	cells = append(cells, stringValue6.Trim())
 
 	return cells
 }

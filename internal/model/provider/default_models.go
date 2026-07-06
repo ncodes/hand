@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/morph/internal/constants"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func defaultModels() []ModelDefinition {
@@ -665,11 +665,12 @@ func anthropicOAuthReasoningModel(
 }
 
 func getModelOwnerFromID(id string) string {
-	id = strings.TrimPrefix(stringx.String(id).Trim(), "~")
+	stringValue1 := str.String(id)
+	id = strings.TrimPrefix(stringValue1.Trim(), "~")
 	owner, _, ok := strings.Cut(id, "/")
 	if !ok {
 		return constants.ModelProviderOpenRouter
 	}
-
-	return stringx.String(owner).Trim()
+	stringValue2 := str.String(owner)
+	return stringValue2.Trim()
 }

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -79,24 +79,29 @@ func DecodeEventsRequest(body []byte) (EventsRequest, error) {
 	if err := json.Unmarshal(body, &req); err != nil {
 		return EventsRequest{}, err
 	}
-
-	req.Type = stringx.String(req.Type).Trim()
-	req.Challenge = stringx.String(req.Challenge).Trim()
-	req.TeamID = stringx.String(req.TeamID).Trim()
-	req.EventID = stringx.String(req.EventID).Trim()
+	stringValue1 := str.String(req.Type)
+	req.Type = stringValue1.Trim()
+	stringValue2 := str.String(req.Challenge)
+	req.Challenge = stringValue2.Trim()
+	stringValue3 := str.String(req.TeamID)
+	req.TeamID = stringValue3.Trim()
+	stringValue4 := str.String(req.EventID)
+	req.EventID = stringValue4.Trim()
 	return req, nil
 }
 
 func NormalizeEventsRequest(req EventsRequest) (InboundMessage, bool, error) {
-	if stringx.String(req.Type).Trim() != EventTypeCallback {
+	stringValue5 := str.String(req.Type)
+	if stringValue5.Trim() != EventTypeCallback {
 		return InboundMessage{}, false, nil
 	}
 	var event Event
 	if err := json.Unmarshal(req.Event, &event); err != nil {
 		return InboundMessage{}, false, err
 	}
-
-	inbound, ok, err := NormalizeEvent(stringx.String(req.TeamID).Trim(), stringx.String(req.EventID).Trim(), event)
+	stringValue6 := str.String(req.TeamID)
+	stringValue7 := str.String(req.EventID)
+	inbound, ok, err := NormalizeEvent(stringValue6.Trim(), stringValue7.Trim(), event)
 	if err != nil || !ok {
 		return inbound, ok, err
 	}
@@ -105,7 +110,8 @@ func NormalizeEventsRequest(req EventsRequest) (InboundMessage, bool, error) {
 }
 
 func NormalizeSocketEnvelope(envelope SocketEnvelope) (InboundMessage, bool, error) {
-	if stringx.String(envelope.Type).Trim() != SocketTypeEventsAPI || len(envelope.Payload) == 0 {
+	stringValue8 := str.String(envelope.Type)
+	if stringValue8.Trim() != SocketTypeEventsAPI || len(envelope.Payload) == 0 {
 		return InboundMessage{}, false, nil
 	}
 
@@ -117,25 +123,30 @@ func NormalizeSocketEnvelope(envelope SocketEnvelope) (InboundMessage, bool, err
 	if err != nil || !ok {
 		return inbound, ok, err
 	}
-
-	inbound.SocketID = stringx.String(envelope.EnvelopeID).Trim()
-	inbound.SocketType = stringx.String(envelope.Type).Trim()
+	stringValue9 := str.String(envelope.EnvelopeID)
+	inbound.SocketID = stringValue9.Trim()
+	stringValue10 := str.String(envelope.Type)
+	inbound.SocketType = stringValue10.Trim()
 	return inbound, true, nil
 }
 
 func NormalizeEvent(teamID string, eventID string, event Event) (InboundMessage, bool, error) {
-	event.Type = stringx.String(event.Type).Trim()
+	stringValue11 := str.String(event.Type)
+	event.Type = stringValue11.Trim()
 	if event.Type != EventMessage && event.Type != EventAppMention {
 		return InboundMessage{}, false, nil
 	}
-	if stringx.String(event.BotID).Trim() != "" || isIgnoredMessageSubtype(event.Subtype) {
+	stringValue12 := str.String(event.BotID)
+	if stringValue12.Trim() != "" || isIgnoredMessageSubtype(event.Subtype) {
 		return InboundMessage{}, false, nil
 	}
-	text := stringx.String(event.Text).Trim()
+	stringValue13 := str.String(event.Text)
+	text := stringValue13.Trim()
 	if text == "" {
 		return InboundMessage{}, false, nil
 	}
-	channelID := stringx.String(event.Channel).Trim()
+	stringValue14 := str.String(event.Channel)
+	channelID := stringValue14.Trim()
 	if channelID == "" {
 		return InboundMessage{}, false, ErrSlackChannelRequired
 	}
@@ -146,8 +157,10 @@ func NormalizeEvent(teamID string, eventID string, event Event) (InboundMessage,
 	teamID = firstNonEmpty(teamID, event.Team)
 	messageTS := firstNonEmpty(event.TS, event.EventTS)
 	threadTS := firstNonEmpty(event.ThreadTS, messageTS)
-	userID := stringx.String(event.User).Trim()
-	channelType := stringx.String(event.ChannelType).Trim()
+	stringValue15 := str.String(event.User)
+	userID := stringValue15.Trim()
+	stringValue16 := str.String(event.ChannelType)
+	channelType := stringValue16.Trim()
 	target := Target{
 		TeamID:      teamID,
 		ChannelID:   channelID,
@@ -159,9 +172,9 @@ func NormalizeEvent(teamID string, eventID string, event Event) (InboundMessage,
 		target.RecipientUserID = userID
 		target.RecipientTeamID = teamID
 	}
-
+	stringValue17 := str.String(eventID)
 	return InboundMessage{
-		EventID:   stringx.String(eventID).Trim(),
+		EventID:   stringValue17.Trim(),
 		TeamID:    teamID,
 		ChannelID: channelID,
 		ThreadTS:  threadTS,
@@ -173,7 +186,8 @@ func NormalizeEvent(teamID string, eventID string, event Event) (InboundMessage,
 }
 
 func isIgnoredMessageSubtype(subtype string) bool {
-	switch stringx.String(subtype).Trim() {
+	stringValue18 := str.String(subtype)
+	switch stringValue18.Trim() {
 	case "", "file_share", "thread_broadcast":
 		return false
 	default:
@@ -182,7 +196,8 @@ func isIgnoredMessageSubtype(subtype string) bool {
 }
 
 func isDirectChannel(channelType string) bool {
-	switch stringx.String(channelType).Trim() {
+	stringValue19 := str.String(channelType)
+	switch stringValue19.Trim() {
 	case "im", "mpim":
 		return true
 	default:
@@ -192,7 +207,8 @@ func isDirectChannel(channelType string) bool {
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if value = stringx.String(value).Trim(); value != "" {
+		stringValue20 := str.String(value)
+		if value = stringValue20.Trim(); value != "" {
 			return value
 		}
 	}

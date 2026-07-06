@@ -17,7 +17,7 @@ import (
 	"github.com/wandxy/morph/internal/profile"
 	morphruntime "github.com/wandxy/morph/internal/runtime"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -105,8 +105,9 @@ func EnsureDaemonRunning(ctx context.Context, cfg *config.Config) (func() error,
 		if cleanupErr := cleanup(); cleanupErr != nil {
 			return nil, fmt.Errorf("start Morph daemon: cleanup after readiness failure: %w", cleanupErr)
 		}
-		return nil, fmt.Errorf("start Morph daemon: RPC did not become ready at %s:%d: %w",
-			stringx.String(cfg.RPC.Address).Trim(), cfg.RPC.Port, err)
+		stringValue1 := str.String(cfg.RPC.Address)
+		return nil, fmt.Errorf("start Morph daemon: RPC did not become ready at %s:%d: %w", stringValue1.
+			Trim(), cfg.RPC.Port, err)
 	}
 
 	return cleanup, nil
@@ -145,8 +146,8 @@ func checkDaemonRPCImpl(ctx context.Context, cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is required")
 	}
-
-	address := stringx.String(cfg.RPC.Address).Trim()
+	stringValue2 := str.String(cfg.RPC.Address)
+	address := stringValue2.Trim()
 	if address == "" {
 		return fmt.Errorf("rpc address is required")
 	}
@@ -159,7 +160,8 @@ func checkDaemonRPCImpl(ctx context.Context, cfg *config.Config) error {
 }
 
 func checkDaemonHealthImpl(ctx context.Context, address string, port int) (string, error) {
-	address = stringx.String(address).Trim()
+	stringValue3 := str.String(address)
+	address = stringValue3.Trim()
 	if address == "" {
 		return "", fmt.Errorf("rpc address is required")
 	}
@@ -189,11 +191,13 @@ func checkDaemonHealthImpl(ctx context.Context, address string, port int) (strin
 
 func daemonStatusFromProbe(probe morphruntime.ProbeResult) DaemonStatus {
 	metadata := probe.Metadata
+	stringValue4 := str.String(metadata.Profile)
+	stringValue5 := str.String(metadata.RPC.Address)
 	status := DaemonStatus{
 		State:     string(probe.State),
-		Profile:   stringx.String(metadata.Profile).Trim(),
+		Profile:   stringValue4.Trim(),
 		PID:       metadata.PID,
-		Address:   stringx.String(metadata.RPC.Address).Trim(),
+		Address:   stringValue5.Trim(),
 		Port:      metadata.RPC.Port,
 		StartedAt: metadata.StartedAt,
 	}

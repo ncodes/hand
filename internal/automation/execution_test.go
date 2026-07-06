@@ -13,7 +13,7 @@ import (
 	modelclient "github.com/wandxy/morph/internal/model/client"
 	"github.com/wandxy/morph/internal/profile"
 	state "github.com/wandxy/morph/internal/state/core"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func TestAgentRunner_RunPromptThroughRuntime(t *testing.T) {
@@ -192,7 +192,7 @@ func TestAgentRunner_PropagatesRuntimeErrors(t *testing.T) {
 	require.EqualError(t, err, "automation runner is required")
 
 	runner := newExecutionTestRunner(t, AgentRunnerOptions{
-		ProfileResolver: func(stringx.String) (profile.Profile, error) {
+		ProfileResolver: func(str.String) (profile.Profile, error) {
 			return profile.Profile{}, expected
 		},
 	})
@@ -398,7 +398,7 @@ func newExecutionTestRunner(t *testing.T, opts AgentRunnerOptions) *AgentRunner 
 	t.Helper()
 
 	if opts.ProfileResolver == nil {
-		opts.ProfileResolver = func(name stringx.String) (profile.Profile, error) {
+		opts.ProfileResolver = func(name str.String) (profile.Profile, error) {
 			trimmed := name.Trim()
 			if trimmed == "" {
 				trimmed = "default"

@@ -8,7 +8,7 @@ import (
 	"github.com/wandxy/morph/internal/trace"
 	agent "github.com/wandxy/morph/pkg/agent"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type userMessageAcceptedMsg struct {
@@ -70,8 +70,8 @@ func agentEventToTUIMessage(event agent.Event) (any, bool) {
 	if event.Text == "" {
 		return nil, false
 	}
-
-	channel := stringx.String(event.Channel).Trim()
+	stringValue1 := str.String(event.Channel)
+	channel := stringValue1.Trim()
 	if channel == "" {
 		channel = "assistant"
 	}
@@ -95,8 +95,8 @@ func traceEventFromAgentEvent(event agent.Event) (trace.Event, bool) {
 
 func traceEventToTUIMessage(event trace.Event) (any, bool) {
 	typedPayload, payloadOK := trace.DecodePayload(event.Type, event.Payload)
-
-	switch stringx.String(event.Type).Trim() {
+	stringValue2 := str.String(event.Type)
+	switch stringValue2.Trim() {
 	case trace.EvtUserMessageAccepted:
 		payload, ok := typedPayload.(trace.UserMessageAcceptedPayload)
 		if text := firstNonEmptyTUI(payload.Message, payload.Text); payloadOK && ok && text != "" {
@@ -162,7 +162,8 @@ func traceEventToTUIMessage(event trace.Event) (any, bool) {
 }
 
 func isUserStoppedSessionError(message string) bool {
-	message = stringx.String(message).Normalized()
+	stringValue3 := str.String(message)
+	message = stringValue3.Normalized()
 	if message == "" {
 		return false
 	}
@@ -250,11 +251,13 @@ func safetyPayloadToTUIMessage(kind string, payload any) (any, bool) {
 			return nil, false
 		}
 	}
-
+	stringValue4 := str.String(kind)
+	stringValue5 := str.String(typedPayload.Action)
+	stringValue6 := str.String(typedPayload.Refusal)
 	msg := safetyEventMsg{
-		Kind:       stringx.String(kind).Trim(),
-		Action:     stringx.String(typedPayload.Action).Trim(),
-		Refusal:    stringx.String(typedPayload.Refusal).Trim(),
+		Kind:       stringValue4.Trim(),
+		Action:     stringValue5.Trim(),
+		Refusal:    stringValue6.Trim(),
 		Blocked:    typedPayload.Blocked,
 		Redacted:   typedPayload.Redacted,
 		FindingIDs: getSafetyFindingIDsFromTypedPayload(typedPayload),
@@ -268,7 +271,8 @@ func safetyPayloadToTUIMessage(kind string, payload any) (any, bool) {
 
 func firstNonEmptyTUI(values ...string) string {
 	for _, value := range values {
-		value = stringx.String(value).Trim()
+		stringValue7 := str.String(value)
+		value = stringValue7.Trim()
 		if value != "" {
 			return value
 		}
@@ -284,7 +288,8 @@ func getSafetyFindingIDsFromTypedPayload(payload trace.SafetyEventPayload) []str
 
 	ids := make([]string, 0, len(payload.Findings))
 	for _, finding := range payload.Findings {
-		id := stringx.String(finding["id"]).Trim()
+		stringValue8 := str.String(finding["id"])
+		id := stringValue8.Trim()
 		if id != "" {
 			ids = append(ids, id)
 		}

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	base "github.com/wandxy/morph/internal/state/core"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 	"gorm.io/gorm"
 )
 
@@ -14,13 +14,13 @@ func (s *Store) SaveGatewayBinding(ctx context.Context, binding base.GatewayBind
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
-
-	key := stringx.String(binding.Key).Trim()
+	stringValue1 := str.String(binding.Key)
+	key := stringValue1.Trim()
 	if key == "" {
 		return errors.New("gateway binding key is required")
 	}
-
-	sessionID := stringx.String(binding.SessionID).Trim()
+	stringValue2 := str.String(binding.SessionID)
+	sessionID := stringValue2.Trim()
 	if err := base.ValidateSessionID(sessionID); err != nil {
 		return err
 	}
@@ -67,8 +67,8 @@ func (s *Store) GetGatewayBinding(ctx context.Context, key string) (base.Gateway
 	if s == nil || s.db == nil {
 		return base.GatewayBinding{}, false, errors.New("store is required")
 	}
-
-	key = stringx.String(key).Trim()
+	stringValue3 := str.String(key)
+	key = stringValue3.Trim()
 	if key == "" {
 		return base.GatewayBinding{}, false, errors.New("gateway binding key is required")
 	}

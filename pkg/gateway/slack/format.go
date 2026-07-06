@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func FormatMrkdwn(text string) string {
@@ -31,13 +31,15 @@ func FormatMrkdwn(text string) string {
 	formatted = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^\[([^\]]+)\]\(([^)]+)\)$`).FindStringSubmatch(match)
 		label := strings.ReplaceAll(EscapeMrkdwnText(parts[1]), "|", "-")
-		url := strings.ReplaceAll(stringx.String(parts[2]).Trim(), ">", "%3E")
+		stringValue1 := str.String(parts[2])
+		url := strings.ReplaceAll(stringValue1.Trim(), ">", "%3E")
 		return nextPlaceholder("<" + url + "|" + label + ">")
 	})
 	formatted = regexp.MustCompile(`(?m)^#{1,6}\s+(.+)$`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^#{1,6}\s+(.+)$`).FindStringSubmatch(match)
 		inner := regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllString(parts[1], "$1")
-		return nextPlaceholder("*" + EscapeMrkdwnText(stringx.String(inner).Trim()) + "*")
+		stringValue2 := str.String(inner)
+		return nextPlaceholder("*" + EscapeMrkdwnText(stringValue2.Trim()) + "*")
 	})
 	formatted = regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^\*\*(.+?)\*\*$`).FindStringSubmatch(match)
@@ -82,7 +84,8 @@ func FormatStreamMarkdown(text string) string {
 	inFence := false
 	lines := strings.SplitAfter(text, "\n")
 	for _, line := range lines {
-		trimmed := stringx.String(strings.TrimSuffix(line, "\n")).Trim()
+		stringValue3 := str.String(strings.TrimSuffix(line, "\n"))
+		trimmed := stringValue3.Trim()
 		fenceLine := strings.HasPrefix(trimmed, "```")
 		if fenceLine {
 			if inFence {
@@ -107,7 +110,8 @@ func FormatStreamMarkdown(text string) string {
 }
 
 func FormatStreamChunks(text string) []Chunk {
-	if stringx.String(text).Trim() == "" {
+	stringValue4 := str.String(text)
+	if stringValue4.Trim() == "" {
 		return nil
 	}
 
@@ -135,7 +139,8 @@ func getFencedCodeBody(text string) string {
 	if !ok {
 		return text
 	}
-	if stringx.String(header).Trim() != "" && strings.Contains(body, "\n") {
+	stringValue5 := str.String(header)
+	if stringValue5.Trim() != "" && strings.Contains(body, "\n") {
 		return body
 	}
 

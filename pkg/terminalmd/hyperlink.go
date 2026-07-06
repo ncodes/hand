@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func (r *Renderer) renderHyperlink(text string, destination string) string {
@@ -22,7 +22,8 @@ func (r *Renderer) renderHyperlink(text string, destination string) string {
 // Models often emit Unicode bullets directly ("• item"). CommonMark does not
 // treat those as list markers, so normalize them to "- item" and let the list
 func sanitizeHyperlinkDestination(destination string) string {
-	destination = stringx.String(destination).Trim()
+	stringValue1 := str.String(destination)
+	destination = stringValue1.Trim()
 	if destination == "" {
 		return ""
 	}

@@ -15,7 +15,7 @@ import (
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	"github.com/wandxy/morph/internal/runtime"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var (
@@ -90,7 +90,8 @@ func newSetTelegramWebhookCommand() *cli.Command {
 		Usage:     "Register the Telegram webhook URL with Telegram",
 		ArgsUsage: "[url]",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			url := stringx.String(cmd.Args().First()).Trim()
+			stringValue1 := str.String(cmd.Args().First())
+			url := stringValue1.Trim()
 
 			cfg, err := loadGatewayConfig(cmd)
 			if err != nil {
@@ -200,7 +201,8 @@ func writeGatewayStatus(out io.Writer, status rpcclient.GatewayStatus) error {
 	if err != nil {
 		return err
 	}
-	if stringx.String(status.LastError).Trim() != "" {
+	stringValue2 := str.String(status.LastError)
+	if stringValue2.Trim() != "" {
 		if _, err := fmt.Fprintf(out, " last_error=%q", status.LastError); err != nil {
 			return err
 		}
@@ -220,8 +222,8 @@ func newPairingListCommand() *cli.Command {
 				return err
 			}
 			defer client.Close()
-
-			result, err := client.GatewayAPI().ListPairings(ctx, stringx.String(cmd.Args().First()).Trim())
+			stringValue3 := str.String(cmd.Args().First())
+			result, err := client.GatewayAPI().ListPairings(ctx, stringValue3.Trim())
 			if err != nil {
 				return err
 			}
@@ -293,8 +295,10 @@ func newPairingApproveCommand() *cli.Command {
 		Usage:     "Approve a pending gateway sender pairing",
 		ArgsUsage: "<source> <code>",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			source := stringx.String(cmd.Args().Get(0)).Trim()
-			code := stringx.String(cmd.Args().Get(1)).Trim()
+			stringValue4 := str.String(cmd.Args().Get(0))
+			source := stringValue4.Trim()
+			stringValue5 := str.String(cmd.Args().Get(1))
+			code := stringValue5.Trim()
 			if source == "" || code == "" {
 				return fmt.Errorf("source and code are required")
 			}
@@ -325,8 +329,10 @@ func newPairingRevokeCommand() *cli.Command {
 		Usage:     "Revoke an approved gateway sender pairing",
 		ArgsUsage: "<source> <sender-id>",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			source := stringx.String(cmd.Args().Get(0)).Trim()
-			senderID := stringx.String(cmd.Args().Get(1)).Trim()
+			stringValue6 := str.String(cmd.Args().Get(0))
+			source := stringValue6.Trim()
+			stringValue7 := str.String(cmd.Args().Get(1))
+			senderID := stringValue7.Trim()
 			if source == "" || senderID == "" {
 				return fmt.Errorf("source and sender id are required")
 			}
@@ -352,7 +358,8 @@ func newPairingClearPendingCommand() *cli.Command {
 		Usage:     "Clear pending gateway pairing requests",
 		ArgsUsage: "[source]",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			source := stringx.String(cmd.Args().First()).Trim()
+			stringValue8 := str.String(cmd.Args().First())
+			source := stringValue8.Trim()
 			client, err := getGatewayClient(ctx, cmd)
 			if err != nil {
 				return err

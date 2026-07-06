@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 
 	ctxbuilder "github.com/wandxy/morph/internal/agent/context"
 	"github.com/wandxy/morph/internal/agent/context/compaction"
@@ -1199,20 +1199,25 @@ func renderRecallWindowPrompt(messages []morphmsg.Message) string {
 	sections := make([]string, 0, len(messages))
 	for idx, message := range messages {
 		section := fmt.Sprintf("Message %d\nRole: %s", idx+1, message.Role)
-		if name := stringx.String(message.Name).Trim(); name != "" {
+		stringValue1 := str.String(message.Name)
+		if name := stringValue1.Trim(); name != "" {
 			section += "\nName: " + name
 		}
-		if toolCallID := stringx.String(message.ToolCallID).Trim(); toolCallID != "" {
+		stringValue2 := str.String(message.ToolCallID)
+		if toolCallID := stringValue2.Trim(); toolCallID != "" {
 			section += "\nTool Call ID: " + toolCallID
 		}
-		if content := stringx.String(message.Content).Trim(); content != "" {
+		stringValue3 := str.String(message.Content)
+		if content := stringValue3.Trim(); content != "" {
 			section += "\nContent:\n" + content
 		}
 		if len(message.ToolCalls) > 0 {
 			toolLines := make([]string, 0, len(message.ToolCalls))
 			for _, toolCall := range message.ToolCalls {
-				line := "Name: " + stringx.String(toolCall.Name).Trim()
-				if input := stringx.String(toolCall.Input).Trim(); input != "" {
+				stringValue4 := str.String(toolCall.Name)
+				line := "Name: " + stringValue4.Trim()
+				stringValue5 := str.String(toolCall.Input)
+				if input := stringValue5.Trim(); input != "" {
 					line += "\nInput: " + input
 				}
 				toolLines = append(toolLines, line)
@@ -1232,7 +1237,8 @@ func renderRecallWindowPrompt(messages []morphmsg.Message) string {
 // planning. Chunking is done on rune boundaries so multi-byte characters are
 // not split mid-sequence.
 func splitRecallWindowChunks(content string, chunkChars int) []string {
-	content = stringx.String(content).Trim()
+	stringValue6 := str.String(content)
+	content = stringValue6.Trim()
 	if content == "" {
 		return nil
 	}
@@ -1245,7 +1251,8 @@ func splitRecallWindowChunks(content string, chunkChars int) []string {
 	chunks := make([]string, 0, (len(runes)+chunkChars-1)/chunkChars)
 	for start := 0; start < len(runes); start += chunkChars {
 		end := min(start+chunkChars, len(runes))
-		chunk := stringx.String(string(runes[start:end])).Trim()
+		stringValue7 := str.String(string(runes[start:end]))
+		chunk := stringValue7.Trim()
 		if chunk == "" {
 			continue
 		}
@@ -1808,7 +1815,8 @@ func (s *Service) transitionCompactionFailed(
 
 	session.Compaction.CompletedAt = time.Time{}
 	session.Compaction.FailedAt = s.currentTime()
-	session.Compaction.LastError = stringx.String(cause.Error()).Trim()
+	stringValue8 := str.String(cause.Error())
+	session.Compaction.LastError = stringValue8.Trim()
 	session.Compaction.Status = storage.CompactionStatusFailed
 	session.Compaction.TargetMessageCount = plan.TargetMessageCount
 	session.Compaction.TargetOffset = plan.TargetOffset
@@ -1862,8 +1870,8 @@ func (m *State) RecordSummaryApplied(traceSession trace.Session) {
 	if m == nil || traceSession == nil || m.Current == nil {
 		return
 	}
-
-	if stringx.String(m.Current.SessionSummary).Trim() == "" {
+	stringValue9 := str.String(m.Current.SessionSummary)
+	if stringValue9.Trim() == "" {
 		return
 	}
 
@@ -1943,12 +1951,14 @@ func buildFallbackSummary(
 
 // normalizeSummaryText trims whitespace and Markdown fences.
 func normalizeSummaryText(raw string) string {
-	return stringx.String(stripMarkdownFence(raw)).Trim()
+	stringValue10 := str.String(stripMarkdownFence(raw))
+	return stringValue10.Trim()
 }
 
 // stripMarkdownFence removes one surrounding Markdown code fence if present.
 func stripMarkdownFence(raw string) string {
-	raw = stringx.String(raw).Trim()
+	stringValue11 := str.String(raw)
+	raw = stringValue11.Trim()
 	if !strings.HasPrefix(raw, "```") {
 		return raw
 	}
@@ -1956,8 +1966,10 @@ func stripMarkdownFence(raw string) string {
 	raw = strings.TrimPrefix(raw, "```json")
 	raw = strings.TrimPrefix(raw, "```JSON")
 	raw = strings.TrimPrefix(raw, "```")
-	raw = strings.TrimSuffix(stringx.String(raw).Trim(), "```")
-	return stringx.String(raw).Trim()
+	stringValue12 := str.String(raw)
+	raw = strings.TrimSuffix(stringValue12.Trim(), "```")
+	stringValue13 := str.String(raw)
+	return stringValue13.Trim()
 }
 
 // buildSummaryTracePayload creates the common summary trace payload.
@@ -1978,7 +1990,8 @@ func buildSummaryTracePayload(
 // summaryTracePayloadWithError attaches an error to a summary trace payload.
 func summaryTracePayloadWithError(base trace.SummaryEventPayload, failure string) trace.SummaryEventPayload {
 	merged := base
-	merged.Error = stringx.String(failure).Trim()
+	stringValue14 := str.String(failure)
+	merged.Error = stringValue14.Trim()
 	return merged
 }
 
@@ -2013,8 +2026,10 @@ func buildCompactionTracePayloadWithAuto(
 	if !state.FailedAt.IsZero() {
 		payload.FailedAt = state.FailedAt
 	}
-	if stringx.String(failure).Trim() != "" {
-		payload.Error = stringx.String(failure).Trim()
+	stringValue15 := str.String(failure)
+	if stringValue15.Trim() != "" {
+		stringValue16 := str.String(failure)
+		payload.Error = stringValue16.Trim()
 	}
 
 	return payload
@@ -2024,7 +2039,8 @@ func buildCompactionTracePayloadWithAuto(
 func renderSummaryList(title string, values []string) string {
 	lines := make([]string, 0, len(values))
 	for _, value := range values {
-		value = stringx.String(value).Trim()
+		stringValue17 := str.String(value)
+		value = stringValue17.Trim()
 		if value == "" {
 			continue
 		}

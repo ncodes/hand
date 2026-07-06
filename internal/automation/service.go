@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -103,7 +103,7 @@ func NewService(opts ServiceOptions) (*Service, error) {
 	if staleRunningAfter <= 0 {
 		staleRunningAfter = defaultStaleRunningAfter
 	}
-
+	stringValue1 := str.String(opts.DefaultTimezone)
 	return &Service{
 		store:                      opts.Store,
 		runner:                     opts.Runner,
@@ -111,7 +111,7 @@ func NewService(opts ServiceOptions) (*Service, error) {
 		tracer:                     opts.Tracer,
 		now:                        now,
 		location:                   opts.Location,
-		defaultTimezone:            stringx.String(opts.DefaultTimezone).Trim(),
+		defaultTimezone:            stringValue1.Trim(),
 		maxTimerSleep:              maxTimerSleep,
 		staleRunningAfter:          staleRunningAfter,
 		disableAfterScheduleErrors: opts.DisableAfterScheduleErrors,

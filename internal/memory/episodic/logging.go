@@ -7,7 +7,7 @@ import (
 
 	"github.com/wandxy/morph/internal/trace"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var extractionLog = logutils.Module("memory.extraction")
@@ -33,11 +33,13 @@ func recordTrace(recorder TraceRecorder, event string, payload map[string]any) {
 // getTracePayload adds the common extraction coordinates to every event so a trace
 // viewer can group logs by session and source message window.
 func getTracePayload(req normalizedRequest, fields map[string]any) map[string]any {
+	stringValue1 := str.String(req.SessionID)
+	stringValue2 := str.String(req.Trigger)
 	payload := map[string]any{
-		"session_id":   stringx.String(req.SessionID).Trim(),
+		"session_id":   stringValue1.Trim(),
 		"offset_start": req.OffsetStart,
 		"offset_end":   req.OffsetEnd,
-		"trigger":      stringx.String(req.Trigger).Trim(),
+		"trigger":      stringValue2.Trim(),
 	}
 	for key, value := range fields {
 		payload[key] = value
@@ -48,9 +50,11 @@ func getTracePayload(req normalizedRequest, fields map[string]any) map[string]an
 // logExtraction mirrors trace events to debug logs. The trace has the complete
 // event timeline; the log gives operators a readable live stream.
 func logExtraction(event string, req normalizedRequest, fields map[string]any) {
+	stringValue3 := str.String(req.SessionID)
+	stringValue4 := str.String(req.Trigger)
 	entry := extractionLog.Debug().
-		Str("session_id", stringx.String(req.SessionID).Trim()).
-		Str("trigger", stringx.String(req.Trigger).Trim()).
+		Str("session_id", stringValue3.Trim()).
+		Str("trigger", stringValue4.Trim()).
 		Int("offset_start", req.OffsetStart).
 		Int("offset_end", req.OffsetEnd)
 	for key, value := range fields {
@@ -96,17 +100,22 @@ func getBackgroundPayload(
 	reason string,
 	fields map[string]any,
 ) map[string]any {
+	stringValue5 := str.String(runID)
 	payload := map[string]any{
-		"run_id": stringx.String(runID).Trim(),
+		"run_id": stringValue5.Trim(),
 	}
-	if stringx.String(sessionID).Trim() != "" {
-		payload["session_id"] = stringx.String(sessionID).Trim()
+	stringValue6 := str.String(sessionID)
+	if stringValue6.Trim() != "" {
+		stringValue8 := str.String(sessionID)
+		payload["session_id"] = stringValue8.Trim()
 	}
 	if messageCount > 0 {
 		payload["message_count"] = messageCount
 	}
-	if stringx.String(reason).Trim() != "" {
-		payload["trigger_reason"] = stringx.String(reason).Trim()
+	stringValue7 := str.String(reason)
+	if stringValue7.Trim() != "" {
+		stringValue9 := str.String(reason)
+		payload["trigger_reason"] = stringValue9.Trim()
 	}
 	maps.Copy(payload, fields)
 	return payload
@@ -120,9 +129,11 @@ func logBackground(
 	reason string,
 	fields map[string]any,
 ) {
+	stringValue10 := str.String(sessionID)
+	stringValue11 := str.String(reason)
 	entry := extractionLog.Debug().
-		Str("session_id", stringx.String(sessionID).Trim()).
-		Str("trigger_reason", stringx.String(reason).Trim()).
+		Str("session_id", stringValue10.Trim()).
+		Str("trigger_reason", stringValue11.Trim()).
 		Int("message_count", messageCount)
 	for key, value := range fields {
 		entry = logField(entry, key, value)

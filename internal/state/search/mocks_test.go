@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type fakeEmbeddingProvider struct {
@@ -19,8 +19,8 @@ func (p fakeEmbeddingProvider) Embed(_ context.Context, req EmbeddingRequest) (E
 	if p.dimensions <= 0 {
 		return EmbeddingResult{}, errors.New("embedding dimensions must be greater than zero")
 	}
-
-	model := stringx.String(req.Model).Trim()
+	stringValue1 := str.String(req.Model)
+	model := stringValue1.Trim()
 	items := make([]Embedding, 0, len(req.Inputs))
 	for _, input := range req.Inputs {
 		items = append(items, Embedding{

@@ -17,7 +17,7 @@ import (
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	_ "github.com/wandxy/morph/internal/model/provider_copilot"
 	"github.com/wandxy/morph/internal/profile"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var (
@@ -146,7 +146,8 @@ func newLogoutCommand() *cli.Command {
 }
 
 func getAuthProviderArg(cmd *cli.Command) (string, error) {
-	provider := stringx.String(cmd.Args().First()).Normalized()
+	stringValue1 := str.String(cmd.Args().First())
+	provider := stringValue1.Normalized()
 	if provider == "" {
 		return "", fmt.Errorf("provider is required")
 	}
@@ -169,8 +170,10 @@ func getLoginCredential(
 	provider string,
 	cmd *cli.Command,
 ) (appcredential.StoredCredential, error) {
-	apiKey := stringx.String(cmd.String("api-key")).Trim()
-	token := stringx.String(cmd.String("token")).Trim()
+	stringValue2 := str.String(cmd.String("api-key"))
+	apiKey := stringValue2.Trim()
+	stringValue3 := str.String(cmd.String("token"))
+	token := stringValue3.Trim()
 	if apiKey != "" && token != "" {
 		return appcredential.StoredCredential{}, fmt.Errorf("use either --api-key or --token, not both")
 	}
@@ -190,14 +193,15 @@ func getLoginCredential(
 			"credential is required; pass --api-key or --token, or use a provider with subscription login",
 		)
 	}
-
+	stringValue4 := str.String(cmd.String("refresh-token"))
 	credential := appcredential.StoredCredential{
 		Type:    appcredential.TypeOAuth,
 		Token:   token,
-		Refresh: stringx.String(cmd.String("refresh-token")).Trim(),
+		Refresh: stringValue4.Trim(),
 		Scopes:  cmd.StringSlice("scope"),
 	}
-	if expiresAt := stringx.String(cmd.String("expires-at")).Trim(); expiresAt != "" {
+	stringValue5 := str.String(cmd.String("expires-at"))
+	if expiresAt := stringValue5.Trim(); expiresAt != "" {
 		parsed, err := time.Parse(time.RFC3339, expiresAt)
 		if err != nil {
 			return appcredential.StoredCredential{}, fmt.Errorf("parse --expires-at: %w", err)
@@ -224,7 +228,8 @@ func getStatusProviders(
 	if args := cmd.Args().Slice(); len(args) > 0 {
 		providers := make([]string, 0, len(args))
 		for _, provider := range args {
-			provider = stringx.String(provider).Normalized()
+			stringValue6 := str.String(provider)
+			provider = stringValue6.Normalized()
 			if provider != "" {
 				providers = append(providers, provider)
 			}
@@ -242,9 +247,11 @@ func getStatusProviders(
 	}
 	if cfg != nil {
 		for provider := range cfg.Models.Providers {
-			seen[stringx.String(provider).Normalized()] = struct{}{}
+			providerValue := str.String(provider)
+			seen[providerValue.Normalized()] = struct{}{}
 		}
-		if provider := stringx.String(cfg.Web.Provider).Normalized(); provider != "" &&
+		stringValue7 := str.String(cfg.Web.Provider)
+		if provider := stringValue7.Normalized(); provider != "" &&
 			config.IsWebCredentialProvider(provider) {
 			seen[provider] = struct{}{}
 		}
@@ -298,7 +305,8 @@ func getProviderAuthStatus(
 
 	if cfg != nil {
 		providerConfig := cfg.Models.Providers[provider]
-		if stringx.String(providerConfig.APIKey).Trim() != "" {
+		stringValue8 := str.String(providerConfig.APIKey)
+		if stringValue8.Trim() != "" {
 			status.Configured = true
 			status.Source = appcredential.CredentialSourceConfig
 			return status, nil
@@ -359,11 +367,13 @@ func getProviderEnvCredential(provider string, cfg *config.Config) (string, stri
 
 func getFirstEnvValue(keys []string) (string, string) {
 	for _, key := range keys {
-		key = stringx.String(key).Trim()
+		stringValue9 := str.String(key)
+		key = stringValue9.Trim()
 		if key == "" {
 			continue
 		}
-		if value := stringx.String(os.Getenv(key)).Trim(); value != "" {
+		stringValue10 := str.String(os.Getenv(key))
+		if value := stringValue10.Trim(); value != "" {
 			return value, key
 		}
 	}

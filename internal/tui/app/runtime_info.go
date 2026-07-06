@@ -4,7 +4,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/profile"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type runtimeInfo struct {
@@ -46,8 +46,8 @@ func runtimeInfoFromConfig(cfg *config.Config) runtimeInfo {
 	info.EmbeddingModel = getRuntimeValue(cfg.Models.Embedding.Name, info.EmbeddingModel)
 	info.Storage = getRuntimeValue(cfg.Storage.Backend, info.Storage)
 	info.Streaming = getRuntimeBoolValue(cfg.StreamEnabled())
-
-	if active := stringx.String(profile.Active().Name).Trim(); active != "" {
+	stringValue1 := str.String(profile.Active().Name)
+	if active := stringValue1.Trim(); active != "" {
 		info.Profile = active
 	}
 
@@ -55,12 +55,13 @@ func runtimeInfoFromConfig(cfg *config.Config) runtimeInfo {
 }
 
 func getRuntimeValue(value string, fallback string) string {
-	value = stringx.String(value).Trim()
+	stringValue2 := str.String(value)
+	value = stringValue2.Trim()
 	if value != "" {
 		return value
 	}
-
-	return stringx.String(fallback).Trim()
+	stringValue3 := str.String(fallback)
+	return stringValue3.Trim()
 }
 
 func getRuntimeBoolValue(enabled bool) string {

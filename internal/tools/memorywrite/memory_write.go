@@ -13,7 +13,7 @@ import (
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 	"github.com/wandxy/morph/internal/trace"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type sourceLinkInput struct {
@@ -147,7 +147,8 @@ func UpdateDefinition(runtime envtypes.Runtime) tools.Definition {
 			if runtime == nil {
 				return common.ToolError("tool_error", "memory write is not configured"), nil
 			}
-			if stringx.String(input.ID).Trim() == "" {
+			stringValue1 := str.String(input.ID)
+			if stringValue1.Trim() == "" {
 				return common.ToolError("invalid_input", "memory id is required"), nil
 			}
 
@@ -201,7 +202,8 @@ func DeleteDefinition(runtime envtypes.Runtime) tools.Definition {
 			if runtime == nil {
 				return common.ToolError("tool_error", "memory write is not configured"), nil
 			}
-			id := stringx.String(input.ID).Trim()
+			stringValue2 := str.String(input.ID)
+			id := stringValue2.Trim()
 			if id == "" {
 				return common.ToolError("invalid_input", "memory id is required"), nil
 			}
@@ -231,11 +233,12 @@ func memoryItemFromAddInput(
 	if err != nil {
 		return memory.MemoryItem{}, err
 	}
-
+	stringValue3 := str.String(input.Title)
+	stringValue4 := str.String(input.Text)
 	item := memory.MemoryItem{
 		Kind:        kind,
-		Title:       stringx.String(input.Title).Trim(),
-		Text:        stringx.String(input.Text).Trim(),
+		Title:       stringValue3.Trim(),
+		Text:        stringValue4.Trim(),
 		Tags:        trimStrings(input.Tags),
 		Metadata:    cloneMetadata(input.Metadata),
 		SourceLinks: sourceLinksFromInput(input.SourceLinks),
@@ -244,7 +247,8 @@ func memoryItemFromAddInput(
 	if item.Metadata == nil {
 		item.Metadata = make(map[string]string)
 	}
-	if sessionID := stringx.String(input.SourceSessionID).Trim(); sessionID != "" {
+	stringValue5 := str.String(input.SourceSessionID)
+	if sessionID := stringValue5.Trim(); sessionID != "" {
 		item.Metadata["source_session_id"] = sessionID
 	}
 	if hasRunContext {
@@ -273,7 +277,8 @@ type memoryWriteSafetyResult struct {
 }
 
 func checkMemoryWriteSafety(item memory.MemoryItem) (memoryWriteSafetyResult, error) {
-	content := stringx.String(strings.Join([]string{item.Title, item.Text}, "\n")).Trim()
+	stringValue6 := str.String(strings.Join([]string{item.Title, item.Text}, "\n"))
+	content := stringValue6.Trim()
 	result := memoryWriteSafetyResult{
 		Source:        item.GuardrailSource(),
 		ContentLength: len([]rune(content)),
@@ -324,7 +329,8 @@ func recordMemoryWriteSafetyBlocked(recorder tools.TraceRecorder, result memoryW
 }
 
 func parseKind(value string) (memory.Kind, error) {
-	switch stringx.String(value).Normalized() {
+	stringValue7 := str.String(value)
+	switch stringValue7.Normalized() {
 	case string(memory.KindSemantic):
 		return memory.KindSemantic, nil
 	case string(memory.KindProcedural):
@@ -337,19 +343,29 @@ func parseKind(value string) (memory.Kind, error) {
 func sourceLinksFromInput(inputs []sourceLinkInput) []memory.SourceLink {
 	links := make([]memory.SourceLink, 0, len(inputs))
 	for _, input := range inputs {
+		stringValue8 := str.String(input.SessionID)
+		stringValue9 := str.String(input.CreatedBy)
+		stringValue10 := str.String(input.CreatedReason)
+		stringValue11 := str.String(input.SourceProfile)
+		stringValue12 := str.String(input.SourcePersonality)
+		stringValue13 := str.String(input.ParentSessionID)
+		stringValue14 := str.String(input.ChildSessionID)
+		stringValue15 := str.String(input.RunID)
+		stringValue16 := str.String(input.StateMode)
+		stringValue17 := str.String(input.SourceTrigger)
 		link := memory.SourceLink{
-			SessionID:         stringx.String(input.SessionID).Trim(),
+			SessionID:         stringValue8.Trim(),
 			MessageIDs:        append([]uint(nil), input.MessageIDs...),
 			Offsets:           append([]int(nil), input.Offsets...),
-			CreatedBy:         stringx.String(input.CreatedBy).Trim(),
-			CreatedReason:     stringx.String(input.CreatedReason).Trim(),
-			SourceProfile:     stringx.String(input.SourceProfile).Trim(),
-			SourcePersonality: stringx.String(input.SourcePersonality).Trim(),
-			ParentSessionID:   stringx.String(input.ParentSessionID).Trim(),
-			ChildSessionID:    stringx.String(input.ChildSessionID).Trim(),
-			RunID:             stringx.String(input.RunID).Trim(),
-			StateMode:         stringx.String(input.StateMode).Trim(),
-			SourceTrigger:     stringx.String(input.SourceTrigger).Trim(),
+			CreatedBy:         stringValue9.Trim(),
+			CreatedReason:     stringValue10.Trim(),
+			SourceProfile:     stringValue11.Trim(),
+			SourcePersonality: stringValue12.Trim(),
+			ParentSessionID:   stringValue13.Trim(),
+			ChildSessionID:    stringValue14.Trim(),
+			RunID:             stringValue15.Trim(),
+			StateMode:         stringValue16.Trim(),
+			SourceTrigger:     stringValue17.Trim(),
 		}
 		if link.SessionID == "" &&
 			len(link.MessageIDs) == 0 &&
@@ -363,11 +379,13 @@ func sourceLinksFromInput(inputs []sourceLinkInput) []memory.SourceLink {
 }
 
 func hasProvenance(item memory.MemoryItem) bool {
-	if stringx.String(item.Metadata["source_session_id"]).Trim() != "" {
+	stringValue18 := str.String(item.Metadata["source_session_id"])
+	if stringValue18.Trim() != "" {
 		return true
 	}
 	for _, link := range item.SourceLinks {
-		if stringx.String(link.SessionID).Trim() != "" ||
+		stringValue19 := str.String(link.SessionID)
+		if stringValue19.Trim() != "" ||
 			len(link.MessageIDs) > 0 ||
 			len(link.Offsets) > 0 {
 			return true
@@ -383,8 +401,10 @@ func cloneMetadata(metadata map[string]string) map[string]string {
 	}
 	cloned := make(map[string]string, len(metadata))
 	for key, value := range metadata {
-		if key = stringx.String(key).Trim(); key != "" {
-			cloned[key] = stringx.String(value).Trim()
+		stringValue20 := str.String(key)
+		if key = stringValue20.Trim(); key != "" {
+			stringValue21 := str.String(value)
+			cloned[key] = stringValue21.Trim()
 		}
 	}
 
@@ -394,7 +414,8 @@ func cloneMetadata(metadata map[string]string) map[string]string {
 func trimStrings(values []string) []string {
 	trimmed := make([]string, 0, len(values))
 	for _, value := range values {
-		value = stringx.String(value).Trim()
+		stringValue22 := str.String(value)
+		value = stringValue22.Trim()
 		if value != "" {
 			trimmed = append(trimmed, value)
 		}
@@ -404,7 +425,8 @@ func trimStrings(values []string) []string {
 }
 
 func getReason(value string, fallback string) string {
-	if value = stringx.String(value).Trim(); value != "" {
+	stringValue23 := str.String(value)
+	if value = stringValue23.Trim(); value != "" {
 		return value
 	}
 

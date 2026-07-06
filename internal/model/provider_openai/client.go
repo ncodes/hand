@@ -15,7 +15,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // OpenAIClient sends normalized model requests through OpenAI-compatible APIs.
@@ -98,7 +98,8 @@ func NewOpenAIProviderClient(
 	}
 
 	clientOptions := make([]option.RequestOption, 0, len(opts)+1)
-	if trimmed := stringx.String(apiKey).Trim(); trimmed != "" {
+	stringValue1 := str.String(apiKey)
+	if trimmed := stringValue1.Trim(); trimmed != "" {
 		clientOptions = append(clientOptions, option.WithAPIKey(trimmed))
 	}
 	clientOptions = append(clientOptions, opts...)
@@ -189,14 +190,15 @@ func getModelClientProviderErrorDetail(err error) string {
 	if !errors.As(err, &apiErr) || apiErr == nil {
 		return ""
 	}
-	if raw := stringx.String(apiErr.RawJSON()).Trim(); raw != "" {
+	stringValue2 := str.String(apiErr.RawJSON())
+	if raw := stringValue2.Trim(); raw != "" {
 		return truncateProviderErrorDetail(raw)
 	}
 	if body := readOpenAIErrorResponseBody(apiErr); body != "" {
 		return truncateProviderErrorDetail(body)
 	}
-
-	return truncateProviderErrorDetail(stringx.String(apiErr.Message).Trim())
+	stringValue3 := str.String(apiErr.Message)
+	return truncateProviderErrorDetail(stringValue3.Trim())
 }
 
 func readOpenAIErrorResponseBody(apiErr *openai.Error) string {
@@ -209,14 +211,14 @@ func readOpenAIErrorResponseBody(apiErr *openai.Error) string {
 	if err != nil {
 		return ""
 	}
-
-	return stringx.String(string(body)).Trim()
+	stringValue4 := str.String(string(body))
+	return stringValue4.Trim()
 }
 
 func truncateProviderErrorDetail(detail string) string {
 	const maxProviderErrorDetailChars = 2048
-
-	detail = stringx.String(detail).Trim()
+	stringValue5 := str.String(detail)
+	detail = stringValue5.Trim()
 	if len(detail) <= maxProviderErrorDetailChars {
 		return detail
 	}
@@ -226,7 +228,8 @@ func truncateProviderErrorDetail(detail string) string {
 
 // getProviderModelID converts Morph's neutral model ID to the provider's routed ID.
 func (c *OpenAIClient) getProviderModelID(model string) string {
-	model = stringx.String(model).Trim()
+	stringValue6 := str.String(model)
+	model = stringValue6.Trim()
 	if normalizeProvider(c.provider) == "openai" {
 		return strings.TrimPrefix(model, "openai/")
 	}
@@ -243,12 +246,13 @@ func (c *OpenAIClient) getModelOwner(model string) string {
 	if !ok {
 		return ""
 	}
-
-	return stringx.String(modelDef.Owner).Trim()
+	stringValue7 := str.String(modelDef.Owner)
+	return stringValue7.Trim()
 }
 
 func normalizeProvider(provider string) string {
-	return stringx.String(provider).Normalized()
+	stringValue8 := str.String(provider)
+	return stringValue8.Normalized()
 }
 
 func (c *OpenAIClient) registryOrDefault() *modelprovider.Registry {

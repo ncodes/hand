@@ -9,7 +9,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // RequestAssert validates a scripted model request in e2e tests.
@@ -46,10 +46,11 @@ func NewTextClient(text string) *Client {
 
 // NewToolClient returns a scripted model client that emits tool calls.
 func NewToolClient(toolCall models.ToolCall, finalText string) *Client {
+	stringValue1 := str.String(finalText)
 	return NewClient(
 		ToolStep(toolCall),
 		Step{
-			Response: &models.Response{OutputText: stringx.String(finalText).Trim()},
+			Response: &models.Response{OutputText: stringValue1.Trim()},
 			Check:    AssertToolRoundTrip(toolCall),
 		},
 	)
@@ -57,8 +58,9 @@ func NewToolClient(toolCall models.ToolCall, finalText string) *Client {
 
 // OutputTextStep returns a scripted text response step.
 func OutputTextStep(text string) Step {
+	stringValue2 := str.String(text)
 	return Step{
-		Response: &models.Response{OutputText: stringx.String(text).Trim()},
+		Response: &models.Response{OutputText: stringValue2.Trim()},
 	}
 }
 
@@ -71,10 +73,13 @@ func StreamStep(text string, deltas ...models.StreamDelta) Step {
 
 // ToolStep returns a scripted tool-call response step.
 func ToolStep(toolCall models.ToolCall) Step {
+	stringValue3 := str.String(toolCall.ID)
+	stringValue4 := str.String(toolCall.Name)
+	stringValue5 := str.String(toolCall.Input)
 	trimmed := models.ToolCall{
-		ID:    stringx.String(toolCall.ID).Trim(),
-		Name:  stringx.String(toolCall.Name).Trim(),
-		Input: stringx.String(toolCall.Input).Trim(),
+		ID:    stringValue3.Trim(),
+		Name:  stringValue4.Trim(),
+		Input: stringValue5.Trim(),
 	}
 
 	return Step{
@@ -87,8 +92,10 @@ func ToolStep(toolCall models.ToolCall) Step {
 
 // AssertToolRoundTrip returns an assertion for a complete tool-call round trip.
 func AssertToolRoundTrip(toolCall models.ToolCall) RequestAssert {
-	expectedID := stringx.String(toolCall.ID).Trim()
-	expectedName := stringx.String(toolCall.Name).Trim()
+	stringValue6 := str.String(toolCall.ID)
+	expectedID := stringValue6.Trim()
+	stringValue7 := str.String(toolCall.Name)
+	expectedName := stringValue7.Trim()
 
 	return func(req models.Request) error {
 		if len(req.Messages) < 3 {
@@ -102,8 +109,11 @@ func AssertToolRoundTrip(toolCall models.ToolCall) RequestAssert {
 			switch {
 			case message.Role == morphmsg.RoleAssistant && len(message.ToolCalls) > 0:
 				assistantMessage = &message
-			case message.Role == morphmsg.RoleTool && stringx.String(message.ToolCallID).Trim() == expectedID:
-				toolMessage = &message
+			case message.Role == morphmsg.RoleTool:
+				toolCallID := str.String(message.ToolCallID)
+				if toolCallID.Trim() == expectedID {
+					toolMessage = &message
+				}
 			}
 		}
 
@@ -118,13 +128,16 @@ func AssertToolRoundTrip(toolCall models.ToolCall) RequestAssert {
 		}
 
 		call := assistantMessage.ToolCalls[0]
-		if stringx.String(call.ID).Trim() != expectedID {
+		stringValue8 := str.String(call.ID)
+		if stringValue8.Trim() != expectedID {
 			return fmt.Errorf("expected assistant tool call id %q", expectedID)
 		}
-		if stringx.String(call.Name).Trim() != expectedName {
+		stringValue9 := str.String(call.Name)
+		if stringValue9.Trim() != expectedName {
 			return fmt.Errorf("expected assistant tool call name %q", expectedName)
 		}
-		if stringx.String(toolMessage.Name).Trim() != expectedName {
+		stringValue10 := str.String(toolMessage.Name)
+		if stringValue10.Trim() != expectedName {
 			return fmt.Errorf("expected tool message name %q", expectedName)
 		}
 

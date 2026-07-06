@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/term"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 	"golang.org/x/sys/unix"
 )
 
@@ -68,7 +68,8 @@ func Detect(timeout time.Duration) Result {
 
 func detectExplicitEnvironment() (Result, bool) {
 	if value, ok := lookupEnv("MORPH_TUI_BACKGROUND"); ok {
-		background := stringx.String(value).Normalized()
+		stringValue1 := str.String(value)
+		background := stringValue1.Normalized()
 		if _, err := parseHexBackground(background); err == nil {
 			return Result{
 				Theme:      ThemeFromBackground(background),
@@ -99,7 +100,8 @@ func detectThemeEnvironmentFallback() (Result, bool) {
 	if len(parts) == 0 {
 		return Result{}, false
 	}
-	backgroundIndex, err := strconv.Atoi(stringx.String(parts[len(parts)-1]).Trim())
+	stringValue2 := str.String(parts[len(parts)-1])
+	backgroundIndex, err := strconv.Atoi(stringValue2.Trim())
 	if err != nil {
 		return Result{}, false
 	}
@@ -122,7 +124,8 @@ func ParseOSC11(response string) (string, error) {
 	value := after
 	value = strings.TrimSuffix(value, "\x07")
 	value = strings.TrimSuffix(value, "\x1b\\")
-	value = stringx.String(value).Trim()
+	stringValue3 := str.String(value)
+	value = stringValue3.Trim()
 
 	if after0, ok0 := strings.CutPrefix(value, "rgb:"); ok0 {
 		return rgbToHex(after0)

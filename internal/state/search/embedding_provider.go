@@ -13,7 +13,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -52,7 +52,8 @@ type EmbeddingProvider struct {
 
 // NewEmbeddingProvider returns an embedding provider selected from config.
 func NewEmbeddingProvider(opts EmbeddingProviderOptions) (*EmbeddingProvider, error) {
-	provider := stringx.String(opts.Provider).Normalized()
+	stringValue1 := str.String(opts.Provider)
+	provider := stringValue1.Normalized()
 	if provider == "" {
 		return nil, errors.New("embedding provider is required")
 	}
@@ -62,7 +63,8 @@ func NewEmbeddingProvider(opts EmbeddingProviderOptions) (*EmbeddingProvider, er
 	if endpointURL == "" {
 		return nil, errors.New("embedding endpoint URL is required")
 	}
-	apiKey := stringx.String(opts.APIKey).Trim()
+	stringValue2 := str.String(opts.APIKey)
+	apiKey := stringValue2.Trim()
 	if apiKey == "" && api == modelprovider.APIOllamaEmbeddings {
 		apiKey = constants.OllamaLocalAuthMarker
 	}
@@ -122,30 +124,33 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 	if err := p.validateRequestLimits(req); err != nil {
 		return EmbeddingResult{}, err
 	}
-
+	stringValue3 := str.String(req.Model)
+	stringValue4 := str.String(req.Target)
 	retrievalLog.Debug().
 		Str("provider", p.provider).
-		Str("embedding_model", stringx.String(req.Model).Trim()).
-		Str("target", stringx.String(req.Target).Trim()).
+		Str("embedding_model", stringValue3.Trim()).
+		Str("target", stringValue4.Trim()).
 		Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
 		Str("input_id", getEmbeddingRequestSingleInputID(req.Inputs)).
 		Int("input_count", len(req.Inputs)).
 		Int("max_inputs_per_batch", p.maxInputsPerBatch).
 		Msg("embedding provider request started")
-
+	stringValue5 := str.String(req.Model)
 	result := EmbeddingResult{
-		Model: stringx.String(req.Model).Trim(),
+		Model: stringValue5.Trim(),
 		Items: make([]Embedding, 0, len(req.Inputs)),
 	}
 	for start := 0; start < len(req.Inputs); start += p.maxInputsPerBatch {
 		end := min(start+p.maxInputsPerBatch, len(req.Inputs))
 		batchResult, err := p.embedBatch(ctx, req.Model, req.Inputs[start:end])
 		if err != nil {
+			stringValue7 := str.String(req.Model)
+			stringValue8 := str.String(req.Target)
 			retrievalLog.Debug().
 				Str("error_kind", getEmbeddingProviderErrorKind(err)).
 				Str("provider", p.provider).
-				Str("embedding_model", stringx.String(req.Model).Trim()).
-				Str("target", stringx.String(req.Target).Trim()).
+				Str("embedding_model", stringValue7.Trim()).
+				Str("target", stringValue8.Trim()).
 				Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
 				Int("input_count", len(req.Inputs)).
 				Msg("embedding provider request failed")
@@ -155,11 +160,13 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 			result.Dimensions = batchResult.Dimensions
 		} else if result.Dimensions != batchResult.Dimensions {
 			err := errors.New("embedding dimensions changed between batches")
+			stringValue9 := str.String(req.Model)
+			stringValue10 := str.String(req.Target)
 			retrievalLog.Debug().
 				Str("error_kind", err.Error()).
 				Str("provider", p.provider).
-				Str("embedding_model", stringx.String(req.Model).Trim()).
-				Str("target", stringx.String(req.Target).Trim()).
+				Str("embedding_model", stringValue9.Trim()).
+				Str("target", stringValue10.Trim()).
 				Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
 				Int("input_count", len(req.Inputs)).
 				Msg("embedding provider request failed")
@@ -167,11 +174,11 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 		}
 		result.Items = append(result.Items, batchResult.Items...)
 	}
-
+	stringValue6 := str.String(req.Target)
 	retrievalLog.Debug().
 		Str("provider", p.provider).
 		Str("embedding_model", result.Model).
-		Str("target", stringx.String(req.Target).Trim()).
+		Str("target", stringValue6.Trim()).
 		Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
 		Str("input_id", getEmbeddingRequestSingleInputID(req.Inputs)).
 		Int("input_count", len(req.Inputs)).
@@ -199,9 +206,10 @@ func (p *EmbeddingProvider) embedBatch(
 ) (EmbeddingResult, error) {
 	var lastErr error
 	for attempt := 0; attempt <= p.maxRetries; attempt++ {
+		stringValue11 := str.String(model)
 		retrievalLog.Debug().
 			Str("provider", p.provider).
-			Str("embedding_model", stringx.String(model).Trim()).
+			Str("embedding_model", stringValue11.Trim()).
 			Str("source_kind", getEmbeddingRequestSourceKind(inputs)).
 			Str("input_id", getEmbeddingRequestSingleInputID(inputs)).
 			Int("input_count", len(inputs)).
@@ -210,9 +218,10 @@ func (p *EmbeddingProvider) embedBatch(
 
 		result, retry, err := p.embedBatchAttempt(ctx, model, inputs)
 		if err == nil {
+			stringValue13 := str.String(result.Model)
 			retrievalLog.Debug().
 				Str("provider", p.provider).
-				Str("embedding_model", stringx.String(result.Model).Trim()).
+				Str("embedding_model", stringValue13.Trim()).
 				Str("source_kind", getEmbeddingRequestSourceKind(inputs)).
 				Str("input_id", getEmbeddingRequestSingleInputID(inputs)).
 				Int("input_count", len(inputs)).
@@ -223,11 +232,12 @@ func (p *EmbeddingProvider) embedBatch(
 			return result, nil
 		}
 		lastErr = err
+		stringValue12 := str.String(model)
 		retrievalLog.Debug().
 			Bool("retry", retry && attempt < p.maxRetries).
 			Str("error_kind", getEmbeddingProviderErrorKind(err)).
 			Str("provider", p.provider).
-			Str("embedding_model", stringx.String(model).Trim()).
+			Str("embedding_model", stringValue12.Trim()).
 			Str("source_kind", getEmbeddingRequestSourceKind(inputs)).
 			Str("input_id", getEmbeddingRequestSingleInputID(inputs)).
 			Int("input_count", len(inputs)).
@@ -289,8 +299,8 @@ func (p *EmbeddingProvider) embedBatchAttempt(
 	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
 		return EmbeddingResult{}, false, err
 	}
-
-	result, err := openAIEmbeddingResponseToEmbeddingResult(stringx.String(model).Trim(), inputs, decoded)
+	stringValue14 := str.String(model)
+	result, err := openAIEmbeddingResponseToEmbeddingResult(stringValue14.Trim(), inputs, decoded)
 	if err != nil {
 		return EmbeddingResult{}, false, err
 	}
@@ -321,9 +331,9 @@ func (p *EmbeddingProvider) embedOllamaBatchAttempt(
 			Vector:      vector,
 		})
 	}
-
+	stringValue15 := str.String(model)
 	return EmbeddingResult{
-		Model:      stringx.String(model).Trim(),
+		Model:      stringValue15.Trim(),
 		Items:      items,
 		Dimensions: dimensions,
 	}, false, nil
@@ -378,7 +388,8 @@ func openAIEmbeddingResponseToEmbeddingResult(
 	inputs []EmbeddingInput,
 	response embeddingProviderResponse,
 ) (EmbeddingResult, error) {
-	if stringx.String(response.Model).Trim() == "" {
+	stringValue16 := str.String(response.Model)
+	if stringValue16.Trim() == "" {
 		return EmbeddingResult{}, errors.New("embedding result model is required")
 	}
 	if !checkEmbeddingModelNamesMatch(model, response.Model) {
@@ -415,17 +426,19 @@ func openAIEmbeddingResponseToEmbeddingResult(
 			Vector:      append([]float64(nil), item.Embedding...),
 		}
 	}
-
+	stringValue17 := str.String(model)
 	return EmbeddingResult{
-		Model:      stringx.String(model).Trim(),
+		Model:      stringValue17.Trim(),
 		Items:      items,
 		Dimensions: dimensions,
 	}, nil
 }
 
 func checkEmbeddingModelNamesMatch(requested string, returned string) bool {
-	requested = stringx.String(requested).Trim()
-	returned = stringx.String(returned).Trim()
+	stringValue18 := str.String(requested)
+	requested = stringValue18.Trim()
+	stringValue19 := str.String(returned)
+	returned = stringValue19.Trim()
 	if requested == returned {
 		return true
 	}
@@ -434,7 +447,8 @@ func checkEmbeddingModelNamesMatch(requested string, returned string) bool {
 }
 
 func trimModelProviderPrefix(model string) string {
-	model = stringx.String(model).Trim()
+	stringValue20 := str.String(model)
+	model = stringValue20.Trim()
 	if _, suffix, ok := strings.Cut(model, "/"); ok {
 		return suffix
 	}
@@ -443,7 +457,8 @@ func trimModelProviderPrefix(model string) string {
 }
 
 func (p *EmbeddingProvider) getEmbeddingProviderModelID(model string) string {
-	model = stringx.String(model).Trim()
+	stringValue21 := str.String(model)
+	model = stringValue21.Trim()
 	switch p.provider {
 	case "openai":
 		return strings.TrimPrefix(model, "openai/")
@@ -456,7 +471,8 @@ func (p *EmbeddingProvider) getEmbeddingProviderModelID(model string) string {
 		if !ok {
 			return model
 		}
-		if owner := stringx.String(modelDef.Owner).Trim(); owner != "" && !strings.Contains(model, "/") {
+		stringValue22 := str.String(modelDef.Owner)
+		if owner := stringValue22.Trim(); owner != "" && !strings.Contains(model, "/") {
 			return owner + "/" + model
 		}
 	}
@@ -469,10 +485,11 @@ func (p *EmbeddingProvider) shouldSendAuthorization() bool {
 		return false
 	}
 	if p.api != modelprovider.APIOllamaEmbeddings {
-		return stringx.String(p.apiKey).Trim() != ""
+		stringValue24 := str.String(p.apiKey)
+		return stringValue24.Trim() != ""
 	}
-
-	switch stringx.String(p.apiKey).Trim() {
+	stringValue23 := str.String(p.apiKey)
+	switch stringValue23.Trim() {
 	case constants.OllamaLocalAuthMarker, constants.LocalProviderAuthMarker, "":
 		return false
 	default:
@@ -481,7 +498,8 @@ func (p *EmbeddingProvider) shouldSendAuthorization() bool {
 }
 
 func normalizeEmbeddingAPI(provider string, api string) string {
-	api = stringx.String(api).Normalized()
+	stringValue25 := str.String(api)
+	api = stringValue25.Normalized()
 	if api != "" {
 		return api
 	}
@@ -497,7 +515,8 @@ func normalizeEmbeddingAPI(provider string, api string) string {
 }
 
 func normalizeEmbeddingEndpointURL(api string, value string) string {
-	value = strings.TrimRight(stringx.String(value).Trim(), "/")
+	stringValue26 := str.String(value)
+	value = strings.TrimRight(stringValue26.Trim(), "/")
 	if api != modelprovider.APIOllamaEmbeddings || value == "" {
 		return value
 	}
@@ -526,14 +545,15 @@ func getEmbeddingRequestSourceKind(inputs []EmbeddingInput) string {
 	if len(inputs) == 0 {
 		return ""
 	}
-
-	sourceKind := stringx.String(string(inputs[0].SourceKind)).Trim()
+	stringValue27 := str.String(string(inputs[0].SourceKind))
+	sourceKind := stringValue27.Trim()
 	if sourceKind == "" {
 		return ""
 	}
 
 	for _, input := range inputs[1:] {
-		if stringx.String(string(input.SourceKind)).Trim() != sourceKind {
+		stringValue28 := str.String(string(input.SourceKind))
+		if stringValue28.Trim() != sourceKind {
 			return "mixed"
 		}
 	}
@@ -545,13 +565,14 @@ func getEmbeddingRequestSingleInputID(inputs []EmbeddingInput) string {
 	if len(inputs) != 1 {
 		return ""
 	}
-
-	return stringx.String(inputs[0].ID).Trim()
+	stringValue29 := str.String(inputs[0].ID)
+	return stringValue29.Trim()
 }
 
 func getProviderErrorMessage(resp *http.Response) string {
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 4*1024))
-	message := stringx.String(string(data)).Trim()
+	stringValue30 := str.String(string(data))
+	message := stringValue30.Trim()
 	if message == "" {
 		message = resp.Status
 	}

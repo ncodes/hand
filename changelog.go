@@ -4,7 +4,7 @@ import (
 	_ "embed"
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 //go:embed CHANGELOG.md
@@ -20,22 +20,25 @@ func latestSection(value string) string {
 
 	start := -1
 	for index, line := range lines {
-		if strings.HasPrefix(stringx.String(line).Trim(), "## ") {
+		stringValue2 := str.String(line)
+		if strings.HasPrefix(stringValue2.Trim(), "## ") {
 			start = index
 			break
 		}
 	}
 	if start < 0 {
-		return stringx.String(value).Trim()
+		stringValue3 := str.String(value)
+		return stringValue3.Trim()
 	}
 
 	end := len(lines)
 	for index := start + 1; index < len(lines); index++ {
-		if strings.HasPrefix(stringx.String(lines[index]).Trim(), "## ") {
+		stringValue4 := str.String(lines[index])
+		if strings.HasPrefix(stringValue4.Trim(), "## ") {
 			end = index
 			break
 		}
 	}
-
-	return stringx.String(strings.Join(lines[start:end], "\n")).Trim()
+	stringValue1 := str.String(strings.Join(lines[start:end], "\n"))
+	return stringValue1.Trim()
 }

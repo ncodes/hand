@@ -19,7 +19,7 @@ import (
 	"github.com/wandxy/morph/internal/state/search"
 	vectorsqlite "github.com/wandxy/morph/internal/state/search/vectorstore/sqlite"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type liveMemoryStore interface {
@@ -137,9 +137,10 @@ func loadLiveMemoryVectorIndex(t *testing.T, cfg *config.Config) liveMemoryVecto
 
 	vectorStore, err := vectorsqlite.NewStoreFromDB(db)
 	require.NoError(t, err)
+	stringValue1 := str.String(cfg.Models.Embedding.Name)
 	return liveMemoryVectorIndex{
 		lister:         vectorStore,
-		embeddingModel: stringx.String(cfg.Models.Embedding.Name).Trim(),
+		embeddingModel: stringValue1.Trim(),
 	}
 }
 
@@ -164,7 +165,8 @@ func requireNoLiveMemoryToolUsage(
 }
 
 func isLiveMemoryToolName(name string) bool {
-	return strings.HasPrefix(stringx.String(name).Trim(), "memory_")
+	stringValue2 := str.String(name)
+	return strings.HasPrefix(stringValue2.Trim(), "memory_")
 }
 
 func waitForLiveProceduralMemory(
@@ -235,9 +237,9 @@ func hasNoPendingLiveMemoryPromotion(
 	sessionID string,
 ) bool {
 	t.Helper()
-
+	stringValue3 := str.String(sessionID)
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: stringx.String(sessionID).Trim(),
+		SessionID: stringValue3.Trim(),
 		Statuses: []storage.MemoryStatus{
 			storage.MemoryStatusCandidate,
 			storage.MemoryStatusActive,
@@ -273,7 +275,8 @@ func hasCurrentLiveMemoryVectors(
 	expectedHashes := make(map[string]string, len(items))
 	expectedTags := make(map[string][]string, len(items))
 	for _, item := range items {
-		text := stringx.String(strings.Join([]string{item.Title, item.Text}, "\n")).Trim()
+		stringValue4 := str.String(strings.Join([]string{item.Title, item.Text}, "\n"))
+		text := stringValue4.Trim()
 		if text == "" {
 			continue
 		}
@@ -337,9 +340,9 @@ func loadLiveSessionMemoryItems(
 	sessionID string,
 ) []storage.MemoryItem {
 	t.Helper()
-
+	stringValue5 := str.String(sessionID)
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: stringx.String(sessionID).Trim(),
+		SessionID: stringValue5.Trim(),
 		Statuses: []storage.MemoryStatus{
 			storage.MemoryStatusCandidate,
 			storage.MemoryStatusActive,
@@ -362,9 +365,9 @@ func getLiveProceduralMemory(
 	sessionID string,
 ) (storage.MemoryItem, bool) {
 	t.Helper()
-
+	stringValue6 := str.String(sessionID)
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: stringx.String(sessionID).Trim(),
+		SessionID: stringValue6.Trim(),
 		Kinds:     []storage.MemoryKind{storage.MemoryKindProcedural},
 		Statuses:  []storage.MemoryStatus{storage.MemoryStatusActive},
 		Limit:     10,
@@ -387,9 +390,9 @@ func getLiveSemanticMemoryContaining(
 	required ...string,
 ) (storage.MemoryItem, bool) {
 	t.Helper()
-
+	stringValue7 := str.String(sessionID)
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: stringx.String(sessionID).Trim(),
+		SessionID: stringValue7.Trim(),
 		Kinds:     []storage.MemoryKind{storage.MemoryKindSemantic},
 		Statuses:  []storage.MemoryStatus{storage.MemoryStatusActive},
 		Limit:     10,
@@ -439,9 +442,9 @@ func getLiveBackgroundEpisodicMemory(
 	sessionID string,
 ) (storage.MemoryItem, bool) {
 	t.Helper()
-
+	stringValue8 := str.String(sessionID)
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: stringx.String(sessionID).Trim(),
+		SessionID: stringValue8.Trim(),
 		Kinds:     []storage.MemoryKind{storage.MemoryKindEpisodic},
 		Statuses:  []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
 		Limit:     10,
@@ -470,7 +473,8 @@ func hasLiveMemoryText(item storage.MemoryItem, required ...string) bool {
 	}, " "))
 
 	for _, value := range required {
-		if !strings.Contains(text, stringx.String(value).Normalized()) {
+		stringValue9 := str.String(value)
+		if !strings.Contains(text, stringValue9.Normalized()) {
 			return false
 		}
 	}
@@ -480,9 +484,9 @@ func hasLiveMemoryText(item storage.MemoryItem, required ...string) bool {
 
 func getLiveMemoryDump(ctx context.Context, t *testing.T, store liveMemoryStore, sessionID string) string {
 	t.Helper()
-
+	stringValue10 := str.String(sessionID)
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: stringx.String(sessionID).Trim(),
+		SessionID: stringValue10.Trim(),
 		Statuses:  []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
 		Limit:     20,
 	})
@@ -500,7 +504,8 @@ func getLiveMemoryDump(ctx context.Context, t *testing.T, store liveMemoryStore,
 
 func getMemorySourceCreatedBy(item storage.MemoryItem) string {
 	for _, link := range item.SourceLinks {
-		if createdBy := stringx.String(link.CreatedBy).Trim(); createdBy != "" {
+		stringValue11 := str.String(link.CreatedBy)
+		if createdBy := stringValue11.Trim(); createdBy != "" {
 			return createdBy
 		}
 	}
@@ -515,8 +520,8 @@ func getSessionEpisodicCheckpoint(
 	sessionID string,
 ) int {
 	t.Helper()
-
-	session, ok, err := store.Get(ctx, stringx.String(sessionID).Trim(), storage.SessionGetOptions{})
+	stringValue12 := str.String(sessionID)
+	session, ok, err := store.Get(ctx, stringValue12.Trim(), storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	return session.EpisodicCheckpointOffset
@@ -529,8 +534,8 @@ func hasSessionEpisodicCheckpointComplete(
 	sessionID string,
 ) bool {
 	t.Helper()
-
-	sessionID = stringx.String(sessionID).Trim()
+	stringValue13 := str.String(sessionID)
+	sessionID = stringValue13.Trim()
 	checkpoint := getSessionEpisodicCheckpoint(t, ctx, store, sessionID)
 	count, err := store.CountMessages(ctx, sessionID, storage.MessageQueryOptions{})
 	require.NoError(t, err)

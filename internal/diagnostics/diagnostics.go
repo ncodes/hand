@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/morph/internal/config"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var (
@@ -80,7 +80,8 @@ func BuildWithOptions(envPath, configPath string, cfg *config.Config, loadErr er
 	if validate == nil {
 		validate = (*config.Config).Validate
 	}
-	validationPass := stringx.String(opts.ValidationPass).Trim()
+	stringValue1 := str.String(opts.ValidationPass)
+	validationPass := stringValue1.Trim()
 	if validationPass == "" {
 		validationPass = "configuration is valid"
 	}
@@ -175,7 +176,8 @@ func (r Report) FirstFailure() string {
 }
 
 func buildFileCheck(name, path string, optional bool) Check {
-	trimmed := stringx.String(path).Trim()
+	stringValue2 := str.String(path)
+	trimmed := stringValue2.Trim()
 	if trimmed == "" {
 		return Check{
 			Name:    name,
@@ -225,7 +227,8 @@ func buildFileCheck(name, path string, optional bool) Check {
 }
 
 func buildBaseURLCheck(name, raw string) Check {
-	trimmed := stringx.String(raw).Trim()
+	stringValue3 := str.String(raw)
+	trimmed := stringValue3.Trim()
 	if trimmed == "" {
 		return Check{
 			Name:    name,

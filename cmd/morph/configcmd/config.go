@@ -11,7 +11,7 @@ import (
 
 	morphcli "github.com/wandxy/morph/internal/cli"
 	"github.com/wandxy/morph/internal/config"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func NewCommand(output io.Writer) *cli.Command {
@@ -169,7 +169,8 @@ func getConfigGetPaths(cmd *cli.Command) ([]string, error) {
 
 	paths := make([]string, 0, cmd.Args().Len())
 	for _, arg := range cmd.Args().Slice() {
-		path := stringx.String(arg).Trim()
+		stringValue1 := str.String(arg)
+		path := stringValue1.Trim()
 		if path == "" {
 			return nil, fmt.Errorf("config path is required")
 		}
@@ -187,29 +188,34 @@ func getSetConfigUpdates(cmd *cli.Command) ([]morphcli.ConfigUpdate, error) {
 	args := cmd.Args().Slice()
 	updates := make([]morphcli.ConfigUpdate, 0, len(args))
 	for index := 0; index < len(args); index++ {
-		raw := stringx.String(args[index]).Trim()
+		stringValue2 := str.String(args[index])
+		raw := stringValue2.Trim()
 		if raw == "" {
 			return nil, fmt.Errorf("config path and value are required")
 		}
 
 		path, value, ok := strings.Cut(raw, "=")
 		if ok {
-			path = stringx.String(path).Trim()
+			stringValue5 := str.String(path)
+			path = stringValue5.Trim()
 			if path == "" {
 				return nil, fmt.Errorf("config path and value are required")
 			}
-			updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: stringx.String(value).Trim()})
+			stringValue6 := str.String(value)
+			updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: stringValue6.Trim()})
 			continue
 		}
 
 		if index+1 >= len(args) {
 			return nil, fmt.Errorf("config path and value are required")
 		}
-		path = stringx.String(raw).Trim()
+		stringValue3 := str.String(raw)
+		path = stringValue3.Trim()
 		if path == "" {
 			return nil, fmt.Errorf("config path and value are required")
 		}
-		updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: stringx.String(args[index+1]).Trim()})
+		stringValue4 := str.String(args[index+1])
+		updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: stringValue4.Trim()})
 		index++
 	}
 

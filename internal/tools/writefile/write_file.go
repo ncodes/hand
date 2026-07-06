@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
@@ -40,8 +40,8 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
-
-			if stringx.String(req.Path).Trim() == "" {
+			stringValue1 := str.String(req.Path)
+			if stringValue1.Trim() == "" {
 				return common.ToolError("invalid_input", "path is required"), nil
 			}
 

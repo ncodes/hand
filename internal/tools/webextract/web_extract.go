@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/guardrails"
@@ -106,7 +106,8 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 
 			urls := make([]string, 0, len(req.URLs))
 			for idx, rawURL := range req.URLs {
-				url := stringx.String(rawURL).Trim()
+				stringValue2 := str.String(rawURL)
+				url := stringValue2.Trim()
 				if url == "" {
 					return common.ToolError("invalid_input", fmt.Sprintf("url at index %d is required", idx)), nil
 				}
@@ -122,8 +123,8 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 			if validationErr != nil {
 				return common.ToolError("invalid_input", validationErr.Error()), nil
 			}
-
-			query := stringx.String(req.Query).Trim()
+			stringValue1 := str.String(req.Query)
+			query := stringValue1.Trim()
 
 			log.Info().
 				Str("tool", "web_extract").
@@ -256,8 +257,9 @@ func extractWithPolicy(
 	}
 
 	for idx := len(fetched); idx < len(allowedIndexes); idx++ {
+		stringValue3 := str.String(allowedURLs[idx])
 		results[allowedIndexes[idx]] = webprovider.ExtractResult{
-			URL:           stringx.String(allowedURLs[idx]).Trim(),
+			URL:           stringValue3.Trim(),
 			ContentFormat: format,
 			Error:         "web extraction provider returned no result",
 		}
@@ -271,17 +273,19 @@ func websiteBlockToExtractResult(rawURL, format string, block guardrails.Website
 	if format == "" {
 		format = "text"
 	}
-
+	stringValue4 := str.String(rawURL)
 	return webprovider.ExtractResult{
-		URL:           stringx.String(rawURL).Trim(),
+		URL:           stringValue4.Trim(),
 		ContentFormat: format,
 		Error:         block.Message,
 	}
 }
 
 func getFormat(format, extractMode string) (string, error) {
-	format = stringx.String(format).Normalized()
-	extractMode = stringx.String(extractMode).Normalized()
+	stringValue5 := str.String(format)
+	format = stringValue5.Normalized()
+	stringValue6 := str.String(extractMode)
+	extractMode = stringValue6.Normalized()
 
 	if format != "" && extractMode != "" && format != extractMode {
 		return "", fmt.Errorf("format and extract_mode must match when both are provided")

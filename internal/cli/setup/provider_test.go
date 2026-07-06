@@ -26,7 +26,7 @@ import (
 	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
 	"github.com/wandxy/morph/internal/profile"
 	tuirender "github.com/wandxy/morph/internal/tui/render"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var errSetupTestWrite = errors.New("write failed")
@@ -2469,7 +2469,8 @@ func requireSetupIndentedLayer(t *testing.T, rendered string, layer string) {
 	t.Helper()
 
 	for _, line := range strings.Split(layer, "\n") {
-		if stringx.String(line).Trim() == "" {
+		stringValue1 := str.String(line)
+		if stringValue1.Trim() == "" {
 			continue
 		}
 		require.Contains(t, rendered, "\n"+setupOptionIndent+line)
@@ -2481,7 +2482,8 @@ func requireSetupHelpGuideNotIndented(t *testing.T, rendered string, guide strin
 	t.Helper()
 
 	for _, line := range strings.Split(guide, "\n") {
-		if stringx.String(line).Trim() == "" {
+		stringValue2 := str.String(line)
+		if stringValue2.Trim() == "" {
 			continue
 		}
 		require.Contains(t, rendered, "\n"+line)

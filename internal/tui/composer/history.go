@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // MaxPromptHistory is the package-level max prompt history constant.
@@ -18,7 +18,8 @@ type historyFile struct {
 
 // LoadHistory loads history.
 func LoadHistory(path string) ([]string, error) {
-	if stringx.String(path).Trim() == "" {
+	stringValue1 := str.String(path)
+	if stringValue1.Trim() == "" {
 		return nil, nil
 	}
 
@@ -41,7 +42,8 @@ func LoadHistory(path string) ([]string, error) {
 
 // SaveHistory persists prompt history entries to disk.
 func SaveHistory(path string, history []string) error {
-	if stringx.String(path).Trim() == "" {
+	stringValue2 := str.String(path)
+	if stringValue2.Trim() == "" {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -59,7 +61,8 @@ func SaveHistory(path string, history []string) error {
 func NormalizeHistory(history []string) []string {
 	normalized := make([]string, 0, len(history))
 	for _, entry := range history {
-		entry = stringx.String(entry).Trim()
+		stringValue3 := str.String(entry)
+		entry = stringValue3.Trim()
 		if entry == "" {
 			continue
 		}

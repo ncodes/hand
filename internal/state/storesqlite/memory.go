@@ -12,7 +12,7 @@ import (
 	statememory "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
 	"github.com/wandxy/morph/pkg/nanoid"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 	"gorm.io/gorm"
 )
 
@@ -127,8 +127,8 @@ func (s *Store) ListSessionMemories(ctx context.Context, query statememory.Sessi
 	if s == nil || s.db == nil {
 		return statememory.SessionMemoriesResult{}, errors.New("store is required")
 	}
-
-	sessionID := stringx.String(query.SessionID).Trim()
+	stringValue1 := str.String(query.SessionID)
+	sessionID := stringValue1.Trim()
 	if err := statememory.ValidateSessionID(sessionID); err != nil {
 		return statememory.SessionMemoriesResult{}, err
 	}
@@ -173,7 +173,8 @@ func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (
 
 	item = item.Clone()
 	now := time.Now().UTC()
-	item.ID = stringx.String(item.ID).Trim()
+	stringValue2 := str.String(item.ID)
+	item.ID = stringValue2.Trim()
 	if item.ID == "" {
 		item.ID = nanoid.MustGenerate("mem_")
 	}
@@ -237,8 +238,8 @@ func (s *Store) PatchMemory(ctx context.Context, patch statememory.MemoryPatch) 
 	if s == nil || s.db == nil {
 		return statememory.MemoryItem{}, errors.New("store is required")
 	}
-
-	patch.ID = stringx.String(patch.ID).Trim()
+	stringValue3 := str.String(patch.ID)
+	patch.ID = stringValue3.Trim()
 	if patch.ID == "" {
 		return statememory.MemoryItem{}, errors.New("memory id is required")
 	}
@@ -302,8 +303,8 @@ func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRe
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
-
-	id := stringx.String(req.ID).Trim()
+	stringValue4 := str.String(req.ID)
+	id := stringValue4.Trim()
 	if id == "" {
 		return errors.New("memory id is required")
 	}
@@ -326,8 +327,8 @@ func (s *Store) HardDeleteMemory(ctx context.Context, req statememory.MemoryDele
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
-
-	id := stringx.String(req.ID).Trim()
+	stringValue5 := str.String(req.ID)
+	id := stringValue5.Trim()
 	if id == "" {
 		return errors.New("memory id is required")
 	}
@@ -365,8 +366,8 @@ func (s *Store) searchMemoryRecords(
 	if len(statuses) == 0 {
 		statuses = []statememory.MemoryStatus{statememory.MemoryStatusActive}
 	}
-
-	text := stringx.String(query.Text).Trim()
+	stringValue6 := str.String(query.Text)
+	text := stringValue6.Trim()
 	if text != "" {
 		strictQuery := buildFTSSearchQuery(text)
 		if strictQuery == "" {
@@ -392,7 +393,8 @@ func (s *Store) searchMemoryRecords(
 	}
 
 	db := s.db.WithContext(ctx).Model(&memoryItemModel{})
-	if sessionID := stringx.String(query.SessionID).Trim(); sessionID != "" {
+	stringValue7 := str.String(query.SessionID)
+	if sessionID := stringValue7.Trim(); sessionID != "" {
 		db = db.Where("source_session_id = ?", sessionID)
 	}
 	if ids := statememory.NormalizeMemoryIDs(query.IDs); len(ids) > 0 {
@@ -473,7 +475,8 @@ SELECT
 FROM memory_items AS m
 JOIN fts_hits AS hits ON hits.memory_id = m.id
 WHERE 1 = 1`)
-	if sessionID := stringx.String(query.SessionID).Trim(); sessionID != "" {
+	stringValue8 := str.String(query.SessionID)
+	if sessionID := stringValue8.Trim(); sessionID != "" {
 		sql.WriteString(`
 	AND m.source_session_id = ?`)
 		args = append(args, sessionID)
@@ -759,12 +762,14 @@ func checkMemoryPatchNeedsSearchRow(patch statememory.MemoryPatch) bool {
 }
 
 func getMemorySourceSessionID(item statememory.MemoryItem) string {
-	if sessionID := stringx.String(item.Metadata["source_session_id"]).Trim(); sessionID != "" {
+	stringValue9 := str.String(item.Metadata["source_session_id"])
+	if sessionID := stringValue9.Trim(); sessionID != "" {
 		return sessionID
 	}
 
 	for _, link := range item.SourceLinks {
-		if sessionID := stringx.String(link.SessionID).Trim(); sessionID != "" {
+		stringValue10 := str.String(link.SessionID)
+		if sessionID := stringValue10.Trim(); sessionID != "" {
 			return sessionID
 		}
 	}
@@ -882,7 +887,8 @@ func getMemoryMetadataSearchText(metadata map[string]string) string {
 }
 
 func fromJSONString(raw string, target any) error {
-	raw = stringx.String(raw).Trim()
+	stringValue11 := str.String(raw)
+	raw = stringValue11.Trim()
 	if raw == "" {
 		raw = "null"
 	}

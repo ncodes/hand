@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -78,7 +78,8 @@ type EnvironmentCapabilities struct {
 
 // BuildBase builds base.
 func BuildBase(name string) Instructions {
-	agentName := stringx.String(name).Trim()
+	stringValue1 := str.String(name)
+	agentName := stringValue1.Trim()
 	if agentName == "" {
 		agentName = "Morph"
 	}
@@ -143,24 +144,24 @@ func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 			fmt.Sprintf("- Current time: %s", ctx.Now.Format(time.RFC3339)),
 		)
 	}
-
-	if timezone := stringx.String(ctx.Timezone).Trim(); timezone != "" {
+	stringValue2 := str.String(ctx.Timezone)
+	if timezone := stringValue2.Trim(); timezone != "" {
 		lines = append(lines, fmt.Sprintf("- Timezone: %s", timezone))
 	}
-
-	if osName := stringx.String(ctx.OS).Trim(); osName != "" {
+	stringValue3 := str.String(ctx.OS)
+	if osName := stringValue3.Trim(); osName != "" {
 		lines = append(lines, fmt.Sprintf("- OS: %s", osName))
 	}
-
-	if arch := stringx.String(ctx.Architecture).Trim(); arch != "" {
+	stringValue4 := str.String(ctx.Architecture)
+	if arch := stringValue4.Trim(); arch != "" {
 		lines = append(lines, fmt.Sprintf("- Architecture: %s", arch))
 	}
-
-	if platform := stringx.String(ctx.Platform).Trim(); platform != "" {
+	stringValue5 := str.String(ctx.Platform)
+	if platform := stringValue5.Trim(); platform != "" {
 		lines = append(lines, fmt.Sprintf("- Platform: %s", platform))
 	}
-
-	if workingDirectory := stringx.String(ctx.WorkingDirectory).Trim(); workingDirectory != "" {
+	stringValue6 := str.String(ctx.WorkingDirectory)
+	if workingDirectory := stringValue6.Trim(); workingDirectory != "" {
 		lines = append(lines, fmt.Sprintf("- Working directory: %s", workingDirectory))
 	}
 
@@ -186,32 +187,32 @@ func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 	if activeTools := cleanList(ctx.ActiveTools); len(activeTools) > 0 {
 		lines = append(lines, fmt.Sprintf("- Active tools: %s", strings.Join(activeTools, ", ")))
 	}
-
-	if model := stringx.String(ctx.Model).Trim(); model != "" {
+	stringValue7 := str.String(ctx.Model)
+	if model := stringValue7.Trim(); model != "" {
 		lines = append(lines, fmt.Sprintf("- Model: %s", model))
 	}
-
-	if summaryModel := stringx.String(ctx.SummaryModel).Trim(); summaryModel != "" {
+	stringValue8 := str.String(ctx.SummaryModel)
+	if summaryModel := stringValue8.Trim(); summaryModel != "" {
 		lines = append(lines, fmt.Sprintf("- Summary model: %s", summaryModel))
 	}
-
-	if provider := stringx.String(ctx.ModelProvider).Trim(); provider != "" {
+	stringValue9 := str.String(ctx.ModelProvider)
+	if provider := stringValue9.Trim(); provider != "" {
 		lines = append(lines, fmt.Sprintf("- Model provider: %s", provider))
 	}
-
-	if summaryProvider := stringx.String(ctx.SummaryProvider).Trim(); summaryProvider != "" {
+	stringValue10 := str.String(ctx.SummaryProvider)
+	if summaryProvider := stringValue10.Trim(); summaryProvider != "" {
 		lines = append(lines, fmt.Sprintf("- Summary model provider: %s", summaryProvider))
 	}
-
-	if api := stringx.String(ctx.API).Trim(); api != "" {
+	stringValue11 := str.String(ctx.API)
+	if api := stringValue11.Trim(); api != "" {
 		lines = append(lines, fmt.Sprintf("- API: %s", api))
 	}
-
-	if webProvider := stringx.String(ctx.WebProvider).Trim(); webProvider != "" {
+	stringValue12 := str.String(ctx.WebProvider)
+	if webProvider := stringValue12.Trim(); webProvider != "" {
 		lines = append(lines, fmt.Sprintf("- Web provider: %s", webProvider))
 	}
-
-	if sessionID := stringx.String(ctx.SessionID).Trim(); sessionID != "" {
+	stringValue13 := str.String(ctx.SessionID)
+	if sessionID := stringValue13.Trim(); sessionID != "" {
 		lines = append(lines, fmt.Sprintf("- Session ID: %s", sessionID))
 	}
 	if origin := renderEnvironmentSessionOrigin(ctx.SessionOrigin); origin != "" {
@@ -245,8 +246,8 @@ func BuildMemoryContext(items []MemoryContextItem, maxChars int) Instruction {
 	for idx, item := range items {
 		lines = append(lines, fmt.Sprintf("%d. %s", idx+1, renderMemoryContextItem(item)))
 	}
-
-	value := stringx.String(strings.Join(lines, "\n")).Trim()
+	stringValue14 := str.String(strings.Join(lines, "\n"))
+	value := stringValue14.Trim()
 	if maxChars > 0 && len([]rune(value)) > maxChars {
 		value = string([]rune(value)[:maxChars])
 	}
@@ -256,16 +257,20 @@ func BuildMemoryContext(items []MemoryContextItem, maxChars int) Instruction {
 
 func renderEnvironmentSessionOrigin(origin EnvironmentSessionOrigin) string {
 	parts := make([]string, 0, 4)
-	if source := stringx.String(origin.Source).Trim(); source != "" {
+	stringValue15 := str.String(origin.Source)
+	if source := stringValue15.Trim(); source != "" {
 		parts = append(parts, "source="+source)
 	}
-	if accountID := stringx.String(origin.AccountID).Trim(); accountID != "" {
+	stringValue16 := str.String(origin.AccountID)
+	if accountID := stringValue16.Trim(); accountID != "" {
 		parts = append(parts, "account="+accountID)
 	}
-	if conversationID := stringx.String(origin.ConversationID).Trim(); conversationID != "" {
+	stringValue17 := str.String(origin.ConversationID)
+	if conversationID := stringValue17.Trim(); conversationID != "" {
 		parts = append(parts, "conversation="+conversationID)
 	}
-	if threadID := stringx.String(origin.ThreadID).Trim(); threadID != "" {
+	stringValue18 := str.String(origin.ThreadID)
+	if threadID := stringValue18.Trim(); threadID != "" {
 		parts = append(parts, "thread="+threadID)
 	}
 
@@ -273,7 +278,8 @@ func renderEnvironmentSessionOrigin(origin EnvironmentSessionOrigin) string {
 }
 
 func renderEnvironmentSessionResponseGuidance(origin EnvironmentSessionOrigin) string {
-	switch stringx.String(origin.Source).Normalized() {
+	stringValue19 := str.String(origin.Source)
+	switch stringValue19.Normalized() {
 	case "telegram":
 		return "The user is reading this in Telegram. Keep replies chat-friendly, concise, and readable on mobile. " +
 			"Use Telegram MarkdownV2-compatible Markdown: prefer short paragraphs and bullets, avoid markdown tables, " +
@@ -289,13 +295,16 @@ func renderEnvironmentSessionResponseGuidance(origin EnvironmentSessionOrigin) s
 
 func renderMemoryContextItem(item MemoryContextItem) string {
 	parts := make([]string, 0, 3)
-	if kind := stringx.String(item.Kind).Trim(); kind != "" {
+	stringValue20 := str.String(item.Kind)
+	if kind := stringValue20.Trim(); kind != "" {
 		parts = append(parts, "kind="+kind)
 	}
-	if title := stringx.String(item.Title).Trim(); title != "" {
+	stringValue21 := str.String(item.Title)
+	if title := stringValue21.Trim(); title != "" {
 		parts = append(parts, "title="+title)
 	}
-	if text := stringx.String(item.Text).Trim(); text != "" {
+	stringValue22 := str.String(item.Text)
+	if text := stringValue22.Trim(); text != "" {
 		parts = append(parts, "text="+text)
 	}
 	return strings.Join(parts, "; ")
@@ -398,13 +407,12 @@ Provide a concise reason tied to the user's request. Deletion is a lifecycle tra
 
 // BuildMemoryFlushGuidance builds memory flush guidance.
 func BuildMemoryFlushGuidance(trigger string) Instruction {
-	trigger = stringx.String(trigger).Trim()
+	stringValue23 := str.String(trigger)
+	trigger = stringValue23.Trim()
 	if trigger == "" {
 		trigger = "planned context loss"
 	}
-
-	return Instruction{
-		Value: stringx.String(`# Pre-Context-Loss Memory Flush
+	stringValue24 := str.String(`# Pre-Context-Loss Memory Flush
 
 The current context is about to be reduced because of ` + trigger + `.
 You have one bounded opportunity to preserve durable continuity before context is discarded or summarized.
@@ -413,27 +421,32 @@ Keep memories broad and durable. Do not preserve raw transcript snippets, transi
 When the transcript contains durable information in the priority categories above, call exactly one available memory tool to preserve the most important item before context loss.
 Use only direct write tools: memory_add, memory_update, or memory_delete.
 Include source provenance that ties writes to this session and message range whenever a write tool requires it.
-Do not call more than one tool. If there is nothing durable to preserve, do not call a tool and reply briefly with "no durable memory to flush".`).Trim(),
+Do not call more than one tool. If there is nothing durable to preserve, do not call a tool and reply briefly with "no durable memory to flush".`)
+	return Instruction{
+		Value: stringValue24.
+			Trim(),
 	}
 }
 
 // BuildMemoryFlushRequest builds memory flush request.
 func BuildMemoryFlushRequest(trigger string) string {
-	trigger = stringx.String(trigger).Trim()
+	stringValue25 := str.String(trigger)
+	trigger = stringValue25.Trim()
 	if trigger == "" {
 		trigger = "planned context loss"
 	}
-
-	return stringx.String(`The ` + trigger + ` flush is starting now.
+	stringValue26 := str.String(`The ` + trigger + ` flush is starting now.
 Inspect the preceding session messages for durable user preferences, corrections, decisions, recurring patterns, unresolved follow-ups, and high-signal continuity facts.
 If any such durable information is present, call exactly one available direct write memory tool now: memory_add, memory_update, or memory_delete.
-If there is nothing durable to preserve, reply only with "no durable memory to flush".`).Trim()
+If there is nothing durable to preserve, reply only with "no durable memory to flush".`)
+	return stringValue26.
+		Trim()
 
 }
 
 // BuildEpisodicExtractionInstructions builds episodic extraction instructions.
 func BuildEpisodicExtractionInstructions() string {
-	return stringx.String(`Extract curated episodic memory candidates from bounded session messages and task trace events.
+	stringValue27 := str.String(`Extract curated episodic memory candidates from bounded session messages and task trace events.
 Return only JSON matching the schema. Do not store raw transcript windows.
 Extract only evidence-backed decisions, outcomes, reflections, task traces, tool events, blockers, resolved issues, milestone episodes, discarded approaches, and explicit durable user corrections/preferences.
 Episodic memories may come from ordinary conversation, planning, research, writing, operations, personal preferences, coordination, troubleshooting, or coding; do not assume the session is a software project.
@@ -457,7 +470,9 @@ Distinguish successful, failed, partial, and follow-up-required outcomes with me
 Capture failed attempts, partial progress, open follow-ups, and unresolved blockers with explicit status metadata such as attempt_status, progress_status, follow_up_status, or blocker_status.
 For discarded approaches and unresolved blockers, preserve uncertainty metadata instead of overstating the evidence.
 Reject low-signal, speculative, temporary, unsafe, socially trivial, or purely conversational content with a concise reason.
-Keep candidate text concise, source-grounded, and useful for future continuity. Preserve uncertainty in metadata when evidence is incomplete.`).Trim()
+Keep candidate text concise, source-grounded, and useful for future continuity. Preserve uncertainty in metadata when evidence is incomplete.`)
+	return stringValue27.
+		Trim()
 
 }
 
@@ -625,7 +640,8 @@ func BuildRetrievalRerank() string {
 func cleanList(values []string) []string {
 	cleaned := make([]string, 0, len(values))
 	for _, value := range values {
-		value = stringx.String(value).Trim()
+		stringValue28 := str.String(value)
+		value = stringValue28.Trim()
 		if value == "" {
 			continue
 		}

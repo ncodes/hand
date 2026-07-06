@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func getUserFacingErrorMessage(message string) string {
-	message = stringx.String(message).Trim()
+	stringValue1 := str.String(message)
+	message = stringValue1.Trim()
 	if message == "" {
 		return ""
 	}
@@ -56,7 +57,8 @@ func getErrorMessageFromPayload(payload map[string]any) string {
 func getErrorMessageFromValue(value any) string {
 	switch typed := value.(type) {
 	case string:
-		return stringx.String(typed).Trim()
+		stringValue2 := str.String(typed)
+		return stringValue2.Trim()
 	case map[string]any:
 		return getStringPayloadField(typed, "message")
 	default:
@@ -66,5 +68,6 @@ func getErrorMessageFromValue(value any) string {
 
 func getStringPayloadField(payload map[string]any, field string) string {
 	value, _ := payload[field].(string)
-	return stringx.String(value).Trim()
+	stringValue3 := str.String(value)
+	return stringValue3.Trim()
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/profile"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -56,7 +56,8 @@ func getStartupDetailRows(cfg *config.Config) []startupDetailRow {
 	}
 	traceStatus := "disabled"
 	if cfg.Trace.Enabled {
-		traceDir := stringx.String(cfg.Trace.Disk.Dir).Trim()
+		stringValue1 := str.String(cfg.Trace.Disk.Dir)
+		traceDir := stringValue1.Trim()
 		traceStatus = fmt.Sprintf("enabled (%s)", traceDir)
 	}
 
@@ -94,7 +95,8 @@ func getStartupDetailRows(cfg *config.Config) []startupDetailRow {
 }
 
 func getStartupProfileName() string {
-	name := stringx.String(profile.Active().Name).Trim()
+	stringValue2 := str.String(profile.Active().Name)
+	name := stringValue2.Trim()
 	if name == "" {
 		return profile.DefaultName
 	}
@@ -119,12 +121,13 @@ func getGatewayStartupSummary(cfg *config.Config) string {
 }
 
 func formatStartupVersion() string {
-	version := stringx.String(constants.AppVersion).Trim()
+	stringValue3 := str.String(constants.AppVersion)
+	version := stringValue3.Trim()
 	if version == "" {
 		version = "dev"
 	}
-
-	commit := stringx.String(constants.CommitHash).Trim()
+	stringValue4 := str.String(constants.CommitHash)
+	commit := stringValue4.Trim()
 	if commit == "" {
 		commit = "unknown"
 	}
@@ -283,8 +286,8 @@ func getEffectiveStorageBackend(cfg *config.Config) string {
 	if cfg == nil {
 		return "sqlite"
 	}
-
-	backend := stringx.String(cfg.Storage.Backend).Normalized()
+	stringValue5 := str.String(cfg.Storage.Backend)
+	backend := stringValue5.Normalized()
 	if backend == "" {
 		return "sqlite"
 	}

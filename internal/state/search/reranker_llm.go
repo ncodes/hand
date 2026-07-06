@@ -10,7 +10,7 @@ import (
 	instruct "github.com/wandxy/morph/internal/instructions"
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -62,11 +62,13 @@ func NewLLMReranker(options LLMRerankerOptions) Reranker {
 
 func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResult, error) {
 	options := normalizeLLMRerankerOptions(r.options)
-	if !options.Enabled || options.Client == nil || stringx.String(options.Model).Trim() == "" {
+	stringValue1 := str.String(options.Model)
+	if !options.Enabled || options.Client == nil || stringValue1.Trim() == "" {
+		stringValue2 := str.String(options.Model)
 		rerankDebugLogEvent(req, RerankerLLM).
 			Bool("enabled", options.Enabled).
 			Bool("has_client", options.Client != nil).
-			Bool("has_model", stringx.String(options.Model).Trim() != "").
+			Bool("has_model", stringValue2.Trim() != "").
 			Msg("llm rerank unavailable, using fallback")
 		return options.Fallback.Rerank(ctx, req)
 	}
@@ -137,11 +139,15 @@ func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResul
 
 func (r LLMReranker) modelRequest(req RerankRequest, candidates []Candidate, structuredOutput bool) models.Request {
 	options := normalizeLLMRerankerOptions(r.options)
+	stringValue3 := str.String(req.Query)
+	stringValue4 := str.String(req.Caller)
+	stringValue5 := str.String(req.TraceID)
+	stringValue6 := str.String(string(req.SourceKind))
 	payload := llmRerankPayload{
-		Query:      stringx.String(req.Query).Trim(),
-		Caller:     stringx.String(req.Caller).Trim(),
-		TraceID:    stringx.String(req.TraceID).Trim(),
-		SourceKind: stringx.String(string(req.SourceKind)).Trim(),
+		Query:      stringValue3.Trim(),
+		Caller:     stringValue4.Trim(),
+		TraceID:    stringValue5.Trim(),
+		SourceKind: stringValue6.Trim(),
 		Candidates: candidatesToLLMRerankCandidates(candidates, options.MaxCandidateTextChars),
 	}
 	data, _ := json.Marshal(payload)
@@ -249,7 +255,8 @@ func parseLLMRerankResponse(resp *models.Response) (RerankResult, error) {
 	if resp.RequiresToolCalls {
 		return RerankResult{}, errors.New("llm rerank requested tool calls")
 	}
-	if stringx.String(resp.OutputText).Trim() == "" {
+	stringValue7 := str.String(resp.OutputText)
+	if stringValue7.Trim() == "" {
 		return RerankResult{}, errors.New("llm rerank response is empty")
 	}
 

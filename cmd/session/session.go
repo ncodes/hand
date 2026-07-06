@@ -14,7 +14,7 @@ import (
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	"github.com/wandxy/morph/internal/runtime"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var (
@@ -60,8 +60,9 @@ func NewCommand() *cli.Command {
 					sessions := client.SessionAPI()
 
 					autoSwitch := false
+					stringValue1 := str.String(cmd.Args().First())
 					session, err := sessions.CreateWithOptions(ctx, rpcclient.CreateSessionOptions{
-						ID:         stringx.String(cmd.Args().First()).Trim(),
+						ID:         stringValue1.Trim(),
 						AutoSwitch: &autoSwitch,
 					})
 					if err != nil {
@@ -106,8 +107,8 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 					sessions := client.SessionAPI()
-
-					id := stringx.String(cmd.Args().First()).Trim()
+					stringValue2 := str.String(cmd.Args().First())
+					id := stringValue2.Trim()
 					if err := sessions.Use(ctx, id); err != nil {
 						return err
 					}
@@ -126,8 +127,8 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 					sessions := client.SessionAPI()
-
-					session, err := sessions.Unarchive(ctx, stringx.String(cmd.Args().First()).Trim())
+					stringValue3 := str.String(cmd.Args().First())
+					session, err := sessions.Unarchive(ctx, stringValue3.Trim())
 					if err != nil {
 						return err
 					}
@@ -165,8 +166,8 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 					sessions := client.SessionAPI()
-
-					result, err := sessions.Compact(ctx, stringx.String(cmd.Args().First()).Trim())
+					stringValue4 := str.String(cmd.Args().First())
+					result, err := sessions.Compact(ctx, stringValue4.Trim())
 					if err != nil {
 						return err
 					}
@@ -201,11 +202,11 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 					sessions := client.SessionAPI()
-
+					stringValue5 := str.String(cmd.Args().First())
 					result, err := sessions.Repair(
 						ctx,
 						rpcclient.RepairSessionOptions{
-							SessionID: stringx.String(cmd.Args().First()).Trim(),
+							SessionID: stringValue5.Trim(),
 							Full:      cmd.Bool("full"),
 						},
 					)
@@ -240,8 +241,8 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 					sessions := client.SessionAPI()
-
-					result, err := sessions.Status(ctx, stringx.String(cmd.Args().First()).Trim())
+					stringValue6 := str.String(cmd.Args().First())
+					result, err := sessions.Status(ctx, stringValue6.Trim())
 					if err != nil {
 						return err
 					}
@@ -269,8 +270,10 @@ func NewCommand() *cli.Command {
 }
 
 func getSessionListLabel(id string, title string) string {
-	id = stringx.String(id).Trim()
-	title = stringx.String(title).Trim()
+	stringValue7 := str.String(id)
+	id = stringValue7.Trim()
+	stringValue8 := str.String(title)
+	title = stringValue8.Trim()
 	if title == "" {
 		return id
 	}

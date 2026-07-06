@@ -14,7 +14,7 @@ import (
 	"github.com/wandxy/morph/internal/tools"
 	agentsession "github.com/wandxy/morph/pkg/agent/session"
 	agenttool "github.com/wandxy/morph/pkg/agent/tool"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var (
@@ -175,9 +175,9 @@ func getEnvironmentTimezone(now time.Time) string {
 	if name == "" {
 		return location
 	}
-
-	return stringx.String(
-		location + " (" + name + ", UTC" + getTimezoneOffset(offset) + ")").Trim()
+	stringValue1 := str.String(location + " (" + name + ", UTC" + getTimezoneOffset(offset) + ")")
+	return stringValue1.
+		Trim()
 
 }
 
@@ -194,7 +194,8 @@ func getTimezoneOffset(offset int) string {
 // getFilesystemRoots normalizes configured roots and falls back to the process working directory.
 func getFilesystemRoots(configured []string, workingDirectory string) []string {
 	roots := configured
-	if len(roots) == 0 && stringx.String(workingDirectory).Trim() != "" {
+	stringValue2 := str.String(workingDirectory)
+	if len(roots) == 0 && stringValue2.Trim() != "" {
 		roots = []string{workingDirectory}
 	}
 	return guardrails.NormalizeRoots(roots)
@@ -223,7 +224,8 @@ func sortedUnique(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	cleaned := make([]string, 0, len(values))
 	for _, value := range values {
-		value = stringx.String(value).Trim()
+		stringValue3 := str.String(value)
+		value = stringValue3.Trim()
 		if value == "" {
 			continue
 		}
@@ -239,8 +241,10 @@ func sortedUnique(values []string) []string {
 
 // getFirstNonEmpty returns first when set, otherwise a trimmed second value.
 func getFirstNonEmpty(first, second string) string {
-	if stringx.String(first).Trim() != "" {
+	stringValue4 := str.String(first)
+	if stringValue4.Trim() != "" {
 		return first
 	}
-	return stringx.String(second).Trim()
+	stringValue5 := str.String(second)
+	return stringValue5.Trim()
 }

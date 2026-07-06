@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func Terms(raw string, prefix ...string) string {
@@ -55,7 +55,8 @@ func (b *termBuilder) String() string {
 }
 
 func jsonToTerms(builder *termBuilder, prefix string, raw string) {
-	raw = stringx.String(raw).Trim()
+	stringValue1 := str.String(raw)
+	raw = stringValue1.Trim()
 	if raw == "" {
 		return
 	}
@@ -89,7 +90,8 @@ func addValueTerms(builder *termBuilder, prefix string, value any) {
 			addValueTerms(builder, prefix, item)
 		}
 	case string:
-		current = stringx.String(current).Trim()
+		currentValue := str.String(current)
+		current = currentValue.Trim()
 		if current == "" {
 			return
 		}
@@ -120,7 +122,8 @@ func addValueTerms(builder *termBuilder, prefix string, value any) {
 }
 
 func normalizeScalar(value string) string {
-	value = stringx.String(value).Normalized()
+	stringValue3 := str.String(value)
+	value = stringValue3.Normalized()
 	if value == "" {
 		return ""
 	}
@@ -128,7 +131,8 @@ func normalizeScalar(value string) string {
 }
 
 func looksLikeJSON(value string) bool {
-	value = stringx.String(value).Trim()
+	stringValue4 := str.String(value)
+	value = stringValue4.Trim()
 	if value == "" {
 		return false
 	}

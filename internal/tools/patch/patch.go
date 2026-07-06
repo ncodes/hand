@@ -10,7 +10,7 @@ import (
 
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
@@ -45,14 +45,15 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
-			if stringx.String(req.Patch).Trim() == "" {
+			stringValue1 := str.String(req.Patch)
+			if stringValue1.Trim() == "" {
 				return common.ToolError("invalid_input", "patch is required"), nil
 			}
-
+			stringValue2 := str.String(req.Patch)
 			log.Info().
 				Str("tool", "patch").
 				Str("phase", "start").
-				Int("patch_chars", len([]rune(stringx.String(req.Patch).Trim()))).
+				Int("patch_chars", len([]rune(stringValue2.Trim()))).
 				Int("strip", req.Strip).
 				Msg("patch tool started")
 
@@ -170,7 +171,8 @@ func patchSourceBytes(file *gitdiff.File, absolutePath string) ([]byte, error) {
 }
 
 func stripPath(path string, strip int) string {
-	path = stringx.String(path).Trim()
+	stringValue3 := str.String(path)
+	path = stringValue3.Trim()
 	path = strings.TrimPrefix(path, "a/")
 	path = strings.TrimPrefix(path, "b/")
 	if path == "/dev/null" {

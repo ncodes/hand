@@ -11,7 +11,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/tools"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var (
@@ -35,7 +35,8 @@ const (
 
 // DecodeInput decodes raw tool-call arguments into input.
 func DecodeInput(call tools.Call, target any) tools.Result {
-	if stringx.String(call.Input).Trim() == "" {
+	stringValue1 := str.String(call.Input)
+	if stringValue1.Trim() == "" {
 		call.Input = "{}"
 	}
 	if err := json.Unmarshal([]byte(call.Input), target); err != nil {
@@ -131,7 +132,8 @@ func WithTimeoutSeconds(value int) int {
 func JoinStrings(parts ...string) string {
 	filtered := make([]string, 0, len(parts))
 	for _, part := range parts {
-		part = stringx.String(part).Trim()
+		stringValue2 := str.String(part)
+		part = stringValue2.Trim()
 		if part == "" {
 			continue
 		}

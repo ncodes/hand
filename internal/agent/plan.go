@@ -10,7 +10,7 @@ import (
 	"github.com/wandxy/morph/internal/trace"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	agentsession "github.com/wandxy/morph/pkg/agent/session"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // Number of tool messages to retrieve at a time while searching for a plan.
@@ -78,9 +78,8 @@ func (t *Turn) renderPlanInstructions() string {
 	for _, step := range activeSteps {
 		lines = append(lines, "- ["+step.Status+"] "+step.Content)
 	}
-
-	// Include explanation if provided.
-	if explanation := stringx.String(plan.Explanation).Trim(); explanation != "" {
+	explanation := str.String(plan.Explanation)
+	if explanation := explanation.Trim(); explanation != "" {
 		lines = append(lines, "", "## Plan Update Reason", "", explanation)
 	}
 
@@ -96,9 +95,12 @@ func decodeHydratedPlan(content string) (envtypes.Plan, bool) {
 	}
 
 	var envelope toolMessageEnvelope
-	if err := json.Unmarshal([]byte(content), &envelope); err == nil && stringx.String(envelope.Output).Trim() != "" {
-		if plan, ok := decodeHydratedPlanPayload(envelope.Output); ok {
-			return plan, true
+	if err := json.Unmarshal([]byte(content), &envelope); err == nil {
+		output := str.String(envelope.Output)
+		if output.Trim() != "" {
+			if plan, ok := decodeHydratedPlanPayload(envelope.Output); ok {
+				return plan, true
+			}
 		}
 	}
 
@@ -127,10 +129,10 @@ func decodeHydratedPlanPayload(content string) (envtypes.Plan, bool) {
 	if explanationRaw, ok := raw["explanation"]; ok {
 		_ = json.Unmarshal(explanationRaw, &explanation)
 	}
-
+	stringValue3 := str.String(explanation)
 	plan := envtypes.Plan{
 		Steps:       steps,
-		Explanation: stringx.String(explanation).Trim(),
+		Explanation: stringValue3.Trim(),
 	}
 
 	if err := envtypes.ValidatePlan(plan); err != nil {

@@ -12,7 +12,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // responsesHandler handles responses requests.
@@ -96,10 +96,11 @@ func (c *OpenAIClient) completeResponsesStream(
 	if finalResponse == nil {
 		return nil, errors.New("model response is required")
 	}
-
-	streamOutputText := stringx.String(finalizedOutputText).Trim()
+	stringValue1 := str.String(finalizedOutputText)
+	streamOutputText := stringValue1.Trim()
 	if streamOutputText == "" {
-		streamOutputText = stringx.String(outputText.String()).Trim()
+		stringValue2 := str.String(outputText.String())
+		streamOutputText = stringValue2.Trim()
 	}
 
 	return extractResponsesResponseWithFallback(finalResponse, streamOutputText, streamToolCalls)
@@ -108,14 +109,17 @@ func (c *OpenAIClient) completeResponsesStream(
 func getResponsesStreamFinalText(event responses.ResponseStreamEventUnion) string {
 	switch event.Type {
 	case "response.output_text.done":
-		return stringx.String(event.AsResponseOutputTextDone().Text).Trim()
+		stringValue3 := str.String(event.AsResponseOutputTextDone().Text)
+		return stringValue3.Trim()
 	case "response.content_part.done":
 		part := event.AsResponseContentPartDone().Part
 		switch part.Type {
 		case "output_text":
-			return stringx.String(part.Text).Trim()
+			stringValue4 := str.String(part.Text)
+			return stringValue4.Trim()
 		case "refusal":
-			return stringx.String(part.Refusal).Trim()
+			stringValue5 := str.String(part.Refusal)
+			return stringValue5.Trim()
 		default:
 			return ""
 		}
@@ -136,13 +140,15 @@ func getResponseOutputItemText(item responses.ResponseOutputItemUnion) string {
 	for _, content := range message.Content {
 		switch content.Type {
 		case "output_text":
-			parts = append(parts, stringx.String(content.Text).Trim())
+			stringValue7 := str.String(content.Text)
+			parts = append(parts, stringValue7.Trim())
 		case "refusal":
-			parts = append(parts, stringx.String(content.Refusal).Trim())
+			stringValue8 := str.String(content.Refusal)
+			parts = append(parts, stringValue8.Trim())
 		}
 	}
-
-	return stringx.String(strings.Join(parts, "")).Trim()
+	stringValue6 := str.String(strings.Join(parts, ""))
+	return stringValue6.Trim()
 }
 
 func getResponsesStreamToolCall(event responses.ResponseStreamEventUnion, idx int) (ToolCall, bool, error) {
@@ -159,19 +165,21 @@ func getResponseOutputItemToolCall(item responses.ResponseOutputItemUnion, idx i
 	}
 
 	functionCall := item.AsFunctionCall()
-	callID := stringx.String(functionCall.CallID).Trim()
-	name := stringx.String(functionCall.Name).Trim()
+	stringValue9 := str.String(functionCall.CallID)
+	callID := stringValue9.Trim()
+	stringValue10 := str.String(functionCall.Name)
+	name := stringValue10.Trim()
 	if name == "" {
 		return ToolCall{}, false, errors.New("tool call name is required")
 	}
 	if callID == "" {
 		callID = getFallbackToolCallID(name, idx)
 	}
-
+	stringValue11 := str.String(functionCall.Arguments)
 	return ToolCall{
 		ID:    callID,
 		Name:  name,
-		Input: stringx.String(functionCall.Arguments).Trim(),
+		Input: stringValue11.Trim(),
 	}, true, nil
 }
 
@@ -203,7 +211,8 @@ func HandesponsesStreamEvent(event responses.ResponseStreamEventUnion) (StreamDe
 		return StreamDelta{}, &incomplete.Response, nil
 	case "error":
 		apierr := event.AsError()
-		message := stringx.String(apierr.Message).Trim()
+		stringValue12 := str.String(apierr.Message)
+		message := stringValue12.Trim()
 		if message == "" {
 			message = "response failed"
 		}
@@ -303,32 +312,37 @@ func extractResponsesResponseWithFallback(
 			continue
 		}
 		functionCall := item.AsFunctionCall()
-		callID := stringx.String(functionCall.CallID).Trim()
-		name := stringx.String(functionCall.Name).Trim()
+		stringValue14 := str.String(functionCall.CallID)
+		callID := stringValue14.Trim()
+		stringValue15 := str.String(functionCall.Name)
+		name := stringValue15.Trim()
 		if name == "" {
 			return nil, errors.New("tool call name is required")
 		}
 		if callID == "" {
 			callID = getFallbackToolCallID(name, idx)
 		}
+		stringValue16 := str.String(functionCall.Arguments)
 		toolCalls = append(toolCalls, ToolCall{
 			ID:    callID,
 			Name:  name,
-			Input: stringx.String(functionCall.Arguments).Trim(),
+			Input: stringValue16.Trim(),
 		})
 	}
 	if len(toolCalls) == 0 {
 		toolCalls = append(toolCalls, fallbackToolCalls...)
 	}
-
-	outputText := stringx.String(resp.OutputText()).Trim()
+	stringValue13 := str.String(resp.OutputText())
+	outputText := stringValue13.Trim()
 	if outputText == "" {
-		outputText = stringx.String(fallbackOutputText).Trim()
+		stringValue17 := str.String(fallbackOutputText)
+		outputText = stringValue17.Trim()
 	}
 	switch resp.Status {
 	case "", responses.ResponseStatusCompleted:
 	case responses.ResponseStatusFailed:
-		message := stringx.String(resp.Error.Message).Trim()
+		stringValue18 := str.String(resp.Error.Message)
+		message := stringValue18.Trim()
 		if message == "" {
 			message = "response failed"
 		}
@@ -336,7 +350,8 @@ func extractResponsesResponseWithFallback(
 		return nil, errors.New(message)
 	case responses.ResponseStatusIncomplete:
 		if outputText == "" && len(toolCalls) == 0 {
-			reason := stringx.String(resp.IncompleteDetails.Reason).Trim()
+			stringValue19 := str.String(resp.IncompleteDetails.Reason)
+			reason := stringValue19.Trim()
 			if reason == "" {
 				reason = "unknown"
 			}

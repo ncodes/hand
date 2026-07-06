@@ -3,7 +3,7 @@ package slack
 import (
 	"strings"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const MarkdownTextLimit = 12000
@@ -61,7 +61,8 @@ func ensureTrailingNewline(text string) string {
 }
 
 func ChunkMarkdown(text string, limit int) []string {
-	text = stringx.String(text).Trim()
+	stringValue1 := str.String(text)
+	text = stringValue1.Trim()
 	if text == "" {
 		return nil
 	}

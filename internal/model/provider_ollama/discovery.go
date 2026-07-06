@@ -10,7 +10,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type Discoverer struct {
@@ -143,21 +143,24 @@ func getOllamaModelAPI(show showResponse) string {
 }
 
 func getTagModelID(tag tagModel) string {
-	if model := stringx.String(tag.Model).Trim(); model != "" {
+	stringValue1 := str.String(tag.Model)
+	if model := stringValue1.Trim(); model != "" {
 		return model
 	}
-
-	return stringx.String(tag.Name).Trim()
+	stringValue2 := str.String(tag.Name)
+	return stringValue2.Trim()
 }
 
 func getOllamaModelDisplayName(modelID string) string {
-	modelID = stringx.String(modelID).Trim()
+	stringValue3 := str.String(modelID)
+	modelID = stringValue3.Trim()
 	if modelID == "" {
 		return ""
 	}
 
 	name, _, _ := strings.Cut(modelID, ":")
-	return stringx.String(name).Trim()
+	stringValue4 := str.String(name)
+	return stringValue4.Trim()
 }
 
 func getOllamaModelInputs(show showResponse) []modelprovider.InputKind {
@@ -171,7 +174,8 @@ func getOllamaModelInputs(show showResponse) []modelprovider.InputKind {
 
 func getOllamaContextWindow(show showResponse) int {
 	for key, value := range show.ModelInfo {
-		key = stringx.String(key).Normalized()
+		stringValue5 := str.String(key)
+		key = stringValue5.Normalized()
 		if key != "context_length" && !strings.HasSuffix(key, ".context_length") {
 			continue
 		}
@@ -198,13 +202,15 @@ func numberToInt(value any) int {
 }
 
 func hasOllamaCapability(show showResponse, capability string) bool {
-	capability = stringx.String(capability).Normalized()
+	stringValue6 := str.String(capability)
+	capability = stringValue6.Normalized()
 	if capability == "" {
 		return false
 	}
 
 	for _, value := range show.Capabilities {
-		if stringx.String(value).Normalized() == capability {
+		stringValue7 := str.String(value)
+		if stringValue7.Normalized() == capability {
 			return true
 		}
 	}
@@ -213,7 +219,8 @@ func hasOllamaCapability(show showResponse, capability string) bool {
 }
 
 func isOllamaReasoningModel(modelID string) bool {
-	modelID = stringx.String(modelID).Normalized()
+	stringValue8 := str.String(modelID)
+	modelID = stringValue8.Normalized()
 	for _, marker := range []string{
 		"deepseek-r1",
 		"qwen3",

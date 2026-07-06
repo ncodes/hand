@@ -11,7 +11,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -30,16 +30,19 @@ func Search(
 	if manager == nil {
 		return nil, errors.New("state manager is required")
 	}
-
-	sessionID := stringx.String(req.SessionID).Trim()
-	ignoreSessionID := stringx.String(req.IgnoreSessionID).Trim()
-	query := stringx.String(req.Query).Trim()
+	stringValue1 := str.String(req.SessionID)
+	sessionID := stringValue1.Trim()
+	stringValue2 := str.String(req.IgnoreSessionID)
+	ignoreSessionID := stringValue2.Trim()
+	stringValue3 := str.String(req.Query)
+	query := stringValue3.Trim()
 	if query == "" {
 		return nil, errors.New("query is required")
 	}
-
-	role := stringx.String(req.Role).Normalized()
-	toolName := stringx.String(req.ToolName).Normalized()
+	stringValue4 := str.String(req.Role)
+	role := stringValue4.Normalized()
+	stringValue5 := str.String(req.ToolName)
+	toolName := stringValue5.Normalized()
 	limit := clampSearchResults(req.MaxResults)
 
 	results, err := manager.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{
@@ -72,18 +75,19 @@ func Search(
 		if err != nil {
 			return nil, err
 		}
-
+		stringValue6 := str.String(summary.SessionSummary)
 		group := SessionSearchResult{
 			SessionID:      result.SessionID,
 			SessionCreated: formatSearchTime(session.CreatedAt),
 			SessionUpdated: formatSearchTime(session.UpdatedAt),
 			MatchCount:     result.MatchCount,
-			SessionSummary: stringx.String(summary.SessionSummary).Trim(),
+			SessionSummary: stringValue6.Trim(),
 			Messages:       make([]SessionSearchMessageHit, 0, len(result.Messages)),
 		}
 
 		for _, hit := range result.Messages {
-			if stringx.String(hit.MatchedText).Trim() == "" {
+			stringValue7 := str.String(hit.MatchedText)
+			if stringValue7.Trim() == "" {
 				continue
 			}
 
@@ -128,7 +132,8 @@ func clampSearchResults(value int) int {
 }
 
 func getCaseInsensitiveMatchIndex(text string, query string) (int, int) {
-	query = stringx.String(query).Trim()
+	stringValue8 := str.String(query)
+	query = stringValue8.Trim()
 	if query == "" {
 		return -1, 0
 	}

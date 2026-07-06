@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/wandxy/morph/internal/trace"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func (p *MemoryProvider) recordPromotionStarted(ctx context.Context, memoryID string, operation string) {
@@ -121,7 +121,8 @@ func (p *MemoryProvider) recordPromotionCleanupSkipped(ctx context.Context, opts
 func getPromotionRelatedHitIDs(hits []SearchHit) []string {
 	ids := make([]string, 0, len(hits))
 	for _, hit := range hits {
-		if id := stringx.String(hit.Item.ID).Trim(); id != "" {
+		stringValue1 := str.String(hit.Item.ID)
+		if id := stringValue1.Trim(); id != "" {
 			ids = append(ids, id)
 		}
 	}

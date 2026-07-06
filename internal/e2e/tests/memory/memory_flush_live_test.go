@@ -16,11 +16,12 @@ import (
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	"github.com/wandxy/morph/internal/trace"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func TestLiveMemoryFlushRunsBeforeCompaction(t *testing.T) {
-	if stringx.String(os.Getenv("MORPH_E2E_LIVE")).Trim() != "1" {
+	stringValue1 := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if stringValue1.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -50,7 +51,8 @@ func TestLiveMemoryFlushRunsBeforeCompaction(t *testing.T) {
 }
 
 func TestLiveMemoryFlushCanProduceMemoryBeforeCompaction(t *testing.T) {
-	if stringx.String(os.Getenv("MORPH_E2E_LIVE")).Trim() != "1" {
+	stringValue2 := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if stringValue2.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -82,7 +84,8 @@ func TestLiveMemoryFlushCanProduceMemoryBeforeCompaction(t *testing.T) {
 }
 
 func TestLiveMemoryFlushDoesNotRunBeforeSessionSwitch(t *testing.T) {
-	if stringx.String(os.Getenv("MORPH_E2E_LIVE")).Trim() != "1" {
+	stringValue3 := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if stringValue3.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -114,7 +117,8 @@ func TestLiveMemoryFlushDoesNotRunBeforeSessionSwitch(t *testing.T) {
 }
 
 func TestLiveMemoryFlushRunsBeforeAgentClose(t *testing.T) {
-	if stringx.String(os.Getenv("MORPH_E2E_LIVE")).Trim() != "1" {
+	stringValue4 := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if stringValue4.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -292,9 +296,9 @@ func getLiveMemoryFlushMemory(
 	required ...string,
 ) (storage.MemoryItem, bool) {
 	t.Helper()
-
+	stringValue5 := str.String(sessionID)
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: stringx.String(sessionID).Trim(),
+		SessionID: stringValue5.Trim(),
 		Statuses: []storage.MemoryStatus{
 			storage.MemoryStatusCandidate,
 			storage.MemoryStatusActive,
@@ -378,8 +382,8 @@ func liveTracePayloadString(event storage.TraceEvent, key string) string {
 	if !ok {
 		return ""
 	}
-
-	return stringx.String(value).Trim()
+	stringValue6 := str.String(value)
+	return stringValue6.Trim()
 }
 
 func liveTraceEventTypes(events []storage.TraceEvent) []string {

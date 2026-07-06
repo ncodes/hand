@@ -15,7 +15,7 @@ import (
 	base "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const currentSessionStateKey = "current_session"
@@ -196,8 +196,8 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
-
-	session.ID = stringx.String(session.ID).Trim()
+	stringValue1 := str.String(session.ID)
+	session.ID = stringValue1.Trim()
 	if err := base.ValidateSessionID(session.ID); err != nil {
 		return err
 	}
@@ -230,7 +230,8 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 		if session.ReflectionCheckpointOffset == 0 {
 			session.ReflectionCheckpointOffset = existing.ReflectionCheckpointOffset
 		}
-		if stringx.String(session.Title).Trim() == "" {
+		stringValue6 := str.String(session.Title)
+		if stringValue6.Trim() == "" {
 			session.Title = existing.Title
 			session.TitleSource = existing.TitleSource
 		}
@@ -266,7 +267,10 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 	if !session.ExpiresAt.IsZero() {
 		session.ExpiresAt = session.ExpiresAt.UTC()
 	}
-
+	stringValue2 := str.String(session.Origin.AccountID)
+	stringValue3 := str.String(session.Origin.ConversationID)
+	stringValue4 := str.String(session.Origin.Source)
+	stringValue5 := str.String(session.Origin.ThreadID)
 	record := sessionModel{
 		Archived:                     session.Archived,
 		ArchivedAt:                   session.ArchivedAt,
@@ -283,10 +287,10 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 		ExpiresAt:                    session.ExpiresAt,
 		ID:                           session.ID,
 		LastPromptTokens:             session.LastPromptTokens,
-		OriginAccountID:              stringx.String(session.Origin.AccountID).Trim(),
-		OriginConversationID:         stringx.String(session.Origin.ConversationID).Trim(),
-		OriginSource:                 stringx.String(session.Origin.Source).Trim(),
-		OriginThreadID:               stringx.String(session.Origin.ThreadID).Trim(),
+		OriginAccountID:              stringValue2.Trim(),
+		OriginConversationID:         stringValue3.Trim(),
+		OriginSource:                 stringValue4.Trim(),
+		OriginThreadID:               stringValue5.Trim(),
 		ReflectionCheckpointOffset:   session.ReflectionCheckpointOffset,
 		Title:                        session.Title,
 		TitleSource:                  session.TitleSource,
@@ -302,8 +306,8 @@ func (s *Store) UpdateCheckpoints(ctx context.Context, id string, patch Checkpoi
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue7 := str.String(id)
+	id = stringValue7.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
@@ -357,8 +361,8 @@ func (s *Store) Get(ctx context.Context, id string, opts base.SessionGetOptions)
 	if s == nil || s.db == nil {
 		return Session{}, false, errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue8 := str.String(id)
+	id = stringValue8.Trim()
 	if id == "" {
 		return Session{}, false, nil
 	}
@@ -427,8 +431,8 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue9 := str.String(id)
+	id = stringValue9.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
@@ -502,8 +506,8 @@ func (s *Store) AppendMessages(ctx context.Context, id string, messages []morphm
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue10 := str.String(id)
+	id = stringValue10.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
@@ -566,8 +570,8 @@ func (s *Store) GetMessages(
 	if _, err := base.NormalizeMessageQueryOrder(opts.Order); err != nil {
 		return nil, err
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue11 := str.String(id)
+	id = stringValue11.Trim()
 	if id == "" {
 		return nil, nil
 	}
@@ -601,8 +605,8 @@ func (s *Store) GetMessagesByIDs(
 	if s == nil || s.db == nil {
 		return nil, errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue12 := str.String(id)
+	id = stringValue12.Trim()
 	if id == "" || len(messageIDs) == 0 {
 		return nil, nil
 	}
@@ -632,8 +636,8 @@ func (s *Store) GetMessageWindow(
 	if s == nil || s.db == nil {
 		return nil, errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue13 := str.String(id)
+	id = stringValue13.Trim()
 	if id == "" || anchorMessageID == 0 {
 		return nil, nil
 	}
@@ -681,8 +685,8 @@ func (s *Store) CountMessages(
 	if _, err := base.NormalizeMessageQueryOrder(opts.Order); err != nil {
 		return 0, err
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue14 := str.String(id)
+	id = stringValue14.Trim()
 	if id == "" {
 		return 0, nil
 	}
@@ -709,13 +713,17 @@ func (s *Store) SearchMessages(
 	if s == nil || s.db == nil {
 		return nil, errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue15 := str.String(id)
+	id = stringValue15.Trim()
 	if id != "" {
 		if err := base.ValidateSessionID(id); err != nil {
 			return nil, err
 		}
-	} else if opts.IgnoreSessionID = stringx.String(opts.IgnoreSessionID).Trim(); opts.IgnoreSessionID != "" {
+	} else {
+		ignoreSessionID := str.String(opts.IgnoreSessionID)
+		opts.IgnoreSessionID = ignoreSessionID.Trim()
+	}
+	if id == "" && opts.IgnoreSessionID != "" {
 		if err := base.ValidateSessionID(opts.IgnoreSessionID); err != nil {
 			return nil, err
 		}
@@ -781,7 +789,8 @@ WITH raw_hits AS (
 		sql.WriteString(` AND session_id <> ?`)
 		args = append(args, opts.IgnoreSessionID)
 	}
-	if role := stringx.String(string(opts.Role)).Trim(); role != "" {
+	stringValue16 := str.String(string(opts.Role))
+	if role := stringValue16.Trim(); role != "" {
 		sql.WriteString(` AND role = ?`)
 		args = append(args, role)
 	}
@@ -925,10 +934,12 @@ LIMIT ?`)
 
 func applySessionMessageFilters(query *gorm.DB, id string, opts MessageQueryOptions) *gorm.DB {
 	query = query.Model(&messageModel{}).Where("session_id = ?", id)
-	if role := stringx.String(string(opts.Role)).Trim(); role != "" {
+	stringValue17 := str.String(string(opts.Role))
+	if role := stringValue17.Trim(); role != "" {
 		query = query.Where("role = ?", role)
 	}
-	if name := stringx.String(opts.Name).Trim(); name != "" {
+	stringValue18 := str.String(opts.Name)
+	if name := stringValue18.Trim(); name != "" {
 		query = query.Where("name = ?", name)
 	}
 	return query
@@ -952,8 +963,8 @@ func (s *Store) GetMessage(
 	if s == nil || s.db == nil {
 		return morphmsg.Message{}, false, errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue19 := str.String(id)
+	id = stringValue19.Trim()
 	if id == "" || index < 0 {
 		return morphmsg.Message{}, false, nil
 	}
@@ -1016,8 +1027,8 @@ func (s *Store) GetSummary(ctx context.Context, sessionID string) (SessionSummar
 	if s == nil || s.db == nil {
 		return SessionSummary{}, false, errors.New("store is required")
 	}
-
-	sessionID = stringx.String(sessionID).Trim()
+	stringValue20 := str.String(sessionID)
+	sessionID = stringValue20.Trim()
 	if sessionID == "" {
 		return SessionSummary{}, false, nil
 	}
@@ -1047,8 +1058,8 @@ func (s *Store) DeleteSummary(ctx context.Context, sessionID string) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
-
-	sessionID = stringx.String(sessionID).Trim()
+	stringValue21 := str.String(sessionID)
+	sessionID = stringValue21.Trim()
 	if err := base.ValidateSessionID(sessionID); err != nil {
 		return err
 	}
@@ -1060,8 +1071,8 @@ func (s *Store) Archive(ctx context.Context, id string, req base.SessionArchiveR
 	if s == nil || s.db == nil {
 		return Session{}, errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue22 := str.String(id)
+	id = stringValue22.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
 		return Session{}, err
 	}
@@ -1114,8 +1125,8 @@ func (s *Store) Rename(ctx context.Context, req base.SessionRenameRequest) (Sess
 	if s == nil || s.db == nil {
 		return Session{}, errors.New("store is required")
 	}
-
-	req.SessionID = stringx.String(req.SessionID).Trim()
+	stringValue23 := str.String(req.SessionID)
+	req.SessionID = stringValue23.Trim()
 	if err := base.ValidateSessionID(req.SessionID); err != nil {
 		return Session{}, err
 	}
@@ -1172,8 +1183,8 @@ func (s *Store) ClearMessages(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue24 := str.String(id)
+	id = stringValue24.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
@@ -1247,8 +1258,8 @@ func (s *Store) Unarchive(ctx context.Context, id string) (Session, error) {
 	if s == nil || s.db == nil {
 		return Session{}, errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue25 := str.String(id)
+	id = stringValue25.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
 		return Session{}, err
 	}
@@ -1290,8 +1301,8 @@ func (s *Store) SetCurrent(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
-
-	id = stringx.String(id).Trim()
+	stringValue26 := str.String(id)
+	id = stringValue26.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
@@ -1328,8 +1339,8 @@ func (s *Store) Current(ctx context.Context) (string, bool, error) {
 		}
 		return "", false, err
 	}
-
-	value := stringx.String(record.Value).Trim()
+	stringValue27 := str.String(record.Value)
+	value := stringValue27.Trim()
 	if value == "" {
 		return "", false, nil
 	}
@@ -1360,7 +1371,8 @@ func summaryModelToSessionSummary(record summaryModel) (SessionSummary, error) {
 }
 
 func sessionModelToSession(record sessionModel) (Session, error) {
-	id := stringx.String(record.ID).Trim()
+	stringValue28 := str.String(record.ID)
+	id := stringValue28.Trim()
 	if id == "" {
 		return Session{}, errors.New("session id is required")
 	}
@@ -1498,7 +1510,8 @@ func searchMessageResultRowsToResults(records []searchSessionResultRow) []base.S
 			index = len(results) - 1
 			indexBySessionID[record.SessionID] = index
 		}
-
+		stringValue29 := str.String(record.MatchedText)
+		stringValue30 := str.String(record.MatchedToolName)
 		results[index].Messages = append(results[index].Messages, base.SearchMessageHit{
 			SessionID: record.SessionID,
 			Message: morphmsg.Message{
@@ -1510,8 +1523,8 @@ func searchMessageResultRowsToResults(records []searchSessionResultRow) []base.S
 				ToolCallID: record.ToolCallID,
 				CreatedAt:  record.CreatedAt,
 			},
-			MatchedText:     stringx.String(record.MatchedText).Trim(),
-			MatchedToolName: stringx.String(record.MatchedToolName).Trim(),
+			MatchedText:     stringValue29.Trim(),
+			MatchedToolName: stringValue30.Trim(),
 		})
 	}
 
@@ -1519,7 +1532,8 @@ func searchMessageResultRowsToResults(records []searchSessionResultRow) []base.S
 }
 
 func getSearchSessionResultTime(value string) time.Time {
-	value = stringx.String(value).Trim()
+	stringValue31 := str.String(value)
+	value = stringValue31.Trim()
 	if value == "" {
 		return time.Time{}
 	}
@@ -1553,7 +1567,8 @@ func stringsToJSON(values []string) string {
 }
 
 func jsonToStrings(value string) []string {
-	value = stringx.String(value).Trim()
+	stringValue32 := str.String(value)
+	value = stringValue32.Trim()
 	if value == "" {
 		return nil
 	}
@@ -1567,7 +1582,8 @@ func jsonToStrings(value string) []string {
 }
 
 func jsonToToolCalls(value string) []morphmsg.ToolCall {
-	value = stringx.String(value).Trim()
+	stringValue33 := str.String(value)
+	value = stringValue33.Trim()
 	if value == "" {
 		return nil
 	}
@@ -1656,9 +1672,10 @@ func (records messageModels) searchRows() searchRows {
 }
 
 func messageModelToSearchRows(record messageModel) searchRows {
+	stringValue34 := str.String(record.Role)
 	rows := search.MessageIndexRowsFromMessage(record.SessionID, morphmsg.Message{
 		ID:         record.ID,
-		Role:       morphmsg.Role(stringx.String(record.Role).Trim()),
+		Role:       morphmsg.Role(stringValue34.Trim()),
 		Content:    record.Content,
 		Name:       record.Name,
 		ToolCallID: record.ToolCallID,
@@ -1687,7 +1704,8 @@ func buildFTSSearchQuery(query string) string {
 }
 
 func getSearchTokens(query string) []string {
-	fields := strings.FieldsFunc(stringx.String(query).Trim(), func(r rune) bool {
+	stringValue35 := str.String(query)
+	fields := strings.FieldsFunc(stringValue35.Trim(), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
 	if len(fields) == 0 {

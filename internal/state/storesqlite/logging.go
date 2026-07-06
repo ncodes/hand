@@ -9,22 +9,25 @@ import (
 
 	base "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var sessionSearchLog = logutils.Module("state.sqlite")
 
 func (s *Store) logSearchEvent(_ string, id string, opts base.SearchMessageOptions) *zerolog.Event {
+	stringValue1 := str.String(opts.Query)
 	event := sessionSearchLog.Debug().
-		Int("query_chars", len([]rune(stringx.String(opts.Query).Trim())))
-	if id = stringx.String(id).Trim(); id != "" {
+		Int("query_chars", len([]rune(stringValue1.Trim())))
+	stringValue2 := str.String(id)
+	if id = stringValue2.Trim(); id != "" {
 		event = event.Str("session_id", id)
 	}
 	if opts.IgnoreSessionID != "" {
 		event = event.Str("ignore_session_id", opts.IgnoreSessionID)
 	}
 	if opts.Role != "" {
-		event = event.Str("role", stringx.String(string(opts.Role)).Trim())
+		stringValue3 := str.String(string(opts.Role))
+		event = event.Str("role", stringValue3.Trim())
 	}
 	if toolName := normalizeSearchValue(opts.ToolName); toolName != "" {
 		event = event.Str("tool_name", toolName)
@@ -83,8 +86,9 @@ func (s *Store) logCandidateDiagnostics(stage string, candidates []*searchCandid
 	}
 
 	for rank, candidate := range candidates {
+		stringValue4 := str.String(stage)
 		event := sessionSearchLog.Debug().
-			Str("stage", stringx.String(stage).Trim()).
+			Str("stage", stringValue4.Trim()).
 			Str("session_id", candidate.SessionID).
 			Uint("message_id", candidate.ID).
 			Float64("lexical_score", candidate.LexicalScore).

@@ -8,7 +8,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/diagnostics"
 	"github.com/wandxy/morph/internal/profile"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type Status = diagnostics.Status
@@ -95,17 +95,21 @@ func (r Report) Summary() string {
 }
 
 func check(name string, status Status, message string, actions ...Action) Check {
+	stringValue1 := str.String(name)
+	stringValue2 := str.String(message)
 	return Check{
-		Name:    stringx.String(name).Trim(),
+		Name:    stringValue1.Trim(),
 		Status:  status,
-		Message: stringx.String(message).Trim(),
+		Message: stringValue2.Trim(),
 		Actions: append([]Action(nil), actions...),
 	}
 }
 
 func commandAction(command string, description string) Action {
+	stringValue3 := str.String(command)
+	stringValue4 := str.String(description)
 	return Action{
-		Command:     stringx.String(command).Trim(),
-		Description: stringx.String(description).Trim(),
+		Command:     stringValue3.Trim(),
+		Description: stringValue4.Trim(),
 	}
 }

@@ -6,18 +6,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func splitAndTrimCSV(value string) []string {
-	if stringx.String(value).Trim() == "" {
+	stringValue1 := str.String(value)
+	if stringValue1.Trim() == "" {
 		return nil
 	}
 
 	parts := strings.Split(value, ",")
 	values := make([]string, 0, len(parts))
 	for _, part := range parts {
-		trimmed := stringx.String(part).Trim()
+		stringValue2 := str.String(part)
+		trimmed := stringValue2.Trim()
 		if trimmed == "" {
 			continue
 		}
@@ -35,7 +37,8 @@ func dedupeAndTrim(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	out := make([]string, 0, len(values))
 	for _, value := range values {
-		trimmed := stringx.String(value).Trim()
+		stringValue3 := str.String(value)
+		trimmed := stringValue3.Trim()
 		if trimmed == "" {
 			continue
 		}
@@ -78,8 +81,8 @@ func getPathsFromBase(values []string, baseDir string) []string {
 	if len(values) == 0 {
 		return nil
 	}
-
-	baseDir = stringx.String(baseDir).Trim()
+	stringValue4 := str.String(baseDir)
+	baseDir = stringValue4.Trim()
 	if baseDir == "" {
 		return values
 	}
@@ -115,7 +118,8 @@ func getDefaultFSRoots() []string {
 }
 
 func parseOptionalBoolEnv(key string) (bool, bool) {
-	value := stringx.String(os.Getenv(key)).Normalized()
+	stringValue5 := str.String(os.Getenv(key))
+	value := stringValue5.Normalized()
 	if value == "" {
 		return false, false
 	}
@@ -124,7 +128,8 @@ func parseOptionalBoolEnv(key string) (bool, bool) {
 }
 
 func parseDurationOrZero(value string) time.Duration {
-	parsed, err := time.ParseDuration(stringx.String(value).Trim())
+	stringValue6 := str.String(value)
+	parsed, err := time.ParseDuration(stringValue6.Trim())
 	if err != nil {
 		return 0
 	}
@@ -153,7 +158,8 @@ func normalizeRulePaths(files []string) []string {
 	seen := make(map[string]struct{}, len(files))
 
 	for _, file := range files {
-		path := stringx.String(file).Trim()
+		stringValue7 := str.String(file)
+		path := stringValue7.Trim()
 		if path == "" {
 			continue
 		}

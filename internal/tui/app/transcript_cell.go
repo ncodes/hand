@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/wandxy/morph/internal/trace"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type transcriptCellKind string
@@ -80,12 +80,13 @@ func (cell userTranscriptCell) PlainText() string {
 	if cell.IsEmpty() {
 		return ""
 	}
-
-	return "You: " + stringx.String(cell.text).Trim()
+	stringValue1 := str.String(cell.text)
+	return "You: " + stringValue1.Trim()
 }
 
 func (cell userTranscriptCell) IsEmpty() bool {
-	return stringx.String(cell.text).Trim() == ""
+	stringValue2 := str.String(cell.text)
+	return stringValue2.Trim() == ""
 }
 
 func (cell assistantTranscriptCell) Kind() transcriptCellKind {
@@ -106,7 +107,8 @@ func (cell assistantTranscriptCell) PlainText() string {
 }
 
 func (cell assistantTranscriptCell) IsEmpty() bool {
-	return stringx.String(cell.text).Trim() == ""
+	stringValue3 := str.String(cell.text)
+	return stringValue3.Trim() == ""
 }
 
 func (cell reasoningTranscriptCell) Kind() transcriptCellKind {
@@ -122,7 +124,8 @@ func (cell reasoningTranscriptCell) PlainText() string {
 }
 
 func (cell reasoningTranscriptCell) IsEmpty() bool {
-	return stringx.String(cell.text).Trim() == ""
+	stringValue4 := str.String(cell.text)
+	return stringValue4.Trim() == ""
 }
 
 func (cell thoughtTranscriptCell) Kind() transcriptCellKind {
@@ -154,12 +157,14 @@ func (cell safetyTranscriptCell) PlainText() string {
 }
 
 func (cell safetyTranscriptCell) IsEmpty() bool {
-	return stringx.String(cell.safetyText()).Trim() == ""
+	stringValue5 := str.String(cell.safetyText())
+	return stringValue5.Trim() == ""
 }
 
 func (cell safetyTranscriptCell) safetyText() string {
 	parts := []string{}
-	if action := stringx.String(cell.action).Trim(); action != "" {
+	stringValue6 := str.String(cell.action)
+	if action := stringValue6.Trim(); action != "" {
 		parts = append(parts, action)
 	}
 	if len(cell.findingIDs) > 0 {
@@ -177,12 +182,13 @@ func (cell errorTranscriptCell) PlainText() string {
 	if cell.IsEmpty() {
 		return ""
 	}
-
-	return "Error: " + stringx.String(cell.message).Trim()
+	stringValue7 := str.String(cell.message)
+	return "Error: " + stringValue7.Trim()
 }
 
 func (cell errorTranscriptCell) IsEmpty() bool {
-	return stringx.String(cell.message).Trim() == ""
+	stringValue8 := str.String(cell.message)
+	return stringValue8.Trim() == ""
 }
 
 func (cell systemTranscriptCell) Kind() transcriptCellKind {
@@ -190,11 +196,13 @@ func (cell systemTranscriptCell) Kind() transcriptCellKind {
 }
 
 func (cell systemTranscriptCell) PlainText() string {
-	return stringx.String(cell.text).Trim()
+	stringValue9 := str.String(cell.text)
+	return stringValue9.Trim()
 }
 
 func (cell systemTranscriptCell) IsEmpty() bool {
-	return stringx.String(cell.text).Trim() == ""
+	stringValue10 := str.String(cell.text)
+	return stringValue10.Trim() == ""
 }
 
 func (cell manualCompactionTranscriptCell) Kind() transcriptCellKind {
@@ -210,7 +218,8 @@ func (cell manualCompactionTranscriptCell) PlainText() string {
 }
 
 func (cell manualCompactionTranscriptCell) IsEmpty() bool {
-	return stringx.String(cell.state.displayText()).Trim() == ""
+	stringValue11 := str.String(cell.state.displayText())
+	return stringValue11.Trim() == ""
 }
 
 func renderTranscriptCells(cells []transcriptCell) string {
@@ -264,8 +273,10 @@ func (cell toolTranscriptCell) PlainText() string {
 }
 
 func (cell toolTranscriptCell) IsEmpty() bool {
-	return stringx.String(cell.action).Trim() == "" &&
-		stringx.String(cell.detail).Trim() == "" &&
+	stringValue12 := str.String(cell.action)
+	stringValue13 := str.String(cell.detail)
+	return stringValue12.Trim() == "" && stringValue13.
+		Trim() == "" &&
 		cell.planState == nil &&
 		cell.processState == nil
 }
@@ -280,7 +291,8 @@ func newToolTranscriptCell(
 	completedAt time.Time,
 	completed bool,
 ) transcriptCell {
-	name = stringx.String(name).Trim()
+	stringValue14 := str.String(name)
+	name = stringValue14.Trim()
 	if name == "" {
 		return nil
 	}
@@ -289,9 +301,9 @@ func newToolTranscriptCell(
 	if detail == "" && planState == nil && processState == nil {
 		detail = name
 	}
-
+	stringValue15 := str.String(id)
 	return toolTranscriptCell{
-		id:           stringx.String(id).Trim(),
+		id:           stringValue15.Trim(),
 		action:       getToolActionName(name),
 		detail:       detail,
 		planState:    planState,
@@ -303,15 +315,18 @@ func newToolTranscriptCell(
 }
 
 func toolTranscriptPlainText(cell toolTranscriptCell) string {
-	action := stringx.String(cell.action).Trim()
+	stringValue16 := str.String(cell.action)
+	action := stringValue16.Trim()
 	if action == "" {
 		return ""
 	}
 	lines := []string{}
-	if id := stringx.String(cell.id).Trim(); id != "" {
+	stringValue17 := str.String(cell.id)
+	if id := stringValue17.Trim(); id != "" {
 		lines = append(lines, "id: "+id)
 	}
-	lines = append(lines, "detail: "+stringx.String(cell.detail).Trim())
+	stringValue18 := str.String(cell.detail)
+	lines = append(lines, "detail: "+stringValue18.Trim())
 	if !cell.startedAt.IsZero() {
 		lines = append(lines, "started_at: "+cell.startedAt.UTC().Format(time.RFC3339Nano))
 	}
@@ -329,7 +344,8 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 	if group == nil {
 		return
 	}
-	if id := stringx.String(cell.id).Trim(); id != "" {
+	stringValue19 := str.String(cell.id)
+	if id := stringValue19.Trim(); id != "" {
 		if group.seenIDs == nil {
 			group.seenIDs = map[string]bool{}
 		}
@@ -347,14 +363,16 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 	} else if cell.completed {
 		group.completed = true
 	}
-
-	detail := stringx.String(cell.detail).Trim()
+	stringValue20 := str.String(cell.detail)
+	detail := stringValue20.Trim()
 	if detail == "" {
-		detail = stringx.String(cell.action).Trim()
+		stringValue21 := str.String(cell.action)
+		detail = stringValue21.Trim()
 	}
 	if detail != "" || cell.planState != nil || cell.processState != nil {
+		stringValue22 := str.String(cell.id)
 		group.details = append(group.details, toolTranscriptDetail{
-			id:           stringx.String(cell.id).Trim(),
+			id:           stringValue22.Trim(),
 			text:         detail,
 			planState:    clonePlanToolDisplayState(cell.planState),
 			processState: cloneProcessToolDisplayState(cell.processState),
@@ -432,7 +450,8 @@ func (group toolTranscriptGroup) isCompleted() bool {
 }
 
 func getToolActionName(name string) string {
-	normalized := stringx.String(name).Normalized()
+	stringValue23 := str.String(name)
+	normalized := stringValue23.Normalized()
 	normalized = strings.ReplaceAll(normalized, "-", "_")
 	switch normalized {
 	case "read", "read_file", "view_file", "open_file", "cat":
@@ -473,11 +492,13 @@ func getToolActionName(name string) string {
 }
 
 func normalizeToolTranscriptDetail(detail string) string {
-	return strings.Join(strings.Fields(stringx.String(detail).Trim()), " ")
+	stringValue24 := str.String(detail)
+	return strings.Join(strings.Fields(stringValue24.Trim()), " ")
 }
 
 func humanizeToolActionName(name string) string {
-	parts := strings.FieldsFunc(stringx.String(name).Trim(), func(r rune) bool {
+	stringValue25 := str.String(name)
+	parts := strings.FieldsFunc(stringValue25.Trim(), func(r rune) bool {
 		return r == '_' || r == '-' || r == ' '
 	})
 	for index, part := range parts {

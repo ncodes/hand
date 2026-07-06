@@ -7,7 +7,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	tuistate "github.com/wandxy/morph/internal/tui/state"
 	tuitranscript "github.com/wandxy/morph/internal/tui/transcript"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type tuiAction interface {
@@ -143,8 +143,8 @@ func (action setSessionTitleAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
-
-	state.sessionTitle = stringx.String(action.Title).Trim()
+	stringValue1 := str.String(action.Title)
+	state.sessionTitle = stringValue1.Trim()
 	if state.sessionTitle == "" {
 		state.sessionTitle = defaultSessionTitle
 	}
@@ -154,8 +154,8 @@ func (action setSessionAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
-
-	state.sessionID = stringx.String(action.ID).Trim()
+	stringValue2 := str.String(action.ID)
+	state.sessionID = stringValue2.Trim()
 	if state.sessionID == "" {
 		state.sessionID = defaultSessionID
 	}
@@ -166,32 +166,42 @@ func (action setSessionContextAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
-
-	state.context = stringx.String(action.Context).Trim()
+	stringValue3 := str.String(action.Context)
+	state.context = stringValue3.Trim()
 }
 
 func (action showCommandViewAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
-
+	stringValue4 := str.String(action.Kind)
+	stringValue5 := str.String(action.TitleIcon)
+	stringValue6 := str.String(action.TitleLeft)
+	stringValue7 := str.String(action.TitleSubtext)
+	stringValue8 := str.String(action.TitleRight)
+	stringValue9 := str.String(action.AccentColor)
+	stringValue10 := str.String(action.TitleRightColor)
+	stringValue11 := str.String(action.Content)
+	stringValue12 := str.String(action.ModelProvider)
+	stringValue13 := str.String(action.ModelAuthType)
+	stringValue14 := str.String(action.PendingModelID)
 	state.commandView = commandViewState{
 		Visible:         true,
-		Kind:            stringx.String(action.Kind).Trim(),
-		TitleIcon:       stringx.String(action.TitleIcon).Trim(),
-		TitleLeft:       stringx.String(action.TitleLeft).Trim(),
-		TitleSubtext:    stringx.String(action.TitleSubtext).Trim(),
-		TitleRight:      stringx.String(action.TitleRight).Trim(),
-		AccentColor:     stringx.String(action.AccentColor).Trim(),
-		TitleRightColor: stringx.String(action.TitleRightColor).Trim(),
-		Content:         stringx.String(action.Content).Trim(),
+		Kind:            stringValue4.Trim(),
+		TitleIcon:       stringValue5.Trim(),
+		TitleLeft:       stringValue6.Trim(),
+		TitleSubtext:    stringValue7.Trim(),
+		TitleRight:      stringValue8.Trim(),
+		AccentColor:     stringValue9.Trim(),
+		TitleRightColor: stringValue10.Trim(),
+		Content:         stringValue11.Trim(),
 		Height:          max(action.Height, 0),
 		Chats:           append([]storage.Session(nil), action.Chats...),
 		Models:          append([]rpcclient.ModelOption(nil), action.Models...),
 		Providers:       append([]rpcclient.ProviderOption(nil), action.Providers...),
-		ModelProvider:   stringx.String(action.ModelProvider).Trim(),
-		ModelAuthType:   stringx.String(action.ModelAuthType).Trim(),
-		PendingModelID:  stringx.String(action.PendingModelID).Trim(),
+		ModelProvider:   stringValue12.Trim(),
+		ModelAuthType:   stringValue13.Trim(),
+		PendingModelID:  stringValue14.Trim(),
 	}
 	state.commandViewOffset = 0
 	state.commandViewItemSelected = 0

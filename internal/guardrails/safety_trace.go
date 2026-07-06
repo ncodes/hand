@@ -1,6 +1,6 @@
 package guardrails
 
-import "github.com/wandxy/morph/pkg/stringx"
+import "github.com/wandxy/morph/pkg/str"
 
 // SafetyTracePayloadOptions controls safety trace payload.
 type SafetyTracePayloadOptions struct {
@@ -16,20 +16,24 @@ type SafetyTracePayloadOptions struct {
 
 // SafetyTracePayload converts a safety finding into trace payload fields.
 func SafetyTracePayload(opts SafetyTracePayloadOptions) map[string]any {
+	stringValue1 := str.String(opts.Action)
 	payload := map[string]any{
-		"action":         stringx.String(opts.Action).Trim(),
+		"action":         stringValue1.Trim(),
 		"blocked":        opts.Blocked,
 		"redacted":       opts.Redacted,
 		"content_length": opts.ContentLength,
 		"findings":       SafetyFindingLogFields(opts.Findings),
 	}
-	if sessionID := stringx.String(opts.SessionID).Trim(); sessionID != "" {
+	stringValue2 := str.String(opts.SessionID)
+	if sessionID := stringValue2.Trim(); sessionID != "" {
 		payload["session_id"] = sessionID
 	}
-	if source := stringx.String(opts.Source).Trim(); source != "" {
+	stringValue3 := str.String(opts.Source)
+	if source := stringValue3.Trim(); source != "" {
 		payload["source"] = source
 	}
-	if refusal := stringx.String(opts.Refusal).Trim(); refusal != "" {
+	stringValue4 := str.String(opts.Refusal)
+	if refusal := stringValue4.Trim(); refusal != "" {
 		payload["refusal"] = refusal
 	}
 

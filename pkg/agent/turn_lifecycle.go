@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type TurnCloser interface {
@@ -47,7 +47,8 @@ func RunTurnLifecycle(
 	}
 
 	if lifecycle.SetRequestInstruction != nil {
-		lifecycle.SetRequestInstruction(stringx.String(opts.Instruct).Trim())
+		stringValue1 := str.String(opts.Instruct)
+		lifecycle.SetRequestInstruction(stringValue1.Trim())
 	}
 
 	closer, err := openTurnLifecycle(ctx, opts, lifecycle)

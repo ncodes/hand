@@ -8,7 +8,7 @@ import (
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/guardrails"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type State string
@@ -191,7 +191,8 @@ func sanitizeStatusError(cfg config.GatewayConfig, err error) string {
 		cfg.Slack.AppToken,
 		cfg.Slack.SigningSecret,
 	} {
-		secret = stringx.String(secret).Trim()
+		stringValue1 := str.String(secret)
+		secret = stringValue1.Trim()
 		if secret != "" {
 			message = strings.ReplaceAll(message, secret, "[REDACTED]")
 		}

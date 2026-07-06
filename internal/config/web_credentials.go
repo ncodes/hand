@@ -6,7 +6,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	appcredential "github.com/wandxy/morph/internal/credential"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // WebCredentialSource describes web credential provenance without exposing values.
@@ -38,12 +38,13 @@ func (c *Config) WebAPIKeySourceEffective() (WebCredentialSource, error) {
 
 // ResolveWebProviderAPIKey resolves a web provider API key from config, stored, then environment sources.
 func ResolveWebProviderAPIKey(provider string, configAPIKey string) (string, error) {
-	configAPIKey = stringx.String(configAPIKey).Trim()
+	stringValue1 := str.String(configAPIKey)
+	configAPIKey = stringValue1.Trim()
 	if configAPIKey != "" {
 		return configAPIKey, nil
 	}
-
-	provider = stringx.String(provider).Normalized()
+	stringValue2 := str.String(provider)
+	provider = stringValue2.Normalized()
 	if provider == "" {
 		return "", nil
 	}
@@ -60,11 +61,12 @@ func ResolveWebProviderAPIKey(provider string, configAPIKey string) (string, err
 
 // ResolveWebProviderAPIKeySource resolves web credential provenance without exposing the credential value.
 func ResolveWebProviderAPIKeySource(provider string, configAPIKey string) (WebCredentialSource, error) {
-	if stringx.String(configAPIKey).Trim() != "" {
+	stringValue3 := str.String(configAPIKey)
+	if stringValue3.Trim() != "" {
 		return WebCredentialSource{Configured: true, Source: "config"}, nil
 	}
-
-	provider = stringx.String(provider).Normalized()
+	stringValue4 := str.String(provider)
+	provider = stringValue4.Normalized()
 	if provider == "" {
 		return WebCredentialSource{}, nil
 	}
@@ -95,13 +97,15 @@ func WebCredentialProviderIDs() []string {
 
 // IsWebCredentialProvider reports whether provider is a known web credential provider.
 func IsWebCredentialProvider(provider string) bool {
-	provider = stringx.String(provider).Normalized()
+	stringValue5 := str.String(provider)
+	provider = stringValue5.Normalized()
 	return slices.Contains(WebCredentialProviderIDs(), provider)
 }
 
 // WebProviderAPIKeyEnv returns the environment variable names checked for provider.
 func WebProviderAPIKeyEnv(provider string) []string {
-	switch stringx.String(provider).Normalized() {
+	stringValue6 := str.String(provider)
+	switch stringValue6.Normalized() {
 	case constants.WebProviderFirecrawl:
 		return []string{"MORPH_FIRECRAWL_API_KEY", "FIRECRAWL_API_KEY", "MORPH_WEB_API_KEY"}
 	case constants.WebProviderParallel:
@@ -120,10 +124,12 @@ func loadStoredWebProviderAPIKey(provider string) (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
-	if stringx.String(credential.Type).Normalized() != appcredential.TypeAPIKey {
+	stringValue7 := str.String(credential.Type)
+	if stringValue7.Normalized() != appcredential.TypeAPIKey {
 		return "", false, nil
 	}
-	if value := stringx.String(credential.Key).Trim(); value != "" {
+	stringValue8 := str.String(credential.Key)
+	if value := stringValue8.Trim(); value != "" {
 		return value, true, nil
 	}
 
@@ -142,20 +148,24 @@ func GetWebProviderConfigAPIKey(provider string, cfg *Config) string {
 	if !IsWebCredentialProvider(provider) {
 		return ""
 	}
-	if stringx.String(cfg.Web.Provider).Normalized() != stringx.String(provider).Normalized() {
+	stringValue9 := str.String(cfg.Web.Provider)
+	stringValue10 := str.String(provider)
+	if stringValue9.Normalized() != stringValue10.Normalized() {
 		return ""
 	}
-
-	return stringx.String(cfg.Web.APIKey).Trim()
+	stringValue11 := str.String(cfg.Web.APIKey)
+	return stringValue11.Trim()
 }
 
 func getCredentialFromEnv(keys []string) (string, string) {
 	for _, key := range keys {
-		key = stringx.String(key).Trim()
+		stringValue12 := str.String(key)
+		key = stringValue12.Trim()
 		if key == "" {
 			continue
 		}
-		if value := stringx.String(os.Getenv(key)).Trim(); value != "" {
+		stringValue13 := str.String(os.Getenv(key))
+		if value := stringValue13.Trim(); value != "" {
 			return value, key
 		}
 	}

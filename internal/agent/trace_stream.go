@@ -5,7 +5,7 @@ import (
 
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/trace"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 // fanoutTraceSession writes trace records to a primary session and mirrors
@@ -33,13 +33,13 @@ func newFanoutTraceSession(
 	if primary == nil {
 		primary = trace.NoopSession()
 	}
-
-	if value := stringx.String(primary.ID()).Trim(); value != "" {
+	stringValue1 := str.String(primary.ID())
+	if value := stringValue1.Trim(); value != "" {
 		sessionID = value
 	}
-
+	stringValue2 := str.String(sessionID)
 	return fanoutTraceSession{
-		sessionID: stringx.String(sessionID).Trim(),
+		sessionID: stringValue2.Trim(),
 		primary:   primary,
 		redactor:  guardrails.NewRedactor(),
 		onEvent:   onEvent,
@@ -49,7 +49,8 @@ func newFanoutTraceSession(
 // ID returns the primary trace session ID when available, otherwise the fallback session ID.
 func (s fanoutTraceSession) ID() string {
 	if s.primary != nil {
-		if id := stringx.String(s.primary.ID()).Trim(); id != "" {
+		stringValue3 := str.String(s.primary.ID())
+		if id := stringValue3.Trim(); id != "" {
 			return id
 		}
 	}
@@ -65,12 +66,15 @@ func (s fanoutTraceSession) Record(eventType string, payload any) {
 	if s.onEvent == nil || !isStreamableTraceEvent(eventType) {
 		return
 	}
+	stringValue4 :=
 
-	// Live trace payloads may be rendered immediately in the TUI, so sanitize
-	// before they leave the trace subsystem.
+		// Live trace payloads may be rendered immediately in the TUI, so sanitize
+		// before they leave the trace subsystem.
+
+		str.String(eventType)
 	event := trace.Event{
 		SessionID: s.ID(),
-		Type:      stringx.String(eventType).Trim(),
+		Type:      stringValue4.Trim(),
 		Timestamp: time.Now().UTC(),
 	}
 	if payload != nil {
@@ -89,7 +93,8 @@ func (s fanoutTraceSession) Close() {
 
 // isStreamableTraceEvent whitelists trace events that are useful during a live response.
 func isStreamableTraceEvent(eventType string) bool {
-	switch stringx.String(eventType).Trim() {
+	stringValue5 := str.String(eventType)
+	switch stringValue5.Trim() {
 	case trace.EvtToolInvocationStarted,
 		trace.EvtToolInvocationCompleted,
 		trace.EvtInputSafetyBlocked,

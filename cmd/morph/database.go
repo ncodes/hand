@@ -10,7 +10,7 @@ import (
 
 	morphcli "github.com/wandxy/morph/internal/cli"
 	"github.com/wandxy/morph/internal/datadir"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func newDatabaseCommand() *cli.Command {
@@ -45,8 +45,8 @@ func resetConfiguredDatabase(_ context.Context, cmd *cli.Command) error {
 
 	morphcli.ApplyConfigOverrides(cmd, cfg)
 	morphcli.AddStartupFilesystemRoots(cfg, inputs)
-
-	if stringx.String(cfg.Storage.Backend).Normalized() != "sqlite" {
+	stringValue1 := str.String(cfg.Storage.Backend)
+	if stringValue1.Normalized() != "sqlite" {
 		return errors.New("database reset requires sqlite storage backend")
 	}
 

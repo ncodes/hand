@@ -6,7 +6,7 @@ import (
 	"time"
 
 	statecore "github.com/wandxy/morph/internal/state/core"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -89,10 +89,12 @@ type PersonalityOptions struct {
 
 // NewParent returns a root run context for a user-facing session ID.
 func NewParent(sessionID string) (Context, error) {
+	stringValue1 := str.String(sessionID)
+	stringValue2 := str.String(sessionID)
 	runCtx := Context{
 		Session: Session{
-			PublicID:    stringx.String(sessionID).Trim(),
-			EffectiveID: stringx.String(sessionID).Trim(),
+			PublicID:    stringValue1.Trim(),
+			EffectiveID: stringValue2.Trim(),
 		},
 	}
 
@@ -105,22 +107,28 @@ func (runCtx Context) NewChild(opts ChildOptions) (Context, error) {
 	if err != nil {
 		return Context{}, err
 	}
-	if stringx.String(opts.ChildSessionID).Trim() == "" {
+	stringValue3 := str.String(opts.ChildSessionID)
+	if stringValue3.Trim() == "" {
 		return Context{}, errors.New("child session id is required")
 	}
-
+	stringValue4 := str.String(opts.ProfileName)
+	stringValue5 := str.String(opts.ChildSessionID)
+	stringValue6 := str.String(opts.PersonalityName)
+	stringValue7 := str.String(opts.StateMode)
+	stringValue8 := str.String(opts.ChildSessionID)
+	stringValue9 := str.String(opts.RunID)
 	childCtx := Context{
-		ProfileName: stringx.String(opts.ProfileName).Trim(),
+		ProfileName: stringValue4.Trim(),
 		Session: Session{
 			PublicID:    parent.Session.PublicID,
-			EffectiveID: stringx.String(opts.ChildSessionID).Trim(),
+			EffectiveID: stringValue5.Trim(),
 		},
-		Personality: Personality{Name: stringx.String(opts.PersonalityName).Trim()},
-		State:       State{Mode: stringx.String(opts.StateMode).Trim()},
+		Personality: Personality{Name: stringValue6.Trim()},
+		State:       State{Mode: stringValue7.Trim()},
 		Lineage: Lineage{
 			ParentSessionID: parent.Session.PublicID,
-			ChildSessionID:  stringx.String(opts.ChildSessionID).Trim(),
-			RunID:           stringx.String(opts.RunID).Trim(),
+			ChildSessionID:  stringValue8.Trim(),
+			RunID:           stringValue9.Trim(),
 			SpawnedAt:       opts.SpawnedAt,
 			CompletedAt:     opts.CompletedAt,
 		},
@@ -144,14 +152,18 @@ func (runCtx Context) NewPersonality(opts PersonalityOptions) (Context, error) {
 	if err != nil {
 		return Context{}, err
 	}
-	if stringx.String(opts.PersonalityName).Trim() == "" {
+	stringValue10 := str.String(opts.PersonalityName)
+	if stringValue10.Trim() == "" {
 		return Context{}, errors.New("personality name is required")
 	}
 
 	personalityCtx := parent
-	personalityCtx.Personality.Name = stringx.String(opts.PersonalityName).Trim()
-	personalityCtx.State.Mode = stringx.String(opts.StateMode).Trim()
-	personalityCtx.ProfileName = stringx.String(opts.ProfileName).Trim()
+	stringValue11 := str.String(opts.PersonalityName)
+	personalityCtx.Personality.Name = stringValue11.Trim()
+	stringValue12 := str.String(opts.StateMode)
+	personalityCtx.State.Mode = stringValue12.Trim()
+	stringValue13 := str.String(opts.ProfileName)
+	personalityCtx.ProfileName = stringValue13.Trim()
 	if personalityCtx.ProfileName == "" {
 		personalityCtx.ProfileName = parent.ProfileName
 	}
@@ -162,39 +174,42 @@ func (runCtx Context) NewPersonality(opts PersonalityOptions) (Context, error) {
 // Normalize trims values, fills default session/state fields, and validates all
 // session IDs carried by the run context.
 func (runCtx Context) Normalize() (Context, error) {
-	runCtx.ProfileName = stringx.String(runCtx.ProfileName).Trim()
-
-	runCtx.Session.PublicID = stringx.String(runCtx.Session.PublicID).Trim()
+	stringValue14 := str.String(runCtx.ProfileName)
+	runCtx.ProfileName = stringValue14.Trim()
+	stringValue15 := str.String(runCtx.Session.PublicID)
+	runCtx.Session.PublicID = stringValue15.Trim()
 	if runCtx.Session.PublicID == "" {
 		runCtx.Session.PublicID = DefaultSessionID
 	}
 	if err := ValidateSessionID(runCtx.Session.PublicID); err != nil {
 		return Context{}, err
 	}
-
-	runCtx.Session.EffectiveID = stringx.String(runCtx.Session.EffectiveID).Trim()
+	stringValue16 := str.String(runCtx.Session.EffectiveID)
+	runCtx.Session.EffectiveID = stringValue16.Trim()
 	if runCtx.Session.EffectiveID == "" {
 		runCtx.Session.EffectiveID = runCtx.Session.PublicID
 	}
 	if err := ValidateSessionID(runCtx.Session.EffectiveID); err != nil {
 		return Context{}, err
 	}
-
-	runCtx.Lineage.ParentSessionID = stringx.String(runCtx.Lineage.ParentSessionID).Trim()
+	stringValue17 := str.String(runCtx.Lineage.ParentSessionID)
+	runCtx.Lineage.ParentSessionID = stringValue17.Trim()
 	if runCtx.Lineage.ParentSessionID != "" {
 		if err := ValidateSessionID(runCtx.Lineage.ParentSessionID); err != nil {
 			return Context{}, err
 		}
 	}
-	runCtx.Lineage.ChildSessionID = stringx.String(runCtx.Lineage.ChildSessionID).Trim()
+	stringValue18 := str.String(runCtx.Lineage.ChildSessionID)
+	runCtx.Lineage.ChildSessionID = stringValue18.Trim()
 	if runCtx.Lineage.ChildSessionID != "" {
 		if err := ValidateSessionID(runCtx.Lineage.ChildSessionID); err != nil {
 			return Context{}, err
 		}
 	}
-
-	runCtx.Lineage.RunID = stringx.String(runCtx.Lineage.RunID).Trim()
-	runCtx.Personality.Name = stringx.String(runCtx.Personality.Name).Trim()
+	stringValue19 := str.String(runCtx.Lineage.RunID)
+	runCtx.Lineage.RunID = stringValue19.Trim()
+	stringValue20 := str.String(runCtx.Personality.Name)
+	runCtx.Personality.Name = stringValue20.Trim()
 	runCtx.State.Mode = normalizeStateMode(runCtx.State.Mode)
 
 	return runCtx, nil
@@ -202,10 +217,12 @@ func (runCtx Context) Normalize() (Context, error) {
 
 // StateSessionID returns the effective session ID used for state isolation.
 func (runCtx Context) StateSessionID() string {
-	if value := stringx.String(runCtx.Session.EffectiveID).Trim(); value != "" {
+	stringValue21 := str.String(runCtx.Session.EffectiveID)
+	if value := stringValue21.Trim(); value != "" {
 		return value
 	}
-	if value := stringx.String(runCtx.Session.PublicID).Trim(); value != "" {
+	stringValue22 := str.String(runCtx.Session.PublicID)
+	if value := stringValue22.Trim(); value != "" {
 		return value
 	}
 
@@ -245,7 +262,8 @@ func FromContext(ctx context.Context) (Context, bool) {
 }
 
 func normalizeStateMode(value string) string {
-	switch stringx.String(value).Normalized() {
+	stringValue23 := str.String(value)
+	switch stringValue23.Normalized() {
 	case StateModeIsolated:
 		return StateModeIsolated
 	case StateModeReadonly:

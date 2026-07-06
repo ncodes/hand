@@ -8,7 +8,7 @@ import (
 	state "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
 	messages "github.com/wandxy/morph/pkg/agent/message"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func (s *Store) RepairVectorStore(
@@ -21,8 +21,8 @@ func (s *Store) RepairVectorStore(
 	if s.vectors == nil {
 		return search.VectorRepairResult{}, nil
 	}
-
-	sessionID := stringx.String(opts.SessionID).Trim()
+	stringValue1 := str.String(opts.SessionID)
+	sessionID := stringValue1.Trim()
 	if sessionID != "" {
 		if err := state.ValidateSessionID(sessionID); err != nil {
 			return search.VectorRepairResult{}, err

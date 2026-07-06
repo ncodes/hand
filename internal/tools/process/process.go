@@ -12,7 +12,7 @@ import (
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var processLog = logutils.Module("tool.process")
@@ -87,8 +87,8 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if runtime == nil {
 				return common.ToolError("tool_error", "process manager is not configured"), nil
 			}
-
-			action := stringx.String(req.Action).Normalized()
+			stringValue1 := str.String(req.Action)
+			action := stringValue1.Normalized()
 			if action == "" {
 				return common.ToolError("invalid_input", "action is required"), nil
 			}
@@ -132,16 +132,18 @@ func handleStart(
 	logEvent anyLogEvent,
 ) tools.Result {
 	sessionID := normalizeSessionID(ctx)
+	stringValue2 := str.String(req.Cwd)
+	stringValue3 := str.String(req.Label)
 	logEvent.
 		Str("session_id", sessionID).
-		Bool("cwd_provided", stringx.String(req.Cwd).Trim() != "").
+		Bool("cwd_provided", stringValue2.Trim() != "").
 		Int("args_count", len(req.Args)).
 		Int("env_overrides", len(req.Env)).
-		Bool("label_provided", stringx.String(req.Label).Trim() != "").
+		Bool("label_provided", stringValue3.Trim() != "").
 		Bool("output_buffer_limit", req.OutputBytes != nil).
 		Msg("process tool start requested")
-
-	command := stringx.String(req.Command).Trim()
+	stringValue4 := str.String(req.Command)
+	command := stringValue4.Trim()
 	if command == "" {
 		return common.ToolError("invalid_input", "command is required for start")
 	}
@@ -150,13 +152,14 @@ func handleStart(
 	if err != nil {
 		return common.ToolError("invalid_input", err.Error())
 	}
-
+	stringValue5 := str.String(req.Cwd)
+	stringValue6 := str.String(req.Label)
 	info, err := runtime.StartProcess(ctx, sessionID, processenv.StartRequest{
 		Command:           command,
 		Args:              append([]string(nil), req.Args...),
-		CWD:               stringx.String(req.Cwd).Trim(),
+		CWD:               stringValue5.Trim(),
 		Env:               cloneEnv(req.Env),
-		Label:             stringx.String(req.Label).Trim(),
+		Label:             stringValue6.Trim(),
 		OutputBufferBytes: outputBufferBytes,
 	})
 	if err != nil {
@@ -171,12 +174,13 @@ func handleStart(
 
 func handleStatus(ctx context.Context, runtime envtypes.Runtime, action string, req input, logEvent anyLogEvent) tools.Result {
 	sessionID := normalizeSessionID(ctx)
+	stringValue7 := str.String(req.ProcessID)
 	logEvent.
 		Str("session_id", sessionID).
-		Bool("has_process_id", stringx.String(req.ProcessID).Trim() != "").
+		Bool("has_process_id", stringValue7.Trim() != "").
 		Msg("process tool status requested")
-
-	processID := stringx.String(req.ProcessID).Trim()
+	stringValue8 := str.String(req.ProcessID)
+	processID := stringValue8.Trim()
 	if processID == "" {
 		return common.ToolError("invalid_input", "process_id is required for status")
 	}
@@ -194,16 +198,17 @@ func handleStatus(ctx context.Context, runtime envtypes.Runtime, action string, 
 
 func Handead(ctx context.Context, runtime envtypes.Runtime, action string, req input, logEvent anyLogEvent) tools.Result {
 	sessionID := normalizeSessionID(ctx)
+	stringValue9 := str.String(req.ProcessID)
 	logEvent.
 		Str("session_id", sessionID).
-		Bool("has_process_id", stringx.String(req.ProcessID).Trim() != "").
+		Bool("has_process_id", stringValue9.Trim() != "").
 		Bool("stdout_cursor", req.StdoutCursor != nil).
 		Bool("stderr_cursor", req.StderrCursor != nil).
 		Bool("stdout_limit", req.StdoutBytes != nil).
 		Bool("stderr_limit", req.StderrBytes != nil).
 		Msg("process tool output requested")
-
-	processID := stringx.String(req.ProcessID).Trim()
+	stringValue10 := str.String(req.ProcessID)
+	processID := stringValue10.Trim()
 	if processID == "" {
 		return common.ToolError("invalid_input", "process_id is required for read")
 	}
@@ -274,12 +279,13 @@ func handleStop(
 	logEvent anyLogEvent,
 ) tools.Result {
 	sessionID := normalizeSessionID(ctx)
+	stringValue11 := str.String(req.ProcessID)
 	logEvent.
 		Str("session_id", sessionID).
-		Bool("has_process_id", stringx.String(req.ProcessID).Trim() != "").
+		Bool("has_process_id", stringValue11.Trim() != "").
 		Msg("process tool stop requested")
-
-	processID := stringx.String(req.ProcessID).Trim()
+	stringValue12 := str.String(req.ProcessID)
+	processID := stringValue12.Trim()
 	if processID == "" {
 		return common.ToolError("invalid_input", "process_id is required for stop")
 	}
@@ -468,7 +474,8 @@ func cloneEnv(env map[string]string) map[string]string {
 }
 
 func normalizeSessionID(ctx context.Context) string {
-	sessionID := stringx.String(tools.SessionIDFromContext(ctx)).Trim()
+	stringValue13 := str.String(tools.SessionIDFromContext(ctx))
+	sessionID := stringValue13.Trim()
 	if sessionID == "" {
 		return "default"
 	}

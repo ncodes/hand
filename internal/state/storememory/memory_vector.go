@@ -8,11 +8,12 @@ import (
 
 	statememory "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 func (s *Store) memoryVectorSearchEnabled(query statememory.MemorySearchQuery) bool {
-	return s != nil && s.vectors != nil && stringx.String(query.Text).Trim() != ""
+	stringValue1 := str.String(query.Text)
+	return s != nil && s.vectors != nil && stringValue1.Trim() != ""
 }
 
 func (s *Store) searchMemoryHybrid(
@@ -71,13 +72,15 @@ func (s *Store) searchMemoryVector(
 	query statememory.MemorySearchQuery,
 	limit int,
 ) ([]statememory.MemorySearchHit, error) {
+	stringValue2 := str.String(s.vectors.Model)
+	stringValue3 := str.String(query.Text)
 	req := search.EmbeddingRequest{
-		Model:        stringx.String(s.vectors.Model).Trim(),
+		Model:        stringValue2.Trim(),
 		Relationship: "query_vector_for_memory_item_retrieval",
 		Target:       "memory_item_vectors",
 		Inputs: []search.EmbeddingInput{{
 			ID:         "query",
-			Text:       stringx.String(query.Text).Trim(),
+			Text:       stringValue3.Trim(),
 			SourceKind: search.SourceKindMemoryItem,
 		}},
 	}
@@ -96,9 +99,9 @@ func (s *Store) searchMemoryVector(
 	}
 	filterTags := getMemoryVectorFilterTags(query)
 	filterTagGroups := getMemoryVectorFilterTagGroups(query)
-
+	stringValue4 := str.String(s.vectors.Model)
 	result, err := s.vectors.Store.Search(ctx, search.VectorSearchRequest{
-		EmbeddingModel: stringx.String(s.vectors.Model).Trim(),
+		EmbeddingModel: stringValue4.Trim(),
 		Dimensions:     embedding.Dimensions,
 		QueryVector:    embedding.Items[0].Vector,
 		Limit:          limit,
@@ -188,9 +191,9 @@ func (s *Store) indexMemoryVector(ctx context.Context, item statememory.MemoryIt
 	if text == "" {
 		return nil
 	}
-
+	stringValue5 := str.String(s.vectors.Model)
 	req := search.EmbeddingRequest{
-		Model:        stringx.String(s.vectors.Model).Trim(),
+		Model:        stringValue5.Trim(),
 		Relationship: "memory_item_to_memory_vector_index",
 		Target:       "memory_item_vectors",
 		Inputs: []search.EmbeddingInput{{
@@ -228,8 +231,8 @@ func (s *Store) deleteMemoryVector(ctx context.Context, memoryID string) error {
 	if s == nil || s.vectors == nil {
 		return nil
 	}
-
-	memoryID = stringx.String(memoryID).Trim()
+	stringValue6 := str.String(memoryID)
+	memoryID = stringValue6.Trim()
 	if memoryID == "" {
 		return nil
 	}
@@ -246,13 +249,15 @@ func mergeMemoryHits(
 ) []statememory.MemorySearchHit {
 	byID := make(map[string]statememory.MemorySearchHit, len(lexicalHits)+len(vectorHits))
 	for _, hit := range lexicalHits {
-		id := stringx.String(hit.Item.ID).Trim()
+		stringValue7 := str.String(hit.Item.ID)
+		id := stringValue7.Trim()
 		if id != "" {
 			byID[id] = hit
 		}
 	}
 	for _, hit := range vectorHits {
-		id := stringx.String(hit.Item.ID).Trim()
+		stringValue8 := str.String(hit.Item.ID)
+		id := stringValue8.Trim()
 		if id == "" {
 			continue
 		}
@@ -309,7 +314,8 @@ func checkMemoryQueryNeedsSourceIDFilter(query statememory.MemorySearchQuery) bo
 
 func getMemoryVectorFilterTags(query statememory.MemorySearchQuery) []string {
 	tags := make([]string, 0, 4+len(query.Tags))
-	if sessionID := stringx.String(query.SessionID).Trim(); sessionID != "" {
+	stringValue9 := str.String(query.SessionID)
+	if sessionID := stringValue9.Trim(); sessionID != "" {
 		tags = append(tags, search.MemoryVectorTag("memory_session", sessionID))
 	}
 	if len(query.Kinds) == 1 {
@@ -321,7 +327,8 @@ func getMemoryVectorFilterTags(query statememory.MemorySearchQuery) []string {
 		tags = append(tags, search.MemoryVectorTag("memory_status", string(query.Statuses[0])))
 	}
 	for _, tag := range query.Tags {
-		if tag = stringx.String(tag).Trim(); tag != "" {
+		stringValue10 := str.String(tag)
+		if tag = stringValue10.Trim(); tag != "" {
 			tags = append(tags, search.MemoryVectorTag("memory_tag", tag))
 		}
 	}
@@ -337,7 +344,8 @@ func getMemoryVectorFilterTagGroups(query statememory.MemorySearchQuery) [][]str
 	if len(query.Kinds) > 1 {
 		group := make([]string, 0, len(query.Kinds))
 		for _, kind := range query.Kinds {
-			if value := stringx.String(string(kind)).Trim(); value != "" {
+			stringValue11 := str.String(string(kind))
+			if value := stringValue11.Trim(); value != "" {
 				group = append(group, search.MemoryVectorTag("memory_kind", value))
 			}
 		}
@@ -346,7 +354,8 @@ func getMemoryVectorFilterTagGroups(query statememory.MemorySearchQuery) [][]str
 	if len(query.Statuses) > 1 {
 		group := make([]string, 0, len(query.Statuses))
 		for _, status := range query.Statuses {
-			if value := stringx.String(string(status)).Trim(); value != "" {
+			stringValue12 := str.String(string(status))
+			if value := stringValue12.Trim(); value != "" {
 				group = append(group, search.MemoryVectorTag("memory_status", value))
 			}
 		}
@@ -357,5 +366,6 @@ func getMemoryVectorFilterTagGroups(query statememory.MemorySearchQuery) [][]str
 }
 
 func getMemoryVectorText(item statememory.MemoryItem) string {
-	return stringx.String(strings.Join([]string{item.Title, item.Text}, "\n")).Trim()
+	stringValue13 := str.String(strings.Join([]string{item.Title, item.Text}, "\n"))
+	return stringValue13.Trim()
 }

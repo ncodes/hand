@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 type ModuleLogger struct {
@@ -20,7 +20,8 @@ type moduleEnsuringWriter struct {
 }
 
 func Module(module string) ModuleLogger {
-	return ModuleLogger{module: stringx.String(module).Trim()}
+	stringValue1 := str.String(module)
+	return ModuleLogger{module: stringValue1.Trim()}
 }
 
 func (logger ModuleLogger) Trace() *zerolog.Event {
@@ -68,8 +69,8 @@ func newModuleEnsuringWriter(writer io.Writer, module string) io.Writer {
 	if writer == nil {
 		return io.Discard
 	}
-
-	return moduleEnsuringWriter{writer: writer, module: stringx.String(module).Trim()}
+	stringValue2 := str.String(module)
+	return moduleEnsuringWriter{writer: writer, module: stringValue2.Trim()}
 }
 
 func (writer moduleEnsuringWriter) Write(p []byte) (int, error) {

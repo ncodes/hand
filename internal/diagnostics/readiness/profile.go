@@ -5,18 +5,22 @@ import (
 	"os"
 
 	"github.com/wandxy/morph/internal/profile"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 var statPath = os.Stat
 
 func buildProfileGroup(active profile.Profile, envPath string, configPath string) Group {
 	active = profile.WithMetadataPaths(active)
-	if stringx.String(envPath).Trim() != "" {
-		active.EnvPath = stringx.String(envPath).Trim()
+	stringValue1 := str.String(envPath)
+	if stringValue1.Trim() != "" {
+		stringValue3 := str.String(envPath)
+		active.EnvPath = stringValue3.Trim()
 	}
-	if stringx.String(configPath).Trim() != "" {
-		active.ConfigPath = stringx.String(configPath).Trim()
+	stringValue2 := str.String(configPath)
+	if stringValue2.Trim() != "" {
+		stringValue4 := str.String(configPath)
+		active.ConfigPath = stringValue4.Trim()
 	}
 
 	return Group{
@@ -32,7 +36,8 @@ func buildProfileGroup(active profile.Profile, envPath string, configPath string
 }
 
 func buildPathCheck(name string, path string, wantDir bool, optional bool) Check {
-	path = stringx.String(path).Trim()
+	stringValue5 := str.String(path)
+	path = stringValue5.Trim()
 	if path == "" {
 		status := StatusFail
 		if optional {
@@ -66,7 +71,8 @@ func buildPathCheck(name string, path string, wantDir bool, optional bool) Check
 }
 
 func defaultString(value string, fallback string) string {
-	value = stringx.String(value).Trim()
+	stringValue6 := str.String(value)
+	value = stringValue6.Trim()
 	if value == "" {
 		return fallback
 	}

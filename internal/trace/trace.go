@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/wandxy/morph/pkg/logutils"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 
 	"github.com/wandxy/morph/internal/guardrails"
 	storage "github.com/wandxy/morph/internal/state/core"
@@ -150,9 +150,9 @@ func NewFileFactory(directory string, redactor guardrails.Redactor) *JSONLFactor
 	if redactor == nil {
 		redactor = guardrails.NewRedactor()
 	}
-
+	stringValue1 := str.String(directory)
 	return &JSONLFactory{
-		directory: stringx.String(directory).Trim(),
+		directory: stringValue1.Trim(),
 		redactor:  redactor,
 		now:       func() time.Time { return time.Now().UTC() },
 	}
@@ -201,7 +201,8 @@ func NoopSession() Session {
 
 // validateSessionID mirrors internal/trace/inspect getSessionPath rules for the id segment.
 func validateSessionID(id string) bool {
-	id = stringx.String(id).Trim()
+	stringValue2 := str.String(id)
+	id = stringValue2.Trim()
 	if id == "" {
 		return false
 	}
@@ -218,7 +219,8 @@ func validateSessionID(id string) bool {
 // SessionIDFromTraceFilename returns the storage session id from a time-prefixed trace file basename without ".jsonl".
 // Filenames are "<UTC>Z-<session_id>"; the segment after "Z-" is the id. If "Z-" is absent, the whole stem is returned.
 func SessionIDFromTraceFilename(stem string) string {
-	stem = stringx.String(stem).Trim()
+	stringValue3 := str.String(stem)
+	stem = stringValue3.Trim()
 	if _, after, ok := strings.Cut(stem, "Z-"); ok {
 		return after
 	}
@@ -230,7 +232,8 @@ func SessionIDFromTraceFilename(stem string) string {
 // It looks for exactly one file matching "*<session_id>.jsonl" (time-prefixed names included).
 // If none exist, it returns [os.ErrNotExist]. If more than one match, it returns [ErrAmbiguousTraceFiles].
 func ResolveTraceFilePath(directory, sessionID string) (string, error) {
-	directory = stringx.String(directory).Trim()
+	stringValue4 := str.String(directory)
+	directory = stringValue4.Trim()
 	if !validateSessionID(sessionID) || directory == "" {
 		return "", os.ErrNotExist
 	}
@@ -279,7 +282,11 @@ func (f *JSONLFactory) lockForPath(absPath string) *sync.Mutex {
 }
 
 func (f *JSONLFactory) OpenSession(_ context.Context, sessionID string, metadata Metadata) Session {
-	if f == nil || stringx.String(f.directory).Trim() == "" {
+	if f == nil {
+		return NoopSession()
+	}
+	directory := str.String(f.directory)
+	if directory.Trim() == "" {
 		return NoopSession()
 	}
 	if !validateSessionID(sessionID) {
@@ -405,9 +412,10 @@ func (s *jsonlSession) Record(eventType string, payload any) {
 }
 
 func (s *jsonlSession) recordUnlocked(eventType string, payload any) {
+	stringValue6 := str.String(eventType)
 	event := Event{
 		SessionID: s.id,
-		Type:      stringx.String(eventType).Trim(),
+		Type:      stringValue6.Trim(),
 		Timestamp: time.Now().UTC(),
 	}
 	if payload != nil {
@@ -471,9 +479,10 @@ func (s *stateSession) Record(eventType string, payload any) {
 }
 
 func (s *stateSession) recordUnlocked(eventType string, payload any) {
+	stringValue7 := str.String(eventType)
 	event := storage.TraceEvent{
 		SessionID: s.id,
-		Type:      stringx.String(eventType).Trim(),
+		Type:      stringValue7.Trim(),
 		Timestamp: s.now().UTC(),
 	}
 	if payload != nil {
@@ -519,7 +528,9 @@ func (s *stateSession) Close() {
 
 func (s multiSession) ID() string {
 	for _, session := range s.sessions {
-		if id := session.ID(); stringx.String(id).Trim() != "" {
+		id := session.ID()
+		idValue := str.String(id)
+		if idValue.Trim() != "" {
 			return id
 		}
 	}

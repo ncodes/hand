@@ -9,7 +9,7 @@ import (
 
 	morphagent "github.com/wandxy/morph/internal/agent"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 	"google.golang.org/grpc"
 
 	"github.com/wandxy/morph/internal/rpc/server"
@@ -121,7 +121,8 @@ func (h *RPCHarness) ConfigFileContents() string {
 	if h == nil {
 		return ""
 	}
+	stringValue1 := str.String(h.address)
 	return "rpc:\n" +
-		"  address: " + stringx.String(h.address).Trim() + "\n" +
+		"  address: " + stringValue1.Trim() + "\n" +
 		"  port: " + strconv.Itoa(h.port) + "\n"
 }

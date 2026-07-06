@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/wandxy/morph/pkg/nanoid"
-	"github.com/wandxy/morph/pkg/stringx"
+	"github.com/wandxy/morph/pkg/str"
 )
 
 const (
@@ -205,7 +205,7 @@ type AutomationStore interface {
 }
 
 func ValidateAutomationJobID(id string) error {
-	jobID := stringx.String(id)
+	jobID := str.String(id)
 	trimmedID := jobID.Trim()
 	if trimmedID == "" {
 		return errors.New("automation job id is required")
@@ -217,7 +217,7 @@ func ValidateAutomationJobID(id string) error {
 }
 
 func ValidateAutomationRunID(id string) error {
-	runID := stringx.String(id)
+	runID := str.String(id)
 	trimmedID := runID.Trim()
 	if trimmedID == "" {
 		return errors.New("automation run id is required")
@@ -301,14 +301,14 @@ func ApplyAutomationRunPatch(run AutomationRun, patch AutomationRunPatch, now ti
 	}
 	run.Output = patch.Output
 	run.Error = patch.Error
-	sessionID := stringx.String(patch.SessionID)
+	sessionID := str.String(patch.SessionID)
 	run.SessionID = sessionID.Trim()
 	if patch.DeliveryStatus != "" {
 		run.DeliveryStatus = patch.DeliveryStatus
 	}
 	run.DeliveryError = patch.DeliveryError
-	model := stringx.String(patch.Model)
-	provider := stringx.String(patch.Provider)
+	model := str.String(patch.Model)
+	provider := str.String(patch.Provider)
 	run.Model = model.Trim()
 	run.Provider = provider.Trim()
 	if patch.Usage != nil {
