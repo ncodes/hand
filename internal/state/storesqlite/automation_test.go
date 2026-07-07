@@ -62,13 +62,23 @@ func TestSQLiteStore_AutomationJobLifecycle(t *testing.T) {
 	secondRun := time.Date(2026, 7, 6, 9, 0, 0, 0, time.UTC)
 
 	created, err := store.CreateJob(ctx, state.AutomationJob{
-		ID:          " " + testAutomationJobB + " ",
-		Name:        "Weekly maintenance",
-		Enabled:     true,
-		Profile:     "default",
-		Payload:     state.AutomationPayload{Kind: state.AutomationPayloadPrompt, Metadata: map[string]string{"scope": "weekly"}},
-		Delivery:    state.AutomationDelivery{Mode: state.AutomationDeliveryLocal, Channel: "chat"},
-		State:       state.AutomationJobState{NextRunAt: secondRun, LastStatus: state.AutomationRunStatusOK},
+		ID:      " " + testAutomationJobB + " ",
+		Name:    "Weekly maintenance",
+		Enabled: true,
+		Profile: "default",
+		Payload: state.AutomationPayload{Kind: state.AutomationPayloadPrompt, Metadata: map[string]string{"scope": "weekly"}},
+		Delivery: state.AutomationDelivery{
+			Mode:            state.AutomationDeliveryLocal,
+			Channel:         "chat",
+			FailureTarget:   "ops",
+			FailureAfter:    2,
+			FailureCooldown: time.Hour,
+		},
+		State: state.AutomationJobState{
+			NextRunAt:           secondRun,
+			LastStatus:          state.AutomationRunStatusOK,
+			LastFailureNoticeAt: firstRun,
+		},
 		CreatedAt:   time.Date(2026, 7, 1, 9, 0, 0, 0, time.FixedZone("WAT", 3600)),
 		Description: "Run maintenance",
 	})
@@ -88,7 +98,11 @@ func TestSQLiteStore_AutomationJobLifecycle(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "weekly", loaded.Payload.Metadata["scope"])
 	require.Equal(t, state.AutomationDeliveryLocal, loaded.Delivery.Mode)
+	require.Equal(t, "ops", loaded.Delivery.FailureTarget)
+	require.Equal(t, 2, loaded.Delivery.FailureAfter)
+	require.Equal(t, time.Hour, loaded.Delivery.FailureCooldown)
 	require.Equal(t, state.AutomationRunStatusOK, loaded.State.LastStatus)
+	require.Equal(t, firstRun, loaded.State.LastFailureNoticeAt)
 
 	_, err = store.CreateJob(ctx, state.AutomationJob{ID: testAutomationJobB, Enabled: true})
 	require.Error(t, err)

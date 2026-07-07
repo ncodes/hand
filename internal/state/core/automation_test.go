@@ -67,11 +67,20 @@ func TestApplyAutomationJobPatch(t *testing.T) {
 		ToolGroups:    []string{"memory"},
 		Metadata:      map[string]string{"source": "bbc"},
 	}
-	delivery := AutomationDelivery{Mode: AutomationDeliveryLocal, Channel: "chat"}
+	delivery := AutomationDelivery{
+		Mode:            AutomationDeliveryLocal,
+		Channel:         "chat",
+		FailureTarget:   "ops",
+		FailureAfter:    2,
+		FailureCooldown: time.Hour,
+	}
 	profile := "work"
 	sessionTarget := "current"
 	deleteAfterRun := true
-	state := AutomationJobState{NextRunAt: nextRunAt}
+	state := AutomationJobState{
+		NextRunAt:           nextRunAt,
+		LastFailureNoticeAt: updatedAt,
+	}
 
 	job := ApplyAutomationJobPatch(AutomationJob{
 		ID:        testAutomationJobID,
@@ -110,6 +119,7 @@ func TestApplyAutomationJobPatch(t *testing.T) {
 	require.Equal(t, "current", job.SessionTarget)
 	require.True(t, job.DeleteAfterRun)
 	require.Equal(t, nextRunAt, job.State.NextRunAt)
+	require.Equal(t, updatedAt, job.State.LastFailureNoticeAt)
 }
 
 func TestApplyAutomationRunPatch(t *testing.T) {

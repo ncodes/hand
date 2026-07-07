@@ -112,10 +112,9 @@ func (r *AgentRunner) RunAutomation(ctx context.Context, job Job) (RunResult, er
 	}
 	if payload.Kind == PayloadSystemEvent {
 		return RunResult{
-			Status:         RunStatusSkipped,
-			Output:         automationNoopOutput,
-			SessionID:      staticTargetSessionID(target),
-			DeliveryStatus: DeliveryStatusNotRequested,
+			Status:    RunStatusSkipped,
+			Output:    automationNoopOutput,
+			SessionID: staticTargetSessionID(target),
 		}, nil
 	}
 
@@ -163,12 +162,11 @@ func (r *AgentRunner) RunAutomation(ctx context.Context, job Job) (RunResult, er
 	}
 
 	return RunResult{
-		Status:         RunStatusOK,
-		Output:         output,
-		SessionID:      sessionID,
-		DeliveryStatus: DeliveryStatusNotRequested,
-		Model:          cfg.Models.Main.Name,
-		Provider:       cfg.Models.Main.Provider,
+		Status:    RunStatusOK,
+		Output:    output,
+		SessionID: sessionID,
+		Model:     cfg.Models.Main.Name,
+		Provider:  cfg.Models.Main.Provider,
 	}, nil
 }
 

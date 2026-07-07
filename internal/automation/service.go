@@ -29,21 +29,21 @@ func (fn RunnerFunc) RunAutomation(ctx context.Context, job Job) (RunResult, err
 }
 
 type RunResult struct {
-	Status         RunStatus
-	Output         string
-	SessionID      string
-	DeliveryStatus DeliveryStatus
-	DeliveryError  string
-	Model          string
-	Provider       string
-	Usage          Usage
+	Status    RunStatus
+	Output    string
+	SessionID string
+	Model     string
+	Provider  string
+	Usage     Usage
 }
 
 type ServiceOptions struct {
 	Store                      Store
 	Runner                     Runner
+	DeliverySink               DeliverySink
 	Logger                     Logger
 	Tracer                     Tracer
+	HTTPClient                 HTTPClient
 	Now                        func() time.Time
 	Location                   *time.Location
 	DefaultTimezone            string
@@ -63,8 +63,10 @@ type Status struct {
 type Service struct {
 	store                      Store
 	runner                     Runner
+	deliverySink               DeliverySink
 	logger                     Logger
 	tracer                     Tracer
+	httpClient                 HTTPClient
 	now                        func() time.Time
 	location                   *time.Location
 	defaultTimezone            string
@@ -103,15 +105,17 @@ func NewService(opts ServiceOptions) (*Service, error) {
 	if staleRunningAfter <= 0 {
 		staleRunningAfter = defaultStaleRunningAfter
 	}
-	stringValue1 := str.String(opts.DefaultTimezone)
+	defaultTz := str.String(opts.DefaultTimezone)
 	return &Service{
 		store:                      opts.Store,
 		runner:                     opts.Runner,
+		deliverySink:               opts.DeliverySink,
 		logger:                     opts.Logger,
 		tracer:                     opts.Tracer,
+		httpClient:                 opts.HTTPClient,
 		now:                        now,
 		location:                   opts.Location,
-		defaultTimezone:            stringValue1.Trim(),
+		defaultTimezone:            defaultTz.Trim(),
 		maxTimerSleep:              maxTimerSleep,
 		staleRunningAfter:          staleRunningAfter,
 		disableAfterScheduleErrors: opts.DisableAfterScheduleErrors,
@@ -363,6 +367,7 @@ func (s *Service) executeDueJobs(ctx context.Context) {
 
 func (s *Service) executeJob(ctx context.Context, job Job) (Run, error) {
 	started := s.getNow()
+
 	run, err := s.store.CreateRun(ctx, Run{
 		JobID:     job.ID,
 		Status:    RunStatusRunning,
@@ -374,12 +379,19 @@ func (s *Service) executeJob(ctx context.Context, job Job) (Run, error) {
 		return Run{}, err
 	}
 
-	s.record(ctx, "info", "automation job started", automationEventStarted, map[string]any{
-		"job_id": job.ID,
-		"run_id": run.ID,
-	})
+	s.record(
+		ctx, "info",
+		"automation job started",
+		automationEventStarted,
+		map[string]any{
+			"job_id": job.ID,
+			"run_id": run.ID,
+		},
+	)
+
 	result, runErr := s.runner.RunAutomation(ctx, job.Clone())
 	finished := s.getNow()
+
 	status := result.Status
 	if status == "" {
 		status = RunStatusOK
@@ -387,6 +399,17 @@ func (s *Service) executeJob(ctx context.Context, job Job) (Run, error) {
 	if runErr != nil {
 		status = RunStatusError
 	}
+
+	deliveryResult, deliveryErr := s.deliverRun(
+		ctx,
+		job,
+		run.ID,
+		status,
+		result,
+		runErr,
+		finished,
+	)
+
 	usage := result.Usage
 	patch := RunPatch{
 		ID:             run.ID,
@@ -394,8 +417,8 @@ func (s *Service) executeJob(ctx context.Context, job Job) (Run, error) {
 		EndedAt:        finished,
 		Output:         result.Output,
 		SessionID:      result.SessionID,
-		DeliveryStatus: result.DeliveryStatus,
-		DeliveryError:  result.DeliveryError,
+		DeliveryStatus: deliveryResult.Status,
+		DeliveryError:  deliveryResult.Error,
 		Model:          result.Model,
 		Provider:       result.Provider,
 		Usage:          &usage,
@@ -403,6 +426,7 @@ func (s *Service) executeJob(ctx context.Context, job Job) (Run, error) {
 	if runErr != nil {
 		patch.Error = runErr.Error()
 	}
+
 	finishedRun, finishErr := s.store.FinishRun(ctx, patch)
 	if finishErr != nil {
 		_ = s.clearJobRunning(ctx, job, finishErr)
@@ -410,31 +434,70 @@ func (s *Service) executeJob(ctx context.Context, job Job) (Run, error) {
 		return Run{}, finishErr
 	}
 
-	updatedJob, jobErr := s.finishJobRun(ctx, job, finishedRun, runErr)
+	updatedJob, jobErr := s.finishJobRun(
+		ctx,
+		job,
+		finishedRun,
+		runErr,
+		deliveryResult.FailureNoticeSentAt,
+	)
+
 	s.clearRunningLocal(job.ID)
 	s.notifyWake()
+
 	fields := map[string]any{
 		"job_id":      job.ID,
 		"run_id":      finishedRun.ID,
 		"status":      string(finishedRun.Status),
+		"delivery":    string(finishedRun.DeliveryStatus),
 		"duration_ms": finishedRun.Duration.Milliseconds(),
 	}
+
 	if runErr != nil {
 		fields["error"] = runErr.Error()
-		s.record(ctx, "error", "automation job failed", automationEventFailed, fields)
+		s.record(
+			ctx, "error",
+			"automation job failed",
+			automationEventFailed,
+			fields,
+		)
 		return finishedRun, runErr
 	}
+
 	if jobErr != nil {
 		fields["error"] = jobErr.Error()
-		s.record(ctx, "error", "automation job state update failed", automationEventFailed, fields)
+		s.record(
+			ctx, "error",
+			"automation job state update failed",
+			automationEventFailed,
+			fields,
+		)
 		return finishedRun, jobErr
 	}
+
+	if deliveryErr != nil && !normalizeDelivery(updatedJob.Delivery).BestEffort {
+		fields["error"] = deliveryErr.Error()
+		s.record(
+			ctx, "error",
+			"automation job delivery failed",
+			automationEventFailed,
+			fields,
+		)
+		return finishedRun, deliveryErr
+	}
+
 	if updatedJob.DeleteAfterRun && finishedRun.Status == RunStatusOK {
 		if err := s.store.DeleteJob(ctx, updatedJob.ID); err != nil {
 			return finishedRun, err
 		}
 	}
-	s.record(ctx, "info", "automation job finished", automationEventFinished, fields)
+
+	s.record(
+		ctx, "info",
+		"automation job finished",
+		automationEventFinished,
+		fields,
+	)
 
 	return finishedRun, nil
 }
@@ -465,6 +528,89 @@ func (s *Service) recoverStartup(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (s *Service) deliverRun(
+	ctx context.Context,
+	job Job,
+	runID string,
+	status RunStatus,
+	result RunResult,
+	runErr error,
+	now time.Time,
+) (DeliveryResult, error) {
+	delivery := normalizeDelivery(job.Delivery)
+	if runErr != nil {
+		return s.deliverFailureNotice(ctx, job, runID, status, result, runErr, delivery, now)
+	}
+	if status != RunStatusOK {
+		return DeliveryResult{Status: DeliveryStatusNotRequested}, nil
+	}
+
+	return s.deliver(ctx, job, runID, status, result, nil, delivery, getDeliveryTarget(job, delivery), now, false)
+}
+
+func (s *Service) deliverFailureNotice(
+	ctx context.Context,
+	job Job,
+	runID string,
+	status RunStatus,
+	result RunResult,
+	runErr error,
+	delivery Delivery,
+	now time.Time,
+) (DeliveryResult, error) {
+	if !checkFailureNoticeDue(job, delivery, now) {
+		return DeliveryResult{Status: DeliveryStatusNotRequested}, nil
+	}
+
+	return s.deliver(ctx, job, runID, status, result, runErr, delivery, getFailureDeliveryTarget(job, delivery), now, true)
+}
+
+func (s *Service) deliver(
+	ctx context.Context,
+	job Job,
+	runID string,
+	status RunStatus,
+	result RunResult,
+	runErr error,
+	delivery Delivery,
+	target DeliveryTarget,
+	now time.Time,
+	failureNotice bool,
+) (DeliveryResult, error) {
+	if delivery.Mode == "" || delivery.Mode == DeliveryNone {
+		return DeliveryResult{Status: DeliveryStatusNotRequested}, nil
+	}
+
+	req := newDeliveryRequest(job, runID, status, result, target, runErr)
+	switch delivery.Mode {
+	case DeliveryLocal:
+	case DeliveryOrigin, DeliveryGateway:
+		if s.deliverySink == nil {
+			return DeliveryResult{
+				Status: DeliveryStatusNotDelivered,
+				Error:  "automation delivery sink is required",
+			}, errors.New("automation delivery sink is required")
+		}
+		if err := s.deliverySink.DeliverAutomation(ctx, req); err != nil {
+			return DeliveryResult{Status: DeliveryStatusNotDelivered, Error: err.Error()}, err
+		}
+	case DeliveryWebhook:
+		if err := deliverWebhook(ctx, s.httpClient, delivery.WebhookURL, req); err != nil {
+			return DeliveryResult{Status: DeliveryStatusNotDelivered, Error: err.Error()}, err
+		}
+	default:
+		err := errors.New("unsupported automation delivery mode")
+		return DeliveryResult{Status: DeliveryStatusNotDelivered, Error: err.Error()}, err
+	}
+
+	delivered := DeliveryResult{Status: DeliveryStatusDelivered}
+	if failureNotice {
+		delivered.FailureNoticeSentAt = now.UTC()
+	}
+
+	return delivered, nil
 }
 
 func (s *Service) repairJobSchedule(
@@ -569,7 +715,13 @@ func (s *Service) markJobRunning(ctx context.Context, job Job, now time.Time) er
 	return nil
 }
 
-func (s *Service) finishJobRun(ctx context.Context, job Job, run Run, runErr error) (Job, error) {
+func (s *Service) finishJobRun(
+	ctx context.Context,
+	job Job,
+	run Run,
+	runErr error,
+	failureNoticeSentAt time.Time,
+) (Job, error) {
 	loaded, ok, err := s.store.GetJob(ctx, job.ID)
 	if err != nil {
 		return Job{}, err
@@ -588,6 +740,10 @@ func (s *Service) finishJobRun(ctx context.Context, job Job, run Run, runErr err
 	} else {
 		state.LastError = ""
 		state.ConsecutiveErrors = 0
+		state.LastFailureNoticeAt = time.Time{}
+	}
+	if !failureNoticeSentAt.IsZero() {
+		state.LastFailureNoticeAt = failureNoticeSentAt.UTC()
 	}
 	result, err := NextRun(loaded.Schedule, NextRunOptions{
 		Now:             run.EndedAt,

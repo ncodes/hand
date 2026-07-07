@@ -51,7 +51,6 @@ func TestAgentRunner_RunPromptThroughRuntime(t *testing.T) {
 	require.Equal(t, RunStatusOK, result.Status)
 	require.Equal(t, "done", result.Output)
 	require.Equal(t, testAutomationExecutionSessionID, result.SessionID)
-	require.Equal(t, DeliveryStatusNotRequested, result.DeliveryStatus)
 	require.Equal(t, "override-model", result.Model)
 	require.Equal(t, "openai", result.Provider)
 	require.Len(t, factory.requests, 1)

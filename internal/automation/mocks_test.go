@@ -155,6 +155,27 @@ type automationRunnerStub struct {
 	started chan Job
 }
 
+type automationDeliverySinkStub struct {
+	mu       sync.Mutex
+	requests []DeliveryRequest
+	err      error
+}
+
+func (s *automationDeliverySinkStub) DeliverAutomation(_ context.Context, req DeliveryRequest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.requests = append(s.requests, req)
+	return s.err
+}
+
+func (s *automationDeliverySinkStub) Requests() []DeliveryRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return append([]DeliveryRequest(nil), s.requests...)
+}
+
 func (r *automationRunnerStub) RunAutomation(ctx context.Context, job Job) (RunResult, error) {
 	r.mu.Lock()
 	r.calls = append(r.calls, job.Clone())

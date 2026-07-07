@@ -2,7 +2,10 @@ package automation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -178,12 +181,11 @@ func TestService_RunExecutesJobAndUpdatesState(t *testing.T) {
 	store := storememory.NewStore()
 	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
 	runner := &automationRunnerStub{results: []RunResult{{
-		Output:         "done",
-		SessionID:      "ses_projectaprojectaproje",
-		DeliveryStatus: DeliveryStatusDelivered,
-		Model:          "gpt-test",
-		Provider:       "openai",
-		Usage:          Usage{InputTokens: 1, OutputTokens: 2, TotalTokens: 3},
+		Output:    "done",
+		SessionID: "ses_projectaprojectaproje",
+		Model:     "gpt-test",
+		Provider:  "openai",
+		Usage:     Usage{InputTokens: 1, OutputTokens: 2, TotalTokens: 3},
 	}}}
 	service := newAutomationTestService(t, store, clock, runner)
 
@@ -194,6 +196,7 @@ func TestService_RunExecutesJobAndUpdatesState(t *testing.T) {
 			Kind: ScheduleAt,
 			At:   clock.Now(),
 		},
+		Delivery: Delivery{Mode: DeliveryLocal},
 	})
 	require.NoError(t, err)
 
@@ -212,6 +215,401 @@ func TestService_RunExecutesJobAndUpdatesState(t *testing.T) {
 	require.Equal(t, RunStatusOK, job.State.LastStatus)
 	require.Zero(t, job.State.NextRunAt)
 	require.Equal(t, 1, runner.CallCount())
+}
+
+func TestService_RunDeliversSuccessfulOutputToGateway(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	sink := &automationDeliverySinkStub{}
+	service, err := NewService(ServiceOptions{
+		Store:        store,
+		Runner:       &automationRunnerStub{results: []RunResult{{Output: "delivered", SessionID: "ses_projectaprojectaproje"}}},
+		DeliverySink: sink,
+		Now:          clock.Now,
+	})
+	require.NoError(t, err)
+
+	_, err = service.Add(ctx, Job{
+		ID:      testServiceJobA,
+		Enabled: true,
+		Schedule: Schedule{
+			Kind: ScheduleAt,
+			At:   clock.Now(),
+		},
+		Delivery: Delivery{
+			Mode:     DeliveryGateway,
+			Channel:  " slack ",
+			Target:   " C1 ",
+			ThreadID: " 123.456 ",
+		},
+	})
+	require.NoError(t, err)
+
+	run, err := service.Run(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.Equal(t, DeliveryStatusDelivered, run.DeliveryStatus)
+	require.Empty(t, run.DeliveryError)
+
+	requests := sink.Requests()
+	require.Len(t, requests, 1)
+	require.Equal(t, testServiceJobA, requests[0].JobID)
+	require.Equal(t, run.ID, requests[0].RunID)
+	require.Equal(t, RunStatusOK, requests[0].Status)
+	require.Equal(t, "delivered", requests[0].Output)
+	require.Equal(t, DeliveryGateway, requests[0].Target.Mode)
+	require.Equal(t, "slack", requests[0].Target.Channel)
+	require.Equal(t, "C1", requests[0].Target.Target)
+	require.Equal(t, "123.456", requests[0].Target.ThreadID)
+}
+
+func TestService_RunTracksDeliveryFailure(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	deliveryErr := errors.New("gateway unavailable")
+	service, err := NewService(ServiceOptions{
+		Store:        store,
+		Runner:       &automationRunnerStub{results: []RunResult{{Output: "done"}}},
+		DeliverySink: &automationDeliverySinkStub{err: deliveryErr},
+		Now:          clock.Now,
+	})
+	require.NoError(t, err)
+
+	_, err = service.Add(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+		Delivery: Delivery{Mode: DeliveryGateway, Target: "ops"},
+	})
+	require.NoError(t, err)
+
+	run, err := service.Run(ctx, testServiceJobA)
+	require.ErrorIs(t, err, deliveryErr)
+	require.Equal(t, RunStatusOK, run.Status)
+	require.Equal(t, DeliveryStatusNotDelivered, run.DeliveryStatus)
+	require.Equal(t, "gateway unavailable", run.DeliveryError)
+
+	job, ok, err := store.GetJob(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, RunStatusOK, job.State.LastStatus)
+	require.Zero(t, job.State.ConsecutiveErrors)
+}
+
+func TestService_RunAllowsBestEffortDeliveryFailure(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	service, err := NewService(ServiceOptions{
+		Store:        store,
+		Runner:       &automationRunnerStub{results: []RunResult{{Output: "done"}}},
+		DeliverySink: &automationDeliverySinkStub{err: errors.New("gateway unavailable")},
+		Now:          clock.Now,
+	})
+	require.NoError(t, err)
+
+	_, err = service.Add(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+		Delivery: Delivery{Mode: DeliveryGateway, Target: "ops", BestEffort: true},
+	})
+	require.NoError(t, err)
+
+	run, err := service.Run(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.Equal(t, DeliveryStatusNotDelivered, run.DeliveryStatus)
+	require.Equal(t, "gateway unavailable", run.DeliveryError)
+}
+
+func TestService_RunSendsFailureNoticeAfterThreshold(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	runnerErr := errors.New("agent failed")
+	sink := &automationDeliverySinkStub{}
+	service, err := NewService(ServiceOptions{
+		Store:        store,
+		Runner:       &automationRunnerStub{errs: []error{runnerErr}},
+		DeliverySink: sink,
+		Now:          clock.Now,
+	})
+	require.NoError(t, err)
+
+	_, err = store.CreateJob(ctx, Job{
+		ID:      testServiceJobA,
+		Enabled: true,
+		Schedule: Schedule{
+			Kind:  ScheduleEvery,
+			Every: time.Hour,
+		},
+		Delivery: Delivery{
+			Mode:            DeliveryGateway,
+			Channel:         "slack",
+			Target:          "primary",
+			FailureTarget:   "ops",
+			FailureAfter:    2,
+			FailureCooldown: time.Hour,
+		},
+		State: JobState{ConsecutiveErrors: 1},
+	})
+	require.NoError(t, err)
+
+	_, err = service.Run(ctx, testServiceJobA)
+	require.ErrorIs(t, err, runnerErr)
+
+	requests := sink.Requests()
+	require.Len(t, requests, 1)
+	require.Equal(t, RunStatusError, requests[0].Status)
+	require.Equal(t, "agent failed", requests[0].Error)
+	require.Equal(t, "ops", requests[0].Target.Target)
+
+	job, ok, err := store.GetJob(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 2, job.State.ConsecutiveErrors)
+	require.Equal(t, clock.Now(), job.State.LastFailureNoticeAt)
+}
+
+func TestService_RunSkipsFailureNoticeDuringCooldown(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	now := time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC)
+	clock := newAutomationTestClock(now)
+	sink := &automationDeliverySinkStub{}
+	runnerErr := errors.New("agent failed")
+	service, err := NewService(ServiceOptions{
+		Store:        store,
+		Runner:       &automationRunnerStub{errs: []error{runnerErr}},
+		DeliverySink: sink,
+		Now:          clock.Now,
+	})
+	require.NoError(t, err)
+
+	_, err = store.CreateJob(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+		Delivery: Delivery{
+			Mode:            DeliveryGateway,
+			Target:          "ops",
+			FailureAfter:    1,
+			FailureCooldown: time.Hour,
+		},
+		State: JobState{LastFailureNoticeAt: now.Add(-30 * time.Minute)},
+	})
+	require.NoError(t, err)
+
+	_, err = service.Run(ctx, testServiceJobA)
+	require.ErrorIs(t, err, runnerErr)
+	require.Empty(t, sink.Requests())
+
+	job, ok, err := store.GetJob(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, now.Add(-30*time.Minute), job.State.LastFailureNoticeAt)
+}
+
+func TestService_RunSetsLocalFailureNoticeCooldown(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	runnerErr := errors.New("agent failed")
+	service := newAutomationTestService(t, store, clock, &automationRunnerStub{errs: []error{runnerErr}})
+
+	_, err := store.CreateJob(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+		Delivery: Delivery{Mode: DeliveryLocal, FailureAfter: 1, FailureCooldown: time.Hour},
+	})
+	require.NoError(t, err)
+
+	_, err = service.Run(ctx, testServiceJobA)
+	require.ErrorIs(t, err, runnerErr)
+
+	job, ok, err := store.GetJob(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, clock.Now(), job.State.LastFailureNoticeAt)
+}
+
+func TestService_RunDeliversOriginFromMetadata(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	sink := &automationDeliverySinkStub{}
+	service, err := NewService(ServiceOptions{
+		Store:        store,
+		Runner:       &automationRunnerStub{results: []RunResult{{Output: "origin body"}}},
+		DeliverySink: sink,
+		Now:          clock.Now,
+	})
+	require.NoError(t, err)
+
+	_, err = service.Add(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+		Payload: Payload{Metadata: map[string]string{
+			metadataOriginChannel: " Slack ",
+			metadataOriginTarget:  " C1 ",
+			metadataOriginThread:  " 123.456 ",
+		}},
+		Delivery: Delivery{Mode: DeliveryOrigin},
+	})
+	require.NoError(t, err)
+
+	run, err := service.Run(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.Equal(t, DeliveryStatusDelivered, run.DeliveryStatus)
+
+	requests := sink.Requests()
+	require.Len(t, requests, 1)
+	require.Equal(t, DeliveryOrigin, requests[0].Target.Mode)
+	require.Equal(t, "slack", requests[0].Target.Channel)
+	require.Equal(t, "C1", requests[0].Target.Target)
+	require.Equal(t, "123.456", requests[0].Target.ThreadID)
+}
+
+func TestService_RunDeliversWebhook(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	var request DeliveryRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	service := newAutomationTestService(
+		t,
+		store,
+		clock,
+		&automationRunnerStub{results: []RunResult{{Output: "webhook body"}}},
+	)
+
+	_, err := service.Add(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+		Delivery: Delivery{Mode: DeliveryWebhook, WebhookURL: server.URL},
+	})
+	require.NoError(t, err)
+
+	run, err := service.Run(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.Equal(t, DeliveryStatusDelivered, run.DeliveryStatus)
+	require.Equal(t, testServiceJobA, request.JobID)
+	require.Equal(t, run.ID, request.RunID)
+	require.Equal(t, "webhook body", request.Output)
+}
+
+func TestService_RunTracksWebhookDeliveryFailure(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "bad hook", http.StatusBadGateway)
+	}))
+	defer server.Close()
+	service := newAutomationTestService(
+		t,
+		store,
+		clock,
+		&automationRunnerStub{results: []RunResult{{Output: "webhook body"}}},
+	)
+
+	_, err := service.Add(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+		Delivery: Delivery{Mode: DeliveryWebhook, WebhookURL: server.URL, BestEffort: true},
+	})
+	require.NoError(t, err)
+
+	run, err := service.Run(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.Equal(t, DeliveryStatusNotDelivered, run.DeliveryStatus)
+	require.Equal(t, "automation webhook delivery failed: 502 Bad Gateway: bad hook", run.DeliveryError)
+}
+
+func TestService_DeliverRunBranches(t *testing.T) {
+	now := time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC)
+	service := &Service{}
+
+	t.Run("skipped run does not request output delivery", func(t *testing.T) {
+		result, err := service.deliverRun(
+			context.Background(),
+			Job{Delivery: Delivery{Mode: DeliveryLocal}},
+			testServiceJobA,
+			RunStatusSkipped,
+			RunResult{},
+			nil,
+			now,
+		)
+		require.NoError(t, err)
+		require.Equal(t, DeliveryStatusNotRequested, result.Status)
+	})
+
+	t.Run("unsupported delivery mode is recorded as not delivered", func(t *testing.T) {
+		result, err := service.deliver(
+			context.Background(),
+			Job{},
+			testServiceJobA,
+			RunStatusOK,
+			RunResult{},
+			nil,
+			Delivery{Mode: DeliveryMode("unknown")},
+			DeliveryTarget{Mode: DeliveryMode("unknown")},
+			now,
+			false,
+		)
+		require.EqualError(t, err, "unsupported automation delivery mode")
+		require.Equal(t, DeliveryStatusNotDelivered, result.Status)
+	})
+
+	t.Run("gateway delivery requires configured sink", func(t *testing.T) {
+		result, err := service.deliver(
+			context.Background(),
+			Job{},
+			testServiceJobA,
+			RunStatusOK,
+			RunResult{},
+			nil,
+			Delivery{Mode: DeliveryGateway},
+			DeliveryTarget{Mode: DeliveryGateway},
+			now,
+			false,
+		)
+		require.EqualError(t, err, "automation delivery sink is required")
+		require.Equal(t, DeliveryStatusNotDelivered, result.Status)
+	})
+
+	t.Run("gateway sink failure is recorded as not delivered", func(t *testing.T) {
+		expected := errors.New("sink failed")
+		service.deliverySink = DeliverySinkFunc(func(context.Context, DeliveryRequest) error {
+			return expected
+		})
+		result, err := service.deliver(
+			context.Background(),
+			Job{},
+			testServiceJobA,
+			RunStatusOK,
+			RunResult{},
+			nil,
+			Delivery{Mode: DeliveryGateway},
+			DeliveryTarget{Mode: DeliveryGateway},
+			now,
+			false,
+		)
+		require.ErrorIs(t, err, expected)
+		require.Equal(t, DeliveryStatusNotDelivered, result.Status)
+	})
 }
 
 func TestService_RunReturnsNotFound(t *testing.T) {
@@ -937,14 +1335,14 @@ func TestService_FinishJobRunBranches(t *testing.T) {
 	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
 	service := newAutomationTestService(t, store, clock, &automationRunnerStub{})
 
-	_, err := service.finishJobRun(ctx, Job{ID: testServiceJobA}, Run{}, nil)
+	_, err := service.finishJobRun(ctx, Job{ID: testServiceJobA}, Run{}, nil, time.Time{})
 	require.EqualError(t, err, "automation job not found")
 
 	getErr := errors.New("get failed")
 	_, err = newAutomationTestService(t, automationStoreStub{
 		Store:  store,
 		getErr: getErr,
-	}, clock, &automationRunnerStub{}).finishJobRun(ctx, Job{ID: testServiceJobA}, Run{}, nil)
+	}, clock, &automationRunnerStub{}).finishJobRun(ctx, Job{ID: testServiceJobA}, Run{}, nil, time.Time{})
 	require.ErrorIs(t, err, getErr)
 
 	_, err = store.CreateJob(ctx, Job{
@@ -960,7 +1358,7 @@ func TestService_FinishJobRunBranches(t *testing.T) {
 		EndedAt:  clock.Now(),
 		Status:   RunStatusOK,
 		Duration: time.Second,
-	}, nil)
+	}, nil, time.Time{})
 	require.NoError(t, err)
 	require.Zero(t, updated.State.RunningAt)
 	require.Equal(t, RunStatusOK, updated.State.LastStatus)

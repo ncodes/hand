@@ -81,23 +81,26 @@ type AutomationPayload struct {
 }
 
 type AutomationDelivery struct {
-	Mode          AutomationDeliveryMode `json:"mode,omitempty"`
-	Channel       string                 `json:"channel,omitempty"`
-	Target        string                 `json:"target,omitempty"`
-	ThreadID      string                 `json:"threadId,omitempty"`
-	WebhookURL    string                 `json:"webhookUrl,omitempty"`
-	BestEffort    bool                   `json:"bestEffort,omitempty"`
-	FailureTarget string                 `json:"failureTarget,omitempty"`
+	Mode            AutomationDeliveryMode `json:"mode,omitempty"`
+	Channel         string                 `json:"channel,omitempty"`
+	Target          string                 `json:"target,omitempty"`
+	ThreadID        string                 `json:"threadId,omitempty"`
+	WebhookURL      string                 `json:"webhookUrl,omitempty"`
+	BestEffort      bool                   `json:"bestEffort,omitempty"`
+	FailureTarget   string                 `json:"failureTarget,omitempty"`
+	FailureAfter    int                    `json:"failureAfter,omitempty"`
+	FailureCooldown time.Duration          `json:"failureCooldown,omitempty"`
 }
 
 type AutomationJobState struct {
-	NextRunAt         time.Time           `json:"nextRunAt,omitempty"`
-	RunningAt         time.Time           `json:"runningAt,omitempty"`
-	LastRunAt         time.Time           `json:"lastRunAt,omitempty"`
-	LastStatus        AutomationRunStatus `json:"lastStatus,omitempty"`
-	LastError         string              `json:"lastError,omitempty"`
-	LastDuration      time.Duration       `json:"lastDuration,omitempty"`
-	ConsecutiveErrors int                 `json:"consecutiveErrors,omitempty"`
+	NextRunAt           time.Time           `json:"nextRunAt,omitempty"`
+	RunningAt           time.Time           `json:"runningAt,omitempty"`
+	LastRunAt           time.Time           `json:"lastRunAt,omitempty"`
+	LastStatus          AutomationRunStatus `json:"lastStatus,omitempty"`
+	LastError           string              `json:"lastError,omitempty"`
+	LastDuration        time.Duration       `json:"lastDuration,omitempty"`
+	ConsecutiveErrors   int                 `json:"consecutiveErrors,omitempty"`
+	LastFailureNoticeAt time.Time           `json:"lastFailureNoticeAt,omitempty"`
 }
 
 type AutomationUsage struct {
