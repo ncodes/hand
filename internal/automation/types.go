@@ -27,10 +27,11 @@ type (
 	JobQuery = state.AutomationJobQuery
 	JobList  = state.AutomationJobResult
 
-	Run      = state.AutomationRun
-	RunPatch = state.AutomationRunPatch
-	RunQuery = state.AutomationRunQuery
-	RunList  = state.AutomationRunResult
+	Run            = state.AutomationRun
+	RunPatch       = state.AutomationRunPatch
+	RunQuery       = state.AutomationRunQuery
+	RunList        = state.AutomationRunResult
+	RunDeleteQuery = state.AutomationRunDeleteQuery
 
 	Store = state.AutomationStore
 )

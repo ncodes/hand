@@ -19,6 +19,8 @@ var (
 	testServiceJobA = nanoid.MustFromSeed(JobIDPrefix, "service-a", "AutomationServiceJobSeed")
 	testServiceJobB = nanoid.MustFromSeed(JobIDPrefix, "service-b", "AutomationServiceJobSeed")
 	testServiceJobC = nanoid.MustFromSeed(JobIDPrefix, "service-c", "AutomationServiceJobSeed")
+	testServiceRunA = nanoid.MustFromSeed(RunIDPrefix, "service-run-a", "AutomationServiceRunSeed")
+	testServiceRunB = nanoid.MustFromSeed(RunIDPrefix, "service-run-b", "AutomationServiceRunSeed")
 )
 
 var testAutomationExecutionSessionID = nanoid.MustFromSeed(
@@ -159,6 +161,7 @@ type automationDeliverySinkStub struct {
 	mu       sync.Mutex
 	requests []DeliveryRequest
 	err      error
+	errs     []error
 }
 
 func (s *automationDeliverySinkStub) DeliverAutomation(_ context.Context, req DeliveryRequest) error {
@@ -166,6 +169,11 @@ func (s *automationDeliverySinkStub) DeliverAutomation(_ context.Context, req De
 	defer s.mu.Unlock()
 
 	s.requests = append(s.requests, req)
+	if len(s.errs) > 0 {
+		err := s.errs[0]
+		s.errs = s.errs[1:]
+		return err
+	}
 	return s.err
 }
 
@@ -293,13 +301,64 @@ func (t *automationTracerStub) EventNames() []string {
 
 type automationStoreStub struct {
 	Store
-	getErr       error
-	listErr      error
-	patchErr     error
-	deleteErr    error
-	createJobErr error
-	createRunErr error
-	finishRunErr error
+	getErr        error
+	listErr       error
+	patchErr      error
+	deleteErr     error
+	deleteRunsErr error
+	createJobErr  error
+	createRunErr  error
+	finishRunErr  error
+}
+
+type automationGetSequenceStore struct {
+	Store
+	mu        sync.Mutex
+	calls     int
+	errAt     int
+	missingAt int
+	err       error
+}
+
+type automationListHookStore struct {
+	Store
+	onList func()
+}
+
+type automationPatchHookStore struct {
+	Store
+	onPatch func()
+}
+
+func (s automationListHookStore) ListJobs(ctx context.Context, query JobQuery) (JobList, error) {
+	list, err := s.Store.ListJobs(ctx, query)
+	if s.onList != nil {
+		s.onList()
+	}
+	return list, err
+}
+
+func (s automationPatchHookStore) PatchJob(ctx context.Context, patch JobPatch) (Job, error) {
+	job, err := s.Store.PatchJob(ctx, patch)
+	if s.onPatch != nil {
+		s.onPatch()
+	}
+	return job, err
+}
+
+func (s *automationGetSequenceStore) GetJob(ctx context.Context, id string) (Job, bool, error) {
+	s.mu.Lock()
+	s.calls++
+	call := s.calls
+	s.mu.Unlock()
+
+	if s.errAt > 0 && call == s.errAt {
+		return Job{}, false, s.err
+	}
+	if s.missingAt > 0 && call == s.missingAt {
+		return Job{}, false, nil
+	}
+	return s.Store.GetJob(ctx, id)
 }
 
 func (s automationStoreStub) GetJob(ctx context.Context, id string) (Job, bool, error) {
@@ -342,6 +401,14 @@ func (s automationStoreStub) DeleteJob(ctx context.Context, id string) error {
 	return s.Store.DeleteJob(ctx, id)
 }
 
+func (s automationStoreStub) DeleteRuns(ctx context.Context, query RunDeleteQuery) (int, error) {
+	if s.deleteRunsErr != nil {
+		return 0, s.deleteRunsErr
+	}
+
+	return s.Store.DeleteRuns(ctx, query)
+}
+
 func (s automationStoreStub) CreateRun(ctx context.Context, run Run) (Run, error) {
 	if s.createRunErr != nil {
 		return Run{}, s.createRunErr
@@ -378,6 +445,15 @@ func automationTestJobIDs(jobs []Job) []string {
 	ids := make([]string, 0, len(jobs))
 	for _, job := range jobs {
 		ids = append(ids, job.ID)
+	}
+
+	return ids
+}
+
+func automationTestRunIDs(runs []Run) []string {
+	ids := make([]string, 0, len(runs))
+	for _, run := range runs {
+		ids = append(ids, run.ID)
 	}
 
 	return ids

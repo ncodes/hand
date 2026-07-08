@@ -165,6 +165,21 @@ func TestAgentRunner_Validation(t *testing.T) {
 			job:  Job{Payload: Payload{Prompt: "hello", MaxRuntime: -time.Second}},
 			err:  "automation max runtime must be non-negative",
 		},
+		{
+			name: "negative retry attempts",
+			job:  Job{Payload: Payload{Prompt: "hello", RetryAttempts: -1}},
+			err:  "automation retry attempts must be non-negative",
+		},
+		{
+			name: "negative retry backoff",
+			job:  Job{Payload: Payload{Prompt: "hello", RetryBackoff: -time.Second}},
+			err:  "automation retry backoff must be non-negative",
+		},
+		{
+			name: "negative retry max delay",
+			job:  Job{Payload: Payload{Prompt: "hello", RetryMaxDelay: -time.Second}},
+			err:  "automation retry max delay must be non-negative",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := runner.RunAutomation(context.Background(), test.job)
@@ -375,14 +390,39 @@ func TestAgentRunner_TimeoutCancelsRespond(t *testing.T) {
 	require.True(t, agent.closed)
 }
 
+func TestAgentRunner_NoTimeoutSkipsDefaultTimeout(t *testing.T) {
+	agent := &automationRuntimeAgentStub{output: "trusted"}
+	runner := newExecutionTestRunner(t, AgentRunnerOptions{
+		DefaultMaxRuntime: time.Nanosecond,
+		AgentFactory: func(context.Context, *config.Config, models.Client, models.Client) RuntimeAgent {
+			return agent
+		},
+	})
+
+	result, err := runner.RunAutomation(context.Background(), Job{
+		Payload: Payload{
+			Prompt:    "hello",
+			NoTimeout: true,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "trusted", result.Output)
+}
+
 func TestPreparePayloadNormalizesToolGroups(t *testing.T) {
 	payload, err := preparePayload(Payload{
-		Prompt:     " hello ",
-		ToolGroups: []string{" Shell ", "shell", "", "memory"},
+		Prompt:        " hello ",
+		RetryAttempts: 2,
+		RetryBackoff:  time.Second,
+		RetryMaxDelay: 5 * time.Second,
+		ToolGroups:    []string{" Shell ", "shell", "", "memory"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, PayloadPrompt, payload.Kind)
 	require.Equal(t, "hello", payload.Prompt)
+	require.Equal(t, 2, payload.RetryAttempts)
+	require.Equal(t, time.Second, payload.RetryBackoff)
+	require.Equal(t, 5*time.Second, payload.RetryMaxDelay)
 	require.Equal(t, []string{"shell", "memory"}, payload.ToolGroups)
 }
 

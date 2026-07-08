@@ -172,10 +172,7 @@ func deliverWebhook(ctx context.Context, client HTTPClient, url string, req Deli
 		return errors.New("automation webhook URL is required")
 	}
 
-	body, err := json.Marshal(req)
-	if err != nil {
-		return err
-	}
+	body, _ := json.Marshal(req)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, trimmedURL, bytes.NewReader(body))
 	if err != nil {
 		return err

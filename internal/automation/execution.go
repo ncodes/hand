@@ -213,6 +213,15 @@ func preparePayload(payload Payload) (Payload, error) {
 	if payload.MaxRuntime < 0 {
 		return Payload{}, errors.New("automation max runtime must be non-negative")
 	}
+	if payload.RetryAttempts < 0 {
+		return Payload{}, errors.New("automation retry attempts must be non-negative")
+	}
+	if payload.RetryBackoff < 0 {
+		return Payload{}, errors.New("automation retry backoff must be non-negative")
+	}
+	if payload.RetryMaxDelay < 0 {
+		return Payload{}, errors.New("automation retry max delay must be non-negative")
+	}
 
 	return payload, nil
 }
@@ -267,6 +276,9 @@ func (r *AgentRunner) contextWithPayloadTimeout(
 	payload Payload,
 ) (context.Context, context.CancelFunc) {
 	timeout := payload.MaxRuntime
+	if payload.NoTimeout {
+		return ctx, func() {}
+	}
 	if timeout <= 0 {
 		timeout = r.defaultTimeout
 	}

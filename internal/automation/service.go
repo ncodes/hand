@@ -10,8 +10,21 @@ import (
 )
 
 const (
-	defaultMaxTimerSleep     = time.Minute
-	defaultStaleRunningAfter = 10 * time.Minute
+	defaultMaxTimerSleep            = time.Minute
+	defaultStaleRunningAfter        = 10 * time.Minute
+	defaultAutomationRunTimeout     = 30 * time.Minute
+	defaultAutomationRetryAttempts  = 1
+	defaultAutomationRetryBackoff   = 30 * time.Second
+	defaultAutomationRetryMaxDelay  = 5 * time.Minute
+	defaultAutomationOneShotGrace   = 5 * time.Minute
+	defaultAutomationCatchUpStagger = 5 * time.Second
+	defaultRunHistoryRetention      = 30 * 24 * time.Hour
+	defaultRunHistoryCleanupLimit   = 500
+)
+
+var (
+	errAutomationJobAlreadyRunning = errors.New("automation job is already running")
+	errAutomationCapacityReached   = errors.New("automation max concurrent runs reached")
 )
 
 type Runner interface {
@@ -50,6 +63,16 @@ type ServiceOptions struct {
 	MaxTimerSleep              time.Duration
 	StaleRunningAfter          time.Duration
 	DisableAfterScheduleErrors int
+	DefaultRunTimeout          time.Duration
+	DefaultRetryAttempts       int
+	DefaultRetryBackoff        time.Duration
+	DefaultRetryMaxDelay       time.Duration
+	OneShotGrace               time.Duration
+	CatchUpStagger             time.Duration
+	MaxConcurrentRuns          int
+	DisableRunHistoryCleanup   bool
+	RunHistoryRetention        time.Duration
+	RunHistoryCleanupLimit     int
 }
 
 type Status struct {
@@ -58,6 +81,13 @@ type Status struct {
 	JobCount     int
 	RunningCount int
 	NextWakeAt   time.Time
+}
+
+type MaintenanceResult struct {
+	OldRunsDeleted         int
+	RunningMarkersRepaired int
+	SchedulesRepaired      int
+	InvalidJobsUpdated     int
 }
 
 type Service struct {
@@ -73,6 +103,15 @@ type Service struct {
 	maxTimerSleep              time.Duration
 	staleRunningAfter          time.Duration
 	disableAfterScheduleErrors int
+	defaultRunTimeout          time.Duration
+	defaultRetryAttempts       int
+	defaultRetryBackoff        time.Duration
+	defaultRetryMaxDelay       time.Duration
+	oneShotGrace               time.Duration
+	catchUpStagger             time.Duration
+	maxConcurrentRuns          int
+	runHistoryRetention        time.Duration
+	runHistoryCleanupLimit     int
 
 	mu        sync.Mutex
 	started   bool
@@ -105,6 +144,40 @@ func NewService(opts ServiceOptions) (*Service, error) {
 	if staleRunningAfter <= 0 {
 		staleRunningAfter = defaultStaleRunningAfter
 	}
+	defaultRunTimeout := opts.DefaultRunTimeout
+	if defaultRunTimeout <= 0 {
+		defaultRunTimeout = defaultAutomationRunTimeout
+	}
+	defaultRetryAttempts := opts.DefaultRetryAttempts
+	if defaultRetryAttempts <= 0 {
+		defaultRetryAttempts = defaultAutomationRetryAttempts
+	}
+	defaultRetryBackoff := opts.DefaultRetryBackoff
+	if defaultRetryBackoff <= 0 {
+		defaultRetryBackoff = defaultAutomationRetryBackoff
+	}
+	defaultRetryMaxDelay := opts.DefaultRetryMaxDelay
+	if defaultRetryMaxDelay <= 0 {
+		defaultRetryMaxDelay = defaultAutomationRetryMaxDelay
+	}
+	oneShotGrace := opts.OneShotGrace
+	if oneShotGrace <= 0 {
+		oneShotGrace = defaultAutomationOneShotGrace
+	}
+	catchUpStagger := opts.CatchUpStagger
+	if catchUpStagger <= 0 {
+		catchUpStagger = defaultAutomationCatchUpStagger
+	}
+	runHistoryRetention := opts.RunHistoryRetention
+	if opts.DisableRunHistoryCleanup {
+		runHistoryRetention = 0
+	} else if runHistoryRetention <= 0 {
+		runHistoryRetention = defaultRunHistoryRetention
+	}
+	runHistoryCleanupLimit := opts.RunHistoryCleanupLimit
+	if !opts.DisableRunHistoryCleanup && runHistoryCleanupLimit <= 0 {
+		runHistoryCleanupLimit = defaultRunHistoryCleanupLimit
+	}
 	defaultTz := str.String(opts.DefaultTimezone)
 	return &Service{
 		store:                      opts.Store,
@@ -119,6 +192,15 @@ func NewService(opts ServiceOptions) (*Service, error) {
 		maxTimerSleep:              maxTimerSleep,
 		staleRunningAfter:          staleRunningAfter,
 		disableAfterScheduleErrors: opts.DisableAfterScheduleErrors,
+		defaultRunTimeout:          defaultRunTimeout,
+		defaultRetryAttempts:       defaultRetryAttempts,
+		defaultRetryBackoff:        defaultRetryBackoff,
+		defaultRetryMaxDelay:       defaultRetryMaxDelay,
+		oneShotGrace:               oneShotGrace,
+		catchUpStagger:             catchUpStagger,
+		maxConcurrentRuns:          opts.MaxConcurrentRuns,
+		runHistoryRetention:        runHistoryRetention,
+		runHistoryCleanupLimit:     runHistoryCleanupLimit,
 		wake:                       make(chan struct{}, 1),
 		running:                    make(map[string]struct{}),
 	}, nil
@@ -228,6 +310,52 @@ func (s *Service) List(ctx context.Context, query JobQuery) (JobList, error) {
 	return s.store.ListJobs(ctx, query)
 }
 
+func (s *Service) RunMaintenance(ctx context.Context) (MaintenanceResult, error) {
+	if s == nil {
+		return MaintenanceResult{}, errors.New("automation service is required")
+	}
+	now := s.getNow()
+	result := MaintenanceResult{}
+	list, err := s.store.ListJobs(ctx, JobQuery{IncludeDisabled: true})
+	if err != nil {
+		return MaintenanceResult{}, err
+	}
+	for _, job := range list.Jobs {
+		updated, changed, err := s.repairJobState(ctx, job, now)
+		if err != nil {
+			s.record(ctx, "error", "automation maintenance repair failed", automationEventFailed, map[string]any{
+				"job_id": job.ID,
+				"error":  err.Error(),
+			})
+			continue
+		}
+		if !changed {
+			continue
+		}
+		if !job.State.RunningAt.IsZero() && updated.State.RunningAt.IsZero() {
+			result.RunningMarkersRepaired++
+		}
+		if job.Enabled && job.State.NextRunAt.IsZero() && !updated.State.NextRunAt.IsZero() {
+			result.SchedulesRepaired++
+		}
+		if !updated.Enabled && job.Enabled {
+			result.InvalidJobsUpdated++
+		}
+	}
+	if s.runHistoryRetention > 0 {
+		deleted, err := s.store.DeleteRuns(ctx, RunDeleteQuery{
+			StartedBefore: now.Add(-s.runHistoryRetention),
+			Limit:         s.runHistoryCleanupLimit,
+		})
+		if err != nil {
+			return MaintenanceResult{}, err
+		}
+		result.OldRunsDeleted = deleted
+	}
+
+	return result, nil
+}
+
 func (s *Service) Add(ctx context.Context, job Job) (Job, error) {
 	if s == nil {
 		return Job{}, errors.New("automation service is required")
@@ -293,6 +421,9 @@ func (s *Service) Run(ctx context.Context, id string) (Run, error) {
 	if s == nil {
 		return Run{}, errors.New("automation service is required")
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	job, ok, err := s.store.GetJob(ctx, id)
 	if err != nil {
@@ -302,10 +433,29 @@ func (s *Service) Run(ctx context.Context, id string) (Run, error) {
 		return Run{}, errors.New("automation job not found")
 	}
 	if err := s.markJobRunning(ctx, job, s.getNow()); err != nil {
-		return Run{}, err
+		if errors.Is(err, errAutomationJobAlreadyRunning) || errors.Is(err, errAutomationCapacityReached) {
+			if err := s.waitRunSlot(ctx, job.ID); err != nil {
+				return Run{}, err
+			}
+			if err := s.markJobRunning(ctx, job, s.getNow()); err != nil {
+				return Run{}, err
+			}
+		} else {
+			return Run{}, err
+		}
 	}
 
-	return s.executeJob(ctx, job)
+	loaded, ok, err := s.store.GetJob(ctx, id)
+	if err != nil {
+		return Run{}, err
+	}
+	if !ok {
+		_ = s.clearJobRunning(ctx, job, errors.New("automation job not found"))
+		s.clearRunningLocal(job.ID)
+		return Run{}, errors.New("automation job not found")
+	}
+
+	return s.executeJob(ctx, loaded)
 }
 
 func (s *Service) runLoop(ctx context.Context, done chan struct{}) {
@@ -340,6 +490,9 @@ func (s *Service) executeDueJobs(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
+		if !s.hasRunCapacity() {
+			return
+		}
 		if job.State.RunningAt.IsZero() && job.State.NextRunAt.IsZero() {
 			repaired, err := s.repairJobSchedule(ctx, job, now, false, false)
 			if err != nil {
@@ -356,6 +509,9 @@ func (s *Service) executeDueJobs(ctx context.Context) {
 					"job_id": job.ID,
 					"error":  err.Error(),
 				})
+				if errors.Is(err, errAutomationCapacityReached) {
+					return
+				}
 				continue
 			}
 			go func(job Job) {
@@ -389,7 +545,7 @@ func (s *Service) executeJob(ctx context.Context, job Job) (Run, error) {
 		},
 	)
 
-	result, runErr := s.runner.RunAutomation(ctx, job.Clone())
+	result, runErr := s.runAutomationWithRetry(ctx, job)
 	finished := s.getNow()
 
 	status := result.Status
@@ -400,7 +556,7 @@ func (s *Service) executeJob(ctx context.Context, job Job) (Run, error) {
 		status = RunStatusError
 	}
 
-	deliveryResult, deliveryErr := s.deliverRun(
+	deliveryResult, deliveryErr := s.deliverRunWithRetry(
 		ctx,
 		job,
 		run.ID,
@@ -502,6 +658,64 @@ func (s *Service) executeJob(ctx context.Context, job Job) (Run, error) {
 	return finishedRun, nil
 }
 
+func (s *Service) deliverRunWithRetry(
+	ctx context.Context,
+	job Job,
+	runID string,
+	status RunStatus,
+	result RunResult,
+	runErr error,
+	now time.Time,
+) (DeliveryResult, error) {
+	attempts := s.getRetryAttempts(job)
+	var deliveryResult DeliveryResult
+	var deliveryErr error
+	for attempt := 1; ; attempt++ {
+		deliveryResult, deliveryErr = s.deliverRun(ctx, job, runID, status, result, runErr, now)
+		if deliveryErr == nil || attempt == attempts || ctx.Err() != nil {
+			return deliveryResult, deliveryErr
+		}
+		if sleepErr := s.sleep(ctx, s.getRetryDelay(job, attempt)); sleepErr != nil {
+			return deliveryResult, sleepErr
+		}
+	}
+}
+
+func (s *Service) runAutomationWithRetry(ctx context.Context, job Job) (RunResult, error) {
+	attempts := s.getRetryAttempts(job)
+	var result RunResult
+	var err error
+	for attempt := 1; ; attempt++ {
+		runCtx, cancel := s.contextWithRunTimeout(ctx, job)
+		result, err = s.runner.RunAutomation(runCtx, job.Clone())
+		cancel()
+		if err == nil || attempt == attempts || ctx.Err() != nil {
+			return result, err
+		}
+		if sleepErr := s.sleep(ctx, s.getRetryDelay(job, attempt)); sleepErr != nil {
+			return result, sleepErr
+		}
+	}
+}
+
+func (s *Service) contextWithRunTimeout(ctx context.Context, job Job) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if job.Payload.NoTimeout {
+		return ctx, func() {}
+	}
+	timeout := job.Payload.MaxRuntime
+	if timeout <= 0 {
+		timeout = s.defaultRunTimeout
+	}
+	if timeout <= 0 {
+		return ctx, func() {}
+	}
+
+	return context.WithTimeout(ctx, timeout)
+}
+
 func (s *Service) recoverStartup(ctx context.Context) error {
 	now := s.getNow()
 	list, err := s.store.ListJobs(ctx, JobQuery{IncludeDisabled: true})
@@ -509,6 +723,7 @@ func (s *Service) recoverStartup(ctx context.Context) error {
 		return err
 	}
 
+	catchUpOffset := time.Duration(0)
 	for _, job := range list.Jobs {
 		if !job.State.RunningAt.IsZero() && now.Sub(job.State.RunningAt) >= s.staleRunningAfter {
 			job.State.RunningAt = time.Time{}
@@ -521,13 +736,33 @@ func (s *Service) recoverStartup(ctx context.Context) error {
 		if !job.Enabled {
 			continue
 		}
-		_, err := s.repairJobSchedule(ctx, job, now, true, false)
+		repaired, err := s.repairStartupJobSchedule(ctx, job, now, catchUpOffset)
 		if err != nil {
 			s.handleScheduleError(ctx, job, err, now)
+			continue
+		}
+		if checkRecentOneShotCatchUp(job, now, s.oneShotGrace) {
+			job = repaired
+			catchUpOffset += s.catchUpStagger
 		}
 	}
 
+	if _, err := s.RunMaintenance(ctx); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (s *Service) repairStartupJobSchedule(ctx context.Context, job Job, now time.Time, catchUpOffset time.Duration) (Job, error) {
+	if checkRecentOneShotCatchUp(job, now, s.oneShotGrace) {
+		state := job.State
+		state.RunningAt = time.Time{}
+		state.NextRunAt = now.Add(catchUpOffset).UTC()
+		return s.patchJobState(ctx, job.ID, state)
+	}
+
+	return s.repairJobSchedule(ctx, job, now, true, false)
 }
 
 func (s *Service) deliverRun(
@@ -694,7 +929,10 @@ func (s *Service) markJobRunning(ctx context.Context, job Job, now time.Time) er
 	defer s.mu.Unlock()
 
 	if _, ok := s.running[job.ID]; ok {
-		return errors.New("automation job is already running")
+		return errAutomationJobAlreadyRunning
+	}
+	if s.maxConcurrentRuns > 0 && len(s.running) >= s.maxConcurrentRuns {
+		return errAutomationCapacityReached
 	}
 	loaded, ok, err := s.store.GetJob(ctx, job.ID)
 	if err != nil {
@@ -704,7 +942,7 @@ func (s *Service) markJobRunning(ctx context.Context, job Job, now time.Time) er
 		return errors.New("automation job not found")
 	}
 	if !loaded.State.RunningAt.IsZero() {
-		return errors.New("automation job is already running")
+		return errAutomationJobAlreadyRunning
 	}
 	loaded.State.RunningAt = now.UTC()
 	if _, err := s.patchJobState(ctx, loaded.ID, loaded.State); err != nil {
@@ -744,6 +982,12 @@ func (s *Service) finishJobRun(
 	}
 	if !failureNoticeSentAt.IsZero() {
 		state.LastFailureNoticeAt = failureNoticeSentAt.UTC()
+	}
+	if runErr != nil {
+		failedJob := loaded
+		failedJob.State = state
+		state.NextRunAt = run.EndedAt.Add(s.getFailureBackoff(failedJob)).UTC()
+		return s.patchJobState(ctx, loaded.ID, state)
 	}
 	result, err := NextRun(loaded.Schedule, NextRunOptions{
 		Now:             run.EndedAt,
@@ -812,6 +1056,13 @@ func (s *Service) nextSleep(ctx context.Context) time.Duration {
 	now := s.getNow()
 	sleep := s.maxTimerSleep
 	nextWake := now.Add(sleep)
+	if !s.hasRunCapacity() {
+		s.mu.Lock()
+		s.nextWake = nextWake.UTC()
+		s.mu.Unlock()
+
+		return sleep
+	}
 
 	list, err := s.store.ListJobs(ctx, JobQuery{})
 	if err == nil {
@@ -857,10 +1108,149 @@ func (s *Service) notifyWake() {
 	}
 }
 
+func (s *Service) waitRunSlot(ctx context.Context, jobID string) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if s.checkJobRunSlotAvailable(ctx, jobID) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Service) checkJobRunSlotAvailable(ctx context.Context, jobID string) bool {
+	s.mu.Lock()
+	localRunning := false
+	if _, ok := s.running[jobID]; ok {
+		localRunning = true
+	}
+	hasCapacity := s.maxConcurrentRuns <= 0 || len(s.running) < s.maxConcurrentRuns
+	s.mu.Unlock()
+	if localRunning || !hasCapacity {
+		return false
+	}
+
+	job, ok, err := s.store.GetJob(ctx, jobID)
+	return err == nil && ok && job.State.RunningAt.IsZero()
+}
+
+func (s *Service) hasRunCapacity() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.maxConcurrentRuns <= 0 || len(s.running) < s.maxConcurrentRuns
+}
+
 func (s *Service) clearRunningLocal(jobID string) {
 	s.mu.Lock()
 	delete(s.running, jobID)
 	s.mu.Unlock()
+}
+
+func (s *Service) getRetryAttempts(job Job) int {
+	if job.Payload.RetryAttempts > 0 {
+		return job.Payload.RetryAttempts
+	}
+	if s.defaultRetryAttempts > 0 {
+		return s.defaultRetryAttempts
+	}
+	return 1
+}
+
+func (s *Service) getRetryDelay(job Job, attempt int) time.Duration {
+	backoff := job.Payload.RetryBackoff
+	if backoff <= 0 {
+		backoff = s.defaultRetryBackoff
+	}
+	if backoff <= 0 {
+		return 0
+	}
+	delay := backoff
+	for i := 1; i < attempt; i++ {
+		delay *= 2
+	}
+	maxDelay := job.Payload.RetryMaxDelay
+	if maxDelay <= 0 {
+		maxDelay = s.defaultRetryMaxDelay
+	}
+	if maxDelay > 0 && delay > maxDelay {
+		return maxDelay
+	}
+	return delay
+}
+
+func (s *Service) getFailureBackoff(job Job) time.Duration {
+	errorsCount := job.State.ConsecutiveErrors
+	if errorsCount <= 0 {
+		errorsCount = 1
+	}
+	return s.getRetryDelay(job, errorsCount)
+}
+
+func (s *Service) sleep(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer stopTimer(timer)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func (s *Service) repairJobState(ctx context.Context, job Job, now time.Time) (Job, bool, error) {
+	updated := job.Clone()
+	changed := false
+	if !updated.State.RunningAt.IsZero() && now.Sub(updated.State.RunningAt) >= s.staleRunningAfter {
+		updated.State.RunningAt = time.Time{}
+		changed = true
+	}
+	if updated.Enabled && updated.State.NextRunAt.IsZero() {
+		prepared, err := s.prepareJobSchedule(updated, now)
+		if err != nil {
+			failed := ApplyScheduleError(updated, err, ScheduleErrorOptions{
+				Now:          now,
+				DisableAfter: s.disableAfterScheduleErrors,
+			})
+			patched, patchErr := s.store.PatchJob(ctx, JobPatch{
+				ID:      updated.ID,
+				Enabled: &failed.Enabled,
+				State:   &failed.State,
+			})
+			return patched, true, patchErr
+		}
+		if prepared.State == updated.State {
+			return updated, changed, nil
+		}
+		updated.State = prepared.State
+		changed = true
+	}
+	if !changed {
+		return updated, false, nil
+	}
+	patched, err := s.patchJobState(ctx, updated.ID, updated.State)
+	return patched, true, err
+}
+
+func checkRecentOneShotCatchUp(job Job, now time.Time, grace time.Duration) bool {
+	if !job.Enabled || job.Schedule.Kind != ScheduleAt || job.State.NextRunAt.IsZero() || job.State.NextRunAt.After(now) {
+		return false
+	}
+	if grace <= 0 {
+		return false
+	}
+	return !job.State.NextRunAt.Add(grace).Before(now)
 }
 
 func checkJobPatchNeedsScheduleRepair(patch JobPatch) bool {

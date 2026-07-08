@@ -12,53 +12,79 @@ import (
 )
 
 const (
+	// AutomationJobIDPrefix prefixes persisted automation job identifiers.
 	AutomationJobIDPrefix = "auto_"
+	// AutomationRunIDPrefix prefixes persisted automation run identifiers.
 	AutomationRunIDPrefix = "autorun_"
 )
 
+// AutomationScheduleKind identifies how an automation job is scheduled.
 type AutomationScheduleKind string
 
 const (
-	AutomationScheduleAt    AutomationScheduleKind = "at"
+	// AutomationScheduleAt runs a job once at an absolute time.
+	AutomationScheduleAt AutomationScheduleKind = "at"
+	// AutomationScheduleEvery runs a job repeatedly at a fixed interval.
 	AutomationScheduleEvery AutomationScheduleKind = "every"
-	AutomationScheduleCron  AutomationScheduleKind = "cron"
+	// AutomationScheduleCron runs a job from a cron expression.
+	AutomationScheduleCron AutomationScheduleKind = "cron"
 )
 
+// AutomationPayloadKind identifies the kind of work an automation run performs.
 type AutomationPayloadKind string
 
 const (
-	AutomationPayloadPrompt      AutomationPayloadKind = "prompt"
+	// AutomationPayloadPrompt runs an agent turn from a stored prompt.
+	AutomationPayloadPrompt AutomationPayloadKind = "prompt"
+	// AutomationPayloadSystemEvent records a system event for future wake/reminder flows.
 	AutomationPayloadSystemEvent AutomationPayloadKind = "system_event"
 )
 
+// AutomationDeliveryMode identifies where automation output should be delivered.
 type AutomationDeliveryMode string
 
 const (
-	AutomationDeliveryNone    AutomationDeliveryMode = "none"
-	AutomationDeliveryLocal   AutomationDeliveryMode = "local"
-	AutomationDeliveryOrigin  AutomationDeliveryMode = "origin"
+	// AutomationDeliveryNone disables external delivery.
+	AutomationDeliveryNone AutomationDeliveryMode = "none"
+	// AutomationDeliveryLocal keeps delivery local to persisted run history.
+	AutomationDeliveryLocal AutomationDeliveryMode = "local"
+	// AutomationDeliveryOrigin delivers to the surface that created the job.
+	AutomationDeliveryOrigin AutomationDeliveryMode = "origin"
+	// AutomationDeliveryGateway delivers through a configured Morph gateway target.
 	AutomationDeliveryGateway AutomationDeliveryMode = "gateway"
+	// AutomationDeliveryWebhook delivers by POSTing to a configured webhook URL.
 	AutomationDeliveryWebhook AutomationDeliveryMode = "webhook"
 )
 
+// AutomationRunStatus is the lifecycle status of one automation run.
 type AutomationRunStatus string
 
 const (
+	// AutomationRunStatusRunning marks a run that has started and not finished.
 	AutomationRunStatusRunning AutomationRunStatus = "running"
-	AutomationRunStatusOK      AutomationRunStatus = "ok"
-	AutomationRunStatusError   AutomationRunStatus = "error"
+	// AutomationRunStatusOK marks a successful run.
+	AutomationRunStatusOK AutomationRunStatus = "ok"
+	// AutomationRunStatusError marks a run that failed during execution.
+	AutomationRunStatusError AutomationRunStatus = "error"
+	// AutomationRunStatusSkipped marks a run or scheduled occurrence that was skipped.
 	AutomationRunStatusSkipped AutomationRunStatus = "skipped"
 )
 
+// AutomationDeliveryStatus is the recorded outcome of delivering run output.
 type AutomationDeliveryStatus string
 
 const (
-	AutomationDeliveryStatusDelivered    AutomationDeliveryStatus = "delivered"
+	// AutomationDeliveryStatusDelivered means output reached the configured destination.
+	AutomationDeliveryStatusDelivered AutomationDeliveryStatus = "delivered"
+	// AutomationDeliveryStatusNotDelivered means delivery was requested and failed.
 	AutomationDeliveryStatusNotDelivered AutomationDeliveryStatus = "not_delivered"
+	// AutomationDeliveryStatusNotRequested means no delivery attempt was needed.
 	AutomationDeliveryStatusNotRequested AutomationDeliveryStatus = "not_requested"
-	AutomationDeliveryStatusUnknown      AutomationDeliveryStatus = "unknown"
+	// AutomationDeliveryStatusUnknown preserves compatibility for unknown delivery outcomes.
+	AutomationDeliveryStatusUnknown AutomationDeliveryStatus = "unknown"
 )
 
+// AutomationSchedule stores the timing rule for an automation job.
 type AutomationSchedule struct {
 	Kind     AutomationScheduleKind `json:"kind,omitempty"`
 	At       time.Time              `json:"at,omitempty"`
@@ -67,6 +93,7 @@ type AutomationSchedule struct {
 	Timezone string                 `json:"timezone,omitempty"`
 }
 
+// AutomationPayload stores the work request and execution policy for an automation job.
 type AutomationPayload struct {
 	Kind          AutomationPayloadKind `json:"kind,omitempty"`
 	Prompt        string                `json:"prompt,omitempty"`
@@ -74,12 +101,17 @@ type AutomationPayload struct {
 	Model         string                `json:"model,omitempty"`
 	Provider      string                `json:"provider,omitempty"`
 	BaseURL       string                `json:"baseUrl,omitempty"`
+	NoTimeout     bool                  `json:"noTimeout,omitempty"`
 	MaxRuntime    time.Duration         `json:"maxRuntime,omitempty"`
 	MaxIterations int                   `json:"maxIterations,omitempty"`
+	RetryAttempts int                   `json:"retryAttempts,omitempty"`
+	RetryBackoff  time.Duration         `json:"retryBackoff,omitempty"`
+	RetryMaxDelay time.Duration         `json:"retryMaxDelay,omitempty"`
 	ToolGroups    []string              `json:"toolGroups,omitempty"`
 	Metadata      map[string]string     `json:"metadata,omitempty"`
 }
 
+// AutomationDelivery stores the delivery target and failure notification policy for a job.
 type AutomationDelivery struct {
 	Mode            AutomationDeliveryMode `json:"mode,omitempty"`
 	Channel         string                 `json:"channel,omitempty"`
@@ -92,6 +124,7 @@ type AutomationDelivery struct {
 	FailureCooldown time.Duration          `json:"failureCooldown,omitempty"`
 }
 
+// AutomationJobState stores mutable scheduler state derived from job execution.
 type AutomationJobState struct {
 	NextRunAt           time.Time           `json:"nextRunAt,omitempty"`
 	RunningAt           time.Time           `json:"runningAt,omitempty"`
@@ -103,6 +136,7 @@ type AutomationJobState struct {
 	LastFailureNoticeAt time.Time           `json:"lastFailureNoticeAt,omitempty"`
 }
 
+// AutomationUsage stores model token usage reported by an automation run.
 type AutomationUsage struct {
 	InputTokens      int `json:"inputTokens,omitempty"`
 	OutputTokens     int `json:"outputTokens,omitempty"`
@@ -111,6 +145,7 @@ type AutomationUsage struct {
 	CacheWriteTokens int `json:"cacheWriteTokens,omitempty"`
 }
 
+// AutomationJob is a persisted scheduled automation definition.
 type AutomationJob struct {
 	ID             string
 	Name           string
@@ -127,6 +162,7 @@ type AutomationJob struct {
 	State          AutomationJobState
 }
 
+// AutomationJobPatch updates selected automation job fields.
 type AutomationJobPatch struct {
 	ID             string
 	Name           *string
@@ -141,6 +177,7 @@ type AutomationJobPatch struct {
 	State          *AutomationJobState
 }
 
+// AutomationJobQuery filters automation job listings.
 type AutomationJobQuery struct {
 	IDs             []string
 	Enabled         *bool
@@ -150,10 +187,12 @@ type AutomationJobQuery struct {
 	IncludeDisabled bool
 }
 
+// AutomationJobResult contains matching automation jobs.
 type AutomationJobResult struct {
 	Jobs []AutomationJob
 }
 
+// AutomationRun is a persisted execution record for one automation job run.
 type AutomationRun struct {
 	ID             string
 	JobID          string
@@ -171,6 +210,7 @@ type AutomationRun struct {
 	Usage          AutomationUsage
 }
 
+// AutomationRunPatch finalizes or updates selected automation run fields.
 type AutomationRunPatch struct {
 	ID             string
 	Status         AutomationRunStatus
@@ -185,6 +225,7 @@ type AutomationRunPatch struct {
 	Usage          *AutomationUsage
 }
 
+// AutomationRunQuery filters automation run listings.
 type AutomationRunQuery struct {
 	JobID  string
 	IDs    []string
@@ -192,10 +233,21 @@ type AutomationRunQuery struct {
 	Limit  int
 }
 
+// AutomationRunResult contains matching automation runs.
 type AutomationRunResult struct {
 	Runs []AutomationRun
 }
 
+// AutomationRunDeleteQuery selects automation runs for maintenance deletion.
+type AutomationRunDeleteQuery struct {
+	JobID         string
+	IDs           []string
+	StartedBefore time.Time
+	Status        []AutomationRunStatus
+	Limit         int
+}
+
+// AutomationStore persists automation jobs and run history.
 type AutomationStore interface {
 	CreateJob(context.Context, AutomationJob) (AutomationJob, error)
 	GetJob(context.Context, string) (AutomationJob, bool, error)
@@ -205,8 +257,10 @@ type AutomationStore interface {
 	CreateRun(context.Context, AutomationRun) (AutomationRun, error)
 	FinishRun(context.Context, AutomationRunPatch) (AutomationRun, error)
 	ListRuns(context.Context, AutomationRunQuery) (AutomationRunResult, error)
+	DeleteRuns(context.Context, AutomationRunDeleteQuery) (int, error)
 }
 
+// ValidateAutomationJobID verifies that id is a valid automation job identifier.
 func ValidateAutomationJobID(id string) error {
 	jobID := str.String(id)
 	trimmedID := jobID.Trim()
@@ -219,6 +273,7 @@ func ValidateAutomationJobID(id string) error {
 	return nil
 }
 
+// ValidateAutomationRunID verifies that id is a valid automation run identifier.
 func ValidateAutomationRunID(id string) error {
 	runID := str.String(id)
 	trimmedID := runID.Trim()
@@ -231,11 +286,44 @@ func ValidateAutomationRunID(id string) error {
 	return nil
 }
 
+// HasAutomationRunDeleteFilter reports whether query narrows a run deletion.
+func HasAutomationRunDeleteFilter(query AutomationRunDeleteQuery) bool {
+	jobID := str.String(query.JobID)
+	return jobID.Trim() != "" ||
+		len(query.IDs) > 0 ||
+		!query.StartedBefore.IsZero() ||
+		len(query.Status) > 0
+}
+
+// AutomationRunStatusSet returns a membership set for non-empty run statuses.
+func AutomationRunStatusSet(statuses []AutomationRunStatus) map[AutomationRunStatus]struct{} {
+	values := make(map[AutomationRunStatus]struct{}, len(statuses))
+	for _, status := range statuses {
+		if status != "" {
+			values[status] = struct{}{}
+		}
+	}
+	return values
+}
+
+// AutomationRunStatusesToStrings returns non-empty run statuses as strings.
+func AutomationRunStatusesToStrings(statuses []AutomationRunStatus) []string {
+	values := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		if status != "" {
+			values = append(values, string(status))
+		}
+	}
+	return values
+}
+
+// Clone returns a copy of job with mutable nested payload fields detached.
 func (job AutomationJob) Clone() AutomationJob {
 	job.Payload = job.Payload.Clone()
 	return job
 }
 
+// Clone returns a copy of payload with mutable slices and maps detached.
 func (payload AutomationPayload) Clone() AutomationPayload {
 	if len(payload.ToolGroups) > 0 {
 		payload.ToolGroups = append([]string(nil), payload.ToolGroups...)
@@ -248,10 +336,12 @@ func (payload AutomationPayload) Clone() AutomationPayload {
 	return payload
 }
 
+// Clone returns a copy of run.
 func (run AutomationRun) Clone() AutomationRun {
 	return run
 }
 
+// ApplyAutomationJobPatch applies patch to job and updates the job timestamp.
 func ApplyAutomationJobPatch(job AutomationJob, patch AutomationJobPatch, updatedAt time.Time) AutomationJob {
 	if patch.Name != nil {
 		job.Name = *patch.Name
@@ -287,6 +377,7 @@ func ApplyAutomationJobPatch(job AutomationJob, patch AutomationJobPatch, update
 	return job.Clone()
 }
 
+// ApplyAutomationRunPatch applies patch to run and derives completion metadata.
 func ApplyAutomationRunPatch(run AutomationRun, patch AutomationRunPatch, now time.Time) AutomationRun {
 	if patch.Status != "" {
 		run.Status = patch.Status

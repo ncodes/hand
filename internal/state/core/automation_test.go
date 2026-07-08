@@ -32,6 +32,38 @@ func TestValidateAutomationIDs(t *testing.T) {
 	require.EqualError(t, ValidateAutomationRunID("run_invalid"), "automation run id must be a valid autorun_ nanoid")
 }
 
+func TestHasAutomationRunDeleteFilter(t *testing.T) {
+	require.False(t, HasAutomationRunDeleteFilter(AutomationRunDeleteQuery{}))
+	require.True(t, HasAutomationRunDeleteFilter(AutomationRunDeleteQuery{JobID: " " + testAutomationJobID + " "}))
+	require.True(t, HasAutomationRunDeleteFilter(AutomationRunDeleteQuery{IDs: []string{testAutomationRunID}}))
+	require.True(t, HasAutomationRunDeleteFilter(AutomationRunDeleteQuery{
+		StartedBefore: time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC),
+	}))
+	require.True(t, HasAutomationRunDeleteFilter(AutomationRunDeleteQuery{
+		Status: []AutomationRunStatus{AutomationRunStatusOK},
+	}))
+}
+
+func TestAutomationRunStatusHelpers(t *testing.T) {
+	statusSet := AutomationRunStatusSet([]AutomationRunStatus{
+		"",
+		AutomationRunStatusOK,
+		AutomationRunStatusError,
+	})
+
+	_, hasEmpty := statusSet[""]
+	_, hasOK := statusSet[AutomationRunStatusOK]
+	_, hasError := statusSet[AutomationRunStatusError]
+	require.False(t, hasEmpty)
+	require.True(t, hasOK)
+	require.True(t, hasError)
+	require.Equal(t, []string{"ok", "error"}, AutomationRunStatusesToStrings([]AutomationRunStatus{
+		"",
+		AutomationRunStatusOK,
+		AutomationRunStatusError,
+	}))
+}
+
 func TestAutomationJob_CloneCopiesPayloadMetadata(t *testing.T) {
 	job := AutomationJob{
 		ID: testAutomationJobID,
@@ -62,8 +94,12 @@ func TestApplyAutomationJobPatch(t *testing.T) {
 	payload := AutomationPayload{
 		Kind:          AutomationPayloadPrompt,
 		Prompt:        "Summarize headlines",
+		NoTimeout:     true,
 		MaxRuntime:    time.Minute,
 		MaxIterations: 3,
+		RetryAttempts: 2,
+		RetryBackoff:  time.Second,
+		RetryMaxDelay: 5 * time.Second,
 		ToolGroups:    []string{"memory"},
 		Metadata:      map[string]string{"source": "bbc"},
 	}
@@ -110,8 +146,12 @@ func TestApplyAutomationJobPatch(t *testing.T) {
 	require.Equal(t, schedule, job.Schedule)
 	require.Equal(t, AutomationPayloadPrompt, job.Payload.Kind)
 	require.Equal(t, "Summarize headlines", job.Payload.Prompt)
+	require.True(t, job.Payload.NoTimeout)
 	require.Equal(t, time.Minute, job.Payload.MaxRuntime)
 	require.Equal(t, 3, job.Payload.MaxIterations)
+	require.Equal(t, 2, job.Payload.RetryAttempts)
+	require.Equal(t, time.Second, job.Payload.RetryBackoff)
+	require.Equal(t, 5*time.Second, job.Payload.RetryMaxDelay)
 	require.Equal(t, []string{"memory"}, job.Payload.ToolGroups)
 	require.Equal(t, "bbc", job.Payload.Metadata["source"])
 	require.Equal(t, delivery, job.Delivery)

@@ -41,7 +41,34 @@ func TestNewService_Validation(t *testing.T) {
 	require.NotNil(t, service.now)
 	require.Equal(t, defaultMaxTimerSleep, service.maxTimerSleep)
 	require.Equal(t, defaultStaleRunningAfter, service.staleRunningAfter)
+	require.Equal(t, defaultAutomationRunTimeout, service.defaultRunTimeout)
+	require.Equal(t, defaultAutomationRetryAttempts, service.defaultRetryAttempts)
+	require.Equal(t, defaultAutomationRetryBackoff, service.defaultRetryBackoff)
+	require.Equal(t, defaultAutomationRetryMaxDelay, service.defaultRetryMaxDelay)
+	require.Equal(t, defaultAutomationOneShotGrace, service.oneShotGrace)
+	require.Equal(t, defaultAutomationCatchUpStagger, service.catchUpStagger)
+	require.Equal(t, defaultRunHistoryRetention, service.runHistoryRetention)
+	require.Equal(t, defaultRunHistoryCleanupLimit, service.runHistoryCleanupLimit)
 	require.False(t, service.getNow().IsZero())
+
+	service, err = NewService(ServiceOptions{
+		Store:                    storememory.NewStore(),
+		Runner:                   &automationRunnerStub{},
+		DisableRunHistoryCleanup: true,
+	})
+	require.NoError(t, err)
+	require.Zero(t, service.runHistoryRetention)
+	require.Zero(t, service.runHistoryCleanupLimit)
+
+	service, err = NewService(ServiceOptions{
+		Store:                  storememory.NewStore(),
+		Runner:                 &automationRunnerStub{},
+		RunHistoryRetention:    time.Hour,
+		RunHistoryCleanupLimit: 12,
+	})
+	require.NoError(t, err)
+	require.Equal(t, time.Hour, service.runHistoryRetention)
+	require.Equal(t, 12, service.runHistoryCleanupLimit)
 }
 
 func TestService_ControlValidationAndNoops(t *testing.T) {
@@ -65,6 +92,7 @@ func TestService_ControlValidationAndNoops(t *testing.T) {
 	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
 	service := newAutomationTestService(t, storememory.NewStore(), clock, &automationRunnerStub{})
 
+	require.NoError(t, service.Start(nil))
 	require.NoError(t, service.Start(ctx))
 	require.NoError(t, service.Stop())
 	require.NoError(t, service.Stop())
@@ -295,6 +323,64 @@ func TestService_RunTracksDeliveryFailure(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, RunStatusOK, job.State.LastStatus)
 	require.Zero(t, job.State.ConsecutiveErrors)
+}
+
+func TestService_RunRetriesDeliveryFailure(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	sink := &automationDeliverySinkStub{errs: []error{errors.New("temporary gateway failure")}}
+	service, err := NewService(ServiceOptions{
+		Store:                store,
+		Runner:               &automationRunnerStub{results: []RunResult{{Output: "done"}}},
+		DeliverySink:         sink,
+		Now:                  clock.Now,
+		DefaultRetryAttempts: 2,
+		DefaultRetryBackoff:  time.Nanosecond,
+	})
+	require.NoError(t, err)
+
+	_, err = service.Add(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+		Delivery: Delivery{Mode: DeliveryGateway, Target: "ops"},
+	})
+	require.NoError(t, err)
+
+	run, err := service.Run(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.Equal(t, DeliveryStatusDelivered, run.DeliveryStatus)
+	require.Empty(t, run.DeliveryError)
+	require.Len(t, sink.Requests(), 2)
+}
+
+func TestService_DeliverRetryStopsWhenSleepIsCanceled(t *testing.T) {
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	service, err := NewService(ServiceOptions{
+		Store:                store,
+		Runner:               &automationRunnerStub{},
+		DeliverySink:         &automationDeliverySinkStub{err: errors.New("temporary gateway failure")},
+		Now:                  clock.Now,
+		DefaultRetryAttempts: 2,
+		DefaultRetryBackoff:  time.Hour,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	result, err := service.deliverRunWithRetry(
+		ctx,
+		Job{Delivery: Delivery{Mode: DeliveryGateway}},
+		testServiceRunA,
+		RunStatusOK,
+		RunResult{},
+		nil,
+		clock.Now(),
+	)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, DeliveryStatusNotDelivered, result.Status)
 }
 
 func TestService_RunAllowsBestEffortDeliveryFailure(t *testing.T) {
@@ -629,6 +715,111 @@ func TestService_RunReturnsNotFound(t *testing.T) {
 	require.ErrorIs(t, err, getErr)
 }
 
+func TestService_RunHandlesReloadFailureAfterMarking(t *testing.T) {
+	ctx := context.Background()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	newStore := func(t *testing.T) *storememory.Store {
+		t.Helper()
+
+		store := storememory.NewStore()
+		_, err := store.CreateJob(ctx, Job{
+			ID:       testServiceJobA,
+			Enabled:  true,
+			Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+		})
+		require.NoError(t, err)
+
+		return store
+	}
+
+	getErr := errors.New("reload failed")
+	service := newAutomationTestService(t, &automationGetSequenceStore{
+		Store: newStore(t),
+		errAt: 3,
+		err:   getErr,
+	}, clock, &automationRunnerStub{})
+	_, err := service.Run(ctx, testServiceJobA)
+	require.ErrorIs(t, err, getErr)
+
+	service = newAutomationTestService(t, &automationGetSequenceStore{
+		Store:     newStore(t),
+		missingAt: 3,
+	}, clock, &automationRunnerStub{})
+	_, err = service.Run(ctx, testServiceJobA)
+	require.EqualError(t, err, "automation job not found")
+}
+
+func TestService_RunHandlesUnexpectedMarkErrors(t *testing.T) {
+	ctx := context.Background()
+	baseStore := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	_, err := baseStore.CreateJob(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+	})
+	require.NoError(t, err)
+
+	markErr := errors.New("mark failed")
+	service := newAutomationTestService(t, &automationGetSequenceStore{
+		Store: baseStore,
+		errAt: 2,
+		err:   markErr,
+	}, clock, &automationRunnerStub{})
+	_, err = service.Run(ctx, testServiceJobA)
+	require.ErrorIs(t, err, markErr)
+}
+
+func TestService_RunReturnsSecondMarkErrorAfterWaiting(t *testing.T) {
+	ctx := context.Background()
+	baseStore := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	_, err := baseStore.CreateJob(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+	})
+	require.NoError(t, err)
+
+	markErr := errors.New("second mark failed")
+	service := newAutomationTestService(t, &automationGetSequenceStore{
+		Store: baseStore,
+		errAt: 3,
+		err:   markErr,
+	}, clock, &automationRunnerStub{})
+	service.maxConcurrentRuns = 1
+	service.running[testServiceJobB] = struct{}{}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := service.Run(ctx, testServiceJobA)
+		done <- err
+	}()
+	time.Sleep(20 * time.Millisecond)
+	service.clearRunningLocal(testServiceJobB)
+
+	require.ErrorIs(t, <-done, markErr)
+}
+
+func TestService_RunUsesBackgroundContextWhenNil(t *testing.T) {
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	runner := &automationRunnerStub{results: []RunResult{{Output: "ok"}}}
+	service := newAutomationTestService(t, store, clock, runner)
+
+	_, err := service.Add(context.Background(), Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+	})
+	require.NoError(t, err)
+
+	run, err := service.Run(nil, testServiceJobA)
+	require.NoError(t, err)
+	require.Equal(t, RunStatusOK, run.Status)
+	require.Equal(t, 1, runner.CallCount())
+}
+
 func TestService_RunFailureRecordsErrorAndNextRun(t *testing.T) {
 	ctx := context.Background()
 	store := storememory.NewStore()
@@ -655,7 +846,136 @@ func TestService_RunFailureRecordsErrorAndNextRun(t *testing.T) {
 	require.Equal(t, RunStatusError, job.State.LastStatus)
 	require.Equal(t, "runner failed", job.State.LastError)
 	require.Equal(t, 1, job.State.ConsecutiveErrors)
-	require.Equal(t, clock.Now().Add(time.Hour), job.State.NextRunAt)
+	require.Equal(t, clock.Now().Add(defaultAutomationRetryBackoff), job.State.NextRunAt)
+}
+
+func TestService_RunRetriesTransientFailures(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	runner := &automationRunnerStub{
+		errs:    []error{errors.New("temporary model failure")},
+		results: []RunResult{{}, {Output: "retried"}},
+	}
+	service, err := NewService(ServiceOptions{
+		Store:                store,
+		Runner:               runner,
+		Now:                  clock.Now,
+		DefaultRetryAttempts: 2,
+		DefaultRetryBackoff:  time.Nanosecond,
+	})
+	require.NoError(t, err)
+
+	_, err = service.Add(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+	})
+	require.NoError(t, err)
+
+	run, err := service.Run(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.Equal(t, RunStatusOK, run.Status)
+	require.Equal(t, "retried", run.Output)
+	require.Equal(t, 2, runner.CallCount())
+}
+
+func TestService_RunRetryStopsWhenSleepIsCanceled(t *testing.T) {
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	service, err := NewService(ServiceOptions{
+		Store:                store,
+		Runner:               &automationRunnerStub{errs: []error{errors.New("temporary model failure")}},
+		Now:                  clock.Now,
+		DefaultRetryAttempts: 2,
+		DefaultRetryBackoff:  time.Hour,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	_, err = service.runAutomationWithRetry(ctx, Job{})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestService_RunAppliesTimeoutPolicies(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	service, err := NewService(ServiceOptions{
+		Store:                store,
+		Runner:               &automationRunnerStub{block: make(chan struct{})},
+		Now:                  clock.Now,
+		DefaultRunTimeout:    time.Nanosecond,
+		DefaultRetryAttempts: 1,
+	})
+	require.NoError(t, err)
+
+	_, err = service.Add(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+	})
+	require.NoError(t, err)
+
+	run, err := service.Run(ctx, testServiceJobA)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, RunStatusError, run.Status)
+
+	store = storememory.NewStore()
+	runner := &automationRunnerStub{results: []RunResult{{Output: "trusted"}}}
+	service, err = NewService(ServiceOptions{
+		Store:             store,
+		Runner:            runner,
+		Now:               clock.Now,
+		DefaultRunTimeout: time.Nanosecond,
+	})
+	require.NoError(t, err)
+	_, err = service.Add(ctx, Job{
+		ID:       testServiceJobB,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+		Payload:  Payload{NoTimeout: true},
+	})
+	require.NoError(t, err)
+
+	run, err = service.Run(ctx, testServiceJobB)
+	require.NoError(t, err)
+	require.Equal(t, "trusted", run.Output)
+	require.Equal(t, 1, runner.CallCount())
+}
+
+func TestService_ContextWithRunTimeoutUsesBackgroundForNilContext(t *testing.T) {
+	runCtx, cancel := (&Service{}).contextWithRunTimeout(nil, Job{Payload: Payload{NoTimeout: true}})
+	defer cancel()
+	require.NotNil(t, runCtx)
+	require.NoError(t, runCtx.Err())
+}
+
+func TestService_RunBacksOffRepeatedFailures(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	runnerErr := errors.New("still failing")
+	service := newAutomationTestService(t, store, clock, &automationRunnerStub{errs: []error{runnerErr}})
+
+	_, err := store.CreateJob(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+		Payload:  Payload{RetryBackoff: time.Minute, RetryMaxDelay: 10 * time.Minute},
+		State:    JobState{ConsecutiveErrors: 2},
+	})
+	require.NoError(t, err)
+
+	_, err = service.Run(ctx, testServiceJobA)
+	require.ErrorIs(t, err, runnerErr)
+
+	job, ok, err := store.GetJob(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 3, job.State.ConsecutiveErrors)
+	require.Equal(t, clock.Now().Add(4*time.Minute), job.State.NextRunAt)
 }
 
 func TestService_RunHandlesPersistenceFailures(t *testing.T) {
@@ -770,7 +1090,7 @@ func TestService_RunDeletesOneShotJobAfterSuccess(t *testing.T) {
 	require.ErrorIs(t, err, deleteErr)
 }
 
-func TestService_RunPreventsDuplicateExecution(t *testing.T) {
+func TestService_RunQueuedManualRunRespectsContext(t *testing.T) {
 	ctx := context.Background()
 	store := storememory.NewStore()
 	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
@@ -802,11 +1122,61 @@ func TestService_RunPreventsDuplicateExecution(t *testing.T) {
 		}
 	}, time.Second, 10*time.Millisecond)
 
-	_, err = service.Run(ctx, testServiceJobA)
-	require.EqualError(t, err, "automation job is already running")
+	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+	defer cancel()
+	_, err = service.Run(waitCtx, testServiceJobA)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 
 	close(block)
 	require.NoError(t, <-done)
+}
+
+func TestService_RunQueuesAfterCapacityFrees(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	block := make(chan struct{})
+	runner := &automationRunnerStub{
+		block:   block,
+		started: make(chan Job, 2),
+		results: []RunResult{{Output: "first"}, {Output: "second"}},
+	}
+	service, err := NewService(ServiceOptions{
+		Store:             store,
+		Runner:            runner,
+		Now:               clock.Now,
+		MaxConcurrentRuns: 1,
+	})
+	require.NoError(t, err)
+
+	for _, id := range []string{testServiceJobA, testServiceJobB} {
+		_, err = service.Add(ctx, Job{
+			ID:       id,
+			Enabled:  true,
+			Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+		})
+		require.NoError(t, err)
+	}
+
+	done := make(chan error, 2)
+	go func() {
+		_, err := service.Run(ctx, testServiceJobA)
+		done <- err
+	}()
+	require.Eventually(t, func() bool {
+		return runner.CallCount() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	go func() {
+		_, err := service.Run(ctx, testServiceJobB)
+		done <- err
+	}()
+	require.Equal(t, 1, runner.CallCount())
+
+	close(block)
+	require.NoError(t, <-done)
+	require.NoError(t, <-done)
+	require.Equal(t, 2, runner.CallCount())
 }
 
 func TestService_StartExecutesDueJobOnce(t *testing.T) {
@@ -841,6 +1211,90 @@ func TestService_StartExecutesDueJobOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, status.Running)
 	require.Equal(t, 1, status.JobCount)
+}
+
+func TestService_StartHonorsMaxConcurrentRuns(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	block := make(chan struct{})
+	runner := &automationRunnerStub{block: block, started: make(chan Job, 2)}
+	service, err := NewService(ServiceOptions{
+		Store:             store,
+		Runner:            runner,
+		Now:               clock.Now,
+		MaxTimerSleep:     10 * time.Millisecond,
+		StaleRunningAfter: time.Minute,
+		CatchUpStagger:    time.Nanosecond,
+		MaxConcurrentRuns: 1,
+	})
+	require.NoError(t, err)
+
+	for _, id := range []string{testServiceJobA, testServiceJobB} {
+		_, err = service.Add(ctx, Job{
+			ID:       id,
+			Enabled:  true,
+			Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+		})
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, service.Start(ctx))
+	defer func() { require.NoError(t, service.Stop()) }()
+	require.Eventually(t, func() bool {
+		return runner.CallCount() == 1
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, 1, runner.CallCount())
+
+	close(block)
+	require.Eventually(t, func() bool {
+		return service.hasRunCapacity()
+	}, time.Second, 10*time.Millisecond)
+	clock.Set(clock.Now().Add(time.Second))
+	service.executeDueJobs(ctx)
+	require.Eventually(t, func() bool {
+		return runner.CallCount() == 2
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestService_RunQueuesManualRuns(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	block := make(chan struct{})
+	runner := &automationRunnerStub{
+		block:   block,
+		started: make(chan Job, 2),
+		results: []RunResult{{Output: "first"}, {Output: "second"}},
+	}
+	service := newAutomationTestService(t, store, clock, runner)
+
+	_, err := service.Add(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+	})
+	require.NoError(t, err)
+
+	done := make(chan error, 2)
+	go func() {
+		_, err := service.Run(ctx, testServiceJobA)
+		done <- err
+	}()
+	require.Eventually(t, func() bool {
+		return runner.CallCount() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	go func() {
+		_, err := service.Run(ctx, testServiceJobA)
+		done <- err
+	}()
+	require.Equal(t, 1, runner.CallCount())
+
+	close(block)
+	require.NoError(t, <-done)
+	require.NoError(t, <-done)
+	require.Equal(t, 2, runner.CallCount())
 }
 
 func TestService_StartupRecoverySkipsMissedAndClearsStaleRunning(t *testing.T) {
@@ -884,6 +1338,63 @@ func TestService_StartupRecoverySkipsMissedAndClearsStaleRunning(t *testing.T) {
 	require.Equal(t, clock.Now().Add(time.Hour), job.State.NextRunAt)
 
 	job, ok, err = store.GetJob(ctx, testServiceJobB)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, RunStatusSkipped, job.State.LastStatus)
+	require.Zero(t, job.State.NextRunAt)
+}
+
+func TestService_StartupRecoveryRunsRecentOneShotAndStaggersCatchUp(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	now := time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC)
+	clock := newAutomationTestClock(now)
+	service, err := NewService(ServiceOptions{
+		Store:          store,
+		Runner:         &automationRunnerStub{},
+		Now:            clock.Now,
+		OneShotGrace:   5 * time.Minute,
+		CatchUpStagger: time.Minute,
+	})
+	require.NoError(t, err)
+
+	for _, job := range []Job{
+		{
+			ID:       testServiceJobA,
+			Enabled:  true,
+			Schedule: Schedule{Kind: ScheduleAt, At: now.Add(-2 * time.Minute)},
+			State:    JobState{NextRunAt: now.Add(-2 * time.Minute)},
+		},
+		{
+			ID:       testServiceJobB,
+			Enabled:  true,
+			Schedule: Schedule{Kind: ScheduleAt, At: now.Add(-time.Minute)},
+			State:    JobState{NextRunAt: now.Add(-time.Minute)},
+		},
+		{
+			ID:       testServiceJobC,
+			Enabled:  true,
+			Schedule: Schedule{Kind: ScheduleAt, At: now.Add(-10 * time.Minute)},
+			State:    JobState{NextRunAt: now.Add(-10 * time.Minute)},
+		},
+	} {
+		_, err = store.CreateJob(ctx, job)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, service.recoverStartup(ctx))
+
+	job, ok, err := store.GetJob(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, now, job.State.NextRunAt)
+
+	job, ok, err = store.GetJob(ctx, testServiceJobB)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, now.Add(time.Minute), job.State.NextRunAt)
+
+	job, ok, err = store.GetJob(ctx, testServiceJobC)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, RunStatusSkipped, job.State.LastStatus)
@@ -963,6 +1474,256 @@ func TestService_StartupRecoveryFailure(t *testing.T) {
 	require.Nil(t, service.ctx)
 	require.Nil(t, service.cancel)
 	require.Nil(t, service.done)
+}
+
+func TestService_RunMaintenanceValidationErrors(t *testing.T) {
+	var nilService *Service
+	_, err := nilService.RunMaintenance(context.Background())
+	require.EqualError(t, err, "automation service is required")
+
+	listErr := errors.New("list failed")
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	service := newAutomationTestService(t, automationStoreStub{
+		Store:   storememory.NewStore(),
+		listErr: listErr,
+	}, clock, &automationRunnerStub{})
+	_, err = service.RunMaintenance(context.Background())
+	require.ErrorIs(t, err, listErr)
+}
+
+func TestService_StartupRecoveryMaintenanceFailure(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	deleteRunsErr := errors.New("delete runs failed")
+	service, err := NewService(ServiceOptions{
+		Store: automationStoreStub{
+			Store:         store,
+			deleteRunsErr: deleteRunsErr,
+		},
+		Runner:              &automationRunnerStub{},
+		Now:                 clock.Now,
+		RunHistoryRetention: time.Hour,
+	})
+	require.NoError(t, err)
+
+	require.ErrorIs(t, service.Start(ctx), deleteRunsErr)
+	require.False(t, service.started)
+	require.Nil(t, service.ctx)
+	require.Nil(t, service.cancel)
+	require.Nil(t, service.done)
+}
+
+func TestService_RunMaintenanceRepairsStateAndDeletesOldRuns(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	now := time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC)
+	clock := newAutomationTestClock(now)
+	service, err := NewService(ServiceOptions{
+		Store:                  store,
+		Runner:                 &automationRunnerStub{},
+		Now:                    clock.Now,
+		StaleRunningAfter:      time.Minute,
+		RunHistoryRetention:    time.Hour,
+		RunHistoryCleanupLimit: 1,
+	})
+	require.NoError(t, err)
+
+	_, err = store.CreateJob(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+		State:    JobState{RunningAt: now.Add(-2 * time.Minute)},
+	})
+	require.NoError(t, err)
+	_, err = store.CreateRun(ctx, Run{
+		ID:        testServiceRunA,
+		JobID:     testServiceJobA,
+		Status:    RunStatusOK,
+		StartedAt: now.Add(-2 * time.Hour),
+	})
+	require.NoError(t, err)
+	_, err = store.CreateRun(ctx, Run{
+		ID:        testServiceRunB,
+		JobID:     testServiceJobA,
+		Status:    RunStatusOK,
+		StartedAt: now.Add(-30 * time.Minute),
+	})
+	require.NoError(t, err)
+
+	result, err := service.RunMaintenance(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, result.RunningMarkersRepaired)
+	require.Equal(t, 1, result.SchedulesRepaired)
+	require.Equal(t, 1, result.OldRunsDeleted)
+
+	job, ok, err := store.GetJob(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Zero(t, job.State.RunningAt)
+	require.Equal(t, now.Add(time.Hour), job.State.NextRunAt)
+
+	runs, err := store.ListRuns(ctx, RunQuery{JobID: testServiceJobA})
+	require.NoError(t, err)
+	require.Equal(t, []string{testServiceRunB}, automationTestRunIDs(runs.Runs))
+}
+
+func TestService_RunMaintenanceHandlesInvalidSchedules(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	now := time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC)
+	clock := newAutomationTestClock(now)
+	service, err := NewService(ServiceOptions{
+		Store:                      store,
+		Runner:                     &automationRunnerStub{},
+		Now:                        clock.Now,
+		DisableAfterScheduleErrors: 1,
+	})
+	require.NoError(t, err)
+
+	_, err = store.CreateJob(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleCron},
+	})
+	require.NoError(t, err)
+
+	result, err := service.RunMaintenance(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, result.InvalidJobsUpdated)
+
+	job, ok, err := store.GetJob(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.False(t, job.Enabled)
+	require.Equal(t, "automation cron schedule expression is required", job.State.LastError)
+}
+
+func TestService_RunMaintenanceContinuesAfterRepairError(t *testing.T) {
+	ctx := context.Background()
+	baseStore := storememory.NewStore()
+	now := time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC)
+	clock := newAutomationTestClock(now)
+	logger := &automationLoggerStub{}
+	service, err := NewService(ServiceOptions{
+		Store: automationStoreStub{
+			Store:    baseStore,
+			patchErr: errors.New("patch failed"),
+		},
+		Runner:            &automationRunnerStub{},
+		Logger:            logger,
+		Now:               clock.Now,
+		StaleRunningAfter: time.Minute,
+	})
+	require.NoError(t, err)
+
+	_, err = baseStore.CreateJob(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+		State:    JobState{RunningAt: now.Add(-2 * time.Minute)},
+	})
+	require.NoError(t, err)
+
+	result, err := service.RunMaintenance(ctx)
+	require.NoError(t, err)
+	require.Zero(t, result.RunningMarkersRepaired)
+	require.Contains(t, logger.Messages(), "automation maintenance repair failed")
+}
+
+func TestService_RunMaintenanceReturnsDeleteRunsError(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	deleteRunsErr := errors.New("delete runs failed")
+	service, err := NewService(ServiceOptions{
+		Store: automationStoreStub{
+			Store:         store,
+			deleteRunsErr: deleteRunsErr,
+		},
+		Runner:              &automationRunnerStub{},
+		Now:                 clock.Now,
+		RunHistoryRetention: time.Hour,
+	})
+	require.NoError(t, err)
+
+	_, err = service.RunMaintenance(ctx)
+	require.ErrorIs(t, err, deleteRunsErr)
+}
+
+func TestService_RunMaintenanceSkipsRunCleanupWhenDisabled(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	service, err := NewService(ServiceOptions{
+		Store: automationStoreStub{
+			Store:         store,
+			deleteRunsErr: errors.New("delete runs should not be called"),
+		},
+		Runner:                   &automationRunnerStub{},
+		Now:                      clock.Now,
+		DisableRunHistoryCleanup: true,
+	})
+	require.NoError(t, err)
+
+	result, err := service.RunMaintenance(ctx)
+	require.NoError(t, err)
+	require.Zero(t, result.OldRunsDeleted)
+}
+
+func TestService_ReliabilityHelperBranches(t *testing.T) {
+	now := time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC)
+	service := &Service{}
+
+	require.Equal(t, 1, service.getRetryAttempts(Job{}))
+	require.Zero(t, service.getRetryDelay(Job{}, 1))
+	require.Equal(t, 3, (&Service{defaultRetryAttempts: 3}).getRetryAttempts(Job{}))
+	require.Equal(t, 3, service.getRetryAttempts(Job{Payload: Payload{RetryAttempts: 3}}))
+	require.Equal(t, 5*time.Second, service.getRetryDelay(Job{
+		Payload: Payload{RetryBackoff: time.Second, RetryMaxDelay: 5 * time.Second},
+	}, 4))
+	require.Equal(t, 2*time.Second, (&Service{defaultRetryBackoff: time.Second}).getFailureBackoff(Job{
+		State: JobState{ConsecutiveErrors: 2},
+	}))
+	require.Equal(t, 30*time.Second, (&Service{defaultRetryBackoff: 30 * time.Second}).getFailureBackoff(Job{}))
+
+	require.NoError(t, service.sleep(context.Background(), 0))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, service.sleep(ctx, time.Hour), context.Canceled)
+	require.ErrorIs(t, service.waitRunSlot(ctx, testServiceJobA), context.Canceled)
+
+	runCtx, runCancel := service.contextWithRunTimeout(context.Background(), Job{})
+	defer runCancel()
+	require.NoError(t, runCtx.Err())
+
+	completed := Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: now.Add(-time.Hour)},
+		State:    JobState{LastRunAt: now},
+	}
+	repaired, changed, err := service.repairJobState(context.Background(), completed, now)
+	require.NoError(t, err)
+	require.False(t, changed)
+	require.Equal(t, completed.State, repaired.State)
+
+	require.False(t, checkRecentOneShotCatchUp(Job{}, now, time.Hour))
+	require.False(t, checkRecentOneShotCatchUp(Job{
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt},
+	}, now, time.Hour))
+	require.False(t, checkRecentOneShotCatchUp(Job{
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt},
+		State:    JobState{NextRunAt: now.Add(time.Minute)},
+	}, now, time.Hour))
+	require.False(t, checkRecentOneShotCatchUp(Job{
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt},
+		State:    JobState{NextRunAt: now},
+	}, now, 0))
 }
 
 func TestService_StartupRecoveryDisablesRepeatedBadSchedules(t *testing.T) {
@@ -1213,6 +1974,42 @@ func TestService_ExecuteDueJobsHandlesFailuresAndConflicts(t *testing.T) {
 		Now:    clock.Now,
 	})
 	require.NoError(t, err)
+	service.executeDueJobs(ctx)
+	require.Contains(t, logger.Messages(), "automation scheduler skipped running job")
+}
+
+func TestService_ExecuteDueJobsStopsWhenCapacityRaceIsDetected(t *testing.T) {
+	ctx := context.Background()
+	baseStore := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	logger := &automationLoggerStub{}
+
+	_, err := baseStore.CreateJob(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+	})
+	require.NoError(t, err)
+
+	service, err := NewService(ServiceOptions{
+		Store: automationPatchHookStore{
+			Store: baseStore,
+		},
+		Runner:            &automationRunnerStub{},
+		Logger:            logger,
+		Now:               clock.Now,
+		MaxConcurrentRuns: 1,
+	})
+	require.NoError(t, err)
+	service.store = automationPatchHookStore{
+		Store: baseStore,
+		onPatch: func() {
+			service.mu.Lock()
+			defer service.mu.Unlock()
+			service.running[testServiceJobB] = struct{}{}
+		},
+	}
+
 	service.executeDueJobs(ctx)
 	require.Contains(t, logger.Messages(), "automation scheduler skipped running job")
 }

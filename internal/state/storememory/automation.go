@@ -229,12 +229,7 @@ func (s *Store) ListRuns(_ context.Context, query state.AutomationRunQuery) (sta
 	if err != nil {
 		return state.AutomationRunResult{}, err
 	}
-	statusSet := make(map[state.AutomationRunStatus]struct{}, len(query.Status))
-	for _, status := range query.Status {
-		if status != "" {
-			statusSet[status] = struct{}{}
-		}
-	}
+	statusSet := state.AutomationRunStatusSet(query.Status)
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -257,6 +252,59 @@ func (s *Store) ListRuns(_ context.Context, query state.AutomationRunQuery) (sta
 	}
 
 	return state.AutomationRunResult{Runs: runs}, nil
+}
+
+func (s *Store) DeleteRuns(_ context.Context, query state.AutomationRunDeleteQuery) (int, error) {
+	if s == nil {
+		return 0, errors.New("store is required")
+	}
+
+	if !state.HasAutomationRunDeleteFilter(query) {
+		return 0, errors.New("automation run delete query requires a filter")
+	}
+
+	queryJobID := str.String(query.JobID)
+	if id := queryJobID.Trim(); id != "" {
+		if err := state.ValidateAutomationJobID(id); err != nil {
+			return 0, err
+		}
+		query.JobID = id
+	}
+
+	idSet, err := automationIDSet(query.IDs, state.ValidateAutomationRunID)
+	if err != nil {
+		return 0, err
+	}
+
+	statusSet := state.AutomationRunStatusSet(query.Status)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	runs := make([]state.AutomationRun, 0, len(s.automationRuns))
+	for _, run := range s.automationRuns {
+		if !automationRunMatchesDeleteQuery(run, query, idSet, statusSet) {
+			continue
+		}
+		runs = append(runs, run.Clone())
+	}
+
+	sort.SliceStable(runs, func(i, j int) bool {
+		if !runs[i].StartedAt.Equal(runs[j].StartedAt) {
+			return runs[i].StartedAt.Before(runs[j].StartedAt)
+		}
+		return runs[i].ID < runs[j].ID
+	})
+
+	if query.Limit > 0 && len(runs) > query.Limit {
+		runs = runs[:query.Limit]
+	}
+
+	for _, run := range runs {
+		delete(s.automationRuns, run.ID)
+	}
+
+	return len(runs), nil
 }
 
 func automationIDSet(ids []string, validate func(string) error) (map[string]struct{}, error) {
@@ -319,6 +367,31 @@ func automationRunMatchesQuery(
 		if _, ok := statuses[run.Status]; !ok {
 			return false
 		}
+	}
+	return true
+}
+
+func automationRunMatchesDeleteQuery(
+	run state.AutomationRun,
+	query state.AutomationRunDeleteQuery,
+	ids map[string]struct{},
+	statuses map[state.AutomationRunStatus]struct{},
+) bool {
+	if query.JobID != "" && run.JobID != query.JobID {
+		return false
+	}
+	if len(ids) > 0 {
+		if _, ok := ids[run.ID]; !ok {
+			return false
+		}
+	}
+	if len(statuses) > 0 {
+		if _, ok := statuses[run.Status]; !ok {
+			return false
+		}
+	}
+	if !query.StartedBefore.IsZero() && !run.StartedAt.Before(query.StartedBefore.UTC()) {
+		return false
 	}
 	return true
 }

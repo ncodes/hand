@@ -309,12 +309,7 @@ func (s *Store) ListRuns(ctx context.Context, query state.AutomationRunQuery) (s
 		db = db.Where("id IN ?", ids)
 	}
 	if len(query.Status) > 0 {
-		statuses := make([]string, 0, len(query.Status))
-		for _, status := range query.Status {
-			if status != "" {
-				statuses = append(statuses, string(status))
-			}
-		}
+		statuses := state.AutomationRunStatusesToStrings(query.Status)
 		if len(statuses) > 0 {
 			db = db.Where("status IN ?", statuses)
 		}
@@ -338,6 +333,63 @@ func (s *Store) ListRuns(ctx context.Context, query state.AutomationRunQuery) (s
 	}
 
 	return state.AutomationRunResult{Runs: runs}, nil
+}
+
+func (s *Store) DeleteRuns(ctx context.Context, query state.AutomationRunDeleteQuery) (int, error) {
+	if s == nil || s.db == nil {
+		return 0, errors.New("store is required")
+	}
+
+	if !state.HasAutomationRunDeleteFilter(query) {
+		return 0, errors.New("automation run delete query requires a filter")
+	}
+
+	ids, err := automationValidatedIDs(query.IDs, state.ValidateAutomationRunID)
+	if err != nil {
+		return 0, err
+	}
+
+	db := s.db.WithContext(ctx).Model(&automationRunModel{})
+
+	queryJobID := str.String(query.JobID).Trim()
+	if queryJobID != "" {
+		if err := state.ValidateAutomationJobID(queryJobID); err != nil {
+			return 0, err
+		}
+		db = db.Where("job_id = ?", queryJobID)
+	}
+
+	if len(ids) > 0 {
+		db = db.Where("id IN ?", ids)
+	}
+
+	if !query.StartedBefore.IsZero() {
+		db = db.Where("started_at < ?", query.StartedBefore.UTC())
+	}
+
+	if len(query.Status) > 0 {
+		statuses := state.AutomationRunStatusesToStrings(query.Status)
+		if len(statuses) > 0 {
+			db = db.Where("status IN ?", statuses)
+		}
+	}
+
+	if query.Limit > 0 {
+		subquery := db.
+			Session(&gorm.Session{}).
+			Select("id").
+			Order("started_at ASC").
+			Order("id ASC").
+			Limit(query.Limit)
+		db = s.db.WithContext(ctx).Where("id IN (?)", subquery)
+	}
+
+	result := db.Delete(&automationRunModel{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return int(result.RowsAffected), nil
 }
 
 func automationJobToModel(job state.AutomationJob) automationJobModel {
