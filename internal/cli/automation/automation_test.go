@@ -58,7 +58,12 @@ func TestNewCommand_StatusCallsRPC(t *testing.T) {
 
 	require.NoError(t, newTestCommand().Run(context.Background(), []string{"automation", "status"}))
 
-	require.Equal(t, "running=true jobs=2 running_jobs=1 started_at=2026-07-05T08:00:00Z next_wake_at=2026-07-05T09:00:00Z\n", output.String())
+	require.Equal(t, "Automation scheduler\n"+
+		"  Running:              true\n"+
+		"  Jobs:                 2\n"+
+		"  Running jobs:         1\n"+
+		"  Started at:           2026-07-05T08:00:00Z\n"+
+		"  Next wake at:         2026-07-05T09:00:00Z\n", output.String())
 }
 
 func TestNewCommand_AddParsesJobFlags(t *testing.T) {
@@ -96,8 +101,9 @@ func TestNewCommand_ListAndUpdateCallRPC(t *testing.T) {
 	}
 
 	require.NoError(t, newTestCommand().Run(context.Background(), []string{"automation", "list", "--all"}))
-	require.Contains(t, output.String(), `name="Daily"`)
-	require.Contains(t, output.String(), "schedule=every 1h0m0s")
+	require.Contains(t, output.String(), "Automation jobs\n")
+	require.Contains(t, output.String(), "ID                          NAME   ENABLED  SCHEDULE")
+	require.Contains(t, output.String(), testAutomationCommandJobID+"  Daily  true     every 1h0m0s")
 
 	output.Reset()
 	require.NoError(t, newTestCommand().Run(context.Background(), []string{
@@ -148,7 +154,9 @@ func TestNewCommand_PauseResumeRunRemoveAndRunsCallRPC(t *testing.T) {
 	}))
 	require.Equal(t, testAutomationCommandJobID, api.runQuery.JobID)
 	require.Equal(t, []coreautomation.RunStatus{coreautomation.RunStatusError}, api.runQuery.Status)
-	require.Contains(t, output.String(), "status=error")
+	require.Contains(t, output.String(), "Automation runs\n")
+	require.Contains(t, output.String(), "RUN ID                        JOB ID")
+	require.Contains(t, output.String(), testAutomationCommandRunID+"  "+testAutomationCommandJobID+"  error")
 }
 
 func TestCommandHelpersCoverScheduleAndArgumentBranches(t *testing.T) {

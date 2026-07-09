@@ -29,17 +29,7 @@ func NewDiagnoseCommand() *cli.Command {
 				return err
 			}
 			findings := coreautomation.DiagnoseJobs(list.Jobs, coreautomation.DiagnosticOptions{})
-			if len(findings) == 0 {
-				_, err = fmt.Fprintln(automationOutput, "automation diagnostics passed")
-				return err
-			}
-			for _, finding := range findings {
-				if err := writeFinding(finding); err != nil {
-					return err
-				}
-			}
-
-			return nil
+			return writeDiagnosticFindings(findings)
 		},
 	}
 }
@@ -204,64 +194,7 @@ func newRecoverRerunFailedCommand() *cli.Command {
 				return err
 			}
 
-			return writeRun(run)
+			return writeRunSummary(run)
 		},
 	}
-}
-
-func writeFinding(finding coreautomation.DiagnosticFinding) error {
-	_, err := fmt.Fprintf(
-		automationOutput,
-		"%s code=%s job=%s message=%q action=%q\n",
-		finding.Severity,
-		finding.Code,
-		finding.JobID,
-		finding.Message,
-		finding.Action,
-	)
-	return err
-}
-
-func writeInspection(inspection coreautomation.RunInspection) error {
-	if _, err := fmt.Fprintf(
-		automationOutput,
-		"%s enabled=%t schedule=%s next=%s delivery=%s\n",
-		inspection.Job.ID,
-		inspection.Job.Enabled,
-		formatSchedule(inspection.Job.Schedule),
-		formatTime(inspection.Job.State.NextRunAt),
-		inspection.Job.Delivery.Mode,
-	); err != nil {
-		return err
-	}
-	if inspection.LastRun.ID == "" {
-		_, err := fmt.Fprintln(automationOutput, "last_run=-")
-		return err
-	}
-	if err := writeRun(inspection.LastRun); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(
-		automationOutput,
-		"delivery_status=%s delivery_error=%q session=%s trace_session=%s\n",
-		inspection.DeliveryStatus,
-		inspection.DeliveryError,
-		inspection.SessionID,
-		inspection.SessionID,
-	); err != nil {
-		return err
-	}
-	for _, run := range inspection.RecentFailures {
-		if _, err := fmt.Fprintf(
-			automationOutput,
-			"failure=%s started=%s error=%q\n",
-			run.ID,
-			formatTime(run.StartedAt),
-			run.Error,
-		); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

@@ -67,7 +67,7 @@ func Test_E2E_AutomationCommand_ManualRecurringRunPersistsAcrossDaemonRestart(t 
 
 	runOutput, err := runAutomationCommand(t, "automation", "run", jobID)
 	require.NoError(t, err)
-	require.Contains(t, runOutput, "status=skipped")
+	require.Contains(t, runOutput, "Status:               skipped")
 
 	run := waitForAutomationRun(t, daemon.client.AutomationAPI(), coreautomation.RunQuery{JobID: jobID})
 	require.Equal(t, coreautomation.RunStatusSkipped, run.Status)
@@ -83,12 +83,12 @@ func Test_E2E_AutomationCommand_ManualRecurringRunPersistsAcrossDaemonRestart(t 
 	listOutput, err := runAutomationCommand(t, "automation", "list", "--all")
 	require.NoError(t, err)
 	require.Contains(t, listOutput, jobID)
-	require.Contains(t, listOutput, `name="Recurring"`)
+	require.Contains(t, listOutput, "Recurring")
 
 	runsOutput, err := runAutomationCommand(t, "automation", "runs", "--job", jobID)
 	require.NoError(t, err)
 	require.Contains(t, runsOutput, run.ID)
-	require.Contains(t, runsOutput, "status=skipped")
+	require.Contains(t, runsOutput, "skipped")
 }
 
 type automationDaemon struct {

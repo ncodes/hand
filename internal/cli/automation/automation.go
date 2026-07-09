@@ -59,16 +59,7 @@ func NewStatusCommand() *cli.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintf(
-				automationOutput,
-				"running=%t jobs=%d running_jobs=%d started_at=%s next_wake_at=%s\n",
-				status.Running,
-				status.JobCount,
-				status.RunningCount,
-				formatTime(status.StartedAt),
-				formatTime(status.NextWakeAt),
-			)
-			return err
+			return writeAutomationStatus(status)
 		},
 	}
 }
@@ -96,21 +87,7 @@ func NewListCommand() *cli.Command {
 				return err
 			}
 
-			for _, job := range list.Jobs {
-				if _, err := fmt.Fprintf(
-					automationOutput,
-					"%s enabled=%t name=%q schedule=%s next=%s last=%s\n",
-					job.ID,
-					job.Enabled,
-					job.Name,
-					formatSchedule(job.Schedule),
-					formatTime(job.State.NextRunAt),
-					job.State.LastStatus,
-				); err != nil {
-					return err
-				}
-			}
-			return nil
+			return writeJobList(list.Jobs)
 		},
 	}
 }
@@ -207,7 +184,7 @@ func NewRunCommand() *cli.Command {
 				return err
 			}
 
-			return writeRun(run)
+			return writeRunSummary(run)
 		},
 	}
 }
@@ -262,13 +239,7 @@ func NewRunsCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			for _, run := range list.Runs {
-				if err := writeRun(run); err != nil {
-					return err
-				}
-			}
-
-			return nil
+			return writeRunList(list.Runs)
 		},
 	}
 }
@@ -507,21 +478,6 @@ func parseRunStatuses(value string) []coreautomation.RunStatus {
 	}
 
 	return statuses
-}
-
-func writeRun(run coreautomation.Run) error {
-	_, err := fmt.Fprintf(
-		automationOutput,
-		"%s job=%s status=%s started=%s ended=%s duration=%s delivery=%s\n",
-		run.ID,
-		run.JobID,
-		run.Status,
-		formatTime(run.StartedAt),
-		formatTime(run.EndedAt),
-		run.Duration,
-		run.DeliveryStatus,
-	)
-	return err
 }
 
 func formatSchedule(schedule coreautomation.Schedule) string {

@@ -12,20 +12,6 @@ import (
 	"github.com/wandxy/morph/internal/config"
 )
 
-type failAfterWriter struct {
-	writes    int
-	failAfter int
-}
-
-func (w *failAfterWriter) Write(p []byte) (int, error) {
-	w.writes++
-	if w.writes > w.failAfter {
-		return 0, errors.New("write failed")
-	}
-
-	return len(p), nil
-}
-
 func TestNewCommand_DiagnoseInspectAndRecoverCallRPC(t *testing.T) {
 	api, output := setupAutomationCommandTest(t)
 	runningAt := time.Now().UTC().Add(-20 * time.Minute)
@@ -55,8 +41,8 @@ func TestNewCommand_DiagnoseInspectAndRecoverCallRPC(t *testing.T) {
 		"automation", "inspect", testAutomationCommandJobID,
 	}))
 	require.Equal(t, testAutomationCommandJobID, api.jobQuery.IDs[0])
-	require.Contains(t, output.String(), "trace_session=ses_projectaprojectaproje")
-	require.Contains(t, output.String(), "failure="+testAutomationCommandRunID)
+	require.Contains(t, output.String(), "Trace session:        ses_projectaprojectaproje")
+	require.Contains(t, output.String(), "Run ID:               "+testAutomationCommandRunID)
 
 	output.Reset()
 	require.NoError(t, newTestCommand().Run(context.Background(), []string{
@@ -91,7 +77,7 @@ func TestNewCommand_DiagnoseReportsHealthyState(t *testing.T) {
 
 	require.NoError(t, newTestCommand().Run(context.Background(), []string{"automation", "diagnose"}))
 
-	require.Equal(t, "automation diagnostics passed\n", output.String())
+	require.Equal(t, "Automation diagnostics\n  Status:               passed\n", output.String())
 }
 
 func TestNewCommand_PropagatesOperationActionErrors(t *testing.T) {
@@ -300,27 +286,137 @@ func TestWriteInspection_CoversNoRunAndWriteErrors(t *testing.T) {
 	require.NoError(t, writeInspection(coreautomation.RunInspection{
 		Job: coreautomation.Job{ID: testAutomationCommandJobID},
 	}))
-	require.Contains(t, output.String(), "last_run=-")
+	require.Contains(t, output.String(), "Last run\n  Status:               none")
+	require.Contains(t, output.String(), "Session target:       isolated (default)")
+	require.Contains(t, output.String(), "Mode:                 none (default)")
 
-	automationOutput = &failAfterWriter{failAfter: 1}
+	automationOutput = errorWriter{}
+	err := writeInspection(coreautomation.RunInspection{})
+	require.Error(t, err)
+}
+
+func TestWriteInspection_OutputsAllJobFields(t *testing.T) {
+	_, output := setupAutomationCommandTest(t)
+	createdAt := time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC)
+	updatedAt := createdAt.Add(time.Minute)
+	nextRunAt := createdAt.Add(time.Hour)
+	runningAt := createdAt.Add(2 * time.Minute)
+	lastRunAt := createdAt.Add(-time.Hour)
+	lastFailureNoticeAt := createdAt.Add(-30 * time.Minute)
+
 	err := writeInspection(coreautomation.RunInspection{
-		Job:     coreautomation.Job{ID: testAutomationCommandJobID},
-		LastRun: coreautomation.Run{ID: testAutomationCommandRunID},
+		Job: coreautomation.Job{
+			ID:             testAutomationCommandJobID,
+			Name:           "Daily summary",
+			Description:    "Summarize project activity",
+			Enabled:        true,
+			CreatedAt:      createdAt,
+			UpdatedAt:      updatedAt,
+			Profile:        "work",
+			SessionTarget:  "isolated",
+			DeleteAfterRun: true,
+			Schedule: coreautomation.Schedule{
+				Kind:     coreautomation.ScheduleCron,
+				At:       createdAt.Add(24 * time.Hour),
+				Every:    2 * time.Hour,
+				Cron:     "0 8 * * *",
+				Timezone: "Africa/Lagos",
+			},
+			Payload: coreautomation.Payload{
+				Kind:          coreautomation.PayloadPrompt,
+				Prompt:        "Summarize activity",
+				SystemEvent:   "daily_summary",
+				Model:         "gpt-test",
+				Provider:      "openai",
+				BaseURL:       "https://api.example.test",
+				NoTimeout:     true,
+				MaxRuntime:    3 * time.Minute,
+				MaxIterations: 9,
+				RetryAttempts: 3,
+				RetryBackoff:  10 * time.Second,
+				RetryMaxDelay: time.Minute,
+				ToolGroups:    []string{"memory", "search"},
+				Metadata:      map[string]string{"origin": "gateway"},
+			},
+			Delivery: coreautomation.Delivery{
+				Mode:            coreautomation.DeliveryGateway,
+				Channel:         "telegram",
+				Target:          "user-1",
+				ThreadID:        "thread-1",
+				WebhookURL:      "https://hooks.example.test",
+				BestEffort:      true,
+				FailureTarget:   "ops",
+				FailureAfter:    2,
+				FailureCooldown: time.Hour,
+			},
+			State: coreautomation.JobState{
+				NextRunAt:           nextRunAt,
+				RunningAt:           runningAt,
+				LastRunAt:           lastRunAt,
+				LastStatus:          coreautomation.RunStatusError,
+				LastError:           "provider unavailable",
+				LastDuration:        45 * time.Second,
+				ConsecutiveErrors:   2,
+				LastFailureNoticeAt: lastFailureNoticeAt,
+			},
+		},
 	})
-	require.Error(t, err)
 
-	automationOutput = &failAfterWriter{failAfter: 2}
-	err = writeInspection(coreautomation.RunInspection{
-		Job:     coreautomation.Job{ID: testAutomationCommandJobID},
-		LastRun: coreautomation.Run{ID: testAutomationCommandRunID},
-	})
-	require.Error(t, err)
-
-	automationOutput = &failAfterWriter{failAfter: 3}
-	err = writeInspection(coreautomation.RunInspection{
-		Job:            coreautomation.Job{ID: testAutomationCommandJobID},
-		LastRun:        coreautomation.Run{ID: testAutomationCommandRunID},
-		RecentFailures: []coreautomation.Run{{ID: testAutomationCommandRunID}},
-	})
-	require.Error(t, err)
+	require.NoError(t, err)
+	for _, expected := range []string{
+		"Job\n",
+		"ID:                   " + testAutomationCommandJobID,
+		"Name:                 Daily summary",
+		"Description:          Summarize project activity",
+		"Enabled:              true",
+		"Created at:           2026-07-05T08:00:00Z",
+		"Updated at:           2026-07-05T08:01:00Z",
+		"Profile:              work",
+		"Session target:       isolated",
+		"Delete after run:     true",
+		"Schedule\n",
+		"Kind:                 cron",
+		"At:                   2026-07-06T08:00:00Z",
+		"Every:                2h0m0s",
+		"Cron:                 0 8 * * *",
+		"Timezone:             Africa/Lagos",
+		"Payload\n",
+		"Prompt:               Summarize activity",
+		"System event:         daily_summary",
+		"Model:                gpt-test",
+		"Provider:             openai",
+		"Base URL:             https://api.example.test",
+		"No timeout:           true",
+		"Max runtime:          3m0s",
+		"Max iterations:       9",
+		"Retry attempts:       3",
+		"Retry backoff:        10s",
+		"Retry max delay:      1m0s",
+		"Tool groups:          memory, search",
+		"Metadata:             origin=gateway",
+		"Delivery\n",
+		"Mode:                 gateway",
+		"Channel:              telegram",
+		"Target:               user-1",
+		"Thread ID:            thread-1",
+		"Webhook URL:          https://hooks.example.test",
+		"Best effort:          true",
+		"Failure target:       ops",
+		"Failure after:        2",
+		"Failure cooldown:     1h0m0s",
+		"State\n",
+		"Next run at:          2026-07-05T09:00:00Z",
+		"Running at:           2026-07-05T08:02:00Z",
+		"Last run at:          2026-07-05T07:00:00Z",
+		"Last status:          error",
+		"Last error:           provider unavailable",
+		"Last duration:        45s",
+		"Consecutive errors:   2",
+		"Last failure notice:  2026-07-05T07:30:00Z",
+		"Last run\n",
+		"Status:               none",
+		"Recent failures\n",
+	} {
+		require.Contains(t, output.String(), expected)
+	}
 }
