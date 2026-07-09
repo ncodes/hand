@@ -1146,6 +1146,14 @@ func (s *Service) notifyWake() {
 	select {
 	case s.wake <- struct{}{}:
 	default:
+		select {
+		case <-s.wake:
+		default:
+		}
+		select {
+		case s.wake <- struct{}{}:
+		default:
+		}
 	}
 }
 

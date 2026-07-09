@@ -1875,6 +1875,7 @@ func TestService_StatusAndTimerHelpers(t *testing.T) {
 	require.Contains(t, tracer.EventNames(), "warn.event")
 	require.Contains(t, tracer.EventNames(), "error.event")
 	service.notifyWake()
+	service.notifyWake()
 	(*Service)(nil).notifyWake()
 	require.False(t, (*Service)(nil).getNow().IsZero())
 

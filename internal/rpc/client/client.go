@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentapi "github.com/wandxy/morph/internal/agent"
 	"github.com/wandxy/morph/internal/automation"
@@ -429,6 +430,9 @@ func (c *Client) Close() error {
 }
 
 func protoTimestampToTime(value interface{ AsTime() time.Time }) time.Time {
+	if timestamp, ok := any(value).(*timestamppb.Timestamp); ok && timestamp == nil {
+		return time.Time{}
+	}
 	if value == nil {
 		return time.Time{}
 	}

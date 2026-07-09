@@ -440,6 +440,9 @@ func timeToProto(value time.Time) *timestamppb.Timestamp {
 }
 
 func protoTimestampToTime(value interface{ AsTime() time.Time }) time.Time {
+	if timestamp, ok := any(value).(*timestamppb.Timestamp); ok && timestamp == nil {
+		return time.Time{}
+	}
 	if value == nil {
 		return time.Time{}
 	}

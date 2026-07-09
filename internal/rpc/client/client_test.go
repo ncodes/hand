@@ -1260,6 +1260,8 @@ func TestTimelineProtoAdaptersHandleNilRecords(t *testing.T) {
 	require.Zero(t, session)
 
 	require.Zero(t, protoTimestampToTime(nil))
+	var timestamp *timestamppb.Timestamp
+	require.Zero(t, protoTimestampToTime(timestamp))
 }
 
 func TestNewClient_ValidatesOptions(t *testing.T) {

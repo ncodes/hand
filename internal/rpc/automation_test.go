@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandxy/morph/internal/automation"
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
@@ -264,6 +265,8 @@ func TestAutomationProtoConverters_HandleNilValues(t *testing.T) {
 	require.Equal(t, automation.JobState{}, automationJobStateFromProto(nil))
 	require.Equal(t, automation.Job{}, automationJobFromAddRequest(nil))
 	require.Zero(t, protoTimestampToTime(nil))
+	var timestamp *timestamppb.Timestamp
+	require.Zero(t, protoTimestampToTime(timestamp))
 	require.Nil(t, cloneStringMap(nil))
 	require.Equal(t, map[string]string{"a": "b"}, cloneStringMap(map[string]string{"a": "b"}))
 }
