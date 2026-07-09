@@ -28,11 +28,10 @@ func writeJobList(jobs []coreautomation.Job) error {
 
 func jobListToText(jobs []coreautomation.Job) string {
 	if len(jobs) == 0 {
-		return "Automation jobs\n  None\n"
+		return "No automation jobs found.\n"
 	}
 
 	var output strings.Builder
-	output.WriteString("Automation jobs\n")
 	table := tabwriter.NewWriter(&output, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(table, "ID\tNAME\tENABLED\tSCHEDULE\tNEXT RUN\tLAST STATUS")
 	for _, job := range jobs {
@@ -57,11 +56,10 @@ func writeRunList(runs []coreautomation.Run) error {
 
 func runListToText(runs []coreautomation.Run) string {
 	if len(runs) == 0 {
-		return "Automation runs\n  None\n"
+		return "No automation runs found.\n"
 	}
 
 	var output strings.Builder
-	output.WriteString("Automation runs\n")
 	table := tabwriter.NewWriter(&output, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(table, "RUN ID\tJOB ID\tSTATUS\tSTARTED\tDURATION\tDELIVERY")
 	for _, run := range runs {

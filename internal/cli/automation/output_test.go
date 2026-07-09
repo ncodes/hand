@@ -1,6 +1,7 @@
 package automation
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 )
 
 func TestJobListToText_FormatsRowsAndEmptyState(t *testing.T) {
-	require.Equal(t, "Automation jobs\n  None\n", jobListToText(nil))
+	require.Equal(t, "No automation jobs found.\n", jobListToText(nil))
 
 	output := jobListToText([]coreautomation.Job{{
 		ID:      testAutomationCommandJobID,
@@ -26,14 +27,14 @@ func TestJobListToText_FormatsRowsAndEmptyState(t *testing.T) {
 		},
 	}})
 
-	require.Contains(t, output, "Automation jobs\n")
+	require.True(t, strings.HasPrefix(output, "ID"))
 	require.Contains(t, output, "ID                          NAME           ENABLED  SCHEDULE")
 	require.Contains(t, output, testAutomationCommandJobID+"  Daily summary  true     cron 0 8 * * *")
 	require.Contains(t, output, "2026-07-05T09:00:00Z  ok")
 }
 
 func TestRunListToText_FormatsRowsAndEmptyState(t *testing.T) {
-	require.Equal(t, "Automation runs\n  None\n", runListToText(nil))
+	require.Equal(t, "No automation runs found.\n", runListToText(nil))
 
 	output := runListToText([]coreautomation.Run{{
 		ID:             testAutomationCommandRunID,
@@ -44,7 +45,7 @@ func TestRunListToText_FormatsRowsAndEmptyState(t *testing.T) {
 		DeliveryStatus: coreautomation.DeliveryStatusDelivered,
 	}})
 
-	require.Contains(t, output, "Automation runs\n")
+	require.True(t, strings.HasPrefix(output, "RUN ID"))
 	require.Contains(t, output, "RUN ID                        JOB ID")
 	require.Contains(t, output, testAutomationCommandRunID+"  "+testAutomationCommandJobID+"  ok")
 	require.Contains(t, output, "2026-07-05T08:00:00Z  12s       delivered")

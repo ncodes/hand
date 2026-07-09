@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -101,7 +102,7 @@ func TestNewCommand_ListAndUpdateCallRPC(t *testing.T) {
 	}
 
 	require.NoError(t, newTestCommand().Run(context.Background(), []string{"automation", "list", "--all"}))
-	require.Contains(t, output.String(), "Automation jobs\n")
+	require.True(t, strings.HasPrefix(output.String(), "ID"))
 	require.Contains(t, output.String(), "ID                          NAME   ENABLED  SCHEDULE")
 	require.Contains(t, output.String(), testAutomationCommandJobID+"  Daily  true     every 1h0m0s")
 
@@ -154,7 +155,7 @@ func TestNewCommand_PauseResumeRunRemoveAndRunsCallRPC(t *testing.T) {
 	}))
 	require.Equal(t, testAutomationCommandJobID, api.runQuery.JobID)
 	require.Equal(t, []coreautomation.RunStatus{coreautomation.RunStatusError}, api.runQuery.Status)
-	require.Contains(t, output.String(), "Automation runs\n")
+	require.True(t, strings.HasPrefix(output.String(), "RUN ID"))
 	require.Contains(t, output.String(), "RUN ID                        JOB ID")
 	require.Contains(t, output.String(), testAutomationCommandRunID+"  "+testAutomationCommandJobID+"  error")
 }
