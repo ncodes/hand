@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,9 +151,9 @@ models:
 
 	err := NewCommand().Run(context.Background(), []string{"auth", "status", "openai", "anthropic", "openrouter"})
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "openai: stored api_key")
-	require.Contains(t, output.String(), "anthropic: environment")
-	require.Contains(t, output.String(), "openrouter: provider-config")
+	requireAuthStatusRow(t, output.String(), "openai", "stored api_key")
+	requireAuthStatusRow(t, output.String(), "anthropic", "environment")
+	requireAuthStatusRow(t, output.String(), "openrouter", "provider-config")
 	require.NotContains(t, output.String(), "stored-secret")
 	require.NotContains(t, output.String(), "env-secret")
 	require.NotContains(t, output.String(), "config-secret")
@@ -177,9 +178,9 @@ web:
 
 	err := NewCommand().Run(context.Background(), []string{"auth", "status", "firecrawl", "exa", "tavily"})
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "firecrawl: stored api_key")
-	require.Contains(t, output.String(), "exa: environment")
-	require.Contains(t, output.String(), "tavily: provider-config")
+	requireAuthStatusRow(t, output.String(), "firecrawl", "stored api_key")
+	requireAuthStatusRow(t, output.String(), "exa", "environment")
+	requireAuthStatusRow(t, output.String(), "tavily", "provider-config")
 	require.NotContains(t, output.String(), "firecrawl-stored-secret")
 	require.NotContains(t, output.String(), "exa-env-secret")
 	require.NotContains(t, output.String(), "tavily-config-secret")
@@ -207,8 +208,8 @@ func TestCommand_StatusReportsStoredOAuthExpiryStates(t *testing.T) {
 
 	err := NewCommand().Run(context.Background(), []string{"auth", "status", "openai", "anthropic"})
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "openai: stored oauth expired")
-	require.Contains(t, output.String(), "anthropic: stored oauth refreshable")
+	requireAuthStatusRow(t, output.String(), "openai", "stored oauth expired")
+	requireAuthStatusRow(t, output.String(), "anthropic", "stored oauth refreshable")
 	require.NotContains(t, output.String(), "old-token")
 	require.NotContains(t, output.String(), "fresh-token")
 }
@@ -229,7 +230,7 @@ models:
 
 	err := NewCommand().Run(context.Background(), []string{"auth", "status", "custom"})
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "custom: environment")
+	requireAuthStatusRow(t, output.String(), "custom", "environment")
 	require.NotContains(t, output.String(), "custom-secret")
 }
 
@@ -241,14 +242,14 @@ func TestCommand_StatusReportsAllKnownProviders(t *testing.T) {
 
 	err := NewCommand().Run(context.Background(), []string{"auth", "status"})
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "anthropic: missing")
-	require.Contains(t, output.String(), "github-copilot: missing")
-	require.Contains(t, output.String(), "openai: missing")
-	require.Contains(t, output.String(), "openrouter: missing")
-	require.Contains(t, output.String(), "exa: missing")
-	require.Contains(t, output.String(), "firecrawl: missing")
-	require.Contains(t, output.String(), "parallel: missing")
-	require.Contains(t, output.String(), "tavily: missing")
+	requireAuthStatusRow(t, output.String(), "anthropic", "missing")
+	requireAuthStatusRow(t, output.String(), "github-copilot", "missing")
+	requireAuthStatusRow(t, output.String(), "openai", "missing")
+	requireAuthStatusRow(t, output.String(), "openrouter", "missing")
+	requireAuthStatusRow(t, output.String(), "exa", "missing")
+	requireAuthStatusRow(t, output.String(), "firecrawl", "missing")
+	requireAuthStatusRow(t, output.String(), "parallel", "missing")
+	requireAuthStatusRow(t, output.String(), "tavily", "missing")
 }
 
 func TestCommand_StatusReportsConfigAndStoredProvidersWithoutArgs(t *testing.T) {
@@ -270,8 +271,8 @@ models:
 
 	err := NewCommand().Run(context.Background(), []string{"auth", "status"})
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "custom-config: provider-config")
-	require.Contains(t, output.String(), "custom-stored: stored api_key")
+	requireAuthStatusRow(t, output.String(), "custom-config", "provider-config")
+	requireAuthStatusRow(t, output.String(), "custom-stored", "stored api_key")
 	require.NotContains(t, output.String(), "config-secret")
 	require.NotContains(t, output.String(), "stored-secret")
 }
@@ -353,6 +354,20 @@ func TestFormatAuthStatus_ReturnsUnknownSourceValue(t *testing.T) {
 	}
 
 	require.Equal(t, "runtime", formatAuthStatus(status))
+}
+
+func requireAuthStatusRow(t *testing.T, output string, provider string, status string) {
+	t.Helper()
+	require.Contains(t, output, "PROVIDER")
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) > 0 && fields[0] == provider {
+			require.Equal(t, status, strings.Join(fields[1:], " "))
+			return
+		}
+	}
+
+	t.Fatalf("auth status row for %q not found in:\n%s", provider, output)
 }
 
 func TestGetFirstEnvValue_SkipsBlankAndMissingKeys(t *testing.T) {

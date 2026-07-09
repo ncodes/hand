@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"strings"
 	"text/tabwriter"
+	"time"
+	"unicode"
 
 	cli "github.com/urfave/cli/v3"
 
@@ -17,6 +21,8 @@ import (
 	"github.com/wandxy/morph/pkg/logutils"
 	"github.com/wandxy/morph/pkg/str"
 )
+
+const gatewayPairingNameDisplayLimit = 40
 
 var (
 	gatewayOutput io.Writer = os.Stdout
@@ -189,26 +195,21 @@ func runGatewayRuntimeCommand(
 }
 
 func writeGatewayStatus(out io.Writer, status rpcclient.GatewayStatus) error {
-	_, err := fmt.Fprintf(
-		out,
-		"state=%s address=%s port=%d telegram=%s slack=%s",
-		status.State,
-		status.Address,
-		status.Port,
-		status.TelegramMode,
-		status.SlackMode,
-	)
-	if err != nil {
-		return err
-	}
-	lastErrorValue := str.String(status.LastError)
-	if lastErrorValue.Trim() != "" {
-		if _, err := fmt.Fprintf(out, " last_error=%q", status.LastError); err != nil {
-			return err
-		}
-	}
-	_, err = fmt.Fprintln(out)
+	var output strings.Builder
+	output.WriteString("Gateway\n")
+	appendGatewayStatusField(&output, "State", status.State)
+	appendGatewayStatusField(&output, "Address", status.Address)
+	appendGatewayStatusField(&output, "Port", strconv.Itoa(status.Port))
+	appendGatewayStatusField(&output, "Telegram", status.TelegramMode)
+	appendGatewayStatusField(&output, "Slack", status.SlackMode)
+	appendGatewayStatusField(&output, "Last error", status.LastError)
+
+	_, err := fmt.Fprint(out, output.String())
 	return err
+}
+
+func appendGatewayStatusField(output *strings.Builder, label string, value string) {
+	fmt.Fprintf(output, "  %-12s %s\n", label+":", getGatewayDisplayText(value))
 }
 
 func newPairingListCommand() *cli.Command {
@@ -235,25 +236,25 @@ func newPairingListCommand() *cli.Command {
 
 func writePairingList(out io.Writer, result rpcclient.GatewayPairingList) error {
 	writer := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
-	if _, err := fmt.Fprintln(writer, "pending"); err != nil {
+	if _, err := fmt.Fprintln(writer, "Pending"); err != nil {
 		return err
 	}
 	if len(result.Pending) == 0 {
-		if _, err := fmt.Fprintln(writer, "  none"); err != nil {
+		if _, err := fmt.Fprintln(writer, "  None"); err != nil {
 			return err
 		}
 	} else {
-		if _, err := fmt.Fprintln(writer, "  source\tsender id\tname\texpires"); err != nil {
+		if _, err := fmt.Fprintln(writer, "  SOURCE\tSENDER ID\tNAME\tEXPIRES"); err != nil {
 			return err
 		}
 		for _, request := range result.Pending {
 			if _, err := fmt.Fprintf(
 				writer,
 				"  %s\t%s\t%s\t%s\n",
-				request.Source,
-				request.SenderID,
-				request.DisplayName,
-				request.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
+				getGatewayDisplayText(request.Source),
+				getGatewayDisplayText(request.SenderID),
+				getGatewayPairingNameDisplay(request.DisplayName),
+				formatGatewayTime(request.ExpiresAt),
 			); err != nil {
 				return err
 			}
@@ -262,24 +263,24 @@ func writePairingList(out io.Writer, result rpcclient.GatewayPairingList) error 
 	if _, err := fmt.Fprintln(writer); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(writer, "approved"); err != nil {
+	if _, err := fmt.Fprintln(writer, "Approved"); err != nil {
 		return err
 	}
 	if len(result.Approved) == 0 {
-		if _, err := fmt.Fprintln(writer, "  none"); err != nil {
+		if _, err := fmt.Fprintln(writer, "  None"); err != nil {
 			return err
 		}
 	} else {
-		if _, err := fmt.Fprintln(writer, "  source\tsender id\tname"); err != nil {
+		if _, err := fmt.Fprintln(writer, "  SOURCE\tSENDER ID\tNAME"); err != nil {
 			return err
 		}
 		for _, sender := range result.Approved {
 			if _, err := fmt.Fprintf(
 				writer,
 				"  %s\t%s\t%s\n",
-				sender.Source,
-				sender.SenderID,
-				sender.DisplayName,
+				getGatewayDisplayText(sender.Source),
+				getGatewayDisplayText(sender.SenderID),
+				getGatewayPairingNameDisplay(sender.DisplayName),
 			); err != nil {
 				return err
 			}
@@ -287,6 +288,45 @@ func writePairingList(out io.Writer, result rpcclient.GatewayPairingList) error 
 	}
 
 	return writer.Flush()
+}
+
+func getGatewayPairingNameDisplay(name string) string {
+	name = strings.Map(func(value rune) rune {
+		if unicode.IsControl(value) {
+			return ' '
+		}
+
+		return value
+	}, name)
+	display := strings.Join(strings.Fields(name), " ")
+	if display == "" {
+		return "-"
+	}
+	runes := []rune(display)
+	if len(runes) <= gatewayPairingNameDisplayLimit {
+		return display
+	}
+
+	return string(runes[:gatewayPairingNameDisplayLimit-3]) + "..."
+}
+
+func getGatewayDisplayText(value string) string {
+	if value == "" {
+		return "-"
+	}
+	if strings.TrimSpace(value) != value || strings.ContainsAny(value, "\r\n\t") {
+		return strconv.Quote(value)
+	}
+
+	return value
+}
+
+func formatGatewayTime(value time.Time) string {
+	if value.IsZero() {
+		return "-"
+	}
+
+	return value.UTC().Format(time.RFC3339)
 }
 
 func newPairingApproveCommand() *cli.Command {

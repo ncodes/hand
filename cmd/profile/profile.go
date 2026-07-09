@@ -204,28 +204,46 @@ func newDoctorCommand() *cli.Command {
 				return err
 			}
 
-			lines := []string{
-				"name=" + resolved.Name,
-				"home=" + resolved.HomeDir,
-				"config=" + resolved.ConfigPath,
-				"env=" + resolved.EnvPath,
-				"runtime=" + resolved.RuntimePath,
-				"pid=" + resolved.PIDPath,
-				fmt.Sprintf("home_exists=%t", pathExists(resolved.HomeDir)),
-				fmt.Sprintf("config_exists=%t", pathExists(resolved.ConfigPath)),
-				fmt.Sprintf("env_exists=%t", pathExists(resolved.EnvPath)),
-				fmt.Sprintf("runtime_exists=%t", pathExists(resolved.RuntimePath)),
-			}
-
-			for _, line := range lines {
-				if _, err := fmt.Fprintln(profileOutput, line); err != nil {
-					return err
-				}
-			}
-
-			return nil
+			return writeProfileDoctor(profileOutput, resolved)
 		},
 	}
+}
+
+func writeProfileDoctor(out io.Writer, resolved profile.Profile) error {
+	var output strings.Builder
+	output.WriteString("Profile\n")
+	appendProfileDoctorField(&output, "Name", resolved.Name)
+
+	output.WriteString("\nPaths\n")
+	appendProfileDoctorField(&output, "Home", resolved.HomeDir)
+	appendProfileDoctorField(&output, "Config", resolved.ConfigPath)
+	appendProfileDoctorField(&output, "Environment", resolved.EnvPath)
+	appendProfileDoctorField(&output, "Runtime", resolved.RuntimePath)
+	appendProfileDoctorField(&output, "PID", resolved.PIDPath)
+
+	output.WriteString("\nStatus\n")
+	appendProfileDoctorField(&output, "Home", formatPathStatus(resolved.HomeDir))
+	appendProfileDoctorField(&output, "Config", formatPathStatus(resolved.ConfigPath))
+	appendProfileDoctorField(&output, "Environment", formatPathStatus(resolved.EnvPath))
+	appendProfileDoctorField(&output, "Runtime", formatPathStatus(resolved.RuntimePath))
+
+	_, err := fmt.Fprint(out, output.String())
+	return err
+}
+
+func appendProfileDoctorField(output *strings.Builder, label string, value string) {
+	if value == "" {
+		value = "-"
+	}
+	fmt.Fprintf(output, "  %-13s %s\n", label+":", value)
+}
+
+func formatPathStatus(path string) string {
+	if pathExists(path) {
+		return "present"
+	}
+
+	return "missing"
 }
 
 func loadCommandProfile(name string) (profile.Profile, error) {

@@ -26,19 +26,6 @@ func (errWriter) Write([]byte) (int, error) {
 	return 0, errGatewayTestWrite
 }
 
-type failAfterWrite struct {
-	writes int
-}
-
-func (w *failAfterWrite) Write(p []byte) (int, error) {
-	w.writes++
-	if w.writes > 1 {
-		return 0, errGatewayTestWrite
-	}
-
-	return len(p), nil
-}
-
 func TestSetOutputReturnsPreviousAndDiscardsNil(t *testing.T) {
 	originalOutput := gatewayOutput
 	t.Cleanup(func() { gatewayOutput = originalOutput })
@@ -90,22 +77,29 @@ func TestRuntimeCommandsCallRPCAndPrintStatus(t *testing.T) {
 	}
 
 	require.NoError(t, NewCommand().Run(context.Background(), []string{"gateway", "status"}))
-	require.Equal(t, "state=running address=127.0.0.1 port=50052 telegram=polling slack=socket\n", output.String())
+	expected := "Gateway\n" +
+		"  State:       running\n" +
+		"  Address:     127.0.0.1\n" +
+		"  Port:        50052\n" +
+		"  Telegram:    polling\n" +
+		"  Slack:       socket\n" +
+		"  Last error:  -\n"
+	require.Equal(t, expected, output.String())
 
 	output.Reset()
 	require.NoError(t, NewCommand().Run(context.Background(), []string{"gateway", "start"}))
 	require.True(t, stub.GatewayStarted)
-	require.Equal(t, "state=running address=127.0.0.1 port=50052 telegram=polling slack=socket\n", output.String())
+	require.Equal(t, expected, output.String())
 
 	output.Reset()
 	require.NoError(t, NewCommand().Run(context.Background(), []string{"gateway", "stop"}))
 	require.True(t, stub.GatewayStopped)
-	require.Equal(t, "state=running address=127.0.0.1 port=50052 telegram=polling slack=socket\n", output.String())
+	require.Equal(t, expected, output.String())
 
 	output.Reset()
 	require.NoError(t, NewCommand().Run(context.Background(), []string{"gateway", "restart"}))
 	require.True(t, stub.GatewayRestarted)
-	require.Equal(t, "state=running address=127.0.0.1 port=50052 telegram=polling slack=socket\n", output.String())
+	require.Equal(t, expected, output.String())
 }
 
 func TestRuntimeCommandPrintsSafeLastError(t *testing.T) {
@@ -133,7 +127,7 @@ func TestRuntimeCommandPrintsSafeLastError(t *testing.T) {
 	}
 
 	require.NoError(t, NewCommand().Run(context.Background(), []string{"gateway", "status"}))
-	require.Contains(t, output.String(), `last_error="slack socket: [REDACTED]"`)
+	require.Contains(t, output.String(), "Last error:  slack socket: [REDACTED]")
 }
 
 func TestRuntimeCommandReturnsWriteError(t *testing.T) {
@@ -152,19 +146,6 @@ func TestRuntimeCommandReturnsWriteError(t *testing.T) {
 	}
 
 	err := NewCommand().Run(context.Background(), []string{"gateway", "status"})
-	require.ErrorIs(t, err, errGatewayTestWrite)
-
-	gatewayOutput = &failAfterWrite{}
-	newClient = func(context.Context, *config.Config) (gatewayClient, error) {
-		return &agentstub.AgentServiceStub{
-			GatewayStatusResult: rpcclient.GatewayStatus{
-				State:     "failed",
-				LastError: "safe error",
-			},
-		}, nil
-	}
-
-	err = NewCommand().Run(context.Background(), []string{"gateway", "status"})
 	require.ErrorIs(t, err, errGatewayTestWrite)
 }
 
@@ -294,11 +275,11 @@ func TestPairingListCommandCallsRPC(t *testing.T) {
 	err := NewCommand().Run(context.Background(), []string{"gateway", "pairing", "list", "telegram"})
 
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "pending\n")
-	require.Contains(t, output.String(), "  source    sender id  name  expires\n")
+	require.Contains(t, output.String(), "Pending\n")
+	require.Contains(t, output.String(), "  SOURCE    SENDER ID  NAME  EXPIRES\n")
 	require.Contains(t, output.String(), "  telegram  123        Ada   2026-06-08T12:00:00Z\n")
-	require.Contains(t, output.String(), "approved\n")
-	require.Contains(t, output.String(), "  source    sender id  name\n")
+	require.Contains(t, output.String(), "Approved\n")
+	require.Contains(t, output.String(), "  SOURCE    SENDER ID  NAME\n")
 	require.Contains(t, output.String(), "  telegram  456        Grace\n")
 }
 
@@ -320,7 +301,37 @@ func TestPairingListCommandShowsNoneForEmptySections(t *testing.T) {
 	err := NewCommand().Run(context.Background(), []string{"gateway", "pairing", "list"})
 
 	require.NoError(t, err)
-	require.Equal(t, "pending\n  none\n\napproved\n  none\n", output.String())
+	require.Equal(t, "Pending\n  None\n\nApproved\n  None\n", output.String())
+}
+
+func TestPairingListCommandFormatsMissingAndLongNames(t *testing.T) {
+	setGatewayTestProfile(t)
+	originalNewClient := newClient
+	originalOutput := gatewayOutput
+	t.Cleanup(func() {
+		newClient = originalNewClient
+		gatewayOutput = originalOutput
+	})
+
+	var output bytes.Buffer
+	gatewayOutput = &output
+	newClient = func(context.Context, *config.Config) (gatewayClient, error) {
+		return &agentstub.AgentServiceStub{
+			PairingRequests: []pairing.PendingRequest{{
+				Source:      "telegram",
+				SenderID:    "123",
+				DisplayName: "A very long pairing display name that should be capped safely",
+			}},
+			PairedSenders: []pairing.ApprovedSender{{Source: "slack", SenderID: "456"}},
+		}, nil
+	}
+
+	err := NewCommand().Run(context.Background(), []string{"gateway", "pairing", "list"})
+
+	require.NoError(t, err)
+	require.Contains(t, output.String(), "A very long pairing display name that...")
+	require.Contains(t, output.String(), "slack   456        -")
+	require.Contains(t, output.String(), "  -\n\nApproved")
 }
 
 func TestPairingListCommandReturnsWriteError(t *testing.T) {

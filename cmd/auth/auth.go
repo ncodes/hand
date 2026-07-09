@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	cli "github.com/urfave/cli/v3"
@@ -105,17 +106,21 @@ func newStatusCommand() *cli.Command {
 				return err
 			}
 
+			writer := tabwriter.NewWriter(authOutput, 0, 4, 2, ' ', 0)
+			if _, err := fmt.Fprintln(writer, "PROVIDER\tCREDENTIAL"); err != nil {
+				return err
+			}
 			for _, provider := range providers {
 				status, err := getProviderAuthStatus(provider, store, cfg)
 				if err != nil {
 					return err
 				}
-				if _, err := fmt.Fprintf(authOutput, "%s: %s\n", provider, formatAuthStatus(status)); err != nil {
+				if _, err := fmt.Fprintf(writer, "%s\t%s\n", provider, formatAuthStatus(status)); err != nil {
 					return err
 				}
 			}
 
-			return nil
+			return writer.Flush()
 		},
 	}
 }

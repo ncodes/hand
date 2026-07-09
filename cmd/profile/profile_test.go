@@ -261,16 +261,18 @@ func TestCommandDoctorPrintsProfilePathsAndStatuses(t *testing.T) {
 	require.NoError(t, err)
 
 	got := output.String()
-	require.Contains(t, got, "name=work\n")
-	require.Contains(t, got, "home="+profileHome+"\n")
-	require.Contains(t, got, "config="+filepath.Join(profileHome, "config.yaml")+"\n")
-	require.Contains(t, got, "env="+filepath.Join(profileHome, ".env")+"\n")
-	require.Contains(t, got, "runtime="+filepath.Join(profileHome, "runtime.json")+"\n")
-	require.Contains(t, got, "pid="+filepath.Join(profileHome, "morph.pid")+"\n")
-	require.Contains(t, got, "home_exists=true\n")
-	require.Contains(t, got, "config_exists=true\n")
-	require.Contains(t, got, "env_exists=false\n")
-	require.Contains(t, got, "runtime_exists=false\n")
+	require.Contains(t, got, "Profile\n  Name:         work\n")
+	require.Contains(t, got, "Paths\n")
+	require.Contains(t, got, "  Home:         "+profileHome+"\n")
+	require.Contains(t, got, "  Config:       "+filepath.Join(profileHome, "config.yaml")+"\n")
+	require.Contains(t, got, "  Environment:  "+filepath.Join(profileHome, ".env")+"\n")
+	require.Contains(t, got, "  Runtime:      "+filepath.Join(profileHome, "runtime.json")+"\n")
+	require.Contains(t, got, "  PID:          "+filepath.Join(profileHome, "morph.pid")+"\n")
+	require.Contains(t, got, "Status\n")
+	require.Contains(t, got, "  Home:         present\n")
+	require.Contains(t, got, "  Config:       present\n")
+	require.Contains(t, got, "  Environment:  missing\n")
+	require.Contains(t, got, "  Runtime:      missing\n")
 }
 
 func resetProfileCommand(t *testing.T) {
