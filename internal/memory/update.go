@@ -32,11 +32,11 @@ func (p *MemoryProvider) Update(ctx context.Context, req UpdateRequest) (UpdateR
 		replacement.Metadata = make(map[string]string)
 	}
 	replacement.Metadata[supersedesMemoryIDMetadataKey] = previous.ID
-	metadataValue := str.String(previous.Metadata["source_session_id"])
+	metadataValue := str.String(previous.Metadata[MemoryMetadataSourceSessionID])
 	if sessionID := metadataValue.Trim(); sessionID != "" {
-		metadataValue2 := str.String(replacement.Metadata["source_session_id"])
+		metadataValue2 := str.String(replacement.Metadata[MemoryMetadataSourceSessionID])
 		if metadataValue2.Trim() == "" {
-			replacement.Metadata["source_session_id"] = sessionID
+			replacement.Metadata[MemoryMetadataSourceSessionID] = sessionID
 		}
 	}
 

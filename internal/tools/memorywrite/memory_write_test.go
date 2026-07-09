@@ -121,19 +121,50 @@ func TestMemoryAdd_DefinitionPreservesSessionLineage(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Empty(t, result.Error)
-	require.Equal(t, parentID, recorded.Item.Metadata[memory.MemoryMetadataPublicSessionID])
-	require.Equal(t, childID, recorded.Item.Metadata[memory.MemoryMetadataEffectiveSessionID])
-	require.Equal(t, parentID, recorded.Item.Metadata[memory.MemoryMetadataParentSessionID])
-	require.Equal(t, childID, recorded.Item.Metadata[memory.MemoryMetadataChildSessionID])
-	require.Equal(t, "run_memory", recorded.Item.Metadata[memory.MemoryMetadataRunID])
-	require.Equal(t, "researcher", recorded.Item.Metadata[memory.MemoryMetadataSourcePersonality])
-	require.Equal(t, runcontext.StateModeIsolated, recorded.Item.Metadata[memory.MemoryMetadataStateMode])
-	require.Equal(t, "work", recorded.Item.Metadata[memory.MemoryMetadataSourceProfile])
-	require.Equal(t, "tool_write", recorded.Item.Metadata[memory.MemoryMetadataTrigger])
+	require.Equal(t, parentID, recorded.Item.Metadata[memory.MemoryMetadataSourceSessionID])
+	require.Equal(t, parentID, recorded.Item.SourceLinks[0].SessionID)
 	require.Equal(t, childID, recorded.Item.SourceLinks[0].ChildSessionID)
 	require.Equal(t, parentID, recorded.Item.SourceLinks[0].ParentSessionID)
 	require.Equal(t, "run_memory", recorded.Item.SourceLinks[0].RunID)
 	require.Equal(t, "tool_write", recorded.Item.SourceLinks[0].SourceTrigger)
+}
+
+func TestMemoryAdd_DefinitionUsesRunContextProvenanceWhenInputOmitsSource(t *testing.T) {
+	parentID := nanoid.MustFromSeed(storage.SessionIDPrefix, "parent", "MemoryWriteAutoProvenanceSeed")
+	parent, err := runcontext.NewParent(parentID)
+	require.NoError(t, err)
+
+	var recorded memory.SemanticRecord
+	runtime := &toolmocks.Runtime{
+		RecordSemanticMemoryFunc: func(_ context.Context, record memory.SemanticRecord) (memory.MemoryItem, error) {
+			recorded = record
+			item := record.Item
+			item.ID = "mem_semantic_candidate"
+			item.Status = memory.StatusCandidate
+			return item, nil
+		},
+		PromoteMemoryCandidateFunc: func(_ context.Context, req memory.PromotionRequest) (memory.LifecycleResult, error) {
+			return memory.LifecycleResult{
+				Item:     recorded.Item,
+				Decision: memory.PromotionDecision{Approved: true, Reason: "approved"},
+			}, nil
+		},
+	}
+	ctx := tools.WithRunContext(context.Background(), parent)
+
+	result, err := AddDefinition(runtime).Handler.Invoke(ctx, tools.Call{
+		Name: "memory_add",
+		Input: `{
+			"kind":"semantic",
+			"title":"Research preference"
+		}`,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	require.Equal(t, parentID, recorded.Item.Metadata[memory.MemoryMetadataSourceSessionID])
+	require.Len(t, recorded.Item.SourceLinks, 1)
+	require.Equal(t, parentID, recorded.Item.SourceLinks[0].SessionID)
 }
 
 func TestMemoryAdd_DefinitionRecordsProceduralMemory(t *testing.T) {
@@ -362,6 +393,48 @@ func TestMemoryUpdate_DefinitionReplacesMemory(t *testing.T) {
 	require.Equal(t, memory.StatusSuperseded, output.Previous.Status)
 	require.Equal(t, memory.StatusActive, output.Replacement.Status)
 	require.True(t, output.Decision.Approved)
+}
+
+func TestMemoryUpdate_DefinitionUsesRunContextProvenanceWhenReplacementOmitsSource(t *testing.T) {
+	parentID := nanoid.MustFromSeed(storage.SessionIDPrefix, "parent", "MemoryUpdateAutoProvenanceSeed")
+	parent, err := runcontext.NewParent(parentID)
+	require.NoError(t, err)
+
+	var captured memory.UpdateRequest
+	runtime := &toolmocks.Runtime{
+		UpdateMemoryFunc: func(_ context.Context, req memory.UpdateRequest) (memory.UpdateResult, error) {
+			captured = req
+			replacement := req.Replacement
+			replacement.ID = "mem_semantic_new"
+			replacement.Status = memory.StatusActive
+			return memory.UpdateResult{
+				Previous:    memory.MemoryItem{ID: req.ID, Status: memory.StatusSuperseded},
+				Replacement: replacement,
+				Lifecycle: memory.LifecycleResult{
+					Item:     replacement,
+					Decision: memory.PromotionDecision{Approved: true},
+				},
+			}, nil
+		},
+	}
+	ctx := tools.WithRunContext(context.Background(), parent)
+
+	result, err := UpdateDefinition(runtime).Handler.Invoke(ctx, tools.Call{
+		Name: "memory_update",
+		Input: `{
+			"id":"mem_old",
+			"replacement":{
+				"kind":"semantic",
+				"title":"Updated preference"
+			}
+		}`,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	require.Equal(t, parentID, captured.Replacement.Metadata[memory.MemoryMetadataSourceSessionID])
+	require.Len(t, captured.Replacement.SourceLinks, 1)
+	require.Equal(t, parentID, captured.Replacement.SourceLinks[0].SessionID)
 }
 
 func TestMemoryUpdate_DefinitionRequiresMemoryID(t *testing.T) {

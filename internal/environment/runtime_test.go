@@ -618,20 +618,18 @@ func TestRuntime_MemoryWriteAppliesSessionLineage(t *testing.T) {
 
 	_, err = runtime.RecordSemanticMemory(ctx, morphmemory.SemanticRecord{Item: item})
 	require.NoError(t, err)
-	require.Equal(t, childID, provider.semanticRecord.Item.Metadata[morphmemory.MemoryMetadataEffectiveSessionID])
-	require.Equal(t, parentID, provider.semanticRecord.Item.Metadata[morphmemory.MemoryMetadataParentSessionID])
 	require.Equal(t, "episodic_extraction", provider.semanticRecord.Item.Metadata[morphmemory.MemoryMetadataTrigger])
+	require.Equal(t, parentID, provider.semanticRecord.Item.Metadata[morphmemory.MemoryMetadataSourceSessionID])
 	require.Equal(t, childID, provider.semanticRecord.Item.SourceLinks[0].ChildSessionID)
 
 	_, err = runtime.RecordProceduralMemory(ctx, morphmemory.ProceduralRecord{Item: item})
 	require.NoError(t, err)
-	require.Equal(t, childID, provider.proceduralRecord.Item.Metadata[morphmemory.MemoryMetadataEffectiveSessionID])
-	require.Equal(t, parentID, provider.proceduralRecord.Item.Metadata[morphmemory.MemoryMetadataParentSessionID])
 	require.Equal(t, "episodic_extraction", provider.proceduralRecord.Item.Metadata[morphmemory.MemoryMetadataTrigger])
+	require.Equal(t, parentID, provider.proceduralRecord.Item.Metadata[morphmemory.MemoryMetadataSourceSessionID])
 	require.Equal(t, childID, provider.proceduralRecord.Item.SourceLinks[0].ChildSessionID)
 
 	_, err = runtime.UpdateMemory(ctx, morphmemory.UpdateRequest{ID: "mem_old", Replacement: item})
 	require.NoError(t, err)
-	require.Equal(t, childID, provider.updateRequest.Replacement.Metadata[morphmemory.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, parentID, provider.updateRequest.Replacement.Metadata[morphmemory.MemoryMetadataSourceSessionID])
 	require.Equal(t, parentID, provider.updateRequest.Replacement.SourceLinks[0].ParentSessionID)
 }

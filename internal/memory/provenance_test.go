@@ -9,7 +9,7 @@ import (
 	"github.com/wandxy/morph/pkg/nanoid"
 )
 
-func TestApplyRunProvenance_AddsLineageMetadataAndSourceLinks(t *testing.T) {
+func TestApplyRunProvenance_AddsSessionMetadataAndSourceLinks(t *testing.T) {
 	parentID := nanoid.MustFromSeed(runcontext.SessionIDPrefix, "parent", "MemoryLineageTestSeed")
 	childID := nanoid.MustFromSeed(runcontext.SessionIDPrefix, "child", "MemoryLineageTestSeed")
 	parent, err := runcontext.NewParent(parentID)
@@ -24,24 +24,33 @@ func TestApplyRunProvenance_AddsLineageMetadataAndSourceLinks(t *testing.T) {
 	require.NoError(t, err)
 
 	item := ApplyRunProvenance(MemoryItem{
-		Metadata:    map[string]string{"source_session_id": parentID},
-		SourceLinks: []SourceLink{{SessionID: parentID, MessageIDs: []uint{1}}},
+		Metadata:    map[string]string{"custom": "value"},
+		SourceLinks: []SourceLink{{MessageIDs: []uint{1}}},
 	}, child, "tool_write")
 
-	require.Equal(t, parentID, item.Metadata[MemoryMetadataPublicSessionID])
-	require.Equal(t, childID, item.Metadata[MemoryMetadataEffectiveSessionID])
-	require.Equal(t, parentID, item.Metadata[MemoryMetadataParentSessionID])
-	require.Equal(t, childID, item.Metadata[MemoryMetadataChildSessionID])
-	require.Equal(t, "run_memory", item.Metadata[MemoryMetadataRunID])
-	require.Equal(t, "researcher", item.Metadata[MemoryMetadataSourcePersonality])
-	require.Equal(t, runcontext.StateModeReadonly, item.Metadata[MemoryMetadataStateMode])
-	require.Equal(t, "work", item.Metadata[MemoryMetadataSourceProfile])
-	require.Equal(t, "tool_write", item.Metadata[MemoryMetadataTrigger])
+	require.Equal(t, "value", item.Metadata["custom"])
+	require.Equal(t, parentID, item.Metadata[MemoryMetadataSourceSessionID])
+	require.Equal(t, parentID, item.SourceLinks[0].SessionID)
 	require.Equal(t, parentID, item.SourceLinks[0].ParentSessionID)
 	require.Equal(t, childID, item.SourceLinks[0].ChildSessionID)
 	require.Equal(t, "run_memory", item.SourceLinks[0].RunID)
 	require.Equal(t, "researcher", item.SourceLinks[0].SourcePersonality)
 	require.Equal(t, "tool_write", item.SourceLinks[0].SourceTrigger)
+}
+
+func TestApplyRunProvenance_AddsMissingSourceLinkAndStaysIdempotent(t *testing.T) {
+	parentID := nanoid.MustFromSeed(runcontext.SessionIDPrefix, "parent", "MemoryMissingSourceLinkSeed")
+	parent, err := runcontext.NewParent(parentID)
+	require.NoError(t, err)
+
+	item := ApplyRunProvenance(MemoryItem{}, parent, "tool_write")
+	item = ApplyRunProvenance(item, parent, "tool_write")
+
+	require.Equal(t, parentID, item.Metadata[MemoryMetadataSourceSessionID])
+	require.Len(t, item.SourceLinks, 1)
+	require.Equal(t, parentID, item.SourceLinks[0].SessionID)
+	require.Equal(t, "tool_write", item.SourceLinks[0].SourceTrigger)
+	require.True(t, HasSourceProvenance(item))
 }
 
 func TestApplyRunProvenance_SkipsInvalidRunContext(t *testing.T) {
@@ -78,6 +87,8 @@ func TestApplyRunProvenance_PreservesExistingSourceLinkFields(t *testing.T) {
 		}},
 	}, child, "tool_write")
 
+	require.Len(t, item.SourceLinks, 1)
+	require.Equal(t, parentID, item.SourceLinks[0].SessionID)
 	require.Equal(t, "existing_profile", item.SourceLinks[0].SourceProfile)
 	require.Equal(t, "existing_personality", item.SourceLinks[0].SourcePersonality)
 	require.Equal(t, "existing_parent", item.SourceLinks[0].ParentSessionID)
@@ -103,4 +114,17 @@ func TestFillSourceLinkProvenance_IgnoresNilLinks(t *testing.T) {
 	require.NotPanics(t, func() {
 		fillSourceLinkProvenance(nil, runcontext.Context{}, "tool_write")
 	})
+}
+
+func TestHasSourceProvenance_AcceptsSourceSessionMetadataAndSourceLinks(t *testing.T) {
+	require.True(t, HasSourceProvenance(MemoryItem{
+		Metadata: map[string]string{MemoryMetadataSourceSessionID: "default"},
+	}))
+	require.True(t, HasSourceProvenance(MemoryItem{
+		SourceLinks: []SourceLink{{SummaryID: "summary_1"}},
+	}))
+	require.False(t, HasSourceProvenance(MemoryItem{
+		Metadata:    map[string]string{"other": "value"},
+		SourceLinks: []SourceLink{{CreatedBy: "tool"}},
+	}))
 }

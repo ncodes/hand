@@ -6,23 +6,12 @@ import (
 )
 
 const (
-	MemoryMetadataSourceProfile      = "source_profile"
-	MemoryMetadataSourcePersonality  = "source_personality"
-	MemoryMetadataParentSessionID    = "source_parent_session_id"
-	MemoryMetadataChildSessionID     = "source_child_session_id"
-	MemoryMetadataRunID              = "source_run_id"
-	MemoryMetadataStateMode          = "source_state_mode"
-	MemoryMetadataTrigger            = "source_trigger"
-	MemoryMetadataPublicSessionID    = "source_public_session_id"
-	MemoryMetadataEffectiveSessionID = "source_effective_session_id"
+	MemoryMetadataSourceSessionID = "source_session_id"
+	MemoryMetadataTrigger         = "source_trigger"
 )
 
 // ApplyRunProvenance applies run provenance.
-func ApplyRunProvenance(
-	item MemoryItem,
-	runCtx runcontext.Context,
-	trigger string,
-) MemoryItem {
+func ApplyRunProvenance(item MemoryItem, runCtx runcontext.Context, trigger string) MemoryItem {
 	runCtx, err := runCtx.Normalize()
 	if err != nil {
 		return item
@@ -33,21 +22,28 @@ func ApplyRunProvenance(
 		item.Metadata = make(map[string]string)
 	}
 
-	setMetadata(item.Metadata, MemoryMetadataPublicSessionID, runCtx.Session.PublicID)
-	setMetadata(item.Metadata, MemoryMetadataEffectiveSessionID, runCtx.Session.EffectiveID)
-	setMetadata(item.Metadata, MemoryMetadataParentSessionID, runCtx.Lineage.ParentSessionID)
-	setMetadata(item.Metadata, MemoryMetadataChildSessionID, getRunChildSessionID(runCtx))
-	setMetadata(item.Metadata, MemoryMetadataRunID, runCtx.Lineage.RunID)
-	setMetadata(item.Metadata, MemoryMetadataSourcePersonality, runCtx.Personality.Name)
-	setMetadata(item.Metadata, MemoryMetadataStateMode, runCtx.State.Mode)
-	setMetadata(item.Metadata, MemoryMetadataSourceProfile, runCtx.ProfileName)
-	setMetadata(item.Metadata, MemoryMetadataTrigger, trigger)
-
+	setMetadata(item.Metadata, MemoryMetadataSourceSessionID, runCtx.Session.PublicID)
 	for index := range item.SourceLinks {
 		fillSourceLinkProvenance(&item.SourceLinks[index], runCtx, trigger)
 	}
 
+	if !hasSourceLinkProvenance(item.SourceLinks) {
+		link := SourceLink{}
+		fillSourceLinkProvenance(&link, runCtx, trigger)
+		item.SourceLinks = append(item.SourceLinks, link)
+	}
+
 	return item
+}
+
+// HasSourceProvenance reports whether an item has source-session metadata or a source link.
+func HasSourceProvenance(item MemoryItem) bool {
+	if hasSourceLinkProvenance(item.SourceLinks) {
+		return true
+	}
+
+	metadataValue := str.String(item.Metadata[MemoryMetadataSourceSessionID])
+	return metadataValue.Trim() != ""
 }
 
 func setMetadata(metadata map[string]string, key string, value string) {
@@ -55,6 +51,21 @@ func setMetadata(metadata map[string]string, key string, value string) {
 	if valueText := valueText.Trim(); valueText != "" {
 		metadata[key] = valueText
 	}
+}
+
+func hasSourceLinkProvenance(links []SourceLink) bool {
+	for _, link := range links {
+		sessionIDValue := str.String(link.SessionID)
+		summaryIDValue := str.String(link.SummaryID)
+		if sessionIDValue.Trim() != "" ||
+			len(link.MessageIDs) > 0 ||
+			len(link.Offsets) > 0 ||
+			summaryIDValue.Trim() != "" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func getRunChildSessionID(runCtx runcontext.Context) string {
@@ -73,6 +84,9 @@ func getRunChildSessionID(runCtx runcontext.Context) string {
 func fillSourceLinkProvenance(link *SourceLink, runCtx runcontext.Context, trigger string) {
 	if link == nil {
 		return
+	}
+	if link.SessionID == "" {
+		link.SessionID = runCtx.Session.PublicID
 	}
 	if link.SourceProfile == "" {
 		link.SourceProfile = runCtx.ProfileName

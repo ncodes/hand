@@ -249,7 +249,7 @@ func memoryItemFromAddInput(
 	}
 	sourceSessionIDValue := str.String(input.SourceSessionID)
 	if sessionID := sourceSessionIDValue.Trim(); sessionID != "" {
-		item.Metadata["source_session_id"] = sessionID
+		item.Metadata[memory.MemoryMetadataSourceSessionID] = sessionID
 	}
 	if hasRunContext {
 		item = memory.ApplyRunProvenance(item, runCtx, trigger)
@@ -379,20 +379,7 @@ func sourceLinksFromInput(inputs []sourceLinkInput) []memory.SourceLink {
 }
 
 func hasProvenance(item memory.MemoryItem) bool {
-	metadataValue := str.String(item.Metadata["source_session_id"])
-	if metadataValue.Trim() != "" {
-		return true
-	}
-	for _, link := range item.SourceLinks {
-		sessionIDValue2 := str.String(link.SessionID)
-		if sessionIDValue2.Trim() != "" ||
-			len(link.MessageIDs) > 0 ||
-			len(link.Offsets) > 0 {
-			return true
-		}
-	}
-
-	return false
+	return memory.HasSourceProvenance(item)
 }
 
 func cloneMetadata(metadata map[string]string) map[string]string {

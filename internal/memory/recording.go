@@ -127,18 +127,7 @@ func checkCandidateAdmissionRejection(item MemoryItem) string {
 // hasCandidateProvenance verifies that a candidate can be traced back to a
 // session, message range, summary, or explicit source-session metadata.
 func hasCandidateProvenance(item MemoryItem) bool {
-	for _, link := range item.SourceLinks {
-		sessionIDValue := str.String(link.SessionID)
-		summaryIDValue := str.String(link.SummaryID)
-		if sessionIDValue.Trim() != "" ||
-			len(link.MessageIDs) > 0 ||
-			len(link.Offsets) > 0 || summaryIDValue.
-			Trim() != "" {
-			return true
-		}
-	}
-	metadataValue3 := str.String(item.Metadata["source_session_id"])
-	return metadataValue3.Trim() != ""
+	return HasSourceProvenance(item)
 }
 
 // getKindAwareMemoryID makes IDs self-describing in logs and database
