@@ -27,6 +27,9 @@ func NewCommand() *cli.Command {
 			automationcli.NewRunCommand(),
 			automationcli.NewRemoveCommand(),
 			automationcli.NewRunsCommand(),
+			automationcli.NewDiagnoseCommand(),
+			automationcli.NewInspectCommand(),
+			automationcli.NewRecoverCommand(),
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return cli.ShowSubcommandHelp(cmd)

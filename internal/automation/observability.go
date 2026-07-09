@@ -3,12 +3,15 @@ package automation
 import "context"
 
 const (
-	automationEventStarted    = "automation.job.started"
-	automationEventFinished   = "automation.job.finished"
-	automationEventFailed     = "automation.job.failed"
-	automationEventSkipped    = "automation.job.skipped"
-	automationEventSvcStarted = "automation.service.started"
-	automationEventSvcStopped = "automation.service.stopped"
+	automationEventStarted         = "automation.job.started"
+	automationEventFinished        = "automation.job.finished"
+	automationEventFailed          = "automation.job.failed"
+	automationEventSkipped         = "automation.job.skipped"
+	automationEventSvcStarted      = "automation.service.started"
+	automationEventSvcStopped      = "automation.service.stopped"
+	automationEventDeliveryStarted = "automation.delivery.started"
+	automationEventDeliveryDone    = "automation.delivery.finished"
+	automationEventBackoff         = "automation.failure.backoff"
 )
 
 type Logger interface {

@@ -13,10 +13,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/automation"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	"github.com/wandxy/morph/internal/profile"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/storememory"
 )
 
 func TestReport_HasFailuresAndSummary(t *testing.T) {
@@ -774,6 +777,106 @@ func TestBuild_CoversNilConfig(t *testing.T) {
 	require.Equal(t, StatusFail, findReadinessCheck(t, report, "search", "config").Status)
 	require.Equal(t, StatusFail, findReadinessCheck(t, report, "tools", "config").Status)
 	require.Equal(t, StatusFail, findReadinessCheck(t, report, "gateway", "config").Status)
+	require.Equal(t, StatusFail, findReadinessCheck(t, report, "automation", "config").Status)
+}
+
+func TestBuild_ReportsAutomationReadiness(t *testing.T) {
+	store := storememory.NewStore()
+	now := time.Now().UTC()
+	_, err := store.CreateJob(context.Background(), storage.AutomationJob{
+		ID:       "auto_projectaprojectaproje",
+		Enabled:  true,
+		Schedule: storage.AutomationSchedule{Kind: storage.AutomationScheduleEvery, Every: time.Hour},
+		Delivery: storage.AutomationDelivery{Mode: storage.AutomationDeliveryWebhook},
+		State:    storage.AutomationJobState{RunningAt: now.Add(-20 * time.Minute)},
+	})
+	require.NoError(t, err)
+
+	originalOpenStore := openAutomationReadinessStore
+	t.Cleanup(func() { openAutomationReadinessStore = originalOpenStore })
+	openAutomationReadinessStore = func(*config.Config) (storage.Store, error) {
+		return store, nil
+	}
+
+	report := Build(context.Background(), Options{Config: readyConfig()})
+
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "automation", "scheduler").Status)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "automation", "store").Status)
+	require.Equal(t, StatusPass, findReadinessCheck(t, report, "automation", "invalid schedules").Status)
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "automation", "stuck running").Status)
+	delivery := findReadinessCheck(t, report, "automation", "delivery targets")
+	require.Equal(t, StatusFail, delivery.Status)
+	require.Contains(t, delivery.Message, "webhook delivery requires")
+	require.NotEmpty(t, delivery.Actions)
+}
+
+func TestBuild_ReportsAutomationStoreErrors(t *testing.T) {
+	originalOpenStore := openAutomationReadinessStore
+	t.Cleanup(func() { openAutomationReadinessStore = originalOpenStore })
+
+	openAutomationReadinessStore = func(*config.Config) (storage.Store, error) {
+		return storememory.NewStore(), nil
+	}
+	report := Build(context.Background(), Options{Config: readyConfig()})
+	require.Equal(t, "0 automation jobs reachable", findReadinessCheck(t, report, "automation", "store").Message)
+	require.Equal(t, "no automation jobs to check", findReadinessCheck(t, report, "automation", "invalid schedules").Message)
+	require.Equal(t, "no automation jobs to check", findReadinessCheck(t, report, "automation", "stuck running").Message)
+	require.Equal(t, "no automation jobs to check", findReadinessCheck(t, report, "automation", "delivery targets").Message)
+
+	expected := errors.New("store failed")
+	openAutomationReadinessStore = func(*config.Config) (storage.Store, error) {
+		return nil, expected
+	}
+	report = Build(context.Background(), Options{Config: readyConfig()})
+	require.Equal(t, StatusFail, findReadinessCheck(t, report, "automation", "store").Status)
+
+	openAutomationReadinessStore = func(*config.Config) (storage.Store, error) {
+		return automationReadinessStoreStub{}, nil
+	}
+	report = Build(context.Background(), Options{Config: readyConfig()})
+	require.Equal(t, StatusFail, findReadinessCheck(t, report, "automation", "store").Status)
+
+	openAutomationReadinessStore = func(*config.Config) (storage.Store, error) {
+		return automationReadinessStoreStub{automationStore: automationReadinessListErrStore{err: expected}}, nil
+	}
+	report = Build(context.Background(), Options{Config: readyConfig()})
+	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "automation", "scheduler").Status)
+	require.Equal(t, StatusFail, findReadinessCheck(t, report, "automation", "store").Status)
+}
+
+func TestAutomationFindingsToCheck_CoversWarningsWithoutActions(t *testing.T) {
+	check := automationFindingsToCheck("custom", []automation.DiagnosticFinding{
+		{
+			Severity: automation.DiagnosticSeverityWarn,
+			Code:     "custom",
+			Message:  "first",
+		},
+		{
+			Severity: automation.DiagnosticSeverityWarn,
+			Code:     "custom",
+			Message:  "second",
+		},
+	})
+
+	require.Equal(t, StatusWarn, check.Status)
+	require.Equal(t, "first and 1 more", check.Message)
+	require.Empty(t, check.Actions)
+}
+
+func TestReadinessHelperBranches(t *testing.T) {
+	require.True(t, isReadinessLoopbackGatewayAddress(""))
+	require.True(t, isReadinessLoopbackGatewayAddress("localhost"))
+	require.True(t, isReadinessLoopbackGatewayAddress("[::1]"))
+	require.False(t, isReadinessLoopbackGatewayAddress("not-an-ip"))
+	require.False(t, isReadinessLoopbackGatewayAddress("0.0.0.0"))
+	require.Nil(t, providerAPIKeyActions(" "))
+	require.False(t, searchRerankEnabled(nil))
+
+	cfg := readyConfig()
+	enabled := true
+	cfg.Reranker.Enabled = &enabled
+	cfg.Search.EnableRerank = &enabled
+	require.True(t, searchRerankEnabled(cfg))
 }
 
 func TestBuild_CoversRerankDisabledBySearch(t *testing.T) {
@@ -868,6 +971,98 @@ func readyConfig() *config.Config {
 	cfg.Web.Provider = ""
 
 	return cfg
+}
+
+type automationReadinessStoreStub struct {
+	automationStore storage.AutomationStore
+}
+
+func (automationReadinessStoreStub) Session() storage.SessionStore {
+	return nil
+}
+
+func (s automationReadinessStoreStub) Automation() (storage.AutomationStore, bool) {
+	if s.automationStore == nil {
+		return nil, false
+	}
+
+	return s.automationStore, true
+}
+
+func (automationReadinessStoreStub) Memory() (storage.MemoryStore, bool) {
+	return nil, false
+}
+
+func (automationReadinessStoreStub) Trace() (storage.TraceStore, bool) {
+	return nil, false
+}
+
+func (automationReadinessStoreStub) SupportsVectorSearch() bool {
+	return false
+}
+
+type automationReadinessListErrStore struct {
+	err error
+}
+
+func (automationReadinessListErrStore) CreateJob(
+	context.Context,
+	storage.AutomationJob,
+) (storage.AutomationJob, error) {
+	return storage.AutomationJob{}, nil
+}
+
+func (automationReadinessListErrStore) GetJob(
+	context.Context,
+	string,
+) (storage.AutomationJob, bool, error) {
+	return storage.AutomationJob{}, false, nil
+}
+
+func (s automationReadinessListErrStore) ListJobs(
+	context.Context,
+	storage.AutomationJobQuery,
+) (storage.AutomationJobResult, error) {
+	return storage.AutomationJobResult{}, s.err
+}
+
+func (automationReadinessListErrStore) PatchJob(
+	context.Context,
+	storage.AutomationJobPatch,
+) (storage.AutomationJob, error) {
+	return storage.AutomationJob{}, nil
+}
+
+func (automationReadinessListErrStore) DeleteJob(context.Context, string) error {
+	return nil
+}
+
+func (automationReadinessListErrStore) CreateRun(
+	context.Context,
+	storage.AutomationRun,
+) (storage.AutomationRun, error) {
+	return storage.AutomationRun{}, nil
+}
+
+func (automationReadinessListErrStore) FinishRun(
+	context.Context,
+	storage.AutomationRunPatch,
+) (storage.AutomationRun, error) {
+	return storage.AutomationRun{}, nil
+}
+
+func (automationReadinessListErrStore) ListRuns(
+	context.Context,
+	storage.AutomationRunQuery,
+) (storage.AutomationRunResult, error) {
+	return storage.AutomationRunResult{}, nil
+}
+
+func (automationReadinessListErrStore) DeleteRuns(
+	context.Context,
+	storage.AutomationRunDeleteQuery,
+) (int, error) {
+	return 0, nil
 }
 
 func clearWebCredentialEnv(t *testing.T) {

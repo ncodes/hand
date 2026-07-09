@@ -679,11 +679,36 @@ func (s *Service) deliverRunWithRetry(
 	var deliveryResult DeliveryResult
 	var deliveryErr error
 	for attempt := 1; ; attempt++ {
+		s.record(ctx, "debug", "automation delivery attempt started", automationEventDeliveryStarted, map[string]any{
+			"job_id":  job.ID,
+			"run_id":  runID,
+			"attempt": attempt,
+		})
 		deliveryResult, deliveryErr = s.deliverRun(ctx, job, runID, status, result, runErr, now)
 		if deliveryErr == nil || attempt == attempts || ctx.Err() != nil {
+			fields := map[string]any{
+				"job_id":   job.ID,
+				"run_id":   runID,
+				"attempt":  attempt,
+				"status":   string(deliveryResult.Status),
+				"delivery": string(normalizeDelivery(job.Delivery).Mode),
+			}
+			if deliveryErr != nil {
+				fields["error"] = deliveryErr.Error()
+				s.record(ctx, "warn", "automation delivery attempt failed", automationEventDeliveryDone, fields)
+			} else {
+				s.record(ctx, "debug", "automation delivery attempt finished", automationEventDeliveryDone, fields)
+			}
 			return deliveryResult, deliveryErr
 		}
-		if sleepErr := s.sleep(ctx, s.getRetryDelay(job, attempt)); sleepErr != nil {
+		delay := s.getRetryDelay(job, attempt)
+		s.record(ctx, "warn", "automation delivery retry scheduled", automationEventBackoff, map[string]any{
+			"job_id":   job.ID,
+			"run_id":   runID,
+			"attempt":  attempt,
+			"delay_ms": delay.Milliseconds(),
+		})
+		if sleepErr := s.sleep(ctx, delay); sleepErr != nil {
 			return deliveryResult, sleepErr
 		}
 	}
@@ -994,7 +1019,15 @@ func (s *Service) finishJobRun(
 	if runErr != nil {
 		failedJob := loaded
 		failedJob.State = state
-		state.NextRunAt = run.EndedAt.Add(s.getFailureBackoff(failedJob)).UTC()
+		backoff := s.getFailureBackoff(failedJob)
+		state.NextRunAt = run.EndedAt.Add(backoff).UTC()
+		s.record(ctx, "warn", "automation failure backoff scheduled", automationEventBackoff, map[string]any{
+			"job_id":             loaded.ID,
+			"run_id":             run.ID,
+			"consecutive_errors": state.ConsecutiveErrors,
+			"delay_ms":           backoff.Milliseconds(),
+			"next_run_at":        state.NextRunAt,
+		})
 		return s.patchJobState(ctx, loaded.ID, state)
 	}
 	result, err := NextRun(loaded.Schedule, NextRunOptions{
