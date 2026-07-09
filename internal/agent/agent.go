@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/environment"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
 	models "github.com/wandxy/morph/internal/model"
 	"github.com/wandxy/morph/internal/profile"
@@ -144,6 +145,14 @@ func (a *Agent) Start(ctx context.Context) error {
 	agentLog.Info().Msg("agent started")
 
 	return nil
+}
+
+func (a *Agent) SetAutomationService(service envtypes.AutomationService) {
+	if a == nil || a.env == nil {
+		return
+	}
+
+	a.env.SetAutomationService(service)
 }
 
 func (a *Agent) ListProviders(context.Context) (ProviderList, error) {

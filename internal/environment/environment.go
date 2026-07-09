@@ -13,6 +13,7 @@ import (
 	"github.com/wandxy/morph/internal/datadir"
 	"github.com/wandxy/morph/internal/environment/budget"
 	"github.com/wandxy/morph/internal/environment/planstore"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/memory"
@@ -23,6 +24,7 @@ import (
 	webprovider "github.com/wandxy/morph/internal/providers/web"
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	"github.com/wandxy/morph/internal/tools"
+	automationtool "github.com/wandxy/morph/internal/tools/automation"
 	"github.com/wandxy/morph/internal/tools/listfiles"
 	"github.com/wandxy/morph/internal/tools/memoryextract"
 	"github.com/wandxy/morph/internal/tools/memorysearch"
@@ -87,6 +89,7 @@ type Environment interface {
 
 	// SetStateManager wires state-backed features into the environment runtime.
 	SetStateManager(*statemanager.Manager)
+	SetAutomationService(envtypes.AutomationService)
 	SetModelClient(models.Client)
 }
 
@@ -293,6 +296,7 @@ func (e *environment) prepareTools() error {
 
 	definitions := tools.Definitions{
 		time.Definition(),
+		automationtool.Definition(e.runtime),
 		listfiles.Definition(e.runtime),
 		readfile.Definition(e.runtime),
 		searchfiles.Definition(e.runtime),
@@ -591,6 +595,16 @@ func (e *environment) SetStateManager(manager *statemanager.Manager) {
 	if e.runtime != nil {
 		e.runtime.stateMgr = manager
 	}
+}
+
+func (e *environment) SetAutomationService(service envtypes.AutomationService) {
+	if e == nil {
+		return
+	}
+	if e.runtime == nil {
+		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy(), e.stateMgr)
+	}
+	e.runtime.automation = service
 }
 
 func (e *environment) SetModelClient(client models.Client) {

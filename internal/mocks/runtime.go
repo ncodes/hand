@@ -86,6 +86,7 @@ type EnvironmentStub struct {
 	TraceSessionIDs  []string
 	SafetyEvents     []guardrails.SafetyTracePayloadOptions
 	Memory           memory.Provider
+	Automation       envtypes.AutomationService
 	Plan             envtypes.Plan
 	PlanSessionIDs   []string
 }
@@ -141,6 +142,10 @@ func (s *EnvironmentStub) MemoryProvider() memory.Provider {
 }
 
 func (s *EnvironmentStub) SetModelClient(models.Client) {}
+
+func (s *EnvironmentStub) SetAutomationService(service envtypes.AutomationService) {
+	s.Automation = service
+}
 
 func (s *EnvironmentStub) CurrentPlan(string) envtypes.Plan {
 	return s.Plan

@@ -33,7 +33,7 @@ service ModelService {
 }
 
 service GatewayService {
-  rpc GatewayStatus(GetGatewayStatusRequest) returns (GetGatewayStatusResponse);
+  rpc Status(GetGatewayStatusRequest) returns (GetGatewayStatusResponse);
   rpc Start(StartGatewayRequest) returns (StartGatewayResponse);
   rpc Stop(StopGatewayRequest) returns (StopGatewayResponse);
   rpc Restart(RestartGatewayRequest) returns (RestartGatewayResponse);
@@ -41,6 +41,16 @@ service GatewayService {
   rpc ApprovePairing(ApproveGatewayPairingRequest) returns (ApproveGatewayPairingResponse);
   rpc RevokePairing(RevokeGatewayPairingRequest) returns (RevokeGatewayPairingResponse);
   rpc ClearPendingPairings(ClearPendingGatewayPairingsRequest) returns (ClearPendingGatewayPairingsResponse);
+}
+
+service AutomationService {
+  rpc Status(GetAutomationStatusRequest) returns (GetAutomationStatusResponse);
+  rpc ListJobs(ListAutomationJobsRequest) returns (ListAutomationJobsResponse);
+  rpc AddJob(AddAutomationJobRequest) returns (AddAutomationJobResponse);
+  rpc UpdateJob(UpdateAutomationJobRequest) returns (UpdateAutomationJobResponse);
+  rpc RemoveJob(RemoveAutomationJobRequest) returns (RemoveAutomationJobResponse);
+  rpc RunJob(RunAutomationJobRequest) returns (RunAutomationJobResponse);
+  rpc ListRuns(ListAutomationRunsRequest) returns (ListAutomationRunsResponse);
 }
 
 message RespondRequest {
@@ -408,3 +418,180 @@ message ClearPendingGatewayPairingsRequest {
 }
 
 message ClearPendingGatewayPairingsResponse {}
+
+message AutomationSchedule {
+  string kind = 1;
+  google.protobuf.Timestamp at = 2;
+  int64 every_nanos = 3;
+  string cron = 4;
+  string timezone = 5;
+}
+
+message AutomationPayload {
+  string kind = 1;
+  string prompt = 2;
+  string system_event = 3;
+  string model = 4;
+  string provider = 5;
+  string base_url = 6;
+  bool no_timeout = 7;
+  int64 max_runtime_nanos = 8;
+  int32 max_iterations = 9;
+  int32 retry_attempts = 10;
+  int64 retry_backoff_nanos = 11;
+  int64 retry_max_delay_nanos = 12;
+  repeated string tool_groups = 13;
+  map<string, string> metadata = 14;
+}
+
+message AutomationDelivery {
+  string mode = 1;
+  string channel = 2;
+  string target = 3;
+  string thread_id = 4;
+  string webhook_url = 5;
+  bool best_effort = 6;
+  string failure_target = 7;
+  int32 failure_after = 8;
+  int64 failure_cooldown_nanos = 9;
+}
+
+message AutomationJobState {
+  google.protobuf.Timestamp next_run_at = 1;
+  google.protobuf.Timestamp running_at = 2;
+  google.protobuf.Timestamp last_run_at = 3;
+  string last_status = 4;
+  string last_error = 5;
+  int64 last_duration_nanos = 6;
+  int32 consecutive_errors = 7;
+  google.protobuf.Timestamp last_failure_notice_at = 8;
+}
+
+message AutomationJob {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  bool enabled = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  AutomationSchedule schedule = 7;
+  AutomationPayload payload = 8;
+  AutomationDelivery delivery = 9;
+  string profile = 10;
+  string session_target = 11;
+  bool delete_after_run = 12;
+  AutomationJobState state = 13;
+}
+
+message AutomationUsage {
+  int32 input_tokens = 1;
+  int32 output_tokens = 2;
+  int32 total_tokens = 3;
+  int32 cache_read_tokens = 4;
+  int32 cache_write_tokens = 5;
+}
+
+message AutomationRun {
+  string id = 1;
+  string job_id = 2;
+  string status = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp ended_at = 5;
+  int64 duration_nanos = 6;
+  string output = 7;
+  string error = 8;
+  string session_id = 9;
+  string delivery_status = 10;
+  string delivery_error = 11;
+  string model = 12;
+  string provider = 13;
+  AutomationUsage usage = 14;
+}
+
+message GetAutomationStatusRequest {}
+
+message GetAutomationStatusResponse {
+  bool running = 1;
+  google.protobuf.Timestamp started_at = 2;
+  int32 job_count = 3;
+  int32 running_count = 4;
+  google.protobuf.Timestamp next_wake_at = 5;
+}
+
+message ListAutomationJobsRequest {
+  repeated string ids = 1;
+  optional bool enabled = 2;
+  string profile = 3;
+  string session_target = 4;
+  int32 limit = 5;
+  bool include_disabled = 6;
+}
+
+message ListAutomationJobsResponse {
+  repeated AutomationJob jobs = 1;
+}
+
+message AddAutomationJobRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  bool enabled = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  AutomationSchedule schedule = 7;
+  AutomationPayload payload = 8;
+  AutomationDelivery delivery = 9;
+  string profile = 10;
+  string session_target = 11;
+  bool delete_after_run = 12;
+  AutomationJobState state = 13;
+}
+
+message AddAutomationJobResponse {
+  AutomationJob job = 1;
+}
+
+message UpdateAutomationJobRequest {
+  string id = 1;
+  optional string name = 2;
+  optional string description = 3;
+  optional bool enabled = 4;
+  AutomationSchedule schedule = 5;
+  AutomationPayload payload = 6;
+  AutomationDelivery delivery = 7;
+  optional string profile = 8;
+  optional string session_target = 9;
+  optional bool delete_after_run = 10;
+  AutomationJobState state = 11;
+}
+
+message UpdateAutomationJobResponse {
+  AutomationJob job = 1;
+}
+
+message RemoveAutomationJobRequest {
+  string id = 1;
+}
+
+message RemoveAutomationJobResponse {
+  string id = 1;
+}
+
+message RunAutomationJobRequest {
+  string id = 1;
+}
+
+message RunAutomationJobResponse {
+  AutomationRun run = 1;
+}
+
+message ListAutomationRunsRequest {
+  string job_id = 1;
+  repeated string ids = 2;
+  repeated string status = 3;
+  int32 limit = 4;
+}
+
+message ListAutomationRunsResponse {
+  repeated AutomationRun runs = 1;
+}

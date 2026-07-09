@@ -310,6 +310,14 @@ func (s *Service) List(ctx context.Context, query JobQuery) (JobList, error) {
 	return s.store.ListJobs(ctx, query)
 }
 
+func (s *Service) Runs(ctx context.Context, query RunQuery) (RunList, error) {
+	if s == nil {
+		return RunList{}, errors.New("automation service is required")
+	}
+
+	return s.store.ListRuns(ctx, query)
+}
+
 func (s *Service) RunMaintenance(ctx context.Context) (MaintenanceResult, error) {
 	if s == nil {
 		return MaintenanceResult{}, errors.New("automation service is required")

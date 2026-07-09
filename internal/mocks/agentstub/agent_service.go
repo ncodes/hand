@@ -77,6 +77,9 @@ type AgentServiceStub struct {
 	ProviderAPIKey       string
 	ProviderAPIKeyID     string
 	SetProviderAPIKeyErr error
+	AutomationStoreValue storage.AutomationStore
+	AutomationStoreOK    bool
+	AutomationStoreErr   error
 }
 
 func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
@@ -118,6 +121,10 @@ func (s *AgentServiceStub) ModelAPI() rpcclient.ModelAPI {
 
 func (s *AgentServiceStub) GatewayAPI() rpcclient.GatewayAPI {
 	return s
+}
+
+func (s *AgentServiceStub) AutomationStore(context.Context) (storage.AutomationStore, bool, error) {
+	return s.AutomationStoreValue, s.AutomationStoreOK, s.AutomationStoreErr
 }
 
 func (s *AgentServiceStub) ListProviders(context.Context) (agentapi.ProviderList, error) {

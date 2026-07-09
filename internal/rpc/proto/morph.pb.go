@@ -3685,6 +3685,1682 @@ func (*ClearPendingGatewayPairingsResponse) Descriptor() ([]byte, []int) {
 	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{61}
 }
 
+type AutomationSchedule struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	At            *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=at,proto3" json:"at,omitempty"`
+	EveryNanos    int64                  `protobuf:"varint,3,opt,name=every_nanos,json=everyNanos,proto3" json:"every_nanos,omitempty"`
+	Cron          string                 `protobuf:"bytes,4,opt,name=cron,proto3" json:"cron,omitempty"`
+	Timezone      string                 `protobuf:"bytes,5,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AutomationSchedule) Reset() {
+	*x = AutomationSchedule{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomationSchedule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomationSchedule) ProtoMessage() {}
+
+func (x *AutomationSchedule) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomationSchedule.ProtoReflect.Descriptor instead.
+func (*AutomationSchedule) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *AutomationSchedule) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *AutomationSchedule) GetAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.At
+	}
+	return nil
+}
+
+func (x *AutomationSchedule) GetEveryNanos() int64 {
+	if x != nil {
+		return x.EveryNanos
+	}
+	return 0
+}
+
+func (x *AutomationSchedule) GetCron() string {
+	if x != nil {
+		return x.Cron
+	}
+	return ""
+}
+
+func (x *AutomationSchedule) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
+type AutomationPayload struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Kind               string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Prompt             string                 `protobuf:"bytes,2,opt,name=prompt,proto3" json:"prompt,omitempty"`
+	SystemEvent        string                 `protobuf:"bytes,3,opt,name=system_event,json=systemEvent,proto3" json:"system_event,omitempty"`
+	Model              string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	Provider           string                 `protobuf:"bytes,5,opt,name=provider,proto3" json:"provider,omitempty"`
+	BaseUrl            string                 `protobuf:"bytes,6,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	NoTimeout          bool                   `protobuf:"varint,7,opt,name=no_timeout,json=noTimeout,proto3" json:"no_timeout,omitempty"`
+	MaxRuntimeNanos    int64                  `protobuf:"varint,8,opt,name=max_runtime_nanos,json=maxRuntimeNanos,proto3" json:"max_runtime_nanos,omitempty"`
+	MaxIterations      int32                  `protobuf:"varint,9,opt,name=max_iterations,json=maxIterations,proto3" json:"max_iterations,omitempty"`
+	RetryAttempts      int32                  `protobuf:"varint,10,opt,name=retry_attempts,json=retryAttempts,proto3" json:"retry_attempts,omitempty"`
+	RetryBackoffNanos  int64                  `protobuf:"varint,11,opt,name=retry_backoff_nanos,json=retryBackoffNanos,proto3" json:"retry_backoff_nanos,omitempty"`
+	RetryMaxDelayNanos int64                  `protobuf:"varint,12,opt,name=retry_max_delay_nanos,json=retryMaxDelayNanos,proto3" json:"retry_max_delay_nanos,omitempty"`
+	ToolGroups         []string               `protobuf:"bytes,13,rep,name=tool_groups,json=toolGroups,proto3" json:"tool_groups,omitempty"`
+	Metadata           map[string]string      `protobuf:"bytes,14,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *AutomationPayload) Reset() {
+	*x = AutomationPayload{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomationPayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomationPayload) ProtoMessage() {}
+
+func (x *AutomationPayload) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomationPayload.ProtoReflect.Descriptor instead.
+func (*AutomationPayload) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *AutomationPayload) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *AutomationPayload) GetPrompt() string {
+	if x != nil {
+		return x.Prompt
+	}
+	return ""
+}
+
+func (x *AutomationPayload) GetSystemEvent() string {
+	if x != nil {
+		return x.SystemEvent
+	}
+	return ""
+}
+
+func (x *AutomationPayload) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *AutomationPayload) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *AutomationPayload) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
+	}
+	return ""
+}
+
+func (x *AutomationPayload) GetNoTimeout() bool {
+	if x != nil {
+		return x.NoTimeout
+	}
+	return false
+}
+
+func (x *AutomationPayload) GetMaxRuntimeNanos() int64 {
+	if x != nil {
+		return x.MaxRuntimeNanos
+	}
+	return 0
+}
+
+func (x *AutomationPayload) GetMaxIterations() int32 {
+	if x != nil {
+		return x.MaxIterations
+	}
+	return 0
+}
+
+func (x *AutomationPayload) GetRetryAttempts() int32 {
+	if x != nil {
+		return x.RetryAttempts
+	}
+	return 0
+}
+
+func (x *AutomationPayload) GetRetryBackoffNanos() int64 {
+	if x != nil {
+		return x.RetryBackoffNanos
+	}
+	return 0
+}
+
+func (x *AutomationPayload) GetRetryMaxDelayNanos() int64 {
+	if x != nil {
+		return x.RetryMaxDelayNanos
+	}
+	return 0
+}
+
+func (x *AutomationPayload) GetToolGroups() []string {
+	if x != nil {
+		return x.ToolGroups
+	}
+	return nil
+}
+
+func (x *AutomationPayload) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type AutomationDelivery struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Mode                 string                 `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	Channel              string                 `protobuf:"bytes,2,opt,name=channel,proto3" json:"channel,omitempty"`
+	Target               string                 `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
+	ThreadId             string                 `protobuf:"bytes,4,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	WebhookUrl           string                 `protobuf:"bytes,5,opt,name=webhook_url,json=webhookUrl,proto3" json:"webhook_url,omitempty"`
+	BestEffort           bool                   `protobuf:"varint,6,opt,name=best_effort,json=bestEffort,proto3" json:"best_effort,omitempty"`
+	FailureTarget        string                 `protobuf:"bytes,7,opt,name=failure_target,json=failureTarget,proto3" json:"failure_target,omitempty"`
+	FailureAfter         int32                  `protobuf:"varint,8,opt,name=failure_after,json=failureAfter,proto3" json:"failure_after,omitempty"`
+	FailureCooldownNanos int64                  `protobuf:"varint,9,opt,name=failure_cooldown_nanos,json=failureCooldownNanos,proto3" json:"failure_cooldown_nanos,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *AutomationDelivery) Reset() {
+	*x = AutomationDelivery{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomationDelivery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomationDelivery) ProtoMessage() {}
+
+func (x *AutomationDelivery) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomationDelivery.ProtoReflect.Descriptor instead.
+func (*AutomationDelivery) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *AutomationDelivery) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *AutomationDelivery) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *AutomationDelivery) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *AutomationDelivery) GetThreadId() string {
+	if x != nil {
+		return x.ThreadId
+	}
+	return ""
+}
+
+func (x *AutomationDelivery) GetWebhookUrl() string {
+	if x != nil {
+		return x.WebhookUrl
+	}
+	return ""
+}
+
+func (x *AutomationDelivery) GetBestEffort() bool {
+	if x != nil {
+		return x.BestEffort
+	}
+	return false
+}
+
+func (x *AutomationDelivery) GetFailureTarget() string {
+	if x != nil {
+		return x.FailureTarget
+	}
+	return ""
+}
+
+func (x *AutomationDelivery) GetFailureAfter() int32 {
+	if x != nil {
+		return x.FailureAfter
+	}
+	return 0
+}
+
+func (x *AutomationDelivery) GetFailureCooldownNanos() int64 {
+	if x != nil {
+		return x.FailureCooldownNanos
+	}
+	return 0
+}
+
+type AutomationJobState struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	NextRunAt           *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=next_run_at,json=nextRunAt,proto3" json:"next_run_at,omitempty"`
+	RunningAt           *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=running_at,json=runningAt,proto3" json:"running_at,omitempty"`
+	LastRunAt           *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_run_at,json=lastRunAt,proto3" json:"last_run_at,omitempty"`
+	LastStatus          string                 `protobuf:"bytes,4,opt,name=last_status,json=lastStatus,proto3" json:"last_status,omitempty"`
+	LastError           string                 `protobuf:"bytes,5,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	LastDurationNanos   int64                  `protobuf:"varint,6,opt,name=last_duration_nanos,json=lastDurationNanos,proto3" json:"last_duration_nanos,omitempty"`
+	ConsecutiveErrors   int32                  `protobuf:"varint,7,opt,name=consecutive_errors,json=consecutiveErrors,proto3" json:"consecutive_errors,omitempty"`
+	LastFailureNoticeAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_failure_notice_at,json=lastFailureNoticeAt,proto3" json:"last_failure_notice_at,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *AutomationJobState) Reset() {
+	*x = AutomationJobState{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomationJobState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomationJobState) ProtoMessage() {}
+
+func (x *AutomationJobState) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomationJobState.ProtoReflect.Descriptor instead.
+func (*AutomationJobState) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *AutomationJobState) GetNextRunAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.NextRunAt
+	}
+	return nil
+}
+
+func (x *AutomationJobState) GetRunningAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RunningAt
+	}
+	return nil
+}
+
+func (x *AutomationJobState) GetLastRunAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastRunAt
+	}
+	return nil
+}
+
+func (x *AutomationJobState) GetLastStatus() string {
+	if x != nil {
+		return x.LastStatus
+	}
+	return ""
+}
+
+func (x *AutomationJobState) GetLastError() string {
+	if x != nil {
+		return x.LastError
+	}
+	return ""
+}
+
+func (x *AutomationJobState) GetLastDurationNanos() int64 {
+	if x != nil {
+		return x.LastDurationNanos
+	}
+	return 0
+}
+
+func (x *AutomationJobState) GetConsecutiveErrors() int32 {
+	if x != nil {
+		return x.ConsecutiveErrors
+	}
+	return 0
+}
+
+func (x *AutomationJobState) GetLastFailureNoticeAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastFailureNoticeAt
+	}
+	return nil
+}
+
+type AutomationJob struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name           string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description    string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Enabled        bool                   `protobuf:"varint,4,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	CreatedAt      *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Schedule       *AutomationSchedule    `protobuf:"bytes,7,opt,name=schedule,proto3" json:"schedule,omitempty"`
+	Payload        *AutomationPayload     `protobuf:"bytes,8,opt,name=payload,proto3" json:"payload,omitempty"`
+	Delivery       *AutomationDelivery    `protobuf:"bytes,9,opt,name=delivery,proto3" json:"delivery,omitempty"`
+	Profile        string                 `protobuf:"bytes,10,opt,name=profile,proto3" json:"profile,omitempty"`
+	SessionTarget  string                 `protobuf:"bytes,11,opt,name=session_target,json=sessionTarget,proto3" json:"session_target,omitempty"`
+	DeleteAfterRun bool                   `protobuf:"varint,12,opt,name=delete_after_run,json=deleteAfterRun,proto3" json:"delete_after_run,omitempty"`
+	State          *AutomationJobState    `protobuf:"bytes,13,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AutomationJob) Reset() {
+	*x = AutomationJob{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomationJob) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomationJob) ProtoMessage() {}
+
+func (x *AutomationJob) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomationJob.ProtoReflect.Descriptor instead.
+func (*AutomationJob) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *AutomationJob) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AutomationJob) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AutomationJob) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *AutomationJob) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *AutomationJob) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *AutomationJob) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *AutomationJob) GetSchedule() *AutomationSchedule {
+	if x != nil {
+		return x.Schedule
+	}
+	return nil
+}
+
+func (x *AutomationJob) GetPayload() *AutomationPayload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *AutomationJob) GetDelivery() *AutomationDelivery {
+	if x != nil {
+		return x.Delivery
+	}
+	return nil
+}
+
+func (x *AutomationJob) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *AutomationJob) GetSessionTarget() string {
+	if x != nil {
+		return x.SessionTarget
+	}
+	return ""
+}
+
+func (x *AutomationJob) GetDeleteAfterRun() bool {
+	if x != nil {
+		return x.DeleteAfterRun
+	}
+	return false
+}
+
+func (x *AutomationJob) GetState() *AutomationJobState {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
+type AutomationUsage struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	InputTokens      int32                  `protobuf:"varint,1,opt,name=input_tokens,json=inputTokens,proto3" json:"input_tokens,omitempty"`
+	OutputTokens     int32                  `protobuf:"varint,2,opt,name=output_tokens,json=outputTokens,proto3" json:"output_tokens,omitempty"`
+	TotalTokens      int32                  `protobuf:"varint,3,opt,name=total_tokens,json=totalTokens,proto3" json:"total_tokens,omitempty"`
+	CacheReadTokens  int32                  `protobuf:"varint,4,opt,name=cache_read_tokens,json=cacheReadTokens,proto3" json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int32                  `protobuf:"varint,5,opt,name=cache_write_tokens,json=cacheWriteTokens,proto3" json:"cache_write_tokens,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *AutomationUsage) Reset() {
+	*x = AutomationUsage{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomationUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomationUsage) ProtoMessage() {}
+
+func (x *AutomationUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomationUsage.ProtoReflect.Descriptor instead.
+func (*AutomationUsage) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *AutomationUsage) GetInputTokens() int32 {
+	if x != nil {
+		return x.InputTokens
+	}
+	return 0
+}
+
+func (x *AutomationUsage) GetOutputTokens() int32 {
+	if x != nil {
+		return x.OutputTokens
+	}
+	return 0
+}
+
+func (x *AutomationUsage) GetTotalTokens() int32 {
+	if x != nil {
+		return x.TotalTokens
+	}
+	return 0
+}
+
+func (x *AutomationUsage) GetCacheReadTokens() int32 {
+	if x != nil {
+		return x.CacheReadTokens
+	}
+	return 0
+}
+
+func (x *AutomationUsage) GetCacheWriteTokens() int32 {
+	if x != nil {
+		return x.CacheWriteTokens
+	}
+	return 0
+}
+
+type AutomationRun struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	JobId          string                 `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	Status         string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	StartedAt      *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	EndedAt        *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=ended_at,json=endedAt,proto3" json:"ended_at,omitempty"`
+	DurationNanos  int64                  `protobuf:"varint,6,opt,name=duration_nanos,json=durationNanos,proto3" json:"duration_nanos,omitempty"`
+	Output         string                 `protobuf:"bytes,7,opt,name=output,proto3" json:"output,omitempty"`
+	Error          string                 `protobuf:"bytes,8,opt,name=error,proto3" json:"error,omitempty"`
+	SessionId      string                 `protobuf:"bytes,9,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	DeliveryStatus string                 `protobuf:"bytes,10,opt,name=delivery_status,json=deliveryStatus,proto3" json:"delivery_status,omitempty"`
+	DeliveryError  string                 `protobuf:"bytes,11,opt,name=delivery_error,json=deliveryError,proto3" json:"delivery_error,omitempty"`
+	Model          string                 `protobuf:"bytes,12,opt,name=model,proto3" json:"model,omitempty"`
+	Provider       string                 `protobuf:"bytes,13,opt,name=provider,proto3" json:"provider,omitempty"`
+	Usage          *AutomationUsage       `protobuf:"bytes,14,opt,name=usage,proto3" json:"usage,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AutomationRun) Reset() {
+	*x = AutomationRun{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomationRun) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomationRun) ProtoMessage() {}
+
+func (x *AutomationRun) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomationRun.ProtoReflect.Descriptor instead.
+func (*AutomationRun) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *AutomationRun) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AutomationRun) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *AutomationRun) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *AutomationRun) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *AutomationRun) GetEndedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndedAt
+	}
+	return nil
+}
+
+func (x *AutomationRun) GetDurationNanos() int64 {
+	if x != nil {
+		return x.DurationNanos
+	}
+	return 0
+}
+
+func (x *AutomationRun) GetOutput() string {
+	if x != nil {
+		return x.Output
+	}
+	return ""
+}
+
+func (x *AutomationRun) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *AutomationRun) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *AutomationRun) GetDeliveryStatus() string {
+	if x != nil {
+		return x.DeliveryStatus
+	}
+	return ""
+}
+
+func (x *AutomationRun) GetDeliveryError() string {
+	if x != nil {
+		return x.DeliveryError
+	}
+	return ""
+}
+
+func (x *AutomationRun) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *AutomationRun) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *AutomationRun) GetUsage() *AutomationUsage {
+	if x != nil {
+		return x.Usage
+	}
+	return nil
+}
+
+type GetAutomationStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAutomationStatusRequest) Reset() {
+	*x = GetAutomationStatusRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAutomationStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAutomationStatusRequest) ProtoMessage() {}
+
+func (x *GetAutomationStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAutomationStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetAutomationStatusRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{69}
+}
+
+type GetAutomationStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Running       bool                   `protobuf:"varint,1,opt,name=running,proto3" json:"running,omitempty"`
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	JobCount      int32                  `protobuf:"varint,3,opt,name=job_count,json=jobCount,proto3" json:"job_count,omitempty"`
+	RunningCount  int32                  `protobuf:"varint,4,opt,name=running_count,json=runningCount,proto3" json:"running_count,omitempty"`
+	NextWakeAt    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=next_wake_at,json=nextWakeAt,proto3" json:"next_wake_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAutomationStatusResponse) Reset() {
+	*x = GetAutomationStatusResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAutomationStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAutomationStatusResponse) ProtoMessage() {}
+
+func (x *GetAutomationStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAutomationStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetAutomationStatusResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *GetAutomationStatusResponse) GetRunning() bool {
+	if x != nil {
+		return x.Running
+	}
+	return false
+}
+
+func (x *GetAutomationStatusResponse) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *GetAutomationStatusResponse) GetJobCount() int32 {
+	if x != nil {
+		return x.JobCount
+	}
+	return 0
+}
+
+func (x *GetAutomationStatusResponse) GetRunningCount() int32 {
+	if x != nil {
+		return x.RunningCount
+	}
+	return 0
+}
+
+func (x *GetAutomationStatusResponse) GetNextWakeAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.NextWakeAt
+	}
+	return nil
+}
+
+type ListAutomationJobsRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Ids             []string               `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	Enabled         *bool                  `protobuf:"varint,2,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	Profile         string                 `protobuf:"bytes,3,opt,name=profile,proto3" json:"profile,omitempty"`
+	SessionTarget   string                 `protobuf:"bytes,4,opt,name=session_target,json=sessionTarget,proto3" json:"session_target,omitempty"`
+	Limit           int32                  `protobuf:"varint,5,opt,name=limit,proto3" json:"limit,omitempty"`
+	IncludeDisabled bool                   `protobuf:"varint,6,opt,name=include_disabled,json=includeDisabled,proto3" json:"include_disabled,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ListAutomationJobsRequest) Reset() {
+	*x = ListAutomationJobsRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAutomationJobsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAutomationJobsRequest) ProtoMessage() {}
+
+func (x *ListAutomationJobsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAutomationJobsRequest.ProtoReflect.Descriptor instead.
+func (*ListAutomationJobsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *ListAutomationJobsRequest) GetIds() []string {
+	if x != nil {
+		return x.Ids
+	}
+	return nil
+}
+
+func (x *ListAutomationJobsRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *ListAutomationJobsRequest) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *ListAutomationJobsRequest) GetSessionTarget() string {
+	if x != nil {
+		return x.SessionTarget
+	}
+	return ""
+}
+
+func (x *ListAutomationJobsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListAutomationJobsRequest) GetIncludeDisabled() bool {
+	if x != nil {
+		return x.IncludeDisabled
+	}
+	return false
+}
+
+type ListAutomationJobsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Jobs          []*AutomationJob       `protobuf:"bytes,1,rep,name=jobs,proto3" json:"jobs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAutomationJobsResponse) Reset() {
+	*x = ListAutomationJobsResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAutomationJobsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAutomationJobsResponse) ProtoMessage() {}
+
+func (x *ListAutomationJobsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAutomationJobsResponse.ProtoReflect.Descriptor instead.
+func (*ListAutomationJobsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *ListAutomationJobsResponse) GetJobs() []*AutomationJob {
+	if x != nil {
+		return x.Jobs
+	}
+	return nil
+}
+
+type AddAutomationJobRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name           string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description    string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Enabled        bool                   `protobuf:"varint,4,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	CreatedAt      *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Schedule       *AutomationSchedule    `protobuf:"bytes,7,opt,name=schedule,proto3" json:"schedule,omitempty"`
+	Payload        *AutomationPayload     `protobuf:"bytes,8,opt,name=payload,proto3" json:"payload,omitempty"`
+	Delivery       *AutomationDelivery    `protobuf:"bytes,9,opt,name=delivery,proto3" json:"delivery,omitempty"`
+	Profile        string                 `protobuf:"bytes,10,opt,name=profile,proto3" json:"profile,omitempty"`
+	SessionTarget  string                 `protobuf:"bytes,11,opt,name=session_target,json=sessionTarget,proto3" json:"session_target,omitempty"`
+	DeleteAfterRun bool                   `protobuf:"varint,12,opt,name=delete_after_run,json=deleteAfterRun,proto3" json:"delete_after_run,omitempty"`
+	State          *AutomationJobState    `protobuf:"bytes,13,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AddAutomationJobRequest) Reset() {
+	*x = AddAutomationJobRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddAutomationJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddAutomationJobRequest) ProtoMessage() {}
+
+func (x *AddAutomationJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddAutomationJobRequest.ProtoReflect.Descriptor instead.
+func (*AddAutomationJobRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *AddAutomationJobRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AddAutomationJobRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AddAutomationJobRequest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *AddAutomationJobRequest) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *AddAutomationJobRequest) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *AddAutomationJobRequest) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *AddAutomationJobRequest) GetSchedule() *AutomationSchedule {
+	if x != nil {
+		return x.Schedule
+	}
+	return nil
+}
+
+func (x *AddAutomationJobRequest) GetPayload() *AutomationPayload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *AddAutomationJobRequest) GetDelivery() *AutomationDelivery {
+	if x != nil {
+		return x.Delivery
+	}
+	return nil
+}
+
+func (x *AddAutomationJobRequest) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *AddAutomationJobRequest) GetSessionTarget() string {
+	if x != nil {
+		return x.SessionTarget
+	}
+	return ""
+}
+
+func (x *AddAutomationJobRequest) GetDeleteAfterRun() bool {
+	if x != nil {
+		return x.DeleteAfterRun
+	}
+	return false
+}
+
+func (x *AddAutomationJobRequest) GetState() *AutomationJobState {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
+type AddAutomationJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Job           *AutomationJob         `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddAutomationJobResponse) Reset() {
+	*x = AddAutomationJobResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddAutomationJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddAutomationJobResponse) ProtoMessage() {}
+
+func (x *AddAutomationJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddAutomationJobResponse.ProtoReflect.Descriptor instead.
+func (*AddAutomationJobResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *AddAutomationJobResponse) GetJob() *AutomationJob {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+type UpdateAutomationJobRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name           *string                `protobuf:"bytes,2,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	Description    *string                `protobuf:"bytes,3,opt,name=description,proto3,oneof" json:"description,omitempty"`
+	Enabled        *bool                  `protobuf:"varint,4,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	Schedule       *AutomationSchedule    `protobuf:"bytes,5,opt,name=schedule,proto3" json:"schedule,omitempty"`
+	Payload        *AutomationPayload     `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"`
+	Delivery       *AutomationDelivery    `protobuf:"bytes,7,opt,name=delivery,proto3" json:"delivery,omitempty"`
+	Profile        *string                `protobuf:"bytes,8,opt,name=profile,proto3,oneof" json:"profile,omitempty"`
+	SessionTarget  *string                `protobuf:"bytes,9,opt,name=session_target,json=sessionTarget,proto3,oneof" json:"session_target,omitempty"`
+	DeleteAfterRun *bool                  `protobuf:"varint,10,opt,name=delete_after_run,json=deleteAfterRun,proto3,oneof" json:"delete_after_run,omitempty"`
+	State          *AutomationJobState    `protobuf:"bytes,11,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *UpdateAutomationJobRequest) Reset() {
+	*x = UpdateAutomationJobRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAutomationJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAutomationJobRequest) ProtoMessage() {}
+
+func (x *UpdateAutomationJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAutomationJobRequest.ProtoReflect.Descriptor instead.
+func (*UpdateAutomationJobRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *UpdateAutomationJobRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *UpdateAutomationJobRequest) GetName() string {
+	if x != nil && x.Name != nil {
+		return *x.Name
+	}
+	return ""
+}
+
+func (x *UpdateAutomationJobRequest) GetDescription() string {
+	if x != nil && x.Description != nil {
+		return *x.Description
+	}
+	return ""
+}
+
+func (x *UpdateAutomationJobRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *UpdateAutomationJobRequest) GetSchedule() *AutomationSchedule {
+	if x != nil {
+		return x.Schedule
+	}
+	return nil
+}
+
+func (x *UpdateAutomationJobRequest) GetPayload() *AutomationPayload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *UpdateAutomationJobRequest) GetDelivery() *AutomationDelivery {
+	if x != nil {
+		return x.Delivery
+	}
+	return nil
+}
+
+func (x *UpdateAutomationJobRequest) GetProfile() string {
+	if x != nil && x.Profile != nil {
+		return *x.Profile
+	}
+	return ""
+}
+
+func (x *UpdateAutomationJobRequest) GetSessionTarget() string {
+	if x != nil && x.SessionTarget != nil {
+		return *x.SessionTarget
+	}
+	return ""
+}
+
+func (x *UpdateAutomationJobRequest) GetDeleteAfterRun() bool {
+	if x != nil && x.DeleteAfterRun != nil {
+		return *x.DeleteAfterRun
+	}
+	return false
+}
+
+func (x *UpdateAutomationJobRequest) GetState() *AutomationJobState {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
+type UpdateAutomationJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Job           *AutomationJob         `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateAutomationJobResponse) Reset() {
+	*x = UpdateAutomationJobResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAutomationJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAutomationJobResponse) ProtoMessage() {}
+
+func (x *UpdateAutomationJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAutomationJobResponse.ProtoReflect.Descriptor instead.
+func (*UpdateAutomationJobResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *UpdateAutomationJobResponse) GetJob() *AutomationJob {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+type RemoveAutomationJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveAutomationJobRequest) Reset() {
+	*x = RemoveAutomationJobRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveAutomationJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveAutomationJobRequest) ProtoMessage() {}
+
+func (x *RemoveAutomationJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveAutomationJobRequest.ProtoReflect.Descriptor instead.
+func (*RemoveAutomationJobRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *RemoveAutomationJobRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type RemoveAutomationJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveAutomationJobResponse) Reset() {
+	*x = RemoveAutomationJobResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[78]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveAutomationJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveAutomationJobResponse) ProtoMessage() {}
+
+func (x *RemoveAutomationJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[78]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveAutomationJobResponse.ProtoReflect.Descriptor instead.
+func (*RemoveAutomationJobResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{78}
+}
+
+func (x *RemoveAutomationJobResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type RunAutomationJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunAutomationJobRequest) Reset() {
+	*x = RunAutomationJobRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunAutomationJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunAutomationJobRequest) ProtoMessage() {}
+
+func (x *RunAutomationJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunAutomationJobRequest.ProtoReflect.Descriptor instead.
+func (*RunAutomationJobRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *RunAutomationJobRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type RunAutomationJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Run           *AutomationRun         `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunAutomationJobResponse) Reset() {
+	*x = RunAutomationJobResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunAutomationJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunAutomationJobResponse) ProtoMessage() {}
+
+func (x *RunAutomationJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunAutomationJobResponse.ProtoReflect.Descriptor instead.
+func (*RunAutomationJobResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *RunAutomationJobResponse) GetRun() *AutomationRun {
+	if x != nil {
+		return x.Run
+	}
+	return nil
+}
+
+type ListAutomationRunsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	Ids           []string               `protobuf:"bytes,2,rep,name=ids,proto3" json:"ids,omitempty"`
+	Status        []string               `protobuf:"bytes,3,rep,name=status,proto3" json:"status,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAutomationRunsRequest) Reset() {
+	*x = ListAutomationRunsRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAutomationRunsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAutomationRunsRequest) ProtoMessage() {}
+
+func (x *ListAutomationRunsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAutomationRunsRequest.ProtoReflect.Descriptor instead.
+func (*ListAutomationRunsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{81}
+}
+
+func (x *ListAutomationRunsRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *ListAutomationRunsRequest) GetIds() []string {
+	if x != nil {
+		return x.Ids
+	}
+	return nil
+}
+
+func (x *ListAutomationRunsRequest) GetStatus() []string {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+func (x *ListAutomationRunsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListAutomationRunsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Runs          []*AutomationRun       `protobuf:"bytes,1,rep,name=runs,proto3" json:"runs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAutomationRunsResponse) Reset() {
+	*x = ListAutomationRunsResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAutomationRunsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAutomationRunsResponse) ProtoMessage() {}
+
+func (x *ListAutomationRunsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAutomationRunsResponse.ProtoReflect.Descriptor instead.
+func (*ListAutomationRunsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{82}
+}
+
+func (x *ListAutomationRunsResponse) GetRuns() []*AutomationRun {
+	if x != nil {
+		return x.Runs
+	}
+	return nil
+}
+
 type GetSessionStatusResponse_Context struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Offset        int32                  `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
@@ -3699,7 +5375,7 @@ type GetSessionStatusResponse_Context struct {
 
 func (x *GetSessionStatusResponse_Context) Reset() {
 	*x = GetSessionStatusResponse_Context{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[62]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3711,7 +5387,7 @@ func (x *GetSessionStatusResponse_Context) String() string {
 func (*GetSessionStatusResponse_Context) ProtoMessage() {}
 
 func (x *GetSessionStatusResponse_Context) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[62]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4041,7 +5717,177 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"\x1cRevokeGatewayPairingResponse\"<\n" +
 	"\"ClearPendingGatewayPairingsRequest\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\"%\n" +
-	"#ClearPendingGatewayPairingsResponse2M\n" +
+	"#ClearPendingGatewayPairingsResponse\"\xa5\x01\n" +
+	"\x12AutomationSchedule\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12*\n" +
+	"\x02at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x12\x1f\n" +
+	"\vevery_nanos\x18\x03 \x01(\x03R\n" +
+	"everyNanos\x12\x12\n" +
+	"\x04cron\x18\x04 \x01(\tR\x04cron\x12\x1a\n" +
+	"\btimezone\x18\x05 \x01(\tR\btimezone\"\xd0\x04\n" +
+	"\x11AutomationPayload\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x16\n" +
+	"\x06prompt\x18\x02 \x01(\tR\x06prompt\x12!\n" +
+	"\fsystem_event\x18\x03 \x01(\tR\vsystemEvent\x12\x14\n" +
+	"\x05model\x18\x04 \x01(\tR\x05model\x12\x1a\n" +
+	"\bprovider\x18\x05 \x01(\tR\bprovider\x12\x19\n" +
+	"\bbase_url\x18\x06 \x01(\tR\abaseUrl\x12\x1d\n" +
+	"\n" +
+	"no_timeout\x18\a \x01(\bR\tnoTimeout\x12*\n" +
+	"\x11max_runtime_nanos\x18\b \x01(\x03R\x0fmaxRuntimeNanos\x12%\n" +
+	"\x0emax_iterations\x18\t \x01(\x05R\rmaxIterations\x12%\n" +
+	"\x0eretry_attempts\x18\n" +
+	" \x01(\x05R\rretryAttempts\x12.\n" +
+	"\x13retry_backoff_nanos\x18\v \x01(\x03R\x11retryBackoffNanos\x121\n" +
+	"\x15retry_max_delay_nanos\x18\f \x01(\x03R\x12retryMaxDelayNanos\x12\x1f\n" +
+	"\vtool_groups\x18\r \x03(\tR\n" +
+	"toolGroups\x12E\n" +
+	"\bmetadata\x18\x0e \x03(\v2).morph.v1.AutomationPayload.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbb\x02\n" +
+	"\x12AutomationDelivery\x12\x12\n" +
+	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x18\n" +
+	"\achannel\x18\x02 \x01(\tR\achannel\x12\x16\n" +
+	"\x06target\x18\x03 \x01(\tR\x06target\x12\x1b\n" +
+	"\tthread_id\x18\x04 \x01(\tR\bthreadId\x12\x1f\n" +
+	"\vwebhook_url\x18\x05 \x01(\tR\n" +
+	"webhookUrl\x12\x1f\n" +
+	"\vbest_effort\x18\x06 \x01(\bR\n" +
+	"bestEffort\x12%\n" +
+	"\x0efailure_target\x18\a \x01(\tR\rfailureTarget\x12#\n" +
+	"\rfailure_after\x18\b \x01(\x05R\ffailureAfter\x124\n" +
+	"\x16failure_cooldown_nanos\x18\t \x01(\x03R\x14failureCooldownNanos\"\xb7\x03\n" +
+	"\x12AutomationJobState\x12:\n" +
+	"\vnext_run_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tnextRunAt\x129\n" +
+	"\n" +
+	"running_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\trunningAt\x12:\n" +
+	"\vlast_run_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tlastRunAt\x12\x1f\n" +
+	"\vlast_status\x18\x04 \x01(\tR\n" +
+	"lastStatus\x12\x1d\n" +
+	"\n" +
+	"last_error\x18\x05 \x01(\tR\tlastError\x12.\n" +
+	"\x13last_duration_nanos\x18\x06 \x01(\x03R\x11lastDurationNanos\x12-\n" +
+	"\x12consecutive_errors\x18\a \x01(\x05R\x11consecutiveErrors\x12O\n" +
+	"\x16last_failure_notice_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x13lastFailureNoticeAt\"\xaf\x04\n" +
+	"\rAutomationJob\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x18\n" +
+	"\aenabled\x18\x04 \x01(\bR\aenabled\x129\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x128\n" +
+	"\bschedule\x18\a \x01(\v2\x1c.morph.v1.AutomationScheduleR\bschedule\x125\n" +
+	"\apayload\x18\b \x01(\v2\x1b.morph.v1.AutomationPayloadR\apayload\x128\n" +
+	"\bdelivery\x18\t \x01(\v2\x1c.morph.v1.AutomationDeliveryR\bdelivery\x12\x18\n" +
+	"\aprofile\x18\n" +
+	" \x01(\tR\aprofile\x12%\n" +
+	"\x0esession_target\x18\v \x01(\tR\rsessionTarget\x12(\n" +
+	"\x10delete_after_run\x18\f \x01(\bR\x0edeleteAfterRun\x122\n" +
+	"\x05state\x18\r \x01(\v2\x1c.morph.v1.AutomationJobStateR\x05state\"\xd6\x01\n" +
+	"\x0fAutomationUsage\x12!\n" +
+	"\finput_tokens\x18\x01 \x01(\x05R\vinputTokens\x12#\n" +
+	"\routput_tokens\x18\x02 \x01(\x05R\foutputTokens\x12!\n" +
+	"\ftotal_tokens\x18\x03 \x01(\x05R\vtotalTokens\x12*\n" +
+	"\x11cache_read_tokens\x18\x04 \x01(\x05R\x0fcacheReadTokens\x12,\n" +
+	"\x12cache_write_tokens\x18\x05 \x01(\x05R\x10cacheWriteTokens\"\xe7\x03\n" +
+	"\rAutomationRun\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x15\n" +
+	"\x06job_id\x18\x02 \x01(\tR\x05jobId\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x129\n" +
+	"\n" +
+	"started_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x125\n" +
+	"\bended_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\aendedAt\x12%\n" +
+	"\x0eduration_nanos\x18\x06 \x01(\x03R\rdurationNanos\x12\x16\n" +
+	"\x06output\x18\a \x01(\tR\x06output\x12\x14\n" +
+	"\x05error\x18\b \x01(\tR\x05error\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\t \x01(\tR\tsessionId\x12'\n" +
+	"\x0fdelivery_status\x18\n" +
+	" \x01(\tR\x0edeliveryStatus\x12%\n" +
+	"\x0edelivery_error\x18\v \x01(\tR\rdeliveryError\x12\x14\n" +
+	"\x05model\x18\f \x01(\tR\x05model\x12\x1a\n" +
+	"\bprovider\x18\r \x01(\tR\bprovider\x12/\n" +
+	"\x05usage\x18\x0e \x01(\v2\x19.morph.v1.AutomationUsageR\x05usage\"\x1c\n" +
+	"\x1aGetAutomationStatusRequest\"\xf2\x01\n" +
+	"\x1bGetAutomationStatusResponse\x12\x18\n" +
+	"\arunning\x18\x01 \x01(\bR\arunning\x129\n" +
+	"\n" +
+	"started_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12\x1b\n" +
+	"\tjob_count\x18\x03 \x01(\x05R\bjobCount\x12#\n" +
+	"\rrunning_count\x18\x04 \x01(\x05R\frunningCount\x12<\n" +
+	"\fnext_wake_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"nextWakeAt\"\xda\x01\n" +
+	"\x19ListAutomationJobsRequest\x12\x10\n" +
+	"\x03ids\x18\x01 \x03(\tR\x03ids\x12\x1d\n" +
+	"\aenabled\x18\x02 \x01(\bH\x00R\aenabled\x88\x01\x01\x12\x18\n" +
+	"\aprofile\x18\x03 \x01(\tR\aprofile\x12%\n" +
+	"\x0esession_target\x18\x04 \x01(\tR\rsessionTarget\x12\x14\n" +
+	"\x05limit\x18\x05 \x01(\x05R\x05limit\x12)\n" +
+	"\x10include_disabled\x18\x06 \x01(\bR\x0fincludeDisabledB\n" +
+	"\n" +
+	"\b_enabled\"I\n" +
+	"\x1aListAutomationJobsResponse\x12+\n" +
+	"\x04jobs\x18\x01 \x03(\v2\x17.morph.v1.AutomationJobR\x04jobs\"\xb9\x04\n" +
+	"\x17AddAutomationJobRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x18\n" +
+	"\aenabled\x18\x04 \x01(\bR\aenabled\x129\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x128\n" +
+	"\bschedule\x18\a \x01(\v2\x1c.morph.v1.AutomationScheduleR\bschedule\x125\n" +
+	"\apayload\x18\b \x01(\v2\x1b.morph.v1.AutomationPayloadR\apayload\x128\n" +
+	"\bdelivery\x18\t \x01(\v2\x1c.morph.v1.AutomationDeliveryR\bdelivery\x12\x18\n" +
+	"\aprofile\x18\n" +
+	" \x01(\tR\aprofile\x12%\n" +
+	"\x0esession_target\x18\v \x01(\tR\rsessionTarget\x12(\n" +
+	"\x10delete_after_run\x18\f \x01(\bR\x0edeleteAfterRun\x122\n" +
+	"\x05state\x18\r \x01(\v2\x1c.morph.v1.AutomationJobStateR\x05state\"E\n" +
+	"\x18AddAutomationJobResponse\x12)\n" +
+	"\x03job\x18\x01 \x01(\v2\x17.morph.v1.AutomationJobR\x03job\"\xbd\x04\n" +
+	"\x1aUpdateAutomationJobRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\x04name\x18\x02 \x01(\tH\x00R\x04name\x88\x01\x01\x12%\n" +
+	"\vdescription\x18\x03 \x01(\tH\x01R\vdescription\x88\x01\x01\x12\x1d\n" +
+	"\aenabled\x18\x04 \x01(\bH\x02R\aenabled\x88\x01\x01\x128\n" +
+	"\bschedule\x18\x05 \x01(\v2\x1c.morph.v1.AutomationScheduleR\bschedule\x125\n" +
+	"\apayload\x18\x06 \x01(\v2\x1b.morph.v1.AutomationPayloadR\apayload\x128\n" +
+	"\bdelivery\x18\a \x01(\v2\x1c.morph.v1.AutomationDeliveryR\bdelivery\x12\x1d\n" +
+	"\aprofile\x18\b \x01(\tH\x03R\aprofile\x88\x01\x01\x12*\n" +
+	"\x0esession_target\x18\t \x01(\tH\x04R\rsessionTarget\x88\x01\x01\x12-\n" +
+	"\x10delete_after_run\x18\n" +
+	" \x01(\bH\x05R\x0edeleteAfterRun\x88\x01\x01\x122\n" +
+	"\x05state\x18\v \x01(\v2\x1c.morph.v1.AutomationJobStateR\x05stateB\a\n" +
+	"\x05_nameB\x0e\n" +
+	"\f_descriptionB\n" +
+	"\n" +
+	"\b_enabledB\n" +
+	"\n" +
+	"\b_profileB\x11\n" +
+	"\x0f_session_targetB\x13\n" +
+	"\x11_delete_after_run\"H\n" +
+	"\x1bUpdateAutomationJobResponse\x12)\n" +
+	"\x03job\x18\x01 \x01(\v2\x17.morph.v1.AutomationJobR\x03job\",\n" +
+	"\x1aRemoveAutomationJobRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"-\n" +
+	"\x1bRemoveAutomationJobResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\")\n" +
+	"\x17RunAutomationJobRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"E\n" +
+	"\x18RunAutomationJobResponse\x12)\n" +
+	"\x03run\x18\x01 \x01(\v2\x17.morph.v1.AutomationRunR\x03run\"r\n" +
+	"\x19ListAutomationRunsRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x10\n" +
+	"\x03ids\x18\x02 \x03(\tR\x03ids\x12\x16\n" +
+	"\x06status\x18\x03 \x03(\tR\x06status\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"I\n" +
+	"\x1aListAutomationRunsResponse\x12+\n" +
+	"\x04runs\x18\x01 \x03(\v2\x17.morph.v1.AutomationRunR\x04runs2M\n" +
 	"\fMorphService\x12=\n" +
 	"\aRespond\x12\x18.morph.v1.RespondRequest\x1a\x16.morph.v1.RespondEvent0\x012\xe0\x06\n" +
 	"\x0eSessionService\x12I\n" +
@@ -4062,16 +5908,24 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"\n" +
 	"ListModels\x12\x1b.morph.v1.ListModelsRequest\x1a\x1c.morph.v1.ListModelsResponse\x12J\n" +
 	"\vSelectModel\x12\x1c.morph.v1.SelectModelRequest\x1a\x1d.morph.v1.SelectModelResponse\x12\\\n" +
-	"\x11SetProviderAPIKey\x12\".morph.v1.SetProviderAPIKeyRequest\x1a#.morph.v1.SetProviderAPIKeyResponse2\xd8\x05\n" +
-	"\x0eGatewayService\x12V\n" +
-	"\rGatewayStatus\x12!.morph.v1.GetGatewayStatusRequest\x1a\".morph.v1.GetGatewayStatusResponse\x12F\n" +
+	"\x11SetProviderAPIKey\x12\".morph.v1.SetProviderAPIKeyRequest\x1a#.morph.v1.SetProviderAPIKeyResponse2\xd1\x05\n" +
+	"\x0eGatewayService\x12O\n" +
+	"\x06Status\x12!.morph.v1.GetGatewayStatusRequest\x1a\".morph.v1.GetGatewayStatusResponse\x12F\n" +
 	"\x05Start\x12\x1d.morph.v1.StartGatewayRequest\x1a\x1e.morph.v1.StartGatewayResponse\x12C\n" +
 	"\x04Stop\x12\x1c.morph.v1.StopGatewayRequest\x1a\x1d.morph.v1.StopGatewayResponse\x12L\n" +
 	"\aRestart\x12\x1f.morph.v1.RestartGatewayRequest\x1a .morph.v1.RestartGatewayResponse\x12[\n" +
 	"\fListPairings\x12$.morph.v1.ListGatewayPairingsRequest\x1a%.morph.v1.ListGatewayPairingsResponse\x12a\n" +
 	"\x0eApprovePairing\x12&.morph.v1.ApproveGatewayPairingRequest\x1a'.morph.v1.ApproveGatewayPairingResponse\x12^\n" +
 	"\rRevokePairing\x12%.morph.v1.RevokeGatewayPairingRequest\x1a&.morph.v1.RevokeGatewayPairingResponse\x12s\n" +
-	"\x14ClearPendingPairings\x12,.morph.v1.ClearPendingGatewayPairingsRequest\x1a-.morph.v1.ClearPendingGatewayPairingsResponseB4Z2github.com/wandxy/morph/internal/rpc/proto;morphpbb\x06proto3"
+	"\x14ClearPendingPairings\x12,.morph.v1.ClearPendingGatewayPairingsRequest\x1a-.morph.v1.ClearPendingGatewayPairingsResponse2\xee\x04\n" +
+	"\x11AutomationService\x12U\n" +
+	"\x06Status\x12$.morph.v1.GetAutomationStatusRequest\x1a%.morph.v1.GetAutomationStatusResponse\x12U\n" +
+	"\bListJobs\x12#.morph.v1.ListAutomationJobsRequest\x1a$.morph.v1.ListAutomationJobsResponse\x12O\n" +
+	"\x06AddJob\x12!.morph.v1.AddAutomationJobRequest\x1a\".morph.v1.AddAutomationJobResponse\x12X\n" +
+	"\tUpdateJob\x12$.morph.v1.UpdateAutomationJobRequest\x1a%.morph.v1.UpdateAutomationJobResponse\x12X\n" +
+	"\tRemoveJob\x12$.morph.v1.RemoveAutomationJobRequest\x1a%.morph.v1.RemoveAutomationJobResponse\x12O\n" +
+	"\x06RunJob\x12!.morph.v1.RunAutomationJobRequest\x1a\".morph.v1.RunAutomationJobResponse\x12U\n" +
+	"\bListRuns\x12#.morph.v1.ListAutomationRunsRequest\x1a$.morph.v1.ListAutomationRunsResponseB4Z2github.com/wandxy/morph/internal/rpc/proto;morphpbb\x06proto3"
 
 var (
 	file_internal_rpc_proto_morph_proto_rawDescOnce sync.Once
@@ -4086,7 +5940,7 @@ func file_internal_rpc_proto_morph_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_rpc_proto_morph_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_internal_rpc_proto_morph_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
+var file_internal_rpc_proto_morph_proto_msgTypes = make([]protoimpl.MessageInfo, 85)
 var file_internal_rpc_proto_morph_proto_goTypes = []any{
 	(RespondEvent_Type)(0),                      // 0: morph.v1.RespondEvent.Type
 	(RespondEvent_Channel)(0),                   // 1: morph.v1.RespondEvent.Channel
@@ -4153,101 +6007,169 @@ var file_internal_rpc_proto_morph_proto_goTypes = []any{
 	(*RevokeGatewayPairingResponse)(nil),        // 62: morph.v1.RevokeGatewayPairingResponse
 	(*ClearPendingGatewayPairingsRequest)(nil),  // 63: morph.v1.ClearPendingGatewayPairingsRequest
 	(*ClearPendingGatewayPairingsResponse)(nil), // 64: morph.v1.ClearPendingGatewayPairingsResponse
-	(*GetSessionStatusResponse_Context)(nil),    // 65: morph.v1.GetSessionStatusResponse.Context
-	(*timestamppb.Timestamp)(nil),               // 66: google.protobuf.Timestamp
+	(*AutomationSchedule)(nil),                  // 65: morph.v1.AutomationSchedule
+	(*AutomationPayload)(nil),                   // 66: morph.v1.AutomationPayload
+	(*AutomationDelivery)(nil),                  // 67: morph.v1.AutomationDelivery
+	(*AutomationJobState)(nil),                  // 68: morph.v1.AutomationJobState
+	(*AutomationJob)(nil),                       // 69: morph.v1.AutomationJob
+	(*AutomationUsage)(nil),                     // 70: morph.v1.AutomationUsage
+	(*AutomationRun)(nil),                       // 71: morph.v1.AutomationRun
+	(*GetAutomationStatusRequest)(nil),          // 72: morph.v1.GetAutomationStatusRequest
+	(*GetAutomationStatusResponse)(nil),         // 73: morph.v1.GetAutomationStatusResponse
+	(*ListAutomationJobsRequest)(nil),           // 74: morph.v1.ListAutomationJobsRequest
+	(*ListAutomationJobsResponse)(nil),          // 75: morph.v1.ListAutomationJobsResponse
+	(*AddAutomationJobRequest)(nil),             // 76: morph.v1.AddAutomationJobRequest
+	(*AddAutomationJobResponse)(nil),            // 77: morph.v1.AddAutomationJobResponse
+	(*UpdateAutomationJobRequest)(nil),          // 78: morph.v1.UpdateAutomationJobRequest
+	(*UpdateAutomationJobResponse)(nil),         // 79: morph.v1.UpdateAutomationJobResponse
+	(*RemoveAutomationJobRequest)(nil),          // 80: morph.v1.RemoveAutomationJobRequest
+	(*RemoveAutomationJobResponse)(nil),         // 81: morph.v1.RemoveAutomationJobResponse
+	(*RunAutomationJobRequest)(nil),             // 82: morph.v1.RunAutomationJobRequest
+	(*RunAutomationJobResponse)(nil),            // 83: morph.v1.RunAutomationJobResponse
+	(*ListAutomationRunsRequest)(nil),           // 84: morph.v1.ListAutomationRunsRequest
+	(*ListAutomationRunsResponse)(nil),          // 85: morph.v1.ListAutomationRunsResponse
+	(*GetSessionStatusResponse_Context)(nil),    // 86: morph.v1.GetSessionStatusResponse.Context
+	nil,                                         // 87: morph.v1.AutomationPayload.MetadataEntry
+	(*timestamppb.Timestamp)(nil),               // 88: google.protobuf.Timestamp
 }
 var file_internal_rpc_proto_morph_proto_depIdxs = []int32{
-	0,  // 0: morph.v1.RespondEvent.type:type_name -> morph.v1.RespondEvent.Type
-	1,  // 1: morph.v1.RespondEvent.channel:type_name -> morph.v1.RespondEvent.Channel
-	66, // 2: morph.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
-	5,  // 3: morph.v1.CreateSessionResponse.session:type_name -> morph.v1.SessionSummary
-	5,  // 4: morph.v1.ListSessionsResponse.sessions:type_name -> morph.v1.SessionSummary
-	5,  // 5: morph.v1.UnarchiveSessionResponse.session:type_name -> morph.v1.SessionSummary
-	5,  // 6: morph.v1.RenameSessionResponse.session:type_name -> morph.v1.SessionSummary
-	66, // 7: morph.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 8: morph.v1.RepairSessionRequest.type:type_name -> morph.v1.RepairSessionRequest.Type
-	24, // 9: morph.v1.RepairSessionRequest.vector:type_name -> morph.v1.VectorRepairOption
-	2,  // 10: morph.v1.RepairSessionResponse.type:type_name -> morph.v1.RepairSessionRequest.Type
-	25, // 11: morph.v1.RepairSessionResponse.vector:type_name -> morph.v1.VectorRepairResponse
-	26, // 12: morph.v1.GetSessionStatusRequest.context:type_name -> morph.v1.GetSessionStatusRequestContext
-	65, // 13: morph.v1.GetSessionStatusResponse.context:type_name -> morph.v1.GetSessionStatusResponse.Context
-	66, // 14: morph.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
-	66, // 15: morph.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
-	66, // 16: morph.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
-	30, // 17: morph.v1.SessionTimelineMessage.tool_calls:type_name -> morph.v1.SessionTimelineToolCall
-	66, // 18: morph.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
-	31, // 19: morph.v1.GetSessionTimelineResponse.messages:type_name -> morph.v1.SessionTimelineMessage
-	32, // 20: morph.v1.GetSessionTimelineResponse.trace_events:type_name -> morph.v1.SessionTimelineTraceEvent
-	37, // 21: morph.v1.ListProvidersResponse.providers:type_name -> morph.v1.ProviderOption
-	40, // 22: morph.v1.ListModelsResponse.models:type_name -> morph.v1.ModelOption
-	40, // 23: morph.v1.SelectModelResponse.model:type_name -> morph.v1.ModelOption
-	46, // 24: morph.v1.GetGatewayStatusResponse.status:type_name -> morph.v1.GatewayStatus
-	46, // 25: morph.v1.StartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
-	46, // 26: morph.v1.StopGatewayResponse.status:type_name -> morph.v1.GatewayStatus
-	46, // 27: morph.v1.RestartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
-	66, // 28: morph.v1.GatewayPairingRequest.created_at:type_name -> google.protobuf.Timestamp
-	66, // 29: morph.v1.GatewayPairingRequest.last_seen_at:type_name -> google.protobuf.Timestamp
-	66, // 30: morph.v1.GatewayPairingRequest.expires_at:type_name -> google.protobuf.Timestamp
-	66, // 31: morph.v1.GatewayPairedSender.created_at:type_name -> google.protobuf.Timestamp
-	66, // 32: morph.v1.GatewayPairedSender.updated_at:type_name -> google.protobuf.Timestamp
-	55, // 33: morph.v1.ListGatewayPairingsResponse.pending:type_name -> morph.v1.GatewayPairingRequest
-	56, // 34: morph.v1.ListGatewayPairingsResponse.approved:type_name -> morph.v1.GatewayPairedSender
-	56, // 35: morph.v1.ApproveGatewayPairingResponse.sender:type_name -> morph.v1.GatewayPairedSender
-	3,  // 36: morph.v1.MorphService.Respond:input_type -> morph.v1.RespondRequest
-	6,  // 37: morph.v1.SessionService.Create:input_type -> morph.v1.CreateSessionRequest
-	8,  // 38: morph.v1.SessionService.List:input_type -> morph.v1.ListSessionsRequest
-	10, // 39: morph.v1.SessionService.Use:input_type -> morph.v1.UseSessionRequest
-	12, // 40: morph.v1.SessionService.Archive:input_type -> morph.v1.ArchiveSessionRequest
-	14, // 41: morph.v1.SessionService.Unarchive:input_type -> morph.v1.UnarchiveSessionRequest
-	16, // 42: morph.v1.SessionService.Rename:input_type -> morph.v1.RenameSessionRequest
-	18, // 43: morph.v1.SessionService.Current:input_type -> morph.v1.CurrentSessionRequest
-	20, // 44: morph.v1.SessionService.Compact:input_type -> morph.v1.CompactSessionRequest
-	22, // 45: morph.v1.SessionService.Repair:input_type -> morph.v1.RepairSessionRequest
-	27, // 46: morph.v1.SessionService.Status:input_type -> morph.v1.GetSessionStatusRequest
-	29, // 47: morph.v1.SessionService.Timeline:input_type -> morph.v1.GetSessionTimelineRequest
-	34, // 48: morph.v1.ModelService.RuntimeModel:input_type -> morph.v1.RuntimeModelRequest
-	36, // 49: morph.v1.ModelService.ListProviders:input_type -> morph.v1.ListProvidersRequest
-	39, // 50: morph.v1.ModelService.ListModels:input_type -> morph.v1.ListModelsRequest
-	42, // 51: morph.v1.ModelService.SelectModel:input_type -> morph.v1.SelectModelRequest
-	44, // 52: morph.v1.ModelService.SetProviderAPIKey:input_type -> morph.v1.SetProviderAPIKeyRequest
-	47, // 53: morph.v1.GatewayService.GatewayStatus:input_type -> morph.v1.GetGatewayStatusRequest
-	49, // 54: morph.v1.GatewayService.Start:input_type -> morph.v1.StartGatewayRequest
-	51, // 55: morph.v1.GatewayService.Stop:input_type -> morph.v1.StopGatewayRequest
-	53, // 56: morph.v1.GatewayService.Restart:input_type -> morph.v1.RestartGatewayRequest
-	57, // 57: morph.v1.GatewayService.ListPairings:input_type -> morph.v1.ListGatewayPairingsRequest
-	59, // 58: morph.v1.GatewayService.ApprovePairing:input_type -> morph.v1.ApproveGatewayPairingRequest
-	61, // 59: morph.v1.GatewayService.RevokePairing:input_type -> morph.v1.RevokeGatewayPairingRequest
-	63, // 60: morph.v1.GatewayService.ClearPendingPairings:input_type -> morph.v1.ClearPendingGatewayPairingsRequest
-	4,  // 61: morph.v1.MorphService.Respond:output_type -> morph.v1.RespondEvent
-	7,  // 62: morph.v1.SessionService.Create:output_type -> morph.v1.CreateSessionResponse
-	9,  // 63: morph.v1.SessionService.List:output_type -> morph.v1.ListSessionsResponse
-	11, // 64: morph.v1.SessionService.Use:output_type -> morph.v1.UseSessionResponse
-	13, // 65: morph.v1.SessionService.Archive:output_type -> morph.v1.ArchiveSessionResponse
-	15, // 66: morph.v1.SessionService.Unarchive:output_type -> morph.v1.UnarchiveSessionResponse
-	17, // 67: morph.v1.SessionService.Rename:output_type -> morph.v1.RenameSessionResponse
-	19, // 68: morph.v1.SessionService.Current:output_type -> morph.v1.CurrentSessionResponse
-	21, // 69: morph.v1.SessionService.Compact:output_type -> morph.v1.CompactSessionResponse
-	23, // 70: morph.v1.SessionService.Repair:output_type -> morph.v1.RepairSessionResponse
-	28, // 71: morph.v1.SessionService.Status:output_type -> morph.v1.GetSessionStatusResponse
-	33, // 72: morph.v1.SessionService.Timeline:output_type -> morph.v1.GetSessionTimelineResponse
-	35, // 73: morph.v1.ModelService.RuntimeModel:output_type -> morph.v1.RuntimeModelResponse
-	38, // 74: morph.v1.ModelService.ListProviders:output_type -> morph.v1.ListProvidersResponse
-	41, // 75: morph.v1.ModelService.ListModels:output_type -> morph.v1.ListModelsResponse
-	43, // 76: morph.v1.ModelService.SelectModel:output_type -> morph.v1.SelectModelResponse
-	45, // 77: morph.v1.ModelService.SetProviderAPIKey:output_type -> morph.v1.SetProviderAPIKeyResponse
-	48, // 78: morph.v1.GatewayService.GatewayStatus:output_type -> morph.v1.GetGatewayStatusResponse
-	50, // 79: morph.v1.GatewayService.Start:output_type -> morph.v1.StartGatewayResponse
-	52, // 80: morph.v1.GatewayService.Stop:output_type -> morph.v1.StopGatewayResponse
-	54, // 81: morph.v1.GatewayService.Restart:output_type -> morph.v1.RestartGatewayResponse
-	58, // 82: morph.v1.GatewayService.ListPairings:output_type -> morph.v1.ListGatewayPairingsResponse
-	60, // 83: morph.v1.GatewayService.ApprovePairing:output_type -> morph.v1.ApproveGatewayPairingResponse
-	62, // 84: morph.v1.GatewayService.RevokePairing:output_type -> morph.v1.RevokeGatewayPairingResponse
-	64, // 85: morph.v1.GatewayService.ClearPendingPairings:output_type -> morph.v1.ClearPendingGatewayPairingsResponse
-	61, // [61:86] is the sub-list for method output_type
-	36, // [36:61] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	0,   // 0: morph.v1.RespondEvent.type:type_name -> morph.v1.RespondEvent.Type
+	1,   // 1: morph.v1.RespondEvent.channel:type_name -> morph.v1.RespondEvent.Channel
+	88,  // 2: morph.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
+	5,   // 3: morph.v1.CreateSessionResponse.session:type_name -> morph.v1.SessionSummary
+	5,   // 4: morph.v1.ListSessionsResponse.sessions:type_name -> morph.v1.SessionSummary
+	5,   // 5: morph.v1.UnarchiveSessionResponse.session:type_name -> morph.v1.SessionSummary
+	5,   // 6: morph.v1.RenameSessionResponse.session:type_name -> morph.v1.SessionSummary
+	88,  // 7: morph.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	2,   // 8: morph.v1.RepairSessionRequest.type:type_name -> morph.v1.RepairSessionRequest.Type
+	24,  // 9: morph.v1.RepairSessionRequest.vector:type_name -> morph.v1.VectorRepairOption
+	2,   // 10: morph.v1.RepairSessionResponse.type:type_name -> morph.v1.RepairSessionRequest.Type
+	25,  // 11: morph.v1.RepairSessionResponse.vector:type_name -> morph.v1.VectorRepairResponse
+	26,  // 12: morph.v1.GetSessionStatusRequest.context:type_name -> morph.v1.GetSessionStatusRequestContext
+	86,  // 13: morph.v1.GetSessionStatusResponse.context:type_name -> morph.v1.GetSessionStatusResponse.Context
+	88,  // 14: morph.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
+	88,  // 15: morph.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
+	88,  // 16: morph.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
+	30,  // 17: morph.v1.SessionTimelineMessage.tool_calls:type_name -> morph.v1.SessionTimelineToolCall
+	88,  // 18: morph.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
+	31,  // 19: morph.v1.GetSessionTimelineResponse.messages:type_name -> morph.v1.SessionTimelineMessage
+	32,  // 20: morph.v1.GetSessionTimelineResponse.trace_events:type_name -> morph.v1.SessionTimelineTraceEvent
+	37,  // 21: morph.v1.ListProvidersResponse.providers:type_name -> morph.v1.ProviderOption
+	40,  // 22: morph.v1.ListModelsResponse.models:type_name -> morph.v1.ModelOption
+	40,  // 23: morph.v1.SelectModelResponse.model:type_name -> morph.v1.ModelOption
+	46,  // 24: morph.v1.GetGatewayStatusResponse.status:type_name -> morph.v1.GatewayStatus
+	46,  // 25: morph.v1.StartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
+	46,  // 26: morph.v1.StopGatewayResponse.status:type_name -> morph.v1.GatewayStatus
+	46,  // 27: morph.v1.RestartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
+	88,  // 28: morph.v1.GatewayPairingRequest.created_at:type_name -> google.protobuf.Timestamp
+	88,  // 29: morph.v1.GatewayPairingRequest.last_seen_at:type_name -> google.protobuf.Timestamp
+	88,  // 30: morph.v1.GatewayPairingRequest.expires_at:type_name -> google.protobuf.Timestamp
+	88,  // 31: morph.v1.GatewayPairedSender.created_at:type_name -> google.protobuf.Timestamp
+	88,  // 32: morph.v1.GatewayPairedSender.updated_at:type_name -> google.protobuf.Timestamp
+	55,  // 33: morph.v1.ListGatewayPairingsResponse.pending:type_name -> morph.v1.GatewayPairingRequest
+	56,  // 34: morph.v1.ListGatewayPairingsResponse.approved:type_name -> morph.v1.GatewayPairedSender
+	56,  // 35: morph.v1.ApproveGatewayPairingResponse.sender:type_name -> morph.v1.GatewayPairedSender
+	88,  // 36: morph.v1.AutomationSchedule.at:type_name -> google.protobuf.Timestamp
+	87,  // 37: morph.v1.AutomationPayload.metadata:type_name -> morph.v1.AutomationPayload.MetadataEntry
+	88,  // 38: morph.v1.AutomationJobState.next_run_at:type_name -> google.protobuf.Timestamp
+	88,  // 39: morph.v1.AutomationJobState.running_at:type_name -> google.protobuf.Timestamp
+	88,  // 40: morph.v1.AutomationJobState.last_run_at:type_name -> google.protobuf.Timestamp
+	88,  // 41: morph.v1.AutomationJobState.last_failure_notice_at:type_name -> google.protobuf.Timestamp
+	88,  // 42: morph.v1.AutomationJob.created_at:type_name -> google.protobuf.Timestamp
+	88,  // 43: morph.v1.AutomationJob.updated_at:type_name -> google.protobuf.Timestamp
+	65,  // 44: morph.v1.AutomationJob.schedule:type_name -> morph.v1.AutomationSchedule
+	66,  // 45: morph.v1.AutomationJob.payload:type_name -> morph.v1.AutomationPayload
+	67,  // 46: morph.v1.AutomationJob.delivery:type_name -> morph.v1.AutomationDelivery
+	68,  // 47: morph.v1.AutomationJob.state:type_name -> morph.v1.AutomationJobState
+	88,  // 48: morph.v1.AutomationRun.started_at:type_name -> google.protobuf.Timestamp
+	88,  // 49: morph.v1.AutomationRun.ended_at:type_name -> google.protobuf.Timestamp
+	70,  // 50: morph.v1.AutomationRun.usage:type_name -> morph.v1.AutomationUsage
+	88,  // 51: morph.v1.GetAutomationStatusResponse.started_at:type_name -> google.protobuf.Timestamp
+	88,  // 52: morph.v1.GetAutomationStatusResponse.next_wake_at:type_name -> google.protobuf.Timestamp
+	69,  // 53: morph.v1.ListAutomationJobsResponse.jobs:type_name -> morph.v1.AutomationJob
+	88,  // 54: morph.v1.AddAutomationJobRequest.created_at:type_name -> google.protobuf.Timestamp
+	88,  // 55: morph.v1.AddAutomationJobRequest.updated_at:type_name -> google.protobuf.Timestamp
+	65,  // 56: morph.v1.AddAutomationJobRequest.schedule:type_name -> morph.v1.AutomationSchedule
+	66,  // 57: morph.v1.AddAutomationJobRequest.payload:type_name -> morph.v1.AutomationPayload
+	67,  // 58: morph.v1.AddAutomationJobRequest.delivery:type_name -> morph.v1.AutomationDelivery
+	68,  // 59: morph.v1.AddAutomationJobRequest.state:type_name -> morph.v1.AutomationJobState
+	69,  // 60: morph.v1.AddAutomationJobResponse.job:type_name -> morph.v1.AutomationJob
+	65,  // 61: morph.v1.UpdateAutomationJobRequest.schedule:type_name -> morph.v1.AutomationSchedule
+	66,  // 62: morph.v1.UpdateAutomationJobRequest.payload:type_name -> morph.v1.AutomationPayload
+	67,  // 63: morph.v1.UpdateAutomationJobRequest.delivery:type_name -> morph.v1.AutomationDelivery
+	68,  // 64: morph.v1.UpdateAutomationJobRequest.state:type_name -> morph.v1.AutomationJobState
+	69,  // 65: morph.v1.UpdateAutomationJobResponse.job:type_name -> morph.v1.AutomationJob
+	71,  // 66: morph.v1.RunAutomationJobResponse.run:type_name -> morph.v1.AutomationRun
+	71,  // 67: morph.v1.ListAutomationRunsResponse.runs:type_name -> morph.v1.AutomationRun
+	3,   // 68: morph.v1.MorphService.Respond:input_type -> morph.v1.RespondRequest
+	6,   // 69: morph.v1.SessionService.Create:input_type -> morph.v1.CreateSessionRequest
+	8,   // 70: morph.v1.SessionService.List:input_type -> morph.v1.ListSessionsRequest
+	10,  // 71: morph.v1.SessionService.Use:input_type -> morph.v1.UseSessionRequest
+	12,  // 72: morph.v1.SessionService.Archive:input_type -> morph.v1.ArchiveSessionRequest
+	14,  // 73: morph.v1.SessionService.Unarchive:input_type -> morph.v1.UnarchiveSessionRequest
+	16,  // 74: morph.v1.SessionService.Rename:input_type -> morph.v1.RenameSessionRequest
+	18,  // 75: morph.v1.SessionService.Current:input_type -> morph.v1.CurrentSessionRequest
+	20,  // 76: morph.v1.SessionService.Compact:input_type -> morph.v1.CompactSessionRequest
+	22,  // 77: morph.v1.SessionService.Repair:input_type -> morph.v1.RepairSessionRequest
+	27,  // 78: morph.v1.SessionService.Status:input_type -> morph.v1.GetSessionStatusRequest
+	29,  // 79: morph.v1.SessionService.Timeline:input_type -> morph.v1.GetSessionTimelineRequest
+	34,  // 80: morph.v1.ModelService.RuntimeModel:input_type -> morph.v1.RuntimeModelRequest
+	36,  // 81: morph.v1.ModelService.ListProviders:input_type -> morph.v1.ListProvidersRequest
+	39,  // 82: morph.v1.ModelService.ListModels:input_type -> morph.v1.ListModelsRequest
+	42,  // 83: morph.v1.ModelService.SelectModel:input_type -> morph.v1.SelectModelRequest
+	44,  // 84: morph.v1.ModelService.SetProviderAPIKey:input_type -> morph.v1.SetProviderAPIKeyRequest
+	47,  // 85: morph.v1.GatewayService.Status:input_type -> morph.v1.GetGatewayStatusRequest
+	49,  // 86: morph.v1.GatewayService.Start:input_type -> morph.v1.StartGatewayRequest
+	51,  // 87: morph.v1.GatewayService.Stop:input_type -> morph.v1.StopGatewayRequest
+	53,  // 88: morph.v1.GatewayService.Restart:input_type -> morph.v1.RestartGatewayRequest
+	57,  // 89: morph.v1.GatewayService.ListPairings:input_type -> morph.v1.ListGatewayPairingsRequest
+	59,  // 90: morph.v1.GatewayService.ApprovePairing:input_type -> morph.v1.ApproveGatewayPairingRequest
+	61,  // 91: morph.v1.GatewayService.RevokePairing:input_type -> morph.v1.RevokeGatewayPairingRequest
+	63,  // 92: morph.v1.GatewayService.ClearPendingPairings:input_type -> morph.v1.ClearPendingGatewayPairingsRequest
+	72,  // 93: morph.v1.AutomationService.Status:input_type -> morph.v1.GetAutomationStatusRequest
+	74,  // 94: morph.v1.AutomationService.ListJobs:input_type -> morph.v1.ListAutomationJobsRequest
+	76,  // 95: morph.v1.AutomationService.AddJob:input_type -> morph.v1.AddAutomationJobRequest
+	78,  // 96: morph.v1.AutomationService.UpdateJob:input_type -> morph.v1.UpdateAutomationJobRequest
+	80,  // 97: morph.v1.AutomationService.RemoveJob:input_type -> morph.v1.RemoveAutomationJobRequest
+	82,  // 98: morph.v1.AutomationService.RunJob:input_type -> morph.v1.RunAutomationJobRequest
+	84,  // 99: morph.v1.AutomationService.ListRuns:input_type -> morph.v1.ListAutomationRunsRequest
+	4,   // 100: morph.v1.MorphService.Respond:output_type -> morph.v1.RespondEvent
+	7,   // 101: morph.v1.SessionService.Create:output_type -> morph.v1.CreateSessionResponse
+	9,   // 102: morph.v1.SessionService.List:output_type -> morph.v1.ListSessionsResponse
+	11,  // 103: morph.v1.SessionService.Use:output_type -> morph.v1.UseSessionResponse
+	13,  // 104: morph.v1.SessionService.Archive:output_type -> morph.v1.ArchiveSessionResponse
+	15,  // 105: morph.v1.SessionService.Unarchive:output_type -> morph.v1.UnarchiveSessionResponse
+	17,  // 106: morph.v1.SessionService.Rename:output_type -> morph.v1.RenameSessionResponse
+	19,  // 107: morph.v1.SessionService.Current:output_type -> morph.v1.CurrentSessionResponse
+	21,  // 108: morph.v1.SessionService.Compact:output_type -> morph.v1.CompactSessionResponse
+	23,  // 109: morph.v1.SessionService.Repair:output_type -> morph.v1.RepairSessionResponse
+	28,  // 110: morph.v1.SessionService.Status:output_type -> morph.v1.GetSessionStatusResponse
+	33,  // 111: morph.v1.SessionService.Timeline:output_type -> morph.v1.GetSessionTimelineResponse
+	35,  // 112: morph.v1.ModelService.RuntimeModel:output_type -> morph.v1.RuntimeModelResponse
+	38,  // 113: morph.v1.ModelService.ListProviders:output_type -> morph.v1.ListProvidersResponse
+	41,  // 114: morph.v1.ModelService.ListModels:output_type -> morph.v1.ListModelsResponse
+	43,  // 115: morph.v1.ModelService.SelectModel:output_type -> morph.v1.SelectModelResponse
+	45,  // 116: morph.v1.ModelService.SetProviderAPIKey:output_type -> morph.v1.SetProviderAPIKeyResponse
+	48,  // 117: morph.v1.GatewayService.Status:output_type -> morph.v1.GetGatewayStatusResponse
+	50,  // 118: morph.v1.GatewayService.Start:output_type -> morph.v1.StartGatewayResponse
+	52,  // 119: morph.v1.GatewayService.Stop:output_type -> morph.v1.StopGatewayResponse
+	54,  // 120: morph.v1.GatewayService.Restart:output_type -> morph.v1.RestartGatewayResponse
+	58,  // 121: morph.v1.GatewayService.ListPairings:output_type -> morph.v1.ListGatewayPairingsResponse
+	60,  // 122: morph.v1.GatewayService.ApprovePairing:output_type -> morph.v1.ApproveGatewayPairingResponse
+	62,  // 123: morph.v1.GatewayService.RevokePairing:output_type -> morph.v1.RevokeGatewayPairingResponse
+	64,  // 124: morph.v1.GatewayService.ClearPendingPairings:output_type -> morph.v1.ClearPendingGatewayPairingsResponse
+	73,  // 125: morph.v1.AutomationService.Status:output_type -> morph.v1.GetAutomationStatusResponse
+	75,  // 126: morph.v1.AutomationService.ListJobs:output_type -> morph.v1.ListAutomationJobsResponse
+	77,  // 127: morph.v1.AutomationService.AddJob:output_type -> morph.v1.AddAutomationJobResponse
+	79,  // 128: morph.v1.AutomationService.UpdateJob:output_type -> morph.v1.UpdateAutomationJobResponse
+	81,  // 129: morph.v1.AutomationService.RemoveJob:output_type -> morph.v1.RemoveAutomationJobResponse
+	83,  // 130: morph.v1.AutomationService.RunJob:output_type -> morph.v1.RunAutomationJobResponse
+	85,  // 131: morph.v1.AutomationService.ListRuns:output_type -> morph.v1.ListAutomationRunsResponse
+	100, // [100:132] is the sub-list for method output_type
+	68,  // [68:100] is the sub-list for method input_type
+	68,  // [68:68] is the sub-list for extension type_name
+	68,  // [68:68] is the sub-list for extension extendee
+	0,   // [0:68] is the sub-list for field type_name
 }
 
 func init() { file_internal_rpc_proto_morph_proto_init() }
@@ -4258,15 +6180,17 @@ func file_internal_rpc_proto_morph_proto_init() {
 	file_internal_rpc_proto_morph_proto_msgTypes[0].OneofWrappers = []any{}
 	file_internal_rpc_proto_morph_proto_msgTypes[3].OneofWrappers = []any{}
 	file_internal_rpc_proto_morph_proto_msgTypes[5].OneofWrappers = []any{}
+	file_internal_rpc_proto_morph_proto_msgTypes[71].OneofWrappers = []any{}
+	file_internal_rpc_proto_morph_proto_msgTypes[75].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_rpc_proto_morph_proto_rawDesc), len(file_internal_rpc_proto_morph_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   63,
+			NumMessages:   85,
 			NumExtensions: 0,
-			NumServices:   4,
+			NumServices:   5,
 		},
 		GoTypes:           file_internal_rpc_proto_morph_proto_goTypes,
 		DependencyIndexes: file_internal_rpc_proto_morph_proto_depIdxs,

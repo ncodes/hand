@@ -11,7 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/wandxy/morph/internal/automation"
 	"github.com/wandxy/morph/internal/config"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/gateway"
 	"github.com/wandxy/morph/internal/profile"
 	morphrpc "github.com/wandxy/morph/internal/rpc"
@@ -49,11 +51,25 @@ type gatewayManager interface {
 	Status() gateway.Status
 }
 
+type automationServiceBinder interface {
+	SetAutomationService(envtypes.AutomationService)
+}
+
 var newGatewayManager = func() gatewayManager {
 	return gateway.NewManager(gateway.Options{})
 }
 
 var stopGatewayTimeout = 5 * time.Second
+
+var newAutomationService = func(
+	store automation.Store,
+	runner automation.Runner,
+	opts automation.ServiceOptions,
+) (*automation.Service, error) {
+	opts.Store = store
+	opts.Runner = runner
+	return automation.NewService(opts)
+}
 
 func serveDaemonServices(ctx context.Context, cfg *config.Config, agent agentRunner, lis net.Listener) error {
 	runCtx, cancel := context.WithCancel(ctx)
@@ -89,6 +105,25 @@ func serveDaemonServices(ctx context.Context, cfg *config.Config, agent agentRun
 		stopGatewayWithTimeout(manager)
 		return <-rpcDone
 	}
+}
+
+func buildAutomationService(ctx context.Context, agent agentRunner) (*automation.Service, error) {
+	if agent == nil {
+		return nil, nil
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return nil, nil
+	}
+
+	store, ok, err := agent.AutomationStore(ctx)
+	if err != nil || !ok {
+		return nil, err
+	}
+
+	return newAutomationService(
+		store,
+		automation.NewAgentRunner(automation.AgentRunnerOptions{}),
+		automation.ServiceOptions{})
 }
 
 func logGatewayStarted(cfg config.GatewayConfig) {
@@ -150,6 +185,20 @@ var serveRPC = func(
 ) error {
 	defer lis.Close()
 
+	automationService, err := buildAutomationService(ctx, agent)
+	if err != nil {
+		return err
+	}
+	if automationService != nil {
+		if err := automationService.Start(ctx); err != nil {
+			return err
+		}
+		defer automationService.Stop()
+		if binder, ok := agent.(automationServiceBinder); ok {
+			binder.SetAutomationService(automationService)
+		}
+	}
+
 	var gatewayCfg config.GatewayConfig
 	var pairingSecret string
 	if cfg != nil {
@@ -164,6 +213,7 @@ var serveRPC = func(
 		GatewayPairingSecret: pairingSecret,
 		GatewayConfig:        gatewayCfg,
 		GatewayRuntime:       manager,
+		Automation:           automationService,
 	})
 
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)

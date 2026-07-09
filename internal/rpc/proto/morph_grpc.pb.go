@@ -860,7 +860,7 @@ var ModelService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	GatewayService_GatewayStatus_FullMethodName        = "/morph.v1.GatewayService/GatewayStatus"
+	GatewayService_Status_FullMethodName               = "/morph.v1.GatewayService/Status"
 	GatewayService_Start_FullMethodName                = "/morph.v1.GatewayService/Start"
 	GatewayService_Stop_FullMethodName                 = "/morph.v1.GatewayService/Stop"
 	GatewayService_Restart_FullMethodName              = "/morph.v1.GatewayService/Restart"
@@ -874,7 +874,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type GatewayServiceClient interface {
-	GatewayStatus(ctx context.Context, in *GetGatewayStatusRequest, opts ...grpc.CallOption) (*GetGatewayStatusResponse, error)
+	Status(ctx context.Context, in *GetGatewayStatusRequest, opts ...grpc.CallOption) (*GetGatewayStatusResponse, error)
 	Start(ctx context.Context, in *StartGatewayRequest, opts ...grpc.CallOption) (*StartGatewayResponse, error)
 	Stop(ctx context.Context, in *StopGatewayRequest, opts ...grpc.CallOption) (*StopGatewayResponse, error)
 	Restart(ctx context.Context, in *RestartGatewayRequest, opts ...grpc.CallOption) (*RestartGatewayResponse, error)
@@ -892,10 +892,10 @@ func NewGatewayServiceClient(cc grpc.ClientConnInterface) GatewayServiceClient {
 	return &gatewayServiceClient{cc}
 }
 
-func (c *gatewayServiceClient) GatewayStatus(ctx context.Context, in *GetGatewayStatusRequest, opts ...grpc.CallOption) (*GetGatewayStatusResponse, error) {
+func (c *gatewayServiceClient) Status(ctx context.Context, in *GetGatewayStatusRequest, opts ...grpc.CallOption) (*GetGatewayStatusResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetGatewayStatusResponse)
-	err := c.cc.Invoke(ctx, GatewayService_GatewayStatus_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, GatewayService_Status_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -976,7 +976,7 @@ func (c *gatewayServiceClient) ClearPendingPairings(ctx context.Context, in *Cle
 // All implementations must embed UnimplementedGatewayServiceServer
 // for forward compatibility.
 type GatewayServiceServer interface {
-	GatewayStatus(context.Context, *GetGatewayStatusRequest) (*GetGatewayStatusResponse, error)
+	Status(context.Context, *GetGatewayStatusRequest) (*GetGatewayStatusResponse, error)
 	Start(context.Context, *StartGatewayRequest) (*StartGatewayResponse, error)
 	Stop(context.Context, *StopGatewayRequest) (*StopGatewayResponse, error)
 	Restart(context.Context, *RestartGatewayRequest) (*RestartGatewayResponse, error)
@@ -994,8 +994,8 @@ type GatewayServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedGatewayServiceServer struct{}
 
-func (UnimplementedGatewayServiceServer) GatewayStatus(context.Context, *GetGatewayStatusRequest) (*GetGatewayStatusResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GatewayStatus not implemented")
+func (UnimplementedGatewayServiceServer) Status(context.Context, *GetGatewayStatusRequest) (*GetGatewayStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Status not implemented")
 }
 func (UnimplementedGatewayServiceServer) Start(context.Context, *StartGatewayRequest) (*StartGatewayResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Start not implemented")
@@ -1039,20 +1039,20 @@ func RegisterGatewayServiceServer(s grpc.ServiceRegistrar, srv GatewayServiceSer
 	s.RegisterService(&GatewayService_ServiceDesc, srv)
 }
 
-func _GatewayService_GatewayStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _GatewayService_Status_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetGatewayStatusRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GatewayServiceServer).GatewayStatus(ctx, in)
+		return srv.(GatewayServiceServer).Status(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GatewayService_GatewayStatus_FullMethodName,
+		FullMethod: GatewayService_Status_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GatewayServiceServer).GatewayStatus(ctx, req.(*GetGatewayStatusRequest))
+		return srv.(GatewayServiceServer).Status(ctx, req.(*GetGatewayStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1191,8 +1191,8 @@ var GatewayService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*GatewayServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GatewayStatus",
-			Handler:    _GatewayService_GatewayStatus_Handler,
+			MethodName: "Status",
+			Handler:    _GatewayService_Status_Handler,
 		},
 		{
 			MethodName: "Start",
@@ -1221,6 +1221,336 @@ var GatewayService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClearPendingPairings",
 			Handler:    _GatewayService_ClearPendingPairings_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "internal/rpc/proto/morph.proto",
+}
+
+const (
+	AutomationService_Status_FullMethodName    = "/morph.v1.AutomationService/Status"
+	AutomationService_ListJobs_FullMethodName  = "/morph.v1.AutomationService/ListJobs"
+	AutomationService_AddJob_FullMethodName    = "/morph.v1.AutomationService/AddJob"
+	AutomationService_UpdateJob_FullMethodName = "/morph.v1.AutomationService/UpdateJob"
+	AutomationService_RemoveJob_FullMethodName = "/morph.v1.AutomationService/RemoveJob"
+	AutomationService_RunJob_FullMethodName    = "/morph.v1.AutomationService/RunJob"
+	AutomationService_ListRuns_FullMethodName  = "/morph.v1.AutomationService/ListRuns"
+)
+
+// AutomationServiceClient is the client API for AutomationService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type AutomationServiceClient interface {
+	Status(ctx context.Context, in *GetAutomationStatusRequest, opts ...grpc.CallOption) (*GetAutomationStatusResponse, error)
+	ListJobs(ctx context.Context, in *ListAutomationJobsRequest, opts ...grpc.CallOption) (*ListAutomationJobsResponse, error)
+	AddJob(ctx context.Context, in *AddAutomationJobRequest, opts ...grpc.CallOption) (*AddAutomationJobResponse, error)
+	UpdateJob(ctx context.Context, in *UpdateAutomationJobRequest, opts ...grpc.CallOption) (*UpdateAutomationJobResponse, error)
+	RemoveJob(ctx context.Context, in *RemoveAutomationJobRequest, opts ...grpc.CallOption) (*RemoveAutomationJobResponse, error)
+	RunJob(ctx context.Context, in *RunAutomationJobRequest, opts ...grpc.CallOption) (*RunAutomationJobResponse, error)
+	ListRuns(ctx context.Context, in *ListAutomationRunsRequest, opts ...grpc.CallOption) (*ListAutomationRunsResponse, error)
+}
+
+type automationServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewAutomationServiceClient(cc grpc.ClientConnInterface) AutomationServiceClient {
+	return &automationServiceClient{cc}
+}
+
+func (c *automationServiceClient) Status(ctx context.Context, in *GetAutomationStatusRequest, opts ...grpc.CallOption) (*GetAutomationStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAutomationStatusResponse)
+	err := c.cc.Invoke(ctx, AutomationService_Status_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *automationServiceClient) ListJobs(ctx context.Context, in *ListAutomationJobsRequest, opts ...grpc.CallOption) (*ListAutomationJobsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAutomationJobsResponse)
+	err := c.cc.Invoke(ctx, AutomationService_ListJobs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *automationServiceClient) AddJob(ctx context.Context, in *AddAutomationJobRequest, opts ...grpc.CallOption) (*AddAutomationJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddAutomationJobResponse)
+	err := c.cc.Invoke(ctx, AutomationService_AddJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *automationServiceClient) UpdateJob(ctx context.Context, in *UpdateAutomationJobRequest, opts ...grpc.CallOption) (*UpdateAutomationJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateAutomationJobResponse)
+	err := c.cc.Invoke(ctx, AutomationService_UpdateJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *automationServiceClient) RemoveJob(ctx context.Context, in *RemoveAutomationJobRequest, opts ...grpc.CallOption) (*RemoveAutomationJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveAutomationJobResponse)
+	err := c.cc.Invoke(ctx, AutomationService_RemoveJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *automationServiceClient) RunJob(ctx context.Context, in *RunAutomationJobRequest, opts ...grpc.CallOption) (*RunAutomationJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RunAutomationJobResponse)
+	err := c.cc.Invoke(ctx, AutomationService_RunJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *automationServiceClient) ListRuns(ctx context.Context, in *ListAutomationRunsRequest, opts ...grpc.CallOption) (*ListAutomationRunsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAutomationRunsResponse)
+	err := c.cc.Invoke(ctx, AutomationService_ListRuns_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AutomationServiceServer is the server API for AutomationService service.
+// All implementations must embed UnimplementedAutomationServiceServer
+// for forward compatibility.
+type AutomationServiceServer interface {
+	Status(context.Context, *GetAutomationStatusRequest) (*GetAutomationStatusResponse, error)
+	ListJobs(context.Context, *ListAutomationJobsRequest) (*ListAutomationJobsResponse, error)
+	AddJob(context.Context, *AddAutomationJobRequest) (*AddAutomationJobResponse, error)
+	UpdateJob(context.Context, *UpdateAutomationJobRequest) (*UpdateAutomationJobResponse, error)
+	RemoveJob(context.Context, *RemoveAutomationJobRequest) (*RemoveAutomationJobResponse, error)
+	RunJob(context.Context, *RunAutomationJobRequest) (*RunAutomationJobResponse, error)
+	ListRuns(context.Context, *ListAutomationRunsRequest) (*ListAutomationRunsResponse, error)
+	mustEmbedUnimplementedAutomationServiceServer()
+}
+
+// UnimplementedAutomationServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedAutomationServiceServer struct{}
+
+func (UnimplementedAutomationServiceServer) Status(context.Context, *GetAutomationStatusRequest) (*GetAutomationStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Status not implemented")
+}
+func (UnimplementedAutomationServiceServer) ListJobs(context.Context, *ListAutomationJobsRequest) (*ListAutomationJobsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListJobs not implemented")
+}
+func (UnimplementedAutomationServiceServer) AddJob(context.Context, *AddAutomationJobRequest) (*AddAutomationJobResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddJob not implemented")
+}
+func (UnimplementedAutomationServiceServer) UpdateJob(context.Context, *UpdateAutomationJobRequest) (*UpdateAutomationJobResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateJob not implemented")
+}
+func (UnimplementedAutomationServiceServer) RemoveJob(context.Context, *RemoveAutomationJobRequest) (*RemoveAutomationJobResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveJob not implemented")
+}
+func (UnimplementedAutomationServiceServer) RunJob(context.Context, *RunAutomationJobRequest) (*RunAutomationJobResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RunJob not implemented")
+}
+func (UnimplementedAutomationServiceServer) ListRuns(context.Context, *ListAutomationRunsRequest) (*ListAutomationRunsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRuns not implemented")
+}
+func (UnimplementedAutomationServiceServer) mustEmbedUnimplementedAutomationServiceServer() {}
+func (UnimplementedAutomationServiceServer) testEmbeddedByValue()                           {}
+
+// UnsafeAutomationServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AutomationServiceServer will
+// result in compilation errors.
+type UnsafeAutomationServiceServer interface {
+	mustEmbedUnimplementedAutomationServiceServer()
+}
+
+func RegisterAutomationServiceServer(s grpc.ServiceRegistrar, srv AutomationServiceServer) {
+	// If the following call panics, it indicates UnimplementedAutomationServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&AutomationService_ServiceDesc, srv)
+}
+
+func _AutomationService_Status_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAutomationStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutomationServiceServer).Status(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutomationService_Status_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutomationServiceServer).Status(ctx, req.(*GetAutomationStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutomationService_ListJobs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAutomationJobsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutomationServiceServer).ListJobs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutomationService_ListJobs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutomationServiceServer).ListJobs(ctx, req.(*ListAutomationJobsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutomationService_AddJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddAutomationJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutomationServiceServer).AddJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutomationService_AddJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutomationServiceServer).AddJob(ctx, req.(*AddAutomationJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutomationService_UpdateJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAutomationJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutomationServiceServer).UpdateJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutomationService_UpdateJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutomationServiceServer).UpdateJob(ctx, req.(*UpdateAutomationJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutomationService_RemoveJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveAutomationJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutomationServiceServer).RemoveJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutomationService_RemoveJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutomationServiceServer).RemoveJob(ctx, req.(*RemoveAutomationJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutomationService_RunJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunAutomationJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutomationServiceServer).RunJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutomationService_RunJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutomationServiceServer).RunJob(ctx, req.(*RunAutomationJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutomationService_ListRuns_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAutomationRunsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutomationServiceServer).ListRuns(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutomationService_ListRuns_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutomationServiceServer).ListRuns(ctx, req.(*ListAutomationRunsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// AutomationService_ServiceDesc is the grpc.ServiceDesc for AutomationService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var AutomationService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "morph.v1.AutomationService",
+	HandlerType: (*AutomationServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Status",
+			Handler:    _AutomationService_Status_Handler,
+		},
+		{
+			MethodName: "ListJobs",
+			Handler:    _AutomationService_ListJobs_Handler,
+		},
+		{
+			MethodName: "AddJob",
+			Handler:    _AutomationService_AddJob_Handler,
+		},
+		{
+			MethodName: "UpdateJob",
+			Handler:    _AutomationService_UpdateJob_Handler,
+		},
+		{
+			MethodName: "RemoveJob",
+			Handler:    _AutomationService_RemoveJob_Handler,
+		},
+		{
+			MethodName: "RunJob",
+			Handler:    _AutomationService_RunJob_Handler,
+		},
+		{
+			MethodName: "ListRuns",
+			Handler:    _AutomationService_ListRuns_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	protomock "github.com/wandxy/morph/internal/mocks/proto"
@@ -748,9 +749,67 @@ func TestClient_GetSessionStatusRequiresResponseContext(t *testing.T) {
 	require.Empty(t, result.SessionID)
 }
 
+type gatewayProtoClientStub struct {
+	Err                error
+	GatewayStatusReq   *morphpb.GetGatewayStatusRequest
+	GatewayStatusResp  *morphpb.GetGatewayStatusResponse
+	GatewayStartReq    *morphpb.StartGatewayRequest
+	GatewayStartResp   *morphpb.StartGatewayResponse
+	GatewayStopReq     *morphpb.StopGatewayRequest
+	GatewayStopResp    *morphpb.StopGatewayResponse
+	GatewayRestartReq  *morphpb.RestartGatewayRequest
+	GatewayRestartResp *morphpb.RestartGatewayResponse
+	PairingsReq        *morphpb.ListGatewayPairingsRequest
+	PairingsResp       *morphpb.ListGatewayPairingsResponse
+	ApproveReq         *morphpb.ApproveGatewayPairingRequest
+	ApproveResp        *morphpb.ApproveGatewayPairingResponse
+	RevokeReq          *morphpb.RevokeGatewayPairingRequest
+	ClearReq           *morphpb.ClearPendingGatewayPairingsRequest
+}
+
+func (s *gatewayProtoClientStub) Status(_ context.Context, req *morphpb.GetGatewayStatusRequest, _ ...grpc.CallOption) (*morphpb.GetGatewayStatusResponse, error) {
+	s.GatewayStatusReq = req
+	return s.GatewayStatusResp, s.Err
+}
+
+func (s *gatewayProtoClientStub) Start(_ context.Context, req *morphpb.StartGatewayRequest, _ ...grpc.CallOption) (*morphpb.StartGatewayResponse, error) {
+	s.GatewayStartReq = req
+	return s.GatewayStartResp, s.Err
+}
+
+func (s *gatewayProtoClientStub) Stop(_ context.Context, req *morphpb.StopGatewayRequest, _ ...grpc.CallOption) (*morphpb.StopGatewayResponse, error) {
+	s.GatewayStopReq = req
+	return s.GatewayStopResp, s.Err
+}
+
+func (s *gatewayProtoClientStub) Restart(_ context.Context, req *morphpb.RestartGatewayRequest, _ ...grpc.CallOption) (*morphpb.RestartGatewayResponse, error) {
+	s.GatewayRestartReq = req
+	return s.GatewayRestartResp, s.Err
+}
+
+func (s *gatewayProtoClientStub) ListPairings(_ context.Context, req *morphpb.ListGatewayPairingsRequest, _ ...grpc.CallOption) (*morphpb.ListGatewayPairingsResponse, error) {
+	s.PairingsReq = req
+	return s.PairingsResp, s.Err
+}
+
+func (s *gatewayProtoClientStub) ApprovePairing(_ context.Context, req *morphpb.ApproveGatewayPairingRequest, _ ...grpc.CallOption) (*morphpb.ApproveGatewayPairingResponse, error) {
+	s.ApproveReq = req
+	return s.ApproveResp, s.Err
+}
+
+func (s *gatewayProtoClientStub) RevokePairing(_ context.Context, req *morphpb.RevokeGatewayPairingRequest, _ ...grpc.CallOption) (*morphpb.RevokeGatewayPairingResponse, error) {
+	s.RevokeReq = req
+	return &morphpb.RevokeGatewayPairingResponse{}, s.Err
+}
+
+func (s *gatewayProtoClientStub) ClearPendingPairings(_ context.Context, req *morphpb.ClearPendingGatewayPairingsRequest, _ ...grpc.CallOption) (*morphpb.ClearPendingGatewayPairingsResponse, error) {
+	s.ClearReq = req
+	return &morphpb.ClearPendingGatewayPairingsResponse{}, s.Err
+}
+
 func TestClient_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
 	now := time.Date(2026, 6, 8, 12, 0, 0, 0, time.UTC)
-	stub := &protomock.MorphServiceClientStub{
+	stub := &gatewayProtoClientStub{
 		PairingsResp: &morphpb.ListGatewayPairingsResponse{
 			Pending: []*morphpb.GatewayPairingRequest{{
 				Source:      "telegram",
@@ -805,7 +864,7 @@ func TestClient_GatewayRuntimeStatusStartStopAndRestart(t *testing.T) {
 		TelegramMode: " polling ",
 		LastError:    " safe error ",
 	}
-	stub := &protomock.MorphServiceClientStub{
+	stub := &gatewayProtoClientStub{
 		GatewayStatusResp:  &morphpb.GetGatewayStatusResponse{Status: status},
 		GatewayStartResp:   &morphpb.StartGatewayResponse{Status: status},
 		GatewayStopResp:    &morphpb.StopGatewayResponse{Status: status},
@@ -841,7 +900,7 @@ func TestClient_GatewayRuntimeStatusStartStopAndRestart(t *testing.T) {
 
 func TestClient_GatewayRuntimeReturnsRPCErrors(t *testing.T) {
 	rpcErr := errors.New("rpc failed")
-	client := NewGatewayService(&protomock.MorphServiceClientStub{Err: rpcErr})
+	client := NewGatewayService(&gatewayProtoClientStub{Err: rpcErr})
 	tests := []struct {
 		name string
 		run  func(context.Context) (GatewayStatus, error)

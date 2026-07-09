@@ -36,6 +36,9 @@ type Runtime struct {
 	PromoteMemoryCandidateFunc   func(context.Context, memory.PromotionRequest) (memory.LifecycleResult, error)
 	UpdateMemoryFunc             func(context.Context, memory.UpdateRequest) (memory.UpdateResult, error)
 	DeleteMemoryFunc             func(context.Context, memory.DeleteRequest) error
+	AutomationServiceValue       envtypes.AutomationService
+	AutomationServiceOK          bool
+	AutomationServiceErr         error
 }
 
 func (r *Runtime) FilePolicy() guardrails.FilesystemPolicy { return r.FilePolicyValue }
@@ -142,6 +145,12 @@ func (r *Runtime) DeleteMemory(ctx context.Context, req memory.DeleteRequest) er
 	}
 	return nil
 }
+func (r *Runtime) AutomationService(context.Context) (envtypes.AutomationService, bool, error) {
+	if r == nil {
+		return nil, false, nil
+	}
+	return r.AutomationServiceValue, r.AutomationServiceOK, r.AutomationServiceErr
+}
 func (r *Runtime) GetPlan(string) envtypes.Plan { return envtypes.Plan{} }
 func (r *Runtime) ReplacePlan(string, envtypes.Plan) (envtypes.Plan, error) {
 	return envtypes.Plan{}, nil
@@ -214,6 +223,9 @@ func (d *FailingPlanRuntime) ListProcesses(sessionID string) []processenv.Info {
 }
 func (d *FailingPlanRuntime) SearchSession(ctx context.Context, req envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error) {
 	return d.Runtime.SearchSession(ctx, req)
+}
+func (d *FailingPlanRuntime) AutomationService(ctx context.Context) (envtypes.AutomationService, bool, error) {
+	return d.Runtime.AutomationService(ctx)
 }
 func (d *FailingPlanRuntime) GetSessionMessages(ctx context.Context, req envsessionmessages.SessionMessagesRequest) (envsessionmessages.SessionMessagesResponse, error) {
 	return d.Runtime.GetSessionMessages(ctx, req)

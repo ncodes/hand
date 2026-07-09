@@ -10,6 +10,7 @@ import (
 	"time"
 
 	morphagent "github.com/wandxy/morph/internal/agent"
+	"github.com/wandxy/morph/internal/automation"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/gateway"
 	"github.com/wandxy/morph/internal/guardrails"
@@ -32,8 +33,8 @@ type Service struct {
 	morphpb.UnimplementedMorphServiceServer
 	morphpb.UnimplementedSessionServiceServer
 	morphpb.UnimplementedModelServiceServer
-	morphpb.UnimplementedGatewayServiceServer
 	api                  morphagent.ServiceAPI
+	automation           AutomationAPI
 	runtimeModel         ModelRuntime
 	gatewayPairingSecret string
 	gatewayConfig        config.GatewayConfig
@@ -47,6 +48,7 @@ type ServiceOptions struct {
 	GatewayPairingSecret string
 	GatewayConfig        config.GatewayConfig
 	GatewayRuntime       GatewayRuntime
+	Automation           AutomationAPI
 }
 
 type ModelRuntime struct {
@@ -63,6 +65,16 @@ type GatewayRuntime interface {
 	Status() gateway.Status
 }
 
+type AutomationAPI interface {
+	Status(context.Context) (automation.Status, error)
+	List(context.Context, automation.JobQuery) (automation.JobList, error)
+	Add(context.Context, automation.Job) (automation.Job, error)
+	Update(context.Context, automation.JobPatch) (automation.Job, error)
+	Remove(context.Context, string) error
+	Run(context.Context, string) (automation.Run, error)
+	Runs(context.Context, automation.RunQuery) (automation.RunList, error)
+}
+
 // NewService creates a new RPC service that wraps the shared service interface.
 func NewService(api morphagent.ServiceAPI) *Service {
 	return NewServiceWithOptions(api, ServiceOptions{})
@@ -72,6 +84,7 @@ func NewServiceWithOptions(api morphagent.ServiceAPI, opts ServiceOptions) *Serv
 	stringValue1 := str.String(opts.GatewayPairingSecret)
 	return &Service{
 		api:                  api,
+		automation:           opts.Automation,
 		runtimeModel:         normalizeModelRuntime(opts.RuntimeModel),
 		gatewayPairingSecret: stringValue1.Trim(),
 		gatewayConfig:        opts.GatewayConfig,

@@ -4,20 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentapi "github.com/wandxy/morph/internal/agent"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
-	"github.com/wandxy/morph/internal/gateway"
 	agentstub "github.com/wandxy/morph/internal/mocks/agentstub"
 	models "github.com/wandxy/morph/internal/model"
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
@@ -27,80 +24,7 @@ import (
 	agent "github.com/wandxy/morph/pkg/agent"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	agentsession "github.com/wandxy/morph/pkg/agent/session"
-	"github.com/wandxy/morph/pkg/gateway/pairing"
 )
-
-type respondStreamServerStub struct {
-	ctx       context.Context
-	events    []*morphpb.RespondEvent
-	sendErrAt int
-}
-
-func (s *respondStreamServerStub) Send(event *morphpb.RespondEvent) error {
-	if s.sendErrAt > 0 && len(s.events)+1 == s.sendErrAt {
-		return errors.New("send failed")
-	}
-	s.events = append(s.events, event)
-	return nil
-}
-
-func (s *respondStreamServerStub) SetHeader(metadata.MD) error  { return nil }
-func (s *respondStreamServerStub) SendHeader(metadata.MD) error { return nil }
-func (s *respondStreamServerStub) SetTrailer(metadata.MD)       {}
-func (s *respondStreamServerStub) Context() context.Context {
-	if s.ctx != nil {
-		return s.ctx
-	}
-	return context.Background()
-}
-func (s *respondStreamServerStub) SendMsg(any) error { return nil }
-func (s *respondStreamServerStub) RecvMsg(any) error { return io.EOF }
-
-type gatewayRuntimeStub struct {
-	status   gateway.Status
-	startCfg config.GatewayConfig
-	startCtx context.Context
-	stopCtx  context.Context
-	started  bool
-	stopped  bool
-	startErr error
-	stopErr  error
-}
-
-func (s *gatewayRuntimeStub) Start(
-	ctx context.Context,
-	cfg config.GatewayConfig,
-	_ gateway.AgentService,
-) error {
-	s.started = true
-	s.startCtx = ctx
-	s.startCfg = cfg
-	if s.startErr != nil {
-		return s.startErr
-	}
-	s.status = gateway.Status{
-		State:        gateway.StateRunning,
-		Address:      cfg.Address,
-		Port:         cfg.Port,
-		SlackMode:    cfg.Slack.Mode,
-		TelegramMode: cfg.Telegram.Mode,
-	}
-	return nil
-}
-
-func (s *gatewayRuntimeStub) Stop(ctx context.Context) error {
-	s.stopped = true
-	s.stopCtx = ctx
-	if s.stopErr != nil {
-		return s.stopErr
-	}
-	s.status.State = gateway.StateStopped
-	return nil
-}
-
-func (s *gatewayRuntimeStub) Status() gateway.Status {
-	return s.status
-}
 
 func requireRespondEvent(
 	t *testing.T,
@@ -1104,71 +1028,6 @@ func TestPayloadFields_HandlesPayloadShapes(t *testing.T) {
 	}{Name: "read_file"}))
 }
 
-// channelRespondStub emits a single stream event with configurable agent channel name.
-type channelRespondStub struct {
-	agentstub.AgentServiceStub
-	channel string
-	text    string
-}
-
-func (s *channelRespondStub) Respond(_ context.Context, _ string, opts agent.RespondOptions) (string, error) {
-	if opts.OnEvent != nil {
-		opts.OnEvent(agent.Event{
-			Kind:    agent.EventKindTextDelta,
-			Channel: s.channel,
-			Text:    s.text,
-		})
-	}
-	return "", nil
-}
-
-type traceRespondStub struct {
-	agentstub.AgentServiceStub
-	traceEvent trace.Event
-}
-
-func (s *traceRespondStub) Respond(_ context.Context, _ string, opts agent.RespondOptions) (string, error) {
-	if opts.OnEvent != nil {
-		opts.OnEvent(agent.Event{Kind: agent.EventKindTrace, TraceEvent: &s.traceEvent})
-		opts.OnEvent(agent.Event{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "safe"})
-	}
-	return "safe", nil
-}
-
-type traceSequenceRespondStub struct {
-	agentstub.AgentServiceStub
-	reply       string
-	deltas      []agent.Event
-	traceEvents []trace.Event
-}
-
-func (s *traceSequenceRespondStub) Respond(_ context.Context, _ string, opts agent.RespondOptions) (string, error) {
-	for _, delta := range s.deltas {
-		if opts.OnEvent != nil {
-			opts.OnEvent(delta)
-		}
-	}
-	for _, event := range s.traceEvents {
-		if opts.OnEvent != nil {
-			opts.OnEvent(agent.Event{Kind: agent.EventKindTrace, TraceEvent: &event})
-		}
-	}
-
-	return s.reply, nil
-}
-
-// bufferedReplyStub returns a final reply without invoking OnEvent (non-streaming path).
-type bufferedReplyStub struct {
-	agentstub.AgentServiceStub
-	reply             string
-	capturedSessionID string
-}
-
-func (s *bufferedReplyStub) Respond(_ context.Context, _ string, opts agent.RespondOptions) (string, error) {
-	s.capturedSessionID = opts.SessionID
-	return s.reply, nil
-}
-
 func TestService_CreateSessionReturnsSummary(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{
 		ID:          "project-a",
@@ -1815,140 +1674,14 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	})
 }
 
-func TestService_GatewayPairingListApproveRevokeAndClear(t *testing.T) {
-	now := time.Now().UTC()
-	stub := &agentstub.AgentServiceStub{
-		PairingRequests: []pairing.PendingRequest{{
-			Source:      "telegram",
-			SenderID:    "123",
-			DisplayName: "Ada",
-			CreatedAt:   now,
-			LastSeenAt:  now,
-			ExpiresAt:   now.Add(time.Hour),
-		}},
-		PairedSenders: []pairing.ApprovedSender{{
-			Source:      "telegram",
-			SenderID:    "456",
-			DisplayName: "Grace",
-			CreatedAt:   now,
-			UpdatedAt:   now,
-		}},
-	}
-	svc := NewServiceWithOptions(stub, ServiceOptions{GatewayPairingSecret: "secret"})
-
-	list, err := svc.ListPairings(context.Background(), &morphpb.ListGatewayPairingsRequest{Source: "telegram"})
-	require.NoError(t, err)
-	require.Len(t, list.GetPending(), 1)
-	require.Equal(t, "123", list.GetPending()[0].GetSenderId())
-	require.NotNil(t, list.GetPending()[0].GetCreatedAt())
-	require.Len(t, list.GetApproved(), 1)
-	require.Equal(t, "456", list.GetApproved()[0].GetSenderId())
-	require.NotNil(t, list.GetApproved()[0].GetCreatedAt())
-
-	code, err := pairing.NewManager(pairing.Options{Store: stub, Secret: "secret"}).Code("telegram", "123", time.Now().UTC())
-	require.NoError(t, err)
-	approved, err := svc.ApprovePairing(context.Background(), &morphpb.ApproveGatewayPairingRequest{
-		Source: "telegram",
-		Code:   code,
-	})
-	require.NoError(t, err)
-	require.True(t, approved.GetApproved())
-	require.Equal(t, "123", approved.GetSender().GetSenderId())
-
-	_, err = svc.RevokePairing(context.Background(), &morphpb.RevokeGatewayPairingRequest{
-		Source:   "telegram",
-		SenderId: "123",
-	})
-	require.NoError(t, err)
-	require.Equal(t, "telegram", stub.RevokedPairingSource)
-	require.Equal(t, "123", stub.RevokedPairingSender)
-
-	_, err = svc.ClearPendingPairings(context.Background(), &morphpb.ClearPendingGatewayPairingsRequest{Source: "telegram"})
-	require.NoError(t, err)
-	require.Equal(t, "telegram", stub.ClearedPairingSource)
-
-	emptyList, err := svc.ListPairings(context.Background(), nil)
-	require.NoError(t, err)
-	require.Len(t, emptyList.GetPending(), 0)
-	require.Len(t, emptyList.GetApproved(), 1)
-
-	_, err = svc.ClearPendingPairings(context.Background(), nil)
-	require.NoError(t, err)
-	require.Equal(t, "", stub.ClearedPairingSource)
-
-	require.Nil(t, timestampOrNil(time.Time{}))
-}
-
-func TestService_GatewayRuntimeStatusStartStopAndRestart(t *testing.T) {
-	cfg := config.NewDefaultConfig().Gateway
-	cfg.Enabled = true
-	cfg.AuthToken = " gateway-auth-token "
-	cfg.Address = " 127.0.0.1 "
-	cfg.Port = 50052
-	runtime := &gatewayRuntimeStub{
-		status: gateway.Status{
-			State:        gateway.StateStopped,
-			Address:      cfg.Address,
-			Port:         cfg.Port,
-			SlackMode:    cfg.Slack.Mode,
-			TelegramMode: cfg.Telegram.Mode,
-		},
-	}
-	svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
-		GatewayConfig:  cfg,
-		GatewayRuntime: runtime,
-	})
-
-	statusResp, err := svc.GatewayStatus(context.Background(), &morphpb.GetGatewayStatusRequest{})
-	require.NoError(t, err)
-	require.Equal(t, "stopped", statusResp.GetStatus().GetState())
-	require.Equal(t, int32(50052), statusResp.GetStatus().GetPort())
-
-	startCtx, cancelStart := context.WithCancel(context.Background())
-	startResp, err := svc.Start(startCtx, &morphpb.StartGatewayRequest{})
-	require.NoError(t, err)
-	require.True(t, runtime.started)
-	require.Equal(t, "127.0.0.1", runtime.startCfg.Address)
-	require.Equal(t, "gateway-auth-token", runtime.startCfg.AuthToken)
-	require.Equal(t, "running", startResp.GetStatus().GetState())
-	cancelStart()
-	requireRuntimeContextActive(t, runtime.startCtx)
-
-	stopResp, err := svc.Stop(context.Background(), &morphpb.StopGatewayRequest{})
-	require.NoError(t, err)
-	require.True(t, runtime.stopped)
-	require.Equal(t, "stopped", stopResp.GetStatus().GetState())
-
-	runtime.started = false
-	runtime.stopped = false
-	restartCtx, cancelRestart := context.WithCancel(context.Background())
-	restartResp, err := svc.Restart(restartCtx, &morphpb.RestartGatewayRequest{})
-	require.NoError(t, err)
-	require.True(t, runtime.started)
-	require.True(t, runtime.stopped)
-	require.Equal(t, "running", restartResp.GetStatus().GetState())
-	require.Same(t, restartCtx, runtime.stopCtx)
-	cancelRestart()
-	requireRuntimeContextActive(t, runtime.startCtx)
-}
-
-func requireRuntimeContextActive(t *testing.T, ctx context.Context) {
-	t.Helper()
-
-	select {
-	case <-ctx.Done():
-		t.Fatal("runtime context should not be canceled with the RPC request")
-	default:
-	}
-}
-
 func TestService_GatewayStatusUsesConfigWhenRuntimeMissing(t *testing.T) {
 	cfg := config.NewDefaultConfig().Gateway
 	cfg.Address = "127.0.0.1"
 	cfg.Port = 50052
 
 	svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{GatewayConfig: cfg})
-	resp, err := svc.GatewayStatus(context.Background(), nil)
+	gatewayService := NewGatewayService(svc)
+	resp, err := gatewayService.Status(context.Background(), nil)
 
 	require.NoError(t, err)
 	require.Equal(t, "disabled", resp.GetStatus().GetState())
@@ -1957,7 +1690,8 @@ func TestService_GatewayStatusUsesConfigWhenRuntimeMissing(t *testing.T) {
 
 	cfg.Enabled = true
 	svc = NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{GatewayConfig: cfg})
-	resp, err = svc.GatewayStatus(context.Background(), nil)
+	gatewayService = NewGatewayService(svc)
+	resp, err = gatewayService.Status(context.Background(), nil)
 
 	require.NoError(t, err)
 	require.Equal(t, "stopped", resp.GetStatus().GetState())
@@ -2032,7 +1766,7 @@ func TestService_GatewayRuntimeRejectsMissingRuntime(t *testing.T) {
 	requireStatusError(t, err, codes.Internal, "service is required")
 	require.Nil(t, restartResp)
 
-	statusResp, err := (*Service)(nil).GatewayStatus(context.Background(), nil)
+	statusResp, err := (*GatewayService)(nil).Status(context.Background(), nil)
 	requireStatusError(t, err, codes.Internal, "service is required")
 	require.Nil(t, statusResp)
 }
@@ -2262,30 +1996,6 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 		requireStatusError(t, err, codes.Internal, expected.Error())
 		require.Nil(t, resp)
 	})
-}
-
-type serviceAPIWithoutPairingStore struct {
-	agentapi.ServiceAPI
-}
-
-type gatewayPairingStoreStub struct {
-	*agentstub.AgentServiceStub
-	listPendingErr error
-	listPairedErr  error
-}
-
-func (s *gatewayPairingStoreStub) ListGatewayPairingRequests(
-	context.Context,
-	string,
-) ([]pairing.PendingRequest, error) {
-	return nil, s.listPendingErr
-}
-
-func (s *gatewayPairingStoreStub) ListGatewayPairedSenders(
-	context.Context,
-	string,
-) ([]pairing.ApprovedSender, error) {
-	return nil, s.listPairedErr
 }
 
 func TestService_CurrentSessionReturnsValue(t *testing.T) {

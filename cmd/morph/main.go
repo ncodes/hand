@@ -11,6 +11,7 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	authcmd "github.com/wandxy/morph/cmd/auth"
+	automationcmd "github.com/wandxy/morph/cmd/automation"
 	daemoncmd "github.com/wandxy/morph/cmd/daemon"
 	doctorcmd "github.com/wandxy/morph/cmd/doctor"
 	gatewaycmd "github.com/wandxy/morph/cmd/gateway"
@@ -121,6 +122,7 @@ func newCommand() *cli.Command {
 			morphcli.ChatFlag(),
 			morphcli.RequestInstructFlag()),
 		Commands: []*cli.Command{
+			automationcmd.NewCommand(),
 			authcmd.NewCommand(),
 			newDatabaseCommand(),
 			newVersionCommand(rootOutput),

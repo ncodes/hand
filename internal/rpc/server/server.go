@@ -17,6 +17,7 @@ type Options struct {
 	GatewayPairingSecret string
 	GatewayConfig        config.GatewayConfig
 	GatewayRuntime       rpc.GatewayRuntime
+	Automation           rpc.AutomationAPI
 }
 
 // New returns a gRPC server registered with the Morph RPC services.
@@ -27,11 +28,13 @@ func New(service morphagent.ServiceAPI, opts Options) *grpc.Server {
 		GatewayPairingSecret: opts.GatewayPairingSecret,
 		GatewayConfig:        opts.GatewayConfig,
 		GatewayRuntime:       opts.GatewayRuntime,
+		Automation:           opts.Automation,
 	})
 	morphpb.RegisterMorphServiceServer(server, rpcService)
 	morphpb.RegisterSessionServiceServer(server, rpcService)
 	morphpb.RegisterModelServiceServer(server, rpcService)
-	morphpb.RegisterGatewayServiceServer(server, rpcService)
+	morphpb.RegisterGatewayServiceServer(server, rpc.NewGatewayService(rpcService))
+	morphpb.RegisterAutomationServiceServer(server, rpc.NewAutomationService(rpcService))
 
 	if opts.Health {
 		healthcheck := health.NewServer()

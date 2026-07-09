@@ -11,6 +11,7 @@ import (
 	"github.com/wandxy/morph/internal/environment/process"
 	"github.com/wandxy/morph/internal/environment/sessionmessages"
 	"github.com/wandxy/morph/internal/environment/sessionsearch"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/memory"
 	"github.com/wandxy/morph/internal/memory/episodic"
@@ -26,6 +27,7 @@ type Runtime struct {
 	processMgr    process.Manager
 	plans         planstore.Store
 	stateMgr      *statemanager.Manager
+	automation    envtypes.AutomationService
 	memory        memory.Provider
 }
 
@@ -110,6 +112,17 @@ func (r *Runtime) SearchSession(
 	}
 
 	return sessionsearch.Search(ctx, r.stateMgr, req)
+}
+
+func (r *Runtime) AutomationService(context.Context) (envtypes.AutomationService, bool, error) {
+	if r == nil {
+		return nil, false, errors.New("runtime is required")
+	}
+	if r.automation == nil {
+		return nil, false, nil
+	}
+
+	return r.automation, true, nil
 }
 
 func (r *Runtime) GetSessionMessages(

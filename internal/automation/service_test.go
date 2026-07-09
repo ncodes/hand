@@ -1907,6 +1907,33 @@ func TestService_StoreControlErrors(t *testing.T) {
 	require.ErrorIs(t, service.Remove(ctx, testServiceJobA), deleteErr)
 }
 
+func TestService_RunsListsRunHistory(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	service := newAutomationTestService(t, store, clock, &automationRunnerStub{})
+
+	_, err := store.CreateJob(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+	})
+	require.NoError(t, err)
+	run, err := store.CreateRun(ctx, Run{
+		JobID:     testServiceJobA,
+		Status:    RunStatusRunning,
+		StartedAt: clock.Now(),
+	})
+	require.NoError(t, err)
+
+	list, err := service.Runs(ctx, RunQuery{JobID: testServiceJobA})
+	require.NoError(t, err)
+	require.Equal(t, []string{run.ID}, automationTestRunIDs(list.Runs))
+
+	_, err = (*Service)(nil).Runs(ctx, RunQuery{})
+	require.EqualError(t, err, "automation service is required")
+}
+
 func TestService_ExecuteDueJobsHandlesFailuresAndConflicts(t *testing.T) {
 	ctx := context.Background()
 	baseStore := storememory.NewStore()

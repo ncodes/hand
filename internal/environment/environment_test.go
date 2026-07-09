@@ -766,8 +766,9 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	require.NotNil(t, tools)
 
 	definitions := tools.List()
-	require.Len(t, definitions, 17)
+	require.Len(t, definitions, 18)
 	require.Equal(t, []string{
+		"automation",
 		"list_files",
 		"memory_add",
 		"memory_delete",
@@ -1393,8 +1394,9 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 18)
+	require.Len(t, definitions, 19)
 	require.Equal(t, []string{
+		"automation",
 		"list_files",
 		"memory_add",
 		"memory_delete",
@@ -1606,7 +1608,7 @@ func TestEnvironment_PrepareDefaultsUnsetWebProviderToNativeExtract(t *testing.T
 	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 17)
+	require.Len(t, definitions, 18)
 	require.False(t, definitions.Has("web_search"))
 	require.True(t, definitions.Has("web_extract"))
 }

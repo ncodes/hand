@@ -48,4 +48,5 @@ type ServiceAPI interface {
 	RepairSession(context.Context, search.VectorRepairOptions) (search.VectorRepairResult, error)
 	ContextStatus(context.Context, string) (agentcore.ContextStatus, error)
 	GetSessionTimeline(context.Context, SessionTimelineOptions) (SessionTimeline, error)
+	AutomationStore(context.Context) (storage.AutomationStore, bool, error)
 }

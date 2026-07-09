@@ -10,6 +10,7 @@ import (
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/memory"
 	"github.com/wandxy/morph/internal/memory/episodic"
+	storage "github.com/wandxy/morph/internal/state/core"
 )
 
 // Runtime exposes environment services needed by tool implementations.
@@ -27,6 +28,7 @@ type Runtime interface {
 
 	// Session management
 	SearchSession(ctx context.Context, req sessrc.SessionSearchRequest) ([]sessrc.SessionSearchResult, error)
+	AutomationService(ctx context.Context) (AutomationService, bool, error)
 
 	// Memory management
 	GetSessionMessages(ctx context.Context, req sesmsg.SessionMessagesRequest) (sesmsg.SessionMessagesResponse, error)
@@ -47,4 +49,13 @@ type Runtime interface {
 	MergePlan(string, []planstore.PartialPlanStep, string, bool) (planstore.Plan, error)
 	ClearPlan(string) planstore.Plan
 	HydratePlan(string, planstore.Plan)
+}
+
+type AutomationService interface {
+	List(context.Context, storage.AutomationJobQuery) (storage.AutomationJobResult, error)
+	Add(context.Context, storage.AutomationJob) (storage.AutomationJob, error)
+	Update(context.Context, storage.AutomationJobPatch) (storage.AutomationJob, error)
+	Remove(context.Context, string) error
+	Run(context.Context, string) (storage.AutomationRun, error)
+	Runs(context.Context, storage.AutomationRunQuery) (storage.AutomationRunResult, error)
 }
