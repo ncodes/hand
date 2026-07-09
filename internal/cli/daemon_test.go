@@ -160,7 +160,7 @@ func TestGetDaemonStatus_ReturnsRunningStatus(t *testing.T) {
 	require.Equal(t, startedAt, status.StartedAt)
 }
 
-func TestGetDaemonStatus_ReturnsProbeError(t *testing.T) {
+func TestGetDaemonStatus_ReturnsMissingStatusWithoutError(t *testing.T) {
 	restore := replaceDaemonBootstrapHooks(t)
 	defer restore()
 
@@ -175,8 +175,7 @@ func TestGetDaemonStatus_ReturnsProbeError(t *testing.T) {
 
 	status, err := GetDaemonStatus(context.Background())
 
-	require.ErrorIs(t, err, expectedErr)
-	require.ErrorContains(t, err, "daemon is missing")
+	require.NoError(t, err)
 	require.Equal(t, "missing", status.State)
 }
 

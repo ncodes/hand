@@ -69,7 +69,45 @@ func TestStatusCommandPrintsDaemonStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(
 		t,
-		"state=running health=SERVING profile=work pid=1234 rpc=127.0.0.1:50051 uptime=1m30s started_at=2026-06-16T10:00:00Z\n",
+		"Daemon\n"+
+			"  State:       running\n"+
+			"  Health:      SERVING\n"+
+			"  Profile:     work\n"+
+			"  PID:         1234\n"+
+			"  RPC:         127.0.0.1:50051\n"+
+			"  Uptime:      1m30s\n"+
+			"  Started at:  2026-06-16T10:00:00Z\n",
+		output.String(),
+	)
+}
+
+func TestStatusCommandPrintsMissingDaemonWithoutError(t *testing.T) {
+	originalGetDaemonStatus := getDaemonStatus
+	originalOutput := daemonOutput
+	t.Cleanup(func() {
+		getDaemonStatus = originalGetDaemonStatus
+		daemonOutput = originalOutput
+	})
+
+	var output bytes.Buffer
+	daemonOutput = &output
+	getDaemonStatus = func(context.Context) (morphcli.DaemonStatus, error) {
+		return morphcli.DaemonStatus{State: "missing", Profile: "default"}, nil
+	}
+
+	err := NewCommand().Run(context.Background(), []string{"daemon", "status"})
+
+	require.NoError(t, err)
+	require.Equal(
+		t,
+		"Daemon\n"+
+			"  State:       missing\n"+
+			"  Health:      -\n"+
+			"  Profile:     default\n"+
+			"  PID:         0\n"+
+			"  RPC:         -\n"+
+			"  Uptime:      0s\n"+
+			"  Started at:  -\n",
 		output.String(),
 	)
 }
@@ -82,21 +120,17 @@ func TestStatusCommandReturnsStatusErrorAfterPrintingStatus(t *testing.T) {
 		daemonOutput = originalOutput
 	})
 
-	expectedErr := errors.New("daemon is missing")
+	expectedErr := errors.New("daemon is invalid")
 	var output bytes.Buffer
 	daemonOutput = &output
 	getDaemonStatus = func(context.Context) (morphcli.DaemonStatus, error) {
-		return morphcli.DaemonStatus{State: "missing", Profile: "default"}, expectedErr
+		return morphcli.DaemonStatus{State: "invalid", Profile: "default"}, expectedErr
 	}
 
 	err := NewCommand().Run(context.Background(), []string{"daemon", "status"})
 
 	require.ErrorIs(t, err, expectedErr)
-	require.Equal(
-		t,
-		"state=missing health=- profile=default pid=0 rpc=-:0 uptime=0s started_at=-\n",
-		output.String(),
-	)
+	require.Contains(t, output.String(), "State:       invalid")
 }
 
 func TestStatusCommandReturnsWriteError(t *testing.T) {
@@ -144,5 +178,5 @@ func TestWriteDaemonStatusDefaultsEmptyState(t *testing.T) {
 	err := writeDaemonStatus(&output, morphcli.DaemonStatus{})
 
 	require.NoError(t, err)
-	require.Contains(t, output.String(), "state=unknown")
+	require.Contains(t, output.String(), "State:       unknown")
 }

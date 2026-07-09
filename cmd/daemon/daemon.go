@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	urfavecli "github.com/urfave/cli/v3"
@@ -63,19 +64,31 @@ func writeDaemonStatus(out io.Writer, status morphcli.DaemonStatus) error {
 		status.State = "unknown"
 	}
 
-	_, err := fmt.Fprintf(
-		out,
-		"state=%s health=%s profile=%s pid=%d rpc=%s:%d uptime=%s started_at=%s\n",
-		status.State,
-		formatStatusValue(status.Health),
-		formatStatusValue(status.Profile),
-		status.PID,
-		formatStatusValue(status.Address),
-		status.Port,
-		status.Uptime,
-		formatStatusTime(status.StartedAt),
-	)
+	var output strings.Builder
+	output.WriteString("Daemon\n")
+	appendDaemonStatusField(&output, "State", status.State)
+	appendDaemonStatusField(&output, "Health", formatStatusValue(status.Health))
+	appendDaemonStatusField(&output, "Profile", formatStatusValue(status.Profile))
+	appendDaemonStatusField(&output, "PID", fmt.Sprint(status.PID))
+	appendDaemonStatusField(&output, "RPC", formatDaemonRPC(status.Address, status.Port))
+	appendDaemonStatusField(&output, "Uptime", status.Uptime.String())
+	appendDaemonStatusField(&output, "Started at", formatStatusTime(status.StartedAt))
+
+	_, err := fmt.Fprint(out, output.String())
 	return err
+}
+
+func appendDaemonStatusField(output *strings.Builder, label string, value string) {
+	fmt.Fprintf(output, "  %-12s %s\n", label+":", value)
+}
+
+func formatDaemonRPC(address string, port int) string {
+	address = formatStatusValue(address)
+	if address == "-" && port == 0 {
+		return "-"
+	}
+
+	return fmt.Sprintf("%s:%d", address, port)
 }
 
 func formatStatusValue(value string) string {

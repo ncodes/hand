@@ -67,6 +67,9 @@ func RunDaemonOnce(ctx context.Context, cfg *config.Config) error {
 func GetDaemonStatus(ctx context.Context) (DaemonStatus, error) {
 	probe := probeActiveRuntime(ctx, profile.Active())
 	status := daemonStatusFromProbe(probe)
+	if probe.State == morphruntime.ProbeStateMissing {
+		return status, nil
+	}
 	if probe.State != morphruntime.ProbeStateReady {
 		if probe.Err != nil {
 			return status, fmt.Errorf("daemon is %s: %w", probe.State, probe.Err)
