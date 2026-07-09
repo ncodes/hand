@@ -85,9 +85,10 @@ func Test_E2E_SessionCommand_CreateListUseCurrentAndChatFlow(t *testing.T) {
 
 		output, err := runSessionCommand(t, h, "session", "list")
 		require.NoError(t, err)
-		assert.Contains(t, output, "default\n")
-		assert.Contains(t, output, "ses_123456789012345678901\n")
-		assert.Contains(t, output, "ses_123456789012345678902\n")
+		assert.True(t, strings.HasPrefix(output, "ID"))
+		assert.Contains(t, output, "default")
+		assert.Contains(t, output, "ses_123456789012345678901")
+		assert.Contains(t, output, "ses_123456789012345678902")
 	})
 
 	t.Run("Switch and check current session", func(t *testing.T) {
@@ -101,7 +102,8 @@ func Test_E2E_SessionCommand_CreateListUseCurrentAndChatFlow(t *testing.T) {
 
 		output, err = runSessionCommand(t, h, "session", "current")
 		require.NoError(t, err)
-		assert.Equal(t, "ses_123456789012345678902\n", output)
+		assert.Contains(t, output, "Session\n")
+		assert.Contains(t, output, "ID:                  ses_123456789012345678902")
 	})
 
 	t.Run("Send message and check chat flow", func(t *testing.T) {
@@ -157,11 +159,13 @@ func Test_E2E_SessionCommand_DefaultSessionBehavior(t *testing.T) {
 
 	output, err := runSessionCommand(t, h, "session", "current")
 	require.NoError(t, err)
-	assert.Equal(t, "default\n", output)
+	assert.Contains(t, output, "Session\n")
+	assert.Contains(t, output, "ID:                  default")
 
 	output, err = runSessionCommand(t, h, "session", "list")
 	require.NoError(t, err)
-	assert.Equal(t, "default\n", output)
+	assert.True(t, strings.HasPrefix(output, "ID"))
+	assert.Contains(t, output, "default")
 }
 
 func Test_E2E_SessionCommand_PersistenceCompactionStatusAndSummaryReuse(t *testing.T) {
@@ -196,16 +200,16 @@ func Test_E2E_SessionCommand_PersistenceCompactionStatusAndSummaryReuse(t *testi
 
 	compactOutput, err := runSessionCommand(t, h1, "session", "compact", sessionID)
 	require.NoError(t, err)
-	assert.Contains(t, compactOutput, "id=default")
-	assert.Contains(t, compactOutput, "source_end_offset=2")
-	assert.Contains(t, compactOutput, "source_message_count=10")
+	assert.Contains(t, compactOutput, "Session ID:          default")
+	assert.Contains(t, compactOutput, "Source end offset:   2")
+	assert.Contains(t, compactOutput, "Source messages:     10")
 
 	statusOutput, err := runSessionCommand(t, h1, "session", "status", sessionID)
 	require.NoError(t, err)
-	assert.Contains(t, statusOutput, "id=default")
-	assert.Contains(t, statusOutput, "compaction_status=succeeded")
-	assert.Contains(t, statusOutput, "offset=2")
-	assert.Contains(t, statusOutput, "size=10")
+	assert.Contains(t, statusOutput, "ID:                  default")
+	assert.Contains(t, statusOutput, "Compaction status:   succeeded")
+	assert.Contains(t, statusOutput, "Offset:              2")
+	assert.Contains(t, statusOutput, "Size:                10")
 
 	require.NoError(t, h1.Close())
 
@@ -240,7 +244,8 @@ func Test_E2E_SessionCommand_PersistenceCompactionStatusAndSummaryReuse(t *testi
 
 	output, err := runSessionCommand(t, h2, "session", "current")
 	require.NoError(t, err)
-	assert.Equal(t, "default\n", output)
+	assert.Contains(t, output, "ID:                  default")
+	assert.Contains(t, output, "Title:               Turn Planning")
 }
 
 func runSessionCommand(t *testing.T, h *e2e.RPCHarness, args ...string) (string, error) {

@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,6 +64,7 @@ func TestNewCommandSessionListCallsRPC(t *testing.T) {
 			Origin:      storage.SessionOrigin{Source: storage.SessionOriginSourceCLI},
 			Title:       "Daily Planning",
 			TitleSource: storage.SessionTitleSourceGenerated,
+			UpdatedAt:   time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC),
 		},
 		{ID: "project-a"},
 	}}
@@ -79,7 +81,11 @@ func TestNewCommandSessionListCallsRPC(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, storage.SessionOriginSourceCLI, stub.ListOptions.OriginSource)
-	require.Equal(t, "Daily Planning (default)\nproject-a\n", output.String())
+	require.True(t, strings.HasPrefix(output.String(), "ID"))
+	require.Contains(t, output.String(), "TITLE")
+	require.Contains(t, output.String(), "default    Daily Planning")
+	require.Contains(t, output.String(), "cli     2026-07-05T08:00:00Z")
+	require.Contains(t, output.String(), "project-a")
 }
 
 func TestNewCommandSessionListUsesProfileRuntimeEndpoint(t *testing.T) {
@@ -135,7 +141,10 @@ func TestNewCommandSessionCurrentCallsRPC(t *testing.T) {
 	var output bytes.Buffer
 	sessionOutput = &output
 
-	stub := &agentstub.AgentServiceStub{CurrentSessionResult: storage.Session{ID: storage.DefaultSessionID}}
+	stub := &agentstub.AgentServiceStub{CurrentSessionResult: storage.Session{
+		ID:    storage.DefaultSessionID,
+		Title: "Main conversation",
+	}}
 	newClient = func(context.Context, *config.Config) (sessionClient, error) {
 		return stub, nil
 	}
@@ -143,7 +152,9 @@ func TestNewCommandSessionCurrentCallsRPC(t *testing.T) {
 	err := NewCommand().Run(context.Background(), []string{"session", "current"})
 
 	require.NoError(t, err)
-	require.Equal(t, storage.DefaultSessionID+"\n", output.String())
+	require.Contains(t, output.String(), "Session\n")
+	require.Contains(t, output.String(), "ID:                  "+storage.DefaultSessionID)
+	require.Contains(t, output.String(), "Title:               Main conversation")
 }
 
 func TestNewCommandSessionUseCallsRPC(t *testing.T) {
@@ -289,7 +300,13 @@ func TestNewCommandSessionCompactCallsRPC(t *testing.T) {
 	err := NewCommand().Run(context.Background(), []string{"session", "compact", "project-a"})
 
 	require.NoError(t, err)
-	require.Equal(t, "id=project-a source_end_offset=12 source_message_count=20 updated_at=1970-01-01T00:02:03Z current_context_length=4000 total_context_length=128000\n", output.String())
+	require.Contains(t, output.String(), "Compaction\n")
+	require.Contains(t, output.String(), "Session ID:          project-a")
+	require.Contains(t, output.String(), "Source end offset:   12")
+	require.Contains(t, output.String(), "Source messages:     20")
+	require.Contains(t, output.String(), "Updated at:          1970-01-01T00:02:03Z")
+	require.Contains(t, output.String(), "Current context:     4000")
+	require.Contains(t, output.String(), "Total context:       128000")
 }
 
 func TestNewCommandSessionRepairCallsRPC(t *testing.T) {
@@ -324,7 +341,20 @@ func TestNewCommandSessionRepairCallsRPC(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "project-a", stub.RepairOptions.SessionID)
 	require.True(t, stub.RepairOptions.Full)
-	require.Equal(t, "sessions_scanned=2 messages_scanned=3 rows_scanned=4 missing_rows=5 stale_rows=6 unchanged_rows=7 rebuilt_rows=8 deleted_sources=9 batches=10\n", output.String())
+	require.Contains(t, output.String(), "Session repair\n")
+	for _, expected := range []string{
+		"Sessions scanned:    2",
+		"Messages scanned:    3",
+		"Rows scanned:        4",
+		"Missing rows:        5",
+		"Stale rows:          6",
+		"Unchanged rows:      7",
+		"Rebuilt rows:        8",
+		"Deleted sources:     9",
+		"Batches:             10",
+	} {
+		require.Contains(t, output.String(), expected)
+	}
 }
 
 func TestNewCommandSessionStatusCallsRPC(t *testing.T) {
@@ -361,52 +391,23 @@ func TestNewCommandSessionStatusCallsRPC(t *testing.T) {
 	err := NewCommand().Run(context.Background(), []string{"session", "status", "project-a"})
 
 	require.NoError(t, err)
-	require.Equal(t, "id=project-a created_at=2024-05-01T08:00:00Z updated_at=2024-05-02T09:00:00Z compaction_status=succeeded offset=12 size=20 length=128000 used=64000 remaining=64000 pct_used=0.5000 pct_remaining=0.5000\n", output.String())
-}
-
-func TestGetSessionListLabel(t *testing.T) {
-	tests := []struct {
-		name  string
-		id    string
-		title string
-		want  string
-	}{
-		{
-			name:  "title and id",
-			id:    " default ",
-			title: " Daily Planning ",
-			want:  "Daily Planning (default)",
-		},
-		{
-			name: "id only",
-			id:   " project-a ",
-			want: "project-a",
-		},
-		{
-			name:  "title only",
-			title: " Daily Planning ",
-			want:  "Daily Planning",
-		},
-		{
-			name: "empty",
-			want: "",
-		},
+	for _, expected := range []string{
+		"Session\n",
+		"ID:                  project-a",
+		"Created at:          2024-05-01T08:00:00Z",
+		"Updated at:          2024-05-02T09:00:00Z",
+		"Compaction status:   succeeded",
+		"Context\n",
+		"Offset:              12",
+		"Size:                20",
+		"Length:              128000",
+		"Used:                64000",
+		"Remaining:           64000",
+		"Used percent:        50.00%",
+		"Remaining percent:   50.00%",
+	} {
+		require.Contains(t, output.String(), expected)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, getSessionListLabel(tt.id, tt.title))
-		})
-	}
-}
-
-func TestFormatSessionTime(t *testing.T) {
-	require.Empty(t, formatSessionTime(time.Time{}))
-	require.Equal(
-		t,
-		"2024-05-01T07:00:00Z",
-		formatSessionTime(time.Date(2024, 5, 1, 8, 0, 0, 0, time.FixedZone("test", 3600))),
-	)
 }
 
 type failingSessionWriter struct {
