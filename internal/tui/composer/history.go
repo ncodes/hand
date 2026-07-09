@@ -18,8 +18,8 @@ type historyFile struct {
 
 // LoadHistory loads history.
 func LoadHistory(path string) ([]string, error) {
-	stringValue1 := str.String(path)
-	if stringValue1.Trim() == "" {
+	pathValue := str.String(path)
+	if pathValue.Trim() == "" {
 		return nil, nil
 	}
 
@@ -42,8 +42,8 @@ func LoadHistory(path string) ([]string, error) {
 
 // SaveHistory persists prompt history entries to disk.
 func SaveHistory(path string, history []string) error {
-	stringValue2 := str.String(path)
-	if stringValue2.Trim() == "" {
+	pathValue2 := str.String(path)
+	if pathValue2.Trim() == "" {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -61,8 +61,8 @@ func SaveHistory(path string, history []string) error {
 func NormalizeHistory(history []string) []string {
 	normalized := make([]string, 0, len(history))
 	for _, entry := range history {
-		stringValue3 := str.String(entry)
-		entry = stringValue3.Trim()
+		entryValue := str.String(entry)
+		entry = entryValue.Trim()
 		if entry == "" {
 			continue
 		}

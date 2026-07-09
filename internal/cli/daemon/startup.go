@@ -56,8 +56,8 @@ func getStartupDetailRows(cfg *config.Config) []startupDetailRow {
 	}
 	traceStatus := "disabled"
 	if cfg.Trace.Enabled {
-		stringValue1 := str.String(cfg.Trace.Disk.Dir)
-		traceDir := stringValue1.Trim()
+		dirValue := str.String(cfg.Trace.Disk.Dir)
+		traceDir := dirValue.Trim()
 		traceStatus = fmt.Sprintf("enabled (%s)", traceDir)
 	}
 
@@ -95,8 +95,8 @@ func getStartupDetailRows(cfg *config.Config) []startupDetailRow {
 }
 
 func getStartupProfileName() string {
-	stringValue2 := str.String(profile.Active().Name)
-	name := stringValue2.Trim()
+	nameValue := str.String(profile.Active().Name)
+	name := nameValue.Trim()
 	if name == "" {
 		return profile.DefaultName
 	}
@@ -121,13 +121,13 @@ func getGatewayStartupSummary(cfg *config.Config) string {
 }
 
 func formatStartupVersion() string {
-	stringValue3 := str.String(constants.AppVersion)
-	version := stringValue3.Trim()
+	appVersionValue := str.String(constants.AppVersion)
+	version := appVersionValue.Trim()
 	if version == "" {
 		version = "dev"
 	}
-	stringValue4 := str.String(constants.CommitHash)
-	commit := stringValue4.Trim()
+	commitHashValue := str.String(constants.CommitHash)
+	commit := commitHashValue.Trim()
 	if commit == "" {
 		commit = "unknown"
 	}
@@ -286,8 +286,8 @@ func getEffectiveStorageBackend(cfg *config.Config) string {
 	if cfg == nil {
 		return "sqlite"
 	}
-	stringValue5 := str.String(cfg.Storage.Backend)
-	backend := stringValue5.Normalized()
+	backendValue := str.String(cfg.Storage.Backend)
+	backend := backendValue.Normalized()
 	if backend == "" {
 		return "sqlite"
 	}

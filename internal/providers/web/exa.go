@@ -65,11 +65,11 @@ func (p *ExaProvider) Search(ctx context.Context, query string, count int) ([]Se
 
 	results := make([]SearchResult, 0, len(response.Results))
 	for idx, result := range response.Results {
-		stringValue1 := str.String(result.Title)
-		stringValue2 := str.String(result.URL)
+		titleValue := str.String(result.Title)
+		uRLValue := str.String(result.URL)
 		results = append(results, SearchResult{
-			Title: stringValue1.Trim(),
-			URL:   stringValue2.Trim(),
+			Title: titleValue.Trim(),
+			URL:   uRLValue.Trim(),
 			Snippet: truncateToMaxChars(
 				getFirstNonEmpty(getFirstHighlight(result.Highlights), result.Summary, result.Text),
 				p.maxCharsPerResult,
@@ -129,8 +129,8 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 	results := make([]ExtractResult, 0, len(response.Results))
 	statusByURL := make(map[string]string, len(response.Statuses))
 	for _, status := range response.Statuses {
-		stringValue3 := str.String(status.Status)
-		if stringValue3.Trim() != "error" {
+		statusValue := str.String(status.Status)
+		if statusValue.Trim() != "error" {
 			continue
 		}
 		statusID := str.String(status.ID)
@@ -139,8 +139,8 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 
 	seen := make(map[string]struct{}, len(response.Results))
 	for _, result := range response.Results {
-		stringValue4 := str.String(result.URL)
-		url := stringValue4.Trim()
+		uRLValue2 := str.String(result.URL)
+		url := uRLValue2.Trim()
 
 		content, truncated, downloadTruncated := limitExtractContent(
 			getFirstNonEmpty(getFirstHighlight(result.Highlights), result.Text),
@@ -148,10 +148,10 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 			maxChars)
 
 		seen[url] = struct{}{}
-		stringValue5 := str.String(result.Title)
+		titleValue2 := str.String(result.Title)
 		results = append(results, ExtractResult{
 			URL:               url,
-			Title:             stringValue5.Trim(),
+			Title:             titleValue2.Trim(),
 			Content:           content,
 			ContentFormat:     format,
 			Truncated:         truncated,
@@ -160,10 +160,10 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 		})
 	}
 	for _, status := range response.Statuses {
-		stringValue6 := str.String(status.ID)
-		url := stringValue6.Trim()
-		stringValue7 := str.String(status.Status)
-		if _, ok := seen[url]; ok || stringValue7.Trim() != "error" {
+		iDValue := str.String(status.ID)
+		url := iDValue.Trim()
+		statusValue2 := str.String(status.Status)
+		if _, ok := seen[url]; ok || statusValue2.Trim() != "error" {
 			continue
 		}
 
@@ -191,8 +191,8 @@ func (p *ExaProvider) exaHeaders() map[string]string {
 }
 
 func getExaStatusError(tag string, httpStatusCode int) string {
-	stringValue10 := str.String(tag)
-	tag = stringValue10.Trim()
+	tagValue := str.String(tag)
+	tag = tagValue.Trim()
 	if tag == "" {
 		return "extraction failed"
 	}

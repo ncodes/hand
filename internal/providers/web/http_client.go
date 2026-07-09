@@ -48,8 +48,8 @@ func (p *httpClient) postJSONLimited(
 	if client == nil {
 		client = http.DefaultClient
 	}
-	stringValue1 := str.String(p.baseURL)
-	baseURL := strings.TrimRight(stringValue1.Trim(), "/")
+	baseURLValue := str.String(p.baseURL)
+	baseURL := strings.TrimRight(baseURLValue.Trim(), "/")
 	if baseURL == "" {
 		return errors.New("web provider base URL is required")
 	}
@@ -67,11 +67,11 @@ func (p *httpClient) postJSONLimited(
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	for key, value := range headers {
-		stringValue2 := str.String(value)
-		if stringValue2.Trim() == "" {
+		valueText := str.String(value).Trim()
+		if valueText == "" {
 			continue
 		}
-		req.Header.Set(key, value)
+		req.Header.Set(key, valueText)
 	}
 
 	resp, err := client.Do(req)
@@ -82,8 +82,8 @@ func (p *httpClient) postJSONLimited(
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4*1024))
-		stringValue3 := str.String(string(data))
-		message := stringValue3.Trim()
+		dataValue := str.String(string(data))
+		message := dataValue.Trim()
 		if message == "" {
 			message = resp.Status
 		}
@@ -106,20 +106,20 @@ func (p *httpClient) postJSONLimited(
 }
 
 func (p *httpClient) authorizationHeaders() map[string]string {
-	stringValue4 := str.String(p.apiKey)
-	if stringValue4.Trim() == "" {
+	apiKeyValue := str.String(p.apiKey)
+	if apiKeyValue.Trim() == "" {
 		return nil
 	}
-	stringValue5 := str.String(p.apiKey)
+	apiKeyValue2 := str.String(p.apiKey)
 	return map[string]string{
-		"Authorization": "Bearer " + stringValue5.Trim(),
+		"Authorization": "Bearer " + apiKeyValue2.Trim(),
 	}
 }
 
 func getFirstNonEmpty(values ...string) string {
 	for _, value := range values {
-		stringValue6 := str.String(value)
-		value = stringValue6.Trim()
+		value2 := str.String(value)
+		value = value2.Trim()
 		if value != "" {
 			return value
 		}
@@ -130,8 +130,8 @@ func getFirstNonEmpty(values ...string) string {
 
 func getFirstHighlight(values []string) string {
 	for _, value := range values {
-		stringValue7 := str.String(value)
-		value = stringValue7.Trim()
+		value3 := str.String(value)
+		value = value3.Trim()
 		if value != "" {
 			return value
 		}

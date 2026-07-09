@@ -1075,6 +1075,18 @@ func TestMemoryStore_SavePersistsSessionOrigin(t *testing.T) {
 	require.Len(t, sessions, 1)
 	require.Equal(t, origin, sessions[0].Origin)
 
+	sessions, err = store.List(context.Background(), base.SessionListOptions{
+		OriginSource: base.SessionOriginSourceSlack,
+	})
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+
+	sessions, err = store.List(context.Background(), base.SessionListOptions{
+		OriginSource: base.SessionOriginSourceAutomation,
+	})
+	require.NoError(t, err)
+	require.Empty(t, sessions)
+
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
 	session, ok, err = store.Get(context.Background(), testSessionA, base.SessionGetOptions{})
 	require.NoError(t, err)

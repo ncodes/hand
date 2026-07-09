@@ -196,8 +196,8 @@ func (finding SafetyFinding) LogFields() map[string]string {
 		"id":       string(finding.ID),
 		"category": string(finding.Category),
 	}
-	stringValue1 := str.String(finding.Source)
-	if source := stringValue1.Trim(); source != "" {
+	sourceValue := str.String(finding.Source)
+	if source := sourceValue.Trim(); source != "" {
 		fields["source"] = source
 	}
 

@@ -30,17 +30,16 @@ func normalizePromptHistory(history []string) []string {
 }
 
 func (m *model) addPromptHistory(value string) tea.Cmd {
-	stringValue1 := str.String(value)
-	value = stringValue1.Trim()
-	if value == "" {
+	valueText := str.String(value).Trim()
+	if valueText == "" {
 		return nil
 	}
-	if len(m.history) > 0 && m.history[len(m.history)-1] == value {
+	if len(m.history) > 0 && m.history[len(m.history)-1] == valueText {
 		m.historyAt = len(m.history)
 		return nil
 	}
 
-	m.history = normalizePromptHistory(append(m.history, value))
+	m.history = normalizePromptHistory(append(m.history, valueText))
 	m.historyAt = len(m.history)
 	if err := savePromptHistory(m.history); err != nil {
 		return m.setStatus("prompt history unavailable")

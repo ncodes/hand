@@ -9,20 +9,19 @@ import (
 )
 
 func isValidModelID(value string) bool {
-	stringValue1 := str.String(value)
-	value = stringValue1.Trim()
-	if value == "" {
+	valueText := str.String(value).Trim()
+	if valueText == "" {
 		return false
 	}
 
-	if strings.Count(value, "/") > 1 {
+	if strings.Count(valueText, "/") > 1 {
 		return false
 	}
 
-	segments := strings.SplitSeq(value, "/")
+	segments := strings.SplitSeq(valueText, "/")
 	for segment := range segments {
-		stringValue2 := str.String(segment)
-		if stringValue2.Trim() == "" {
+		segmentValue := str.String(segment)
+		if segmentValue.Trim() == "" {
 			return false
 		}
 	}
@@ -46,10 +45,10 @@ func applyRegistryModelMetadata(cfg *Config, requestedContextLength int) {
 }
 
 func validateProviderAPI(field string, providerID string, apiID string) error {
-	stringValue3 := str.String(providerID)
-	providerID = stringValue3.Normalized()
-	stringValue4 := str.String(apiID)
-	apiID = stringValue4.Normalized()
+	providerIDValue := str.String(providerID)
+	providerID = providerIDValue.Normalized()
+	apiIDValue := str.String(apiID)
+	apiID = apiIDValue.Normalized()
 	if _, ok := modelRegistry.GetAPI(apiID); !ok {
 		return fmt.Errorf("%s must be one of: %s", field, getModelAPIList(nil))
 	}
@@ -70,8 +69,8 @@ func ValidateModelGenerationAPIForProvider(field string, providerID string, apiI
 }
 
 func validateModelRoleAPI(field string, apiID string, allowedAPIs map[string]struct{}) error {
-	stringValue5 := str.String(apiID)
-	apiID = stringValue5.Normalized()
+	apiIDValue2 := str.String(apiID)
+	apiID = apiIDValue2.Normalized()
 	if _, ok := allowedAPIs[apiID]; ok {
 		return nil
 	}

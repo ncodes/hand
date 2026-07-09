@@ -665,12 +665,12 @@ func anthropicOAuthReasoningModel(
 }
 
 func getModelOwnerFromID(id string) string {
-	stringValue1 := str.String(id)
-	id = strings.TrimPrefix(stringValue1.Trim(), "~")
+	idValue := str.String(id)
+	id = strings.TrimPrefix(idValue.Trim(), "~")
 	owner, _, ok := strings.Cut(id, "/")
 	if !ok {
 		return constants.ModelProviderOpenRouter
 	}
-	stringValue2 := str.String(owner)
-	return stringValue2.Trim()
+	ownerValue := str.String(owner)
+	return ownerValue.Trim()
 }

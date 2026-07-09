@@ -49,8 +49,8 @@ func formatConsoleModule(value any, noColor bool) string {
 	if value == nil {
 		return ""
 	}
-	stringValue1 := str.String(fmt.Sprint(value))
-	module := stringValue1.Trim()
+	sprintValue := str.String(fmt.Sprint(value))
+	module := sprintValue.Trim()
 	if module == "" {
 		return ""
 	}

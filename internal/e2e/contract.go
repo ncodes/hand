@@ -57,9 +57,9 @@ type ConfigInput struct {
 
 // Mode returns the effective config-loading mode for the scenario.
 func (c ConfigInput) Mode() ConfigMode {
-	stringValue1 := str.String(c.EnvFilePath)
-	stringValue2 := str.String(c.ConfigFilePath)
-	if stringValue1.Trim() != "" || stringValue2.Trim() != "" || len(c.Env) > 0 {
+	envFilePathValue := str.String(c.EnvFilePath)
+	configFilePathValue := str.String(c.ConfigFilePath)
+	if envFilePathValue.Trim() != "" || configFilePathValue.Trim() != "" || len(c.Env) > 0 {
 		return ConfigModeRealInput
 	}
 	return ConfigModeInMemory
@@ -87,16 +87,16 @@ type Isolation struct {
 
 // Validate ensures the required isolated resources are configured.
 func (i Isolation) Validate() error {
-	stringValue3 := str.String(i.WorkspaceDir)
-	if stringValue3.Trim() == "" {
+	workspaceDirValue := str.String(i.WorkspaceDir)
+	if workspaceDirValue.Trim() == "" {
 		return errors.New("e2e workspace dir is required")
 	}
-	stringValue4 := str.String(i.DataDir)
-	if stringValue4.Trim() == "" {
+	dataDirValue := str.String(i.DataDir)
+	if dataDirValue.Trim() == "" {
 		return errors.New("e2e data dir is required")
 	}
-	stringValue5 := str.String(i.StoragePath)
-	if stringValue5.Trim() == "" {
+	storagePathValue := str.String(i.StoragePath)
+	if storagePathValue.Trim() == "" {
 		return errors.New("e2e storage path is required")
 	}
 	return nil
@@ -149,8 +149,8 @@ type RootChatRequest struct {
 
 // Validate enforces the Phase 0 root chat request contract.
 func (r RootChatRequest) Validate() error {
-	stringValue6 := str.String(r.Message)
-	if stringValue6.Trim() == "" {
+	messageValue := str.String(r.Message)
+	if messageValue.Trim() == "" {
 		return errors.New("e2e root chat message is required")
 	}
 	return nil

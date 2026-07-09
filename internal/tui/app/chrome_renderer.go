@@ -61,10 +61,10 @@ func renderNoticePanel(panel noticePanel) string {
 }
 
 func renderNoticeBarContent(left string, right string, width int) string {
-	stringValue1 := str.String(left)
-	left = stringValue1.Trim()
-	stringValue2 := str.String(right)
-	right = stringValue2.Trim()
+	leftValue := str.String(left)
+	left = leftValue.Trim()
+	rightValue := str.String(right)
+	right = rightValue.Trim()
 	if width <= lipgloss.Width(left) || right == "" {
 		return left
 	}

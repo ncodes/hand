@@ -552,27 +552,27 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 
 	if cmd.IsSet("name") {
-		stringValue1 := str.String(cmd.String("name"))
-		cfg.Name = stringValue1.Trim()
+		literalValue := str.String(cmd.String("name"))
+		cfg.Name = literalValue.Trim()
 	}
 	if cmd.IsSet("model") {
-		stringValue2 := str.String(cmd.String("model"))
-		cfg.Models.Main.Name = stringValue2.Trim()
+		literalValue2 := str.String(cmd.String("model"))
+		cfg.Models.Main.Name = literalValue2.Trim()
 	}
 	if cmd.IsSet("model.summary") {
-		stringValue3 := str.String(cmd.String("model.summary"))
-		cfg.Models.Summary.Name = stringValue3.Trim()
+		literalValue3 := str.String(cmd.String("model.summary"))
+		cfg.Models.Summary.Name = literalValue3.Trim()
 	}
 	if cmd.IsSet("model.stream") {
 		cfg.Models.Main.Stream = new(cmd.Bool("model.stream"))
 	}
 	if cmd.IsSet("model.provider") {
-		stringValue4 := str.String(cfg.Models.Main.Provider)
-		previousProvider := stringValue4.Normalized()
-		stringValue5 := str.String(cmd.String("model.provider"))
-		cfg.Models.Main.Provider = stringValue5.Trim()
-		stringValue6 := str.String(cfg.Models.Main.Provider)
-		nextProvider := stringValue6.Normalized()
+		providerValue := str.String(cfg.Models.Main.Provider)
+		previousProvider := providerValue.Normalized()
+		literalValue4 := str.String(cmd.String("model.provider"))
+		cfg.Models.Main.Provider = literalValue4.Trim()
+		providerValue2 := str.String(cfg.Models.Main.Provider)
+		nextProvider := providerValue2.Normalized()
 		if nextProvider != "" && nextProvider != previousProvider {
 			if !cmd.IsSet("model.api") {
 				cfg.Models.Main.API = ""
@@ -583,8 +583,8 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		}
 	}
 	if cmd.IsSet("model.api-key") {
-		stringValue7 := str.String(cfg.Models.Main.Provider)
-		provider := stringValue7.Normalized()
+		providerValue3 := str.String(cfg.Models.Main.Provider)
+		provider := providerValue3.Normalized()
 		if provider == "" {
 			return
 		}
@@ -592,37 +592,37 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 			cfg.Models.Providers = make(map[string]config.ProviderModelConfig)
 		}
 		providerConfig := cfg.Models.Providers[provider]
-		stringValue8 := str.String(cmd.String("model.api-key"))
-		providerConfig.APIKey = stringValue8.Trim()
+		literalValue5 := str.String(cmd.String("model.api-key"))
+		providerConfig.APIKey = literalValue5.Trim()
 		cfg.Models.Providers[provider] = providerConfig
 	}
 	if cmd.IsSet("model.base-url") {
-		stringValue9 := str.String(cmd.String("model.base-url"))
-		cfg.Models.Main.BaseURL = stringValue9.Trim()
+		literalValue6 := str.String(cmd.String("model.base-url"))
+		cfg.Models.Main.BaseURL = literalValue6.Trim()
 	}
 	if cmd.IsSet("model.summary-provider") {
-		stringValue10 := str.String(cmd.String("model.summary-provider"))
-		cfg.Models.Summary.Provider = stringValue10.Trim()
+		literalValue7 := str.String(cmd.String("model.summary-provider"))
+		cfg.Models.Summary.Provider = literalValue7.Trim()
 	}
 	if cmd.IsSet("model.summary-base-url") {
-		stringValue11 := str.String(cmd.String("model.summary-base-url"))
-		cfg.Models.Summary.BaseURL = stringValue11.Trim()
+		literalValue8 := str.String(cmd.String("model.summary-base-url"))
+		cfg.Models.Summary.BaseURL = literalValue8.Trim()
 	}
 	if cmd.IsSet("model.summary-api") {
-		stringValue12 := str.String(cmd.String("model.summary-api"))
-		cfg.Models.Summary.API = stringValue12.Trim()
+		literalValue9 := str.String(cmd.String("model.summary-api"))
+		cfg.Models.Summary.API = literalValue9.Trim()
 	}
 	if cmd.IsSet("model.api") {
-		stringValue13 := str.String(cmd.String("model.api"))
-		cfg.Models.Main.API = stringValue13.Trim()
+		literalValue10 := str.String(cmd.String("model.api"))
+		cfg.Models.Main.API = literalValue10.Trim()
 	}
 	if cmd.IsSet("model.max-retries") {
 		retries := cmd.Int("model.max-retries")
 		cfg.Models.MaxRetries = &retries
 	}
 	if cmd.IsSet("rpc.address") {
-		stringValue14 := str.String(cmd.String("rpc.address"))
-		cfg.RPC.Address = stringValue14.Trim()
+		literalValue11 := str.String(cmd.String("rpc.address"))
+		cfg.RPC.Address = literalValue11.Trim()
 	}
 	if cmd.IsSet("rpc.port") {
 		cfg.RPC.Port = cmd.Int("rpc.port")
@@ -631,64 +631,64 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		cfg.Gateway.Enabled = cmd.Bool("gateway.enabled")
 	}
 	if cmd.IsSet("gateway.address") {
-		stringValue15 := str.String(cmd.String("gateway.address"))
-		cfg.Gateway.Address = stringValue15.Trim()
+		literalValue12 := str.String(cmd.String("gateway.address"))
+		cfg.Gateway.Address = literalValue12.Trim()
 	}
 	if cmd.IsSet("gateway.port") {
 		cfg.Gateway.Port = cmd.Int("gateway.port")
 	}
 	if cmd.IsSet("gateway.auth-token") {
-		stringValue16 := str.String(cmd.String("gateway.auth-token"))
-		cfg.Gateway.AuthToken = stringValue16.Trim()
+		literalValue13 := str.String(cmd.String("gateway.auth-token"))
+		cfg.Gateway.AuthToken = literalValue13.Trim()
 	}
 	if cmd.IsSet("gateway.telegram.enabled") {
 		cfg.Gateway.Telegram.Enabled = cmd.Bool("gateway.telegram.enabled")
 	}
 	if cmd.IsSet("gateway.telegram.mode") {
-		stringValue17 := str.String(cmd.String("gateway.telegram.mode"))
-		cfg.Gateway.Telegram.Mode = stringValue17.Trim()
+		literalValue14 := str.String(cmd.String("gateway.telegram.mode"))
+		cfg.Gateway.Telegram.Mode = literalValue14.Trim()
 	}
 	if cmd.IsSet("gateway.telegram.bot-token") {
-		stringValue18 := str.String(cmd.String("gateway.telegram.bot-token"))
-		cfg.Gateway.Telegram.BotToken = stringValue18.Trim()
+		literalValue15 := str.String(cmd.String("gateway.telegram.bot-token"))
+		cfg.Gateway.Telegram.BotToken = literalValue15.Trim()
 	}
 	if cmd.IsSet("gateway.telegram.webhook-secret") {
-		stringValue19 := str.String(cmd.String("gateway.telegram.webhook-secret"))
-		cfg.Gateway.Telegram.WebhookSecret = stringValue19.Trim()
+		literalValue16 := str.String(cmd.String("gateway.telegram.webhook-secret"))
+		cfg.Gateway.Telegram.WebhookSecret = literalValue16.Trim()
 	}
 	if cmd.IsSet("gateway.slack.enabled") {
 		cfg.Gateway.Slack.Enabled = cmd.Bool("gateway.slack.enabled")
 	}
 	if cmd.IsSet("gateway.slack.mode") {
-		stringValue20 := str.String(cmd.String("gateway.slack.mode"))
-		cfg.Gateway.Slack.Mode = stringValue20.Trim()
+		literalValue17 := str.String(cmd.String("gateway.slack.mode"))
+		cfg.Gateway.Slack.Mode = literalValue17.Trim()
 	}
 	if cmd.IsSet("gateway.slack.response-mode") {
-		stringValue21 := str.String(cmd.String("gateway.slack.response-mode"))
-		cfg.Gateway.Slack.ResponseMode = stringValue21.Trim()
+		literalValue18 := str.String(cmd.String("gateway.slack.response-mode"))
+		cfg.Gateway.Slack.ResponseMode = literalValue18.Trim()
 	}
 	if cmd.IsSet("gateway.slack.bot-token") {
-		stringValue22 := str.String(cmd.String("gateway.slack.bot-token"))
-		cfg.Gateway.Slack.BotToken = stringValue22.Trim()
+		literalValue19 := str.String(cmd.String("gateway.slack.bot-token"))
+		cfg.Gateway.Slack.BotToken = literalValue19.Trim()
 	}
 	if cmd.IsSet("gateway.slack.app-token") {
-		stringValue23 := str.String(cmd.String("gateway.slack.app-token"))
-		cfg.Gateway.Slack.AppToken = stringValue23.Trim()
+		literalValue20 := str.String(cmd.String("gateway.slack.app-token"))
+		cfg.Gateway.Slack.AppToken = literalValue20.Trim()
 	}
 	if cmd.IsSet("gateway.slack.signing-secret") {
-		stringValue24 := str.String(cmd.String("gateway.slack.signing-secret"))
-		cfg.Gateway.Slack.SigningSecret = stringValue24.Trim()
+		literalValue21 := str.String(cmd.String("gateway.slack.signing-secret"))
+		cfg.Gateway.Slack.SigningSecret = literalValue21.Trim()
 	}
 	if cmd.IsSet("max-iterations") {
 		cfg.Session.MaxIterations = cmd.Int("max-iterations")
 	}
 	if cmd.IsSet("log.level") {
-		stringValue25 := str.String(cmd.String("log.level"))
-		cfg.Log.Level = stringValue25.Trim()
+		literalValue22 := str.String(cmd.String("log.level"))
+		cfg.Log.Level = literalValue22.Trim()
 	}
 	if cmd.IsSet("log.file") {
-		stringValue26 := str.String(cmd.String("log.file"))
-		cfg.Log.File = stringValue26.Trim()
+		literalValue23 := str.String(cmd.String("log.file"))
+		cfg.Log.File = literalValue23.Trim()
 	}
 	if cmd.IsSet("log.max-size-mb") {
 		cfg.Log.MaxSizeMB = cmd.Int("log.max-size-mb")
@@ -719,8 +719,8 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		cfg.Trace.Disk.Enabled = &enabled
 	}
 	if cmd.IsSet("trace.disk.dir") {
-		stringValue27 := str.String(cmd.String("trace.disk.dir"))
-		cfg.Trace.Disk.Dir = stringValue27.Trim()
+		literalValue24 := str.String(cmd.String("trace.disk.dir"))
+		cfg.Trace.Disk.Dir = literalValue24.Trim()
 	}
 	if cmd.IsSet("trace.database.enabled") {
 		enabled := cmd.Bool("trace.database.enabled")
@@ -733,16 +733,16 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		cfg.TUI.ThinkingComposer = new(cmd.Bool("tui.thinking-composer"))
 	}
 	if cmd.IsSet("web.provider") {
-		stringValue28 := str.String(cmd.String("web.provider"))
-		cfg.Web.Provider = stringValue28.Trim()
+		literalValue25 := str.String(cmd.String("web.provider"))
+		cfg.Web.Provider = literalValue25.Trim()
 	}
 	if cmd.IsSet("web.key") {
-		stringValue29 := str.String(cmd.String("web.key"))
-		cfg.Web.APIKey = stringValue29.Trim()
+		literalValue26 := str.String(cmd.String("web.key"))
+		cfg.Web.APIKey = literalValue26.Trim()
 	}
 	if cmd.IsSet("web.base-url") {
-		stringValue30 := str.String(cmd.String("web.base-url"))
-		cfg.Web.BaseURL = stringValue30.Trim()
+		literalValue27 := str.String(cmd.String("web.base-url"))
+		cfg.Web.BaseURL = literalValue27.Trim()
 	}
 	if cmd.IsSet("web.max-char-per-result") {
 		cfg.Web.MaxCharPerResult = cmd.Int("web.max-char-per-result")
@@ -793,12 +793,12 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		cfg.Rules.Files = splitConfigCSVAndTrim(cmd.String("rules.files"))
 	}
 	if cmd.IsSet("instruct") {
-		stringValue31 := str.String(cmd.String("instruct"))
-		cfg.Session.Instruct = stringValue31.Trim()
+		literalValue28 := str.String(cmd.String("instruct"))
+		cfg.Session.Instruct = literalValue28.Trim()
 	}
 	if cmd.IsSet("platform") {
-		stringValue32 := str.String(cmd.String("platform"))
-		cfg.Platform = stringValue32.Trim()
+		literalValue29 := str.String(cmd.String("platform"))
+		cfg.Platform = literalValue29.Trim()
 	}
 	if cmd.IsSet("fs.roots") {
 		cfg.FS.Roots = splitConfigCSVAndTrim(cmd.String("fs.roots"))
@@ -828,12 +828,12 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		cfg.Exec.Deny = splitConfigCSVAndTrim(cmd.String("exec.deny"))
 	}
 	if cmd.IsSet("storage.backend") {
-		stringValue33 := str.String(cmd.String("storage.backend"))
-		cfg.Storage.Backend = stringValue33.Trim()
+		literalValue30 := str.String(cmd.String("storage.backend"))
+		cfg.Storage.Backend = literalValue30.Trim()
 	}
 	if cmd.IsSet("memory.backend") {
-		stringValue34 := str.String(cmd.String("memory.backend"))
-		cfg.Memory.Backend = stringValue34.Trim()
+		literalValue31 := str.String(cmd.String("memory.backend"))
+		cfg.Memory.Backend = literalValue31.Trim()
 	}
 	if cmd.IsSet("session.default-idle-expiry") {
 		cfg.Session.DefaultIdleExpiry = cmd.Duration("session.default-idle-expiry")
@@ -844,16 +844,16 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 }
 
 func splitConfigCSVAndTrim(value string) []string {
-	stringValue35 := str.String(value)
-	if stringValue35.Trim() == "" {
+	valueText := str.String(value).Trim()
+	if valueText == "" {
 		return nil
 	}
 
-	parts := strings.Split(value, ",")
+	parts := strings.Split(valueText, ",")
 	values := make([]string, 0, len(parts))
 	for _, part := range parts {
-		stringValue36 := str.String(part)
-		trimmed := stringValue36.Trim()
+		partValue := str.String(part)
+		trimmed := partValue.Trim()
 		if trimmed == "" {
 			continue
 		}

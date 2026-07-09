@@ -368,7 +368,13 @@ func TestClient_ListSessionsReturnsItems(t *testing.T) {
 	stub := &protomock.MorphServiceClientStub{
 		ListResp: &morphpb.ListSessionsResponse{
 			Sessions: []*morphpb.SessionSummary{
-				{Id: "default", Title: "Daily Planning", TitleSource: storage.SessionTitleSourceGenerated, UpdatedAtUnix: 10},
+				{
+					Id:            "default",
+					OriginSource:  storage.SessionOriginSourceCLI,
+					Title:         "Daily Planning",
+					TitleSource:   storage.SessionTitleSourceGenerated,
+					UpdatedAtUnix: 10,
+				},
 				{Id: "project-a", UpdatedAtUnix: 20},
 			},
 		},
@@ -382,9 +388,44 @@ func TestClient_ListSessionsReturnsItems(t *testing.T) {
 	require.False(t, stub.ListReq.GetArchived())
 	require.Len(t, sessions, 2)
 	require.Equal(t, "default", sessions[0].ID)
+	require.Equal(t, storage.SessionOriginSourceCLI, sessions[0].Origin.Source)
 	require.Equal(t, "Daily Planning", sessions[0].Title)
 	require.Equal(t, storage.SessionTitleSourceGenerated, sessions[0].TitleSource)
 	require.Equal(t, "project-a", sessions[1].ID)
+}
+
+func TestClient_CreateSessionWithOptionsSendsOriginSource(t *testing.T) {
+	stub := &protomock.MorphServiceClientStub{
+		CreateResp: &morphpb.CreateSessionResponse{
+			Session: &morphpb.SessionSummary{Id: "project-a"},
+		},
+	}
+	client := NewSessionService(stub)
+
+	session, err := client.CreateWithOptions(context.Background(), CreateSessionOptions{
+		ID:           "project-a",
+		OriginSource: storage.SessionOriginSourceTUI,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", session.ID)
+	require.NotNil(t, stub.CreateReq)
+	require.Equal(t, storage.SessionOriginSourceTUI, stub.CreateReq.GetOriginSource())
+}
+
+func TestClient_ListSessionsSendsOriginSourceFilter(t *testing.T) {
+	stub := &protomock.MorphServiceClientStub{
+		ListResp: &morphpb.ListSessionsResponse{},
+	}
+	client := NewSessionService(stub)
+
+	_, err := client.List(context.Background(), SessionListOptions{
+		OriginSource: storage.SessionOriginSourceAutomation,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, stub.ListReq)
+	require.Equal(t, storage.SessionOriginSourceAutomation, stub.ListReq.GetOriginSource())
 }
 
 func TestClient_ListSessionsWithArchivedOptionSendsArchivedFlagAndMarksItems(t *testing.T) {

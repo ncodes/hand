@@ -117,13 +117,13 @@ func (m model) getCommandViewFrame() commandViewFrame {
 	width := getInputBoxWidth(m.getMainPaneWidth())
 	contentWidth := max(width-4, 1)
 	contentHeight := max(height-2-commandViewTitleGap, 1)
-	stringValue1 := str.String(m.commandView.AccentColor)
-	accentColor := stringValue1.Trim()
+	accentColorValue := str.String(m.commandView.AccentColor)
+	accentColor := accentColorValue.Trim()
 	if accentColor == "" {
 		accentColor = defaultTUITheme.NoticeForeground
 	}
-	stringValue2 := str.String(m.commandView.TitleRightColor)
-	rightColor := stringValue2.Trim()
+	titleRightColorValue := str.String(m.commandView.TitleRightColor)
+	rightColor := titleRightColorValue.Trim()
 	if rightColor == "" {
 		rightColor = defaultTUITheme.MutedText
 	}
@@ -209,26 +209,26 @@ type commandViewContent struct {
 }
 
 func renderCommandViewTitle(title commandViewTitle) string {
-	stringValue3 := str.String(title.Left)
-	leftText := stringValue3.Trim()
-	stringValue4 := str.String(title.Icon)
-	if icon := stringValue4.Trim(); icon != "" {
+	leftValue := str.String(title.Left)
+	leftText := leftValue.Trim()
+	iconValue := str.String(title.Icon)
+	if icon := iconValue.Trim(); icon != "" {
 		leftText = icon + " " + leftText
 	}
 	left := lipgloss.NewStyle().
 		Inline(true).
 		Foreground(lipgloss.Color(title.Accent)).
 		Render(leftText)
-	stringValue5 := str.String(title.Subtext)
-	subtext := stringValue5.Trim()
+	subtextValue := str.String(title.Subtext)
+	subtext := subtextValue.Trim()
 	if subtext != "" {
 		left += lipgloss.NewStyle().
 			Inline(true).
 			Foreground(lipgloss.Color(title.Muted)).
 			Render(" - " + subtext)
 	}
-	stringValue6 := str.String(title.Right)
-	right := stringValue6.Trim()
+	rightValue := str.String(title.Right)
+	right := rightValue.Trim()
 	if right != "" {
 		right = lipgloss.NewStyle().
 			Inline(true).
@@ -250,8 +250,8 @@ func (m model) newCommandViewContentViewport(content commandViewContent) viewpor
 }
 
 func newCommandViewContentViewport(content commandViewContent) viewport.Model {
-	stringValue7 := str.String(content.Text)
-	text := stringValue7.Trim()
+	textValue := str.String(content.Text)
+	text := textValue.Trim()
 	if text == "" {
 		text = "No content available."
 	}
@@ -269,8 +269,8 @@ func newCommandViewContentViewport(content commandViewContent) viewport.Model {
 
 func renderCommandViewLines(content commandViewContent) string {
 	text := strings.TrimRight(content.Text, "\n")
-	stringValue8 := str.String(text)
-	if stringValue8.Trim() == "" {
+	textValue2 := str.String(text)
+	if textValue2.Trim() == "" {
 		text = "No content available."
 	}
 
@@ -286,10 +286,10 @@ func renderCommandViewLines(content commandViewContent) string {
 }
 
 func spaceBetweenCommandViewTitle(left string, right string, width int) string {
-	stringValue9 := str.String(left)
-	left = stringValue9.Trim()
-	stringValue10 := str.String(right)
-	right = stringValue10.Trim()
+	leftValue2 := str.String(left)
+	left = leftValue2.Trim()
+	rightValue2 := str.String(right)
+	right = rightValue2.Trim()
 	if right == "" {
 		return left
 	}
@@ -313,10 +313,9 @@ func renderCommandViewTitleSeparator() string {
 }
 
 func defaultCommandViewTitle(value string) string {
-	stringValue11 := str.String(value)
-	value = stringValue11.Trim()
-	if value != "" {
-		return value
+	valueText := str.String(value).Trim()
+	if valueText != "" {
+		return valueText
 	}
 
 	return "Command"
@@ -437,8 +436,8 @@ func (m *model) finishCommandViewSelection(msg tea.MouseReleaseMsg) (bool, tea.C
 	m.commandViewSelection.ticking = false
 
 	text := m.selectedCommandViewText()
-	stringValue12 := str.String(text)
-	if stringValue12.Trim() == "" {
+	textValue3 := str.String(text)
+	if textValue3.Trim() == "" {
 		m.clearCommandViewSelection()
 		return true, nil
 	}
@@ -495,8 +494,8 @@ func (m model) selectedCommandViewText() string {
 	if text == "" {
 		return ""
 	}
-	stringValue13 := str.String(text)
-	return compactTranscriptSelectionBlankLines(stringValue13.Trim())
+	textValue4 := str.String(text)
+	return compactTranscriptSelectionBlankLines(textValue4.Trim())
 }
 
 func (m model) commandViewSelectionPointFromMouse(mouse tea.Mouse) (transcriptSelectionPoint, bool) {
@@ -665,8 +664,8 @@ func (m model) renderCommandViewContentText() string {
 
 func (m model) commandViewPlainText() string {
 	document := newRenderedTranscriptDocument(m.renderCommandViewSelectionDocument())
-	stringValue14 := str.String(document.PlainText)
-	return stringValue14.Trim()
+	plainTextValue := str.String(document.PlainText)
+	return plainTextValue.Trim()
 }
 
 func (s commandViewSelection) offsetBounds() (int, int) {

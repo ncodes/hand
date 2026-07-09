@@ -36,18 +36,18 @@ type SignatureVerifier struct {
 }
 
 func (v SignatureVerifier) Check(timestamp string, signature string, body []byte) error {
-	stringValue1 := str.String(v.Secret)
-	secret := stringValue1.Trim()
+	secretValue := str.String(v.Secret)
+	secret := secretValue.Trim()
 	if secret == "" {
 		return ErrSigningSecretRequired
 	}
-	stringValue2 := str.String(signature)
-	signature = stringValue2.Trim()
+	signatureValue := str.String(signature)
+	signature = signatureValue.Trim()
 	if signature == "" {
 		return ErrSignatureMissing
 	}
-	stringValue3 := str.String(timestamp)
-	timestamp = stringValue3.Trim()
+	timestampValue := str.String(timestamp)
+	timestamp = timestampValue.Trim()
 	if timestamp == "" {
 		return ErrTimestampMissing
 	}
@@ -78,10 +78,10 @@ func (v SignatureVerifier) Check(timestamp string, signature string, body []byte
 }
 
 func SignRequest(secret string, timestamp string, body []byte) string {
-	stringValue4 := str.String(secret)
-	mac := hmac.New(sha256.New, []byte(stringValue4.Trim()))
-	stringValue5 := str.String(timestamp)
-	mac.Write([]byte(fmt.Sprintf("%s:%s:", signatureVersion, stringValue5.Trim())))
+	secretValue2 := str.String(secret)
+	mac := hmac.New(sha256.New, []byte(secretValue2.Trim()))
+	timestampValue2 := str.String(timestamp)
+	mac.Write([]byte(fmt.Sprintf("%s:%s:", signatureVersion, timestampValue2.Trim())))
 	mac.Write(body)
 	return signatureVersion + "=" + hex.EncodeToString(mac.Sum(nil))
 }

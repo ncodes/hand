@@ -1031,6 +1031,7 @@ func TestPayloadFields_HandlesPayloadShapes(t *testing.T) {
 func TestService_CreateSessionReturnsSummary(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{
 		ID:          "project-a",
+		Origin:      storage.SessionOrigin{Source: storage.SessionOriginSourceCLI},
 		Title:       "Project Planning",
 		TitleSource: storage.SessionTitleSourceGenerated,
 	}}
@@ -1040,10 +1041,25 @@ func TestService_CreateSessionReturnsSummary(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", resp.GetSession().GetId())
+	require.Equal(t, storage.SessionOriginSourceCLI, resp.GetSession().GetOriginSource())
 	require.Equal(t, "Project Planning", resp.GetSession().GetTitle())
 	require.Equal(t, storage.SessionTitleSourceGenerated, resp.GetSession().GetTitleSource())
 	require.Equal(t, "project-a", stub.CreatedSessionID)
 	require.Equal(t, "project-a", stub.UsedSessionID)
+}
+
+func TestService_CreateSessionPassesOriginSource(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{ID: "project-a"}}
+	svc := NewService(stub)
+
+	resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{
+		Id:           "project-a",
+		OriginSource: storage.SessionOriginSourceTUI,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, storage.SessionOriginSourceTUI, stub.CreatedSessionOrigin.Source)
+	require.Equal(t, storage.SessionOriginSourceTUI, resp.GetSession().GetOriginSource())
 }
 
 func TestService_CreateSessionCanSkipAutoSwitch(t *testing.T) {
@@ -1124,7 +1140,12 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 
 func TestService_ListSessionsReturnsItems(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Sessions: []storage.Session{
-		{ID: "default", Title: "Daily Planning", TitleSource: storage.SessionTitleSourceGenerated},
+		{
+			ID:          "default",
+			Origin:      storage.SessionOrigin{Source: storage.SessionOriginSourceCLI},
+			Title:       "Daily Planning",
+			TitleSource: storage.SessionTitleSourceGenerated,
+		},
 		{ID: "project-a"},
 	}}
 	svc := NewService(stub)
@@ -1134,9 +1155,23 @@ func TestService_ListSessionsReturnsItems(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.GetSessions(), 2)
 	require.Equal(t, "default", resp.GetSessions()[0].GetId())
+	require.Equal(t, storage.SessionOriginSourceCLI, resp.GetSessions()[0].GetOriginSource())
 	require.Equal(t, "Daily Planning", resp.GetSessions()[0].GetTitle())
 	require.Equal(t, storage.SessionTitleSourceGenerated, resp.GetSessions()[0].GetTitleSource())
 	require.Equal(t, "project-a", resp.GetSessions()[1].GetId())
+}
+
+func TestService_ListSessionsPassesOriginSourceFilter(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{Sessions: []storage.Session{{ID: "project-a"}}}
+	svc := NewService(stub)
+
+	resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{
+		OriginSource: storage.SessionOriginSourceAutomation,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, resp.GetSessions(), 1)
+	require.Equal(t, storage.SessionOriginSourceAutomation, stub.ListOptions.OriginSource)
 }
 
 func TestService_ListSessionsReturnsArchivedItems(t *testing.T) {

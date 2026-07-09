@@ -20,15 +20,15 @@ func (a *Agent) maybeGenerateSessionTitle(ctx context.Context, sessionID string)
 	if a == nil || a.cfg == nil || a.stateMgr == nil || a.summaryClient == nil {
 		return
 	}
-	stringValue1 := str.String(a.cfg.Models.Summary.Name)
-	if isSameModelClient(a.summaryClient, a.modelClient) && stringValue1.Trim() == "" {
+	nameValue := str.String(a.cfg.Models.Summary.Name)
+	if isSameModelClient(a.summaryClient, a.modelClient) && nameValue.Trim() == "" {
 		return
 	}
 
 	// Titles are generated once. User/session-provided titles are left intact.
 	session, ok, err := a.stateMgr.Get(ctx, sessionID, storage.SessionGetOptions{})
-	stringValue2 := str.String(session.Title)
-	if err != nil || !ok || stringValue2.Trim() != "" {
+	titleValue := str.String(session.Title)
+	if err != nil || !ok || titleValue.Trim() != "" {
 		return
 	}
 
@@ -95,8 +95,8 @@ func getSessionTitleContext(messages []morphmsg.Message) (string, string) {
 	userText := ""
 	assistantText := ""
 	for _, message := range messages {
-		stringValue3 := str.String(message.Content)
-		content := stringValue3.Trim()
+		contentValue := str.String(message.Content)
+		content := contentValue.Trim()
 		if content == "" {
 			continue
 		}
@@ -130,11 +130,11 @@ func getSessionTitleContext(messages []morphmsg.Message) (string, string) {
 
 // normalizeGeneratedSessionTitle trims model punctuation, whitespace, and generic titles.
 func normalizeGeneratedSessionTitle(title string) string {
-	stringValue4 := str.String(title)
-	title = stringValue4.Trim()
+	titleValue2 := str.String(title)
+	title = titleValue2.Trim()
 	title = strings.Trim(title, "\"'`")
-	stringValue5 := str.String(title)
-	title = stringValue5.Trim()
+	titleValue3 := str.String(title)
+	title = titleValue3.Trim()
 	title = strings.TrimRightFunc(title, func(r rune) bool {
 		return r == '.' || r == ':' || r == ';' || r == '!' || r == '?'
 	})
@@ -149,8 +149,8 @@ func normalizeGeneratedSessionTitle(title string) string {
 
 // fallbackSessionTitleFromUserMessage derives a title from the first user message.
 func fallbackSessionTitleFromUserMessage(message string) string {
-	stringValue6 := str.String(message)
-	words := strings.Fields(stringValue6.Trim())
+	messageValue := str.String(message)
+	words := strings.Fields(messageValue.Trim())
 	if len(words) == 0 {
 		return ""
 	}
@@ -186,11 +186,11 @@ func trimTitleRunes(title string, limit int) string {
 	if limit <= 0 {
 		return ""
 	}
-	stringValue7 := str.String(title)
-	runes := []rune(stringValue7.Trim())
+	titleValue4 := str.String(title)
+	runes := []rune(titleValue4.Trim())
 	if len(runes) <= limit {
 		return string(runes)
 	}
-	stringValue8 := str.String(string(runes[:limit]))
-	return stringValue8.Trim()
+	trimmedValue := str.String(string(runes[:limit]))
+	return trimmedValue.Trim()
 }

@@ -21,12 +21,12 @@ const (
 )
 
 func SetWebhook(ctx context.Context, cfg config.GatewayTelegramConfig, url string) error {
-	stringValue1 := str.String(url)
-	url = stringValue1.Trim()
-	stringValue2 := str.String(cfg.BotToken)
-	botToken := stringValue2.Trim()
-	stringValue3 := str.String(cfg.WebhookSecret)
-	webhookSecret := stringValue3.Trim()
+	urlValue := str.String(url)
+	url = urlValue.Trim()
+	botTokenValue := str.String(cfg.BotToken)
+	botToken := botTokenValue.Trim()
+	webhookSecretValue := str.String(cfg.WebhookSecret)
+	webhookSecret := webhookSecretValue.Trim()
 	if botToken == "" {
 		return errors.New("gateway telegram bot token is required")
 	}

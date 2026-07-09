@@ -44,8 +44,8 @@ var newAnthropicMessageStreamCaller = func(opts ...option.RequestOption) func(
 // NewAnthropicClient returns a client configured with the supplied API key and SDK options.
 func NewAnthropicClient(apiKey string, opts ...option.RequestOption) (*AnthropicClient, error) {
 	clientOptions := make([]option.RequestOption, 0, len(opts)+1)
-	stringValue1 := str.String(apiKey)
-	if trimmed := stringValue1.Trim(); trimmed != "" {
+	apiKeyValue := str.String(apiKey)
+	if trimmed := apiKeyValue.Trim(); trimmed != "" {
 		clientOptions = append(clientOptions, option.WithAPIKey(trimmed))
 	}
 	clientOptions = append(clientOptions, opts...)

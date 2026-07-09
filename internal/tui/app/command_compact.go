@@ -32,8 +32,8 @@ func (m *model) startCompactSession() tea.Cmd {
 }
 
 func (m model) getCurrentSessionID() string {
-	stringValue1 := str.String(m.sessionID)
-	sessionID := stringValue1.Trim()
+	sessionIDValue := str.String(m.sessionID)
+	sessionID := sessionIDValue.Trim()
 	if sessionID != "" {
 		return sessionID
 	}
@@ -46,8 +46,8 @@ func compactSessionCmd(ctx context.Context, client sessionCompactor, sessionID s
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		stringValue2 := str.String(sessionID)
-		result, err := client.Compact(ctx, stringValue2.Trim())
+		sessionIDValue2 := str.String(sessionID)
+		result, err := client.Compact(ctx, sessionIDValue2.Trim())
 		return compactSessionCompletedMsg{Result: result, Err: err}
 	}
 }

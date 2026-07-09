@@ -89,8 +89,8 @@ type MemoryProvider struct {
 // both memory and SQLite backends share the same provider logic and differ only
 // in the StateManager they pass in.
 func NewProvider(name string, opts Options) (Provider, error) {
-	stringValue1 := str.String(name)
-	switch stringValue1.Normalized() {
+	nameValue := str.String(name)
+	switch nameValue.Normalized() {
 	case "", ProviderDefaultMemory:
 		switch getEffectiveBackend(opts) {
 		case "memory", "sqlite":
@@ -104,12 +104,12 @@ func NewProvider(name string, opts Options) (Provider, error) {
 }
 
 func getEffectiveBackend(opts Options) string {
-	stringValue2 := str.String(opts.MemoryBackend)
-	if backend := stringValue2.Normalized(); backend != "" {
+	memoryBackendValue := str.String(opts.MemoryBackend)
+	if backend := memoryBackendValue.Normalized(); backend != "" {
 		return backend
 	}
-	stringValue3 := str.String(opts.StorageBackend)
-	if backend := stringValue3.Normalized(); backend != "" {
+	storageBackendValue := str.String(opts.StorageBackend)
+	if backend := storageBackendValue.Normalized(); backend != "" {
 		return backend
 	}
 	return constants.DefaultStorageBackend
@@ -289,9 +289,9 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 	}
 
 	obs := p.observability()
-	stringValue4 := str.String(query.Text)
+	textValue := str.String(query.Text)
 	startFields := buildObservationFields(p.Name(), "search", map[string]any{
-		"query_chars":  len([]rune(stringValue4.Trim())),
+		"query_chars":  len([]rune(textValue.Trim())),
 		"kind_count":   len(query.Kinds),
 		"status_count": len(query.Statuses),
 		"limit":        query.Limit,
@@ -359,8 +359,8 @@ func (p *MemoryProvider) Delete(ctx context.Context, req DeleteRequest) error {
 	if err := validateDelete(ctx, p.guardrails, req); err != nil {
 		return err
 	}
-	stringValue5 := str.String(req.ID)
-	memoryID := stringValue5.Trim()
+	iDValue := str.String(req.ID)
+	memoryID := iDValue.Trim()
 	if memoryID == "" {
 		return errors.New("memory id is required")
 	}

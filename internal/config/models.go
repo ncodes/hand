@@ -110,19 +110,19 @@ type ModelAuth struct {
 }
 
 func (auth ModelAuth) AuthType() string {
-	stringValue1 := str.String(auth.CredentialSource.Type)
-	if value := stringValue1.Trim(); value != "" {
+	trimmedValueValue := str.String(auth.CredentialSource.Type)
+	if value := trimmedValueValue.Trim(); value != "" {
 		return strings.ToLower(value)
 	}
 	if auth.CredentialSource.Kind == ModelCredentialSourceLocalProvider {
 		return string(ModelCredentialSourceLocalProvider)
 	}
-	stringValue2 := str.String(auth.APIKey)
-	if stringValue2.Trim() != "" {
+	aPIKeyValue := str.String(auth.APIKey)
+	if aPIKeyValue.Trim() != "" {
 		return modelAuthTypeAPIKey
 	}
-	stringValue3 := str.String(string(auth.CredentialSource.Kind))
-	if value := stringValue3.Trim(); value != "" {
+	kindValue := str.String(string(auth.CredentialSource.Kind))
+	if value := kindValue.Trim(); value != "" {
 		return value
 	}
 

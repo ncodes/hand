@@ -80,8 +80,8 @@ func BuildWithOptions(envPath, configPath string, cfg *config.Config, loadErr er
 	if validate == nil {
 		validate = (*config.Config).Validate
 	}
-	stringValue1 := str.String(opts.ValidationPass)
-	validationPass := stringValue1.Trim()
+	validationPassValue := str.String(opts.ValidationPass)
+	validationPass := validationPassValue.Trim()
 	if validationPass == "" {
 		validationPass = "configuration is valid"
 	}
@@ -176,8 +176,8 @@ func (r Report) FirstFailure() string {
 }
 
 func buildFileCheck(name, path string, optional bool) Check {
-	stringValue2 := str.String(path)
-	trimmed := stringValue2.Trim()
+	pathValue := str.String(path)
+	trimmed := pathValue.Trim()
 	if trimmed == "" {
 		return Check{
 			Name:    name,
@@ -227,8 +227,8 @@ func buildFileCheck(name, path string, optional bool) Check {
 }
 
 func buildBaseURLCheck(name, raw string) Check {
-	stringValue3 := str.String(raw)
-	trimmed := stringValue3.Trim()
+	rawValue := str.String(raw)
+	trimmed := rawValue.Trim()
 	if trimmed == "" {
 		return Check{
 			Name:    name,

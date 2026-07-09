@@ -103,8 +103,8 @@ func (p AnthropicSubscriptionProvider) Refresh(
 	credential appcredential.StoredCredential,
 ) (appcredential.StoredCredential, error) {
 	p = p.withDefaults()
-	stringValue1 := str.String(credential.Refresh)
-	refreshToken := stringValue1.Trim()
+	refreshValue := str.String(credential.Refresh)
+	refreshToken := refreshValue.Trim()
 	if refreshToken == "" {
 		return appcredential.StoredCredential{}, errors.New("Anthropic subscription refresh token is required")
 	}
@@ -131,8 +131,8 @@ func (p AnthropicSubscriptionProvider) AuthHeaders(
 	_ context.Context,
 	credential appcredential.StoredCredential,
 ) (map[string]string, error) {
-	stringValue2 := str.String(credential.Token)
-	token := stringValue2.Trim()
+	tokenValue := str.String(credential.Token)
+	token := tokenValue.Trim()
 	if token == "" {
 		return nil, errors.New("Anthropic subscription access token is required")
 	}
@@ -147,16 +147,16 @@ func (p AnthropicSubscriptionProvider) AuthHeaders(
 }
 
 func (p AnthropicSubscriptionProvider) withDefaults() AnthropicSubscriptionProvider {
-	stringValue3 := str.String(p.AuthorizeURL)
-	if stringValue3.Trim() == "" {
+	authorizeURLValue := str.String(p.AuthorizeURL)
+	if authorizeURLValue.Trim() == "" {
 		p.AuthorizeURL = anthropicSubscriptionAuthorize
 	}
-	stringValue4 := str.String(p.TokenURL)
-	if stringValue4.Trim() == "" {
+	tokenURLValue := str.String(p.TokenURL)
+	if tokenURLValue.Trim() == "" {
 		p.TokenURL = anthropicSubscriptionToken
 	}
-	stringValue5 := str.String(p.ListenAddr)
-	if stringValue5.Trim() == "" {
+	listenAddrValue := str.String(p.ListenAddr)
+	if listenAddrValue.Trim() == "" {
 		p.ListenAddr = "127.0.0.1:0"
 	}
 	if p.HTTPClient == nil {
@@ -177,8 +177,8 @@ func (p AnthropicSubscriptionProvider) listenForCallback() (net.Listener, string
 	if err != nil {
 		return nil, "", err
 	}
-	stringValue6 := str.String(p.RedirectURI)
-	if redirectURI := stringValue6.Trim(); redirectURI != "" {
+	redirectURIValue := str.String(p.RedirectURI)
+	if redirectURI := redirectURIValue.Trim(); redirectURI != "" {
 		return listener, redirectURI, nil
 	}
 
@@ -199,20 +199,20 @@ func (p AnthropicSubscriptionProvider) startCallbackServer(
 ) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc(anthropicSubscriptionCallbackPath, func(w http.ResponseWriter, r *http.Request) {
-		stringValue7 := str.String(r.URL.Query().Get("state"))
-		if got := stringValue7.Trim(); got != state {
+		getValue := str.String(r.URL.Query().Get("state"))
+		if got := getValue.Trim(); got != state {
 			http.Error(w, "invalid OAuth state", http.StatusBadRequest)
 			errCh <- errors.New("Anthropic OAuth state mismatch")
 			return
 		}
-		stringValue8 := str.String(r.URL.Query().Get("error"))
-		if reason := stringValue8.Trim(); reason != "" {
+		getValue2 := str.String(r.URL.Query().Get("error"))
+		if reason := getValue2.Trim(); reason != "" {
 			http.Error(w, "OAuth error", http.StatusBadRequest)
 			errCh <- fmt.Errorf("Anthropic OAuth failed: %s", reason)
 			return
 		}
-		stringValue9 := str.String(r.URL.Query().Get("code"))
-		code := stringValue9.Trim()
+		getValue3 := str.String(r.URL.Query().Get("code"))
+		code := getValue3.Trim()
 		if code == "" {
 			http.Error(w, "missing OAuth code", http.StatusBadRequest)
 			errCh <- errors.New("Anthropic OAuth code is required")
@@ -306,16 +306,16 @@ func (p AnthropicSubscriptionProvider) postToken(
 	if err := json.Unmarshal(respBody, &token); err != nil {
 		return appcredential.StoredCredential{}, err
 	}
-	stringValue10 := str.String(token.AccessToken)
-	if stringValue10.Trim() == "" {
+	accessTokenValue := str.String(token.AccessToken)
+	if accessTokenValue.Trim() == "" {
 		return appcredential.StoredCredential{}, errors.New("Anthropic token response did not include an access token")
 	}
-	stringValue11 := str.String(token.AccessToken)
-	stringValue12 := str.String(token.RefreshToken)
+	accessTokenValue2 := str.String(token.AccessToken)
+	refreshTokenValue := str.String(token.RefreshToken)
 	credential := appcredential.StoredCredential{
 		Type:    appcredential.TypeOAuth,
-		Token:   stringValue11.Trim(),
-		Refresh: stringValue12.Trim(),
+		Token:   accessTokenValue2.Trim(),
+		Refresh: refreshTokenValue.Trim(),
 		Scopes:  strings.Fields(token.Scope),
 	}
 	if token.ExpiresIn > 0 {

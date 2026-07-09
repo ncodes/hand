@@ -118,8 +118,8 @@ func (s *Store) Delete(_ context.Context, req DeleteRequest) error {
 	}
 
 	sourceIDs := sourceIDsToSet(req.SourceIDs)
-	stringValue1 := str.String(req.SessionID)
-	sessionID := stringValue1.Trim()
+	sessionIDValue := str.String(req.SessionID)
+	sessionID := sessionIDValue.Trim()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -150,8 +150,8 @@ func (s *Store) Search(_ context.Context, req SearchRequest) (SearchResult, erro
 	if err := vectorstore.ValidateSearchRequest(req); err != nil {
 		return SearchResult{}, err
 	}
-	stringValue2 := str.String(string(req.Filter.SourceKind))
-	if stringValue2.Trim() == "" {
+	sourceKindValue := str.String(string(req.Filter.SourceKind))
+	if sourceKindValue.Trim() == "" {
 		return SearchResult{}, errors.New("vector search filter source kind is required")
 	}
 	if err := validateSearchSourceIDs(req.Filter.SourceIDs); err != nil {
@@ -164,20 +164,20 @@ func (s *Store) Search(_ context.Context, req SearchRequest) (SearchResult, erro
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	stringValue3 := str.String(req.EmbeddingModel)
-	stringValue4 := str.String(req.Filter.SessionID)
-	stringValue5 := str.String(req.Filter.IgnoreSessionID)
-	stringValue6 := str.String(req.Filter.Role)
-	stringValue7 := str.String(req.Filter.ToolName)
+	embeddingModelValue := str.String(req.EmbeddingModel)
+	sessionIDValue2 := str.String(req.Filter.SessionID)
+	ignoreSessionIDValue := str.String(req.Filter.IgnoreSessionID)
+	roleValue := str.String(req.Filter.Role)
+	toolNameValue := str.String(req.Filter.ToolName)
 	filter := searchFilter{
-		embeddingModel:  stringValue3.Trim(),
+		embeddingModel:  embeddingModelValue.Trim(),
 		dimensions:      req.Dimensions,
 		sourceKind:      req.Filter.SourceKind,
 		sourceIDs:       sourceIDsToSet(req.Filter.SourceIDs),
-		sessionID:       stringValue4.Trim(),
-		ignoreSessionID: stringValue5.Trim(),
-		role:            stringValue6.Trim(),
-		toolName:        stringValue7.Trim(),
+		sessionID:       sessionIDValue2.Trim(),
+		ignoreSessionID: ignoreSessionIDValue.Trim(),
+		role:            roleValue.Trim(),
+		toolName:        toolNameValue.Trim(),
 		tags:            tagsToSet(req.Filter.Tags),
 		tagGroups:       tagGroups(req.Filter.TagGroups),
 	}
@@ -234,19 +234,19 @@ func (s *Store) List(_ context.Context, req ListRequest) (ListResult, error) {
 	if err := vectorstore.ValidateListRequest(req); err != nil {
 		return ListResult{}, err
 	}
-	stringValue8 := str.String(req.EmbeddingModel)
-	stringValue9 := str.String(req.Filter.SessionID)
-	stringValue10 := str.String(req.Filter.IgnoreSessionID)
-	stringValue11 := str.String(req.Filter.Role)
-	stringValue12 := str.String(req.Filter.ToolName)
+	embeddingModelValue2 := str.String(req.EmbeddingModel)
+	sessionIDValue3 := str.String(req.Filter.SessionID)
+	ignoreSessionIDValue2 := str.String(req.Filter.IgnoreSessionID)
+	roleValue2 := str.String(req.Filter.Role)
+	toolNameValue2 := str.String(req.Filter.ToolName)
 	filter := searchFilter{
-		embeddingModel:  stringValue8.Trim(),
+		embeddingModel:  embeddingModelValue2.Trim(),
 		sourceKind:      req.Filter.SourceKind,
 		sourceIDs:       sourceIDsToSet(req.Filter.SourceIDs),
-		sessionID:       stringValue9.Trim(),
-		ignoreSessionID: stringValue10.Trim(),
-		role:            stringValue11.Trim(),
-		toolName:        stringValue12.Trim(),
+		sessionID:       sessionIDValue3.Trim(),
+		ignoreSessionID: ignoreSessionIDValue2.Trim(),
+		role:            roleValue2.Trim(),
+		toolName:        toolNameValue2.Trim(),
 		tags:            tagsToSet(req.Filter.Tags),
 		tagGroups:       tagGroups(req.Filter.TagGroups),
 	}
@@ -401,9 +401,9 @@ func checkRecordMatchesList(record Record, filter searchFilter) bool {
 
 func (s *Store) addToIndex(record Record) {
 	vector, _ := float32Vector(record.Vector)
-	stringValue13 := str.String(record.EmbeddingModel)
+	embeddingModelValue3 := str.String(record.EmbeddingModel)
 	key := indexKey{
-		model:      stringValue13.Trim(),
+		model:      embeddingModelValue3.Trim(),
 		dimensions: record.Dimensions,
 		sourceKind: record.SourceKind,
 	}
@@ -416,9 +416,9 @@ func (s *Store) addToIndex(record Record) {
 }
 
 func (s *Store) removeFromIndex(record Record) {
-	stringValue14 := str.String(record.EmbeddingModel)
+	embeddingModelValue4 := str.String(record.EmbeddingModel)
 	key := indexKey{
-		model:      stringValue14.Trim(),
+		model:      embeddingModelValue4.Trim(),
 		dimensions: record.Dimensions,
 		sourceKind: record.SourceKind,
 	}
@@ -434,8 +434,8 @@ func (s *Store) removeFromIndex(record Record) {
 
 func validateSearchSourceIDs(sourceIDs []string) error {
 	for _, sourceID := range sourceIDs {
-		stringValue15 := str.String(sourceID)
-		trimmed := stringValue15.Trim()
+		sourceIDValue := str.String(sourceID)
+		trimmed := sourceIDValue.Trim()
 		if trimmed == "" {
 			return errors.New("vector search filter source id is required")
 		}
@@ -450,8 +450,8 @@ func validateSearchSourceIDs(sourceIDs []string) error {
 func sourceIDsToSet(sourceIDs []string) map[string]struct{} {
 	set := make(map[string]struct{}, len(sourceIDs))
 	for _, sourceID := range sourceIDs {
-		stringValue16 := str.String(sourceID)
-		sourceID = stringValue16.Trim()
+		sourceIDValue2 := str.String(sourceID)
+		sourceID = sourceIDValue2.Trim()
 		if sourceID != "" {
 			set[sourceID] = struct{}{}
 		}
@@ -584,8 +584,8 @@ func cloneRecord(record Record) Record {
 }
 
 func getModelMetadataKey(model string, dimensions int) string {
-	stringValue17 := str.String(model)
-	return fmt.Sprintf("%s:%d", stringValue17.Trim(), dimensions)
+	modelValue := str.String(model)
+	return fmt.Sprintf("%s:%d", modelValue.Trim(), dimensions)
 }
 
 var _ vectorstore.Store = (*Store)(nil)

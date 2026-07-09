@@ -7,13 +7,13 @@ import (
 )
 
 func isMermaidLanguage(language string) bool {
-	stringValue1 := str.String(language)
-	return strings.EqualFold(stringValue1.Trim(), "mermaid")
+	languageValue := str.String(language)
+	return strings.EqualFold(languageValue.Trim(), "mermaid")
 }
 
 func IsMermaidDiagramStart(line string) bool {
-	stringValue2 := str.String(line)
-	trimmed := stringValue2.Trim()
+	lineValue := str.String(line)
+	trimmed := lineValue.Trim()
 	if trimmed == "" {
 		return false
 	}

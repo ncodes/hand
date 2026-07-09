@@ -48,8 +48,8 @@ func HomeDir() string {
 
 func loadUserHomeDir() string {
 	home, err := userHomeDir()
-	stringValue2 := str.String(home)
-	if err != nil || stringValue2.Trim() == "" {
+	homeValue := str.String(home)
+	if err != nil || homeValue.Trim() == "" {
 		return ""
 	}
 

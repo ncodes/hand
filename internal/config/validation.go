@@ -65,8 +65,8 @@ func (c *Config) validate(options validationOptions) error {
 		if c.Models.Summary.Name != "" && !isValidModelID(c.Models.Summary.Name) {
 			return errors.New("summary model is invalid")
 		}
-		stringValue3 := str.String(c.Models.Main.Provider)
-		if stringValue3.Trim() == "" {
+		providerValue := str.String(c.Models.Main.Provider)
+		if providerValue.Trim() == "" {
 			return errors.New("model provider is required")
 		}
 		if !hasModelProvider(c.Models.Main.Provider) {
@@ -99,8 +99,8 @@ func (c *Config) validate(options validationOptions) error {
 			return err
 		}
 	}
-	stringValue1 := str.String(c.RPC.Address)
-	if stringValue1.Trim() == "" {
+	addressValue := str.String(c.RPC.Address)
+	if addressValue.Trim() == "" {
 		return errors.New("rpc address is required; set MORPH_RPC_ADDRESS, provide it in config, or use --rpc.address")
 	}
 
@@ -140,8 +140,8 @@ func (c *Config) validate(options validationOptions) error {
 	if c.Compaction.RecentSessionTail != nil && *c.Compaction.RecentSessionTail < 0 {
 		return errors.New("compaction recent session tail must be greater than or equal to zero")
 	}
-	stringValue2 := str.String(c.Log.Level)
-	switch stringValue2.Normalized() {
+	levelValue := str.String(c.Log.Level)
+	switch levelValue.Normalized() {
 	case "", "debug", "info", "warn", "error":
 	default:
 		return errors.New("log level must be one of debug, info, warn, or error; use --log.level")
@@ -168,8 +168,8 @@ func (c *Config) validateGatewaySettings(options ...gatewayValidationOptions) er
 	if len(options) > 0 {
 		opts = options[0]
 	}
-	stringValue4 := str.String(c.Gateway.Address)
-	if stringValue4.Trim() == "" {
+	addressValue2 := str.String(c.Gateway.Address)
+	if addressValue2.Trim() == "" {
 		return errors.New("gateway address is required; set MORPH_GATEWAY_ADDRESS, provide it in config, or use --gateway.address")
 	}
 	if c.Gateway.Port < 0 {
@@ -181,8 +181,8 @@ func (c *Config) validateGatewaySettings(options ...gatewayValidationOptions) er
 	if opts.skipCredentials {
 		return validateGatewayChannelModes(c.Gateway)
 	}
-	stringValue5 := str.String(c.Gateway.AuthToken)
-	if !isLoopbackGatewayAddress(c.Gateway.Address) && stringValue5.Trim() == "" {
+	authTokenValue := str.String(c.Gateway.AuthToken)
+	if !isLoopbackGatewayAddress(c.Gateway.Address) && authTokenValue.Trim() == "" {
 		return errors.New("gateway auth token is required for non-loopback binds; set MORPH_GATEWAY_AUTH_TOKEN, " +
 			"provide it in config, or use --gateway.auth-token")
 	}
@@ -226,13 +226,13 @@ func validateGatewayTelegramSettings(cfg GatewayTelegramConfig) error {
 	if !cfg.Enabled {
 		return nil
 	}
-	stringValue6 := str.String(cfg.BotToken)
-	if stringValue6.Trim() == "" {
+	botTokenValue := str.String(cfg.BotToken)
+	if botTokenValue.Trim() == "" {
 		return errors.New("gateway telegram bot token is required when telegram gateway is enabled; " +
 			"set MORPH_GATEWAY_TELEGRAM_BOT_TOKEN, provide it in config, or use --gateway.telegram.bot-token")
 	}
-	stringValue7 := str.String(cfg.WebhookSecret)
-	if cfg.Mode == GatewayTelegramModeWebhook && stringValue7.Trim() == "" {
+	webhookSecretValue := str.String(cfg.WebhookSecret)
+	if cfg.Mode == GatewayTelegramModeWebhook && webhookSecretValue.Trim() == "" {
 		return errors.New("gateway telegram webhook secret is required in webhook mode; " +
 			"set MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET, provide it in config, or use --gateway.telegram.webhook-secret")
 	}
@@ -245,8 +245,8 @@ func validateGatewayTelegramSettings(cfg GatewayTelegramConfig) error {
 }
 
 func isValidTelegramWebhookSecret(secret string) bool {
-	stringValue8 := str.String(secret)
-	secret = stringValue8.Trim()
+	secretValue := str.String(secret)
+	secret = secretValue.Trim()
 	if len(secret) == 0 || len(secret) > 256 {
 		return false
 	}
@@ -299,21 +299,21 @@ func validateGatewaySlackSettings(cfg GatewaySlackConfig) error {
 	if !cfg.Enabled {
 		return nil
 	}
-	stringValue9 := str.String(cfg.BotToken)
-	if stringValue9.Trim() == "" {
+	botTokenValue2 := str.String(cfg.BotToken)
+	if botTokenValue2.Trim() == "" {
 		return errors.New("gateway slack bot token is required when slack gateway is enabled; " +
 			"set MORPH_GATEWAY_SLACK_BOT_TOKEN, provide it in config, or use --gateway.slack.bot-token")
 	}
 	switch cfg.Mode {
 	case GatewaySlackModeSocket:
-		stringValue10 := str.String(cfg.AppToken)
-		if stringValue10.Trim() == "" {
+		appTokenValue := str.String(cfg.AppToken)
+		if appTokenValue.Trim() == "" {
 			return errors.New("gateway slack app token is required in socket mode; " +
 				"set MORPH_GATEWAY_SLACK_APP_TOKEN, provide it in config, or use --gateway.slack.app-token")
 		}
 	case GatewaySlackModeHTTP:
-		stringValue11 := str.String(cfg.SigningSecret)
-		if stringValue11.Trim() == "" {
+		signingSecretValue := str.String(cfg.SigningSecret)
+		if signingSecretValue.Trim() == "" {
 			return errors.New("gateway slack signing secret is required in http mode; " +
 				"set MORPH_GATEWAY_SLACK_SIGNING_SECRET, provide it in config, or use --gateway.slack.signing-secret")
 		}
@@ -323,8 +323,8 @@ func validateGatewaySlackSettings(cfg GatewaySlackConfig) error {
 }
 
 func isLoopbackGatewayAddress(address string) bool {
-	stringValue12 := str.String(strings.Trim(address, "[]"))
-	address = stringValue12.Trim()
+	trimValue := str.String(strings.Trim(address, "[]"))
+	address = trimValue.Trim()
 	if address == "" || strings.EqualFold(address, "localhost") {
 		return true
 	}
@@ -384,8 +384,8 @@ func (c *Config) validatePersonalityNames() error {
 	sort.Strings(names)
 
 	for _, name := range names {
-		stringValue13 := str.String(name)
-		trimmed := stringValue13.Trim()
+		nameValue := str.String(name)
+		trimmed := nameValue.Trim()
 		if !validPersonalityName.MatchString(trimmed) {
 			return fmt.Errorf("invalid personality name %q: must match %s", trimmed, personalityNamePattern)
 		}
@@ -518,13 +518,13 @@ func (c *Config) validateRerankerSettings() error {
 }
 
 func (c *Config) validateRerankerOverride(useCase string, override RerankerOverrideConfig) error {
-	stringValue14 := str.String(useCase)
-	useCase = stringValue14.Trim()
+	useCaseValue := str.String(useCase)
+	useCase = useCaseValue.Trim()
 	if useCase == "" {
 		return errors.New("reranker override use case is required")
 	}
-	stringValue15 := str.String(override.Type)
-	if stringValue15.Trim() != "" {
+	trimmedValueValue := str.String(override.Type)
+	if trimmedValueValue.Trim() != "" {
 		if err := validateRerankerType(override.Type); err != nil {
 			return fmt.Errorf("reranker override %q: %w", useCase, err)
 		}
@@ -572,8 +572,8 @@ func (c *Config) validateRerankerModelRole(field string, modelID string, provide
 }
 
 func validateRerankerType(rerankerType string) error {
-	stringValue16 := str.String(rerankerType)
-	switch stringValue16.Normalized() {
+	rerankerTypeValue := str.String(rerankerType)
+	switch rerankerTypeValue.Normalized() {
 	case constants.RerankerDeterministic, constants.RerankerNoop, constants.RerankerLLM:
 		return nil
 	default:

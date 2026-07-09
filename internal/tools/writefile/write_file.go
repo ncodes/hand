@@ -40,8 +40,8 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
-			stringValue1 := str.String(req.Path)
-			if stringValue1.Trim() == "" {
+			pathValue := str.String(req.Path)
+			if pathValue.Trim() == "" {
 				return common.ToolError("invalid_input", "path is required"), nil
 			}
 

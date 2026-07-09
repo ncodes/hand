@@ -160,21 +160,21 @@ func newRootAction() func(context.Context, *cli.Command) error {
 }
 
 func getEnvFile(args []string) string {
-	stringValue1 := str.String(os.Getenv("MORPH_ENV_FILE"))
-	if value := stringValue1.Trim(); value != "" {
+	envValue := str.String(os.Getenv("MORPH_ENV_FILE"))
+	if value := envValue.Trim(); value != "" {
 		return value
 	}
 
 	for i := range args {
-		stringValue2 := str.String(args[i])
-		arg := stringValue2.Trim()
+		argsValue := str.String(args[i])
+		arg := argsValue.Trim()
 		if arg == "--env-file" && i+1 < len(args) {
-			stringValue3 := str.String(args[i+1])
-			return stringValue3.Trim()
+			argsValue2 := str.String(args[i+1])
+			return argsValue2.Trim()
 		}
 		if value, ok := strings.CutPrefix(arg, "--env-file="); ok {
-			stringValue4 := str.String(value)
-			return stringValue4.Trim()
+			valueText := str.String(value)
+			return valueText.Trim()
 		}
 	}
 
@@ -195,22 +195,22 @@ func configureProfileDefaults(args []string) error {
 
 func getProfileArg(args []string) string {
 	for i := range args {
-		stringValue5 := str.String(args[i])
-		arg := stringValue5.Trim()
+		argsValue3 := str.String(args[i])
+		arg := argsValue3.Trim()
 		if arg == "--" {
 			return ""
 		}
 		if (arg == "--profile" || arg == "-p") && i+1 < len(args) {
-			stringValue6 := str.String(args[i+1])
-			return stringValue6.Trim()
+			argsValue4 := str.String(args[i+1])
+			return argsValue4.Trim()
 		}
 		if value, ok := strings.CutPrefix(arg, "--profile="); ok {
-			stringValue7 := str.String(value)
-			return stringValue7.Trim()
+			value2 := str.String(value)
+			return value2.Trim()
 		}
 		if value, ok := strings.CutPrefix(arg, "-p="); ok {
-			stringValue8 := str.String(value)
-			return stringValue8.Trim()
+			value3 := str.String(value)
+			return value3.Trim()
 		}
 	}
 

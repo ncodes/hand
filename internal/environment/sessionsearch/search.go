@@ -30,19 +30,19 @@ func Search(
 	if manager == nil {
 		return nil, errors.New("state manager is required")
 	}
-	stringValue1 := str.String(req.SessionID)
-	sessionID := stringValue1.Trim()
-	stringValue2 := str.String(req.IgnoreSessionID)
-	ignoreSessionID := stringValue2.Trim()
-	stringValue3 := str.String(req.Query)
-	query := stringValue3.Trim()
+	sessionIDValue := str.String(req.SessionID)
+	sessionID := sessionIDValue.Trim()
+	ignoreSessionIDValue := str.String(req.IgnoreSessionID)
+	ignoreSessionID := ignoreSessionIDValue.Trim()
+	queryValue := str.String(req.Query)
+	query := queryValue.Trim()
 	if query == "" {
 		return nil, errors.New("query is required")
 	}
-	stringValue4 := str.String(req.Role)
-	role := stringValue4.Normalized()
-	stringValue5 := str.String(req.ToolName)
-	toolName := stringValue5.Normalized()
+	roleValue := str.String(req.Role)
+	role := roleValue.Normalized()
+	toolNameValue := str.String(req.ToolName)
+	toolName := toolNameValue.Normalized()
 	limit := clampSearchResults(req.MaxResults)
 
 	results, err := manager.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{
@@ -75,19 +75,19 @@ func Search(
 		if err != nil {
 			return nil, err
 		}
-		stringValue6 := str.String(summary.SessionSummary)
+		sessionSummaryValue := str.String(summary.SessionSummary)
 		group := SessionSearchResult{
 			SessionID:      result.SessionID,
 			SessionCreated: formatSearchTime(session.CreatedAt),
 			SessionUpdated: formatSearchTime(session.UpdatedAt),
 			MatchCount:     result.MatchCount,
-			SessionSummary: stringValue6.Trim(),
+			SessionSummary: sessionSummaryValue.Trim(),
 			Messages:       make([]SessionSearchMessageHit, 0, len(result.Messages)),
 		}
 
 		for _, hit := range result.Messages {
-			stringValue7 := str.String(hit.MatchedText)
-			if stringValue7.Trim() == "" {
+			matchedTextValue := str.String(hit.MatchedText)
+			if matchedTextValue.Trim() == "" {
 				continue
 			}
 
@@ -132,8 +132,8 @@ func clampSearchResults(value int) int {
 }
 
 func getCaseInsensitiveMatchIndex(text string, query string) (int, int) {
-	stringValue8 := str.String(query)
-	query = stringValue8.Trim()
+	queryValue2 := str.String(query)
+	query = queryValue2.Trim()
 	if query == "" {
 		return -1, 0
 	}

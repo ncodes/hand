@@ -32,13 +32,13 @@ func admitCandidateItems(
 // not worth durable memory. This mirrors the prompt guidance and gives a stable
 // reason independent of model wording.
 func checkEpisodeCandidateAdmissionRejection(item storage.MemoryItem) string {
-	stringValue1 := str.String(item.Metadata["memory_importance"])
-	switch stringValue1.Normalized() {
+	metadataValue := str.String(item.Metadata["memory_importance"])
+	switch metadataValue.Normalized() {
 	case "low":
 		return "low_importance_candidate"
 	}
-	stringValue2 := str.String(item.Metadata["memory_granularity"])
-	switch stringValue2.Normalized() {
+	metadataValue2 := str.String(item.Metadata["memory_granularity"])
+	switch metadataValue2.Normalized() {
 	case "execution_detail":
 		return "execution_detail"
 	}
@@ -91,15 +91,15 @@ func getCanonicalCandidateGroup(item storage.MemoryItem) string {
 // all improve the chance a candidate survives group collapse.
 func getCandidateAdmissionScore(item storage.MemoryItem) int {
 	score := getCandidateKindPriority(getCandidateKind(item)) * 100
-	stringValue3 := str.String(item.Metadata["memory_importance"])
-	switch stringValue3.Normalized() {
+	metadataValue3 := str.String(item.Metadata["memory_importance"])
+	switch metadataValue3.Normalized() {
 	case "high":
 		score += 30
 	case "medium":
 		score += 20
 	}
-	stringValue4 := str.String(item.Metadata["memory_granularity"])
-	switch stringValue4.Normalized() {
+	metadataValue4 := str.String(item.Metadata["memory_granularity"])
+	switch metadataValue4.Normalized() {
 	case "summary":
 		score += 10
 	case "episode":
@@ -111,6 +111,6 @@ func getCandidateAdmissionScore(item storage.MemoryItem) int {
 }
 
 func getCandidateKind(item storage.MemoryItem) string {
-	stringValue5 := str.String(item.Metadata["candidate_kind"])
-	return stringValue5.Trim()
+	metadataValue5 := str.String(item.Metadata["candidate_kind"])
+	return metadataValue5.Trim()
 }

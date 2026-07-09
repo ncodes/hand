@@ -38,8 +38,8 @@ func NormalizeRoots(roots []string) []string {
 	seen := make(map[string]struct{}, len(roots))
 	out := make([]string, 0, len(roots))
 	for _, root := range roots {
-		stringValue1 := str.String(root)
-		root = stringValue1.Trim()
+		rootValue := str.String(root)
+		root = rootValue.Trim()
 		if root == "" {
 			continue
 		}
@@ -71,8 +71,8 @@ func (p FilesystemPolicy) Resolve(path string) (ResolvedPath, error) {
 	if len(p.Roots) == 0 {
 		return ResolvedPath{}, errors.New("access denied")
 	}
-	stringValue2 := str.String(path)
-	path = stringValue2.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	if path == "" {
 		path = "."
 	}

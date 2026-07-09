@@ -169,14 +169,14 @@ func (p *Puller) PullModel(ctx context.Context, model string, onProgress func(Pu
 		if err := json.Unmarshal(line, &chunk); err != nil {
 			return fmt.Errorf("decode Ollama pull chunk: %w", err)
 		}
-		stringValue1 := str.String(chunk.Error)
-		if stringValue1.Trim() != "" {
+		errorValue := str.String(chunk.Error)
+		if errorValue.Trim() != "" {
 			return enrichOllamaPullError(chunk.Error, model)
 		}
 		if onProgress != nil {
-			stringValue2 := str.String(chunk.Status)
+			statusValue := str.String(chunk.Status)
 			onProgress(PullProgress{
-				Status:    stringValue2.Trim(),
+				Status:    statusValue.Trim(),
 				Total:     chunk.Total,
 				Completed: chunk.Completed,
 			})
@@ -196,26 +196,25 @@ func (p *Puller) setHeaders(req *http.Request) {
 }
 
 func isOllamaCloudModel(model string) bool {
-	stringValue3 := str.String(model)
-	return strings.HasSuffix(stringValue3.Normalized(), ":cloud")
+	modelValue := str.String(model)
+	return strings.HasSuffix(modelValue.Normalized(), ":cloud")
 }
 
 func normalizePullBaseURL(value string) (string, error) {
-	stringValue4 := str.String(value)
-	value = strings.TrimRight(stringValue4.Trim(), "/")
-	if value == "" {
+	valueText := strings.TrimRight(str.String(value).Trim(), "/")
+	if valueText == "" {
 		return "", errors.New("ollama base URL is required")
 	}
 
-	parsed, err := url.Parse(value)
+	parsed, err := url.Parse(valueText)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return "", fmt.Errorf("ollama base URL %q is invalid", value)
+		return "", fmt.Errorf("ollama base URL %q is invalid", valueText)
 	}
 	if strings.EqualFold(strings.TrimRight(parsed.Path, "/"), "/v1") {
 		parsed.Path = ""
 		parsed.RawPath = ""
-		value = strings.TrimRight(parsed.String(), "/")
+		valueText = strings.TrimRight(parsed.String(), "/")
 	}
 
-	return normalizeBaseURL(value)
+	return normalizeBaseURL(valueText)
 }

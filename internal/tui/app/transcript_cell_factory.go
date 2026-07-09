@@ -24,8 +24,8 @@ type toolTranscriptCellInput struct {
 var defaultTranscriptCellFactory = transcriptCellFactory{}
 
 func (transcriptCellFactory) User(text string) transcriptCell {
-	stringValue1 := str.String(text)
-	if text = stringValue1.Trim(); text == "" {
+	textValue := str.String(text)
+	if text = textValue.Trim(); text == "" {
 		return nil
 	}
 
@@ -33,8 +33,8 @@ func (transcriptCellFactory) User(text string) transcriptCell {
 }
 
 func (transcriptCellFactory) Assistant(text string) transcriptCell {
-	stringValue2 := str.String(text)
-	if text = stringValue2.Trim(); text == "" {
+	textValue2 := str.String(text)
+	if text = textValue2.Trim(); text == "" {
 		return nil
 	}
 
@@ -67,9 +67,9 @@ func (transcriptCellFactory) Tool(input toolTranscriptCellInput) transcriptCell 
 }
 
 func (transcriptCellFactory) Safety(msg safetyEventMsg) transcriptCell {
-	stringValue3 := str.String(msg.Action)
+	actionValue := str.String(msg.Action)
 	return safetyTranscriptCell{
-		action:     stringValue3.Trim(),
+		action:     actionValue.Trim(),
 		findingIDs: msg.FindingIDs,
 	}
 }
@@ -83,8 +83,8 @@ func (transcriptCellFactory) Error(message string) transcriptCell {
 }
 
 func (transcriptCellFactory) System(text string) transcriptCell {
-	stringValue4 := str.String(text)
-	if text = stringValue4.Trim(); text == "" {
+	textValue3 := str.String(text)
+	if text = textValue3.Trim(); text == "" {
 		return nil
 	}
 
@@ -148,8 +148,8 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 	message morphmsg.Message,
 	toolCalls map[string]timelineToolCallDetail,
 ) transcriptCell {
-	stringValue5 := str.String(message.Content)
-	content := stringValue5.Trim()
+	contentValue := str.String(message.Content)
+	content := contentValue.Trim()
 	if content == "" && len(message.ToolCalls) == 0 {
 		return nil
 	}
@@ -160,13 +160,13 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 	case morphmsg.RoleAssistant:
 		return factory.Assistant(content)
 	case morphmsg.RoleTool:
-		stringValue6 := str.String(message.Name)
-		name := stringValue6.Trim()
+		nameValue := str.String(message.Name)
+		name := nameValue.Trim()
 		if name == "" {
 			name = "tool"
 		}
-		stringValue7 := str.String(message.ToolCallID)
-		toolCall := toolCalls[stringValue7.Trim()]
+		toolCallIDValue := str.String(message.ToolCallID)
+		toolCall := toolCalls[toolCallIDValue.Trim()]
 		planState := mergePlanToolDisplayState(toolCall.planState, getToolOutputDisplayState(name, content))
 		processState := mergeProcessToolDisplayState(toolCall.processState, getToolOutputProcessDisplayState(name, content))
 		return factory.Tool(toolTranscriptCellInput{
@@ -180,7 +180,7 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 			Completed:    true,
 		})
 	default:
-		stringValue8 := str.String(string(message.Role))
-		return factory.System(stringValue8.Trim() + ": " + content)
+		roleValue := str.String(string(message.Role))
+		return factory.System(roleValue.Trim() + ": " + content)
 	}
 }

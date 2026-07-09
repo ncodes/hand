@@ -22,8 +22,8 @@ func (r *Renderer) renderWithTableBlocks(markdown string) []string {
 	// renderer. Empty chunks are ignored so multiple blank lines do not create
 	// empty transcript cells.
 	flushChunk := func() {
-		stringValue1 := str.String(strings.Join(chunk, "\n"))
-		text := stringValue1.Trim()
+		joinValue := str.String(strings.Join(chunk, "\n"))
+		text := joinValue.Trim()
 		chunk = chunk[:0]
 		if text == "" {
 			return
@@ -47,8 +47,8 @@ func (r *Renderer) renderWithTableBlocks(markdown string) []string {
 			flushChunk()
 			diagramLines := []string{line}
 			index++
-			stringValue2 := str.String(lines[index])
-			for index < len(lines) && stringValue2.Trim() != "" {
+			linesValue := str.String(lines[index])
+			for index < len(lines) && linesValue.Trim() != "" {
 				diagramLines = append(diagramLines, lines[index])
 				index++
 			}

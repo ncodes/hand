@@ -22,8 +22,8 @@ func (r *Renderer) renderHyperlink(text string, destination string) string {
 // Models often emit Unicode bullets directly ("• item"). CommonMark does not
 // treat those as list markers, so normalize them to "- item" and let the list
 func sanitizeHyperlinkDestination(destination string) string {
-	stringValue1 := str.String(destination)
-	destination = stringValue1.Trim()
+	destinationValue := str.String(destination)
+	destination = destinationValue.Trim()
 	if destination == "" {
 		return ""
 	}

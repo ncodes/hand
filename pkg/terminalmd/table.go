@@ -117,10 +117,10 @@ func (r *Renderer) renderTableAsLabeledRows(rows [][]string) string {
 			if index >= len(row) {
 				continue
 			}
-			stringValue1 := str.String(header)
-			header = stringValue1.Trim()
-			stringValue2 := str.String(row[index])
-			value := stringValue2.Trim()
+			headerValue := str.String(header)
+			header = headerValue.Trim()
+			rowValue := str.String(row[index])
+			value := rowValue.Trim()
 			if header == "" || value == "" {
 				continue
 			}
@@ -146,8 +146,8 @@ func isMarkdownTableStart(lines []string, index int) bool {
 // isMarkdownTableRow is intentionally stricter than "contains a pipe" to avoid
 // turning prose with vertical bars into a table.
 func isMarkdownTableRow(line string) bool {
-	stringValue3 := str.String(line)
-	trimmed := stringValue3.Trim()
+	lineValue := str.String(line)
+	trimmed := lineValue.Trim()
 	return strings.HasPrefix(trimmed, "|") && strings.HasSuffix(trimmed, "|") && strings.Count(trimmed, "|") >= 2
 }
 
@@ -159,8 +159,8 @@ func isMarkdownTableSeparator(line string) bool {
 		return false
 	}
 	for _, cell := range cells {
-		stringValue4 := str.String(cell)
-		cell = stringValue4.Trim()
+		cellValue := str.String(cell)
+		cell = cellValue.Trim()
 		if len(cell) < 3 {
 			return false
 		}
@@ -193,8 +193,8 @@ func parseMarkdownTable(lines []string) [][]string {
 // splitMarkdownTableRow splits a table row while respecting inline code spans
 // and escaped pipes. A simple strings.Split would corrupt cells like `a|b`.
 func splitMarkdownTableRow(line string) []string {
-	stringValue5 := str.String(line)
-	line = stringValue5.Trim()
+	lineValue2 := str.String(line)
+	line = lineValue2.Trim()
 	line = strings.TrimPrefix(line, "|")
 	line = strings.TrimSuffix(line, "|")
 
@@ -230,8 +230,8 @@ func splitMarkdownTableRow(line string) []string {
 	if escaped {
 		cell.WriteRune('\\')
 	}
-	stringValue6 := str.String(cell.String())
-	cells = append(cells, stringValue6.Trim())
+	textValue := str.String(cell.String())
+	cells = append(cells, textValue.Trim())
 
 	return cells
 }

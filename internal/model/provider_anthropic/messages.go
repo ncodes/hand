@@ -94,14 +94,13 @@ func assistantMessageToAnthropicBlocks(message morphmsg.Message) ([]anthropic.Co
 }
 
 func getToolCallInput(value string) (any, error) {
-	stringValue1 := str.String(value)
-	value = stringValue1.Trim()
-	if value == "" {
+	valueText := str.String(value).Trim()
+	if valueText == "" {
 		return map[string]any{}, nil
 	}
 
 	var decoded any
-	if err := json.Unmarshal([]byte(value), &decoded); err != nil {
+	if err := json.Unmarshal([]byte(valueText), &decoded); err != nil {
 		return nil, fmt.Errorf("tool call input must be valid JSON: %w", err)
 	}
 
@@ -133,26 +132,26 @@ func extractMessageResponse(resp *anthropic.Message) (*Response, error) {
 		case "text":
 			outputText.WriteString(block.Text)
 		case "tool_use":
-			stringValue3 := str.String(block.Name)
-			name := stringValue3.Trim()
+			nameValue := str.String(block.Name)
+			name := nameValue.Trim()
 			if name == "" {
 				return nil, errors.New("tool call name is required")
 			}
-			stringValue4 := str.String(block.ID)
-			id := stringValue4.Trim()
+			iDValue := str.String(block.ID)
+			id := iDValue.Trim()
 			if id == "" {
 				id = getFallbackToolCallID(name, len(toolCalls))
 			}
-			stringValue5 := str.String(string(block.Input))
+			inputValue := str.String(string(block.Input))
 			toolCalls = append(toolCalls, ToolCall{
 				ID:    id,
 				Name:  name,
-				Input: stringValue5.Trim(),
+				Input: inputValue.Trim(),
 			})
 		}
 	}
-	stringValue2 := str.String(outputText.String())
-	text := stringValue2.Trim()
+	textValue := str.String(outputText.String())
+	text := textValue.Trim()
 	if text == "" && len(toolCalls) == 0 {
 		return nil, errors.New("model returned empty response")
 	}

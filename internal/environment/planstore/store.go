@@ -73,30 +73,30 @@ func (s *MemoryPlanStore) Merge(
 	for _, update := range updates {
 		if idx, ok := indexByID[update.ID]; ok {
 			if update.Content != nil {
-				stringValue3 := str.String(*update.Content)
-				current.Steps[idx].Content = stringValue3.Trim()
+				trimmedValue := str.String(*update.Content)
+				current.Steps[idx].Content = trimmedValue.Trim()
 			}
 			if update.Status != nil {
-				stringValue4 := str.String(*update.Status)
-				current.Steps[idx].Status = stringValue4.Trim()
+				trimmedValue2 := str.String(*update.Status)
+				current.Steps[idx].Status = trimmedValue2.Trim()
 			}
 			continue
 		}
-		stringValue2 := str.String(update.ID)
-		step := PlanStep{ID: stringValue2.Trim()}
+		iDValue := str.String(update.ID)
+		step := PlanStep{ID: iDValue.Trim()}
 		if update.Content != nil {
-			stringValue5 := str.String(*update.Content)
-			step.Content = stringValue5.Trim()
+			trimmedValue3 := str.String(*update.Content)
+			step.Content = trimmedValue3.Trim()
 		}
 		if update.Status != nil {
-			stringValue6 := str.String(*update.Status)
-			step.Status = stringValue6.Trim()
+			trimmedValue4 := str.String(*update.Status)
+			step.Status = trimmedValue4.Trim()
 		}
 		current.Steps = append(current.Steps, step)
 		indexByID[step.ID] = len(current.Steps) - 1
 	}
-	stringValue1 := str.String(explanation)
-	current.Explanation = stringValue1.Trim()
+	explanationValue := str.String(explanation)
+	current.Explanation = explanationValue.Trim()
 	if clearCompleted {
 		filtered := current.Steps[:0]
 		for _, step := range current.Steps {
@@ -151,8 +151,8 @@ func ClonePlan(plan Plan) Plan {
 }
 
 func normalizeSessionID(sessionID string) string {
-	stringValue7 := str.String(sessionID)
-	sessionID = stringValue7.Trim()
+	sessionIDValue := str.String(sessionID)
+	sessionID = sessionIDValue.Trim()
 	if sessionID == "" {
 		return "default"
 	}

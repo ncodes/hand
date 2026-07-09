@@ -39,8 +39,8 @@ func FormatMarkdownV2(text string) string {
 	formatted = regexp.MustCompile(`(?m)^#{1,6}\s+(.+)$`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^#{1,6}\s+(.+)$`).FindStringSubmatch(match)
 		inner := regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllString(parts[1], "$1")
-		stringValue1 := str.String(inner)
-		return nextPlaceholder("*" + EscapeMarkdownV2(stringValue1.Trim()) + "*")
+		innerValue := str.String(inner)
+		return nextPlaceholder("*" + EscapeMarkdownV2(innerValue.Trim()) + "*")
 	})
 	formatted = regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^\*\*(.+?)\*\*$`).FindStringSubmatch(match)

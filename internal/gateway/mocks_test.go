@@ -51,14 +51,10 @@ func (s *genericResponderStub) Respond(
 	return s.reply, s.err
 }
 
-func (s *genericResponderStub) CreateSession(context.Context, string) (storage.Session, error) {
-	return s.CreateSessionWithOrigin(context.Background(), "", storage.SessionOrigin{})
-}
-
-func (s *genericResponderStub) CreateSessionWithOrigin(
+func (s *genericResponderStub) CreateSession(
 	context.Context,
 	string,
-	storage.SessionOrigin,
+	...storage.SessionCreateOptions,
 ) (storage.Session, error) {
 	s.created = true
 	if s.createdSession.ID == "" {

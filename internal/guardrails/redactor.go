@@ -118,8 +118,8 @@ func sanitizeValue(value any, options RedactorOptions) any {
 }
 
 func sanitizeString(value string, options RedactorOptions) string {
-	stringValue1 := str.String(value)
-	trimmed := stringValue1.Trim()
+	valueText := str.String(value)
+	trimmed := valueText.Trim()
 	if trimmed == "" {
 		return value
 	}
@@ -281,7 +281,7 @@ func digitsOnly(value string) string {
 }
 
 func isSensitiveKey(key string) bool {
-	stringValue2 := str.String(key)
-	normalized := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(stringValue2.Trim(), "-", ""), "_", ""))
+	keyValue := str.String(key)
+	normalized := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(keyValue.Trim(), "-", ""), "_", ""))
 	return slices.Contains(secretKeys, normalized)
 }

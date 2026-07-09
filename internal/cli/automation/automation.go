@@ -487,8 +487,8 @@ func loadAutomationConfig(cmd *cli.Command) (*config.Config, error) {
 }
 
 func getRequiredArg(cmd *cli.Command, message string) (string, error) {
-	stringValue := str.String(cmd.Args().First())
-	value := stringValue.Trim()
+	firstValue := str.String(cmd.Args().First())
+	value := firstValue.Trim()
 	if value == "" {
 		return "", fmt.Errorf("%s", message)
 	}

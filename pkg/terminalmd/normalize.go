@@ -26,12 +26,12 @@ func normalizeCommonMarkdownArtifacts(markdown string) string {
 // sanitizeHyperlinkDestination removes terminal-control characters from an OSC 8
 // destination. This prevents malformed model output from breaking the terminal
 func trimLeadingTaskMarker(text string) string {
-	stringValue1 := str.String(text)
-	text = stringValue1.Trim()
+	textValue := str.String(text)
+	text = textValue.Trim()
 	for _, marker := range []string{"[ ]", "[x]", "[X]"} {
 		if strings.HasPrefix(text, marker) {
-			stringValue2 := str.String(strings.TrimPrefix(text, marker))
-			return stringValue2.Trim()
+			trimPrefixValue := str.String(strings.TrimPrefix(text, marker))
+			return trimPrefixValue.Trim()
 		}
 	}
 	return text
@@ -109,8 +109,8 @@ func stripHTMLTags(text string) string {
 			builder.WriteByte(char)
 		}
 	}
-	stringValue3 := str.String(builder.String())
-	return stringValue3.Trim()
+	textValue2 := str.String(builder.String())
+	return textValue2.Trim()
 }
 
 // isEscapableMarkdownPunctuation reports whether CommonMark allows a punctuation

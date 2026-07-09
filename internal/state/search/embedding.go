@@ -44,8 +44,8 @@ type Embedding struct {
 
 // ValidateEmbeddingRequest checks that an embedding request has model input.
 func ValidateEmbeddingRequest(req EmbeddingRequest) error {
-	stringValue1 := str.String(req.Model)
-	if stringValue1.Trim() == "" {
+	modelValue := str.String(req.Model)
+	if modelValue.Trim() == "" {
 		return errors.New("embedding model is required")
 	}
 
@@ -55,8 +55,8 @@ func ValidateEmbeddingRequest(req EmbeddingRequest) error {
 
 	seenIDs := make(map[string]struct{}, len(req.Inputs))
 	for _, input := range req.Inputs {
-		stringValue2 := str.String(input.ID)
-		inputID := stringValue2.Trim()
+		iDValue := str.String(input.ID)
+		inputID := iDValue.Trim()
 		if inputID == "" {
 			return errors.New("embedding input id is required")
 		}
@@ -70,8 +70,8 @@ func ValidateEmbeddingRequest(req EmbeddingRequest) error {
 		if err := validateOptionalSourceKind(input.SourceKind, "embedding input source kind"); err != nil {
 			return err
 		}
-		stringValue3 := str.String(input.Text)
-		if stringValue3.Trim() == "" {
+		textValue := str.String(input.Text)
+		if textValue.Trim() == "" {
 			return errors.New("embedding input text is required")
 		}
 	}
@@ -84,13 +84,13 @@ func ValidateEmbeddingResult(req EmbeddingRequest, result EmbeddingResult) error
 	if err := ValidateEmbeddingRequest(req); err != nil {
 		return err
 	}
-	stringValue4 := str.String(result.Model)
-	if stringValue4.Trim() == "" {
+	modelValue2 := str.String(result.Model)
+	if modelValue2.Trim() == "" {
 		return errors.New("embedding result model is required")
 	}
-	stringValue5 := str.String(result.Model)
-	stringValue6 := str.String(req.Model)
-	if stringValue5.Trim() != stringValue6.Trim() {
+	modelValue3 := str.String(result.Model)
+	modelValue4 := str.String(req.Model)
+	if modelValue3.Trim() != modelValue4.Trim() {
 		return errors.New("embedding result model must match request model")
 	}
 	if result.Dimensions <= 0 {
@@ -105,8 +105,8 @@ func ValidateEmbeddingResult(req EmbeddingRequest, result EmbeddingResult) error
 	}
 	seenIDs := make(map[string]struct{}, len(result.Items))
 	for _, item := range result.Items {
-		stringValue7 := str.String(item.ID)
-		itemID := stringValue7.Trim()
+		iDValue2 := str.String(item.ID)
+		itemID := iDValue2.Trim()
 		if itemID == "" {
 			return errors.New("embedding id is required")
 		}
@@ -129,8 +129,8 @@ func ValidateEmbeddingResult(req EmbeddingRequest, result EmbeddingResult) error
 				return errors.New("embedding vector value must be finite")
 			}
 		}
-		stringValue8 := str.String(item.ContentHash)
-		if stringValue8.Trim() == "" {
+		contentHashValue := str.String(item.ContentHash)
+		if contentHashValue.Trim() == "" {
 			return errors.New("embedding content hash is required")
 		}
 		if item.ContentHash != expectedHash {

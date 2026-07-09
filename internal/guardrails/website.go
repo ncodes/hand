@@ -44,9 +44,9 @@ func (p WebsitePolicy) Check(rawURL string) (WebsiteBlock, bool) {
 
 	if rule, ok := getFirstMatchingDomainRule(p.Rules, host); ok {
 		message := getWebsiteBlockMessage(host, rule)
-		stringValue1 := str.String(rawURL)
+		rawURLValue := str.String(rawURL)
 		return WebsiteBlock{
-			URL:     stringValue1.Trim(),
+			URL:     rawURLValue.Trim(),
 			Host:    host,
 			Rule:    rule.Pattern,
 			Source:  rule.Source,
@@ -59,8 +59,8 @@ func (p WebsitePolicy) Check(rawURL string) (WebsiteBlock, bool) {
 
 func getWebsiteBlockMessage(host string, rule WebsiteRule) string {
 	message := `blocked by configured website blocklist policy: "` + host + `" matched "` + rule.Pattern + `"`
-	stringValue2 := str.String(rule.Source)
-	source := stringValue2.Trim()
+	sourceValue := str.String(rule.Source)
+	source := sourceValue.Trim()
 	if source == "" {
 		return message
 	}
@@ -69,23 +69,22 @@ func getWebsiteBlockMessage(host string, rule WebsiteRule) string {
 }
 
 func normalizeWebsiteRule(value string) string {
-	stringValue3 := str.String(value)
-	value = stringValue3.Normalized()
-	if value == "" {
+	valueText := str.String(value).Normalized()
+	if valueText == "" {
 		return ""
 	}
 
-	wildcard := strings.HasPrefix(value, "*.")
+	wildcard := strings.HasPrefix(valueText, "*.")
 	if wildcard {
-		value = strings.TrimPrefix(value, "*.")
+		valueText = strings.TrimPrefix(valueText, "*.")
 	}
 
-	host := getHostFromWebsiteURL(value)
+	host := getHostFromWebsiteURL(valueText)
 	if host == "" {
-		if strings.Contains(value, "://") {
+		if strings.Contains(valueText, "://") {
 			return ""
 		}
-		host = normalizeWebsiteHost(value)
+		host = normalizeWebsiteHost(valueText)
 	}
 	if host == "" {
 		return ""
@@ -98,8 +97,8 @@ func normalizeWebsiteRule(value string) string {
 }
 
 func getHostFromWebsiteURL(rawURL string) string {
-	stringValue4 := str.String(rawURL)
-	rawURL = stringValue4.Trim()
+	rawURLValue2 := str.String(rawURL)
+	rawURL = rawURLValue2.Trim()
 	if rawURL == "" {
 		return ""
 	}
@@ -121,8 +120,8 @@ func getHostFromWebsiteURL(rawURL string) string {
 }
 
 func normalizeWebsiteHost(host string) string {
-	stringValue5 := str.String(host)
-	host = stringValue5.Normalized()
+	hostValue := str.String(host)
+	host = hostValue.Normalized()
 	host = strings.TrimSuffix(host, ".")
 
 	return host

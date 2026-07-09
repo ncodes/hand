@@ -20,25 +20,25 @@ func latestSection(value string) string {
 
 	start := -1
 	for index, line := range lines {
-		stringValue2 := str.String(line)
-		if strings.HasPrefix(stringValue2.Trim(), "## ") {
+		lineValue := str.String(line)
+		if strings.HasPrefix(lineValue.Trim(), "## ") {
 			start = index
 			break
 		}
 	}
 	if start < 0 {
-		stringValue3 := str.String(value)
-		return stringValue3.Trim()
+		valueText := str.String(value)
+		return valueText.Trim()
 	}
 
 	end := len(lines)
 	for index := start + 1; index < len(lines); index++ {
-		stringValue4 := str.String(lines[index])
-		if strings.HasPrefix(stringValue4.Trim(), "## ") {
+		linesValue := str.String(lines[index])
+		if strings.HasPrefix(linesValue.Trim(), "## ") {
 			end = index
 			break
 		}
 	}
-	stringValue1 := str.String(strings.Join(lines[start:end], "\n"))
-	return stringValue1.Trim()
+	joinValue := str.String(strings.Join(lines[start:end], "\n"))
+	return joinValue.Trim()
 }

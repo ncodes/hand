@@ -92,11 +92,13 @@ message SessionSummary {
   int32 message_count = 3;
   string title = 4;
   string title_source = 5;
+  string origin_source = 6;
 }
 
 message CreateSessionRequest {
   string id = 1;
   optional bool auto_switch = 2;
+  string origin_source = 3;
 }
 
 message CreateSessionResponse {
@@ -105,6 +107,7 @@ message CreateSessionResponse {
 
 message ListSessionsRequest {
   optional bool archived = 1;
+  string origin_source = 2;
 }
 
 message ListSessionsResponse {

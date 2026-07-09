@@ -16,24 +16,24 @@ type SafetyTracePayloadOptions struct {
 
 // SafetyTracePayload converts a safety finding into trace payload fields.
 func SafetyTracePayload(opts SafetyTracePayloadOptions) map[string]any {
-	stringValue1 := str.String(opts.Action)
+	actionValue := str.String(opts.Action)
 	payload := map[string]any{
-		"action":         stringValue1.Trim(),
+		"action":         actionValue.Trim(),
 		"blocked":        opts.Blocked,
 		"redacted":       opts.Redacted,
 		"content_length": opts.ContentLength,
 		"findings":       SafetyFindingLogFields(opts.Findings),
 	}
-	stringValue2 := str.String(opts.SessionID)
-	if sessionID := stringValue2.Trim(); sessionID != "" {
+	sessionIDValue := str.String(opts.SessionID)
+	if sessionID := sessionIDValue.Trim(); sessionID != "" {
 		payload["session_id"] = sessionID
 	}
-	stringValue3 := str.String(opts.Source)
-	if source := stringValue3.Trim(); source != "" {
+	sourceValue := str.String(opts.Source)
+	if source := sourceValue.Trim(); source != "" {
 		payload["source"] = source
 	}
-	stringValue4 := str.String(opts.Refusal)
-	if refusal := stringValue4.Trim(); refusal != "" {
+	refusalValue := str.String(opts.Refusal)
+	if refusal := refusalValue.Trim(); refusal != "" {
 		payload["refusal"] = refusal
 	}
 

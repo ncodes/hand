@@ -55,8 +55,8 @@ func (b *termBuilder) String() string {
 }
 
 func jsonToTerms(builder *termBuilder, prefix string, raw string) {
-	stringValue1 := str.String(raw)
-	raw = stringValue1.Trim()
+	rawValue := str.String(raw)
+	raw = rawValue.Trim()
 	if raw == "" {
 		return
 	}
@@ -122,17 +122,16 @@ func addValueTerms(builder *termBuilder, prefix string, value any) {
 }
 
 func normalizeScalar(value string) string {
-	stringValue3 := str.String(value)
-	value = stringValue3.Normalized()
-	if value == "" {
+	valueText := str.String(value).Normalized()
+	if valueText == "" {
 		return ""
 	}
-	return strings.Join(strings.Fields(value), " ")
+	return strings.Join(strings.Fields(valueText), " ")
 }
 
 func looksLikeJSON(value string) bool {
-	stringValue4 := str.String(value)
-	value = stringValue4.Trim()
+	value2 := str.String(value)
+	value = value2.Trim()
 	if value == "" {
 		return false
 	}

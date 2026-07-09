@@ -150,9 +150,9 @@ func NewFileFactory(directory string, redactor guardrails.Redactor) *JSONLFactor
 	if redactor == nil {
 		redactor = guardrails.NewRedactor()
 	}
-	stringValue1 := str.String(directory)
+	directoryValue := str.String(directory)
 	return &JSONLFactory{
-		directory: stringValue1.Trim(),
+		directory: directoryValue.Trim(),
 		redactor:  redactor,
 		now:       func() time.Time { return time.Now().UTC() },
 	}
@@ -201,8 +201,8 @@ func NoopSession() Session {
 
 // validateSessionID mirrors internal/trace/inspect getSessionPath rules for the id segment.
 func validateSessionID(id string) bool {
-	stringValue2 := str.String(id)
-	id = stringValue2.Trim()
+	idValue := str.String(id)
+	id = idValue.Trim()
 	if id == "" {
 		return false
 	}
@@ -219,8 +219,8 @@ func validateSessionID(id string) bool {
 // SessionIDFromTraceFilename returns the storage session id from a time-prefixed trace file basename without ".jsonl".
 // Filenames are "<UTC>Z-<session_id>"; the segment after "Z-" is the id. If "Z-" is absent, the whole stem is returned.
 func SessionIDFromTraceFilename(stem string) string {
-	stringValue3 := str.String(stem)
-	stem = stringValue3.Trim()
+	stemValue := str.String(stem)
+	stem = stemValue.Trim()
 	if _, after, ok := strings.Cut(stem, "Z-"); ok {
 		return after
 	}
@@ -232,8 +232,8 @@ func SessionIDFromTraceFilename(stem string) string {
 // It looks for exactly one file matching "*<session_id>.jsonl" (time-prefixed names included).
 // If none exist, it returns [os.ErrNotExist]. If more than one match, it returns [ErrAmbiguousTraceFiles].
 func ResolveTraceFilePath(directory, sessionID string) (string, error) {
-	stringValue4 := str.String(directory)
-	directory = stringValue4.Trim()
+	directoryValue2 := str.String(directory)
+	directory = directoryValue2.Trim()
 	if !validateSessionID(sessionID) || directory == "" {
 		return "", os.ErrNotExist
 	}
@@ -412,10 +412,10 @@ func (s *jsonlSession) Record(eventType string, payload any) {
 }
 
 func (s *jsonlSession) recordUnlocked(eventType string, payload any) {
-	stringValue6 := str.String(eventType)
+	eventTypeValue := str.String(eventType)
 	event := Event{
 		SessionID: s.id,
-		Type:      stringValue6.Trim(),
+		Type:      eventTypeValue.Trim(),
 		Timestamp: time.Now().UTC(),
 	}
 	if payload != nil {
@@ -479,10 +479,10 @@ func (s *stateSession) Record(eventType string, payload any) {
 }
 
 func (s *stateSession) recordUnlocked(eventType string, payload any) {
-	stringValue7 := str.String(eventType)
+	eventTypeValue2 := str.String(eventType)
 	event := storage.TraceEvent{
 		SessionID: s.id,
-		Type:      stringValue7.Trim(),
+		Type:      eventTypeValue2.Trim(),
 		Timestamp: s.now().UTC(),
 	}
 	if payload != nil {

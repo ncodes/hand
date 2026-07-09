@@ -16,8 +16,8 @@ func (s *Store) SaveGatewayPairingRequest(ctx context.Context, request pairing.P
 	}
 
 	request.Source = normalizeGatewayPairingSource(request.Source)
-	stringValue1 := str.String(request.SenderID)
-	request.SenderID = stringValue1.Trim()
+	senderIDValue := str.String(request.SenderID)
+	request.SenderID = senderIDValue.Trim()
 	if request.Source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -44,8 +44,8 @@ func (s *Store) GetGatewayPairingRequest(
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	stringValue2 := str.String(senderID)
-	senderID = stringValue2.Trim()
+	senderIDValue2 := str.String(senderID)
+	senderID = senderIDValue2.Trim()
 	if source == "" {
 		return pairing.PendingRequest{}, false, errors.New("gateway pairing source is required")
 	}
@@ -100,8 +100,8 @@ func (s *Store) DeleteGatewayPairingRequest(ctx context.Context, source string, 
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	stringValue3 := str.String(senderID)
-	senderID = stringValue3.Trim()
+	senderIDValue3 := str.String(senderID)
+	senderID = senderIDValue3.Trim()
 	if source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -141,8 +141,8 @@ func (s *Store) SaveGatewayPairedSender(ctx context.Context, sender pairing.Appr
 	}
 
 	sender.Source = normalizeGatewayPairingSource(sender.Source)
-	stringValue4 := str.String(sender.SenderID)
-	sender.SenderID = stringValue4.Trim()
+	senderIDValue4 := str.String(sender.SenderID)
+	sender.SenderID = senderIDValue4.Trim()
 	if sender.Source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -169,8 +169,8 @@ func (s *Store) GetGatewayPairedSender(
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	stringValue5 := str.String(senderID)
-	senderID = stringValue5.Trim()
+	senderIDValue5 := str.String(senderID)
+	senderID = senderIDValue5.Trim()
 	if source == "" {
 		return pairing.ApprovedSender{}, false, errors.New("gateway pairing source is required")
 	}
@@ -225,8 +225,8 @@ func (s *Store) DeleteGatewayPairedSender(ctx context.Context, source string, se
 	}
 
 	source = normalizeGatewayPairingSource(source)
-	stringValue6 := str.String(senderID)
-	senderID = stringValue6.Trim()
+	senderIDValue6 := str.String(senderID)
+	senderID = senderIDValue6.Trim()
 	if source == "" {
 		return errors.New("gateway pairing source is required")
 	}
@@ -242,13 +242,13 @@ func (s *Store) DeleteGatewayPairedSender(ctx context.Context, source string, se
 }
 
 func gatewayPairingKey(source string, senderID string) string {
-	stringValue7 := str.String(senderID)
-	return normalizeGatewayPairingSource(source) + "\x00" + stringValue7.Trim()
+	senderIDValue7 := str.String(senderID)
+	return normalizeGatewayPairingSource(source) + "\x00" + senderIDValue7.Trim()
 }
 
 func normalizeGatewayPairingSource(source string) string {
-	stringValue8 := str.String(source)
-	return stringValue8.Normalized()
+	sourceValue := str.String(source)
+	return sourceValue.Normalized()
 }
 
 func cloneGatewayPairingMetadata(values map[string]string) map[string]string {
@@ -258,13 +258,13 @@ func cloneGatewayPairingMetadata(values map[string]string) map[string]string {
 
 	clone := make(map[string]string, len(values))
 	for key, value := range values {
-		stringValue9 := str.String(key)
-		key = stringValue9.Trim()
+		keyValue := str.String(key)
+		key = keyValue.Trim()
 		if key == "" {
 			continue
 		}
-		stringValue10 := str.String(value)
-		clone[key] = stringValue10.Trim()
+		valueText := str.String(value)
+		clone[key] = valueText.Trim()
 	}
 	if len(clone) == 0 {
 		return nil

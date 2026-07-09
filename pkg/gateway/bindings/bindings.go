@@ -48,14 +48,14 @@ func Telegram(chatID string, topicID string) (Key, error) {
 }
 
 func NewKey(parts Parts) (Key, error) {
-	stringValue1 := str.String(parts.Source)
-	source := stringValue1.Normalized()
-	stringValue2 := str.String(parts.AccountID)
-	accountID := stringValue2.Trim()
-	stringValue3 := str.String(parts.ConversationID)
-	conversationID := stringValue3.Trim()
-	stringValue4 := str.String(parts.ThreadID)
-	threadID := stringValue4.Trim()
+	sourceValue := str.String(parts.Source)
+	source := sourceValue.Normalized()
+	accountIDValue := str.String(parts.AccountID)
+	accountID := accountIDValue.Trim()
+	conversationIDValue := str.String(parts.ConversationID)
+	conversationID := conversationIDValue.Trim()
+	threadIDValue := str.String(parts.ThreadID)
+	threadID := threadIDValue.Trim()
 
 	if source == "" {
 		return "", errors.New("gateway binding source is required")
@@ -124,6 +124,6 @@ func unescape(value string) (string, error) {
 	if err != nil {
 		return "", errors.New("gateway binding key is invalid")
 	}
-	stringValue5 := str.String(unescaped)
-	return stringValue5.Trim(), nil
+	unescapedValue := str.String(unescaped)
+	return unescapedValue.Trim(), nil
 }

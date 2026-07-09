@@ -26,6 +26,7 @@ type AgentServiceStub struct {
 	Closed               bool
 	CreatedSession       storage.Session
 	CreatedSessionID     string
+	CreatedSessionOrigin storage.SessionOrigin
 	SavedGatewayBinding  storage.GatewayBinding
 	GatewayBinding       storage.GatewayBinding
 	GatewayBindingFound  bool
@@ -151,8 +152,8 @@ func (s *AgentServiceStub) SelectModel(_ context.Context, id string, opts ...age
 	if s.SelectModelErr != nil {
 		return models.Option{}, s.SelectModelErr
 	}
-	stringValue1 := str.String(s.SelectedModel.ID)
-	if stringValue1.Trim() != "" {
+	iDValue := str.String(s.SelectedModel.ID)
+	if iDValue.Trim() != "" {
 		return s.SelectedModel, s.Err
 	}
 
@@ -170,8 +171,19 @@ func (s *AgentServiceStub) Create(ctx context.Context, id string) (storage.Sessi
 	return s.CreateSession(ctx, id)
 }
 
-func (s *AgentServiceStub) CreateSession(_ context.Context, id string) (storage.Session, error) {
+func (s *AgentServiceStub) CreateSession(
+	_ context.Context,
+	id string,
+	opts ...storage.SessionCreateOptions,
+) (storage.Session, error) {
 	s.CreatedSessionID = id
+	if len(opts) > 0 {
+		s.CreatedSessionOrigin = opts[0].Origin
+		if s.CreatedSession.Origin == (storage.SessionOrigin{}) {
+			s.CreatedSession.Origin = opts[0].Origin
+		}
+	}
+
 	return s.CreatedSession, s.Err
 }
 
@@ -181,8 +193,8 @@ func (s *AgentServiceStub) SaveGatewayBinding(_ context.Context, binding storage
 }
 
 func (s *AgentServiceStub) GetGatewayBinding(_ context.Context, key string) (storage.GatewayBinding, bool, error) {
-	stringValue2 := str.String(s.GatewayBinding.Key)
-	if stringValue2.Trim() == "" {
+	keyValue := str.String(s.GatewayBinding.Key)
+	if keyValue.Trim() == "" {
 		s.GatewayBinding.Key = key
 	}
 
@@ -212,8 +224,8 @@ func (s *AgentServiceStub) ListGatewayPairingRequests(
 	_ context.Context,
 	source string,
 ) ([]pairing.PendingRequest, error) {
-	stringValue3 := str.String(source)
-	if stringValue3.Trim() == "" {
+	sourceValue := str.String(source)
+	if sourceValue.Trim() == "" {
 		return s.PairingRequests, s.Err
 	}
 
@@ -243,8 +255,8 @@ func (s *AgentServiceStub) ClearGatewayPairingRequests(_ context.Context, source
 	s.ClearedPairingSource = source
 	var kept []pairing.PendingRequest
 	for _, request := range s.PairingRequests {
-		stringValue4 := str.String(source)
-		if stringValue4.Trim() == "" || request.Source == source {
+		sourceValue2 := str.String(source)
+		if sourceValue2.Trim() == "" || request.Source == source {
 			continue
 		}
 		kept = append(kept, request)
@@ -273,8 +285,8 @@ func (s *AgentServiceStub) GetGatewayPairedSender(
 }
 
 func (s *AgentServiceStub) ListGatewayPairedSenders(_ context.Context, source string) ([]pairing.ApprovedSender, error) {
-	stringValue5 := str.String(source)
-	if stringValue5.Trim() == "" {
+	sourceValue3 := str.String(source)
+	if sourceValue3.Trim() == "" {
 		return s.PairedSenders, s.Err
 	}
 
@@ -447,8 +459,8 @@ func (s *AgentServiceStub) UnarchiveSession(_ context.Context, id string) (stora
 	if s.UnarchiveSessionErr != nil {
 		return storage.Session{}, s.UnarchiveSessionErr
 	}
-	stringValue6 := str.String(s.UnarchivedSession.ID)
-	if stringValue6.Trim() != "" {
+	iDValue2 := str.String(s.UnarchivedSession.ID)
+	if iDValue2.Trim() != "" {
 		return s.UnarchivedSession, s.Err
 	}
 	return storage.Session{ID: id}, s.Err
@@ -464,8 +476,8 @@ func (s *AgentServiceStub) RenameSession(_ context.Context, id string, title str
 	if s.RenameSessionErr != nil {
 		return storage.Session{}, s.RenameSessionErr
 	}
-	stringValue7 := str.String(s.RenamedSession.ID)
-	if stringValue7.Trim() != "" {
+	iDValue3 := str.String(s.RenamedSession.ID)
+	if iDValue3.Trim() != "" {
 		return s.RenamedSession, s.Err
 	}
 	return storage.Session{ID: id, Title: title, TitleSource: storage.SessionTitleSourceManual}, s.Err
@@ -476,9 +488,9 @@ func (s *AgentServiceStub) Current(ctx context.Context) (storage.Session, error)
 }
 
 func (s *AgentServiceStub) CurrentSession(context.Context) (storage.Session, error) {
-	stringValue8 := str.String(s.CurrentSessionResult.ID)
-	stringValue9 := str.String(s.CurrentSessionResult.Title)
-	if stringValue8.Trim() != "" || stringValue9.Trim() != "" {
+	iDValue4 := str.String(s.CurrentSessionResult.ID)
+	titleValue := str.String(s.CurrentSessionResult.Title)
+	if iDValue4.Trim() != "" || titleValue.Trim() != "" {
 		return s.CurrentSessionResult, s.Err
 	}
 

@@ -63,11 +63,11 @@ func (p *ParallelProvider) Search(ctx context.Context, query string, count int) 
 
 	results := make([]SearchResult, 0, len(response.Results))
 	for idx, result := range response.Results {
-		stringValue1 := str.String(result.Title)
-		stringValue2 := str.String(result.URL)
+		titleValue := str.String(result.Title)
+		uRLValue := str.String(result.URL)
 		results = append(results, SearchResult{
-			Title:    stringValue1.Trim(),
-			URL:      stringValue2.Trim(),
+			Title:    titleValue.Trim(),
+			URL:      uRLValue.Trim(),
 			Snippet:  truncateToMaxChars(getFirstNonEmpty(strings.Join(result.Excerpts, " "), result.Snippet), p.maxCharsPerResult),
 			Position: idx + 1,
 		})
@@ -107,11 +107,11 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 			getFirstNonEmpty(result.FullContent, strings.Join(result.Excerpts, "\n\n")),
 			p.maxExtractResponseBytes,
 			maxChars)
-		stringValue3 := str.String(result.URL)
-		stringValue4 := str.String(result.Title)
+		uRLValue2 := str.String(result.URL)
+		titleValue2 := str.String(result.Title)
 		results = append(results, ExtractResult{
-			URL:               stringValue3.Trim(),
-			Title:             stringValue4.Trim(),
+			URL:               uRLValue2.Trim(),
+			Title:             titleValue2.Trim(),
 			Content:           content,
 			ContentFormat:     format,
 			Truncated:         truncated,
@@ -119,9 +119,9 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 		})
 	}
 	for _, result := range response.Errors {
-		stringValue5 := str.String(result.URL)
+		uRLValue3 := str.String(result.URL)
 		results = append(results, ExtractResult{
-			URL:           stringValue5.Trim(),
+			URL:           uRLValue3.Trim(),
 			ContentFormat: format,
 			Error:         getFirstNonEmpty(result.Content, result.ErrorType, "extraction failed"),
 		})

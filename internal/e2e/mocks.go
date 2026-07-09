@@ -47,14 +47,10 @@ func (s harnessAgentStub) CurrentSession(context.Context) (storage.Session, erro
 	return storage.Session{ID: s.current}, nil
 }
 
-func (s *harnessAgentStub) CreateSession(context.Context, string) (storage.Session, error) {
-	return s.CreateSessionWithOrigin(context.Background(), "", storage.SessionOrigin{})
-}
-
-func (s *harnessAgentStub) CreateSessionWithOrigin(
+func (s *harnessAgentStub) CreateSession(
 	context.Context,
 	string,
-	storage.SessionOrigin,
+	...storage.SessionCreateOptions,
 ) (storage.Session, error) {
 	if s.createErr != nil {
 		return storage.Session{}, s.createErr

@@ -14,8 +14,8 @@ import (
 
 // PreloadEnvFile loads environment variables from an optional env file before config resolution.
 func PreloadEnvFile(path string) error {
-	stringValue1 := str.String(path)
-	path = stringValue1.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	if path == "" {
 		path = ".env"
 	}
@@ -101,8 +101,8 @@ func (c *Config) ToYAML() ([]byte, error) {
 
 // SaveYAML writes cfg to path without overwriting an existing file.
 func SaveYAML(path string, cfg *Config) error {
-	stringValue2 := str.String(path)
-	path = stringValue2.Trim()
+	pathValue2 := str.String(path)
+	path = pathValue2.Trim()
 	if path == "" {
 		return errors.New("config path is required")
 	}
@@ -139,8 +139,8 @@ func Set(cfg *Config) {
 }
 
 func loadConfigFile(path string) (*Config, error) {
-	stringValue3 := str.String(path)
-	path = stringValue3.Trim()
+	pathValue3 := str.String(path)
+	path = pathValue3.Trim()
 	if path == "" {
 		path = "config.yaml"
 	}
@@ -246,21 +246,21 @@ func (c *Config) resolvePersonalitySoulPaths(baseDir string) {
 }
 
 func resolvePersonalitySoulPath(path string, baseDir string) string {
-	stringValue4 := str.String(path)
-	path = stringValue4.Trim()
+	pathValue4 := str.String(path)
+	path = pathValue4.Trim()
 	if path == "" || filepath.IsAbs(path) {
 		return path
 	}
-	stringValue5 := str.String(datadir.HomeDir())
-	profileHome := stringValue5.Trim()
+	homeDirValue := str.String(datadir.HomeDir())
+	profileHome := homeDirValue.Trim()
 	if profileHome != "" {
 		profilePath := filepath.Join(profileHome, path)
 		if _, err := os.Stat(profilePath); err == nil {
 			return profilePath
 		}
 	}
-	stringValue6 := str.String(baseDir)
-	baseDir = stringValue6.Trim()
+	baseDirValue := str.String(baseDir)
+	baseDir = baseDirValue.Trim()
 	if baseDir == "" {
 		return path
 	}

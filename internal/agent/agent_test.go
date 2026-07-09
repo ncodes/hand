@@ -216,7 +216,7 @@ func TestAgent_LifecycleHelpersValidateAndUseStateManager(t *testing.T) {
 	created, err := core.CreateSession(context.Background(), sessionID)
 	require.NoError(t, err)
 	require.Equal(t, sessionID, created.ID)
-	require.Equal(t, storage.SessionOrigin{Source: storage.SessionOriginSourceTerminal}, created.Origin)
+	require.Equal(t, storage.SessionOrigin{Source: storage.SessionOriginSourceCLI}, created.Origin)
 
 	current, err := core.CurrentSession(context.Background())
 	require.NoError(t, err)
@@ -274,9 +274,9 @@ func TestAgent_SessionOriginSourceUsesSupportedRuntimePlatform(t *testing.T) {
 		platform string
 		want     string
 	}{
-		{name: "cli", platform: "cli", want: storage.SessionOriginSourceTerminal},
-		{name: "empty", platform: "", want: storage.SessionOriginSourceTerminal},
-		{name: "spaced cli", platform: " CLI ", want: storage.SessionOriginSourceTerminal},
+		{name: "cli", platform: "cli", want: storage.SessionOriginSourceCLI},
+		{name: "empty", platform: "", want: storage.SessionOriginSourceCLI},
+		{name: "spaced cli", platform: " CLI ", want: storage.SessionOriginSourceCLI},
 		{name: "unsupported", platform: "desktop", want: ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

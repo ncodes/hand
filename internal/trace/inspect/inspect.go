@@ -335,8 +335,8 @@ type rawEvent struct {
 
 // NewStore returns a store backed by the supplied dependencies.
 func NewStore(directory string) *Store {
-	stringValue1 := str.String(directory)
-	return &Store{directory: stringValue1.Trim()}
+	directoryValue := str.String(directory)
+	return &Store{directory: directoryValue.Trim()}
 }
 
 func (s *Store) Validate() error {
@@ -424,10 +424,10 @@ func (s *Store) GetSession(id string) (SessionDetail, error) {
 }
 
 func getSessionPath(directory, id string) (string, error) {
-	stringValue3 := str.String(directory)
-	directory = stringValue3.Trim()
-	stringValue4 := str.String(id)
-	id = stringValue4.Trim()
+	directoryValue2 := str.String(directory)
+	directory = directoryValue2.Trim()
+	idValue := str.String(id)
+	id = idValue.Trim()
 	if directory == "" || id == "" {
 		return "", os.ErrNotExist
 	}
@@ -437,8 +437,8 @@ func getSessionPath(directory, id string) (string, error) {
 
 // LoadSessionFile loads session file.
 func LoadSessionFile(path string) (SessionDetail, error) {
-	stringValue5 := str.String(path)
-	path = stringValue5.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	if path == "" {
 		return SessionDetail{}, errors.New("trace session path is required")
 	}
@@ -623,13 +623,13 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		morphtrace.EvtSummaryParseFailed, morphtrace.EvtSummaryApplied,
 		morphtrace.EvtRecallSummaryRequested, morphtrace.EvtRecallSummarySaved, morphtrace.EvtRecallSummaryFailed:
 		if payload, ok := typedPayload.(morphtrace.SummaryEventPayload); payloadOK && ok {
-			stringValue6 := str.String(payload.Error)
+			errorValue := str.String(payload.Error)
 			timelineEvent.SummaryEvent = &SummaryEventView{
 				SessionID:          payload.SessionID,
 				SourceEndOffset:    payload.SourceEndOffset,
 				SourceMessageCount: payload.SourceMessageCount,
 				UpdatedAt:          payload.UpdatedAt,
-				Error:              stringValue6.Trim(),
+				Error:              errorValue.Trim(),
 			}
 
 			return
@@ -637,7 +637,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 	case morphtrace.EvtContextCompactionPending, morphtrace.EvtContextCompactionRunning,
 		morphtrace.EvtContextCompactionSucceeded, morphtrace.EvtContextCompactionFailed:
 		if payload, ok := typedPayload.(morphtrace.CompactionEventPayload); payloadOK && ok {
-			stringValue7 := str.String(payload.Error)
+			errorValue2 := str.String(payload.Error)
 			timelineEvent.CompactionEvent = &CompactionEventView{
 				SessionID:          payload.SessionID,
 				Status:             payload.Status,
@@ -648,7 +648,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 				StartedAt:          payload.StartedAt,
 				CompletedAt:        payload.CompletedAt,
 				FailedAt:           payload.FailedAt,
-				Error:              stringValue7.Trim(),
+				Error:              errorValue2.Trim(),
 			}
 
 			return
@@ -665,15 +665,15 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		}
 	case morphtrace.EvtPlanUpdated, morphtrace.EvtPlanCleared, morphtrace.EvtPlanHydrated:
 		if payload, ok := typedPayload.(morphtrace.PlanEventPayload); payloadOK && ok {
-			stringValue8 := str.String(payload.Explanation)
-			stringValue9 := str.String(payload.Source)
+			explanationValue := str.String(payload.Explanation)
+			sourceValue := str.String(payload.Source)
 			timelineEvent.PlanEvent = &PlanEventView{
 				SessionID:    payload.SessionID,
 				Steps:        planStepViewsFromPayload(payload.Steps),
 				Summary:      planSummaryViewFromPayload(payload.Summary),
 				ActiveStepID: payload.ActiveStepID,
-				Explanation:  stringValue8.Trim(),
-				Source:       stringValue9.Trim(),
+				Explanation:  explanationValue.Trim(),
+				Source:       sourceValue.Trim(),
 			}
 			return
 		}
@@ -681,18 +681,18 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		morphtrace.EvtToolOutputSafetyApplied, morphtrace.EvtLoadedContentSafetyBlocked,
 		morphtrace.EvtMemorySafetyBlocked:
 		if payload, ok := typedPayload.(morphtrace.SafetyEventPayload); payloadOK && ok {
-			stringValue10 := str.String(payload.SessionID)
-			stringValue11 := str.String(payload.Source)
-			stringValue12 := str.String(payload.Action)
-			stringValue13 := str.String(payload.Refusal)
+			sessionIDValue := str.String(payload.SessionID)
+			sourceValue2 := str.String(payload.Source)
+			actionValue := str.String(payload.Action)
+			refusalValue := str.String(payload.Refusal)
 			timelineEvent.SafetyEvent = &SafetyEventView{
-				SessionID:     stringValue10.Trim(),
-				Source:        stringValue11.Trim(),
-				Action:        stringValue12.Trim(),
+				SessionID:     sessionIDValue.Trim(),
+				Source:        sourceValue2.Trim(),
+				Action:        actionValue.Trim(),
 				ContentLength: payload.ContentLength,
 				Blocked:       payload.Blocked,
 				Redacted:      payload.Redacted,
-				Refusal:       stringValue13.Trim(),
+				Refusal:       refusalValue.Trim(),
 				Findings:      payload.Findings,
 			}
 			return
@@ -866,8 +866,8 @@ func compactJSON(value []byte) string {
 
 	var out bytes.Buffer
 	if err := json.Compact(&out, value); err != nil {
-		stringValue16 := str.String(string(value))
-		return stringValue16.Trim()
+		value := str.String(string(value))
+		return value.Trim()
 	}
 
 	return out.String()
@@ -875,8 +875,8 @@ func compactJSON(value []byte) string {
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		stringValue17 := str.String(value)
-		value = stringValue17.Trim()
+		value2 := str.String(value)
+		value = value2.Trim()
 		if value != "" {
 			return value
 		}

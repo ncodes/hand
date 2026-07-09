@@ -179,11 +179,11 @@ func alignHeaderInfoPanel(info string, targetHeight int) string {
 
 // getModelDisplayName removes the provider or owner prefix from a model identifier.
 func getModelDisplayName(name string) string {
-	stringValue3 := str.String(name)
-	name = stringValue3.Trim()
+	nameValue := str.String(name)
+	name = nameValue.Trim()
 	if _, model, ok := strings.Cut(name, "/"); ok {
-		stringValue4 := str.String(model)
-		return stringValue4.Trim()
+		modelValue := str.String(model)
+		return modelValue.Trim()
 	}
 
 	return name

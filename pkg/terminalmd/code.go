@@ -15,8 +15,8 @@ func (r *Renderer) renderCode(language []byte, source []byte, indent string) str
 	if code == "" {
 		return ""
 	}
-	stringValue1 := str.String(string(language))
-	languageName := stringValue1.Trim()
+	languageValue := str.String(string(language))
+	languageName := languageValue.Trim()
 	if isMermaidLanguage(languageName) {
 		return r.renderMermaidDiagram(code, indent)
 	}

@@ -45,15 +45,15 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
-			stringValue1 := str.String(req.Patch)
-			if stringValue1.Trim() == "" {
+			patchValue := str.String(req.Patch)
+			if patchValue.Trim() == "" {
 				return common.ToolError("invalid_input", "patch is required"), nil
 			}
-			stringValue2 := str.String(req.Patch)
+			patchValue2 := str.String(req.Patch)
 			log.Info().
 				Str("tool", "patch").
 				Str("phase", "start").
-				Int("patch_chars", len([]rune(stringValue2.Trim()))).
+				Int("patch_chars", len([]rune(patchValue2.Trim()))).
 				Int("strip", req.Strip).
 				Msg("patch tool started")
 
@@ -171,8 +171,8 @@ func patchSourceBytes(file *gitdiff.File, absolutePath string) ([]byte, error) {
 }
 
 func stripPath(path string, strip int) string {
-	stringValue3 := str.String(path)
-	path = stringValue3.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	path = strings.TrimPrefix(path, "a/")
 	path = strings.TrimPrefix(path, "b/")
 	if path == "/dev/null" {

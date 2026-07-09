@@ -81,12 +81,12 @@ func NewService(api morphagent.ServiceAPI) *Service {
 }
 
 func NewServiceWithOptions(api morphagent.ServiceAPI, opts ServiceOptions) *Service {
-	stringValue1 := str.String(opts.GatewayPairingSecret)
+	gatewayPairingSecretValue := str.String(opts.GatewayPairingSecret)
 	return &Service{
 		api:                  api,
 		automation:           opts.Automation,
 		runtimeModel:         normalizeModelRuntime(opts.RuntimeModel),
-		gatewayPairingSecret: stringValue1.Trim(),
+		gatewayPairingSecret: gatewayPairingSecretValue.Trim(),
 		gatewayConfig:        opts.GatewayConfig,
 		gatewayRuntime:       opts.GatewayRuntime,
 	}
@@ -110,12 +110,12 @@ func ModelRuntimeFromConfig(cfg *config.Config) ModelRuntime {
 }
 
 func normalizeModelRuntime(runtime ModelRuntime) ModelRuntime {
-	stringValue2 := str.String(runtime.Provider)
-	runtime.Provider = stringValue2.Normalized()
-	stringValue3 := str.String(runtime.API)
-	runtime.API = stringValue3.Normalized()
-	stringValue4 := str.String(runtime.Model)
-	runtime.Model = stringValue4.Trim()
+	providerValue := str.String(runtime.Provider)
+	runtime.Provider = providerValue.Normalized()
+	aPIValue := str.String(runtime.API)
+	runtime.API = aPIValue.Normalized()
+	modelValue := str.String(runtime.Model)
+	runtime.Model = modelValue.Trim()
 	runtime.BaseURL = normalizeRuntimeModelBaseURL(runtime.BaseURL)
 	if runtime.ContextLength < 0 {
 		runtime.ContextLength = 0
@@ -125,8 +125,8 @@ func normalizeModelRuntime(runtime ModelRuntime) ModelRuntime {
 }
 
 func normalizeRuntimeModelBaseURL(value string) string {
-	stringValue5 := str.String(value)
-	return strings.TrimRight(stringValue5.Trim(), "/")
+	valueText := str.String(value)
+	return strings.TrimRight(valueText.Trim(), "/")
 }
 
 // Respond sends a chat request to the service and returns the completed response.
@@ -197,8 +197,8 @@ func (s *Service) Respond(req *morphpb.RespondRequest, stream morphpb.MorphServi
 }
 
 func eventToProtoRespondEvent(event agent.Event) (*morphpb.RespondEvent, bool) {
-	stringValue6 := str.String(event.Kind)
-	kind := stringValue6.Trim()
+	kindValue := str.String(event.Kind)
+	kind := kindValue.Trim()
 	if kind == agent.EventKindTrace {
 		traceEvent, ok := traceEventFromAgentEvent(event)
 		if !ok {
@@ -232,8 +232,8 @@ func traceEventFromAgentEvent(event agent.Event) (trace.Event, bool) {
 }
 
 func agentChannelToProtoStreamChannel(channel string) morphpb.RespondEvent_Channel {
-	stringValue7 := str.String(channel)
-	switch stringValue7.Normalized() {
+	channelValue := str.String(channel)
+	switch channelValue.Normalized() {
 	case "reasoning":
 		return morphpb.RespondEvent_REASONING
 	default:
@@ -242,8 +242,8 @@ func agentChannelToProtoStreamChannel(channel string) morphpb.RespondEvent_Chann
 }
 
 func traceEventToProtoRespondEvent(event trace.Event) (*morphpb.RespondEvent, bool) {
-	stringValue8 := str.String(event.Type)
-	event.Type = stringValue8.Trim()
+	trimmedValueValue := str.String(event.Type)
+	event.Type = trimmedValueValue.Trim()
 	if event.Type == "" {
 		return nil, false
 	}
@@ -257,10 +257,10 @@ func traceEventToProtoRespondEvent(event trace.Event) (*morphpb.RespondEvent, bo
 	if err != nil {
 		return nil, false
 	}
-	stringValue9 := str.String(event.SessionID)
+	sessionIDValue := str.String(event.SessionID)
 	protoEvent := &morphpb.RespondEvent{
 		Type:             morphpb.RespondEvent_TRACE_EVENT,
-		TraceSessionId:   stringValue9.Trim(),
+		TraceSessionId:   sessionIDValue.Trim(),
 		TraceType:        event.Type,
 		TracePayloadJson: string(payloadJSON),
 	}
@@ -282,11 +282,11 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		stringValue10 := str.String(toolPayload.ID)
-		stringValue11 := str.String(toolPayload.Name)
+		iDValue := str.String(toolPayload.ID)
+		nameValue := str.String(toolPayload.Name)
 		result := rpcToolInvocationStartedPayload{
-			ID:     stringValue10.Trim(),
-			Name:   stringValue11.Trim(),
+			ID:     iDValue.Trim(),
+			Name:   nameValue.Trim(),
 			Detail: getRPCTraceToolDetail(toolPayload.Name, toolPayload.Input),
 		}
 		result.PlanState = toolPayload.PlanState
@@ -297,11 +297,11 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		stringValue12 := str.String(toolPayload.ToolCallID)
-		stringValue13 := str.String(toolPayload.Name)
+		toolCallIDValue := str.String(toolPayload.ToolCallID)
+		nameValue2 := str.String(toolPayload.Name)
 		result := rpcToolInvocationCompletedPayload{
-			ToolCallID: stringValue12.Trim(),
-			Name:       stringValue13.Trim(),
+			ToolCallID: toolCallIDValue.Trim(),
+			Name:       nameValue2.Trim(),
 		}
 		result.PlanState = toolPayload.PlanState
 		result.ProcessState = toolPayload.ProcessState
@@ -315,13 +315,13 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		stringValue14 := str.String(safetyPayload.Action)
-		stringValue15 := str.String(safetyPayload.Refusal)
+		actionValue := str.String(safetyPayload.Action)
+		refusalValue := str.String(safetyPayload.Refusal)
 		result := rpcSafetyEventPayload{
-			Action:   stringValue14.Trim(),
+			Action:   actionValue.Trim(),
 			Blocked:  safetyPayload.Blocked,
 			Redacted: safetyPayload.Redacted,
-			Refusal:  stringValue15.Trim(),
+			Refusal:  refusalValue.Trim(),
 			Findings: getRPCSafetyFindingSummaries(safetyPayload.Findings),
 		}
 		return result, true
@@ -330,11 +330,11 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		stringValue16 := str.String(sessionPayload.Error)
-		stringValue17 := str.String(sessionPayload.Message)
+		errorValue := str.String(sessionPayload.Error)
+		messageValue := str.String(sessionPayload.Message)
 		result := trace.SessionFailedPayload{
-			Error:   stringValue16.Trim(),
-			Message: stringValue17.Trim(),
+			Error:   errorValue.Trim(),
+			Message: messageValue.Trim(),
 		}
 		return result, result.Error != "" || result.Message != ""
 	case trace.EvtPlanUpdated,
@@ -344,15 +344,15 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		stringValue18 := str.String(planPayload.SessionID)
-		stringValue19 := str.String(planPayload.Source)
-		stringValue20 := str.String(planPayload.ActiveStepID)
-		stringValue21 := str.String(planPayload.Explanation)
+		sessionIDValue2 := str.String(planPayload.SessionID)
+		sourceValue := str.String(planPayload.Source)
+		activeStepIDValue := str.String(planPayload.ActiveStepID)
+		explanationValue := str.String(planPayload.Explanation)
 		result := rpcPlanPayload{
-			SessionID:    stringValue18.Trim(),
-			Source:       stringValue19.Trim(),
-			ActiveStepID: stringValue20.Trim(),
-			Explanation:  stringValue21.Trim(),
+			SessionID:    sessionIDValue2.Trim(),
+			Source:       sourceValue.Trim(),
+			ActiveStepID: activeStepIDValue.Trim(),
+			Explanation:  explanationValue.Trim(),
 			Steps:        getRPCPlanSteps(planPayload.Steps),
 			Summary:      getRPCPlanSummary(planPayload.Summary),
 			Changes:      append([]trace.PlanToolChange(nil), planPayload.Changes...),
@@ -366,12 +366,12 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		stringValue22 := str.String(compactionPayload.SessionID)
-		stringValue23 := str.String(compactionPayload.Status)
-		stringValue24 := str.String(compactionPayload.Error)
+		sessionIDValue3 := str.String(compactionPayload.SessionID)
+		statusValue := str.String(compactionPayload.Status)
+		errorValue2 := str.String(compactionPayload.Error)
 		return trace.CompactionEventPayload{
-			SessionID:          stringValue22.Trim(),
-			Status:             stringValue23.Trim(),
+			SessionID:          sessionIDValue3.Trim(),
+			Status:             statusValue.Trim(),
 			Auto:               compactionPayload.Auto,
 			TargetMessageCount: compactionPayload.TargetMessageCount,
 			TargetOffset:       compactionPayload.TargetOffset,
@@ -379,7 +379,7 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 			StartedAt:          compactionPayload.StartedAt,
 			CompletedAt:        compactionPayload.CompletedAt,
 			FailedAt:           compactionPayload.FailedAt,
-			Error:              stringValue24.Trim(),
+			Error:              errorValue2.Trim(),
 		}, true
 	case trace.EvtModelReasoningCompleted:
 		reasoningPayload, ok := typedPayload.(trace.ModelReasoningCompletedPayload)
@@ -393,11 +393,11 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		stringValue25 := str.String(finalPayload.Message)
-		stringValue26 := str.String(finalPayload.Text)
+		messageValue2 := str.String(finalPayload.Message)
+		textValue := str.String(finalPayload.Text)
 		result := trace.FinalAssistantResponsePayload{
-			Message: stringValue25.Trim(),
-			Text:    stringValue26.Trim(),
+			Message: messageValue2.Trim(),
+			Text:    textValue.Trim(),
 		}
 		return result, result.Message != "" || result.Text != ""
 	default:
@@ -460,11 +460,11 @@ type rpcPlanPayload struct {
 }
 
 func getRPCTraceToolDetail(name string, input string) string {
-	stringValue27 := str.String(name)
-	toolName := stringValue27.Trim()
+	nameValue3 := str.String(name)
+	toolName := nameValue3.Trim()
 	action := getRPCToolActionName(toolName)
-	stringValue28 := str.String(toolName)
-	if stringValue28.Trim() == "" || action == "" {
+	toolNameValue := str.String(toolName)
+	if toolNameValue.Trim() == "" || action == "" {
 		return ""
 	}
 
@@ -493,8 +493,8 @@ func getRPCTraceToolDetail(name string, input string) string {
 }
 
 func getRPCTraceToolInputFields(input string) map[string]any {
-	stringValue29 := str.String(input)
-	inputText := stringValue29.Trim()
+	inputValue := str.String(input)
+	inputText := inputValue.Trim()
 	if inputText == "" {
 		return nil
 	}
@@ -524,8 +524,8 @@ func getRPCRunToolDetail(inputFields map[string]any) string {
 	command = appendRPCToolTimeout(command, inputFields["timeout_seconds"])
 
 	sanitized, _ := guardrails.NewRedactor().Sanitize(command).(string)
-	stringValue30 := str.String(sanitized)
-	return stringValue30.Trim()
+	sanitizedValue := str.String(sanitized)
+	return sanitizedValue.Trim()
 }
 
 func getRPCSearchToolDetail(inputFields map[string]any) string {
@@ -565,8 +565,8 @@ func getRPCPathToolDetail(name string, inputFields map[string]any) string {
 	if path == "" {
 		return ""
 	}
-	stringValue31 := str.String(name)
-	return stringValue31.Trim() + " " + path
+	nameValue4 := str.String(name)
+	return nameValue4.Trim() + " " + path
 }
 
 func getRPCPatchToolDetail(name string, inputFields map[string]any) string {
@@ -575,8 +575,8 @@ func getRPCPatchToolDetail(name string, inputFields map[string]any) string {
 	if path == "" {
 		path = getRPCDisplayPath(inputFields)
 	}
-	stringValue32 := str.String(name)
-	parts := []string{stringValue32.Trim()}
+	nameValue5 := str.String(name)
+	parts := []string{nameValue5.Trim()}
 	if path != "" {
 		parts = append(parts, path)
 	}
@@ -605,15 +605,15 @@ func getRPCPatchToolSummary(patch string) (string, int, int) {
 	for _, line := range strings.Split(patch, "\n") {
 		switch {
 		case strings.HasPrefix(line, "+++ "):
-			stringValue33 := str.String(strings.TrimPrefix(line, "+++ "))
-			candidate := normalizeRPCPatchToolPath(stringValue33.Trim())
+			trimPrefixValue := str.String(strings.TrimPrefix(line, "+++ "))
+			candidate := normalizeRPCPatchToolPath(trimPrefixValue.Trim())
 			if candidate != "" && candidate != "/dev/null" {
 				path = candidate
 			}
 		case strings.HasPrefix(line, "--- "):
 			if path == "" {
-				stringValue34 := str.String(strings.TrimPrefix(line, "--- "))
-				candidate := normalizeRPCPatchToolPath(stringValue34.Trim())
+				trimPrefixValue2 := str.String(strings.TrimPrefix(line, "--- "))
+				candidate := normalizeRPCPatchToolPath(trimPrefixValue2.Trim())
 				if candidate != "" && candidate != "/dev/null" {
 					path = candidate
 				}
@@ -634,16 +634,16 @@ func getRPCPatchToolSummary(patch string) (string, int, int) {
 }
 
 func normalizeRPCPatchToolPath(path string) string {
-	stringValue35 := str.String(path)
-	path = stringValue35.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	path = strings.TrimPrefix(path, "a/")
 	path = strings.TrimPrefix(path, "b/")
 	return strings.Trim(path, `"`)
 }
 
 func isRPCGenericToolDetailEnabled(name string) bool {
-	stringValue36 := str.String(name)
-	switch stringValue36.Normalized() {
+	nameValue6 := str.String(name)
+	switch nameValue6.Normalized() {
 	case "list_files":
 		return true
 	default:
@@ -652,16 +652,16 @@ func isRPCGenericToolDetailEnabled(name string) bool {
 }
 
 func getRPCGenericToolDetail(name string, inputFields map[string]any) string {
-	stringValue37 := str.String(name)
-	name = stringValue37.Trim()
+	nameValue7 := str.String(name)
+	name = nameValue7.Trim()
 	if name == "" || len(inputFields) == 0 {
 		return ""
 	}
 
 	keys := make([]string, 0, len(inputFields))
 	for key, value := range inputFields {
-		stringValue38 := str.String(key)
-		if stringValue38.Trim() == "" || isRPCEmptyToolInputValue(value) {
+		keyValue := str.String(key)
+		if keyValue.Trim() == "" || isRPCEmptyToolInputValue(value) {
 			continue
 		}
 		keys = append(keys, key)
@@ -673,8 +673,8 @@ func getRPCGenericToolDetail(name string, inputFields map[string]any) string {
 
 	parts := make([]string, 0, len(keys))
 	for _, key := range keys {
-		stringValue39 := str.String(key)
-		parts = append(parts, stringValue39.Trim()+"="+formatRPCGenericToolInputValue(key, inputFields[key]))
+		keyValue2 := str.String(key)
+		parts = append(parts, keyValue2.Trim()+"="+formatRPCGenericToolInputValue(key, inputFields[key]))
 	}
 
 	return name + "(" + strings.Join(parts, " ") + ")"
@@ -685,8 +685,8 @@ func isRPCEmptyToolInputValue(value any) bool {
 	case nil:
 		return true
 	case string:
-		stringValue40 := str.String(typed)
-		return stringValue40.Trim() == ""
+		typedValue := str.String(typed)
+		return typedValue.Trim() == ""
 	case []any:
 		return len(typed) == 0
 	case map[string]any:
@@ -717,8 +717,8 @@ func formatRPCGenericToolInputValue(key string, value any) string {
 	switch typed := value.(type) {
 	case string:
 		sanitized, _ := guardrails.NewRedactor().Sanitize(typed).(string)
-		stringValue41 := str.String(key)
-		if strings.EqualFold(stringValue41.Trim(), "path") {
+		keyValue3 := str.String(key)
+		if strings.EqualFold(keyValue3.Trim(), "path") {
 			return shortenRPCTraceToolPath(sanitized, 42)
 		}
 		return truncateRPCTraceToolDetail(sanitized, 60)
@@ -741,8 +741,8 @@ func formatRPCGenericToolInputValue(key string, value any) string {
 func getRPCMapString(fields map[string]any, keys ...string) string {
 	for _, key := range keys {
 		value, _ := fields[key].(string)
-		stringValue42 := str.String(value)
-		if value = stringValue42.Trim(); value != "" {
+		value2 := str.String(value)
+		if value = value2.Trim(); value != "" {
 			return value
 		}
 	}
@@ -759,8 +759,8 @@ func getRPCStringSlice(raw any) []string {
 	result := make([]string, 0, len(values))
 	for _, value := range values {
 		text, _ := value.(string)
-		stringValue43 := str.String(text)
-		if text = stringValue43.Trim(); text != "" {
+		textValue2 := str.String(text)
+		if text = textValue2.Trim(); text != "" {
 			result = append(result, text)
 		}
 	}
@@ -769,8 +769,8 @@ func getRPCStringSlice(raw any) []string {
 }
 
 func getRPCToolActionName(name string) string {
-	stringValue44 := str.String(name)
-	normalized := stringValue44.Normalized()
+	nameValue8 := str.String(name)
+	normalized := nameValue8.Normalized()
 	normalized = strings.ReplaceAll(normalized, "-", "_")
 	switch normalized {
 	case "read", "read_file", "view_file", "open_file", "cat":
@@ -825,8 +825,8 @@ func appendRPCToolTimeout(command string, raw any) string {
 }
 
 func shortenRPCTraceToolPath(path string, limit int) string {
-	stringValue45 := str.String(path)
-	path = strings.Join(strings.Fields(stringValue45.Trim()), " ")
+	pathValue2 := str.String(path)
+	path = strings.Join(strings.Fields(pathValue2.Trim()), " ")
 	if limit <= 0 {
 		return path
 	}
@@ -866,8 +866,8 @@ func shortenRPCTraceToolPath(path string, limit int) string {
 }
 
 func humanizeRPCToolActionName(name string) string {
-	stringValue46 := str.String(name)
-	parts := strings.FieldsFunc(stringValue46.Trim(), func(r rune) bool {
+	nameValue9 := str.String(name)
+	parts := strings.FieldsFunc(nameValue9.Trim(), func(r rune) bool {
 		return r == '_' || r == '-' || r == ' '
 	})
 	for index, part := range parts {
@@ -880,8 +880,8 @@ func humanizeRPCToolActionName(name string) string {
 }
 
 func truncateRPCTraceToolDetail(value string, limit int) string {
-	stringValue47 := str.String(value)
-	value = strings.Join(strings.Fields(stringValue47.Trim()), " ")
+	value3 := str.String(value)
+	value = strings.Join(strings.Fields(value3.Trim()), " ")
 	if limit <= 0 {
 		return value
 	}
@@ -900,13 +900,13 @@ func truncateRPCTraceToolDetail(value string, limit int) string {
 func getRPCSafetyFindingSummaries(findings []map[string]string) []rpcSafetyFindingSummary {
 	summaries := make([]rpcSafetyFindingSummary, 0, len(findings))
 	for _, finding := range findings {
-		stringValue48 := str.String(finding["id"])
-		stringValue49 := str.String(finding["category"])
-		stringValue50 := str.String(finding["severity"])
+		findingValue := str.String(finding["id"])
+		findingValue2 := str.String(finding["category"])
+		findingValue3 := str.String(finding["severity"])
 		summary := rpcSafetyFindingSummary{
-			ID:       stringValue48.Trim(),
-			Category: stringValue49.Trim(),
-			Severity: stringValue50.Trim(),
+			ID:       findingValue.Trim(),
+			Category: findingValue2.Trim(),
+			Severity: findingValue3.Trim(),
 		}
 		if summary.ID != "" || summary.Category != "" || summary.Severity != "" {
 			summaries = append(summaries, summary)
@@ -935,13 +935,13 @@ func getRPCPlanSteps(steps []trace.PlanStepPayload) []trace.PlanStepPayload {
 
 	result := make([]trace.PlanStepPayload, 0, len(steps))
 	for _, step := range steps {
-		stringValue51 := str.String(step.ID)
-		stringValue52 := str.String(step.Content)
-		stringValue53 := str.String(step.Status)
+		iDValue2 := str.String(step.ID)
+		contentValue := str.String(step.Content)
+		statusValue2 := str.String(step.Status)
 		item := trace.PlanStepPayload{
-			ID:      stringValue51.Trim(),
-			Content: stringValue52.Trim(),
-			Status:  stringValue53.Trim(),
+			ID:      iDValue2.Trim(),
+			Content: contentValue.Trim(),
+			Status:  statusValue2.Trim(),
 		}
 		if item.ID != "" || item.Content != "" || item.Status != "" {
 			result = append(result, item)
@@ -965,7 +965,7 @@ func (s *Service) Create(ctx context.Context, req *morphpb.CreateSessionRequest)
 		return nil, status.Error(codes.InvalidArgument, "create session request is required")
 	}
 
-	session, err := s.api.CreateSession(ctx, req.GetId())
+	session, err := s.createSession(ctx, req)
 	if err != nil {
 		return nil, getGRPCError(err)
 	}
@@ -976,6 +976,20 @@ func (s *Service) Create(ctx context.Context, req *morphpb.CreateSessionRequest)
 	}
 
 	return &morphpb.CreateSessionResponse{Session: sessionToProtoSummary(session)}, nil
+}
+
+func (s *Service) createSession(
+	ctx context.Context,
+	req *morphpb.CreateSessionRequest,
+) (storage.Session, error) {
+	originSource := str.String(req.GetOriginSource())
+	source := originSource.Trim()
+	if source == "" {
+		return s.api.CreateSession(ctx, req.GetId())
+	}
+	return s.api.CreateSession(ctx, req.GetId(), storage.SessionCreateOptions{
+		Origin: storage.SessionOrigin{Source: source},
+	})
 }
 
 func isCreateSessionAutoSwitchEnabled(req *morphpb.CreateSessionRequest) bool {
@@ -1000,7 +1014,10 @@ func (s *Service) List(ctx context.Context, req *morphpb.ListSessionsRequest) (*
 		return nil, status.Error(codes.InvalidArgument, "list sessions request is required")
 	}
 
-	sessions, err := s.api.ListSessions(ctx, storage.SessionListOptions{Archived: req.Archived})
+	sessions, err := s.api.ListSessions(ctx, storage.SessionListOptions{
+		Archived:     req.Archived,
+		OriginSource: req.GetOriginSource(),
+	})
 	if err != nil {
 		return nil, getGRPCError(err)
 	}
@@ -1058,11 +1075,11 @@ func (s *Service) ListModels(ctx context.Context, req *morphpb.ListModelsRequest
 	if err != nil {
 		return nil, getGRPCError(err)
 	}
-	stringValue54 := str.String(list.Provider)
-	stringValue55 := str.String(list.AuthType)
+	providerValue2 := str.String(list.Provider)
+	authTypeValue := str.String(list.AuthType)
 	return &morphpb.ListModelsResponse{
-		Provider: stringValue54.Trim(),
-		AuthType: stringValue55.Trim(),
+		Provider: providerValue2.Trim(),
+		AuthType: authTypeValue.Trim(),
 		Models:   modelOptionsToProto(list.Models),
 	}, nil
 }
@@ -1103,8 +1120,8 @@ func (s *Service) SetProviderAPIKey(
 	if err := s.api.SetProviderAPIKey(ctx, req.GetProvider(), req.GetApiKey()); err != nil {
 		return nil, getGRPCError(err)
 	}
-	stringValue56 := str.String(req.GetProvider())
-	return &morphpb.SetProviderAPIKeyResponse{Provider: stringValue56.Trim()}, nil
+	providerValue3 := str.String(req.GetProvider())
+	return &morphpb.SetProviderAPIKeyResponse{Provider: providerValue3.Trim()}, nil
 }
 
 func (s *Service) Use(ctx context.Context, req *morphpb.UseSessionRequest) (*morphpb.UseSessionResponse, error) {
@@ -1335,8 +1352,8 @@ func (s *Service) ListPairings(
 
 	source := ""
 	if req != nil {
-		stringValue57 := str.String(req.GetSource())
-		source = stringValue57.Trim()
+		sourceValue2 := str.String(req.GetSource())
+		source = sourceValue2.Trim()
 	}
 	pending, err := store.ListGatewayPairingRequests(ctx, source)
 	if err != nil {
@@ -1568,17 +1585,17 @@ func gatewayPairedSenderToProto(sender pairing.ApprovedSender) *morphpb.GatewayP
 }
 
 func gatewayStatusToProto(status gateway.Status) *morphpb.GatewayStatus {
-	stringValue58 := str.String(status.Address)
-	stringValue59 := str.String(status.SlackMode)
-	stringValue60 := str.String(status.TelegramMode)
-	stringValue61 := str.String(status.LastError)
+	addressValue := str.String(status.Address)
+	slackModeValue := str.String(status.SlackMode)
+	telegramModeValue := str.String(status.TelegramMode)
+	lastErrorValue := str.String(status.LastError)
 	return &morphpb.GatewayStatus{
 		State:        string(status.State),
-		Address:      stringValue58.Trim(),
+		Address:      addressValue.Trim(),
 		Port:         int32(status.Port),
-		SlackMode:    stringValue59.Trim(),
-		TelegramMode: stringValue60.Trim(),
-		LastError:    stringValue61.Trim(),
+		SlackMode:    slackModeValue.Trim(),
+		TelegramMode: telegramModeValue.Trim(),
+		LastError:    lastErrorValue.Trim(),
 	}
 }
 
@@ -1656,6 +1673,7 @@ func getGRPCError(err error) error {
 func sessionToProtoSummary(session storage.Session) *morphpb.SessionSummary {
 	return &morphpb.SessionSummary{
 		Id:            session.ID,
+		OriginSource:  session.Origin.Source,
 		Title:         session.Title,
 		TitleSource:   session.TitleSource,
 		UpdatedAtUnix: session.UpdatedAt.Unix(),
@@ -1760,13 +1778,13 @@ func timelineMessageToProto(record morphagent.SessionTimelineMessage) *morphpb.S
 		ToolCalls:  make([]*morphpb.SessionTimelineToolCall, 0, len(message.ToolCalls)),
 	}
 	for _, toolCall := range message.ToolCalls {
-		stringValue62 := str.String(toolCall.ID)
-		stringValue63 := str.String(toolCall.Name)
-		stringValue64 := str.String(toolCall.Input)
+		iDValue3 := str.String(toolCall.ID)
+		nameValue10 := str.String(toolCall.Name)
+		inputValue2 := str.String(toolCall.Input)
 		protoMessage.ToolCalls = append(protoMessage.ToolCalls, &morphpb.SessionTimelineToolCall{
-			Id:    stringValue62.Trim(),
-			Name:  stringValue63.Trim(),
-			Input: stringValue64.Trim(),
+			Id:    iDValue3.Trim(),
+			Name:  nameValue10.Trim(),
+			Input: inputValue2.Trim(),
 		})
 	}
 
@@ -1783,11 +1801,11 @@ func timelineTraceEventToProto(event agentsession.TraceEvent) (*morphpb.SessionT
 	if err != nil {
 		return nil, false
 	}
-	stringValue65 := str.String(event.Type)
+	trimmedValueValue2 := str.String(event.Type)
 	return &morphpb.SessionTimelineTraceEvent{
 		Id:          uint64(event.ID),
 		Sequence:    int32(event.Sequence),
-		Type:        stringValue65.Trim(),
+		Type:        trimmedValueValue2.Trim(),
 		Timestamp:   timestamppb.New(event.Timestamp),
 		PayloadJson: string(payloadJSON),
 	}, true

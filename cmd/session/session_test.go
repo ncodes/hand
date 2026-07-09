@@ -58,16 +58,27 @@ func TestNewCommandSessionListCallsRPC(t *testing.T) {
 	sessionOutput = &output
 
 	stub := &agentstub.AgentServiceStub{Sessions: []storage.Session{
-		{ID: "default", Title: "Daily Planning", TitleSource: storage.SessionTitleSourceGenerated},
+		{
+			ID:          "default",
+			Origin:      storage.SessionOrigin{Source: storage.SessionOriginSourceCLI},
+			Title:       "Daily Planning",
+			TitleSource: storage.SessionTitleSourceGenerated,
+		},
 		{ID: "project-a"},
 	}}
 	newClient = func(context.Context, *config.Config) (sessionClient, error) {
 		return stub, nil
 	}
 
-	err := NewCommand().Run(context.Background(), []string{"session", "list"})
+	err := NewCommand().Run(context.Background(), []string{
+		"session",
+		"list",
+		"--source",
+		storage.SessionOriginSourceCLI,
+	})
 
 	require.NoError(t, err)
+	require.Equal(t, storage.SessionOriginSourceCLI, stub.ListOptions.OriginSource)
 	require.Equal(t, "Daily Planning (default)\nproject-a\n", output.String())
 }
 

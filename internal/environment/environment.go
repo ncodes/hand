@@ -361,8 +361,8 @@ func (e *environment) prepareTools() error {
 				},
 			),
 		)
-		stringValue1 := str.String(e.cfg.Web.Provider)
-		webProviderName := stringValue1.Normalized()
+		providerValue := str.String(e.cfg.Web.Provider)
+		webProviderName := providerValue.Normalized()
 		if webProviderName != "" && webProviderName != webprovider.ProviderNative {
 			definitions = append(definitions,
 				websearch.Definition(
@@ -634,8 +634,8 @@ func (e *environment) commandPolicy() guardrails.CommandPolicy {
 }
 
 func (e *environment) addInstruction(instruction instructions.Instruction) {
-	stringValue2 := str.String(instruction.Value)
-	if stringValue2.Trim() == "" {
+	value := str.String(instruction.Value)
+	if value.Trim() == "" {
 		return
 	}
 
@@ -643,10 +643,10 @@ func (e *environment) addInstruction(instruction instructions.Instruction) {
 }
 
 func (e *environment) setInstruction(instruction instructions.Instruction) {
-	stringValue3 := str.String(instruction.Name)
-	instruction.Name = stringValue3.Trim()
-	stringValue4 := str.String(instruction.Value)
-	instruction.Value = stringValue4.Trim()
+	nameValue := str.String(instruction.Name)
+	instruction.Name = nameValue.Trim()
+	value2 := str.String(instruction.Value)
+	instruction.Value = value2.Trim()
 
 	if instruction.Name == "" {
 		e.addInstruction(instruction)

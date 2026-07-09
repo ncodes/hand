@@ -78,9 +78,9 @@ func NewLiveClients(cfg *config.Config) (models.Client, models.Client, error) {
 
 // NewLiveHarness returns an e2e harness wired to live model clients.
 func NewLiveHarness(ctx context.Context, home, envFile, configFile string) (*Harness, error) {
-	stringValue1 := str.String(envFile)
-	stringValue2 := str.String(configFile)
-	cfg, err := loadLiveConfig(stringValue1.Trim(), stringValue2.Trim())
+	envFileValue := str.String(envFile)
+	configFileValue := str.String(configFile)
+	cfg, err := loadLiveConfig(envFileValue.Trim(), configFileValue.Trim())
 	if err != nil {
 		return nil, err
 	}
@@ -100,9 +100,9 @@ func NewLiveHarness(ctx context.Context, home, envFile, configFile string) (*Har
 
 // NewLiveRPCHarness returns an RPC e2e harness wired to live model clients.
 func NewLiveRPCHarness(ctx context.Context, home, envFile, configFile string) (*RPCHarness, error) {
-	stringValue3 := str.String(envFile)
-	stringValue4 := str.String(configFile)
-	cfg, err := loadLiveConfig(stringValue3.Trim(), stringValue4.Trim())
+	envFileValue2 := str.String(envFile)
+	configFileValue2 := str.String(configFile)
+	cfg, err := loadLiveConfig(envFileValue2.Trim(), configFileValue2.Trim())
 	if err != nil {
 		return nil, err
 	}
@@ -140,10 +140,10 @@ func liveClientRequest(
 
 // DefaultLiveArtifactDir returns the directory used for live e2e artifacts.
 func DefaultLiveArtifactDir(override string) string {
-	stringValue5 := str.String(override)
-	if stringValue5.Trim() != "" {
-		stringValue6 := str.String(override)
-		return stringValue6.Trim()
+	overrideValue := str.String(override)
+	if overrideValue.Trim() != "" {
+		overrideValue2 := str.String(override)
+		return overrideValue2.Trim()
 	}
 
 	return filepath.Join(os.TempDir(), "morph-live-artifacts")
@@ -157,17 +157,17 @@ func RunLiveScenario(
 	run func(string) (string, error),
 	check func(string) error,
 ) (LiveArtifact, error) {
-	stringValue7 := str.String(name)
-	stringValue8 := str.String(prompt)
+	nameValue := str.String(name)
+	promptValue := str.String(prompt)
 	artifact := LiveArtifact{
-		Scenario:  stringValue7.Trim(),
-		Prompt:    stringValue8.Trim(),
+		Scenario:  nameValue.Trim(),
+		Prompt:    promptValue.Trim(),
 		StartedAt: liveNow().UTC(),
 	}
 
 	output, runErr := run(prompt)
-	stringValue9 := str.String(output)
-	artifact.Output = stringValue9.Trim()
+	outputValue := str.String(output)
+	artifact.Output = outputValue.Trim()
 	artifact.FinishedAt = liveNow().UTC()
 
 	if runErr != nil {
@@ -200,8 +200,8 @@ func RunLiveScenario(
 
 // WriteLiveArtifact describes an artifact written during a live e2e run.
 func WriteLiveArtifact(dir string, artifact LiveArtifact) error {
-	stringValue10 := str.String(dir)
-	dir = stringValue10.Trim()
+	dirValue := str.String(dir)
+	dir = dirValue.Trim()
 	if dir == "" {
 		return nil
 	}
@@ -223,8 +223,8 @@ func WriteLiveArtifact(dir string, artifact LiveArtifact) error {
 }
 
 func sanitizeLiveArtifactName(name string) string {
-	stringValue11 := str.String(name)
-	name = stringValue11.Normalized()
+	nameValue2 := str.String(name)
+	name = nameValue2.Normalized()
 	if name == "" {
 		return ""
 	}
@@ -254,6 +254,6 @@ func checkOutput(check func(string) error, output string) error {
 	if check == nil {
 		return nil
 	}
-	stringValue12 := str.String(output)
-	return check(stringValue12.Trim())
+	outputValue2 := str.String(output)
+	return check(outputValue2.Trim())
 }

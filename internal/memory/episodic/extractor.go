@@ -176,8 +176,8 @@ func (s Service) extractWindow(
 		// least one candidate.
 		result.SkipCount = len(existing.Hits)
 		for _, hit := range existing.Hits {
-			stringValue1 := str.String(hit.Item.ID)
-			id := stringValue1.Trim()
+			iDValue := str.String(hit.Item.ID)
+			id := iDValue.Trim()
 			if id != "" {
 				result.SkippedIDs = append(result.SkippedIDs, id)
 			}
@@ -306,9 +306,9 @@ func (s Service) checkEpisodicCandidateRedundancy(
 
 	for _, hit := range result.Hits {
 		related := hit.Item
-		stringValue2 := str.String(related.ID)
-		stringValue3 := str.String(item.ID)
-		if stringValue2.Trim() == stringValue3.Trim() {
+		iDValue2 := str.String(related.ID)
+		iDValue3 := str.String(item.ID)
+		if iDValue2.Trim() == iDValue3.Trim() {
 			continue
 		}
 		fields := getEpisodicRejectionTraceFields(item, related, hit.Score)
@@ -331,28 +331,28 @@ func getEpisodicRejectionTraceFields(
 	related storage.MemoryItem,
 	score float64,
 ) map[string]any {
-	stringValue4 := str.String(candidate.ID)
-	stringValue5 := str.String(candidate.Title)
-	stringValue6 := str.String(candidate.Text)
-	stringValue7 := str.String(related.ID)
-	stringValue8 := str.String(related.Metadata["candidate_kind"])
-	stringValue9 := str.String(related.Title)
+	iDValue4 := str.String(candidate.ID)
+	titleValue := str.String(candidate.Title)
+	textValue := str.String(candidate.Text)
+	iDValue5 := str.String(related.ID)
+	metadataValue := str.String(related.Metadata["candidate_kind"])
+	titleValue2 := str.String(related.Title)
 	return map[string]any{
-		"candidate_memory_id":    stringValue4.Trim(),
-		"candidate_title":        truncateRunes(stringValue5.Trim(), 120),
-		"candidate_text_chars":   len([]rune(stringValue6.Trim())),
-		"related_memory_id":      stringValue7.Trim(),
+		"candidate_memory_id":    iDValue4.Trim(),
+		"candidate_title":        truncateRunes(titleValue.Trim(), 120),
+		"candidate_text_chars":   len([]rune(textValue.Trim())),
+		"related_memory_id":      iDValue5.Trim(),
 		"related_memory_kind":    string(related.Kind),
 		"related_memory_status":  string(related.Status),
-		"related_candidate_kind": stringValue8.Trim(),
-		"related_title":          truncateRunes(stringValue9.Trim(), 120),
+		"related_candidate_kind": metadataValue.Trim(),
+		"related_title":          truncateRunes(titleValue2.Trim(), 120),
 		"related_score":          score,
 	}
 }
 
 func (s Service) normalizeRequest(ctx context.Context, req Request) (normalizedRequest, error) {
-	stringValue10 := str.String(req.SessionID)
-	sessionID := stringValue10.Trim()
+	sessionIDValue := str.String(req.SessionID)
+	sessionID := sessionIDValue.Trim()
 	if sessionID == "" {
 		currentSessionID, err := s.manager.CurrentSession(ctx)
 		if err != nil {
@@ -413,8 +413,8 @@ func (s Service) normalizeRequest(ctx context.Context, req Request) (normalizedR
 	if maxTokens > MaxWindowTokens {
 		maxTokens = MaxWindowTokens
 	}
-	stringValue11 := str.String(req.Trigger)
-	trigger := stringValue11.Trim()
+	triggerValue := str.String(req.Trigger)
+	trigger := triggerValue.Trim()
 	if trigger == "" {
 		trigger = defaultTrigger
 	}
@@ -530,10 +530,10 @@ func (s Service) loadTraceEvidence(ctx context.Context, sessionID string) ([]tas
 		if !trace.IsEpisodicMemoryTraceEventType(event.Type) {
 			continue
 		}
-		stringValue12 := str.String(event.Type)
+		trimmedValueValue := str.String(event.Type)
 		traces = append(traces, taskTraceEvidence{
 			Ref:       getTraceEventRef(event),
-			Type:      stringValue12.Trim(),
+			Type:      trimmedValueValue.Trim(),
 			Timestamp: getTraceEventTimestamp(event),
 			Payload:   tracePayloadToText(event.Payload),
 		})
@@ -570,11 +570,11 @@ func tracePayloadToText(payload any) string {
 }
 
 func getEpisodicSearchText(item storage.MemoryItem) string {
-	stringValue13 := str.String(item.Text)
-	text := stringValue13.Trim()
+	textValue2 := str.String(item.Text)
+	text := textValue2.Trim()
 	if text == "" {
-		stringValue14 := str.String(item.Title)
-		text = stringValue14.Trim()
+		titleValue3 := str.String(item.Title)
+		text = titleValue3.Trim()
 	}
 	if len([]rune(text)) > 240 {
 		text = string([]rune(text)[:240])
@@ -583,21 +583,21 @@ func getEpisodicSearchText(item storage.MemoryItem) string {
 }
 
 func normalizeEpisodicText(item storage.MemoryItem) string {
-	stringValue15 := str.String(item.Title + "\n" + item.Text)
-	return strings.Join(strings.Fields(stringValue15.Normalized()), " ")
+	trimmedValue := str.String(item.Title + "\n" + item.Text)
+	return strings.Join(strings.Fields(trimmedValue.Normalized()), " ")
 }
 
 func hasSameEpisodeCandidateKind(a storage.MemoryItem, b storage.MemoryItem) bool {
-	stringValue16 := str.String(a.Metadata["candidate_kind"])
-	stringValue17 := str.String(b.Metadata["candidate_kind"])
-	return stringValue16.Trim() == stringValue17.Trim()
+	metadataValue2 := str.String(a.Metadata["candidate_kind"])
+	metadataValue3 := str.String(b.Metadata["candidate_kind"])
+	return metadataValue2.Trim() == metadataValue3.Trim()
 }
 
 func getTraceEvidenceRefs(events []taskTraceEvidence) []string {
 	refs := make([]string, 0, len(events))
 	for _, event := range events {
-		stringValue18 := str.String(event.Ref)
-		if ref := stringValue18.Trim(); ref != "" {
+		refValue := str.String(event.Ref)
+		if ref := refValue.Trim(); ref != "" {
 			refs = append(refs, ref)
 		}
 	}
@@ -634,15 +634,15 @@ func episodeCandidateToMemoryItem(
 	evidence messageEvidence,
 	candidate episodeCandidate,
 ) (storage.MemoryItem, bool) {
-	stringValue19 := str.String(candidate.Kind)
-	candidate.Kind = stringValue19.Trim()
+	kindValue := str.String(candidate.Kind)
+	candidate.Kind = kindValue.Trim()
 	if !isValidEpisodeCandidateKind(candidate.Kind) {
 		return storage.MemoryItem{}, false
 	}
-	stringValue20 := str.String(truncateRunes(candidate.Text, req.getWindowCharLimit()))
-	text := stringValue20.Trim()
-	stringValue21 := str.String(candidate.Title)
-	title := stringValue21.Trim()
+	truncateRunesValue := str.String(truncateRunes(candidate.Text, req.getWindowCharLimit()))
+	text := truncateRunesValue.Trim()
+	titleValue4 := str.String(candidate.Title)
+	title := titleValue4.Trim()
 	if title == "" && text == "" {
 		return storage.MemoryItem{}, false
 	}
@@ -698,8 +698,8 @@ func episodeCandidateToMemoryItem(
 }
 
 func normalizeMetadataValue(value string) string {
-	stringValue22 := str.String(value)
-	return stringValue22.Trim()
+	valueText := str.String(value)
+	return valueText.Trim()
 }
 
 func getSourceQuality(evidence messageEvidence) string {
@@ -740,31 +740,31 @@ func (r normalizedRequest) getWindowCharLimit() int {
 
 func messageToLine(message morphmsg.Message) string {
 	parts := make([]string, 0, 2+len(message.ToolCalls))
-	stringValue23 := str.String(sanitizeUTF8(message.Content))
-	if content := stringValue23.Trim(); content != "" {
+	sanitizeUTF8Value := str.String(sanitizeUTF8(message.Content))
+	if content := sanitizeUTF8Value.Trim(); content != "" {
 		parts = append(parts, content)
 	}
 	for _, call := range message.ToolCalls {
-		stringValue26 := str.String(call.Name)
-		name := stringValue26.Trim()
-		stringValue27 := str.String(sanitizeUTF8(call.Input))
-		input := stringValue27.Trim()
+		nameValue := str.String(call.Name)
+		name := nameValue.Trim()
+		sanitizeUTF8Value2 := str.String(sanitizeUTF8(call.Input))
+		input := sanitizeUTF8Value2.Trim()
 		if name == "" && input == "" {
 			continue
 		}
-		stringValue28 := str.String("tool_call " + name + ": " + input)
-		parts = append(parts, stringValue28.Trim())
+		trimmedValue2 := str.String("tool_call " + name + ": " + input)
+		parts = append(parts, trimmedValue2.Trim())
 	}
 	if len(parts) == 0 {
 		return ""
 	}
-	stringValue24 := str.String(string(message.Role))
-	role := stringValue24.Trim()
+	roleValue := str.String(string(message.Role))
+	role := roleValue.Trim()
 	if role == "" {
 		role = "message"
 	}
-	stringValue25 := str.String(message.Name)
-	if toolName := stringValue25.Trim(); message.Role == morphmsg.RoleTool && toolName != "" {
+	nameValue2 := str.String(message.Name)
+	if toolName := nameValue2.Trim(); message.Role == morphmsg.RoleTool && toolName != "" {
 		role += ":" + toolName
 	}
 	return role + ": " + strings.Join(parts, " ")
@@ -798,22 +798,22 @@ func getCandidateMemoryIDSource(
 	metadata map[string]string,
 	sourceLinks []storage.MemorySourceLink,
 ) string {
-	stringValue29 := str.String(sessionID)
-	stringValue30 := str.String(kind)
-	parts := []string{stringValue29.
-		Trim(), stringValue30.
+	sessionIDValue2 := str.String(sessionID)
+	kindValue2 := str.String(kind)
+	parts := []string{sessionIDValue2.
+		Trim(), kindValue2.
 		Trim(), normalizeMemoryIDText(title),
 		normalizeMemoryIDText(text),
 	}
 	for _, key := range getEpisodeIdentityMetadataKeys() {
-		stringValue31 := str.String(metadata[key])
-		if value := stringValue31.Trim(); value != "" {
+		metadataValue4 := str.String(metadata[key])
+		if value := metadataValue4.Trim(); value != "" {
 			parts = append(parts, key+"="+normalizeMemoryIDText(value))
 		}
 	}
 	for _, link := range sourceLinks {
-		stringValue32 := str.String(link.SessionID)
-		parts = append(parts, stringValue32.Trim())
+		sessionIDValue3 := str.String(link.SessionID)
+		parts = append(parts, sessionIDValue3.Trim())
 		parts = append(parts, uintSliceToMemoryIDText(link.MessageIDs))
 		parts = append(parts, intSliceToMemoryIDText(link.Offsets))
 	}
@@ -822,8 +822,8 @@ func getCandidateMemoryIDSource(
 }
 
 func normalizeMemoryIDText(value string) string {
-	stringValue33 := str.String(value)
-	return strings.Join(strings.Fields(stringValue33.Normalized()), " ")
+	value2 := str.String(value)
+	return strings.Join(strings.Fields(value2.Normalized()), " ")
 }
 
 func uintSliceToMemoryIDText(values []uint) string {
@@ -849,8 +849,8 @@ func getSourceRangeTag(sessionID string, start int, end int) string {
 }
 
 func getSourceRangeHash(id string, start int, end int) string {
-	stringValue34 := str.String(id)
-	sum := sha256.Sum256(fmt.Appendf(nil, "%s:%d:%d", stringValue34.Trim(), start, end))
+	idValue := str.String(id)
+	sum := sha256.Sum256(fmt.Appendf(nil, "%s:%d:%d", idValue.Trim(), start, end))
 	return hex.EncodeToString(sum[:8])
 }
 

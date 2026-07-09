@@ -121,8 +121,8 @@ func (h *RPCHarness) ConfigFileContents() string {
 	if h == nil {
 		return ""
 	}
-	stringValue1 := str.String(h.address)
+	addressValue := str.String(h.address)
 	return "rpc:\n" +
-		"  address: " + stringValue1.Trim() + "\n" +
+		"  address: " + addressValue.Trim() + "\n" +
 		"  port: " + strconv.Itoa(h.port) + "\n"
 }

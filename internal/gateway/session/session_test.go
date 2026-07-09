@@ -122,7 +122,7 @@ func TestResolver_CreatesAndPersistsMissingBinding(t *testing.T) {
 	require.False(t, service.SavedBinding.UpdatedAt.IsZero())
 }
 
-func TestResolver_FallsBackToBasicCreateSession(t *testing.T) {
+func TestResolver_CreatesWithBasicSessionService(t *testing.T) {
 	service := &gatewaysessionstub.BasicCreateService{
 		CreatedSession: storage.Session{ID: createdSessionID},
 	}

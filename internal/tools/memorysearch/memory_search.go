@@ -117,8 +117,8 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 }
 
 func buildMemorySearchQuery(req input) (memory.SearchQuery, tools.Result) {
-	stringValue1 := str.String(req.Query)
-	query := stringValue1.Trim()
+	queryValue := str.String(req.Query)
+	query := queryValue.Trim()
 	if query == "" {
 		return memory.SearchQuery{}, common.ToolError("invalid_input", "query is required")
 	}
@@ -208,9 +208,9 @@ func memoryItemToOutputItem(item memory.MemoryItem, maxChars int) (memory.Memory
 		item.Text = string([]rune(item.Text)[:maxChars])
 	}
 	item.Tags = sanitizeStrings(item.Tags)
-	stringValue2 := str.String(item.Title)
-	stringValue3 := str.String(item.Text)
-	if stringValue2.Trim() == "" && stringValue3.Trim() == "" {
+	titleValue := str.String(item.Title)
+	textValue := str.String(item.Text)
+	if titleValue.Trim() == "" && textValue.Trim() == "" {
 		return memory.MemoryItem{}, false
 	}
 
@@ -247,11 +247,11 @@ func sourceLinksToOutputSourceLinks(links []memory.SourceLink) []sourceLink {
 func sanitizeString(value string) string {
 	sanitized, ok := sanitizeValue(value).(string)
 	if !ok {
-		stringValue5 := str.String(value)
-		return stringValue5.Trim()
+		valueText := str.String(value)
+		return valueText.Trim()
 	}
-	stringValue4 := str.String(sanitized)
-	return stringValue4.Trim()
+	sanitizedValue := str.String(sanitized)
+	return sanitizedValue.Trim()
 }
 
 func sanitizeStrings(values []string) []string {
@@ -277,8 +277,8 @@ func cleanStrings(values []string) []string {
 
 	cleaned := make([]string, 0, len(values))
 	for _, value := range values {
-		stringValue6 := str.String(value)
-		value = stringValue6.Trim()
+		value2 := str.String(value)
+		value = value2.Trim()
 		if value == "" {
 			continue
 		}

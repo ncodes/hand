@@ -16,8 +16,8 @@ func (p *MemoryProvider) Update(ctx context.Context, req UpdateRequest) (UpdateR
 	if p == nil || p.manager == nil {
 		return UpdateResult{}, errors.New("memory provider is required")
 	}
-	stringValue1 := str.String(req.ID)
-	memoryID := stringValue1.Trim()
+	iDValue := str.String(req.ID)
+	memoryID := iDValue.Trim()
 	if memoryID == "" {
 		return UpdateResult{}, errors.New("memory id is required")
 	}
@@ -32,10 +32,10 @@ func (p *MemoryProvider) Update(ctx context.Context, req UpdateRequest) (UpdateR
 		replacement.Metadata = make(map[string]string)
 	}
 	replacement.Metadata[supersedesMemoryIDMetadataKey] = previous.ID
-	stringValue2 := str.String(previous.Metadata["source_session_id"])
-	if sessionID := stringValue2.Trim(); sessionID != "" {
-		stringValue3 := str.String(replacement.Metadata["source_session_id"])
-		if stringValue3.Trim() == "" {
+	metadataValue := str.String(previous.Metadata["source_session_id"])
+	if sessionID := metadataValue.Trim(); sessionID != "" {
+		metadataValue2 := str.String(replacement.Metadata["source_session_id"])
+		if metadataValue2.Trim() == "" {
 			replacement.Metadata["source_session_id"] = sessionID
 		}
 	}
@@ -99,8 +99,8 @@ func (p *MemoryProvider) supersedeMemory(
 ) (MemoryItem, error) {
 	status := StatusSuperseded
 	metadata := buildLifecycleMetadata(item.Metadata, "supersede", reason, item.Status)
-	stringValue4 := str.String(replacementID)
-	metadata[supersededByMemoryIDMetadataKey] = stringValue4.Trim()
+	replacementIDValue := str.String(replacementID)
+	metadata[supersededByMemoryIDMetadataKey] = replacementIDValue.Trim()
 
 	return p.manager.PatchMemory(ctx, MemoryPatch{
 		ID:       item.ID,
@@ -115,8 +115,8 @@ func (p *MemoryProvider) restoreMemory(ctx context.Context, item MemoryItem) err
 }
 
 func getUpdatePromotionReason(reason string) string {
-	stringValue5 := str.String(reason)
-	reason = stringValue5.Trim()
+	reasonValue := str.String(reason)
+	reason = reasonValue.Trim()
 	if reason == "" {
 		return "tool_memory_update"
 	}

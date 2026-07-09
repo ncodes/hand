@@ -9,8 +9,8 @@ import (
 )
 
 func renderMarkdownForTranscript(markdown string, width int) string {
-	stringValue1 := str.String(markdown)
-	markdown = stringValue1.Trim()
+	markdownValue := str.String(markdown)
+	markdown = markdownValue.Trim()
 	if markdown == "" || !hasTranscriptMarkdown(markdown) {
 		return markdown
 	}
@@ -32,8 +32,8 @@ func renderMarkdownForTranscript(markdown string, width int) string {
 	if err != nil {
 		return markdown
 	}
-	stringValue2 := str.String(xansi.Strip(rendered))
-	if stringValue2.Trim() == "" {
+	stripValue := str.String(xansi.Strip(rendered))
+	if stripValue.Trim() == "" {
 		return markdown
 	}
 
@@ -42,8 +42,8 @@ func renderMarkdownForTranscript(markdown string, width int) string {
 
 func hasTranscriptMarkdown(value string) bool {
 	for _, line := range strings.Split(value, "\n") {
-		stringValue3 := str.String(line)
-		line = stringValue3.Trim()
+		lineValue := str.String(line)
+		line = lineValue.Trim()
 		switch {
 		case strings.HasPrefix(line, "#"),
 			hasMarkdownAutolinkText(line),

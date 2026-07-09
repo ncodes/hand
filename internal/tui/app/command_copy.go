@@ -27,8 +27,8 @@ func (m model) transcriptText() string {
 		cells = append(cells, m.live)
 	}
 	if len(cells) == 0 {
-		stringValue2 := str.String(ansi.Strip(m.transcript.GetContent()))
-		return stringValue2.Trim()
+		stripValue := str.String(ansi.Strip(m.transcript.GetContent()))
+		return stripValue.Trim()
 	}
 
 	parts := make([]string, 0, len(cells))
@@ -37,6 +37,6 @@ func (m model) transcriptText() string {
 			parts = append(parts, cell.PlainText())
 		}
 	}
-	stringValue1 := str.String(strings.Join(parts, "\n\n"))
-	return stringValue1.Trim()
+	joinValue := str.String(strings.Join(parts, "\n\n"))
+	return joinValue.Trim()
 }

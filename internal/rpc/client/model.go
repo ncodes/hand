@@ -53,8 +53,8 @@ func (s *ModelService) ListModels(ctx context.Context, opts ...ModelListOptions)
 
 	listOpts := getModelListOptions(opts...)
 	prepareRPCConnection(s.reconnector)
-	stringValue := str.String(listOpts.Provider)
-	resp, err := client.ListModels(ctx, &morphpb.ListModelsRequest{Provider: stringValue.Trim()})
+	providerValue2 := str.String(listOpts.Provider)
+	resp, err := client.ListModels(ctx, &morphpb.ListModelsRequest{Provider: providerValue2.Trim()})
 	if err != nil {
 		return ModelList{}, err
 	}

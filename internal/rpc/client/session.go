@@ -24,7 +24,11 @@ func (s *SessionService) CreateWithOptions(ctx context.Context, opts CreateSessi
 		return storage.Session{}, err
 	}
 	id := str.String(opts.ID)
-	req := &morphpb.CreateSessionRequest{Id: id.Trim()}
+	originSource := str.String(opts.OriginSource)
+	req := &morphpb.CreateSessionRequest{
+		Id:           id.Trim(),
+		OriginSource: originSource.Trim(),
+	}
 	if opts.AutoSwitch != nil {
 		req.AutoSwitch = opts.AutoSwitch
 	}
@@ -50,7 +54,11 @@ func (s *SessionService) List(ctx context.Context, opts ...SessionListOptions) (
 
 	listOpts := getSessionListOptions(opts...)
 	prepareRPCConnection(s.reconnector)
-	resp, err := client.List(ctx, &morphpb.ListSessionsRequest{Archived: listOpts.Archived})
+	originSource := str.String(listOpts.OriginSource)
+	resp, err := client.List(ctx, &morphpb.ListSessionsRequest{
+		Archived:     listOpts.Archived,
+		OriginSource: originSource.Trim(),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +381,10 @@ func protoSessionSummaryToSession(summary *morphpb.SessionSummary) storage.Sessi
 	}
 
 	return storage.Session{
-		ID:          summary.GetId(),
+		ID: summary.GetId(),
+		Origin: storage.SessionOrigin{
+			Source: summary.GetOriginSource(),
+		},
 		Title:       summary.GetTitle(),
 		TitleSource: summary.GetTitleSource(),
 		UpdatedAt:   time.Unix(summary.GetUpdatedAtUnix(), 0).UTC(),

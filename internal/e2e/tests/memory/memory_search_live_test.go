@@ -15,8 +15,8 @@ import (
 )
 
 func TestLiveMemorySearchToolFindsMemoryFromDifferentSessionWithoutPreTurnRetrieval(t *testing.T) {
-	stringValue1 := str.String(os.Getenv("MORPH_E2E_LIVE"))
-	if stringValue1.Trim() != "1" {
+	envValue := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if envValue.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 

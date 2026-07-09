@@ -31,8 +31,8 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 
 // OpenSQLite opens a SQLite database and applies connection settings.
 func OpenSQLite(path string) (*gorm.DB, error) {
-	stringValue1 := str.String(path)
-	path = stringValue1.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	if path == "" {
 		return nil, errors.New("sqlite path is required")
 	}
@@ -80,8 +80,8 @@ func ConfigureSQLite(db *gorm.DB) error {
 }
 
 func sqliteDSN(path string) string {
-	stringValue2 := str.String(path)
-	path = stringValue2.Trim()
+	pathValue2 := str.String(path)
+	path = pathValue2.Trim()
 	if strings.HasPrefix(path, "file:") {
 		return path
 	}

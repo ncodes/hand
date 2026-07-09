@@ -121,8 +121,8 @@ func (p *MemoryProvider) recordPromotionCleanupSkipped(ctx context.Context, opts
 func getPromotionRelatedHitIDs(hits []SearchHit) []string {
 	ids := make([]string, 0, len(hits))
 	for _, hit := range hits {
-		stringValue1 := str.String(hit.Item.ID)
-		if id := stringValue1.Trim(); id != "" {
+		iDValue := str.String(hit.Item.ID)
+		if id := iDValue.Trim(); id != "" {
 			ids = append(ids, id)
 		}
 	}

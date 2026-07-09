@@ -37,8 +37,8 @@ func New(role Role, content string) (Message, error) {
 	if err != nil {
 		return Message{}, err
 	}
-	stringValue1 := str.String(content)
-	trimmedContent := stringValue1.Trim()
+	contentValue := str.String(content)
+	trimmedContent := contentValue.Trim()
 	if trimmedContent == "" {
 		return Message{}, errors.New("message content is required")
 	}
@@ -64,12 +64,12 @@ func Normalize(message Message) (Message, error) {
 	if err != nil {
 		return Message{}, err
 	}
-	stringValue2 := str.String(message.ToolCallID)
-	toolCallID := stringValue2.Trim()
-	stringValue3 := str.String(message.Name)
-	name := stringValue3.Trim()
-	stringValue4 := str.String(message.Content)
-	content := stringValue4.Trim()
+	toolCallIDValue := str.String(message.ToolCallID)
+	toolCallID := toolCallIDValue.Trim()
+	nameValue := str.String(message.Name)
+	name := nameValue.Trim()
+	contentValue2 := str.String(message.Content)
+	content := contentValue2.Trim()
 
 	if content == "" && !(role == RoleAssistant && len(toolCalls) > 0) {
 		return Message{}, errors.New("message content is required")
@@ -125,12 +125,12 @@ func normalizeToolCalls(toolCalls []ToolCall) ([]ToolCall, error) {
 
 	normalized := make([]ToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
-		stringValue5 := str.String(toolCall.ID)
-		id := stringValue5.Trim()
-		stringValue6 := str.String(toolCall.Name)
-		name := stringValue6.Trim()
-		stringValue7 := str.String(toolCall.Input)
-		input := stringValue7.Trim()
+		iDValue := str.String(toolCall.ID)
+		id := iDValue.Trim()
+		nameValue2 := str.String(toolCall.Name)
+		name := nameValue2.Trim()
+		inputValue := str.String(toolCall.Input)
+		input := inputValue.Trim()
 
 		if id == "" {
 			return nil, errors.New("tool call id is required")
@@ -147,8 +147,8 @@ func normalizeToolCalls(toolCalls []ToolCall) ([]ToolCall, error) {
 }
 
 func normalizeRole(role Role) (Role, error) {
-	stringValue8 := str.String(string(role))
-	switch Role(stringValue8.Normalized()) {
+	roleValue := str.String(string(role))
+	switch Role(roleValue.Normalized()) {
 	case RoleDeveloper:
 		return RoleDeveloper, nil
 	case RoleUser:

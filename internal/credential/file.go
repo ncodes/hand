@@ -32,8 +32,8 @@ func DefaultPath() string {
 
 // NewFileStore returns a file-backed credential store.
 func NewFileStore(path string) *FileStore {
-	stringValue1 := str.String(path)
-	if stringValue1.Trim() == "" {
+	pathValue := str.String(path)
+	if pathValue.Trim() == "" {
 		path = DefaultPath()
 	}
 
@@ -167,8 +167,8 @@ func (s *FileStore) Refresh(
 		if next.Type != TypeOAuth {
 			return data, false, errors.New("refreshed credential must be OAuth")
 		}
-		stringValue2 := str.String(next.Token)
-		if stringValue2.Trim() == "" {
+		tokenValue := str.String(next.Token)
+		if tokenValue.Trim() == "" {
 			return data, false, errors.New("refreshed OAuth token credential is required")
 		}
 		data[provider] = next
@@ -195,8 +195,8 @@ func (s *FileStore) withLockedData(
 	if s == nil {
 		return errors.New("credential store is required")
 	}
-	stringValue3 := str.String(s.Path)
-	path := stringValue3.Trim()
+	pathValue2 := str.String(s.Path)
+	path := pathValue2.Trim()
 	if path == "" {
 		path = DefaultPath()
 	}
@@ -245,8 +245,8 @@ func loadData(path string) (map[string]StoredCredential, error) {
 
 		return nil, fmt.Errorf("read credential store: %w", err)
 	}
-	stringValue4 := str.String(string(body))
-	if len(stringValue4.Trim()) == 0 {
+	bodyValue := str.String(string(body))
+	if len(bodyValue.Trim()) == 0 {
 		return make(map[string]StoredCredential), nil
 	}
 

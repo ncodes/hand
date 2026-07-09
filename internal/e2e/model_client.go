@@ -46,11 +46,11 @@ func NewTextClient(text string) *Client {
 
 // NewToolClient returns a scripted model client that emits tool calls.
 func NewToolClient(toolCall models.ToolCall, finalText string) *Client {
-	stringValue1 := str.String(finalText)
+	finalTextValue := str.String(finalText)
 	return NewClient(
 		ToolStep(toolCall),
 		Step{
-			Response: &models.Response{OutputText: stringValue1.Trim()},
+			Response: &models.Response{OutputText: finalTextValue.Trim()},
 			Check:    AssertToolRoundTrip(toolCall),
 		},
 	)
@@ -58,9 +58,9 @@ func NewToolClient(toolCall models.ToolCall, finalText string) *Client {
 
 // OutputTextStep returns a scripted text response step.
 func OutputTextStep(text string) Step {
-	stringValue2 := str.String(text)
+	textValue := str.String(text)
 	return Step{
-		Response: &models.Response{OutputText: stringValue2.Trim()},
+		Response: &models.Response{OutputText: textValue.Trim()},
 	}
 }
 
@@ -73,13 +73,13 @@ func StreamStep(text string, deltas ...models.StreamDelta) Step {
 
 // ToolStep returns a scripted tool-call response step.
 func ToolStep(toolCall models.ToolCall) Step {
-	stringValue3 := str.String(toolCall.ID)
-	stringValue4 := str.String(toolCall.Name)
-	stringValue5 := str.String(toolCall.Input)
+	iDValue := str.String(toolCall.ID)
+	nameValue := str.String(toolCall.Name)
+	inputValue := str.String(toolCall.Input)
 	trimmed := models.ToolCall{
-		ID:    stringValue3.Trim(),
-		Name:  stringValue4.Trim(),
-		Input: stringValue5.Trim(),
+		ID:    iDValue.Trim(),
+		Name:  nameValue.Trim(),
+		Input: inputValue.Trim(),
 	}
 
 	return Step{
@@ -92,10 +92,10 @@ func ToolStep(toolCall models.ToolCall) Step {
 
 // AssertToolRoundTrip returns an assertion for a complete tool-call round trip.
 func AssertToolRoundTrip(toolCall models.ToolCall) RequestAssert {
-	stringValue6 := str.String(toolCall.ID)
-	expectedID := stringValue6.Trim()
-	stringValue7 := str.String(toolCall.Name)
-	expectedName := stringValue7.Trim()
+	iDValue2 := str.String(toolCall.ID)
+	expectedID := iDValue2.Trim()
+	nameValue2 := str.String(toolCall.Name)
+	expectedName := nameValue2.Trim()
 
 	return func(req models.Request) error {
 		if len(req.Messages) < 3 {
@@ -128,16 +128,16 @@ func AssertToolRoundTrip(toolCall models.ToolCall) RequestAssert {
 		}
 
 		call := assistantMessage.ToolCalls[0]
-		stringValue8 := str.String(call.ID)
-		if stringValue8.Trim() != expectedID {
+		iDValue3 := str.String(call.ID)
+		if iDValue3.Trim() != expectedID {
 			return fmt.Errorf("expected assistant tool call id %q", expectedID)
 		}
-		stringValue9 := str.String(call.Name)
-		if stringValue9.Trim() != expectedName {
+		nameValue3 := str.String(call.Name)
+		if nameValue3.Trim() != expectedName {
 			return fmt.Errorf("expected assistant tool call name %q", expectedName)
 		}
-		stringValue10 := str.String(toolMessage.Name)
-		if stringValue10.Trim() != expectedName {
+		nameValue4 := str.String(toolMessage.Name)
+		if nameValue4.Trim() != expectedName {
 			return fmt.Errorf("expected tool message name %q", expectedName)
 		}
 

@@ -8,8 +8,8 @@ import (
 )
 
 func wrapANSI(text string, width int, firstPrefix string, restPrefix string) []string {
-	stringValue1 := str.String(text)
-	text = stringValue1.Trim()
+	textValue := str.String(text)
+	text = textValue.Trim()
 	if text == "" {
 		return []string{firstPrefix}
 	}
@@ -65,8 +65,8 @@ func wrapANSI(text string, width int, firstPrefix string, restPrefix string) []s
 func joinBlocks(blocks []string) string {
 	clean := make([]string, 0, len(blocks))
 	for _, block := range blocks {
-		stringValue2 := str.String(block)
-		block = stringValue2.Trim()
+		blockValue := str.String(block)
+		block = blockValue.Trim()
 		if block != "" {
 			clean = append(clean, block)
 		}

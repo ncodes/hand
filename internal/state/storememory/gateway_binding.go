@@ -15,13 +15,13 @@ func (s *Store) SaveGatewayBinding(ctx context.Context, binding base.GatewayBind
 	if s == nil {
 		return errors.New("store is required")
 	}
-	stringValue1 := str.String(binding.Key)
-	key := stringValue1.Trim()
+	keyValue := str.String(binding.Key)
+	key := keyValue.Trim()
 	if key == "" {
 		return errors.New("gateway binding key is required")
 	}
-	stringValue2 := str.String(binding.SessionID)
-	sessionID := stringValue2.Trim()
+	sessionIDValue := str.String(binding.SessionID)
+	sessionID := sessionIDValue.Trim()
 	if err := base.ValidateSessionID(sessionID); err != nil {
 		return err
 	}
@@ -57,8 +57,8 @@ func (s *Store) GetGatewayBinding(ctx context.Context, key string) (base.Gateway
 	if s == nil {
 		return base.GatewayBinding{}, false, errors.New("store is required")
 	}
-	stringValue3 := str.String(key)
-	key = stringValue3.Trim()
+	keyValue2 := str.String(key)
+	key = keyValue2.Trim()
 	if key == "" {
 		return base.GatewayBinding{}, false, errors.New("gateway binding key is required")
 	}

@@ -137,11 +137,11 @@ func IsCheckFailed(err error) bool {
 }
 
 func renderJSONReport(w io.Writer, diagnosticsReport diagnostics.Report, readinessReport readiness.Report, safety string) error {
-	stringValue1 := str.String(safety)
+	safetyValue := str.String(safety)
 	payload := jsonReport{
 		OK:      !diagnosticsReport.HasFailures() && !readinessReport.HasFailures(),
 		Summary: getDoctorSummary(diagnosticsReport, readinessReport),
-		Safety:  stringValue1.Trim(),
+		Safety:  safetyValue.Trim(),
 		Groups:  doctorGroupsToJSON(diagnosticsReport, readinessReport),
 	}
 
@@ -347,8 +347,8 @@ func renderCheckLine(w io.Writer, status string, name string, message string, cf
 }
 
 func wrapCheckMessage(message string, width int, firstPrefix string, restPrefix string, cfg *config.Config) []string {
-	stringValue2 := str.String(message)
-	message = stringValue2.Trim()
+	messageValue := str.String(message)
+	message = messageValue.Trim()
 	if message == "" {
 		return []string{firstPrefix}
 	}
@@ -409,10 +409,10 @@ func appendWrapWord(
 }
 
 func formatAction(action readiness.Action, cfg *config.Config) string {
-	stringValue3 := str.String(action.Command)
-	command := stringValue3.Trim()
-	stringValue4 := str.String(action.Description)
-	description := stringValue4.Trim()
+	commandValue := str.String(action.Command)
+	command := commandValue.Trim()
+	descriptionValue := str.String(action.Description)
+	description := descriptionValue.Trim()
 	if cfg != nil && cfg.Log.NoColor {
 		command = "`" + command + "`"
 		if description == "" {

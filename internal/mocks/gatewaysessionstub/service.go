@@ -29,24 +29,22 @@ func (s *Service) Respond(context.Context, string, agentcore.RespondOptions) (st
 	return "", nil
 }
 
-func (s *Service) CreateSession(context.Context, string) (storage.Session, error) {
-	return s.CreateSessionWithOrigin(context.Background(), "", storage.SessionOrigin{})
-}
-
-func (s *Service) CreateSessionWithOrigin(
+func (s *Service) CreateSession(
 	_ context.Context,
 	_ string,
-	origin storage.SessionOrigin,
+	opts ...storage.SessionCreateOptions,
 ) (storage.Session, error) {
 	s.Created = true
-	s.CreateOrigin = origin
+	if len(opts) > 0 {
+		s.CreateOrigin = opts[0].Origin
+	}
 	if s.CreateErr != nil {
 		return storage.Session{}, s.CreateErr
 	}
 	if s.CreatedSession.ID == "" {
 		s.CreatedSession = storage.Session{ID: newSessionID("created-binding")}
 	}
-	s.CreatedSession.Origin = origin
+	s.CreatedSession.Origin = s.CreateOrigin
 
 	return s.CreatedSession, nil
 }
@@ -91,15 +89,15 @@ func (s *MapBackedService) Respond(context.Context, string, agentcore.RespondOpt
 	return "", nil
 }
 
-func (s *MapBackedService) CreateSession(context.Context, string) (storage.Session, error) {
-	return s.CreateSessionWithOrigin(context.Background(), "", storage.SessionOrigin{})
-}
-
-func (s *MapBackedService) CreateSessionWithOrigin(
+func (s *MapBackedService) CreateSession(
 	_ context.Context,
 	_ string,
-	origin storage.SessionOrigin,
+	opts ...storage.SessionCreateOptions,
 ) (storage.Session, error) {
+	var origin storage.SessionOrigin
+	if len(opts) > 0 {
+		origin = opts[0].Origin
+	}
 	s.NextID++
 	session := storage.Session{
 		ID:     newSessionID(fmt.Sprintf("generated-binding-%d", s.NextID)),
@@ -142,16 +140,16 @@ func (s *StateManagerService) Respond(context.Context, string, agentcore.Respond
 	return "", nil
 }
 
-func (s *StateManagerService) CreateSession(ctx context.Context, id string) (storage.Session, error) {
-	return s.Manager.CreateSession(ctx, id)
-}
-
-func (s *StateManagerService) CreateSessionWithOrigin(
+func (s *StateManagerService) CreateSession(
 	ctx context.Context,
 	id string,
-	origin storage.SessionOrigin,
+	opts ...storage.SessionCreateOptions,
 ) (storage.Session, error) {
-	return s.Manager.CreateSessionWithOptions(ctx, id, storage.SessionCreateOptions{Origin: origin})
+	if len(opts) == 0 {
+		return s.Manager.CreateSession(ctx, id)
+	}
+
+	return s.Manager.CreateSessionWithOptions(ctx, id, opts[0])
 }
 
 func (s *StateManagerService) Get(
@@ -186,7 +184,11 @@ func (s *BasicCreateService) Respond(context.Context, string, agentcore.RespondO
 	return "", nil
 }
 
-func (s *BasicCreateService) CreateSession(context.Context, string) (storage.Session, error) {
+func (s *BasicCreateService) CreateSession(
+	context.Context,
+	string,
+	...storage.SessionCreateOptions,
+) (storage.Session, error) {
 	s.Created = true
 	return s.CreatedSession, nil
 }

@@ -105,8 +105,8 @@ func EnsureDaemonRunning(ctx context.Context, cfg *config.Config) (func() error,
 		if cleanupErr := cleanup(); cleanupErr != nil {
 			return nil, fmt.Errorf("start Morph daemon: cleanup after readiness failure: %w", cleanupErr)
 		}
-		stringValue1 := str.String(cfg.RPC.Address)
-		return nil, fmt.Errorf("start Morph daemon: RPC did not become ready at %s:%d: %w", stringValue1.
+		addressValue := str.String(cfg.RPC.Address)
+		return nil, fmt.Errorf("start Morph daemon: RPC did not become ready at %s:%d: %w", addressValue.
 			Trim(), cfg.RPC.Port, err)
 	}
 
@@ -146,8 +146,8 @@ func checkDaemonRPCImpl(ctx context.Context, cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is required")
 	}
-	stringValue2 := str.String(cfg.RPC.Address)
-	address := stringValue2.Trim()
+	addressValue2 := str.String(cfg.RPC.Address)
+	address := addressValue2.Trim()
 	if address == "" {
 		return fmt.Errorf("rpc address is required")
 	}
@@ -160,8 +160,8 @@ func checkDaemonRPCImpl(ctx context.Context, cfg *config.Config) error {
 }
 
 func checkDaemonHealthImpl(ctx context.Context, address string, port int) (string, error) {
-	stringValue3 := str.String(address)
-	address = stringValue3.Trim()
+	addressValue3 := str.String(address)
+	address = addressValue3.Trim()
 	if address == "" {
 		return "", fmt.Errorf("rpc address is required")
 	}
@@ -191,13 +191,13 @@ func checkDaemonHealthImpl(ctx context.Context, address string, port int) (strin
 
 func daemonStatusFromProbe(probe morphruntime.ProbeResult) DaemonStatus {
 	metadata := probe.Metadata
-	stringValue4 := str.String(metadata.Profile)
-	stringValue5 := str.String(metadata.RPC.Address)
+	profileValue := str.String(metadata.Profile)
+	addressValue4 := str.String(metadata.RPC.Address)
 	status := DaemonStatus{
 		State:     string(probe.State),
-		Profile:   stringValue4.Trim(),
+		Profile:   profileValue.Trim(),
 		PID:       metadata.PID,
-		Address:   stringValue5.Trim(),
+		Address:   addressValue4.Trim(),
 		Port:      metadata.RPC.Port,
 		StartedAt: metadata.StartedAt,
 	}

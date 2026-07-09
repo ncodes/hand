@@ -75,14 +75,10 @@ func (s *slackServiceStub) Respond(
 	return s.reply, nil
 }
 
-func (s *slackServiceStub) CreateSession(ctx context.Context, id string) (storage.Session, error) {
-	return s.CreateSessionWithOrigin(ctx, id, storage.SessionOrigin{})
-}
-
-func (s *slackServiceStub) CreateSessionWithOrigin(
+func (s *slackServiceStub) CreateSession(
 	ctx context.Context,
 	id string,
-	origin storage.SessionOrigin,
+	opts ...storage.SessionCreateOptions,
 ) (storage.Session, error) {
 	_ = ctx
 	_ = id
@@ -95,7 +91,9 @@ func (s *slackServiceStub) CreateSessionWithOrigin(
 	defer s.mu.Unlock()
 
 	session := s.createdSession
-	session.Origin = origin
+	if len(opts) > 0 {
+		session.Origin = opts[0].Origin
+	}
 	s.sessions[session.ID] = session
 	return session, nil
 }

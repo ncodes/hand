@@ -352,8 +352,8 @@ func Test_E2E_MorphRootChat_TimeToolSynthesizesFinalAnswer(t *testing.T) {
 			Check: e2e.CombineChecks(
 				e2e.AssertToolRoundTrip(toolCall),
 				e2e.ToolOutputString("call-1", "time", func(value string) error {
-					stringValue1 := str.String(value)
-					_, err := time.Parse(time.RFC3339, stringValue1.Trim())
+					valueText := str.String(value)
+					_, err := time.Parse(time.RFC3339, valueText.Trim())
 					if err != nil {
 						return fmt.Errorf("expected RFC3339 time output: %w", err)
 					}
@@ -387,8 +387,8 @@ func Test_E2E_MorphRootChat_ReadFileToolSynthesizesFinalAnswer(t *testing.T) {
 			Check: e2e.CombineChecks(
 				e2e.AssertToolRoundTrip(toolCall),
 				e2e.ToolOutputJSON("call-1", "read_file", func(payload map[string]any) error {
-					stringValue2 := str.String(fmt.Sprint(payload["path"]))
-					if stringValue2.Trim() != "notes.txt" {
+					sprintValue := str.String(fmt.Sprint(payload["path"]))
+					if sprintValue.Trim() != "notes.txt" {
 						return fmt.Errorf("expected read path notes.txt, got %v", payload["path"])
 					}
 					if !strings.Contains(fmt.Sprint(payload["content"]), "hello from file") {
@@ -427,8 +427,8 @@ func Test_E2E_MorphRootChat_WriteFileToolSynthesizesFinalAnswer(t *testing.T) {
 			Check: e2e.CombineChecks(
 				e2e.AssertToolRoundTrip(toolCall),
 				e2e.ToolOutputJSON("call-1", "write_file", func(payload map[string]any) error {
-					stringValue3 := str.String(fmt.Sprint(payload["path"]))
-					if stringValue3.Trim() != "drafts/out.txt" {
+					sprintValue2 := str.String(fmt.Sprint(payload["path"]))
+					if sprintValue2.Trim() != "drafts/out.txt" {
 						return fmt.Errorf("expected write path drafts/out.txt, got %v", payload["path"])
 					}
 					if fmt.Sprint(payload["created"]) != "true" {
@@ -1058,8 +1058,8 @@ func Test_E2E_MorphLiveHarness_ToolUsing(t *testing.T) {
 				if message.Role != morphmsg.RoleTool {
 					continue
 				}
-				stringValue4 := str.String(message.Name)
-				switch stringValue4.Trim() {
+				nameValue := str.String(message.Name)
+				switch nameValue.Trim() {
 				case "list_files", "read_file", "search_files":
 					return nil
 				}
@@ -1271,8 +1271,8 @@ func newRootChatCommand(output io.Writer) *urfavecli.Command {
 func newWebConfig(baseURL string) *config.Config {
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
 	cfg.Web.Provider = "firecrawl"
-	stringValue5 := str.String(baseURL)
-	cfg.Web.BaseURL = stringValue5.Trim()
+	baseURLValue := str.String(baseURL)
+	cfg.Web.BaseURL = baseURLValue.Trim()
 	cfg.Web.APIKey = "test-key"
 	return cfg
 }
@@ -1288,8 +1288,8 @@ type liveRootChatContext struct {
 func newLiveRootChatContext(t *testing.T) liveRootChatContext {
 	t.Helper()
 	resetRootChatE2E(t)
-	stringValue6 := str.String(os.Getenv("MORPH_E2E_LIVE"))
-	if stringValue6.Trim() != "1" {
+	envValue := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if envValue.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live harness e2e")
 	}
 
@@ -1319,13 +1319,13 @@ func newLiveRootChatContext(t *testing.T) liveRootChatContext {
 
 	markerPath := filepath.Join(workspace, "live-marker.txt")
 	require.NoError(t, os.WriteFile(markerPath, []byte("live marker"), 0o600))
-	stringValue7 := str.String(cfg.Storage.Backend)
+	backendValue := str.String(cfg.Storage.Backend)
 	return liveRootChatContext{
 		harness:        h,
 		configFile:     writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "live-agent"}),
 		artifactDir:    e2e.DefaultLiveArtifactDir(os.Getenv("MORPH_E2E_LIVE_ARTIFACT_DIR")),
 		markerPath:     markerPath,
-		storageBackend: stringValue7.Normalized(),
+		storageBackend: backendValue.Normalized(),
 	}
 }
 
@@ -1343,8 +1343,8 @@ func (ctx liveRootChatContext) skipIfNonPersistentStorage(t *testing.T) {
 
 func resolveLiveInputs(t *testing.T) (string, string) {
 	t.Helper()
-	stringValue8 := str.String(os.Getenv("MORPH_E2E_LIVE_CONFIG"))
-	configPath := stringValue8.Trim()
+	envValue2 := str.String(os.Getenv("MORPH_E2E_LIVE_CONFIG"))
+	configPath := envValue2.Trim()
 	if configPath == "" {
 		candidate := filepath.Join(repoRoot(t), "config.yaml")
 		if _, err := os.Stat(candidate); err == nil {
@@ -1354,8 +1354,8 @@ func resolveLiveInputs(t *testing.T) (string, string) {
 	if configPath == "" {
 		t.Skip("set MORPH_E2E_LIVE_CONFIG or provide config.yaml at the repo root to run live harness e2e")
 	}
-	stringValue9 := str.String(os.Getenv("MORPH_E2E_LIVE_ENV_FILE"))
-	envPath := stringValue9.Trim()
+	envValue3 := str.String(os.Getenv("MORPH_E2E_LIVE_ENV_FILE"))
+	envPath := envValue3.Trim()
 	if envPath == "" {
 		candidate := filepath.Join(repoRoot(t), ".env")
 		if _, err := os.Stat(candidate); err == nil {

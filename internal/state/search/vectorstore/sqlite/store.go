@@ -80,8 +80,8 @@ type Store struct {
 
 // NewStore returns a store backed by the supplied dependencies.
 func NewStore(path string) (*Store, error) {
-	stringValue1 := str.String(path)
-	path = stringValue1.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	if path == "" {
 		return nil, errors.New("vector sqlite path is required")
 	}
@@ -153,8 +153,8 @@ func (s *Store) Delete(ctx context.Context, req DeleteRequest) error {
 		return err
 	}
 	sourceIDs := normalizeDeleteSourceIDs(req)
-	stringValue2 := str.String(req.SessionID)
-	sessionID := stringValue2.Trim()
+	sessionIDValue := str.String(req.SessionID)
+	sessionID := sessionIDValue.Trim()
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		rows, err := vectorRowsForDelete(tx, req.SourceKind, sourceIDs, sessionID)
@@ -193,8 +193,8 @@ func (s *Store) Search(ctx context.Context, req SearchRequest) (SearchResult, er
 	if err := vectorstore.ValidateSearchRequest(req); err != nil {
 		return SearchResult{}, err
 	}
-	stringValue3 := str.String(string(req.Filter.SourceKind))
-	if stringValue3.Trim() == "" {
+	sourceKindValue := str.String(string(req.Filter.SourceKind))
+	if sourceKindValue.Trim() == "" {
 		return SearchResult{}, errors.New("vector search filter source kind is required")
 	}
 	if err := validateSearchSourceIDs(req.Filter.SourceIDs); err != nil {
@@ -237,11 +237,11 @@ WHERE vec.vector MATCH ?
 	AND k = ?
 	AND vec.source_kind = ?
 	AND vec.embedding_model = ?`)
-	stringValue4 := str.String(req.EmbeddingModel)
+	embeddingModelValue := str.String(req.EmbeddingModel)
 	args := []any{
 		queryBlob,
 		req.Limit,
-		string(req.Filter.SourceKind), stringValue4.
+		string(req.Filter.SourceKind), embeddingModelValue.
 			Trim(),
 	}
 	if len(req.Filter.SourceIDs) == 1 {
@@ -260,26 +260,26 @@ WHERE vec.vector MATCH ?
 		}
 		sqlText.WriteString(`)`)
 	}
-	stringValue5 := str.String(req.Filter.SessionID)
-	if sessionID := stringValue5.Trim(); sessionID != "" {
+	sessionIDValue2 := str.String(req.Filter.SessionID)
+	if sessionID := sessionIDValue2.Trim(); sessionID != "" {
 		sqlText.WriteString(`
 	AND vec.session_id = ?`)
 		args = append(args, sessionID)
 	}
-	stringValue6 := str.String(req.Filter.IgnoreSessionID)
-	if ignoreSessionID := stringValue6.Trim(); ignoreSessionID != "" {
+	ignoreSessionIDValue := str.String(req.Filter.IgnoreSessionID)
+	if ignoreSessionID := ignoreSessionIDValue.Trim(); ignoreSessionID != "" {
 		sqlText.WriteString(`
 	AND vec.session_id <> ?`)
 		args = append(args, ignoreSessionID)
 	}
-	stringValue7 := str.String(req.Filter.Role)
-	if role := stringValue7.Trim(); role != "" {
+	roleValue := str.String(req.Filter.Role)
+	if role := roleValue.Trim(); role != "" {
 		sqlText.WriteString(`
 	AND vec.role = ?`)
 		args = append(args, role)
 	}
-	stringValue8 := str.String(req.Filter.ToolName)
-	if toolName := stringValue8.Trim(); toolName != "" {
+	toolNameValue := str.String(req.Filter.ToolName)
+	if toolName := toolNameValue.Trim(); toolName != "" {
 		sqlText.WriteString(`
 	AND vec.tool_name = ?`)
 		args = append(args, toolName)
@@ -357,10 +357,10 @@ func (s *Store) List(ctx context.Context, req ListRequest) (ListResult, error) {
 	updated_at
 FROM ` + recordsTable + ` AS rv
 WHERE embedding_model = ?`
-	stringValue9 := str.String(req.EmbeddingModel)
-	args := []any{stringValue9.Trim()}
-	stringValue10 := str.String(string(req.Filter.SourceKind))
-	if sourceKind := stringValue10.Trim(); sourceKind != "" {
+	embeddingModelValue2 := str.String(req.EmbeddingModel)
+	args := []any{embeddingModelValue2.Trim()}
+	sourceKindValue2 := str.String(string(req.Filter.SourceKind))
+	if sourceKind := sourceKindValue2.Trim(); sourceKind != "" {
 		sqlText += `
 	AND source_kind = ?`
 		args = append(args, sourceKind)
@@ -374,26 +374,26 @@ WHERE embedding_model = ?`
 	AND source_id IN ?`
 		args = append(args, req.Filter.SourceIDs)
 	}
-	stringValue11 := str.String(req.Filter.SessionID)
-	if sessionID := stringValue11.Trim(); sessionID != "" {
+	sessionIDValue3 := str.String(req.Filter.SessionID)
+	if sessionID := sessionIDValue3.Trim(); sessionID != "" {
 		sqlText += `
 	AND session_id = ?`
 		args = append(args, sessionID)
 	}
-	stringValue12 := str.String(req.Filter.IgnoreSessionID)
-	if ignoreSessionID := stringValue12.Trim(); ignoreSessionID != "" {
+	ignoreSessionIDValue2 := str.String(req.Filter.IgnoreSessionID)
+	if ignoreSessionID := ignoreSessionIDValue2.Trim(); ignoreSessionID != "" {
 		sqlText += `
 	AND session_id <> ?`
 		args = append(args, ignoreSessionID)
 	}
-	stringValue13 := str.String(req.Filter.Role)
-	if role := stringValue13.Trim(); role != "" {
+	roleValue2 := str.String(req.Filter.Role)
+	if role := roleValue2.Trim(); role != "" {
 		sqlText += `
 	AND role = ?`
 		args = append(args, role)
 	}
-	stringValue14 := str.String(req.Filter.ToolName)
-	if toolName := stringValue14.Trim(); toolName != "" {
+	toolNameValue2 := str.String(req.Filter.ToolName)
+	if toolName := toolNameValue2.Trim(); toolName != "" {
 		sqlText += `
 	AND tool_name = ?`
 		args = append(args, toolName)
@@ -506,9 +506,9 @@ func upsertRecord(tx *gorm.DB, record Record) error {
 		if err := deleteIndexRow(tx, existing.Dimensions, existing.RowID); err != nil {
 			return err
 		}
-		stringValue18 := str.String(record.SessionID)
-		stringValue19 := str.String(record.Role)
-		stringValue20 := str.String(record.ToolName)
+		sessionIDValue4 := str.String(record.SessionID)
+		roleValue3 := str.String(record.Role)
+		toolNameValue3 := str.String(record.ToolName)
 		if err := tx.Exec(`UPDATE `+recordsTable+` SET
 	source_kind = ?,
 	source_id = ?,
@@ -522,9 +522,9 @@ func upsertRecord(tx *gorm.DB, record Record) error {
 	updated_at = ?
 WHERE id = ?`,
 			string(record.SourceKind),
-			record.SourceID, stringValue18.
-				Trim(), stringValue19.
-				Trim(), stringValue20.
+			record.SourceID, sessionIDValue4.
+				Trim(), roleValue3.
+				Trim(), toolNameValue3.
 				Trim(), record.EmbeddingModel,
 			record.Dimensions,
 			record.ContentHash,
@@ -535,9 +535,9 @@ WHERE id = ?`,
 			return fmt.Errorf("failed to update vector record: %w", err)
 		}
 	} else {
-		stringValue21 := str.String(record.SessionID)
-		stringValue22 := str.String(record.Role)
-		stringValue23 := str.String(record.ToolName)
+		sessionIDValue5 := str.String(record.SessionID)
+		roleValue4 := str.String(record.Role)
+		toolNameValue4 := str.String(record.ToolName)
 		if err := tx.Raw(`INSERT INTO `+recordsTable+` (
 	id,
 	source_kind,
@@ -555,9 +555,9 @@ WHERE id = ?`,
 RETURNING vector_rowid`,
 			record.ID,
 			string(record.SourceKind),
-			record.SourceID, stringValue21.
-				Trim(), stringValue22.
-				Trim(), stringValue23.
+			record.SourceID, sessionIDValue5.
+				Trim(), roleValue4.
+				Trim(), toolNameValue4.
 				Trim(), record.EmbeddingModel,
 			record.Dimensions,
 			record.ContentHash,
@@ -568,9 +568,9 @@ RETURNING vector_rowid`,
 			return fmt.Errorf("failed to insert vector record: %w", err)
 		}
 	}
-	stringValue15 := str.String(record.SessionID)
-	stringValue16 := str.String(record.Role)
-	stringValue17 := str.String(record.ToolName)
+	sessionIDValue6 := str.String(record.SessionID)
+	roleValue5 := str.String(record.Role)
+	toolNameValue5 := str.String(record.ToolName)
 	if err := tx.Exec(
 		`INSERT INTO `+
 			getIndexTableName(record.Dimensions)+
@@ -587,9 +587,9 @@ RETURNING vector_rowid`,
 		rowID,
 		blob,
 		string(record.SourceKind),
-		record.SourceID, stringValue15.
-			Trim(), stringValue16.
-			Trim(), stringValue17.
+		record.SourceID, sessionIDValue6.
+			Trim(), roleValue5.
+			Trim(), toolNameValue5.
 			Trim(), record.EmbeddingModel,
 	).Error; err != nil {
 		return fmt.Errorf("failed to insert vector index row: %w", err)
@@ -806,8 +806,8 @@ func loadRecordTags(db *gorm.DB, getRecordIDs []string) (map[string][]string, er
 func getRowIDs(rows []searchRow) []string {
 	ids := make([]string, 0, len(rows))
 	for _, row := range rows {
-		stringValue24 := str.String(row.ID)
-		if stringValue24.Trim() != "" {
+		iDValue := str.String(row.ID)
+		if iDValue.Trim() != "" {
 			ids = append(ids, row.ID)
 		}
 	}
@@ -818,8 +818,8 @@ func getRowIDs(rows []searchRow) []string {
 func getRecordIDs(rows []recordRefRow) []string {
 	ids := make([]string, 0, len(rows))
 	for _, row := range rows {
-		stringValue25 := str.String(row.ID)
-		if stringValue25.Trim() != "" {
+		iDValue2 := str.String(row.ID)
+		if iDValue2.Trim() != "" {
 			ids = append(ids, row.ID)
 		}
 	}
@@ -831,8 +831,8 @@ func normalizeDeleteSourceIDs(req DeleteRequest) []string {
 	sourceIDs := make([]string, 0, len(req.SourceIDs))
 	seen := make(map[string]struct{}, len(req.SourceIDs))
 	for _, sourceID := range req.SourceIDs {
-		stringValue26 := str.String(sourceID)
-		sourceID = stringValue26.Trim()
+		sourceIDValue := str.String(sourceID)
+		sourceID = sourceIDValue.Trim()
 		if sourceID != "" {
 			if _, ok := seen[sourceID]; ok {
 				continue
@@ -901,8 +901,8 @@ func indexTableExists(db *gorm.DB, dimensions int) (bool, error) {
 
 func validateSearchSourceIDs(sourceIDs []string) error {
 	for _, sourceID := range sourceIDs {
-		stringValue27 := str.String(sourceID)
-		trimmed := stringValue27.Trim()
+		sourceIDValue2 := str.String(sourceID)
+		trimmed := sourceIDValue2.Trim()
 		if trimmed == "" {
 			return errors.New("vector search filter source id is required")
 		}

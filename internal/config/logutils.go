@@ -24,8 +24,8 @@ func init() {
 		}
 
 		settings.NoColor = cfg.Log.NoColor
-		stringValue1 := str.String(cfg.Log.File)
-		if path := stringValue1.Trim(); path != "" {
+		fileValue := str.String(cfg.Log.File)
+		if path := fileValue.Trim(); path != "" {
 			settings.LogFile = path
 		}
 		settings.MaxSizeMB = cfg.Log.MaxSizeMB

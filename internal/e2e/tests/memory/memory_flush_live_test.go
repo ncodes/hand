@@ -20,8 +20,8 @@ import (
 )
 
 func TestLiveMemoryFlushRunsBeforeCompaction(t *testing.T) {
-	stringValue1 := str.String(os.Getenv("MORPH_E2E_LIVE"))
-	if stringValue1.Trim() != "1" {
+	envValue := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if envValue.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -51,8 +51,8 @@ func TestLiveMemoryFlushRunsBeforeCompaction(t *testing.T) {
 }
 
 func TestLiveMemoryFlushCanProduceMemoryBeforeCompaction(t *testing.T) {
-	stringValue2 := str.String(os.Getenv("MORPH_E2E_LIVE"))
-	if stringValue2.Trim() != "1" {
+	envValue2 := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if envValue2.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -84,8 +84,8 @@ func TestLiveMemoryFlushCanProduceMemoryBeforeCompaction(t *testing.T) {
 }
 
 func TestLiveMemoryFlushDoesNotRunBeforeSessionSwitch(t *testing.T) {
-	stringValue3 := str.String(os.Getenv("MORPH_E2E_LIVE"))
-	if stringValue3.Trim() != "1" {
+	envValue3 := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if envValue3.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -117,8 +117,8 @@ func TestLiveMemoryFlushDoesNotRunBeforeSessionSwitch(t *testing.T) {
 }
 
 func TestLiveMemoryFlushRunsBeforeAgentClose(t *testing.T) {
-	stringValue4 := str.String(os.Getenv("MORPH_E2E_LIVE"))
-	if stringValue4.Trim() != "1" {
+	envValue4 := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if envValue4.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -296,9 +296,9 @@ func getLiveMemoryFlushMemory(
 	required ...string,
 ) (storage.MemoryItem, bool) {
 	t.Helper()
-	stringValue5 := str.String(sessionID)
+	sessionIDValue := str.String(sessionID)
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: stringValue5.Trim(),
+		SessionID: sessionIDValue.Trim(),
 		Statuses: []storage.MemoryStatus{
 			storage.MemoryStatusCandidate,
 			storage.MemoryStatusActive,
@@ -382,8 +382,8 @@ func liveTracePayloadString(event storage.TraceEvent, key string) string {
 	if !ok {
 		return ""
 	}
-	stringValue6 := str.String(value)
-	return stringValue6.Trim()
+	valueText := str.String(value)
+	return valueText.Trim()
 }
 
 func liveTraceEventTypes(events []storage.TraceEvent) []string {

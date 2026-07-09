@@ -207,16 +207,16 @@ func renderChatsCommandRow(session storage.Session, _ string, width int, now tim
 
 func orderChatsCommandSessions(sessions []storage.Session, currentSessionID string) []storage.Session {
 	ordered := append([]storage.Session(nil), sessions...)
-	stringValue1 := str.String(currentSessionID)
-	currentSessionID = stringValue1.Trim()
+	currentSessionIDValue := str.String(currentSessionID)
+	currentSessionID = currentSessionIDValue.Trim()
 	if currentSessionID == "" {
 		return ordered
 	}
 
 	currentIndex := -1
 	for index, session := range ordered {
-		stringValue2 := str.String(session.ID)
-		if stringValue2.Trim() == currentSessionID {
+		iDValue := str.String(session.ID)
+		if iDValue.Trim() == currentSessionID {
 			currentIndex = index
 			break
 		}
@@ -260,8 +260,8 @@ func (m model) renderSessionListCommandViewContent(content commandViewContent) s
 	now := chatsNow().UTC()
 	for index := offset; index < end; index++ {
 		isCurrent := isCurrentChatSession(sessions[index], m.getCurrentSessionID())
-		stringValue3 := str.String(sessions[index].ID)
-		if m.chatsRenaming && stringValue3.Trim() == m.chatsRenameSessionID {
+		iDValue2 := str.String(sessions[index].ID)
+		if m.chatsRenaming && iDValue2.Trim() == m.chatsRenameSessionID {
 			rows = append(rows, m.renderChatsRenameRow(content.Width))
 			continue
 		}
@@ -317,8 +317,8 @@ func renderSelectedChatsCommandRowWithForeground(row string, width int, foregrou
 	width = max(width, 1)
 	row = truncateChatsCommandRow(row, width)
 	row += strings.Repeat(" ", max(width-lipgloss.Width(row), 0))
-	stringValue4 := str.String(foreground)
-	if stringValue4.Trim() == "" {
+	foregroundValue := str.String(foreground)
+	if foregroundValue.Trim() == "" {
 		foreground = defaultTUITheme.JumpToBottomForeground
 	}
 
@@ -334,9 +334,9 @@ func getChatsCommandRowForeground(_ bool) string {
 }
 
 func isCurrentChatSession(session storage.Session, currentSessionID string) bool {
-	stringValue5 := str.String(session.ID)
-	stringValue6 := str.String(currentSessionID)
-	return stringValue5.Trim() == stringValue6.Trim()
+	iDValue3 := str.String(session.ID)
+	currentSessionIDValue2 := str.String(currentSessionID)
+	return iDValue3.Trim() == currentSessionIDValue2.Trim()
 }
 
 func truncateChatsCommandRow(row string, width int) string {
@@ -452,8 +452,8 @@ func getArchiveCommandTitleRight() string {
 
 func (m *model) startRenameSelectedChatSession() (tea.Model, tea.Cmd) {
 	session := m.commandView.Chats[m.commandViewItemSelected]
-	stringValue7 := str.String(session.ID)
-	sessionID := stringValue7.Trim()
+	iDValue4 := str.String(session.ID)
+	sessionID := iDValue4.Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat rename unavailable")
 	}
@@ -493,13 +493,13 @@ func (m *model) clearChatsRename() {
 }
 
 func (m *model) renameSelectedChatSession() (tea.Model, tea.Cmd) {
-	stringValue8 := str.String(m.chatsRenameSessionID)
-	sessionID := stringValue8.Trim()
+	chatsRenameSessionIDValue := str.String(m.chatsRenameSessionID)
+	sessionID := chatsRenameSessionIDValue.Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat rename unavailable")
 	}
-	stringValue9 := str.String(m.renameInput.Value())
-	title := stringValue9.Trim()
+	value := str.String(m.renameInput.Value())
+	title := value.Trim()
 	if title == "" {
 		return *m, m.setStatus("chat rename unavailable")
 	}
@@ -524,13 +524,13 @@ func renameChatSessionCmd(ctx context.Context, client sessionRenamer, sessionID 
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		stringValue10 := str.String(sessionID)
-		sessionID = stringValue10.Trim()
+		sessionIDValue := str.String(sessionID)
+		sessionID = sessionIDValue.Trim()
 		if sessionID == "" {
 			return chatRenamedMsg{Err: errors.New("chat id is required")}
 		}
-		stringValue11 := str.String(title)
-		title = stringValue11.Trim()
+		titleValue := str.String(title)
+		title = titleValue.Trim()
 		if title == "" {
 			return chatRenamedMsg{Err: errors.New("chat title is required")}
 		}
@@ -544,15 +544,15 @@ func (m *model) completeRenameChatSession(msg chatRenamedMsg) (tea.Model, tea.Cm
 	if msg.Err != nil {
 		return *m, m.setStatus("chat rename unavailable")
 	}
-	stringValue12 := str.String(msg.Session.ID)
-	sessionID := stringValue12.Trim()
+	iDValue5 := str.String(msg.Session.ID)
+	sessionID := iDValue5.Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat rename unavailable")
 	}
 
 	for index, session := range m.commandView.Chats {
-		stringValue13 := str.String(session.ID)
-		if stringValue13.Trim() == sessionID {
+		iDValue6 := str.String(session.ID)
+		if iDValue6.Trim() == sessionID {
 			m.commandView.Chats[index] = msg.Session
 			break
 		}
@@ -569,8 +569,8 @@ func (m *model) completeRenameChatSession(msg chatRenamedMsg) (tea.Model, tea.Cm
 
 func (m *model) confirmArchiveSelectedChatSession() (tea.Model, tea.Cmd) {
 	session := m.commandView.Chats[m.commandViewItemSelected]
-	stringValue14 := str.String(session.ID)
-	sessionID := stringValue14.Trim()
+	iDValue7 := str.String(session.ID)
+	sessionID := iDValue7.Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat archive unavailable")
 	}
@@ -588,8 +588,8 @@ func (m *model) confirmArchiveSelectedChatSession() (tea.Model, tea.Cmd) {
 
 func (m *model) archiveSelectedChatSession() (tea.Model, tea.Cmd) {
 	session := m.commandView.Chats[m.commandViewItemSelected]
-	stringValue15 := str.String(session.ID)
-	sessionID := stringValue15.Trim()
+	iDValue8 := str.String(session.ID)
+	sessionID := iDValue8.Trim()
 	if sessionID == "" {
 		m.chatsArchiveConfirm = false
 		m.commandView.TitleRight = getChatsCommandTitleRight(false)
@@ -630,8 +630,8 @@ func archiveChatSessionCmd(ctx context.Context, client sessionArchiver, sessionI
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		stringValue16 := str.String(sessionID)
-		sessionID = stringValue16.Trim()
+		sessionIDValue2 := str.String(sessionID)
+		sessionID = sessionIDValue2.Trim()
 		if sessionID == "" {
 			return chatArchivedMsg{Err: errors.New("chat id is required")}
 		}
@@ -645,16 +645,16 @@ func (m *model) completeArchiveChatSession(msg chatArchivedMsg) (tea.Model, tea.
 	if msg.Err != nil {
 		return *m, m.setStatus("chat archive unavailable")
 	}
-	stringValue17 := str.String(msg.ID)
-	sessionID := stringValue17.Trim()
+	iDValue9 := str.String(msg.ID)
+	sessionID := iDValue9.Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat archive unavailable")
 	}
 
 	nextSessions := make([]storage.Session, 0, len(m.commandView.Chats))
 	for _, session := range m.commandView.Chats {
-		stringValue18 := str.String(session.ID)
-		if stringValue18.Trim() != sessionID {
+		iDValue10 := str.String(session.ID)
+		if iDValue10.Trim() != sessionID {
 			nextSessions = append(nextSessions, session)
 		}
 	}
@@ -735,8 +735,8 @@ func (m *model) updateArchiveCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *model) unarchiveSelectedArchivedChatSession() (tea.Model, tea.Cmd) {
 	session := m.commandView.Chats[m.commandViewItemSelected]
-	stringValue19 := str.String(session.ID)
-	sessionID := stringValue19.Trim()
+	iDValue11 := str.String(session.ID)
+	sessionID := iDValue11.Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat restore unavailable")
 	}
@@ -762,8 +762,8 @@ func unarchiveChatSessionCmd(ctx context.Context, client sessionUnarchiver, sess
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		stringValue20 := str.String(sessionID)
-		sessionID = stringValue20.Trim()
+		sessionIDValue3 := str.String(sessionID)
+		sessionID = sessionIDValue3.Trim()
 		if sessionID == "" {
 			return chatUnarchivedMsg{Err: errors.New("chat id is required")}
 		}
@@ -777,16 +777,16 @@ func (m *model) completeUnarchiveArchivedChatSession(msg chatUnarchivedMsg) (tea
 	if msg.Err != nil {
 		return *m, m.setStatus("chat restore unavailable")
 	}
-	stringValue21 := str.String(msg.Session.ID)
-	sessionID := stringValue21.Trim()
+	iDValue12 := str.String(msg.Session.ID)
+	sessionID := iDValue12.Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat restore unavailable")
 	}
 
 	nextSessions := make([]storage.Session, 0, len(m.commandView.Chats))
 	for _, session := range m.commandView.Chats {
-		stringValue22 := str.String(session.ID)
-		if stringValue22.Trim() != sessionID {
+		iDValue13 := str.String(session.ID)
+		if iDValue13.Trim() != sessionID {
 			nextSessions = append(nextSessions, session)
 		}
 	}
@@ -810,8 +810,8 @@ func (m *model) completeUnarchiveArchivedChatSession(msg chatUnarchivedMsg) (tea
 
 func (m *model) selectChatsCommandSession() (tea.Model, tea.Cmd) {
 	session := m.commandView.Chats[m.commandViewItemSelected]
-	stringValue23 := str.String(session.ID)
-	sessionID := stringValue23.Trim()
+	iDValue14 := str.String(session.ID)
+	sessionID := iDValue14.Trim()
 	if sessionID == "" {
 		return *m, m.setStatus("chat switch unavailable")
 	}
@@ -850,8 +850,8 @@ func switchChatSessionCmd(ctx context.Context, client sessionSwitcher, sessionID
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		stringValue24 := str.String(sessionID)
-		sessionID = stringValue24.Trim()
+		sessionIDValue4 := str.String(sessionID)
+		sessionID = sessionIDValue4.Trim()
 		if sessionID == "" {
 			return sessionTimelineLoadFailedMsg{Err: errors.New("chat id is required")}
 		}

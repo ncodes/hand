@@ -20,8 +20,8 @@ type moduleEnsuringWriter struct {
 }
 
 func Module(module string) ModuleLogger {
-	stringValue1 := str.String(module)
-	return ModuleLogger{module: stringValue1.Trim()}
+	moduleValue := str.String(module)
+	return ModuleLogger{module: moduleValue.Trim()}
 }
 
 func (logger ModuleLogger) Trace() *zerolog.Event {
@@ -69,8 +69,8 @@ func newModuleEnsuringWriter(writer io.Writer, module string) io.Writer {
 	if writer == nil {
 		return io.Discard
 	}
-	stringValue2 := str.String(module)
-	return moduleEnsuringWriter{writer: writer, module: stringValue2.Trim()}
+	moduleValue2 := str.String(module)
+	return moduleEnsuringWriter{writer: writer, module: moduleValue2.Trim()}
 }
 
 func (writer moduleEnsuringWriter) Write(p []byte) (int, error) {

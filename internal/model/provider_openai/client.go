@@ -98,8 +98,8 @@ func NewOpenAIProviderClient(
 	}
 
 	clientOptions := make([]option.RequestOption, 0, len(opts)+1)
-	stringValue1 := str.String(apiKey)
-	if trimmed := stringValue1.Trim(); trimmed != "" {
+	apiKeyValue := str.String(apiKey)
+	if trimmed := apiKeyValue.Trim(); trimmed != "" {
 		clientOptions = append(clientOptions, option.WithAPIKey(trimmed))
 	}
 	clientOptions = append(clientOptions, opts...)
@@ -190,15 +190,15 @@ func getModelClientProviderErrorDetail(err error) string {
 	if !errors.As(err, &apiErr) || apiErr == nil {
 		return ""
 	}
-	stringValue2 := str.String(apiErr.RawJSON())
-	if raw := stringValue2.Trim(); raw != "" {
+	rawJSONValue := str.String(apiErr.RawJSON())
+	if raw := rawJSONValue.Trim(); raw != "" {
 		return truncateProviderErrorDetail(raw)
 	}
 	if body := readOpenAIErrorResponseBody(apiErr); body != "" {
 		return truncateProviderErrorDetail(body)
 	}
-	stringValue3 := str.String(apiErr.Message)
-	return truncateProviderErrorDetail(stringValue3.Trim())
+	messageValue := str.String(apiErr.Message)
+	return truncateProviderErrorDetail(messageValue.Trim())
 }
 
 func readOpenAIErrorResponseBody(apiErr *openai.Error) string {
@@ -211,14 +211,14 @@ func readOpenAIErrorResponseBody(apiErr *openai.Error) string {
 	if err != nil {
 		return ""
 	}
-	stringValue4 := str.String(string(body))
-	return stringValue4.Trim()
+	bodyValue := str.String(string(body))
+	return bodyValue.Trim()
 }
 
 func truncateProviderErrorDetail(detail string) string {
 	const maxProviderErrorDetailChars = 2048
-	stringValue5 := str.String(detail)
-	detail = stringValue5.Trim()
+	detailValue := str.String(detail)
+	detail = detailValue.Trim()
 	if len(detail) <= maxProviderErrorDetailChars {
 		return detail
 	}
@@ -228,8 +228,8 @@ func truncateProviderErrorDetail(detail string) string {
 
 // getProviderModelID converts Morph's neutral model ID to the provider's routed ID.
 func (c *OpenAIClient) getProviderModelID(model string) string {
-	stringValue6 := str.String(model)
-	model = stringValue6.Trim()
+	modelValue := str.String(model)
+	model = modelValue.Trim()
 	if normalizeProvider(c.provider) == "openai" {
 		return strings.TrimPrefix(model, "openai/")
 	}
@@ -246,13 +246,13 @@ func (c *OpenAIClient) getModelOwner(model string) string {
 	if !ok {
 		return ""
 	}
-	stringValue7 := str.String(modelDef.Owner)
-	return stringValue7.Trim()
+	ownerValue := str.String(modelDef.Owner)
+	return ownerValue.Trim()
 }
 
 func normalizeProvider(provider string) string {
-	stringValue8 := str.String(provider)
-	return stringValue8.Normalized()
+	providerValue := str.String(provider)
+	return providerValue.Normalized()
 }
 
 func (c *OpenAIClient) registryOrDefault() *modelprovider.Registry {

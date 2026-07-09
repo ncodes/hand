@@ -69,8 +69,8 @@ func loadDaemonConfig(cmd *urfavecli.Command) (daemonConfigSnapshot, error) {
 }
 
 func getConfigFileFingerprint(path string) (configFileFingerprint, error) {
-	stringValue1 := str.String(path)
-	path = stringValue1.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	if path == "" {
 		return configFileFingerprint{}, errors.New("config path is required")
 	}
@@ -103,8 +103,8 @@ type configWatcher struct {
 }
 
 func newFSNotifyConfigWatcher(configPath string) (configWatcher, error) {
-	stringValue2 := str.String(configPath)
-	configPath = stringValue2.Trim()
+	configPathValue := str.String(configPath)
+	configPath = configPathValue.Trim()
 	if configPath == "" {
 		return configWatcher{}, errors.New("config path is required")
 	}
@@ -132,8 +132,8 @@ func newFSNotifyConfigWatcher(configPath string) (configWatcher, error) {
 }
 
 func isConfigFileWatchEvent(event fsnotify.Event, configPath string) bool {
-	stringValue3 := str.String(event.Name)
-	if stringValue3.Trim() == "" {
+	nameValue := str.String(event.Name)
+	if nameValue.Trim() == "" {
 		return false
 	}
 

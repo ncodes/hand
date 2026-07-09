@@ -191,8 +191,8 @@ func sanitizeStatusError(cfg config.GatewayConfig, err error) string {
 		cfg.Slack.AppToken,
 		cfg.Slack.SigningSecret,
 	} {
-		stringValue1 := str.String(secret)
-		secret = stringValue1.Trim()
+		secretValue := str.String(secret)
+		secret = secretValue.Trim()
 		if secret != "" {
 			message = strings.ReplaceAll(message, secret, "[REDACTED]")
 		}

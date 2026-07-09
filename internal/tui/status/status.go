@@ -31,12 +31,12 @@ func New() Model {
 }
 
 func (m Model) Text() string {
-	stringValue1 := str.String(m.text)
-	if text := stringValue1.Trim(); text != "" {
+	textValue := str.String(m.text)
+	if text := textValue.Trim(); text != "" {
 		return text
 	}
-	stringValue2 := str.String(m.defaultText)
-	if text := stringValue2.Trim(); text != "" {
+	defaultTextValue := str.String(m.defaultText)
+	if text := defaultTextValue.Trim(); text != "" {
 		return text
 	}
 
@@ -64,13 +64,13 @@ func (m *Model) SetHideAfter(duration time.Duration) {
 }
 
 func (m *Model) SetDefault(text string) {
-	stringValue3 := str.String(text)
-	m.defaultText = stringValue3.Trim()
+	textValue2 := str.String(text)
+	m.defaultText = textValue2.Trim()
 }
 
 func (m *Model) SetTransient(text string, now time.Time) bool {
-	stringValue4 := str.String(text)
-	m.text = stringValue4.Trim()
+	textValue3 := str.String(text)
+	m.text = textValue3.Trim()
 	if m.text == "" {
 		m.startedAt = time.Time{}
 		return false

@@ -143,24 +143,24 @@ func getOllamaModelAPI(show showResponse) string {
 }
 
 func getTagModelID(tag tagModel) string {
-	stringValue1 := str.String(tag.Model)
-	if model := stringValue1.Trim(); model != "" {
+	modelValue := str.String(tag.Model)
+	if model := modelValue.Trim(); model != "" {
 		return model
 	}
-	stringValue2 := str.String(tag.Name)
-	return stringValue2.Trim()
+	nameValue := str.String(tag.Name)
+	return nameValue.Trim()
 }
 
 func getOllamaModelDisplayName(modelID string) string {
-	stringValue3 := str.String(modelID)
-	modelID = stringValue3.Trim()
+	modelIDValue := str.String(modelID)
+	modelID = modelIDValue.Trim()
 	if modelID == "" {
 		return ""
 	}
 
 	name, _, _ := strings.Cut(modelID, ":")
-	stringValue4 := str.String(name)
-	return stringValue4.Trim()
+	nameValue2 := str.String(name)
+	return nameValue2.Trim()
 }
 
 func getOllamaModelInputs(show showResponse) []modelprovider.InputKind {
@@ -174,8 +174,8 @@ func getOllamaModelInputs(show showResponse) []modelprovider.InputKind {
 
 func getOllamaContextWindow(show showResponse) int {
 	for key, value := range show.ModelInfo {
-		stringValue5 := str.String(key)
-		key = stringValue5.Normalized()
+		keyValue := str.String(key)
+		key = keyValue.Normalized()
 		if key != "context_length" && !strings.HasSuffix(key, ".context_length") {
 			continue
 		}
@@ -202,15 +202,15 @@ func numberToInt(value any) int {
 }
 
 func hasOllamaCapability(show showResponse, capability string) bool {
-	stringValue6 := str.String(capability)
-	capability = stringValue6.Normalized()
+	capabilityValue := str.String(capability)
+	capability = capabilityValue.Normalized()
 	if capability == "" {
 		return false
 	}
 
 	for _, value := range show.Capabilities {
-		stringValue7 := str.String(value)
-		if stringValue7.Normalized() == capability {
+		valueText := str.String(value)
+		if valueText.Normalized() == capability {
 			return true
 		}
 	}
@@ -219,8 +219,8 @@ func hasOllamaCapability(show showResponse, capability string) bool {
 }
 
 func isOllamaReasoningModel(modelID string) bool {
-	stringValue8 := str.String(modelID)
-	modelID = stringValue8.Normalized()
+	modelIDValue2 := str.String(modelID)
+	modelID = modelIDValue2.Normalized()
 	for _, marker := range []string{
 		"deepseek-r1",
 		"qwen3",

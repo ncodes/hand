@@ -70,8 +70,8 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
-			stringValue1 := str.String(req.Pattern)
-			if stringValue1.Trim() == "" {
+			patternValue := str.String(req.Pattern)
+			if patternValue.Trim() == "" {
 				return common.ToolError("invalid_input", "pattern is required"), nil
 			}
 
@@ -84,12 +84,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if limit <= 0 || limit > common.MaxSearchResults {
 				limit = common.MaxSearchResults
 			}
-			stringValue2 := str.String(req.Pattern)
+			patternValue2 := str.String(req.Pattern)
 			log.Info().
 				Str("tool", "search_files").
 				Str("phase", "start").
 				Str("path", common.NormalizedDisplayPath(req.Path)).
-				Int("pattern_chars", len([]rune(stringValue2.Trim()))).
+				Int("pattern_chars", len([]rune(patternValue2.Trim()))).
 				Bool("case_sensitive", req.CaseSensitive).
 				Bool("include_hidden", req.IncludeHidden).
 				Int("max_results", limit).
@@ -189,13 +189,13 @@ func searchWithRipgrep(
 
 		return nil, err
 	}
-	stringValue3 := str.String(string(output))
-	lines := strings.Split(stringValue3.Trim(), "\n")
+	outputValue := str.String(string(output))
+	lines := strings.Split(outputValue.Trim(), "\n")
 	matches := make([]contentMatch, 0, len(lines))
 
 	for _, line := range lines {
-		stringValue4 := str.String(line)
-		if stringValue4.Trim() == "" {
+		lineValue := str.String(line)
+		if lineValue.Trim() == "" {
 			continue
 		}
 

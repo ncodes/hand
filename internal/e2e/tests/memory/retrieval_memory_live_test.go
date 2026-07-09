@@ -16,8 +16,8 @@ import (
 )
 
 func TestLiveMemoryRetrievedInLaterTurn(t *testing.T) {
-	stringValue1 := str.String(os.Getenv("MORPH_E2E_LIVE"))
-	if stringValue1.Trim() != "1" {
+	envValue := str.String(os.Getenv("MORPH_E2E_LIVE"))
+	if envValue.Trim() != "1" {
 		t.Skip("set MORPH_E2E_LIVE=1 to run live LLM e2e tests")
 	}
 
@@ -117,15 +117,15 @@ func getLiveActiveMemoryContaining(
 	needle string,
 ) (storage.MemoryItem, bool) {
 	t.Helper()
-	stringValue2 := str.String(sessionID)
+	sessionIDValue := str.String(sessionID)
 	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
-		SessionID: stringValue2.Trim(),
+		SessionID: sessionIDValue.Trim(),
 		Statuses:  []storage.MemoryStatus{storage.MemoryStatusActive},
 		Limit:     20,
 	})
 	require.NoError(t, err)
-	stringValue3 := str.String(needle)
-	needle = stringValue3.Normalized()
+	needleValue := str.String(needle)
+	needle = needleValue.Normalized()
 	for _, hit := range result.Hits {
 		if strings.Contains(getLiveMemorySearchableText(hit.Item), needle) {
 			return hit.Item, true
@@ -155,8 +155,8 @@ func hasCurrentLiveMemoryVector(
 	item storage.MemoryItem,
 ) bool {
 	t.Helper()
-	stringValue4 := str.String(strings.Join([]string{item.Title, item.Text}, "\n"))
-	text := stringValue4.Trim()
+	joinValue := str.String(strings.Join([]string{item.Title, item.Text}, "\n"))
+	text := joinValue.Trim()
 	if text == "" {
 		return true
 	}

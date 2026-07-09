@@ -15,19 +15,19 @@ import (
 var sessionSearchLog = logutils.Module("state.memory")
 
 func (s *Store) logSearchEvent(_ string, id string, opts base.SearchMessageOptions) *zerolog.Event {
-	stringValue1 := str.String(opts.Query)
+	queryValue := str.String(opts.Query)
 	event := sessionSearchLog.Debug().
-		Int("query_chars", len([]rune(stringValue1.Trim())))
-	stringValue2 := str.String(id)
-	if id = stringValue2.Trim(); id != "" {
+		Int("query_chars", len([]rune(queryValue.Trim())))
+	idValue := str.String(id)
+	if id = idValue.Trim(); id != "" {
 		event = event.Str("session_id", id)
 	}
 	if opts.IgnoreSessionID != "" {
 		event = event.Str("ignore_session_id", opts.IgnoreSessionID)
 	}
 	if opts.Role != "" {
-		stringValue3 := str.String(string(opts.Role))
-		event = event.Str("role", stringValue3.Trim())
+		roleValue := str.String(string(opts.Role))
+		event = event.Str("role", roleValue.Trim())
 	}
 	if toolName := base.NormalizeMatchValue(opts.ToolName); toolName != "" {
 		event = event.Str("tool_name", toolName)
@@ -86,9 +86,9 @@ func (s *Store) logCandidateDiagnostics(stage string, candidates []*searchCandid
 	}
 
 	for rank, candidate := range candidates {
-		stringValue4 := str.String(stage)
+		stageValue := str.String(stage)
 		event := sessionSearchLog.Debug().
-			Str("stage", stringValue4.Trim()).
+			Str("stage", stageValue.Trim()).
 			Str("session_id", candidate.SessionID).
 			Uint("message_id", candidate.Message.ID).
 			Float64("lexical_score", candidate.LexicalScore).

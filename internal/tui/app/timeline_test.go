@@ -1437,8 +1437,8 @@ func TestRenderTranscriptCell_RendersAssistantMessageWithDotColumn(t *testing.T)
 		"  A quiet breeze begins to sing,",
 		"  And wakes the world to everything.",
 	}, lines)
-	stringValue1 := str.String(assistantTranscriptIndicatorGlyph)
-	require.Equal(t, 1, strings.Count(plain, stringValue1.Trim()))
+	assistantTranscriptIndicatorGlyphValue := str.String(assistantTranscriptIndicatorGlyph)
+	require.Equal(t, 1, strings.Count(plain, assistantTranscriptIndicatorGlyphValue.Trim()))
 }
 
 func TestRenderTranscriptCell_RendersAssistantWorkedDuration(t *testing.T) {

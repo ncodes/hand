@@ -39,16 +39,16 @@ type ErrorResponse struct {
 }
 
 func NormalizeRespondRequest(req RespondRequest) RespondRequest {
-	stringValue1 := str.String(req.ConversationID)
-	req.ConversationID = stringValue1.Trim()
-	stringValue2 := str.String(req.Message)
-	req.Message = stringValue2.Trim()
-	stringValue3 := str.String(req.UserID)
-	req.UserID = stringValue3.Trim()
-	stringValue4 := str.String(req.Source)
-	req.Source = stringValue4.Trim()
-	stringValue5 := str.String(req.Instruct)
-	req.Instruct = stringValue5.Trim()
+	conversationIDValue := str.String(req.ConversationID)
+	req.ConversationID = conversationIDValue.Trim()
+	messageValue := str.String(req.Message)
+	req.Message = messageValue.Trim()
+	userIDValue := str.String(req.UserID)
+	req.UserID = userIDValue.Trim()
+	sourceValue := str.String(req.Source)
+	req.Source = sourceValue.Trim()
+	instructValue := str.String(req.Instruct)
+	req.Instruct = instructValue.Trim()
 	if req.Source == "" {
 		req.Source = SourceGenericHTTP
 	}
@@ -69,10 +69,10 @@ func ValidateRespondRequest(req RespondRequest) error {
 }
 
 func NewErrorResponse(code string, message string) ErrorResponse {
-	stringValue6 := str.String(code)
-	stringValue7 := str.String(message)
+	codeValue := str.String(code)
+	messageValue2 := str.String(message)
 	return ErrorResponse{
-		Code:    stringValue6.Trim(),
-		Message: stringValue7.Trim(),
+		Code:    codeValue.Trim(),
+		Message: messageValue2.Trim(),
 	}
 }

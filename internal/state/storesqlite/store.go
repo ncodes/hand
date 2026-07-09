@@ -23,8 +23,8 @@ type Store struct {
 
 // NewStore returns a store backed by the supplied dependencies.
 func NewStore(path string) (*Store, error) {
-	stringValue1 := str.String(path)
-	path = stringValue1.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	if path == "" {
 		return nil, errors.New("session sqlite path is required")
 	}
@@ -112,8 +112,8 @@ func (s *Store) Close() error {
 }
 
 func gormOpenSQLite(path string) (*Store, error) {
-	stringValue2 := str.String(path)
-	path = stringValue2.Trim()
+	pathValue2 := str.String(path)
+	path = pathValue2.Trim()
 	if path == "" {
 		return nil, errors.New("session sqlite path is required")
 	}

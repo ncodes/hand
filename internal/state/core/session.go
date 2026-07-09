@@ -22,13 +22,14 @@ const SessionTitleSourceGenerated = "generated"
 const SessionTitleSourceManual = "manual"
 
 const (
-	SessionOriginSourceTerminal = "terminal"
-	SessionOriginSourceCLI      = SessionOriginSourceTerminal
-	SessionOriginSourceGeneric  = "generic"
-	SessionOriginSourceGUI      = "gui"
-	SessionOriginSourceSlack    = "slack"
-	SessionOriginSourceTelegram = "telegram"
-	SessionOriginSourceTUI      = SessionOriginSourceTerminal
+	SessionOriginSourceTerminal   = "terminal"
+	SessionOriginSourceAutomation = "automation"
+	SessionOriginSourceCLI        = "cli"
+	SessionOriginSourceGeneric    = "generic"
+	SessionOriginSourceGUI        = "gui"
+	SessionOriginSourceSlack      = "slack"
+	SessionOriginSourceTelegram   = "telegram"
+	SessionOriginSourceTUI        = "tui"
 )
 
 // NewSessionID returns a newly generated session ID.
@@ -105,7 +106,8 @@ type SessionGetOptions struct {
 
 // SessionListOptions filters session listing operations.
 type SessionListOptions struct {
-	Archived *bool
+	Archived     *bool
+	OriginSource string
 }
 
 // SessionRenameRequest describes a session title change.

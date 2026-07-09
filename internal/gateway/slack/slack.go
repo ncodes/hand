@@ -40,8 +40,8 @@ func (a *Adapter) DispatchInbound(ctx context.Context, inbound slack.InboundMess
 	if a == nil || a.service == nil || a.sender == nil {
 		return false, errors.New("slack adapter is required")
 	}
-	stringValue1 := str.String(inbound.Text)
-	if stringValue1.Trim() == "" {
+	textValue := str.String(inbound.Text)
+	if textValue.Trim() == "" {
 		return false, nil
 	}
 	log.Debug().
@@ -85,18 +85,18 @@ func (a *Adapter) DispatchInbound(ctx context.Context, inbound slack.InboundMess
 }
 
 func (a *Adapter) authorize(ctx context.Context, inbound slack.InboundMessage) (bool, error) {
-	stringValue2 := str.String(inbound.SenderID)
-	senderID := stringValue2.Trim()
+	senderIDValue := str.String(inbound.SenderID)
+	senderID := senderIDValue.Trim()
 	if senderID == "" {
 		return false, nil
 	}
 	if hasAllowedSender(a.cfg.AllowedUsers, senderID) || hasAllowedSender(a.cfg.Slack.AllowedUsers, senderID) {
 		return true, nil
 	}
-	stringValue3 := str.String(a.cfg.PairingSecret)
+	pairingSecretValue := str.String(a.cfg.PairingSecret)
 	manager := pairing.NewManager(pairing.Options{
 		Store:  a.service,
-		Secret: stringValue3.Trim(),
+		Secret: pairingSecretValue.Trim(),
 	})
 	approved, err := manager.IsApproved(ctx, bindings.SourceSlack, senderID)
 	if err != nil {
@@ -137,8 +137,8 @@ func (a *Adapter) authorize(ctx context.Context, inbound slack.InboundMessage) (
 
 func getSlackResponseTarget(responseMode string, inbound slack.InboundMessage) slack.Target {
 	target := inbound.Target
-	stringValue4 := str.String(responseMode)
-	if stringValue4.Normalized() == config.GatewaySlackResponseModeMessage &&
+	responseModeValue := str.String(responseMode)
+	if responseModeValue.Normalized() == config.GatewaySlackResponseModeMessage &&
 		!isSlackThreadReply(inbound) {
 		target.ThreadTS = ""
 	}
@@ -147,22 +147,22 @@ func getSlackResponseTarget(responseMode string, inbound slack.InboundMessage) s
 }
 
 func isSlackThreadReply(inbound slack.InboundMessage) bool {
-	stringValue5 := str.String(inbound.ThreadTS)
-	threadTS := stringValue5.Trim()
-	stringValue6 := str.String(inbound.MessageTS)
-	messageTS := stringValue6.Trim()
+	threadTSValue := str.String(inbound.ThreadTS)
+	threadTS := threadTSValue.Trim()
+	messageTSValue := str.String(inbound.MessageTS)
+	messageTS := messageTSValue.Trim()
 	return threadTS != "" && messageTS != "" && threadTS != messageTS
 }
 
 func hasAllowedSender(allowed []string, senderID string) bool {
-	stringValue7 := str.String(senderID)
-	senderID = stringValue7.Trim()
+	senderIDValue2 := str.String(senderID)
+	senderID = senderIDValue2.Trim()
 	if senderID == "" {
 		return false
 	}
 	for _, allowedID := range allowed {
-		stringValue8 := str.String(allowedID)
-		if stringValue8.Trim() == senderID {
+		allowedIDValue := str.String(allowedID)
+		if allowedIDValue.Trim() == senderID {
 			return true
 		}
 	}
@@ -171,8 +171,8 @@ func hasAllowedSender(allowed []string, senderID string) bool {
 }
 
 func isSlackPrivateTarget(target slack.Target) bool {
-	stringValue9 := str.String(target.ChannelType)
-	switch stringValue9.Trim() {
+	channelTypeValue := str.String(target.ChannelType)
+	switch channelTypeValue.Trim() {
 	case "im", "mpim":
 		return true
 	default:

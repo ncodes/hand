@@ -36,16 +36,16 @@ const (
 
 // ValidateCandidate checks that a search candidate has usable identity and score fields.
 func ValidateCandidate(candidate Candidate) error {
-	stringValue1 := str.String(candidate.ID)
-	if stringValue1.Trim() == "" {
+	iDValue := str.String(candidate.ID)
+	if iDValue.Trim() == "" {
 		return errors.New("candidate id is required")
 	}
-	stringValue2 := str.String(string(candidate.SourceKind))
-	if stringValue2.Trim() == "" {
+	sourceKindValue := str.String(string(candidate.SourceKind))
+	if sourceKindValue.Trim() == "" {
 		return errors.New("candidate source kind is required")
 	}
-	stringValue3 := str.String(candidate.Text)
-	if stringValue3.Trim() == "" {
+	textValue := str.String(candidate.Text)
+	if textValue.Trim() == "" {
 		return errors.New("candidate text is required")
 	}
 	if !finite(candidate.LexicalScore) {
@@ -60,16 +60,16 @@ func ValidateCandidate(candidate Candidate) error {
 
 	switch candidate.SourceKind {
 	case SourceKindSessionMessage:
-		stringValue4 := str.String(candidate.SessionID)
-		if stringValue4.Trim() == "" {
+		sessionIDValue := str.String(candidate.SessionID)
+		if sessionIDValue.Trim() == "" {
 			return errors.New("candidate session id is required")
 		}
 		if candidate.MessageID == 0 {
 			return errors.New("candidate message id is required")
 		}
 	case SourceKindMemoryItem:
-		stringValue5 := str.String(candidate.MemoryID)
-		if stringValue5.Trim() == "" {
+		memoryIDValue := str.String(candidate.MemoryID)
+		if memoryIDValue.Trim() == "" {
 			return errors.New("candidate memory id is required")
 		}
 	default:

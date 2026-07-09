@@ -66,8 +66,8 @@ func SearchableMessageText(message Message, toolName string) (string, string) {
 			if toolName != "" {
 				return "", ""
 			}
-			stringValue3 := str.String(message.Content)
-			return stringValue3.Trim(), ""
+			contentValue := str.String(message.Content)
+			return contentValue.Trim(), ""
 		}
 
 		matchedToolName := getAssistantToolNameMatch(message.ToolCalls, toolName)
@@ -77,10 +77,10 @@ func SearchableMessageText(message Message, toolName string) (string, string) {
 
 		if toolName != "" {
 			for _, toolCall := range message.ToolCalls {
-				stringValue4 := str.String(toolCall.Name)
-				if strings.EqualFold(stringValue4.Trim(), toolName) {
-					stringValue5 := str.String(toolCall.Name)
-					return ToolCallSearchText(toolCall), stringValue5.Trim()
+				nameValue := str.String(toolCall.Name)
+				if strings.EqualFold(nameValue.Trim(), toolName) {
+					nameValue2 := str.String(toolCall.Name)
+					return ToolCallSearchText(toolCall), nameValue2.Trim()
 				}
 			}
 		}
@@ -91,8 +91,8 @@ func SearchableMessageText(message Message, toolName string) (string, string) {
 		}
 
 		if matchedToolName == "" && len(message.ToolCalls) == 1 {
-			stringValue6 := str.String(message.ToolCalls[0].Name)
-			matchedToolName = stringValue6.Trim()
+			nameValue3 := str.String(message.ToolCalls[0].Name)
+			matchedToolName = nameValue3.Trim()
 		}
 
 		return searchText, matchedToolName
@@ -105,8 +105,8 @@ func SearchableMessageText(message Message, toolName string) (string, string) {
 
 		searchText := MessageSearchText(message)
 		if searchText == "" {
-			stringValue7 := str.String(message.Content)
-			searchText = stringValue7.Trim()
+			contentValue2 := str.String(message.Content)
+			searchText = contentValue2.Trim()
 		}
 
 		return searchText, messageToolName
@@ -125,10 +125,10 @@ func getAssistantToolNameMatch(toolCalls []ToolCall, toolName string) string {
 	}
 
 	for _, toolCall := range toolCalls {
-		stringValue8 := str.String(toolCall.Name)
-		if strings.EqualFold(stringValue8.Trim(), toolName) {
-			stringValue9 := str.String(toolCall.Name)
-			return stringValue9.Trim()
+		nameValue4 := str.String(toolCall.Name)
+		if strings.EqualFold(nameValue4.Trim(), toolName) {
+			nameValue5 := str.String(toolCall.Name)
+			return nameValue5.Trim()
 		}
 	}
 
@@ -137,8 +137,8 @@ func getAssistantToolNameMatch(toolCalls []ToolCall, toolName string) string {
 
 func getAssistantSearchText(message Message) string {
 	parts := make([]string, 0, 2)
-	stringValue10 := str.String(message.Content)
-	if content := stringValue10.Trim(); content != "" {
+	contentValue3 := str.String(message.Content)
+	if content := contentValue3.Trim(); content != "" {
 		parts = append(parts, content)
 	}
 
@@ -150,12 +150,11 @@ func getAssistantSearchText(message Message) string {
 }
 
 func normalizeSearchTextScalar(value string) string {
-	stringValue11 := str.String(value)
-	value = stringValue11.Normalized()
-	if value == "" {
+	valueText := str.String(value).Normalized()
+	if valueText == "" {
 		return ""
 	}
-	return strings.Join(strings.Fields(value), " ")
+	return strings.Join(strings.Fields(valueText), " ")
 }
 
 func dedupeSearchTextLines(lines []string) string {
@@ -166,8 +165,8 @@ func dedupeSearchTextLines(lines []string) string {
 	seen := make(map[string]struct{}, len(lines))
 	out := make([]string, 0, len(lines))
 	for _, line := range lines {
-		stringValue12 := str.String(line)
-		line = stringValue12.Trim()
+		lineValue := str.String(line)
+		line = lineValue.Trim()
 		if line == "" {
 			continue
 		}

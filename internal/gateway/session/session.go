@@ -13,13 +13,9 @@ import (
 
 type Service interface {
 	Respond(context.Context, string, agentcore.RespondOptions) (string, error)
-	CreateSession(context.Context, string) (storage.Session, error)
+	CreateSession(context.Context, string, ...storage.SessionCreateOptions) (storage.Session, error)
 	SaveGatewayBinding(context.Context, storage.GatewayBinding) error
 	GetGatewayBinding(context.Context, string) (storage.GatewayBinding, bool, error)
-}
-
-type originSessionCreator interface {
-	CreateSessionWithOrigin(context.Context, string, storage.SessionOrigin) (storage.Session, error)
 }
 
 type sessionGetter interface {
@@ -42,8 +38,8 @@ func (r *Resolver) Resolve(ctx context.Context, key bindings.Key) (storage.Sessi
 	if r == nil || r.service == nil {
 		return storage.Session{}, errors.New("gateway session resolver service is required")
 	}
-	stringValue1 := str.String(key.String())
-	keyString := stringValue1.Trim()
+	textValue := str.String(key.String())
+	keyString := textValue.Trim()
 	if keyString == "" {
 		return storage.Session{}, errors.New("gateway binding key is required")
 	}
@@ -100,11 +96,7 @@ func (r *Resolver) createAndSaveBinding(
 }
 
 func (r *Resolver) createSession(ctx context.Context, origin storage.SessionOrigin) (storage.Session, error) {
-	if creator, ok := r.service.(originSessionCreator); ok {
-		return creator.CreateSessionWithOrigin(ctx, "", origin)
-	}
-
-	return r.service.CreateSession(ctx, "")
+	return r.service.CreateSession(ctx, "", storage.SessionCreateOptions{Origin: origin})
 }
 
 func sessionOriginFromBindingKey(key bindings.Key) storage.SessionOrigin {

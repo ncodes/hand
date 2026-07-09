@@ -51,19 +51,19 @@ func ApplyRunProvenance(
 }
 
 func setMetadata(metadata map[string]string, key string, value string) {
-	stringValue1 := str.String(value)
-	if value = stringValue1.Trim(); value != "" {
-		metadata[key] = value
+	valueText := str.String(value)
+	if valueText := valueText.Trim(); valueText != "" {
+		metadata[key] = valueText
 	}
 }
 
 func getRunChildSessionID(runCtx runcontext.Context) string {
-	stringValue2 := str.String(runCtx.Lineage.ParentSessionID)
-	if stringValue2.Trim() == "" {
+	parentSessionIDValue := str.String(runCtx.Lineage.ParentSessionID)
+	if parentSessionIDValue.Trim() == "" {
 		return ""
 	}
-	stringValue3 := str.String(runCtx.Lineage.ChildSessionID)
-	if stringValue3.Trim() != "" {
+	childSessionIDValue := str.String(runCtx.Lineage.ChildSessionID)
+	if childSessionIDValue.Trim() != "" {
 		return runCtx.Lineage.ChildSessionID
 	}
 
@@ -93,7 +93,7 @@ func fillSourceLinkProvenance(link *SourceLink, runCtx runcontext.Context, trigg
 		link.StateMode = runCtx.State.Mode
 	}
 	if link.SourceTrigger == "" {
-		stringValue4 := str.String(trigger)
-		link.SourceTrigger = stringValue4.Trim()
+		triggerValue := str.String(trigger)
+		link.SourceTrigger = triggerValue.Trim()
 	}
 }

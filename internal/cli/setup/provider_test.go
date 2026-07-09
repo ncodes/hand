@@ -2469,8 +2469,8 @@ func requireSetupIndentedLayer(t *testing.T, rendered string, layer string) {
 	t.Helper()
 
 	for _, line := range strings.Split(layer, "\n") {
-		stringValue1 := str.String(line)
-		if stringValue1.Trim() == "" {
+		lineValue := str.String(line)
+		if lineValue.Trim() == "" {
 			continue
 		}
 		require.Contains(t, rendered, "\n"+setupOptionIndent+line)
@@ -2482,8 +2482,8 @@ func requireSetupHelpGuideNotIndented(t *testing.T, rendered string, guide strin
 	t.Helper()
 
 	for _, line := range strings.Split(guide, "\n") {
-		stringValue2 := str.String(line)
-		if stringValue2.Trim() == "" {
+		lineValue2 := str.String(line)
+		if lineValue2.Trim() == "" {
 			continue
 		}
 		require.Contains(t, rendered, "\n"+line)

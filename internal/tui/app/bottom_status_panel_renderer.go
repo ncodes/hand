@@ -40,8 +40,8 @@ func (lipglossBottomStatusPanelRenderer) Render(panel bottomStatusPanel) string 
 }
 
 func renderBottomStatusMutedCell(text string) string {
-	stringValue1 := str.String(text)
-	text = stringValue1.Trim()
+	textValue := str.String(text)
+	text = textValue.Trim()
 	if text == "" {
 		return ""
 	}
@@ -63,8 +63,8 @@ func renderBottomStatusMutedText(text string) string {
 func joinBottomStatusPanelRenderedSegments(segments []string, width int) string {
 	visible := make([]string, 0, len(segments))
 	for _, segment := range segments {
-		stringValue2 := str.String(segment)
-		if segment = stringValue2.Trim(); segment != "" {
+		segmentValue := str.String(segment)
+		if segment = segmentValue.Trim(); segment != "" {
 			visible = append(visible, segment)
 		}
 	}
@@ -88,8 +88,8 @@ func joinBottomStatusPanelRenderedSegments(segments []string, width int) string 
 func joinBottomStatusPanelSegments(segments []string, width int) string {
 	visible := make([]string, 0, len(segments))
 	for _, segment := range segments {
-		stringValue3 := str.String(segment)
-		if segment = stringValue3.Trim(); segment != "" {
+		segmentValue2 := str.String(segment)
+		if segment = segmentValue2.Trim(); segment != "" {
 			visible = append(visible, segment)
 		}
 	}
@@ -111,10 +111,10 @@ func joinBottomStatusPanelSegments(segments []string, width int) string {
 
 // spaceBetweenBottomStatusPanel pushes context usage to the right edge when possible.
 func spaceBetweenBottomStatusPanel(left, right string, width int) string {
-	stringValue4 := str.String(left)
-	left = stringValue4.Trim()
-	stringValue5 := str.String(right)
-	right = stringValue5.Trim()
+	leftValue := str.String(left)
+	left = leftValue.Trim()
+	rightValue := str.String(right)
+	right = rightValue.Trim()
 	if left == "" {
 		return right
 	}
@@ -132,12 +132,12 @@ func spaceBetweenBottomStatusPanel(left, right string, width int) string {
 
 // spaceAroundBottomStatusPanel centers the session title while keeping metadata at the edges.
 func spaceAroundBottomStatusPanel(left, center, right string, width int) string {
-	stringValue6 := str.String(left)
-	left = stringValue6.Trim()
-	stringValue7 := str.String(center)
-	center = stringValue7.Trim()
-	stringValue8 := str.String(right)
-	right = stringValue8.Trim()
+	leftValue2 := str.String(left)
+	left = leftValue2.Trim()
+	centerValue := str.String(center)
+	center = centerValue.Trim()
+	rightValue2 := str.String(right)
+	right = rightValue2.Trim()
 	if center == "" {
 		return spaceBetweenBottomStatusPanel(left, right, width)
 	}

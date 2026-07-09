@@ -50,16 +50,16 @@ func (s *State) RenderSummaryInstructions() (string, bool) {
 	if s == nil || s.Current == nil {
 		return "", false
 	}
-	stringValue1 := str.String(s.Current.SessionSummary)
-	sessionSummary := stringValue1.Trim()
+	sessionSummaryValue := str.String(s.Current.SessionSummary)
+	sessionSummary := sessionSummaryValue.Trim()
 	if sessionSummary == "" {
 		return "", false
 	}
 
 	var sections []string
 	sections = append(sections, "# Session Summary\n\n"+sessionSummary)
-	stringValue2 := str.String(s.Current.CurrentTask)
-	if currentTask := stringValue2.Trim(); currentTask != "" {
+	currentTaskValue := str.String(s.Current.CurrentTask)
+	if currentTask := currentTaskValue.Trim(); currentTask != "" {
 		sections = append(sections, "# Current Task\n\n"+currentTask)
 	}
 	if discoveries := renderSummaryList("Discoveries", s.Current.Discoveries); discoveries != "" {

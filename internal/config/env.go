@@ -14,71 +14,71 @@ func applyEnvOverrides(cfg *Config) {
 	if cfg == nil {
 		return
 	}
-	stringValue1 := str.String(os.Getenv("MORPH_NAME"))
-	if value := stringValue1.Trim(); value != "" {
+	envValue := str.String(os.Getenv("MORPH_NAME"))
+	if value := envValue.Trim(); value != "" {
 		cfg.Name = value
 	}
-	stringValue2 := str.String(os.Getenv("MORPH_MODEL"))
-	if value := stringValue2.Trim(); value != "" {
+	envValue2 := str.String(os.Getenv("MORPH_MODEL"))
+	if value := envValue2.Trim(); value != "" {
 		cfg.Models.Main.Name = value
 	}
-	stringValue3 := str.String(os.Getenv("MORPH_MODEL_SUMMARY"))
-	if value := stringValue3.Trim(); value != "" {
+	envValue3 := str.String(os.Getenv("MORPH_MODEL_SUMMARY"))
+	if value := envValue3.Trim(); value != "" {
 		cfg.Models.Summary.Name = value
 	}
 	if value, ok := parseOptionalBoolEnv("MORPH_MODEL_STREAM"); ok {
 		cfg.Models.Main.Stream = new(value)
 	}
-	stringValue4 := str.String(os.Getenv("MORPH_MODEL_CONTEXT_LENGTH"))
-	if value := stringValue4.Trim(); value != "" {
+	envValue4 := str.String(os.Getenv("MORPH_MODEL_CONTEXT_LENGTH"))
+	if value := envValue4.Trim(); value != "" {
 		if contextLength, err := strconv.Atoi(value); err == nil {
 			cfg.Models.Main.ContextLength = contextLength
 		}
 	}
-	stringValue5 := str.String(os.Getenv("MORPH_MODEL_MAX_RETRIES"))
-	if value := stringValue5.Trim(); value != "" {
+	envValue5 := str.String(os.Getenv("MORPH_MODEL_MAX_RETRIES"))
+	if value := envValue5.Trim(); value != "" {
 		if retries, err := strconv.Atoi(value); err == nil {
 			cfg.Models.MaxRetries = &retries
 		}
 	}
-	stringValue6 := str.String(os.Getenv("MORPH_MODEL_PROVIDER"))
-	if value := stringValue6.Trim(); value != "" {
+	envValue6 := str.String(os.Getenv("MORPH_MODEL_PROVIDER"))
+	if value := envValue6.Trim(); value != "" {
 		cfg.Models.Main.Provider = value
 	}
-	stringValue7 := str.String(os.Getenv("MORPH_MODEL_EMBEDDING_PROVIDER"))
-	if value := stringValue7.Trim(); value != "" {
+	envValue7 := str.String(os.Getenv("MORPH_MODEL_EMBEDDING_PROVIDER"))
+	if value := envValue7.Trim(); value != "" {
 		cfg.Models.Embedding.Provider = value
 	}
-	stringValue8 := str.String(os.Getenv("MORPH_MODEL_EMBEDDING_MODEL"))
-	if value := stringValue8.Trim(); value != "" {
+	envValue8 := str.String(os.Getenv("MORPH_MODEL_EMBEDDING_MODEL"))
+	if value := envValue8.Trim(); value != "" {
 		cfg.Models.Embedding.Name = value
 	}
-	stringValue9 := str.String(os.Getenv("MORPH_MODEL_BASE_URL"))
-	if value := stringValue9.Trim(); value != "" {
+	envValue9 := str.String(os.Getenv("MORPH_MODEL_BASE_URL"))
+	if value := envValue9.Trim(); value != "" {
 		cfg.Models.Main.BaseURL = value
 	}
-	stringValue10 := str.String(os.Getenv("MORPH_MODEL_SUMMARY_PROVIDER"))
-	if value := stringValue10.Trim(); value != "" {
+	envValue10 := str.String(os.Getenv("MORPH_MODEL_SUMMARY_PROVIDER"))
+	if value := envValue10.Trim(); value != "" {
 		cfg.Models.Summary.Provider = value
 	}
-	stringValue11 := str.String(os.Getenv("MORPH_MODEL_SUMMARY_BASE_URL"))
-	if value := stringValue11.Trim(); value != "" {
+	envValue11 := str.String(os.Getenv("MORPH_MODEL_SUMMARY_BASE_URL"))
+	if value := envValue11.Trim(); value != "" {
 		cfg.Models.Summary.BaseURL = value
 	}
-	stringValue12 := str.String(os.Getenv("MORPH_MODEL_API"))
-	if value := stringValue12.Trim(); value != "" {
+	envValue12 := str.String(os.Getenv("MORPH_MODEL_API"))
+	if value := envValue12.Trim(); value != "" {
 		cfg.Models.Main.API = value
 	}
-	stringValue13 := str.String(os.Getenv("MORPH_MODEL_SUMMARY_API"))
-	if value := stringValue13.Trim(); value != "" {
+	envValue13 := str.String(os.Getenv("MORPH_MODEL_SUMMARY_API"))
+	if value := envValue13.Trim(); value != "" {
 		cfg.Models.Summary.API = value
 	}
-	stringValue14 := str.String(os.Getenv("MORPH_RPC_ADDRESS"))
-	if value := stringValue14.Trim(); value != "" {
+	envValue14 := str.String(os.Getenv("MORPH_RPC_ADDRESS"))
+	if value := envValue14.Trim(); value != "" {
 		cfg.RPC.Address = value
 	}
-	stringValue15 := str.String(os.Getenv("MORPH_RPC_PORT"))
-	if value := stringValue15.Trim(); value != "" {
+	envValue15 := str.String(os.Getenv("MORPH_RPC_PORT"))
+	if value := envValue15.Trim(); value != "" {
 		if port, err := strconv.Atoi(value); err == nil {
 			cfg.RPC.Port = port
 		}
@@ -86,102 +86,102 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_GATEWAY_ENABLED"); ok {
 		cfg.Gateway.Enabled = value
 	}
-	stringValue16 := str.String(os.Getenv("MORPH_GATEWAY_ADDRESS"))
-	if value := stringValue16.Trim(); value != "" {
+	envValue16 := str.String(os.Getenv("MORPH_GATEWAY_ADDRESS"))
+	if value := envValue16.Trim(); value != "" {
 		cfg.Gateway.Address = value
 	}
-	stringValue17 := str.String(os.Getenv("MORPH_GATEWAY_PORT"))
-	if value := stringValue17.Trim(); value != "" {
+	envValue17 := str.String(os.Getenv("MORPH_GATEWAY_PORT"))
+	if value := envValue17.Trim(); value != "" {
 		if port, err := strconv.Atoi(value); err == nil {
 			cfg.Gateway.Port = port
 		}
 	}
-	stringValue18 := str.String(os.Getenv("MORPH_GATEWAY_AUTH_TOKEN"))
-	if value := stringValue18.Trim(); value != "" {
+	envValue18 := str.String(os.Getenv("MORPH_GATEWAY_AUTH_TOKEN"))
+	if value := envValue18.Trim(); value != "" {
 		cfg.Gateway.AuthToken = value
 	}
-	stringValue19 := str.String(os.Getenv("MORPH_GATEWAY_PAIRING_SECRET"))
-	if value := stringValue19.Trim(); value != "" {
+	envValue19 := str.String(os.Getenv("MORPH_GATEWAY_PAIRING_SECRET"))
+	if value := envValue19.Trim(); value != "" {
 		cfg.Gateway.PairingSecret = value
 	}
-	stringValue20 := str.String(os.Getenv("MORPH_GATEWAY_ALLOWED_USERS"))
-	if value := stringValue20.Trim(); value != "" {
+	envValue20 := str.String(os.Getenv("MORPH_GATEWAY_ALLOWED_USERS"))
+	if value := envValue20.Trim(); value != "" {
 		cfg.Gateway.AllowedUsers = splitAndTrimCSV(value)
 	}
 	if value, ok := parseOptionalBoolEnv("MORPH_GATEWAY_TELEGRAM_ENABLED"); ok {
 		cfg.Gateway.Telegram.Enabled = value
 	}
-	stringValue21 := str.String(os.Getenv("MORPH_GATEWAY_TELEGRAM_MODE"))
-	if value := stringValue21.Trim(); value != "" {
+	envValue21 := str.String(os.Getenv("MORPH_GATEWAY_TELEGRAM_MODE"))
+	if value := envValue21.Trim(); value != "" {
 		cfg.Gateway.Telegram.Mode = value
 	}
-	stringValue22 := str.String(os.Getenv("MORPH_GATEWAY_TELEGRAM_BOT_TOKEN"))
-	if value := stringValue22.Trim(); value != "" {
+	envValue22 := str.String(os.Getenv("MORPH_GATEWAY_TELEGRAM_BOT_TOKEN"))
+	if value := envValue22.Trim(); value != "" {
 		cfg.Gateway.Telegram.BotToken = value
 	}
-	stringValue23 := str.String(os.Getenv("MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET"))
-	if value := stringValue23.Trim(); value != "" {
+	envValue23 := str.String(os.Getenv("MORPH_GATEWAY_TELEGRAM_WEBHOOK_SECRET"))
+	if value := envValue23.Trim(); value != "" {
 		cfg.Gateway.Telegram.WebhookSecret = value
 	}
-	stringValue24 := str.String(os.Getenv("MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS"))
-	if value := stringValue24.Trim(); value != "" {
+	envValue24 := str.String(os.Getenv("MORPH_GATEWAY_TELEGRAM_ALLOWED_USERS"))
+	if value := envValue24.Trim(); value != "" {
 		cfg.Gateway.Telegram.AllowedUsers = splitAndTrimCSV(value)
 	}
 	if value, ok := parseOptionalBoolEnv("MORPH_GATEWAY_SLACK_ENABLED"); ok {
 		cfg.Gateway.Slack.Enabled = value
 	}
-	stringValue25 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_MODE"))
-	if value := stringValue25.Trim(); value != "" {
+	envValue25 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_MODE"))
+	if value := envValue25.Trim(); value != "" {
 		cfg.Gateway.Slack.Mode = value
 	}
-	stringValue26 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_RESPONSE_MODE"))
-	if value := stringValue26.Trim(); value != "" {
+	envValue26 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_RESPONSE_MODE"))
+	if value := envValue26.Trim(); value != "" {
 		cfg.Gateway.Slack.ResponseMode = value
 	}
-	stringValue27 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_BOT_TOKEN"))
-	if value := stringValue27.Trim(); value != "" {
+	envValue27 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_BOT_TOKEN"))
+	if value := envValue27.Trim(); value != "" {
 		cfg.Gateway.Slack.BotToken = value
 	}
-	stringValue28 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_APP_TOKEN"))
-	if value := stringValue28.Trim(); value != "" {
+	envValue28 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_APP_TOKEN"))
+	if value := envValue28.Trim(); value != "" {
 		cfg.Gateway.Slack.AppToken = value
 	}
-	stringValue29 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_SIGNING_SECRET"))
-	if value := stringValue29.Trim(); value != "" {
+	envValue29 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_SIGNING_SECRET"))
+	if value := envValue29.Trim(); value != "" {
 		cfg.Gateway.Slack.SigningSecret = value
 	}
-	stringValue30 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_ALLOWED_USERS"))
-	if value := stringValue30.Trim(); value != "" {
+	envValue30 := str.String(os.Getenv("MORPH_GATEWAY_SLACK_ALLOWED_USERS"))
+	if value := envValue30.Trim(); value != "" {
 		cfg.Gateway.Slack.AllowedUsers = splitAndTrimCSV(value)
 	}
-	stringValue31 := str.String(os.Getenv("MORPH_SESSION_MAX_ITERATIONS"))
-	if value := stringValue31.Trim(); value != "" {
+	envValue31 := str.String(os.Getenv("MORPH_SESSION_MAX_ITERATIONS"))
+	if value := envValue31.Trim(); value != "" {
 		if maxIterations, err := strconv.Atoi(value); err == nil {
 			cfg.Session.MaxIterations = maxIterations
 		}
 	}
-	stringValue32 := str.String(os.Getenv("MORPH_LOG_LEVEL"))
-	if value := stringValue32.Trim(); value != "" {
+	envValue32 := str.String(os.Getenv("MORPH_LOG_LEVEL"))
+	if value := envValue32.Trim(); value != "" {
 		cfg.Log.Level = value
 	}
-	stringValue33 := str.String(os.Getenv("MORPH_LOG_FILE"))
-	if value := stringValue33.Trim(); value != "" {
+	envValue33 := str.String(os.Getenv("MORPH_LOG_FILE"))
+	if value := envValue33.Trim(); value != "" {
 		cfg.Log.File = value
 	}
-	stringValue34 := str.String(os.Getenv("MORPH_LOG_MAX_SIZE_MB"))
-	if value := stringValue34.Trim(); value != "" {
+	envValue34 := str.String(os.Getenv("MORPH_LOG_MAX_SIZE_MB"))
+	if value := envValue34.Trim(); value != "" {
 		if maxSizeMB, err := strconv.Atoi(value); err == nil {
 			cfg.Log.MaxSizeMB = maxSizeMB
 		}
 	}
-	stringValue35 := str.String(os.Getenv("MORPH_LOG_MAX_BACKUPS"))
-	if value := stringValue35.Trim(); value != "" {
+	envValue35 := str.String(os.Getenv("MORPH_LOG_MAX_BACKUPS"))
+	if value := envValue35.Trim(); value != "" {
 		if maxBackups, err := strconv.Atoi(value); err == nil {
 			cfg.Log.MaxBackups = maxBackups
 		}
 	}
-	stringValue36 := str.String(os.Getenv("MORPH_LOG_MAX_AGE_DAYS"))
-	if value := stringValue36.Trim(); value != "" {
+	envValue36 := str.String(os.Getenv("MORPH_LOG_MAX_AGE_DAYS"))
+	if value := envValue36.Trim(); value != "" {
 		if maxAgeDays, err := strconv.Atoi(value); err == nil {
 			cfg.Log.MaxAgeDays = maxAgeDays
 		}
@@ -189,12 +189,12 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_LOG_COMPRESS"); ok {
 		cfg.Log.Compress = value
 	}
-	stringValue37 := str.String(os.Getenv("MORPH_LOG_NO_COLOR"))
-	if value := stringValue37.Normalized(); value != "" {
+	envValue37 := str.String(os.Getenv("MORPH_LOG_NO_COLOR"))
+	if value := envValue37.Normalized(); value != "" {
 		cfg.Log.NoColor = value == "1" || value == "true" || value == "yes"
 	}
-	stringValue38 := str.String(os.Getenv("MORPH_DEBUG_REQUESTS"))
-	if value := stringValue38.Normalized(); value != "" {
+	envValue38 := str.String(os.Getenv("MORPH_DEBUG_REQUESTS"))
+	if value := envValue38.Normalized(); value != "" {
 		cfg.Debug.Requests = value == "1" || value == "true" || value == "yes"
 	}
 	if value, ok := parseOptionalBoolEnv("MORPH_SAFETY_INPUT"); ok {
@@ -206,22 +206,22 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_SAFETY_PII"); ok {
 		cfg.Safety.PII = new(value)
 	}
-	stringValue39 := str.String(os.Getenv("MORPH_TRACE_ENABLED"))
-	if value := stringValue39.Normalized(); value != "" {
+	envValue39 := str.String(os.Getenv("MORPH_TRACE_ENABLED"))
+	if value := envValue39.Normalized(); value != "" {
 		cfg.Trace.Enabled = value == "1" || value == "true" || value == "yes"
 	}
 	if value, ok := parseOptionalBoolEnv("MORPH_TRACE_DISK_ENABLED"); ok {
 		cfg.Trace.Disk.Enabled = new(value)
 	}
-	stringValue40 := str.String(os.Getenv("MORPH_TRACE_DISK_DIR"))
-	if value := stringValue40.Trim(); value != "" {
+	envValue40 := str.String(os.Getenv("MORPH_TRACE_DISK_DIR"))
+	if value := envValue40.Trim(); value != "" {
 		cfg.Trace.Disk.Dir = value
 	}
 	if value, ok := parseOptionalBoolEnv("MORPH_TRACE_DATABASE_ENABLED"); ok {
 		cfg.Trace.Database.Enabled = new(value)
 	}
-	stringValue41 := str.String(os.Getenv("MORPH_TRACE_DATABASE_MAX_EVENTS_PER_SESSION"))
-	if value := stringValue41.Trim(); value != "" {
+	envValue41 := str.String(os.Getenv("MORPH_TRACE_DATABASE_MAX_EVENTS_PER_SESSION"))
+	if value := envValue41.Trim(); value != "" {
 		if maxEvents, err := strconv.Atoi(value); err == nil {
 			cfg.Trace.Database.MaxEventsPerSession = maxEvents
 		}
@@ -229,87 +229,87 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_TUI_THINKING_COMPOSER"); ok {
 		cfg.TUI.ThinkingComposer = new(value)
 	}
-	stringValue42 := str.String(os.Getenv("MORPH_WEB_PROVIDER"))
-	if value := stringValue42.Trim(); value != "" {
+	envValue42 := str.String(os.Getenv("MORPH_WEB_PROVIDER"))
+	if value := envValue42.Trim(); value != "" {
 		cfg.Web.Provider = value
 	}
-	stringValue43 := str.String(os.Getenv("MORPH_WEB_API_KEY"))
-	if value := stringValue43.Trim(); value != "" {
+	envValue43 := str.String(os.Getenv("MORPH_WEB_API_KEY"))
+	if value := envValue43.Trim(); value != "" {
 		cfg.Web.APIKey = value
 	}
-	stringValue44 := str.String(os.Getenv("MORPH_WEB_BASE_URL"))
-	if value := stringValue44.Trim(); value != "" {
+	envValue44 := str.String(os.Getenv("MORPH_WEB_BASE_URL"))
+	if value := envValue44.Trim(); value != "" {
 		cfg.Web.BaseURL = value
 	}
-	stringValue45 := str.String(os.Getenv("MORPH_WEB_MAX_CHAR_PER_RESULT"))
-	if value := stringValue45.Trim(); value != "" {
+	envValue45 := str.String(os.Getenv("MORPH_WEB_MAX_CHAR_PER_RESULT"))
+	if value := envValue45.Trim(); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.Web.MaxCharPerResult = chars
 		}
 	}
-	stringValue46 := str.String(os.Getenv("MORPH_WEB_MAX_EXTRACT_CHAR_PER_RESULT"))
-	if value := stringValue46.Trim(); value != "" {
+	envValue46 := str.String(os.Getenv("MORPH_WEB_MAX_EXTRACT_CHAR_PER_RESULT"))
+	if value := envValue46.Trim(); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.Web.MaxExtractCharPerResult = chars
 		}
 	}
-	stringValue47 := str.String(os.Getenv("MORPH_WEB_MAX_EXTRACT_RESPONSE_BYTES"))
-	if value := stringValue47.Trim(); value != "" {
+	envValue47 := str.String(os.Getenv("MORPH_WEB_MAX_EXTRACT_RESPONSE_BYTES"))
+	if value := envValue47.Trim(); value != "" {
 		if bytes, err := strconv.Atoi(value); err == nil {
 			cfg.Web.MaxExtractResponseBytes = bytes
 		}
 	}
-	stringValue48 := str.String(os.Getenv("MORPH_WEB_CACHE_TTL"))
-	if value := stringValue48.Trim(); value != "" {
+	envValue48 := str.String(os.Getenv("MORPH_WEB_CACHE_TTL"))
+	if value := envValue48.Trim(); value != "" {
 		cfg.Web.CacheTTL = parseDurationOrZero(value)
 	}
 	if value, ok := parseOptionalBoolEnv("MORPH_WEB_BLOCKED_DOMAINS_ENABLED"); ok {
 		cfg.Web.BlockedDomainsEnabled = value
 	}
-	stringValue49 := str.String(os.Getenv("MORPH_WEB_BLOCKED_DOMAINS"))
-	if value := stringValue49.Trim(); value != "" {
+	envValue49 := str.String(os.Getenv("MORPH_WEB_BLOCKED_DOMAINS"))
+	if value := envValue49.Trim(); value != "" {
 		cfg.Web.BlockedDomains = splitAndTrimCSV(value)
 	}
-	stringValue50 := str.String(os.Getenv("MORPH_WEB_BLOCKED_DOMAIN_FILES"))
-	if value := stringValue50.Trim(); value != "" {
+	envValue50 := str.String(os.Getenv("MORPH_WEB_BLOCKED_DOMAIN_FILES"))
+	if value := envValue50.Trim(); value != "" {
 		cfg.Web.BlockedDomainFiles = splitAndTrimCSV(value)
 	}
-	stringValue51 := str.String(os.Getenv("MORPH_WEB_NATIVE_ALLOWED_HOSTS"))
-	if value := stringValue51.Trim(); value != "" {
+	envValue51 := str.String(os.Getenv("MORPH_WEB_NATIVE_ALLOWED_HOSTS"))
+	if value := envValue51.Trim(); value != "" {
 		cfg.Web.NativeAllowedHosts = splitAndTrimCSV(value)
 	}
-	stringValue52 := str.String(os.Getenv("MORPH_WEB_NATIVE_BLOCKED_HOSTS"))
-	if value := stringValue52.Trim(); value != "" {
+	envValue52 := str.String(os.Getenv("MORPH_WEB_NATIVE_BLOCKED_HOSTS"))
+	if value := envValue52.Trim(); value != "" {
 		cfg.Web.NativeBlockedHosts = splitAndTrimCSV(value)
 	}
-	stringValue53 := str.String(os.Getenv("MORPH_WEB_NATIVE_ALLOWED_HOST_FILES"))
-	if value := stringValue53.Trim(); value != "" {
+	envValue53 := str.String(os.Getenv("MORPH_WEB_NATIVE_ALLOWED_HOST_FILES"))
+	if value := envValue53.Trim(); value != "" {
 		cfg.Web.NativeAllowedHostFiles = splitAndTrimCSV(value)
 	}
-	stringValue54 := str.String(os.Getenv("MORPH_WEB_NATIVE_BLOCKED_HOST_FILES"))
-	if value := stringValue54.Trim(); value != "" {
+	envValue54 := str.String(os.Getenv("MORPH_WEB_NATIVE_BLOCKED_HOST_FILES"))
+	if value := envValue54.Trim(); value != "" {
 		cfg.Web.NativeBlockedHostFiles = splitAndTrimCSV(value)
 	}
-	stringValue55 := str.String(os.Getenv("MORPH_WEB_EXTRACT_MIN_SUMMARIZE_CHARS"))
-	if value := stringValue55.Trim(); value != "" {
+	envValue55 := str.String(os.Getenv("MORPH_WEB_EXTRACT_MIN_SUMMARIZE_CHARS"))
+	if value := envValue55.Trim(); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.Web.ExtractMinSummarizeChars = chars
 		}
 	}
-	stringValue56 := str.String(os.Getenv("MORPH_WEB_EXTRACT_MAX_SUMMARY_CHARS"))
-	if value := stringValue56.Trim(); value != "" {
+	envValue56 := str.String(os.Getenv("MORPH_WEB_EXTRACT_MAX_SUMMARY_CHARS"))
+	if value := envValue56.Trim(); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.Web.ExtractMaxSummaryChars = chars
 		}
 	}
-	stringValue57 := str.String(os.Getenv("MORPH_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS"))
-	if value := stringValue57.Trim(); value != "" {
+	envValue57 := str.String(os.Getenv("MORPH_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS"))
+	if value := envValue57.Trim(); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.Web.ExtractMaxSummaryChunkChars = chars
 		}
 	}
-	stringValue58 := str.String(os.Getenv("MORPH_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS"))
-	if value := stringValue58.Trim(); value != "" {
+	envValue58 := str.String(os.Getenv("MORPH_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS"))
+	if value := envValue58.Trim(); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.Web.ExtractRefusalThresholdChars = chars
 		}
@@ -332,41 +332,41 @@ func applyEnvOverrides(cfg *Config) {
 		}
 	}
 	if cfg.Web.APIKey == "" {
-		stringValue100 := str.String(cfg.Web.Provider)
-		switch stringValue100.Normalized() {
+		providerValue := str.String(cfg.Web.Provider)
+		switch providerValue.Normalized() {
 		case constants.WebProviderFirecrawl:
-			stringValue101 := str.String(os.Getenv("MORPH_FIRECRAWL_API_KEY"))
-			cfg.Web.APIKey = stringValue101.Trim()
+			envValue59 := str.String(os.Getenv("MORPH_FIRECRAWL_API_KEY"))
+			cfg.Web.APIKey = envValue59.Trim()
 		case constants.WebProviderParallel:
-			stringValue102 := str.String(os.Getenv("MORPH_PARALLEL_API_KEY"))
-			cfg.Web.APIKey = stringValue102.Trim()
+			envValue60 := str.String(os.Getenv("MORPH_PARALLEL_API_KEY"))
+			cfg.Web.APIKey = envValue60.Trim()
 		case constants.WebProviderTavily:
-			stringValue103 := str.String(os.Getenv("MORPH_TAVILY_API_KEY"))
-			cfg.Web.APIKey = stringValue103.Trim()
+			envValue61 := str.String(os.Getenv("MORPH_TAVILY_API_KEY"))
+			cfg.Web.APIKey = envValue61.Trim()
 		case constants.WebProviderExa:
-			stringValue104 := str.String(os.Getenv("MORPH_EXA_API_KEY"))
-			cfg.Web.APIKey = stringValue104.Trim()
+			envValue62 := str.String(os.Getenv("MORPH_EXA_API_KEY"))
+			cfg.Web.APIKey = envValue62.Trim()
 		}
 	}
-	stringValue59 := str.String(cfg.Web.Provider)
-	if cfg.Web.BaseURL == "" && stringValue59.Normalized() == constants.WebProviderFirecrawl {
-		stringValue105 := str.String(os.Getenv("MORPH_FIRECRAWL_API_URL"))
-		cfg.Web.BaseURL = stringValue105.Trim()
+	providerValue2 := str.String(cfg.Web.Provider)
+	if cfg.Web.BaseURL == "" && providerValue2.Normalized() == constants.WebProviderFirecrawl {
+		envValue63 := str.String(os.Getenv("MORPH_FIRECRAWL_API_URL"))
+		cfg.Web.BaseURL = envValue63.Trim()
 	}
-	stringValue60 := str.String(os.Getenv("MORPH_RULES_FILES"))
-	if value := stringValue60.Trim(); value != "" {
+	envValue64 := str.String(os.Getenv("MORPH_RULES_FILES"))
+	if value := envValue64.Trim(); value != "" {
 		cfg.Rules.Files = splitAndTrimCSV(value)
 	}
-	stringValue61 := str.String(os.Getenv("MORPH_SESSION_INSTRUCT"))
-	if value := stringValue61.Trim(); value != "" {
+	envValue65 := str.String(os.Getenv("MORPH_SESSION_INSTRUCT"))
+	if value := envValue65.Trim(); value != "" {
 		cfg.Session.Instruct = value
 	}
-	stringValue62 := str.String(os.Getenv("MORPH_PLATFORM"))
-	if value := stringValue62.Trim(); value != "" {
+	envValue66 := str.String(os.Getenv("MORPH_PLATFORM"))
+	if value := envValue66.Trim(); value != "" {
 		cfg.Platform = value
 	}
-	stringValue63 := str.String(os.Getenv("MORPH_FS_ROOTS"))
-	if value := stringValue63.Trim(); value != "" {
+	envValue67 := str.String(os.Getenv("MORPH_FS_ROOTS"))
+	if value := envValue67.Trim(); value != "" {
 		cfg.FS.Roots = splitAndTrimCSV(value)
 	}
 
@@ -385,28 +385,28 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_CAP_BROWSER"); ok {
 		cfg.Cap.Browser = new(value)
 	}
-	stringValue64 := str.String(os.Getenv("MORPH_EXEC_ALLOW"))
-	if value := stringValue64.Trim(); value != "" {
+	envValue68 := str.String(os.Getenv("MORPH_EXEC_ALLOW"))
+	if value := envValue68.Trim(); value != "" {
 		cfg.Exec.Allow = splitAndTrimCSV(value)
 	}
-	stringValue65 := str.String(os.Getenv("MORPH_EXEC_ASK"))
-	if value := stringValue65.Trim(); value != "" {
+	envValue69 := str.String(os.Getenv("MORPH_EXEC_ASK"))
+	if value := envValue69.Trim(); value != "" {
 		cfg.Exec.Ask = splitAndTrimCSV(value)
 	}
-	stringValue66 := str.String(os.Getenv("MORPH_EXEC_DENY"))
-	if value := stringValue66.Trim(); value != "" {
+	envValue70 := str.String(os.Getenv("MORPH_EXEC_DENY"))
+	if value := envValue70.Trim(); value != "" {
 		cfg.Exec.Deny = splitAndTrimCSV(value)
 	}
-	stringValue67 := str.String(os.Getenv("MORPH_STORAGE_BACKEND"))
-	if value := stringValue67.Trim(); value != "" {
+	envValue71 := str.String(os.Getenv("MORPH_STORAGE_BACKEND"))
+	if value := envValue71.Trim(); value != "" {
 		cfg.Storage.Backend = value
 	}
-	stringValue68 := str.String(os.Getenv("MORPH_SESSION_DEFAULT_IDLE_EXPIRY"))
-	if value := stringValue68.Trim(); value != "" {
+	envValue72 := str.String(os.Getenv("MORPH_SESSION_DEFAULT_IDLE_EXPIRY"))
+	if value := envValue72.Trim(); value != "" {
 		cfg.Session.DefaultIdleExpiry = parseDurationOrZero(value)
 	}
-	stringValue69 := str.String(os.Getenv("MORPH_SESSION_ARCHIVE_RETENTION"))
-	if value := stringValue69.Trim(); value != "" {
+	envValue73 := str.String(os.Getenv("MORPH_SESSION_ARCHIVE_RETENTION"))
+	if value := envValue73.Trim(); value != "" {
 		cfg.Session.ArchiveRetention = parseDurationOrZero(value)
 	}
 	if value, ok := parseOptionalBoolEnv("MORPH_SEARCH_VECTOR_ENABLED"); ok {
@@ -415,12 +415,12 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_MEMORY_ENABLED"); ok {
 		cfg.Memory.Enabled = new(value)
 	}
-	stringValue70 := str.String(os.Getenv("MORPH_MEMORY_PROVIDER"))
-	if value := stringValue70.Trim(); value != "" {
+	envValue74 := str.String(os.Getenv("MORPH_MEMORY_PROVIDER"))
+	if value := envValue74.Trim(); value != "" {
 		cfg.Memory.Provider = value
 	}
-	stringValue71 := str.String(os.Getenv("MORPH_MEMORY_BACKEND"))
-	if value := stringValue71.Trim(); value != "" {
+	envValue75 := str.String(os.Getenv("MORPH_MEMORY_BACKEND"))
+	if value := envValue75.Trim(); value != "" {
 		cfg.Memory.Backend = value
 	}
 	if value, ok := parseOptionalBoolEnv("MORPH_MEMORY_PINNED_ENABLED"); ok {
@@ -432,32 +432,32 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_MEMORY_FLUSH_ENABLED"); ok {
 		cfg.Memory.Flush.Enabled = new(value)
 	}
-	stringValue72 := str.String(os.Getenv("MORPH_MEMORY_FLUSH_MAX_CALLS"))
-	if value := stringValue72.Trim(); value != "" {
+	envValue76 := str.String(os.Getenv("MORPH_MEMORY_FLUSH_MAX_CALLS"))
+	if value := envValue76.Trim(); value != "" {
 		if maxCalls, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Flush.MaxCalls = maxCalls
 		}
 	}
-	stringValue73 := str.String(os.Getenv("MORPH_MEMORY_FLUSH_MAX_OUTPUT_TOKENS"))
-	if value := stringValue73.Trim(); value != "" {
+	envValue77 := str.String(os.Getenv("MORPH_MEMORY_FLUSH_MAX_OUTPUT_TOKENS"))
+	if value := envValue77.Trim(); value != "" {
 		if maxOutputTokens, err := strconv.ParseInt(value, 10, 64); err == nil {
 			cfg.Memory.Flush.MaxOutputTokens = maxOutputTokens
 		}
 	}
-	stringValue74 := str.String(os.Getenv("MORPH_MEMORY_FLUSH_TIMEOUT"))
-	if value := stringValue74.Trim(); value != "" {
+	envValue78 := str.String(os.Getenv("MORPH_MEMORY_FLUSH_TIMEOUT"))
+	if value := envValue78.Trim(); value != "" {
 		if timeout, err := time.ParseDuration(value); err == nil {
 			cfg.Memory.Flush.Timeout = timeout
 		}
 	}
-	stringValue75 := str.String(os.Getenv("MORPH_MEMORY_PINNED_MAX_CHARS"))
-	if value := stringValue75.Trim(); value != "" {
+	envValue79 := str.String(os.Getenv("MORPH_MEMORY_PINNED_MAX_CHARS"))
+	if value := envValue79.Trim(); value != "" {
 		if maxChars, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Pinned.MaxChars = maxChars
 		}
 	}
-	stringValue76 := str.String(os.Getenv("MORPH_MEMORY_PINNED_MAX_ITEM_CHARS"))
-	if value := stringValue76.Trim(); value != "" {
+	envValue80 := str.String(os.Getenv("MORPH_MEMORY_PINNED_MAX_ITEM_CHARS"))
+	if value := envValue80.Trim(); value != "" {
 		if maxChars, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Pinned.MaxItemChars = maxChars
 		}
@@ -465,46 +465,46 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_MEMORY_EPISODIC_ENABLED"); ok {
 		cfg.Memory.Episodic.Enabled = new(value)
 	}
-	stringValue77 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_INTERVAL"))
-	if value := stringValue77.Trim(); value != "" {
+	envValue81 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_INTERVAL"))
+	if value := envValue81.Trim(); value != "" {
 		cfg.Memory.Episodic.Interval = parseDurationOrZero(value)
 	}
-	stringValue78 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_IDLE_AFTER"))
-	if value := stringValue78.Trim(); value != "" {
+	envValue82 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_IDLE_AFTER"))
+	if value := envValue82.Trim(); value != "" {
 		cfg.Memory.Episodic.IdleAfter = parseDurationOrZero(value)
 	}
-	stringValue79 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_MIN_MESSAGES"))
-	if value := stringValue79.Trim(); value != "" {
+	envValue83 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_MIN_MESSAGES"))
+	if value := envValue83.Trim(); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Episodic.MinMessages = count
 		}
 	}
-	stringValue80 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_WINDOW_SIZE"))
-	if value := stringValue80.Trim(); value != "" {
+	envValue84 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_WINDOW_SIZE"))
+	if value := envValue84.Trim(); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Episodic.WindowSize = count
 		}
 	}
-	stringValue81 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_MAX_WINDOWS"))
-	if value := stringValue81.Trim(); value != "" {
+	envValue85 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_MAX_WINDOWS"))
+	if value := envValue85.Trim(); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Episodic.MaxWindows = count
 		}
 	}
-	stringValue82 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_MAX_WINDOW_CHARS"))
-	if value := stringValue82.Trim(); value != "" {
+	envValue86 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_MAX_WINDOW_CHARS"))
+	if value := envValue86.Trim(); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Episodic.MaxWindowChars = count
 		}
 	}
-	stringValue83 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_MAX_WINDOW_TOKENS"))
-	if value := stringValue83.Trim(); value != "" {
+	envValue87 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_MAX_WINDOW_TOKENS"))
+	if value := envValue87.Trim(); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Episodic.MaxWindowTokens = count
 		}
 	}
-	stringValue84 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_MAX_RETRIES"))
-	if value := stringValue84.Trim(); value != "" {
+	envValue88 := str.String(os.Getenv("MORPH_MEMORY_EPISODIC_MAX_RETRIES"))
+	if value := envValue88.Trim(); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Episodic.MaxRetries = count
 		}
@@ -512,18 +512,18 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_MEMORY_REFLECTION_ENABLED"); ok {
 		cfg.Memory.Reflection.Enabled = new(value)
 	}
-	stringValue85 := str.String(os.Getenv("MORPH_MEMORY_REFLECTION_INTERVAL"))
-	if value := stringValue85.Trim(); value != "" {
+	envValue89 := str.String(os.Getenv("MORPH_MEMORY_REFLECTION_INTERVAL"))
+	if value := envValue89.Trim(); value != "" {
 		cfg.Memory.Reflection.Interval = parseDurationOrZero(value)
 	}
-	stringValue86 := str.String(os.Getenv("MORPH_MEMORY_REFLECTION_LIMIT"))
-	if value := stringValue86.Trim(); value != "" {
+	envValue90 := str.String(os.Getenv("MORPH_MEMORY_REFLECTION_LIMIT"))
+	if value := envValue90.Trim(); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Reflection.Limit = count
 		}
 	}
-	stringValue87 := str.String(os.Getenv("MORPH_MEMORY_REFLECTION_RELATED_LIMIT"))
-	if value := stringValue87.Trim(); value != "" {
+	envValue91 := str.String(os.Getenv("MORPH_MEMORY_REFLECTION_RELATED_LIMIT"))
+	if value := envValue91.Trim(); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Reflection.RelatedLimit = count
 		}
@@ -531,18 +531,18 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_MEMORY_PROMOTION_ENABLED"); ok {
 		cfg.Memory.Promotion.Enabled = new(value)
 	}
-	stringValue88 := str.String(os.Getenv("MORPH_MEMORY_PROMOTION_INTERVAL"))
-	if value := stringValue88.Trim(); value != "" {
+	envValue92 := str.String(os.Getenv("MORPH_MEMORY_PROMOTION_INTERVAL"))
+	if value := envValue92.Trim(); value != "" {
 		cfg.Memory.Promotion.Interval = parseDurationOrZero(value)
 	}
-	stringValue89 := str.String(os.Getenv("MORPH_MEMORY_PROMOTION_LIMIT"))
-	if value := stringValue89.Trim(); value != "" {
+	envValue93 := str.String(os.Getenv("MORPH_MEMORY_PROMOTION_LIMIT"))
+	if value := envValue93.Trim(); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Promotion.Limit = count
 		}
 	}
-	stringValue90 := str.String(os.Getenv("MORPH_MEMORY_PROMOTION_EVALUATED_RETENTION"))
-	if value := stringValue90.Trim(); value != "" {
+	envValue94 := str.String(os.Getenv("MORPH_MEMORY_PROMOTION_EVALUATED_RETENTION"))
+	if value := envValue94.Trim(); value != "" {
 		cfg.Memory.Promotion.EvaluatedRetention = parseDurationOrZero(value)
 	}
 	if value, ok := parseOptionalBoolEnv("MORPH_MEMORY_WRITE_ENABLED"); ok {
@@ -551,8 +551,8 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_SEARCH_VECTOR_REQUIRED"); ok {
 		cfg.Search.Vector.Required = value
 	}
-	stringValue91 := str.String(os.Getenv("MORPH_SEARCH_VECTOR_REBUILD_BATCH_SIZE"))
-	if value := stringValue91.Trim(); value != "" {
+	envValue95 := str.String(os.Getenv("MORPH_SEARCH_VECTOR_REBUILD_BATCH_SIZE"))
+	if value := envValue95.Trim(); value != "" {
 		if batchSize, err := strconv.Atoi(value); err == nil {
 			cfg.Search.Vector.RebuildBatchSize = batchSize
 		}
@@ -563,34 +563,34 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_SEARCH_ENABLE_RERANK"); ok {
 		cfg.Search.EnableRerank = new(value)
 	}
-	stringValue92 := str.String(os.Getenv("MORPH_RERANKER_TYPE"))
-	if value := stringValue92.Trim(); value != "" {
+	envValue96 := str.String(os.Getenv("MORPH_RERANKER_TYPE"))
+	if value := envValue96.Trim(); value != "" {
 		cfg.Reranker.Type = value
 	}
-	stringValue93 := str.String(os.Getenv("MORPH_RERANKER_MODEL"))
-	if value := stringValue93.Trim(); value != "" {
+	envValue97 := str.String(os.Getenv("MORPH_RERANKER_MODEL"))
+	if value := envValue97.Trim(); value != "" {
 		cfg.Reranker.Model = value
 	}
-	stringValue94 := str.String(os.Getenv("MORPH_RERANKER_MAX_CANDIDATES"))
-	if value := stringValue94.Trim(); value != "" {
+	envValue98 := str.String(os.Getenv("MORPH_RERANKER_MAX_CANDIDATES"))
+	if value := envValue98.Trim(); value != "" {
 		if maxCandidates, err := strconv.Atoi(value); err == nil {
 			cfg.Reranker.MaxCandidates = maxCandidates
 		}
 	}
-	stringValue95 := str.String(os.Getenv("MORPH_RERANKER_MAX_CANDIDATE_TEXT_CHARS"))
-	if value := stringValue95.Trim(); value != "" {
+	envValue99 := str.String(os.Getenv("MORPH_RERANKER_MAX_CANDIDATE_TEXT_CHARS"))
+	if value := envValue99.Trim(); value != "" {
 		if maxChars, err := strconv.Atoi(value); err == nil {
 			cfg.Reranker.MaxCandidateTextChars = maxChars
 		}
 	}
-	stringValue96 := str.String(os.Getenv("MORPH_RERANKER_MAX_OUTPUT_TOKENS"))
-	if value := stringValue96.Trim(); value != "" {
+	envValue100 := str.String(os.Getenv("MORPH_RERANKER_MAX_OUTPUT_TOKENS"))
+	if value := envValue100.Trim(); value != "" {
 		if maxTokens, err := strconv.Atoi(value); err == nil {
 			cfg.Reranker.MaxOutputTokens = maxTokens
 		}
 	}
-	stringValue97 := str.String(os.Getenv("MORPH_RERANKER_OVERRIDES"))
-	if value := stringValue97.Trim(); value != "" {
+	envValue101 := str.String(os.Getenv("MORPH_RERANKER_OVERRIDES"))
+	if value := envValue101.Trim(); value != "" {
 		var overrides map[string]RerankerOverrideConfig
 		if err := json.Unmarshal([]byte(value), &overrides); err == nil {
 			cfg.Reranker.Overrides = overrides
@@ -600,14 +600,14 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("MORPH_COMPACTION_ENABLED"); ok {
 		cfg.Compaction.Enabled = new(value)
 	}
-	stringValue98 := str.String(os.Getenv("MORPH_COMPACTION_TRIGGER_PERCENT"))
-	if value := stringValue98.Trim(); value != "" {
+	envValue102 := str.String(os.Getenv("MORPH_COMPACTION_TRIGGER_PERCENT"))
+	if value := envValue102.Trim(); value != "" {
 		if percent, err := strconv.ParseFloat(value, 64); err == nil {
 			cfg.Compaction.TriggerPercent = percent
 		}
 	}
-	stringValue99 := str.String(os.Getenv("MORPH_COMPACTION_WARN_PERCENT"))
-	if value := stringValue99.Trim(); value != "" {
+	envValue103 := str.String(os.Getenv("MORPH_COMPACTION_WARN_PERCENT"))
+	if value := envValue103.Trim(); value != "" {
 		if percent, err := strconv.ParseFloat(value, 64); err == nil {
 			cfg.Compaction.WarnPercent = percent
 		}

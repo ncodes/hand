@@ -251,10 +251,10 @@ func (a *chatStreamAccumulator) add(chunk chatResponse) {
 }
 
 func (a *chatStreamAccumulator) response() (*Response, error) {
-	stringValue1 := str.String(a.outputText.String())
+	textValue := str.String(a.outputText.String())
 	resp := &Response{
 		Model:             a.model,
-		OutputText:        stringValue1.Trim(),
+		OutputText:        textValue.Trim(),
 		ToolCalls:         a.toolCalls,
 		RequiresToolCalls: len(a.toolCalls) > 0,
 		PromptTokens:      a.promptTokens,
@@ -272,8 +272,8 @@ func (a *chatStreamAccumulator) response() (*Response, error) {
 }
 
 func normalizeRequest(req Request) (normalizedRequest, error) {
-	stringValue2 := str.String(req.Model)
-	model := stringValue2.Trim()
+	modelValue := str.String(req.Model)
+	model := modelValue.Trim()
 	if model == "" {
 		return normalizedRequest{}, errors.New("model is required")
 	}
@@ -289,10 +289,10 @@ func normalizeRequest(req Request) (normalizedRequest, error) {
 	if err != nil {
 		return normalizedRequest{}, err
 	}
-	stringValue3 := str.String(req.Instructions)
+	instructionsValue := str.String(req.Instructions)
 	return normalizedRequest{
 		Model:            model,
-		Instructions:     stringValue3.Trim(),
+		Instructions:     instructionsValue.Trim(),
 		Messages:         messages,
 		Tools:            tools,
 		StructuredOutput: normalizeStructuredOutput(req.StructuredOutput),
@@ -305,12 +305,12 @@ func normalizeRequest(req Request) (normalizedRequest, error) {
 func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) {
 	normalized := make([]morphmsg.Message, 0, len(messages))
 	for _, message := range messages {
-		stringValue4 := str.String(string(message.Role))
-		role := morphmsg.Role(stringValue4.Normalized())
-		stringValue5 := str.String(message.Content)
-		content := stringValue5.Trim()
-		stringValue6 := str.String(message.ToolCallID)
-		toolCallID := stringValue6.Trim()
+		roleValue := str.String(string(message.Role))
+		role := morphmsg.Role(roleValue.Normalized())
+		contentValue := str.String(message.Content)
+		content := contentValue.Trim()
+		toolCallIDValue := str.String(message.ToolCallID)
+		toolCallID := toolCallIDValue.Trim()
 		toolCalls, err := normalizeToolCalls(message.ToolCalls)
 		if err != nil {
 			return nil, err
@@ -329,11 +329,11 @@ func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) 
 		if role == morphmsg.RoleTool && toolCallID == "" {
 			return nil, errors.New("tool call id is required")
 		}
-		stringValue7 := str.String(message.Name)
+		nameValue := str.String(message.Name)
 		normalized = append(normalized, morphmsg.Message{
 			Role:       role,
 			Content:    content,
-			Name:       stringValue7.Trim(),
+			Name:       nameValue.Trim(),
 			ToolCallID: toolCallID,
 			ToolCalls:  toolCalls,
 			CreatedAt:  message.CreatedAt,
@@ -350,15 +350,15 @@ func normalizeToolDefinitions(definitions []ToolDefinition) ([]ToolDefinition, e
 
 	normalized := make([]ToolDefinition, 0, len(definitions))
 	for _, definition := range definitions {
-		stringValue8 := str.String(definition.Name)
-		name := stringValue8.Trim()
+		nameValue2 := str.String(definition.Name)
+		name := nameValue2.Trim()
 		if name == "" {
 			return nil, errors.New("tool name is required")
 		}
-		stringValue9 := str.String(definition.Description)
+		descriptionValue := str.String(definition.Description)
 		normalized = append(normalized, ToolDefinition{
 			Name:         name,
-			Description:  stringValue9.Trim(),
+			Description:  descriptionValue.Trim(),
 			InputSchema:  definition.InputSchema,
 			ParallelSafe: definition.ParallelSafe,
 		})
@@ -374,21 +374,21 @@ func normalizeToolCalls(toolCalls []morphmsg.ToolCall) ([]morphmsg.ToolCall, err
 
 	normalized := make([]morphmsg.ToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
-		stringValue10 := str.String(toolCall.ID)
-		id := stringValue10.Trim()
-		stringValue11 := str.String(toolCall.Name)
-		name := stringValue11.Trim()
+		iDValue := str.String(toolCall.ID)
+		id := iDValue.Trim()
+		nameValue3 := str.String(toolCall.Name)
+		name := nameValue3.Trim()
 		if id == "" {
 			return nil, errors.New("tool call id is required")
 		}
 		if name == "" {
 			return nil, errors.New("tool call name is required")
 		}
-		stringValue12 := str.String(toolCall.Input)
+		inputValue := str.String(toolCall.Input)
 		normalized = append(normalized, morphmsg.ToolCall{
 			ID:    id,
 			Name:  name,
-			Input: stringValue12.Trim(),
+			Input: inputValue.Trim(),
 		})
 	}
 
@@ -399,15 +399,15 @@ func normalizeStructuredOutput(value *StructuredOutput) *StructuredOutput {
 	if value == nil {
 		return nil
 	}
-	stringValue13 := str.String(value.Name)
-	name := stringValue13.Trim()
+	nameValue4 := str.String(value.Name)
+	name := nameValue4.Trim()
 	if name == "" || len(value.Schema) == 0 {
 		return nil
 	}
-	stringValue14 := str.String(value.Description)
+	descriptionValue2 := str.String(value.Description)
 	return &StructuredOutput{
 		Name:        name,
-		Description: stringValue14.Trim(),
+		Description: descriptionValue2.Trim(),
 		Schema:      value.Schema,
 		Strict:      value.Strict,
 	}
@@ -435,10 +435,10 @@ func buildChatRequest(req normalizedRequest, stream bool) chatRequest {
 }
 
 func messageToChatMessage(message morphmsg.Message) chatMessage {
-	stringValue15 := str.String(message.Content)
+	contentValue2 := str.String(message.Content)
 	converted := chatMessage{
 		Role:    string(message.Role),
-		Content: stringValue15.Trim(),
+		Content: contentValue2.Trim(),
 	}
 	if len(message.ToolCalls) > 0 {
 		converted.ToolCalls = make([]chatToolCall, 0, len(message.ToolCalls))
@@ -503,8 +503,8 @@ func buildOptions(req normalizedRequest) map[string]any {
 
 func responseFromChatResponse(resp chatResponse, tools []chatTool) (*Response, error) {
 	toolCalls := toolCallsFromChatToolCalls(resp.Message.ToolCalls, 0)
-	stringValue16 := str.String(resp.Message.Content)
-	outputText := stringValue16.Trim()
+	contentValue3 := str.String(resp.Message.Content)
+	outputText := contentValue3.Trim()
 	if outputText == "" && len(toolCalls) == 0 {
 		return nil, errors.New("model returned empty response")
 	}
@@ -530,8 +530,8 @@ func toolCallsFromChatToolCalls(providerToolCalls []chatToolCall, offset int) []
 
 	toolCalls := make([]ToolCall, 0, len(providerToolCalls))
 	for idx, providerToolCall := range providerToolCalls {
-		stringValue17 := str.String(providerToolCall.Function.Name)
-		name := stringValue17.Trim()
+		nameValue5 := str.String(providerToolCall.Function.Name)
+		name := nameValue5.Trim()
 		if name == "" {
 			continue
 		}
@@ -553,8 +553,8 @@ func stringFromRawArguments(raw json.RawMessage) string {
 
 	var asString string
 	if err := json.Unmarshal(raw, &asString); err == nil {
-		stringValue18 := str.String(asString)
-		return stringValue18.Trim()
+		asStringValue := str.String(asString)
+		return asStringValue.Trim()
 	}
 
 	var compact bytes.Buffer
@@ -566,13 +566,12 @@ func stringFromRawArguments(raw json.RawMessage) string {
 }
 
 func defaultToolArguments(value string) string {
-	stringValue19 := str.String(value)
-	value = stringValue19.Trim()
-	if value == "" {
+	valueText := str.String(value).Trim()
+	if valueText == "" {
 		return "{}"
 	}
 
-	return value
+	return valueText
 }
 
 func decodeOllamaResponse(resp *http.Response, target any) error {
@@ -595,8 +594,8 @@ func ollamaStatusError(resp *http.Response) error {
 }
 
 func normalizeBaseURL(value string) (string, error) {
-	stringValue20 := str.String(value)
-	value = strings.TrimRight(stringValue20.Trim(), "/")
+	value2 := str.String(value)
+	value = strings.TrimRight(value2.Trim(), "/")
 	if value == "" {
 		return "", errors.New("ollama base URL is required")
 	}
@@ -615,10 +614,10 @@ func normalizeBaseURL(value string) (string, error) {
 func normalizeHeaders(headers map[string]string) map[string]string {
 	normalized := make(map[string]string)
 	for key, value := range headers {
-		stringValue21 := str.String(key)
-		key = stringValue21.Trim()
-		stringValue22 := str.String(value)
-		value = stringValue22.Trim()
+		keyValue := str.String(key)
+		key = keyValue.Trim()
+		value3 := str.String(value)
+		value = value3.Trim()
 		if key == "" || value == "" {
 			continue
 		}

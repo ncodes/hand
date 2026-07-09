@@ -8,8 +8,8 @@ import (
 )
 
 func getUserFacingErrorMessage(message string) string {
-	stringValue1 := str.String(message)
-	message = stringValue1.Trim()
+	messageValue := str.String(message)
+	message = messageValue.Trim()
 	if message == "" {
 		return ""
 	}
@@ -57,8 +57,8 @@ func getErrorMessageFromPayload(payload map[string]any) string {
 func getErrorMessageFromValue(value any) string {
 	switch typed := value.(type) {
 	case string:
-		stringValue2 := str.String(typed)
-		return stringValue2.Trim()
+		typedValue := str.String(typed)
+		return typedValue.Trim()
 	case map[string]any:
 		return getStringPayloadField(typed, "message")
 	default:
@@ -68,6 +68,6 @@ func getErrorMessageFromValue(value any) string {
 
 func getStringPayloadField(payload map[string]any, field string) string {
 	value, _ := payload[field].(string)
-	stringValue3 := str.String(value)
-	return stringValue3.Trim()
+	valueText := str.String(value)
+	return valueText.Trim()
 }

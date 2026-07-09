@@ -60,9 +60,9 @@ func NewCommand() *cli.Command {
 					sessions := client.SessionAPI()
 
 					autoSwitch := false
-					stringValue1 := str.String(cmd.Args().First())
+					firstValue := str.String(cmd.Args().First())
 					session, err := sessions.CreateWithOptions(ctx, rpcclient.CreateSessionOptions{
-						ID:         stringValue1.Trim(),
+						ID:         firstValue.Trim(),
 						AutoSwitch: &autoSwitch,
 					})
 					if err != nil {
@@ -75,6 +75,9 @@ func NewCommand() *cli.Command {
 			{
 				Name:  "list",
 				Usage: "List persisted sessions",
+				Flags: []cli.Flag{
+					&cli.StringFlag{Name: "source", Usage: "Filter by session origin source"},
+				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					client, err := getSessionClient(ctx, cmd)
 					if err != nil {
@@ -83,12 +86,20 @@ func NewCommand() *cli.Command {
 					defer client.Close()
 					sessionClient := client.SessionAPI()
 
-					sessions, err := sessionClient.List(ctx)
+					active := false
+					source := str.String(cmd.String("source"))
+					sessions, err := sessionClient.List(ctx, rpcclient.SessionListOptions{
+						Archived:     &active,
+						OriginSource: source.Trim(),
+					})
 					if err != nil {
 						return err
 					}
 					for _, session := range sessions {
-						if _, err := fmt.Fprintln(sessionOutput, getSessionListLabel(session.ID, session.Title)); err != nil {
+						if _, err := fmt.Fprintln(
+							sessionOutput,
+							getSessionListLabel(session.ID, session.Title),
+						); err != nil {
 							return err
 						}
 					}
@@ -107,8 +118,8 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 					sessions := client.SessionAPI()
-					stringValue2 := str.String(cmd.Args().First())
-					id := stringValue2.Trim()
+					firstValue2 := str.String(cmd.Args().First())
+					id := firstValue2.Trim()
 					if err := sessions.Use(ctx, id); err != nil {
 						return err
 					}
@@ -127,8 +138,8 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 					sessions := client.SessionAPI()
-					stringValue3 := str.String(cmd.Args().First())
-					session, err := sessions.Unarchive(ctx, stringValue3.Trim())
+					firstValue3 := str.String(cmd.Args().First())
+					session, err := sessions.Unarchive(ctx, firstValue3.Trim())
 					if err != nil {
 						return err
 					}
@@ -166,8 +177,8 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 					sessions := client.SessionAPI()
-					stringValue4 := str.String(cmd.Args().First())
-					result, err := sessions.Compact(ctx, stringValue4.Trim())
+					firstValue4 := str.String(cmd.Args().First())
+					result, err := sessions.Compact(ctx, firstValue4.Trim())
 					if err != nil {
 						return err
 					}
@@ -202,11 +213,11 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 					sessions := client.SessionAPI()
-					stringValue5 := str.String(cmd.Args().First())
+					firstValue5 := str.String(cmd.Args().First())
 					result, err := sessions.Repair(
 						ctx,
 						rpcclient.RepairSessionOptions{
-							SessionID: stringValue5.Trim(),
+							SessionID: firstValue5.Trim(),
 							Full:      cmd.Bool("full"),
 						},
 					)
@@ -241,8 +252,8 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 					sessions := client.SessionAPI()
-					stringValue6 := str.String(cmd.Args().First())
-					result, err := sessions.Status(ctx, stringValue6.Trim())
+					firstValue6 := str.String(cmd.Args().First())
+					result, err := sessions.Status(ctx, firstValue6.Trim())
 					if err != nil {
 						return err
 					}
@@ -270,10 +281,10 @@ func NewCommand() *cli.Command {
 }
 
 func getSessionListLabel(id string, title string) string {
-	stringValue7 := str.String(id)
-	id = stringValue7.Trim()
-	stringValue8 := str.String(title)
-	title = stringValue8.Trim()
+	idValue := str.String(id)
+	id = idValue.Trim()
+	titleValue := str.String(title)
+	title = titleValue.Trim()
 	if title == "" {
 		return id
 	}

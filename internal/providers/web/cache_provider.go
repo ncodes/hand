@@ -37,10 +37,10 @@ func NewCachedProvider(provider Provider, opts CacheOptions) Provider {
 	if now == nil {
 		now = time.Now
 	}
-	stringValue1 := str.String(opts.ProviderName)
+	providerNameValue := str.String(opts.ProviderName)
 	return &cachedProvider{
 		provider:     provider,
-		providerName: stringValue1.Normalized(),
+		providerName: providerNameValue.Normalized(),
 		search: pkgcache.New(pkgcache.Options[string, []SearchResult]{
 			TTL:   opts.TTL,
 			Now:   now,
@@ -112,15 +112,15 @@ func (p *cachedProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 		}
 
 		results[missIndexes[idx]] = result
-		stringValue2 := str.String(result.Error)
-		if stringValue2.Trim() == "" {
+		errorValue := str.String(result.Error)
+		if errorValue.Trim() == "" {
 			p.storeExtract(missKeys[idx], result)
 		}
 	}
 	for idx := len(fetched); idx < len(missIndexes); idx++ {
-		stringValue3 := str.String(missURLs[idx])
+		missURLsValue := str.String(missURLs[idx])
 		results[missIndexes[idx]] = ExtractResult{
-			URL:   stringValue3.Trim(),
+			URL:   missURLsValue.Trim(),
 			Error: "web extraction provider returned no result",
 		}
 	}
@@ -161,18 +161,18 @@ func (p *cachedProvider) storeExtract(key string, result ExtractResult) {
 }
 
 func (p *cachedProvider) searchKey(query string, count int) string {
-	stringValue4 := str.String(query)
+	queryValue := str.String(query)
 	return strings.Join([]string{
-		p.providerName, stringValue4.
+		p.providerName, queryValue.
 			Trim(), strconv.Itoa(count),
 	}, "\x00")
 }
 
 func (p *cachedProvider) extractKey(ctx context.Context, rawURL string) string {
 	opts := ExtractOptionsFromContext(ctx)
-	stringValue5 := str.String(rawURL)
+	rawURLValue := str.String(rawURL)
 	return strings.Join([]string{
-		p.providerName, stringValue5.
+		p.providerName, rawURLValue.
 			Trim(), opts.Format,
 		strconv.Itoa(opts.MaxChars),
 		opts.Query,

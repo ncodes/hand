@@ -54,8 +54,8 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 			if provider == nil {
 				return common.ToolError("tool_error", "web search provider is not configured"), nil
 			}
-			stringValue1 := str.String(req.Query)
-			query := stringValue1.Trim()
+			queryValue := str.String(req.Query)
+			query := queryValue.Trim()
 			if query == "" {
 				return common.ToolError("invalid_input", "query is required"), nil
 			}

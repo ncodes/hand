@@ -115,9 +115,9 @@ func startSocketWithClient(
 }
 
 func newSocketClient(appToken string) *socketClient {
-	stringValue1 := str.String(appToken)
+	appTokenValue := str.String(appToken)
 	return &socketClient{
-		appToken: stringValue1.Trim(),
+		appToken: appTokenValue.Trim(),
 		http:     http.DefaultClient,
 		baseURL:  defaultSlackAPIBase,
 		dial: func(url string) (socketConn, error) {
@@ -224,8 +224,8 @@ func (c *socketClient) openConnection(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	stringValue2 := str.String(c.appToken)
-	req.Header.Set("Authorization", "Bearer "+stringValue2.Trim())
+	appTokenValue2 := str.String(c.appToken)
+	req.Header.Set("Authorization", "Bearer "+appTokenValue2.Trim())
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := c.http.Do(req)
@@ -251,8 +251,8 @@ func (c *socketClient) openConnection(ctx context.Context) (string, error) {
 		}
 		return "", errors.New(body.Error)
 	}
-	stringValue3 := str.String(body.URL)
-	if stringValue3.Trim() == "" {
+	uRLValue := str.String(body.URL)
+	if uRLValue.Trim() == "" {
 		return "", errors.New("slack socket URL is required")
 	}
 

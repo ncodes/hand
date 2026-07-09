@@ -47,12 +47,12 @@ type PlanSummary struct {
 func ValidatePlan(plan Plan) error {
 	active := 0
 	for idx, step := range plan.Steps {
-		stringValue1 := str.String(step.ID)
-		if stringValue1.Trim() == "" {
+		iDValue := str.String(step.ID)
+		if iDValue.Trim() == "" {
 			return fmt.Errorf("step %d id is required", idx)
 		}
-		stringValue2 := str.String(step.Content)
-		if stringValue2.Trim() == "" {
+		contentValue := str.String(step.Content)
+		if contentValue.Trim() == "" {
 			return fmt.Errorf("step %d content is required", idx)
 		}
 		if !ValidPlanStatus(step.Status) {
@@ -77,8 +77,8 @@ func ValidatePlan(plan Plan) error {
 
 // ValidPlanStatus reports whether status is accepted by the plan store.
 func ValidPlanStatus(status string) bool {
-	stringValue3 := str.String(status)
-	switch stringValue3.Trim() {
+	statusValue := str.String(status)
+	switch statusValue.Trim() {
 	case PlanStatusPending,
 		PlanStatusInProgress,
 		PlanStatusCompleted,

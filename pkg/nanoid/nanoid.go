@@ -88,8 +88,8 @@ func IsValidID(id string) bool {
 }
 
 func ValidateID(id string) error {
-	stringValue1 := str.String(id)
-	id = stringValue1.Trim()
+	idValue := str.String(id)
+	id = idValue.Trim()
 	if id == "" {
 		return fmt.Errorf("prefixed nanoid is required")
 	}

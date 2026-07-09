@@ -25,8 +25,8 @@ type toolDisplaySpec struct {
 
 func getToolInputDisplayDetail(name string, input string) string {
 	var fields map[string]any
-	stringValue1 := str.String(input)
-	if err := json.Unmarshal([]byte(stringValue1.Trim()), &fields); err != nil {
+	inputValue := str.String(input)
+	if err := json.Unmarshal([]byte(inputValue.Trim()), &fields); err != nil {
 		return ""
 	}
 
@@ -40,8 +40,8 @@ func getToolInputDisplayDetail(name string, input string) string {
 
 func getToolInputDisplayState(name string, input string) *trace.PlanToolState {
 	var fields map[string]any
-	stringValue2 := str.String(input)
-	if err := json.Unmarshal([]byte(stringValue2.Trim()), &fields); err != nil {
+	inputValue2 := str.String(input)
+	if err := json.Unmarshal([]byte(inputValue2.Trim()), &fields); err != nil {
 		return nil
 	}
 
@@ -55,8 +55,8 @@ func getToolInputDisplayState(name string, input string) *trace.PlanToolState {
 
 func getToolOutputDisplayDetail(name string, output string) string {
 	var fields map[string]any
-	stringValue3 := str.String(output)
-	if err := json.Unmarshal([]byte(stringValue3.Trim()), &fields); err != nil {
+	outputValue := str.String(output)
+	if err := json.Unmarshal([]byte(outputValue.Trim()), &fields); err != nil {
 		return ""
 	}
 
@@ -70,8 +70,8 @@ func getToolOutputDisplayDetail(name string, output string) string {
 
 func getToolOutputDisplayState(name string, output string) *trace.PlanToolState {
 	var fields map[string]any
-	stringValue4 := str.String(output)
-	if err := json.Unmarshal([]byte(stringValue4.Trim()), &fields); err != nil {
+	outputValue2 := str.String(output)
+	if err := json.Unmarshal([]byte(outputValue2.Trim()), &fields); err != nil {
 		return nil
 	}
 
@@ -102,25 +102,25 @@ func getToolOutputProcessDisplayState(name string, output string) *trace.Process
 func getToolBranchDisplayDetail(action string, detail string, completed bool) string {
 	spec := getToolDisplaySpecForAction(action)
 	if spec.branchDetail == nil {
-		stringValue5 := str.String(detail)
-		return stringValue5.Trim()
+		detailValue := str.String(detail)
+		return detailValue.Trim()
 	}
 
 	return spec.branchDetail(detail, completed)
 }
 
 func getToolTranscriptBranchDisplayDetail(action string, detail toolTranscriptDetail) string {
-	stringValue6 := str.String(action)
-	if stringValue6.Trim() == "Plan" {
+	actionValue := str.String(action)
+	if actionValue.Trim() == "Plan" {
 		return getPlanToolBranchDetail(detail.planState, detail.completed)
 	}
-	stringValue7 := str.String(action)
-	if stringValue7.Trim() == "Process" {
+	actionValue2 := str.String(action)
+	if actionValue2.Trim() == "Process" {
 		if branch := getProcessToolBranchDetail(detail.processState, detail.completed); branch != "" {
 			return branch
 		}
-		stringValue8 := str.String(detail.text)
-		return stringValue8.Trim()
+		textValue := str.String(detail.text)
+		return textValue.Trim()
 	}
 
 	return getToolBranchDisplayDetail(action, detail.text, detail.completed)
@@ -171,14 +171,14 @@ func getToolDisplaySpec(name string) toolDisplaySpec {
 }
 
 func normalizeToolDisplayName(name string) string {
-	stringValue9 := str.String(name)
-	name = stringValue9.Normalized()
+	nameValue := str.String(name)
+	name = nameValue.Normalized()
 	return strings.ReplaceAll(name, "-", "_")
 }
 
 func getToolDisplaySpecForAction(action string) toolDisplaySpec {
-	stringValue10 := str.String(action)
-	switch stringValue10.Trim() {
+	actionValue3 := str.String(action)
+	switch actionValue3.Trim() {
 	case "Run":
 		return toolDisplaySpec{
 			inputDetail:  getRunToolDisplayDetail,
@@ -253,14 +253,14 @@ func getPlanToolOutputFields(fields map[string]any) map[string]any {
 	}
 
 	output, ok := fields["output"].(string)
-	stringValue11 := str.String(output)
-	if !ok || stringValue11.Trim() == "" {
+	outputValue3 := str.String(output)
+	if !ok || outputValue3.Trim() == "" {
 		return fields
 	}
 
 	unwrapped := map[string]any{}
-	stringValue12 := str.String(output)
-	if err := json.Unmarshal([]byte(stringValue12.Trim()), &unwrapped); err != nil {
+	outputValue4 := str.String(output)
+	if err := json.Unmarshal([]byte(outputValue4.Trim()), &unwrapped); err != nil {
 		return fields
 	}
 	if len(unwrapped) == 0 {
@@ -403,19 +403,19 @@ func getProcessToolErrorDetail(state *trace.ProcessToolState) string {
 	if state == nil {
 		return ""
 	}
-	stringValue13 := str.String(state.Error)
-	message := stringValue13.Trim()
+	errorValue := str.String(state.Error)
+	message := errorValue.Trim()
 	if message == "" {
 		return ""
 	}
 
 	prefix := "Failed"
 	if state.Operation != "" {
-		stringValue15 := str.String(string(state.Operation))
-		prefix = stringValue15.Trim() + " failed"
+		operationValue := str.String(string(state.Operation))
+		prefix = operationValue.Trim() + " failed"
 	}
-	stringValue14 := str.String(state.ErrorCode)
-	if code := stringValue14.Trim(); code != "" {
+	errorCodeValue := str.String(state.ErrorCode)
+	if code := errorCodeValue.Trim(); code != "" {
 		return prefix + ": " + message + " (" + code + ")"
 	}
 
@@ -440,8 +440,8 @@ func getProcessToolStatusDetail(state *trace.ProcessToolState) string {
 	if len(parts) > 0 {
 		return strings.Join(parts, " ")
 	}
-	stringValue16 := str.String(state.Command)
-	return stringValue16.Trim()
+	commandValue := str.String(state.Command)
+	return commandValue.Trim()
 }
 
 func getProcessToolOutputDetail(state *trace.ProcessToolState) string {
@@ -520,8 +520,8 @@ func mergeProcessToolDisplayState(current *trace.ProcessToolState, next *trace.P
 }
 
 func hasProcessToolError(state *trace.ProcessToolState) bool {
-	stringValue17 := str.String(state.Error)
-	return state != nil && stringValue17.Trim() != ""
+	errorValue2 := str.String(state.Error)
+	return state != nil && errorValue2.Trim() != ""
 }
 
 func formatProcessBytes(value int) string {
@@ -542,9 +542,9 @@ func formatProcessCount(value int) string {
 
 func firstNonEmptyToolDisplay(values ...string) string {
 	for _, value := range values {
-		stringValue18 := str.String(value)
-		if value = stringValue18.Trim(); value != "" {
-			return value
+		valueText := str.String(value)
+		if valueText := valueText.Trim(); valueText != "" {
+			return valueText
 		}
 	}
 
@@ -614,8 +614,8 @@ func getPlanToolChangeSummary(changes []trace.PlanToolChange) string {
 	counts := map[summaryKey]int{}
 	order := make([]string, 0, len(changes))
 	for _, change := range changes {
-		stringValue19 := str.String(change.Action)
-		action := stringValue19.Normalized()
+		actionValue4 := str.String(change.Action)
+		action := actionValue4.Normalized()
 		if action == "" {
 			continue
 		}
@@ -675,8 +675,8 @@ func getPlanToolChangeSummaryLabel(action string, fields string, count int) stri
 }
 
 func capitalizePlanToolChangeAction(action string) string {
-	stringValue20 := str.String(action)
-	action = stringValue20.Trim()
+	actionValue5 := str.String(action)
+	action = actionValue5.Trim()
 	if action == "" {
 		return ""
 	}
@@ -685,8 +685,8 @@ func capitalizePlanToolChangeAction(action string) string {
 }
 
 func getPlanToolChangeText(change trace.PlanToolChange) string {
-	stringValue21 := str.String(change.Action)
-	action := stringValue21.Normalized()
+	actionValue6 := str.String(change.Action)
+	action := actionValue6.Normalized()
 	if action == "" {
 		return ""
 	}
@@ -744,8 +744,8 @@ func normalizePlanToolChangedFields(fields []string) []string {
 	seen := map[string]struct{}{}
 	result := make([]string, 0, len(fields))
 	for _, field := range fields {
-		stringValue22 := str.String(field)
-		field = stringValue22.Normalized()
+		fieldValue := str.String(field)
+		field = fieldValue.Normalized()
 		if field == "" {
 			continue
 		}
@@ -771,8 +771,8 @@ func formatTaskCount(count int) string {
 }
 
 func isGenericToolParamDisplayEnabled(name string) bool {
-	stringValue23 := str.String(name)
-	switch stringValue23.Normalized() {
+	nameValue2 := str.String(name)
+	switch nameValue2.Normalized() {
 	case "list_files":
 		return true
 	default:
@@ -781,16 +781,16 @@ func isGenericToolParamDisplayEnabled(name string) bool {
 }
 
 func getGenericToolDisplayDetail(name string, fields map[string]any) string {
-	stringValue24 := str.String(name)
-	name = stringValue24.Trim()
+	nameValue3 := str.String(name)
+	name = nameValue3.Trim()
 	if name == "" || len(fields) == 0 {
 		return ""
 	}
 
 	keys := make([]string, 0, len(fields))
 	for key, value := range fields {
-		stringValue25 := str.String(key)
-		if stringValue25.Trim() == "" || isEmptyToolInputValue(value) {
+		keyValue := str.String(key)
+		if keyValue.Trim() == "" || isEmptyToolInputValue(value) {
 			continue
 		}
 		keys = append(keys, key)
@@ -802,8 +802,8 @@ func getGenericToolDisplayDetail(name string, fields map[string]any) string {
 
 	parts := make([]string, 0, len(keys))
 	for _, key := range keys {
-		stringValue26 := str.String(key)
-		parts = append(parts, stringValue26.Trim()+"="+formatToolInputValueForKey(key, fields[key]))
+		keyValue2 := str.String(key)
+		parts = append(parts, keyValue2.Trim()+"="+formatToolInputValueForKey(key, fields[key]))
 	}
 
 	return name + "(" + strings.Join(parts, " ") + ")"
@@ -892,8 +892,8 @@ func getSessionMessagesToolDisplayDetail(fields map[string]any) string {
 }
 
 func getSessionMessagesToolBranchDetail(detail string, _ bool) string {
-	stringValue27 := str.String(detail)
-	detail = stringValue27.Trim()
+	detailValue2 := str.String(detail)
+	detail = detailValue2.Trim()
 	if detail == "" || normalizeToolDisplayName(detail) == "session_messages" ||
 		normalizeToolDisplayName(detail) == "session_message" {
 		return "session_messages()"
@@ -903,8 +903,8 @@ func getSessionMessagesToolBranchDetail(detail string, _ bool) string {
 }
 
 func getSessionMessagesToolParam(key string, value any) string {
-	stringValue28 := str.String(key)
-	key = stringValue28.Trim()
+	keyValue3 := str.String(key)
+	key = keyValue3.Trim()
 	if key == "" || isEmptyToolInputValue(value) {
 		return ""
 	}
@@ -929,8 +929,8 @@ func getPathToolDisplayDetail(name string, fields map[string]any) string {
 	if path == "" {
 		return ""
 	}
-	stringValue29 := str.String(name)
-	return stringValue29.Trim() + " " + path
+	nameValue4 := str.String(name)
+	return nameValue4.Trim() + " " + path
 }
 
 func getPatchToolDisplayDetail(name string, fields map[string]any) string {
@@ -939,8 +939,8 @@ func getPatchToolDisplayDetail(name string, fields map[string]any) string {
 	if path == "" {
 		path = getToolDisplayPath(fields)
 	}
-	stringValue30 := str.String(name)
-	parts := []string{stringValue30.Trim()}
+	nameValue5 := str.String(name)
+	parts := []string{nameValue5.Trim()}
 	if path != "" {
 		parts = append(parts, path)
 	}
@@ -969,15 +969,15 @@ func getPatchToolDisplaySummary(patch string) (string, int, int) {
 	for _, line := range strings.Split(patch, "\n") {
 		switch {
 		case strings.HasPrefix(line, "+++ "):
-			stringValue31 := str.String(strings.TrimPrefix(line, "+++ "))
-			candidate := normalizePatchToolPath(stringValue31.Trim())
+			trimPrefixValue := str.String(strings.TrimPrefix(line, "+++ "))
+			candidate := normalizePatchToolPath(trimPrefixValue.Trim())
 			if candidate != "" && candidate != "/dev/null" {
 				path = candidate
 			}
 		case strings.HasPrefix(line, "--- "):
 			if path == "" {
-				stringValue32 := str.String(strings.TrimPrefix(line, "--- "))
-				candidate := normalizePatchToolPath(stringValue32.Trim())
+				trimPrefixValue2 := str.String(strings.TrimPrefix(line, "--- "))
+				candidate := normalizePatchToolPath(trimPrefixValue2.Trim())
 				if candidate != "" && candidate != "/dev/null" {
 					path = candidate
 				}
@@ -998,8 +998,8 @@ func getPatchToolDisplaySummary(patch string) (string, int, int) {
 }
 
 func normalizePatchToolPath(path string) string {
-	stringValue33 := str.String(path)
-	path = stringValue33.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	path = strings.TrimPrefix(path, "a/")
 	path = strings.TrimPrefix(path, "b/")
 	return strings.Trim(path, `"`)
@@ -1008,8 +1008,8 @@ func normalizePatchToolPath(path string) string {
 func getMapString(fields map[string]any, keys ...string) string {
 	for _, key := range keys {
 		value, _ := fields[key].(string)
-		stringValue34 := str.String(value)
-		if value = stringValue34.Trim(); value != "" {
+		value2 := str.String(value)
+		if value = value2.Trim(); value != "" {
 			return value
 		}
 	}
@@ -1029,8 +1029,8 @@ func getMapStringSlice(fields map[string]any, key string) []string {
 		if !ok {
 			continue
 		}
-		stringValue35 := str.String(text)
-		if text = stringValue35.Trim(); text != "" {
+		textValue2 := str.String(text)
+		if text = textValue2.Trim(); text != "" {
 			values = append(values, text)
 		}
 	}
@@ -1068,8 +1068,8 @@ func isEmptyToolInputValue(value any) bool {
 	case nil:
 		return true
 	case string:
-		stringValue36 := str.String(typed)
-		return stringValue36.Trim() == ""
+		typedValue := str.String(typed)
+		return typedValue.Trim() == ""
 	case []any:
 		return len(typed) == 0
 	case map[string]any:
@@ -1124,8 +1124,8 @@ func formatToolInputNumber(value any) string {
 	case int32:
 		return fmt.Sprintf("%d", typed)
 	case json.Number:
-		stringValue37 := str.String(typed.String())
-		return stringValue37.Trim()
+		textValue3 := str.String(typed.String())
+		return textValue3.Trim()
 	default:
 		return ""
 	}
@@ -1135,8 +1135,8 @@ func formatToolInputValueForKey(key string, value any) string {
 	switch typed := value.(type) {
 	case string:
 		sanitized, _ := guardrails.NewRedactor().Sanitize(typed).(string)
-		stringValue38 := str.String(key)
-		if strings.EqualFold(stringValue38.Trim(), "path") {
+		keyValue4 := str.String(key)
+		if strings.EqualFold(keyValue4.Trim(), "path") {
 			return shortenToolPath(sanitized, 42)
 		}
 		return truncateToolDetail(sanitized, 60)
@@ -1157,8 +1157,8 @@ func formatToolInputValueForKey(key string, value any) string {
 }
 
 func shortenToolPath(path string, limit int) string {
-	stringValue39 := str.String(path)
-	path = strings.Join(strings.Fields(stringValue39.Trim()), " ")
+	pathValue2 := str.String(path)
+	path = strings.Join(strings.Fields(pathValue2.Trim()), " ")
 	if limit <= 0 {
 		return path
 	}
@@ -1222,15 +1222,15 @@ func formatToolTimeoutSeconds(timeout float64) string {
 }
 
 func normalizeRunToolDetailText(detail string, completed bool) string {
-	stringValue40 := str.String(detail)
-	detail = stringValue40.Trim()
+	detailValue3 := str.String(detail)
+	detail = detailValue3.Trim()
 	if detail == "" {
 		return detail
 	}
 	if completed {
 		detail = runToolTimeoutHintPattern.ReplaceAllString(detail, "")
-		stringValue41 := str.String(runToolLegacyTimeoutPattern.ReplaceAllString(detail, ""))
-		return stringValue41.Trim()
+		replaceAllStringValue := str.String(runToolLegacyTimeoutPattern.ReplaceAllString(detail, ""))
+		return replaceAllStringValue.Trim()
 	}
 	if strings.Contains(detail, "[timeout ") || strings.Contains(detail, "[terminates in ") {
 		return detail
@@ -1240,8 +1240,8 @@ func normalizeRunToolDetailText(detail string, completed bool) string {
 }
 
 func truncateToolDetail(value string, limit int) string {
-	stringValue42 := str.String(value)
-	value = strings.Join(strings.Fields(stringValue42.Trim()), " ")
+	value3 := str.String(value)
+	value = strings.Join(strings.Fields(value3.Trim()), " ")
 	if limit <= 0 {
 		return value
 	}

@@ -88,12 +88,12 @@ type Options struct {
 }
 
 func (o Options) Normalize() Options {
-	stringValue1 := str.String(o.Provider)
-	o.Provider = stringValue1.Normalized()
-	stringValue2 := str.String(o.APIKey)
-	o.APIKey = stringValue2.Trim()
-	stringValue3 := str.String(o.BaseURL)
-	o.BaseURL = stringValue3.Trim()
+	providerValue := str.String(o.Provider)
+	o.Provider = providerValue.Normalized()
+	aPIKeyValue := str.String(o.APIKey)
+	o.APIKey = aPIKeyValue.Trim()
+	baseURLValue := str.String(o.BaseURL)
+	o.BaseURL = baseURLValue.Trim()
 	if o.MaxCharPerResult < 0 {
 		o.MaxCharPerResult = 0
 	}
@@ -126,10 +126,10 @@ func ExtractOptionsFromContext(ctx context.Context) ExtractOptions {
 }
 
 func (o ExtractOptions) Normalize() ExtractOptions {
-	stringValue4 := str.String(o.Format)
-	o.Format = stringValue4.Normalized()
-	stringValue5 := str.String(o.Query)
-	o.Query = stringValue5.Trim()
+	formatValue := str.String(o.Format)
+	o.Format = formatValue.Normalized()
+	queryValue := str.String(o.Query)
+	o.Query = queryValue.Trim()
 	if o.Format != "text" && o.Format != "markdown" {
 		o.Format = ""
 	}
@@ -167,8 +167,8 @@ func getExtractWebsitePolicy(ctx context.Context) guardrails.WebsitePolicy {
 
 // SupportedProvider reports whether supported provider is supported.
 func SupportedProvider(name string) bool {
-	stringValue6 := str.String(name)
-	switch stringValue6.Normalized() {
+	nameValue := str.String(name)
+	switch nameValue.Normalized() {
 	case ProviderFirecrawl, ProviderParallel, ProviderTavily, ProviderExa, ProviderNative:
 		return true
 	default:
@@ -248,24 +248,23 @@ func dedupeTrimValues(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
-		stringValue7 := str.String(value)
-		value = stringValue7.Trim()
-		if value == "" {
+		valueText := str.String(value).Trim()
+		if valueText == "" {
 			continue
 		}
-		if _, ok := seen[value]; ok {
+		if _, ok := seen[valueText]; ok {
 			continue
 		}
-		seen[value] = struct{}{}
-		normalized = append(normalized, value)
+		seen[valueText] = struct{}{}
+		normalized = append(normalized, valueText)
 	}
 
 	return normalized
 }
 
 func truncateToMaxChars(value string, maxChars int) string {
-	stringValue8 := str.String(value)
-	value = stringValue8.Trim()
+	value2 := str.String(value)
+	value = value2.Trim()
 	if value == "" {
 		return ""
 	}
@@ -277,13 +276,13 @@ func truncateToMaxChars(value string, maxChars int) string {
 	if len(runes) <= maxChars {
 		return value
 	}
-	stringValue9 := str.String(string(runes[:maxChars]))
-	return stringValue9.Trim()
+	trimmedValue := str.String(string(runes[:maxChars]))
+	return trimmedValue.Trim()
 }
 
 func truncateContent(value string, maxChars int) (string, bool) {
-	stringValue10 := str.String(value)
-	value = stringValue10.Trim()
+	value3 := str.String(value)
+	value = value3.Trim()
 	if value == "" {
 		return "", false
 	}
@@ -295,8 +294,8 @@ func truncateContent(value string, maxChars int) (string, bool) {
 	if len(runes) <= maxChars {
 		return value, false
 	}
-	stringValue11 := str.String(string(runes[:maxChars]))
-	return stringValue11.Trim(), true
+	trimmedValue2 := str.String(string(runes[:maxChars]))
+	return trimmedValue2.Trim(), true
 }
 
 func limitExtractContent(value string, maxBytes, maxChars int) (string, bool, bool) {
@@ -312,8 +311,8 @@ func isResponseTooLarge(err error) bool {
 }
 
 func truncateToMaxBytes(value string, maxBytes int) (string, bool) {
-	stringValue12 := str.String(value)
-	value = stringValue12.Trim()
+	value4 := str.String(value)
+	value = value4.Trim()
 	if value == "" || maxBytes <= 0 {
 		return value, false
 	}
@@ -326,8 +325,8 @@ func truncateToMaxBytes(value string, maxBytes int) (string, bool) {
 	for len(data) > 0 && !utf8.Valid(data) {
 		data = data[:len(data)-1]
 	}
-	stringValue13 := str.String(string(data))
-	return stringValue13.Trim(), true
+	dataValue := str.String(string(data))
+	return dataValue.Trim(), true
 }
 
 // NewProvider returns a provider selected from config.

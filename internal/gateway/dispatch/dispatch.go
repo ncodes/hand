@@ -103,8 +103,8 @@ func (d *Dispatcher) Enqueue(job Job) (bool, error) {
 	if d == nil {
 		return false, ErrDispatcherClosed
 	}
-	stringValue1 := str.String(job.ID)
-	id := stringValue1.Trim()
+	iDValue := str.String(job.ID)
+	id := iDValue.Trim()
 	if id == "" {
 		return false, ErrJobIDRequired
 	}

@@ -2817,8 +2817,8 @@ func TestModel_ViewAlignsHeaderInfoKeys(t *testing.T) {
 
 	require.Len(t, lines, (len(rows)+1)/2)
 	for _, line := range lines {
-		stringValue1 := str.String(line)
-		if stringValue1.Trim() == "" {
+		lineValue := str.String(line)
+		if lineValue.Trim() == "" {
 			continue
 		}
 		require.Equal(t, leftColonIndex, strings.Index(line, ":"))
@@ -2944,8 +2944,8 @@ func TestRenderHeaderBody_FillsAvailableWidthWhenInfoIsVisible(t *testing.T) {
 	content := stripANSI(renderHeaderBody(panel))
 
 	for _, line := range strings.Split(content, "\n") {
-		stringValue2 := str.String(line)
-		if stringValue2.Trim() == "" {
+		lineValue2 := str.String(line)
+		if lineValue2.Trim() == "" {
 			continue
 		}
 		require.Equal(t, panel.Width, lipgloss.Width(line))
@@ -2958,8 +2958,8 @@ func TestRenderHeaderBody_InsetsBannerAndInfo(t *testing.T) {
 	content := stripANSI(renderHeaderBody(panel))
 
 	for _, line := range strings.Split(content, "\n") {
-		stringValue3 := str.String(line)
-		if stringValue3.Trim() == "" {
+		lineValue3 := str.String(line)
+		if lineValue3.Trim() == "" {
 			continue
 		}
 		require.True(t, strings.HasPrefix(line, " "))
@@ -3239,8 +3239,8 @@ func TestModel_RenderTranscriptContentKeepsFirstPromptCloseToHeader(t *testing.T
 	}
 
 	require.Greater(t, firstPromptRow, 2)
-	stringValue4 := str.String(lines[firstPromptRow-1])
-	require.NotEmpty(t, stringValue4.Trim())
+	linesValue := str.String(lines[firstPromptRow-1])
+	require.NotEmpty(t, linesValue.Trim())
 	require.Contains(t, lines[firstPromptRow-1], "▄")
 }
 
@@ -6086,8 +6086,8 @@ func TestModel_UpdateInsertsPromptNewlineOnShiftEnter(t *testing.T) {
 	require.Equal(t, 2, runModel.input.Height())
 	require.Zero(t, runModel.input.ScrollYOffset())
 	require.Contains(t, stripANSI(runModel.input.View()), "first line")
-	stringValue5 := str.String(inputPrompt)
-	require.Equal(t, 1, strings.Count(stripANSI(runModel.input.View()), stringValue5.Trim()))
+	inputPromptValue := str.String(inputPrompt)
+	require.Equal(t, 1, strings.Count(stripANSI(runModel.input.View()), inputPromptValue.Trim()))
 	require.Empty(t, transcriptCellPlainTexts(runModel.messages))
 }
 
@@ -6281,8 +6281,8 @@ func setActiveTestProfile(t *testing.T, home string) {
 
 func writeSetupProfileConfig(t *testing.T, home string, content string) {
 	t.Helper()
-	stringValue6 := str.String(content)
-	require.NoError(t, os.WriteFile(filepath.Join(home, "config.yaml"), []byte(stringValue6.Trim()+"\n"), 0o600))
+	contentValue := str.String(content)
+	require.NoError(t, os.WriteFile(filepath.Join(home, "config.yaml"), []byte(contentValue.Trim()+"\n"), 0o600))
 }
 
 func newSetupModelSelectionTestModel(t *testing.T) model {
@@ -6468,12 +6468,12 @@ func (p fakeSetupSubscriptionProvider) Login(
 	if p.err != nil {
 		return appcredential.StoredCredential{}, p.err
 	}
-	stringValue7 := str.String(p.credential.Type)
-	if stringValue7.Trim() == "" {
+	trimmedValueValue := str.String(p.credential.Type)
+	if trimmedValueValue.Trim() == "" {
 		p.credential.Type = appcredential.TypeOAuth
 	}
-	stringValue8 := str.String(p.credential.Token)
-	if stringValue8.Trim() == "" {
+	tokenValue := str.String(p.credential.Token)
+	if tokenValue.Trim() == "" {
 		p.credential.Token = "oauth-token"
 	}
 
@@ -6752,6 +6752,7 @@ type fakeTUIChatClient struct {
 	calls                 int
 	compactCalls          int
 	createSessionCalls    int
+	createSessionOptions  rpcclient.CreateSessionOptions
 	listSessionCalls      int
 	listArchivedCalls     int
 	useSessionCalls       int
@@ -6820,8 +6821,8 @@ func (c *fakeTUIChatClient) SelectModel(_ context.Context, id string, opts ...rp
 	if len(opts) > 0 {
 		c.selectedModelProvider = opts[0].Provider
 	}
-	stringValue9 := str.String(c.selectedModel.ID)
-	if stringValue9.Trim() != "" {
+	iDValue := str.String(c.selectedModel.ID)
+	if iDValue.Trim() != "" {
 		return c.selectedModel, c.selectModelErr
 	}
 
@@ -6860,6 +6861,7 @@ func (c *fakeTUIChatClient) CreateWithOptions(
 	opts rpcclient.CreateSessionOptions,
 ) (storage.Session, error) {
 	c.createSessionCalls++
+	c.createSessionOptions = opts
 	c.createSessionID = opts.ID
 	return c.createdSession, c.createSessionErr
 }
@@ -6889,8 +6891,8 @@ func (c *fakeTUIChatClient) Archive(_ context.Context, id string) error {
 func (c *fakeTUIChatClient) Unarchive(_ context.Context, id string) (storage.Session, error) {
 	c.unarchiveCalls++
 	c.unarchivedSessionID = id
-	stringValue10 := str.String(c.unarchivedSession.ID)
-	if stringValue10.Trim() != "" {
+	iDValue2 := str.String(c.unarchivedSession.ID)
+	if iDValue2.Trim() != "" {
 		return c.unarchivedSession, c.unarchiveSessionErr
 	}
 
@@ -6901,8 +6903,8 @@ func (c *fakeTUIChatClient) Rename(_ context.Context, id string, title string) (
 	c.renameSessionCalls++
 	c.renamedSessionID = id
 	c.renamedSessionTitle = title
-	stringValue11 := str.String(c.renamedSession.ID)
-	if stringValue11.Trim() != "" {
+	iDValue3 := str.String(c.renamedSession.ID)
+	if iDValue3.Trim() != "" {
 		return c.renamedSession, c.renameSessionErr
 	}
 

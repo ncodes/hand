@@ -169,8 +169,8 @@ func (f *Fetcher) ValidateURL(ctx context.Context, rawURL string) (*url.URL, err
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return nil, errors.New("url scheme must be http or https")
 	}
-	stringValue1 := str.String(parsed.Hostname())
-	if stringValue1.Trim() == "" {
+	hostnameValue := str.String(parsed.Hostname())
+	if hostnameValue.Trim() == "" {
 		return nil, errors.New("url host is required")
 	}
 
@@ -192,8 +192,8 @@ func (f *Fetcher) ValidateURL(ctx context.Context, rawURL string) (*url.URL, err
 }
 
 func (f *Fetcher) ResolveAndValidateHost(ctx context.Context, host string) ([]netip.Addr, error) {
-	stringValue2 := str.String(host)
-	host = stringValue2.Trim()
+	hostValue := str.String(host)
+	host = hostValue.Trim()
 	if host == "" {
 		return nil, errors.New("url host is required")
 	}

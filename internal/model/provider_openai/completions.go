@@ -202,11 +202,11 @@ func extractChatCompletionsResponse(resp *openai.ChatCompletion) (*Response, err
 	if err != nil {
 		return nil, err
 	}
-	stringValue1 := str.String(message.Content)
-	outputText := stringValue1.Trim()
+	contentValue := str.String(message.Content)
+	outputText := contentValue.Trim()
 	if outputText == "" {
-		stringValue2 := str.String(message.Refusal)
-		outputText = stringValue2.Trim()
+		refusalValue := str.String(message.Refusal)
+		outputText = refusalValue.Trim()
 	}
 	if outputText == "" && len(toolCalls) == 0 {
 		return nil, errors.New("model returned empty response")
@@ -245,21 +245,21 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 
 	normalized := make([]ToolCall, 0, len(toolCalls))
 	for idx, toolCall := range toolCalls {
-		stringValue3 := str.String(toolCall.ID)
-		id := stringValue3.Trim()
-		stringValue4 := str.String(toolCall.Function.Name)
-		name := stringValue4.Trim()
+		iDValue := str.String(toolCall.ID)
+		id := iDValue.Trim()
+		nameValue := str.String(toolCall.Function.Name)
+		name := nameValue.Trim()
 		if name == "" {
 			return nil, errors.New("tool call name is required")
 		}
 		if id == "" {
 			id = getFallbackToolCallID(name, idx)
 		}
-		stringValue5 := str.String(toolCall.Function.Arguments)
+		argumentsValue := str.String(toolCall.Function.Arguments)
 		normalized = append(normalized, ToolCall{
 			ID:    id,
 			Name:  name,
-			Input: stringValue5.Trim(),
+			Input: argumentsValue.Trim(),
 		})
 	}
 
@@ -267,6 +267,6 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 }
 
 func getFallbackToolCallID(name string, index int) string {
-	stringValue6 := str.String(name)
-	return "functions." + stringValue6.Trim() + ":" + strconv.Itoa(index)
+	nameValue2 := str.String(name)
+	return "functions." + nameValue2.Trim() + ":" + strconv.Itoa(index)
 }

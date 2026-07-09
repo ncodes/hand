@@ -32,7 +32,7 @@ var resolveProfileFromOptions = profile.Resolve
 type RuntimeAgent interface {
 	Start(context.Context) error
 	Respond(context.Context, string, agentcore.RespondOptions) (string, error)
-	CreateSession(context.Context, string) (state.Session, error)
+	CreateSession(context.Context, string, ...state.SessionCreateOptions) (state.Session, error)
 	CurrentSession(context.Context) (state.Session, error)
 	Close() error
 }
@@ -396,7 +396,9 @@ func newRuntimeAgent(
 func resolveRunSessionID(ctx context.Context, agent RuntimeAgent, target sessionTarget) (string, error) {
 	switch target.Kind {
 	case SessionTargetIsolated:
-		session, err := agent.CreateSession(ctx, "")
+		session, err := agent.CreateSession(ctx, "", state.SessionCreateOptions{
+			Origin: state.SessionOrigin{Source: state.SessionOriginSourceAutomation},
+		})
 		if err != nil {
 			return "", err
 		}

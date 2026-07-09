@@ -86,8 +86,8 @@ func (s ExtractSummarizer) SummarizeExtract(ctx context.Context, input SummaryIn
 	if s.Client == nil {
 		return "", errors.New("web extract summarizer is not configured")
 	}
-	stringValue1 := str.String(input.Content)
-	content := stringValue1.Trim()
+	contentValue := str.String(input.Content)
+	content := contentValue.Trim()
 	if input.MaxSummaryChunkChars > 0 && getRuneLength(content) > input.MaxSummaryChunkChars {
 		return s.summarizeChunked(ctx, input)
 	}
@@ -152,12 +152,12 @@ func (s ExtractSummarizer) completeSummary(
 	if resp.RequiresToolCalls {
 		return "", errors.New("web extract summary requested tool calls")
 	}
-	stringValue2 := str.String(resp.OutputText)
-	if stringValue2.Trim() == "" {
+	outputTextValue := str.String(resp.OutputText)
+	if outputTextValue.Trim() == "" {
 		return "", errors.New("web extract summary is empty")
 	}
-	stringValue3 := str.String(resp.OutputText)
-	return stringValue3.Trim(), nil
+	outputTextValue2 := str.String(resp.OutputText)
+	return outputTextValue2.Trim(), nil
 }
 
 func summarizeExtractResults(
@@ -174,9 +174,9 @@ func summarizeExtractResults(
 	copy(summarized, results)
 	for idx := range summarized {
 		result := &summarized[idx]
-		stringValue4 := str.String(result.Error)
-		stringValue5 := str.String(result.Content)
-		if stringValue4.Trim() != "" || stringValue5.Trim() == "" {
+		errorValue := str.String(result.Error)
+		contentValue2 := str.String(result.Content)
+		if errorValue.Trim() != "" || contentValue2.Trim() == "" {
 			continue
 		}
 
@@ -187,8 +187,8 @@ func summarizeExtractResults(
 		result.SourceContentChars = sourceChars
 		if options.SummarizeRefusalThresholdChars > 0 && sourceChars > options.SummarizeRefusalThresholdChars {
 			result.SummaryRefused = true
-			stringValue6 := str.String(result.Error)
-			if stringValue6.Trim() == "" {
+			errorValue2 := str.String(result.Error)
+			if errorValue2.Trim() == "" {
 				result.Error = "content exceeds summarization threshold"
 			}
 			continue
@@ -221,56 +221,56 @@ func summarizeExtractResults(
 }
 
 func renderSummaryPrompt(input SummaryInput) string {
-	stringValue7 := str.String(input.URL)
-	stringValue8 := str.String(input.Title)
+	uRLValue := str.String(input.URL)
+	titleValue := str.String(input.Title)
 	parts := []string{
-		"URL: " + stringValue7.Trim(),
-		"Title: " + stringValue8.Trim(),
+		"URL: " + uRLValue.Trim(),
+		"Title: " + titleValue.Trim(),
 	}
-	stringValue9 := str.String(input.Query)
-	if query := stringValue9.Trim(); query != "" {
+	queryValue := str.String(input.Query)
+	if query := queryValue.Trim(); query != "" {
 		parts = append(parts, "Query: "+query)
 	}
-	stringValue10 := str.String(input.Content)
-	parts = append(parts, "Content:\n"+stringValue10.Trim())
+	contentValue3 := str.String(input.Content)
+	parts = append(parts, "Content:\n"+contentValue3.Trim())
 
 	return strings.Join(parts, "\n\n")
 }
 
 func renderChunkSummaryPrompt(input SummaryInput, chunk string, chunkIndex, chunkCount int) string {
-	stringValue11 := str.String(input.URL)
-	stringValue12 := str.String(input.Title)
+	uRLValue2 := str.String(input.URL)
+	titleValue2 := str.String(input.Title)
 	parts := []string{
-		"URL: " + stringValue11.Trim(),
-		"Title: " + stringValue12.Trim(),
+		"URL: " + uRLValue2.Trim(),
+		"Title: " + titleValue2.Trim(),
 		"Chunk: " + strconv.Itoa(chunkIndex) + " of " + strconv.Itoa(chunkCount),
 	}
-	stringValue13 := str.String(input.Query)
-	if query := stringValue13.Trim(); query != "" {
+	queryValue2 := str.String(input.Query)
+	if query := queryValue2.Trim(); query != "" {
 		parts = append(parts, "Query: "+query)
 	}
-	stringValue14 := str.String(chunk)
-	parts = append(parts, "Chunk Content:\n"+stringValue14.Trim())
+	chunkValue := str.String(chunk)
+	parts = append(parts, "Chunk Content:\n"+chunkValue.Trim())
 
 	return strings.Join(parts, "\n\n")
 }
 
 func renderSynthesisPrompt(input SummaryInput, chunkSummaries []string) string {
-	stringValue15 := str.String(input.URL)
-	stringValue16 := str.String(input.Title)
+	uRLValue3 := str.String(input.URL)
+	titleValue3 := str.String(input.Title)
 	parts := []string{
-		"URL: " + stringValue15.Trim(),
-		"Title: " + stringValue16.Trim(),
+		"URL: " + uRLValue3.Trim(),
+		"Title: " + titleValue3.Trim(),
 	}
-	stringValue17 := str.String(input.Query)
-	if query := stringValue17.Trim(); query != "" {
+	queryValue3 := str.String(input.Query)
+	if query := queryValue3.Trim(); query != "" {
 		parts = append(parts, "Query: "+query)
 	}
 
 	sections := make([]string, 0, len(chunkSummaries))
 	for idx, summary := range chunkSummaries {
-		stringValue18 := str.String(summary)
-		sections = append(sections, "Chunk "+strconv.Itoa(idx+1)+" Summary:\n"+stringValue18.Trim())
+		summaryValue := str.String(summary)
+		sections = append(sections, "Chunk "+strconv.Itoa(idx+1)+" Summary:\n"+summaryValue.Trim())
 	}
 	parts = append(parts, "Chunk Summaries:\n"+strings.Join(sections, "\n\n"))
 
@@ -278,8 +278,8 @@ func renderSynthesisPrompt(input SummaryInput, chunkSummaries []string) string {
 }
 
 func splitIntoChunks(content string, chunkChars int) []string {
-	stringValue19 := str.String(content)
-	content = stringValue19.Trim()
+	contentValue4 := str.String(content)
+	content = contentValue4.Trim()
 	if content == "" {
 		return nil
 	}
@@ -291,8 +291,8 @@ func splitIntoChunks(content string, chunkChars int) []string {
 	chunks := make([]string, 0, (len(runes)+chunkChars-1)/chunkChars)
 	for start := 0; start < len(runes); start += chunkChars {
 		end := min(start+chunkChars, len(runes))
-		stringValue20 := str.String(string(runes[start:end]))
-		chunk := stringValue20.Trim()
+		trimmedValue := str.String(string(runes[start:end]))
+		chunk := trimmedValue.Trim()
 		if chunk == "" {
 			continue
 		}
@@ -311,21 +311,20 @@ func getMaxSummaryOutputTokens(maxSummaryChars int) int64 {
 }
 
 func truncateToChars(value string, maxChars int) (string, bool) {
-	stringValue21 := str.String(value)
-	value = stringValue21.Trim()
-	if value == "" || maxChars <= 0 {
-		return value, false
+	valueText := str.String(value).Trim()
+	if valueText == "" || maxChars <= 0 {
+		return valueText, false
 	}
 
-	runes := []rune(value)
+	runes := []rune(valueText)
 	if len(runes) <= maxChars {
-		return value, false
+		return valueText, false
 	}
-	stringValue22 := str.String(string(runes[:maxChars]))
-	return stringValue22.Trim(), true
+	trimmedValue2 := str.String(string(runes[:maxChars]))
+	return trimmedValue2.Trim(), true
 }
 
 func getRuneLength(value string) int {
-	stringValue23 := str.String(value)
-	return len([]rune(stringValue23.Trim()))
+	value2 := str.String(value)
+	return len([]rune(value2.Trim()))
 }

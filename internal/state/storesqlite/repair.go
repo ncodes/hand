@@ -13,8 +13,8 @@ import (
 
 // RebuildVectorStore refreshes all vector rows for one active session in batches.
 func (s *Store) RebuildVectorStore(ctx context.Context, id string) error {
-	stringValue1 := str.String(id)
-	id = stringValue1.Trim()
+	idValue := str.String(id)
+	id = idValue.Trim()
 	if err := state.ValidateSessionID(id); err != nil {
 		return err
 	}
@@ -34,8 +34,8 @@ func (s *Store) RepairVectorStore(ctx context.Context, opts search.VectorRepairO
 	if s.vectors == nil {
 		return search.VectorRepairResult{}, nil
 	}
-	stringValue2 := str.String(opts.SessionID)
-	sessionID := stringValue2.Trim()
+	sessionIDValue := str.String(opts.SessionID)
+	sessionID := sessionIDValue.Trim()
 	if sessionID != "" {
 		if err := state.ValidateSessionID(sessionID); err != nil {
 			return search.VectorRepairResult{}, err
@@ -165,8 +165,8 @@ func (s *Store) repairVectorBatch(
 func getMessageModelsBySourceID(records []messageModel, sourceIDs []string) []messageModel {
 	sourceSet := make(map[string]struct{}, len(sourceIDs))
 	for _, sourceID := range sourceIDs {
-		stringValue3 := str.String(sourceID)
-		sourceID = stringValue3.Trim()
+		sourceIDValue := str.String(sourceID)
+		sourceID = sourceIDValue.Trim()
 		if sourceID != "" {
 			sourceSet[sourceID] = struct{}{}
 		}

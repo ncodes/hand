@@ -348,6 +348,7 @@ type SessionSummary struct {
 	MessageCount  int32                  `protobuf:"varint,3,opt,name=message_count,json=messageCount,proto3" json:"message_count,omitempty"`
 	Title         string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
 	TitleSource   string                 `protobuf:"bytes,5,opt,name=title_source,json=titleSource,proto3" json:"title_source,omitempty"`
+	OriginSource  string                 `protobuf:"bytes,6,opt,name=origin_source,json=originSource,proto3" json:"origin_source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -417,10 +418,18 @@ func (x *SessionSummary) GetTitleSource() string {
 	return ""
 }
 
+func (x *SessionSummary) GetOriginSource() string {
+	if x != nil {
+		return x.OriginSource
+	}
+	return ""
+}
+
 type CreateSessionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	AutoSwitch    *bool                  `protobuf:"varint,2,opt,name=auto_switch,json=autoSwitch,proto3,oneof" json:"auto_switch,omitempty"`
+	OriginSource  string                 `protobuf:"bytes,3,opt,name=origin_source,json=originSource,proto3" json:"origin_source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -467,6 +476,13 @@ func (x *CreateSessionRequest) GetAutoSwitch() bool {
 		return *x.AutoSwitch
 	}
 	return false
+}
+
+func (x *CreateSessionRequest) GetOriginSource() string {
+	if x != nil {
+		return x.OriginSource
+	}
+	return ""
 }
 
 type CreateSessionResponse struct {
@@ -516,6 +532,7 @@ func (x *CreateSessionResponse) GetSession() *SessionSummary {
 type ListSessionsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Archived      *bool                  `protobuf:"varint,1,opt,name=archived,proto3,oneof" json:"archived,omitempty"`
+	OriginSource  string                 `protobuf:"bytes,2,opt,name=origin_source,json=originSource,proto3" json:"origin_source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -555,6 +572,13 @@ func (x *ListSessionsRequest) GetArchived() bool {
 		return *x.Archived
 	}
 	return false
+}
+
+func (x *ListSessionsRequest) GetOriginSource() string {
+	if x != nil {
+		return x.OriginSource
+	}
+	return ""
 }
 
 type ListSessionsResponse struct {
@@ -5476,22 +5500,25 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"\aChannel\x12\x17\n" +
 	"\x13CHANNEL_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tASSISTANT\x10\x01\x12\r\n" +
-	"\tREASONING\x10\x02\"\xa6\x01\n" +
+	"\tREASONING\x10\x02\"\xcb\x01\n" +
 	"\x0eSessionSummary\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12&\n" +
 	"\x0fupdated_at_unix\x18\x02 \x01(\x03R\rupdatedAtUnix\x12#\n" +
 	"\rmessage_count\x18\x03 \x01(\x05R\fmessageCount\x12\x14\n" +
 	"\x05title\x18\x04 \x01(\tR\x05title\x12!\n" +
-	"\ftitle_source\x18\x05 \x01(\tR\vtitleSource\"\\\n" +
+	"\ftitle_source\x18\x05 \x01(\tR\vtitleSource\x12#\n" +
+	"\rorigin_source\x18\x06 \x01(\tR\foriginSource\"\x81\x01\n" +
 	"\x14CreateSessionRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12$\n" +
 	"\vauto_switch\x18\x02 \x01(\bH\x00R\n" +
-	"autoSwitch\x88\x01\x01B\x0e\n" +
+	"autoSwitch\x88\x01\x01\x12#\n" +
+	"\rorigin_source\x18\x03 \x01(\tR\foriginSourceB\x0e\n" +
 	"\f_auto_switch\"K\n" +
 	"\x15CreateSessionResponse\x122\n" +
-	"\asession\x18\x01 \x01(\v2\x18.morph.v1.SessionSummaryR\asession\"C\n" +
+	"\asession\x18\x01 \x01(\v2\x18.morph.v1.SessionSummaryR\asession\"h\n" +
 	"\x13ListSessionsRequest\x12\x1f\n" +
-	"\barchived\x18\x01 \x01(\bH\x00R\barchived\x88\x01\x01B\v\n" +
+	"\barchived\x18\x01 \x01(\bH\x00R\barchived\x88\x01\x01\x12#\n" +
+	"\rorigin_source\x18\x02 \x01(\tR\foriginSourceB\v\n" +
 	"\t_archived\"L\n" +
 	"\x14ListSessionsResponse\x124\n" +
 	"\bsessions\x18\x01 \x03(\v2\x18.morph.v1.SessionSummaryR\bsessions\"#\n" +

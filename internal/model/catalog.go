@@ -94,10 +94,10 @@ func ListOptions(query OptionQuery) ([]Option, error) {
 	if registry == nil {
 		registry = modelprovider.DefaultRegistry()
 	}
-	stringValue1 := str.String(query.Provider)
-	provider := stringValue1.Normalized()
-	stringValue2 := str.String(query.Current)
-	current := stringValue2.Trim()
+	providerValue := str.String(query.Provider)
+	provider := providerValue.Normalized()
+	currentValue := str.String(query.Current)
+	current := currentValue.Trim()
 	options := listRegistryOptions(registry, provider, current, query.OAuthOnly)
 
 	hasExplicitConfig := hasExplicitProviderModelDefinitions(query.Config, provider)
@@ -158,37 +158,37 @@ func getDiscoveredLocalOptions(
 }
 
 func getLocalDiscoveryBaseURL(query OptionQuery, provider modelprovider.ProviderDefinition) string {
-	stringValue3 := str.String(query.BaseURL)
-	if value := stringValue3.Trim(); value != "" {
+	baseURLValue := str.String(query.BaseURL)
+	if value := baseURLValue.Trim(); value != "" {
 		return value
 	}
-	stringValue4 := str.String(provider.DefaultAPI)
-	api := stringValue4.Trim()
+	defaultAPIValue := str.String(provider.DefaultAPI)
+	api := defaultAPIValue.Trim()
 	if query.Config != nil {
 		if strings.EqualFold(query.Config.Models.Main.Provider, provider.ID) {
-			stringValue7 := str.String(query.Config.Models.Main.BaseURL)
-			if value := stringValue7.Trim(); value != "" {
+			baseURLValue2 := str.String(query.Config.Models.Main.BaseURL)
+			if value := baseURLValue2.Trim(); value != "" {
 				return value
 			}
-			stringValue8 := str.String(query.Config.Models.Main.API)
-			if value := stringValue8.Trim(); value != "" {
+			aPIValue := str.String(query.Config.Models.Main.API)
+			if value := aPIValue.Trim(); value != "" {
 				api = value
 			}
 		}
 		if providerConfig, ok := getExplicitProviderConfig(query.Config, provider.ID); ok {
-			stringValue9 := str.String(providerConfig.BaseURL)
-			if value := stringValue9.Trim(); value != "" {
+			baseURLValue3 := str.String(providerConfig.BaseURL)
+			if value := baseURLValue3.Trim(); value != "" {
 				return value
 			}
-			stringValue10 := str.String(providerConfig.API)
-			if value := stringValue10.Trim(); value != "" {
+			aPIValue2 := str.String(providerConfig.API)
+			if value := aPIValue2.Trim(); value != "" {
 				api = value
 			}
 		}
 	}
-	stringValue5 := str.String(api)
-	stringValue6 := str.String(provider.BaseURLs[stringValue5.Normalized()])
-	return stringValue6.Trim()
+	apiValue := str.String(api)
+	baseURLsValue := str.String(provider.BaseURLs[apiValue.Normalized()])
+	return baseURLsValue.Trim()
 }
 
 func getCachedLocalDiscoveryOptions(cacheKey string, ttl time.Duration, current string) ([]Option, bool) {
@@ -215,12 +215,12 @@ func setCachedLocalDiscoveryOptions(cacheKey string, options []Option) {
 
 func cloneOptionsWithCurrent(options []Option, current string) []Option {
 	cloned := make([]Option, 0, len(options))
-	stringValue11 := str.String(current)
-	current = stringValue11.Trim()
+	currentValue2 := str.String(current)
+	current = currentValue2.Trim()
 	for _, option := range options {
 		option.Input = append([]string(nil), option.Input...)
-		stringValue12 := str.String(option.ID)
-		option.Current = stringValue12.Trim() == current
+		iDValue := str.String(option.ID)
+		option.Current = iDValue.Trim() == current
 		cloned = append(cloned, option)
 	}
 
@@ -232,8 +232,8 @@ func ListProviders(query ProviderQuery) []ProviderOption {
 	if registry == nil {
 		registry = modelprovider.DefaultRegistry()
 	}
-	stringValue13 := str.String(query.Current)
-	current := stringValue13.Normalized()
+	currentValue3 := str.String(query.Current)
+	current := currentValue3.Normalized()
 	providers := registry.GetProviders()
 	options := make([]ProviderOption, 0, len(providers))
 	for _, provider := range providers {
@@ -251,13 +251,13 @@ func ListProviders(query ProviderQuery) []ProviderOption {
 		if count == 0 {
 			continue
 		}
-		stringValue14 := str.String(provider.ID)
-		stringValue15 := str.String(provider.DisplayName)
-		stringValue16 := str.String(query.Auth[provider.ID])
-		stringValue17 := str.String(provider.ID)
+		iDValue2 := str.String(provider.ID)
+		displayNameValue := str.String(provider.DisplayName)
+		authValue := str.String(query.Auth[provider.ID])
+		iDValue3 := str.String(provider.ID)
 		options = append(options, ProviderOption{
-			ID:              stringValue14.Trim(),
-			Name:            stringValue15.Trim(),
+			ID:              iDValue2.Trim(),
+			Name:            displayNameValue.Trim(),
 			DisplayIndex:    provider.DisplayIndex,
 			HasDisplayIndex: provider.HasDisplayIndex,
 			Type:            getProviderOptionType(provider),
@@ -265,8 +265,8 @@ func ListProviders(query ProviderQuery) []ProviderOption {
 			SupportsAPIKey:  provider.SupportsAPIKey,
 			SupportsOAuth:   provider.SupportsOAuth,
 			Local:           provider.Local != nil,
-			AuthType:        stringValue16.Trim(),
-			Current:         stringValue17.Trim() == current,
+			AuthType:        authValue.Trim(),
+			Current:         iDValue3.Trim() == current,
 		})
 	}
 
@@ -288,8 +288,8 @@ func ListProviders(query ProviderQuery) []ProviderOption {
 }
 
 func isGenerationAPI(api string) bool {
-	stringValue18 := str.String(api)
-	switch stringValue18.Trim() {
+	apiValue2 := str.String(api)
+	switch apiValue2.Trim() {
 	case modelprovider.APIOpenAICompletions,
 		modelprovider.APIOpenAIResponses,
 		modelprovider.APIOllamaNative,
@@ -352,8 +352,8 @@ func listExplicitConfigOptions(
 	if !ok || len(providerConfig.Models) == 0 {
 		return nil
 	}
-	stringValue19 := str.String(providerConfig.API)
-	api := stringValue19.Trim()
+	aPIValue3 := str.String(providerConfig.API)
+	api := aPIValue3.Trim()
 	if api == "" {
 		api = getProviderDefaultAPI(registry, provider)
 	}
@@ -363,14 +363,14 @@ func listExplicitConfigOptions(
 
 	options := make([]Option, 0, len(providerConfig.Models))
 	for modelID, metadata := range providerConfig.Models {
-		stringValue20 := str.String(modelID)
-		modelID = stringValue20.Trim()
+		modelIDValue := str.String(modelID)
+		modelID = modelIDValue.Trim()
 		if modelID == "" {
 			continue
 		}
-		stringValue21 := str.String(current)
-		stringValue22 := str.String(providerConfig.BaseURL)
-		stringValue23 := str.String(current)
+		currentValue4 := str.String(current)
+		baseURLValue4 := str.String(providerConfig.BaseURL)
+		currentValue5 := str.String(current)
 		option := Option{
 			ID:             modelID,
 			Name:           modelID,
@@ -379,13 +379,13 @@ func listExplicitConfigOptions(
 			ContextWindow:  metadata.ContextLength,
 			MaxTokens:      int(metadata.MaxOutputTokens),
 			Input:          []string{string(modelprovider.InputText)},
-			Current:        modelID == stringValue21.Trim(),
+			Current:        modelID == currentValue4.Trim(),
 			LocalMissing:   false,
-			BaseURL:        stringValue22.Trim(),
+			BaseURL:        baseURLValue4.Trim(),
 			Source:         OptionSourceConfig,
 			SupportsTools:  boolPtrValue(metadata.SupportsTools),
 			Reasoning:      boolPtrValue(metadata.Reasoning),
-			DisplayDefault: modelID == stringValue23.Trim(),
+			DisplayDefault: modelID == currentValue5.Trim(),
 		}
 		if boolPtrValue(metadata.SupportsVision) {
 			option.Input = append(option.Input, string(modelprovider.InputImage))
@@ -414,15 +414,15 @@ func getExplicitProviderConfig(
 	if cfg == nil || len(cfg.Models.Providers) == 0 {
 		return config.ProviderModelConfig{}, false
 	}
-	stringValue24 := str.String(provider)
-	provider = stringValue24.Normalized()
+	providerValue2 := str.String(provider)
+	provider = providerValue2.Normalized()
 	if providerConfig, ok := cfg.Models.Providers[provider]; ok {
 		return providerConfig, true
 	}
 
 	for key, providerConfig := range cfg.Models.Providers {
-		stringValue25 := str.String(key)
-		if strings.EqualFold(stringValue25.Trim(), provider) {
+		keyValue := str.String(key)
+		if strings.EqualFold(keyValue.Trim(), provider) {
 			return providerConfig, true
 		}
 	}
@@ -438,8 +438,8 @@ func getProviderDefaultAPI(registry *modelprovider.Registry, provider string) st
 	if !ok {
 		return ""
 	}
-	stringValue26 := str.String(providerDef.DefaultAPI)
-	return stringValue26.Trim()
+	defaultAPIValue2 := str.String(providerDef.DefaultAPI)
+	return defaultAPIValue2.Trim()
 }
 
 func boolPtrValue(value *bool) bool {
@@ -450,8 +450,8 @@ func mergeOptions(primary []Option, secondary []Option, markSecondaryMissing boo
 	merged := make([]Option, 0, len(primary)+len(secondary))
 	seen := make(map[string]struct{}, len(primary)+len(secondary))
 	for _, option := range primary {
-		stringValue27 := str.String(option.ID)
-		option.ID = stringValue27.Trim()
+		iDValue4 := str.String(option.ID)
+		option.ID = iDValue4.Trim()
 		if option.ID == "" {
 			continue
 		}
@@ -459,8 +459,8 @@ func mergeOptions(primary []Option, secondary []Option, markSecondaryMissing boo
 		seen[strings.ToLower(option.ID)] = struct{}{}
 	}
 	for _, option := range secondary {
-		stringValue28 := str.String(option.ID)
-		option.ID = stringValue28.Trim()
+		iDValue5 := str.String(option.ID)
+		option.ID = iDValue5.Trim()
 		if option.ID == "" {
 			continue
 		}
@@ -510,22 +510,22 @@ func getProviderOptionType(provider modelprovider.ProviderDefinition) string {
 func modelDefinitionToOption(model modelprovider.ModelDefinition, current string) Option {
 	inputs := make([]string, 0, len(model.Input))
 	for _, input := range model.Input {
-		stringValue34 := str.String(string(input))
-		value := stringValue34.Trim()
+		inputValue := str.String(string(input))
+		value := inputValue.Trim()
 		if value != "" {
 			inputs = append(inputs, value)
 		}
 	}
-	stringValue29 := str.String(model.ID)
-	stringValue30 := str.String(model.Name)
-	stringValue31 := str.String(model.Provider)
-	stringValue32 := str.String(model.API)
-	stringValue33 := str.String(model.ID)
+	iDValue6 := str.String(model.ID)
+	nameValue := str.String(model.Name)
+	providerValue3 := str.String(model.Provider)
+	aPIValue4 := str.String(model.API)
+	iDValue7 := str.String(model.ID)
 	return Option{
-		ID:             stringValue29.Trim(),
-		Name:           stringValue30.Trim(),
-		Provider:       stringValue31.Trim(),
-		API:            stringValue32.Trim(),
+		ID:             iDValue6.Trim(),
+		Name:           nameValue.Trim(),
+		Provider:       providerValue3.Trim(),
+		API:            aPIValue4.Trim(),
 		ContextWindow:  model.ContextWindow,
 		MaxTokens:      model.MaxTokens,
 		Input:          inputs,
@@ -533,7 +533,7 @@ func modelDefinitionToOption(model modelprovider.ModelDefinition, current string
 		SupportsTools:  model.SupportsTools,
 		SupportsOAuth:  model.SupportsOAuth,
 		DisplayDefault: model.DisplayDefault,
-		Current:        stringValue33.Trim() == current,
+		Current:        iDValue7.Trim() == current,
 		Source:         OptionSourceCatalog,
 	}
 }
@@ -546,16 +546,16 @@ func modelDefinitionsToOptions(
 ) []Option {
 	options := make([]Option, 0, len(models))
 	for _, model := range models {
-		stringValue35 := str.String(model.ID)
-		if stringValue35.Trim() == "" {
+		iDValue8 := str.String(model.ID)
+		if iDValue8.Trim() == "" {
 			continue
 		}
 		if !isGenerationAPI(model.API) {
 			continue
 		}
 		option := modelDefinitionToOption(model, current)
-		stringValue36 := str.String(baseURL)
-		option.BaseURL = stringValue36.Trim()
+		baseURLValue5 := str.String(baseURL)
+		option.BaseURL = baseURLValue5.Trim()
 		option.Source = source
 		options = append(options, option)
 	}

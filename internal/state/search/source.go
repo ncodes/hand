@@ -12,14 +12,14 @@ import (
 
 // StableSessionMessageID returns the stable vector source ID for a session message.
 func StableSessionMessageID(sessionID string, messageID uint) string {
-	stringValue1 := str.String(sessionID)
-	return fmt.Sprintf("%s:%s:%d", SourceKindSessionMessage, stringValue1.Trim(), messageID)
+	sessionIDValue := str.String(sessionID)
+	return fmt.Sprintf("%s:%s:%d", SourceKindSessionMessage, sessionIDValue.Trim(), messageID)
 }
 
 // StableMemoryItemID returns the stable vector source ID for a memory item.
 func StableMemoryItemID(memoryID string) string {
-	stringValue2 := str.String(memoryID)
-	return fmt.Sprintf("%s:%s", SourceKindMemoryItem, stringValue2.Trim())
+	memoryIDValue := str.String(memoryID)
+	return fmt.Sprintf("%s:%s", SourceKindMemoryItem, memoryIDValue.Trim())
 }
 
 // MemoryIDFromSourceID extracts a memory ID from a vector source ID.
@@ -28,19 +28,18 @@ func MemoryIDFromSourceID(sourceID string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	stringValue3 := str.String(value)
-	value = stringValue3.Trim()
-	if value == "" {
+	valueText := str.String(value).Trim()
+	if valueText == "" {
 		return "", false
 	}
 
-	return value, true
+	return valueText, true
 }
 
 // SourceIDForMessage returns the vector source ID for a session message.
 func SourceIDForMessage(sessionID string, messageID uint) string {
-	stringValue4 := str.String(sessionID)
-	return StableSessionMessageID(stringValue4.Trim(), messageID)
+	sessionIDValue2 := str.String(sessionID)
+	return StableSessionMessageID(sessionIDValue2.Trim(), messageID)
 }
 
 // SourceIDsFromMessages returns vector source IDs for session messages.

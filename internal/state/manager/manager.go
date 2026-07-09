@@ -290,8 +290,8 @@ func (m *Manager) Resolve(ctx context.Context, id string) (storage.Session, erro
 	}
 
 	now := m.now().UTC()
-	stringValue1 := str.String(id)
-	id = stringValue1.Trim()
+	idValue := str.String(id)
+	id = idValue.Trim()
 	if id == "" {
 		id = storage.DefaultSessionID
 	}
@@ -368,8 +368,8 @@ func (m *Manager) AppendMessages(ctx context.Context, id string, messages []morp
 	if m == nil {
 		return errors.New("state manager is required")
 	}
-	stringValue2 := str.String(id)
-	id = stringValue2.Trim()
+	idValue2 := str.String(id)
+	id = idValue2.Trim()
 	if id == "" {
 		return errors.New("session id is required")
 	}
@@ -396,8 +396,8 @@ func (m *Manager) Get(ctx context.Context, id string, opts storage.SessionGetOpt
 	if m == nil {
 		return storage.Session{}, false, errors.New("state manager is required")
 	}
-	stringValue3 := str.String(id)
-	return m.sessions().Get(ctx, stringValue3.Trim(), opts)
+	idValue3 := str.String(id)
+	return m.sessions().Get(ctx, idValue3.Trim(), opts)
 }
 
 func (m *Manager) GetMessages(
@@ -408,8 +408,8 @@ func (m *Manager) GetMessages(
 	if m == nil {
 		return nil, errors.New("state manager is required")
 	}
-	stringValue4 := str.String(id)
-	return m.sessions().GetMessages(ctx, stringValue4.Trim(), opts)
+	idValue4 := str.String(id)
+	return m.sessions().GetMessages(ctx, idValue4.Trim(), opts)
 }
 
 func (m *Manager) GetMessagesByIDs(
@@ -420,8 +420,8 @@ func (m *Manager) GetMessagesByIDs(
 	if m == nil {
 		return nil, errors.New("state manager is required")
 	}
-	stringValue5 := str.String(id)
-	return m.sessions().GetMessagesByIDs(ctx, stringValue5.Trim(), messageIDs)
+	idValue5 := str.String(id)
+	return m.sessions().GetMessagesByIDs(ctx, idValue5.Trim(), messageIDs)
 }
 
 func (m *Manager) GetMessageWindow(
@@ -434,8 +434,8 @@ func (m *Manager) GetMessageWindow(
 	if m == nil {
 		return nil, errors.New("state manager is required")
 	}
-	stringValue6 := str.String(id)
-	return m.sessions().GetMessageWindow(ctx, stringValue6.Trim(), anchorMessageID, before, after)
+	idValue6 := str.String(id)
+	return m.sessions().GetMessageWindow(ctx, idValue6.Trim(), anchorMessageID, before, after)
 }
 
 func (m *Manager) SearchMessages(
@@ -446,10 +446,10 @@ func (m *Manager) SearchMessages(
 	if m == nil {
 		return nil, errors.New("state manager is required")
 	}
-	stringValue7 := str.String(opts.IgnoreSessionID)
-	opts.IgnoreSessionID = stringValue7.Trim()
-	stringValue8 := str.String(id)
-	return m.sessions().SearchMessages(ctx, stringValue8.Trim(), opts)
+	ignoreSessionIDValue := str.String(opts.IgnoreSessionID)
+	opts.IgnoreSessionID = ignoreSessionIDValue.Trim()
+	idValue7 := str.String(id)
+	return m.sessions().SearchMessages(ctx, idValue7.Trim(), opts)
 }
 
 func (m *Manager) RepairVectorStore(
@@ -464,8 +464,8 @@ func (m *Manager) RepairVectorStore(
 	if !ok {
 		return search.VectorRepairResult{}, errors.New("session vector repair is not supported")
 	}
-	stringValue9 := str.String(opts.SessionID)
-	opts.SessionID = stringValue9.Trim()
+	sessionIDValue := str.String(opts.SessionID)
+	opts.SessionID = sessionIDValue.Trim()
 	return repairStore.RepairVectorStore(ctx, opts)
 }
 
@@ -473,16 +473,16 @@ func (m *Manager) CountMessages(ctx context.Context, id string, opts storage.Mes
 	if m == nil {
 		return 0, errors.New("state manager is required")
 	}
-	stringValue10 := str.String(id)
-	return m.sessions().CountMessages(ctx, stringValue10.Trim(), opts)
+	idValue8 := str.String(id)
+	return m.sessions().CountMessages(ctx, idValue8.Trim(), opts)
 }
 
 func (m *Manager) UpdateCheckpoints(ctx context.Context, id string, patch storage.CheckpointPatch) error {
 	if m == nil {
 		return errors.New("state manager is required")
 	}
-	stringValue11 := str.String(id)
-	return m.sessions().UpdateCheckpoints(ctx, stringValue11.Trim(), patch)
+	idValue9 := str.String(id)
+	return m.sessions().UpdateCheckpoints(ctx, idValue9.Trim(), patch)
 }
 
 func (m *Manager) GetMessage(
@@ -493,8 +493,8 @@ func (m *Manager) GetMessage(
 	if m == nil {
 		return morphmsg.Message{}, false, errors.New("state manager is required")
 	}
-	stringValue12 := str.String(id)
-	return m.sessions().GetMessage(ctx, stringValue12.Trim(), index)
+	idValue10 := str.String(id)
+	return m.sessions().GetMessage(ctx, idValue10.Trim(), index)
 }
 
 func (m *Manager) SaveSummary(ctx context.Context, summary storage.SessionSummary) error {
@@ -509,18 +509,18 @@ func (m *Manager) GetSummary(ctx context.Context, sessionID string) (storage.Ses
 	if m == nil {
 		return storage.SessionSummary{}, false, errors.New("state manager is required")
 	}
-	stringValue13 := str.String(sessionID)
-	return m.sessions().GetSummary(ctx, stringValue13.Trim())
+	sessionIDValue2 := str.String(sessionID)
+	return m.sessions().GetSummary(ctx, sessionIDValue2.Trim())
 }
 
 func (m *Manager) SaveGatewayBinding(ctx context.Context, binding storage.GatewayBinding) error {
 	if m == nil {
 		return errors.New("state manager is required")
 	}
-	stringValue14 := str.String(binding.Key)
-	binding.Key = stringValue14.Trim()
-	stringValue15 := str.String(binding.SessionID)
-	binding.SessionID = stringValue15.Trim()
+	keyValue := str.String(binding.Key)
+	binding.Key = keyValue.Trim()
+	sessionIDValue3 := str.String(binding.SessionID)
+	binding.SessionID = sessionIDValue3.Trim()
 	return m.sessions().SaveGatewayBinding(ctx, binding)
 }
 
@@ -528,8 +528,8 @@ func (m *Manager) GetGatewayBinding(ctx context.Context, key string) (storage.Ga
 	if m == nil {
 		return storage.GatewayBinding{}, false, errors.New("state manager is required")
 	}
-	stringValue16 := str.String(key)
-	return m.sessions().GetGatewayBinding(ctx, stringValue16.Trim())
+	keyValue2 := str.String(key)
+	return m.sessions().GetGatewayBinding(ctx, keyValue2.Trim())
 }
 
 func (m *Manager) SaveGatewayPairingRequest(ctx context.Context, request pairing.PendingRequest) error {
@@ -619,8 +619,8 @@ func (m *Manager) DeleteSummary(ctx context.Context, sessionID string) error {
 	if m == nil {
 		return errors.New("state manager is required")
 	}
-	stringValue17 := str.String(sessionID)
-	return m.sessions().DeleteSummary(ctx, stringValue17.Trim())
+	sessionIDValue4 := str.String(sessionID)
+	return m.sessions().DeleteSummary(ctx, sessionIDValue4.Trim())
 }
 
 func (m *Manager) UpdateLastPromptTokens(ctx context.Context, id string, promptTokens int) error {
@@ -630,8 +630,8 @@ func (m *Manager) UpdateLastPromptTokens(ctx context.Context, id string, promptT
 	if promptTokens <= 0 {
 		return nil
 	}
-	stringValue18 := str.String(id)
-	id = stringValue18.Trim()
+	idValue11 := str.String(id)
+	id = idValue11.Trim()
 	if id == "" {
 		return errors.New("session id is required")
 	}
@@ -649,8 +649,12 @@ func (m *Manager) UpdateLastPromptTokens(ctx context.Context, id string, promptT
 	return m.sessions().Save(ctx, session)
 }
 
-func (m *Manager) CreateSession(ctx context.Context, id string) (storage.Session, error) {
-	return m.CreateSessionWithOptions(ctx, id, storage.SessionCreateOptions{})
+func (m *Manager) CreateSession(
+	ctx context.Context,
+	id string,
+	opts ...storage.SessionCreateOptions,
+) (storage.Session, error) {
+	return m.CreateSessionWithOptions(ctx, id, getSessionCreateOptions(opts...))
 }
 
 func (m *Manager) CreateSessionWithOptions(
@@ -661,8 +665,8 @@ func (m *Manager) CreateSessionWithOptions(
 	if m == nil {
 		return storage.Session{}, errors.New("state manager is required")
 	}
-	stringValue19 := str.String(id)
-	id = stringValue19.Trim()
+	idValue12 := str.String(id)
+	id = idValue12.Trim()
 	if id == "" {
 		generatedID, err := generateSessionID()
 		if err != nil {
@@ -695,16 +699,24 @@ func (m *Manager) CreateSessionWithOptions(
 }
 
 func normalizeSessionOrigin(origin storage.SessionOrigin) storage.SessionOrigin {
-	stringValue20 := str.String(origin.Source)
-	stringValue21 := str.String(origin.AccountID)
-	stringValue22 := str.String(origin.ConversationID)
-	stringValue23 := str.String(origin.ThreadID)
+	sourceValue := str.String(origin.Source)
+	accountIDValue := str.String(origin.AccountID)
+	conversationIDValue := str.String(origin.ConversationID)
+	threadIDValue := str.String(origin.ThreadID)
 	return storage.SessionOrigin{
-		Source:         stringValue20.Trim(),
-		AccountID:      stringValue21.Trim(),
-		ConversationID: stringValue22.Trim(),
-		ThreadID:       stringValue23.Trim(),
+		Source:         sourceValue.Trim(),
+		AccountID:      accountIDValue.Trim(),
+		ConversationID: conversationIDValue.Trim(),
+		ThreadID:       threadIDValue.Trim(),
 	}
+}
+
+func getSessionCreateOptions(opts ...storage.SessionCreateOptions) storage.SessionCreateOptions {
+	if len(opts) == 0 {
+		return storage.SessionCreateOptions{}
+	}
+
+	return opts[0]
 }
 
 func (m *Manager) ListSessions(ctx context.Context, opts ...storage.SessionListOptions) ([]storage.Session, error) {
@@ -735,8 +747,8 @@ func (m *Manager) DeleteSession(ctx context.Context, id string) error {
 	if m == nil {
 		return errors.New("state manager is required")
 	}
-	stringValue24 := str.String(id)
-	id = stringValue24.Trim()
+	idValue13 := str.String(id)
+	id = idValue13.Trim()
 	if id != "" {
 		if err := storage.ValidateSessionID(id); err != nil {
 			return err
@@ -750,8 +762,8 @@ func (m *Manager) ArchiveSession(ctx context.Context, id string) error {
 	if m == nil {
 		return errors.New("state manager is required")
 	}
-	stringValue25 := str.String(id)
-	id = stringValue25.Trim()
+	idValue14 := str.String(id)
+	id = idValue14.Trim()
 	if id == "" {
 		return errors.New("session id is required")
 	}
@@ -774,8 +786,8 @@ func (m *Manager) UnarchiveSession(ctx context.Context, id string) (storage.Sess
 	if m == nil {
 		return storage.Session{}, errors.New("state manager is required")
 	}
-	stringValue26 := str.String(id)
-	id = stringValue26.Trim()
+	idValue15 := str.String(id)
+	id = idValue15.Trim()
 	if id == "" {
 		return storage.Session{}, errors.New("session id is required")
 	}
@@ -790,8 +802,8 @@ func (m *Manager) RenameSession(ctx context.Context, id string, title string) (s
 	if m == nil {
 		return storage.Session{}, errors.New("state manager is required")
 	}
-	stringValue27 := str.String(id)
-	id = stringValue27.Trim()
+	idValue16 := str.String(id)
+	id = idValue16.Trim()
 	if id == "" {
 		return storage.Session{}, errors.New("session id is required")
 	}
@@ -823,8 +835,8 @@ func (m *Manager) UseSession(ctx context.Context, id string) error {
 	if m == nil {
 		return errors.New("state manager is required")
 	}
-	stringValue28 := str.String(id)
-	id = stringValue28.Trim()
+	idValue17 := str.String(id)
+	id = idValue17.Trim()
 	if id == storage.DefaultSessionID {
 		if _, err := m.resolveDefaultSession(ctx, m.now().UTC()); err != nil {
 			return err
@@ -839,8 +851,8 @@ func (m *Manager) UseSession(ctx context.Context, id string) error {
 }
 
 func (m *Manager) checkSessionActive(ctx context.Context, id string) error {
-	stringValue29 := str.String(id)
-	_, err := m.getActiveSession(ctx, stringValue29.Trim())
+	idValue18 := str.String(id)
+	_, err := m.getActiveSession(ctx, idValue18.Trim())
 	return err
 }
 

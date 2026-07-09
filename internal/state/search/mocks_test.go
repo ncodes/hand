@@ -19,8 +19,8 @@ func (p fakeEmbeddingProvider) Embed(_ context.Context, req EmbeddingRequest) (E
 	if p.dimensions <= 0 {
 		return EmbeddingResult{}, errors.New("embedding dimensions must be greater than zero")
 	}
-	stringValue1 := str.String(req.Model)
-	model := stringValue1.Trim()
+	modelValue := str.String(req.Model)
+	model := modelValue.Trim()
 	items := make([]Embedding, 0, len(req.Inputs))
 	for _, input := range req.Inputs {
 		items = append(items, Embedding{

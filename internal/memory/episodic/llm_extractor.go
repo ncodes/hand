@@ -20,8 +20,8 @@ func NewLLMExtractor(options LLMExtractorOptions) (*LLMExtractor, error) {
 	if options.Client == nil {
 		return nil, errors.New("memory episode extractor model client is required")
 	}
-	stringValue1 := str.String(options.Model)
-	if stringValue1.Trim() == "" {
+	modelValue := str.String(options.Model)
+	if modelValue.Trim() == "" {
 		return nil, errors.New("memory episode extractor model is required")
 	}
 	if options.MaxOutputTokensEnabled != nil && !*options.MaxOutputTokensEnabled {
@@ -83,18 +83,18 @@ func llmExtractorResponseToCandidateResult(resp *models.Response) (CandidateResu
 
 	result := CandidateResult{Rejections: parsed.Rejections}
 	for _, candidate := range parsed.Candidates {
-		stringValue2 :=
+		kindValue :=
 			// Model candidates are normalized only enough for downstream provider
 			// logic. IDs, source links, tags, and provenance are constructed by the
 			// service from trusted window evidence.
 
 			str.String(candidate.Kind)
-		stringValue3 := str.String(candidate.Title)
-		stringValue4 := str.String(candidate.Text)
+		titleValue := str.String(candidate.Title)
+		textValue := str.String(candidate.Text)
 		result.Candidates = append(result.Candidates, episodeCandidate{
-			Kind:       stringValue2.Trim(),
-			Title:      stringValue3.Trim(),
-			Text:       stringValue4.Trim(),
+			Kind:       kindValue.Trim(),
+			Title:      titleValue.Trim(),
+			Text:       textValue.Trim(),
 			Confidence: candidate.Confidence,
 			Metadata:   candidate.Metadata,
 		})
@@ -104,8 +104,8 @@ func llmExtractorResponseToCandidateResult(resp *models.Response) (CandidateResu
 }
 
 func normalizeLLMExtractorJSON(raw string) string {
-	stringValue5 := str.String(raw)
-	raw = stringValue5.Trim()
+	rawValue := str.String(raw)
+	raw = rawValue.Trim()
 	if !strings.HasPrefix(raw, "```") {
 		return raw
 	}
@@ -113,10 +113,10 @@ func normalizeLLMExtractorJSON(raw string) string {
 	raw = strings.TrimPrefix(raw, "```json")
 	raw = strings.TrimPrefix(raw, "```JSON")
 	raw = strings.TrimPrefix(raw, "```")
-	stringValue6 := str.String(raw)
-	raw = strings.TrimSuffix(stringValue6.Trim(), "```")
-	stringValue7 := str.String(raw)
-	return stringValue7.Trim()
+	rawValue2 := str.String(raw)
+	raw = strings.TrimSuffix(rawValue2.Trim(), "```")
+	rawValue3 := str.String(raw)
+	return rawValue3.Trim()
 }
 
 // getLLMExtractorStructuredOutput constrains the extractor to known candidate

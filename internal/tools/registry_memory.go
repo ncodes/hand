@@ -31,8 +31,8 @@ func (r *InMemoryRegistry) Register(def Definition) error {
 	if r == nil {
 		return errors.New("tool registry is required")
 	}
-	stringValue1 := str.String(def.Name)
-	def.Name = stringValue1.Trim()
+	nameValue := str.String(def.Name)
+	def.Name = nameValue.Trim()
 	if def.Name == "" {
 		return errors.New("tool name is required")
 	}
@@ -58,8 +58,8 @@ func (r *InMemoryRegistry) RegisterGroup(group Group) error {
 	if r == nil {
 		return errors.New("tool registry is required")
 	}
-	stringValue2 := str.String(group.Name)
-	group.Name = stringValue2.Trim()
+	nameValue2 := str.String(group.Name)
+	group.Name = nameValue2.Trim()
 	if group.Name == "" {
 		return errors.New("tool group name is required")
 	}
@@ -84,8 +84,8 @@ func (r *InMemoryRegistry) Get(name string) (Definition, bool) {
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	stringValue3 := str.String(name)
-	def, ok := r.definitions[stringValue3.Trim()]
+	nameValue3 := str.String(name)
+	def, ok := r.definitions[nameValue3.Trim()]
 	return def, ok
 }
 
@@ -96,8 +96,8 @@ func (r *InMemoryRegistry) GetGroup(name string) (Group, bool) {
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	stringValue4 := str.String(name)
-	group, ok := r.groups[stringValue4.Trim()]
+	nameValue4 := str.String(name)
+	group, ok := r.groups[nameValue4.Trim()]
 	return group, ok
 }
 
@@ -183,10 +183,10 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 		result.Error = Error{Code: "tool_invocation_failed", Message: err.Error()}.String()
 		return result, nil
 	}
-	stringValue5 := str.String(result.Error)
-	if stringValue5.Trim() != "" {
-		stringValue6 := str.String(result.Error)
-		result.Error = normalizeResultError(stringValue6.Trim())
+	errorValue := str.String(result.Error)
+	if errorValue.Trim() != "" {
+		errorValue2 := str.String(result.Error)
+		result.Error = normalizeResultError(errorValue2.Trim())
 	}
 
 	return result, nil
@@ -249,8 +249,8 @@ func sortedDefinitions(definitions map[string]Definition) Definitions {
 
 func filterDefinitions(definitions Definitions, opts Policy) Definitions {
 	filtered := make(Definitions, 0, len(definitions))
-	stringValue7 := str.String(opts.Platform)
-	platform := stringValue7.Trim()
+	platformValue := str.String(opts.Platform)
+	platform := platformValue.Trim()
 	for _, def := range definitions {
 		if !opts.Capabilities.Supports(def.Requires) {
 			continue
@@ -280,16 +280,15 @@ func normalizeNames(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
-		stringValue8 := str.String(value)
-		value = stringValue8.Trim()
-		if value == "" {
+		valueText := str.String(value).Trim()
+		if valueText == "" {
 			continue
 		}
-		if _, ok := seen[value]; ok {
+		if _, ok := seen[valueText]; ok {
 			continue
 		}
-		seen[value] = struct{}{}
-		normalized = append(normalized, value)
+		seen[valueText] = struct{}{}
+		normalized = append(normalized, valueText)
 	}
 	sort.Strings(normalized)
 	return normalized

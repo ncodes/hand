@@ -32,8 +32,8 @@ func loadSessionContextCmd(ctx context.Context, client sessionContextLoader, ses
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		stringValue1 := str.String(sessionID)
-		status, err := client.Status(ctx, stringValue1.Trim())
+		sessionIDValue := str.String(sessionID)
+		status, err := client.Status(ctx, sessionIDValue.Trim())
 		if err != nil {
 			return sessionContextLoadFailedMsg{}
 		}

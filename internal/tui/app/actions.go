@@ -143,8 +143,8 @@ func (action setSessionTitleAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
-	stringValue1 := str.String(action.Title)
-	state.sessionTitle = stringValue1.Trim()
+	titleValue := str.String(action.Title)
+	state.sessionTitle = titleValue.Trim()
 	if state.sessionTitle == "" {
 		state.sessionTitle = defaultSessionTitle
 	}
@@ -154,8 +154,8 @@ func (action setSessionAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
-	stringValue2 := str.String(action.ID)
-	state.sessionID = stringValue2.Trim()
+	iDValue := str.String(action.ID)
+	state.sessionID = iDValue.Trim()
 	if state.sessionID == "" {
 		state.sessionID = defaultSessionID
 	}
@@ -166,42 +166,42 @@ func (action setSessionContextAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
-	stringValue3 := str.String(action.Context)
-	state.context = stringValue3.Trim()
+	contextValue := str.String(action.Context)
+	state.context = contextValue.Trim()
 }
 
 func (action showCommandViewAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
-	stringValue4 := str.String(action.Kind)
-	stringValue5 := str.String(action.TitleIcon)
-	stringValue6 := str.String(action.TitleLeft)
-	stringValue7 := str.String(action.TitleSubtext)
-	stringValue8 := str.String(action.TitleRight)
-	stringValue9 := str.String(action.AccentColor)
-	stringValue10 := str.String(action.TitleRightColor)
-	stringValue11 := str.String(action.Content)
-	stringValue12 := str.String(action.ModelProvider)
-	stringValue13 := str.String(action.ModelAuthType)
-	stringValue14 := str.String(action.PendingModelID)
+	kindValue := str.String(action.Kind)
+	titleIconValue := str.String(action.TitleIcon)
+	titleLeftValue := str.String(action.TitleLeft)
+	titleSubtextValue := str.String(action.TitleSubtext)
+	titleRightValue := str.String(action.TitleRight)
+	accentColorValue := str.String(action.AccentColor)
+	titleRightColorValue := str.String(action.TitleRightColor)
+	contentValue := str.String(action.Content)
+	modelProviderValue := str.String(action.ModelProvider)
+	modelAuthTypeValue := str.String(action.ModelAuthType)
+	pendingModelIDValue := str.String(action.PendingModelID)
 	state.commandView = commandViewState{
 		Visible:         true,
-		Kind:            stringValue4.Trim(),
-		TitleIcon:       stringValue5.Trim(),
-		TitleLeft:       stringValue6.Trim(),
-		TitleSubtext:    stringValue7.Trim(),
-		TitleRight:      stringValue8.Trim(),
-		AccentColor:     stringValue9.Trim(),
-		TitleRightColor: stringValue10.Trim(),
-		Content:         stringValue11.Trim(),
+		Kind:            kindValue.Trim(),
+		TitleIcon:       titleIconValue.Trim(),
+		TitleLeft:       titleLeftValue.Trim(),
+		TitleSubtext:    titleSubtextValue.Trim(),
+		TitleRight:      titleRightValue.Trim(),
+		AccentColor:     accentColorValue.Trim(),
+		TitleRightColor: titleRightColorValue.Trim(),
+		Content:         contentValue.Trim(),
 		Height:          max(action.Height, 0),
 		Chats:           append([]storage.Session(nil), action.Chats...),
 		Models:          append([]rpcclient.ModelOption(nil), action.Models...),
 		Providers:       append([]rpcclient.ProviderOption(nil), action.Providers...),
-		ModelProvider:   stringValue12.Trim(),
-		ModelAuthType:   stringValue13.Trim(),
-		PendingModelID:  stringValue14.Trim(),
+		ModelProvider:   modelProviderValue.Trim(),
+		ModelAuthType:   modelAuthTypeValue.Trim(),
+		PendingModelID:  pendingModelIDValue.Trim(),
 	}
 	state.commandViewOffset = 0
 	state.commandViewItemSelected = 0

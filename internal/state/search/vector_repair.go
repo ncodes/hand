@@ -89,9 +89,9 @@ func DirtyVectorSources(
 		expectedByID[input.ID] = input
 	}
 	sourceIDs = state.UniqueStrings(sourceIDs)
-	stringValue1 := str.String(model)
+	modelValue := str.String(model)
 	list, err := lister.List(ctx, VectorListRequest{
-		EmbeddingModel: stringValue1.Trim(),
+		EmbeddingModel: modelValue.Trim(),
 		Filter: VectorFilter{
 			SourceKind: SourceKindSessionMessage,
 			SourceIDs:  sourceIDs,
@@ -149,8 +149,8 @@ func DirtyVectorSources(
 func MessagesBySourceID(sessionID string, messages []morphmsg.Message, sourceIDs []string) []morphmsg.Message {
 	sourceSet := make(map[string]struct{}, len(sourceIDs))
 	for _, sourceID := range sourceIDs {
-		stringValue2 := str.String(sourceID)
-		sourceID = stringValue2.Trim()
+		sourceIDValue := str.String(sourceID)
+		sourceID = sourceIDValue.Trim()
 		if sourceID != "" {
 			sourceSet[sourceID] = struct{}{}
 		}

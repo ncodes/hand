@@ -64,8 +64,8 @@ func (candidates SearchCandidateSet[K, C]) Merge(vectorCandidates []C, keyForCan
 		match.VectorScore = vectorMatch.VectorScore
 		match.VectorRank = vectorMatch.VectorRank
 		match.HasVector = true
-		stringValue1 := str.String(match.MatchedText)
-		if stringValue1.Trim() == "" {
+		matchedTextValue := str.String(match.MatchedText)
+		if matchedTextValue.Trim() == "" {
 			match.MatchedText = vectorMatch.MatchedText
 			match.MatchedToolName = vectorMatch.MatchedToolName
 		}

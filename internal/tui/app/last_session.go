@@ -35,13 +35,13 @@ func loadLastSessionID() (string, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return "", fmt.Errorf("parse tui state: %w", err)
 	}
-	stringValue1 := str.String(state.LastSessions[getActiveProfileName()])
-	return stringValue1.Trim(), nil
+	lastSessionsValue := str.String(state.LastSessions[getActiveProfileName()])
+	return lastSessionsValue.Trim(), nil
 }
 
 func saveLastSessionID(id string) error {
-	stringValue2 := str.String(id)
-	id = stringValue2.Trim()
+	idValue := str.String(id)
+	id = idValue.Trim()
 	if id == "" {
 		return nil
 	}
@@ -93,8 +93,8 @@ func loadAppTUIState(path string) (appTUIState, error) {
 
 func appTUIStatePath() string {
 	active := profile.WithMetadataPaths(profile.Active())
-	stringValue3 := str.String(active.HomeDir)
-	home := stringValue3.Trim()
+	homeDirValue := str.String(active.HomeDir)
+	home := homeDirValue.Trim()
 	if home == "" {
 		return ""
 	}
@@ -103,10 +103,10 @@ func appTUIStatePath() string {
 }
 
 func getProfileRootDir(active profile.Profile) string {
-	stringValue4 := str.String(active.HomeDir)
-	home := stringValue4.Trim()
-	stringValue5 := str.String(active.Name)
-	name := stringValue5.Trim()
+	homeDirValue2 := str.String(active.HomeDir)
+	home := homeDirValue2.Trim()
+	nameValue := str.String(active.Name)
+	name := nameValue.Trim()
 	if name != "" &&
 		filepath.Base(home) == name &&
 		filepath.Base(filepath.Dir(home)) == "profiles" {
@@ -117,8 +117,8 @@ func getProfileRootDir(active profile.Profile) string {
 }
 
 func getActiveProfileName() string {
-	stringValue6 := str.String(profile.Active().Name)
-	name := stringValue6.Trim()
+	nameValue2 := str.String(profile.Active().Name)
+	name := nameValue2.Trim()
 	if name == "" {
 		return profile.DefaultName
 	}

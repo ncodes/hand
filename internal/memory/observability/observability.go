@@ -82,8 +82,8 @@ type tracer struct {
 }
 
 func (t tracer) Record(_ context.Context, event string, payload any) {
-	stringValue1 := str.String(event)
-	if t.traceSession == nil || stringValue1.Trim() == "" {
+	eventValue := str.String(event)
+	if t.traceSession == nil || eventValue.Trim() == "" {
 		return
 	}
 	payload, ok := trace.DecodePayload(event, payload)

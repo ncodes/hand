@@ -44,8 +44,8 @@ func (s *Sender) StreamTurn(
 	}
 
 	stream, err := s.api.StartStream(ctx, target, "")
-	stringValue1 := str.String(stream.TS)
-	if err != nil || stringValue1.Trim() == "" {
+	tSValue := str.String(stream.TS)
+	if err != nil || tSValue.Trim() == "" {
 		reply, runErr := run(func(string) {})
 		if runErr != nil {
 			return runErr
@@ -226,8 +226,8 @@ func (a *slackStreamAppender) nextChunk() (slack.Chunk, bool) {
 }
 
 func getSlackStreamChunks(text string) []slack.Chunk {
-	stringValue2 := str.String(text)
-	if stringValue2.Trim() == "" {
+	textValue := str.String(text)
+	if textValue.Trim() == "" {
 		return nil
 	}
 
@@ -269,11 +269,11 @@ func getSlackAPIErrorCode(err error) string {
 	}
 
 	if apiErr, ok := errors.AsType[slackAPIError](err); ok {
-		stringValue4 := str.String(apiErr.Code)
-		return stringValue4.Trim()
+		codeValue := str.String(apiErr.Code)
+		return codeValue.Trim()
 	}
-	stringValue3 := str.String(err.Error())
-	return stringValue3.Trim()
+	errorValue := str.String(err.Error())
+	return errorValue.Trim()
 }
 
 type slackStreamFormatter struct {
@@ -320,8 +320,8 @@ func getSlackStreamSafeFormatIndex(text string, final bool) int {
 		}
 
 		lineEnd := lineStart + newline + 1
-		stringValue5 := str.String(text[lineStart : lineEnd-1])
-		line := stringValue5.Trim()
+		trimmedValue := str.String(text[lineStart : lineEnd-1])
+		line := trimmedValue.Trim()
 		if strings.HasPrefix(line, "```") {
 			inFence = !inFence
 			if !inFence {

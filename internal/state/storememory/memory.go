@@ -107,8 +107,8 @@ func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (
 
 	now := time.Now().UTC()
 	item = item.Clone()
-	stringValue1 := str.String(item.ID)
-	item.ID = stringValue1.Trim()
+	iDValue := str.String(item.ID)
+	item.ID = iDValue.Trim()
 	if item.ID == "" {
 		item.ID = nanoid.MustGenerate("mem_")
 	}
@@ -139,8 +139,8 @@ func (s *Store) PatchMemory(ctx context.Context, patch statememory.MemoryPatch) 
 	if s == nil {
 		return statememory.MemoryItem{}, errors.New("store is required")
 	}
-	stringValue2 := str.String(patch.ID)
-	id := stringValue2.Trim()
+	iDValue2 := str.String(patch.ID)
+	id := iDValue2.Trim()
 	if id == "" {
 		return statememory.MemoryItem{}, errors.New("memory id is required")
 	}
@@ -175,8 +175,8 @@ func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRe
 	if s == nil {
 		return errors.New("store is required")
 	}
-	stringValue3 := str.String(req.ID)
-	id := stringValue3.Trim()
+	iDValue3 := str.String(req.ID)
+	id := iDValue3.Trim()
 	if id == "" {
 		return errors.New("memory id is required")
 	}
@@ -200,8 +200,8 @@ func (s *Store) HardDeleteMemory(ctx context.Context, req statememory.MemoryDele
 	if s == nil {
 		return errors.New("store is required")
 	}
-	stringValue4 := str.String(req.ID)
-	id := stringValue4.Trim()
+	iDValue4 := str.String(req.ID)
+	id := iDValue4.Trim()
 	if id == "" {
 		return errors.New("memory id is required")
 	}

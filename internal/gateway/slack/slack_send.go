@@ -48,8 +48,8 @@ func (e slackAPIError) Error() string {
 }
 
 func NewHTTPClient(token string) *HTTPClient {
-	stringValue1 := str.String(token)
-	return &HTTPClient{client: http.DefaultClient, baseURL: defaultSlackAPIBase, token: stringValue1.Trim()}
+	tokenValue := str.String(token)
+	return &HTTPClient{client: http.DefaultClient, baseURL: defaultSlackAPIBase, token: tokenValue.Trim()}
 }
 
 func (c *HTTPClient) PostMessage(ctx context.Context, target slack.Target, text string) (string, error) {
@@ -76,12 +76,12 @@ func (c *HTTPClient) StartStream(ctx context.Context, target slack.Target, text 
 		Channel:  target.ChannelID,
 		ThreadTS: target.ThreadTS,
 	}
-	stringValue2 := str.String(text)
-	if stringValue2.Trim() != "" {
+	textValue := str.String(text)
+	if textValue.Trim() != "" {
 		req.Chunks = []slack.Chunk{slack.MarkdownTextChunk(text)}
 	}
-	stringValue3 := str.String(target.ChannelType)
-	if stringValue3.Trim() == "im" {
+	channelTypeValue := str.String(target.ChannelType)
+	if channelTypeValue.Trim() == "im" {
 		req.RecipientUserID = target.RecipientUserID
 		req.RecipientTeamID = target.RecipientTeamID
 	}
@@ -106,8 +106,8 @@ func (c *HTTPClient) AppendStream(ctx context.Context, stream slack.Stream, chun
 
 func (c *HTTPClient) StopStream(ctx context.Context, stream slack.Stream, text string) error {
 	req := slack.StopStreamRequest{Channel: stream.ChannelID, TS: stream.TS}
-	stringValue4 := str.String(text)
-	if stringValue4.Trim() != "" {
+	textValue2 := str.String(text)
+	if textValue2.Trim() != "" {
 		req.Chunks = []slack.Chunk{slack.MarkdownTextChunk(text)}
 	}
 
@@ -133,8 +133,8 @@ func (c *HTTPClient) call(ctx context.Context, method string, req any, out any) 
 	if err != nil {
 		return err
 	}
-	stringValue5 := str.String(c.token)
-	httpReq.Header.Set("Authorization", "Bearer "+stringValue5.Trim())
+	tokenValue2 := str.String(c.token)
+	httpReq.Header.Set("Authorization", "Bearer "+tokenValue2.Trim())
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	httpResp, err := c.client.Do(httpReq)

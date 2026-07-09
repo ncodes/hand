@@ -48,7 +48,7 @@ type harnessAgent interface {
 }
 
 type harnessSessionAgent interface {
-	CreateSession(context.Context, string) (storage.Session, error)
+	CreateSession(context.Context, string, ...storage.SessionCreateOptions) (storage.Session, error)
 	UseSession(context.Context, string) error
 }
 
@@ -81,8 +81,8 @@ func NewHarness(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 		restoreEnv()
 		return nil, err
 	}
-	stringValue1 := str.String(opts.Spec.Isolation.TraceDir)
-	if stringValue1.Trim() != "" {
+	traceDirValue := str.String(opts.Spec.Isolation.TraceDir)
+	if traceDirValue.Trim() != "" {
 		cfg.Trace.Disk.Dir = opts.Spec.Isolation.TraceDir
 	}
 
@@ -218,8 +218,8 @@ func (h *Harness) Send(ctx context.Context, req RootChatRequest) (RootChatResult
 		h.writeStderr(err.Error())
 		return RootChatResult{}, err
 	}
-	stringValue2 := str.String(req.SessionID)
-	sessionID := stringValue2.Trim()
+	sessionIDValue := str.String(req.SessionID)
+	sessionID := sessionIDValue.Trim()
 	if sessionID == "" {
 		session, err := h.agent.CurrentSession(normalizeHarnessContext(ctx))
 		if err != nil {
@@ -243,8 +243,8 @@ func (h *Harness) Messages(ctx context.Context, sessionID string) ([]morphmsg.Me
 	if h.inspectStore == nil {
 		return nil, errors.New("e2e harness message inspection is unavailable for non-persistent storage")
 	}
-	stringValue3 := str.String(sessionID)
-	sessionID = stringValue3.Trim()
+	sessionIDValue2 := str.String(sessionID)
+	sessionID = sessionIDValue2.Trim()
 	if sessionID == "" {
 		var err error
 		session, err := h.agent.CurrentSession(normalizeHarnessContext(ctx))
@@ -292,8 +292,8 @@ func openInspectStore(cfg *config.Config) (storage.Store, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
-	stringValue4 := str.String(cfg.Storage.Backend)
-	if stringValue4.Normalized() == "memory" {
+	backendValue := str.String(cfg.Storage.Backend)
+	if backendValue.Normalized() == "memory" {
 		return nil, nil
 	}
 
@@ -373,16 +373,16 @@ func normalizeHarnessContext(ctx context.Context) context.Context {
 }
 
 func (h *Harness) writeStdout(text string) {
-	stringValue5 := str.String(text)
-	if h == nil || h.stdout == nil || stringValue5.Trim() == "" {
+	textValue := str.String(text)
+	if h == nil || h.stdout == nil || textValue.Trim() == "" {
 		return
 	}
 	_, _ = io.WriteString(h.stdout, text)
 }
 
 func (h *Harness) writeStderr(text string) {
-	stringValue6 := str.String(text)
-	if h == nil || h.stderr == nil || stringValue6.Trim() == "" {
+	textValue2 := str.String(text)
+	if h == nil || h.stderr == nil || textValue2.Trim() == "" {
 		return
 	}
 	_, _ = io.WriteString(h.stderr, text)

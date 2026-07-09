@@ -75,16 +75,16 @@ func WriteActive(address string, port int) (Metadata, error) {
 // Write describes runtime metadata under the supplied profile home.
 func Write(active profile.Profile, address string, port int) (Metadata, error) {
 	active = profile.WithMetadataPaths(active)
-	stringValue1 := str.String(active.RuntimePath)
-	if stringValue1.Trim() == "" {
+	runtimePathValue := str.String(active.RuntimePath)
+	if runtimePathValue.Trim() == "" {
 		return Metadata{}, errors.New("profile runtime path is required")
 	}
-	stringValue2 := str.String(active.Name)
-	stringValue3 := str.String(address)
+	nameValue := str.String(active.Name)
+	addressValue := str.String(address)
 	metadata := Metadata{
-		Profile:   stringValue2.Trim(),
+		Profile:   nameValue.Trim(),
 		PID:       processPID(),
-		RPC:       RPC{Address: stringValue3.Trim(), Port: port},
+		RPC:       RPC{Address: addressValue.Trim(), Port: port},
 		StartedAt: now().UTC(),
 	}
 	if metadata.Profile == "" {
@@ -122,8 +122,8 @@ func LoadActive() (Metadata, error) {
 // Load reads runtime metadata from the supplied profile.
 func Load(active profile.Profile) (Metadata, error) {
 	active = profile.WithMetadataPaths(active)
-	stringValue4 := str.String(active.RuntimePath)
-	if stringValue4.Trim() == "" {
+	runtimePathValue2 := str.String(active.RuntimePath)
+	if runtimePathValue2.Trim() == "" {
 		return Metadata{}, errors.New("profile runtime path is required")
 	}
 
@@ -136,8 +136,8 @@ func Load(active profile.Profile) (Metadata, error) {
 	if err := json.Unmarshal(data, &metadata); err != nil {
 		return Metadata{}, fmt.Errorf("parse runtime metadata: %w", err)
 	}
-	stringValue5 := str.String(metadata.RPC.Address)
-	if stringValue5.Trim() == "" {
+	addressValue2 := str.String(metadata.RPC.Address)
+	if addressValue2.Trim() == "" {
 		return Metadata{}, errors.New("runtime rpc address is required")
 	}
 	if metadata.RPC.Port <= 0 {
@@ -197,8 +197,8 @@ func ResolveRPC(ctx context.Context, cmd *cli.Command, cfg *config.Config) (conf
 
 func removeActiveRuntimeMetadata() {
 	active := profile.WithMetadataPaths(profile.Active())
-	stringValue6 := str.String(active.RuntimePath)
-	if stringValue6.Trim() == "" {
+	runtimePathValue3 := str.String(active.RuntimePath)
+	if runtimePathValue3.Trim() == "" {
 		return
 	}
 
@@ -209,13 +209,13 @@ func hasExplicitRPC(cmd *cli.Command, cfg *config.Config) bool {
 	if cmd != nil && (cmd.IsSet("rpc.address") || cmd.IsSet("rpc.port")) {
 		return true
 	}
-	stringValue7 := str.String(os.Getenv("MORPH_RPC_ADDRESS"))
-	stringValue8 := str.String(os.Getenv("MORPH_RPC_PORT"))
-	if stringValue7.Trim() != "" || stringValue8.Trim() != "" {
+	envValue := str.String(os.Getenv("MORPH_RPC_ADDRESS"))
+	envValue2 := str.String(os.Getenv("MORPH_RPC_PORT"))
+	if envValue.Trim() != "" || envValue2.Trim() != "" {
 		return true
 	}
-	stringValue9 := str.String(cfg.RPC.Address)
-	return stringValue9.Trim() != constants.DefaultRPCAddress || cfg.RPC.Port != constants.DefaultRPCPort
+	addressValue3 := str.String(cfg.RPC.Address)
+	return addressValue3.Trim() != constants.DefaultRPCAddress || cfg.RPC.Port != constants.DefaultRPCPort
 }
 
 func checkProcess(pid int) error {
@@ -236,8 +236,8 @@ func checkProcess(pid int) error {
 
 func dialRuntimeEndpoint(ctx context.Context, address string, port int) error {
 	dialer := net.Dialer{Timeout: time.Second}
-	stringValue10 := str.String(address)
-	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", stringValue10.Trim(), port))
+	addressValue4 := str.String(address)
+	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", addressValue4.Trim(), port))
 	if err != nil {
 		return err
 	}

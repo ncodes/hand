@@ -62,13 +62,13 @@ func NewLLMReranker(options LLMRerankerOptions) Reranker {
 
 func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResult, error) {
 	options := normalizeLLMRerankerOptions(r.options)
-	stringValue1 := str.String(options.Model)
-	if !options.Enabled || options.Client == nil || stringValue1.Trim() == "" {
-		stringValue2 := str.String(options.Model)
+	modelValue := str.String(options.Model)
+	if !options.Enabled || options.Client == nil || modelValue.Trim() == "" {
+		modelValue2 := str.String(options.Model)
 		rerankDebugLogEvent(req, RerankerLLM).
 			Bool("enabled", options.Enabled).
 			Bool("has_client", options.Client != nil).
-			Bool("has_model", stringValue2.Trim() != "").
+			Bool("has_model", modelValue2.Trim() != "").
 			Msg("llm rerank unavailable, using fallback")
 		return options.Fallback.Rerank(ctx, req)
 	}
@@ -139,15 +139,15 @@ func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResul
 
 func (r LLMReranker) modelRequest(req RerankRequest, candidates []Candidate, structuredOutput bool) models.Request {
 	options := normalizeLLMRerankerOptions(r.options)
-	stringValue3 := str.String(req.Query)
-	stringValue4 := str.String(req.Caller)
-	stringValue5 := str.String(req.TraceID)
-	stringValue6 := str.String(string(req.SourceKind))
+	queryValue := str.String(req.Query)
+	callerValue := str.String(req.Caller)
+	traceIDValue := str.String(req.TraceID)
+	sourceKindValue := str.String(string(req.SourceKind))
 	payload := llmRerankPayload{
-		Query:      stringValue3.Trim(),
-		Caller:     stringValue4.Trim(),
-		TraceID:    stringValue5.Trim(),
-		SourceKind: stringValue6.Trim(),
+		Query:      queryValue.Trim(),
+		Caller:     callerValue.Trim(),
+		TraceID:    traceIDValue.Trim(),
+		SourceKind: sourceKindValue.Trim(),
 		Candidates: candidatesToLLMRerankCandidates(candidates, options.MaxCandidateTextChars),
 	}
 	data, _ := json.Marshal(payload)
@@ -255,8 +255,8 @@ func parseLLMRerankResponse(resp *models.Response) (RerankResult, error) {
 	if resp.RequiresToolCalls {
 		return RerankResult{}, errors.New("llm rerank requested tool calls")
 	}
-	stringValue7 := str.String(resp.OutputText)
-	if stringValue7.Trim() == "" {
+	outputTextValue := str.String(resp.OutputText)
+	if outputTextValue.Trim() == "" {
 		return RerankResult{}, errors.New("llm rerank response is empty")
 	}
 

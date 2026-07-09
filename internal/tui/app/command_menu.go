@@ -59,16 +59,15 @@ func renderCommandMenuRow(command slashCommandDefinition, selected bool, width i
 }
 
 func truncateCommandMenuText(value string, width int) string {
-	stringValue1 := str.String(value)
-	value = strings.Join(strings.Fields(stringValue1.Trim()), " ")
-	if width <= 0 || lipgloss.Width(value) <= width {
-		return value
+	valueText := strings.Join(strings.Fields(str.String(value).Trim()), " ")
+	if width <= 0 || lipgloss.Width(valueText) <= width {
+		return valueText
 	}
 	if width <= 1 {
 		return ""
 	}
 
-	runes := []rune(value)
+	runes := []rune(valueText)
 	for len(runes) > 0 && lipgloss.Width(string(runes)+"…") > width {
 		runes = runes[:len(runes)-1]
 	}
@@ -81,8 +80,8 @@ func (m model) isCommandMenuVisible() bool {
 }
 
 func isCommandMenuVisibleForValue(value string) bool {
-	stringValue2 := str.String(value)
-	return strings.HasPrefix(stringValue2.Trim(), "/")
+	value2 := str.String(value)
+	return strings.HasPrefix(value2.Trim(), "/")
 }
 
 func (m model) getCommandMenuHeight() int {
@@ -148,8 +147,8 @@ func getSlashCommandPrefix(value string) string {
 	if input.Kind != composerInputCommand {
 		return ""
 	}
-	stringValue3 := str.String(input.Name)
-	return stringValue3.Trim()
+	nameValue := str.String(input.Name)
+	return nameValue.Trim()
 }
 
 func clampCommandMenuOffset(offset int, height int, commandCount int) int {

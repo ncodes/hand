@@ -106,8 +106,8 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 
 			urls := make([]string, 0, len(req.URLs))
 			for idx, rawURL := range req.URLs {
-				stringValue2 := str.String(rawURL)
-				url := stringValue2.Trim()
+				rawURLValue := str.String(rawURL)
+				url := rawURLValue.Trim()
 				if url == "" {
 					return common.ToolError("invalid_input", fmt.Sprintf("url at index %d is required", idx)), nil
 				}
@@ -123,8 +123,8 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 			if validationErr != nil {
 				return common.ToolError("invalid_input", validationErr.Error()), nil
 			}
-			stringValue1 := str.String(req.Query)
-			query := stringValue1.Trim()
+			queryValue := str.String(req.Query)
+			query := queryValue.Trim()
 
 			log.Info().
 				Str("tool", "web_extract").
@@ -257,9 +257,9 @@ func extractWithPolicy(
 	}
 
 	for idx := len(fetched); idx < len(allowedIndexes); idx++ {
-		stringValue3 := str.String(allowedURLs[idx])
+		allowedURLsValue := str.String(allowedURLs[idx])
 		results[allowedIndexes[idx]] = webprovider.ExtractResult{
-			URL:           stringValue3.Trim(),
+			URL:           allowedURLsValue.Trim(),
 			ContentFormat: format,
 			Error:         "web extraction provider returned no result",
 		}
@@ -273,19 +273,19 @@ func websiteBlockToExtractResult(rawURL, format string, block guardrails.Website
 	if format == "" {
 		format = "text"
 	}
-	stringValue4 := str.String(rawURL)
+	rawURLValue2 := str.String(rawURL)
 	return webprovider.ExtractResult{
-		URL:           stringValue4.Trim(),
+		URL:           rawURLValue2.Trim(),
 		ContentFormat: format,
 		Error:         block.Message,
 	}
 }
 
 func getFormat(format, extractMode string) (string, error) {
-	stringValue5 := str.String(format)
-	format = stringValue5.Normalized()
-	stringValue6 := str.String(extractMode)
-	extractMode = stringValue6.Normalized()
+	formatValue := str.String(format)
+	format = formatValue.Normalized()
+	extractModeValue := str.String(extractMode)
+	extractMode = extractModeValue.Normalized()
 
 	if format != "" && extractMode != "" && format != extractMode {
 		return "", fmt.Errorf("format and extract_mode must match when both are provided")

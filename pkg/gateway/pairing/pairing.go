@@ -94,10 +94,10 @@ type Options struct {
 }
 
 func NewManager(opts Options) *Manager {
-	stringValue1 := str.String(opts.Secret)
+	secretValue := str.String(opts.Secret)
 	manager := &Manager{
 		store:        opts.Store,
-		secret:       stringValue1.Trim(),
+		secret:       secretValue.Trim(),
 		period:       DefaultPeriodSeconds,
 		skew:         DefaultSkew,
 		digits:       DefaultDigits,
@@ -190,8 +190,8 @@ func (m *Manager) Code(source string, senderID string, at time.Time) (string, er
 	if err := m.checkReady(); err != nil {
 		return "", err
 	}
-	stringValue2 := str.String(senderID)
-	secret := deriveTOTPSecret(m.secret, normalizeSource(source), stringValue2.Trim())
+	senderIDValue := str.String(senderID)
+	secret := deriveTOTPSecret(m.secret, normalizeSource(source), senderIDValue.Trim())
 	return totp.GenerateCodeCustom(secret, at.UTC(), m.validateOpts())
 }
 
@@ -202,10 +202,10 @@ func (m *Manager) Verify(source string, senderID string, code string, at time.Ti
 	if m.verifyCode != nil {
 		return m.verifyCode(source, senderID, code, at)
 	}
-	stringValue3 := str.String(senderID)
-	secret := deriveTOTPSecret(m.secret, normalizeSource(source), stringValue3.Trim())
-	stringValue4 := str.String(code)
-	return totp.ValidateCustom(stringValue4.Trim(), secret, at.UTC(), m.validateOpts())
+	senderIDValue2 := str.String(senderID)
+	secret := deriveTOTPSecret(m.secret, normalizeSource(source), senderIDValue2.Trim())
+	codeValue := str.String(code)
+	return totp.ValidateCustom(codeValue.Trim(), secret, at.UTC(), m.validateOpts())
 }
 
 func (m *Manager) Approve(ctx context.Context, source string, code string) (ApprovedSender, bool, error) {
@@ -214,8 +214,8 @@ func (m *Manager) Approve(ctx context.Context, source string, code string) (Appr
 	}
 
 	source = normalizeSource(source)
-	stringValue5 := str.String(code)
-	code = stringValue5.Trim()
+	codeValue2 := str.String(code)
+	code = codeValue2.Trim()
 	if source == "" {
 		return ApprovedSender{}, false, errors.New("gateway pairing source is required")
 	}
@@ -272,16 +272,16 @@ func (m *Manager) Revoke(ctx context.Context, source string, senderID string) er
 	if m == nil || m.store == nil {
 		return errors.New("gateway pairing store is required")
 	}
-	stringValue6 := str.String(senderID)
-	return m.store.DeleteGatewayPairedSender(ctx, normalizeSource(source), stringValue6.Trim())
+	senderIDValue3 := str.String(senderID)
+	return m.store.DeleteGatewayPairedSender(ctx, normalizeSource(source), senderIDValue3.Trim())
 }
 
 func (m *Manager) IsApproved(ctx context.Context, source string, senderID string) (bool, error) {
 	if m == nil || m.store == nil {
 		return false, errors.New("gateway pairing store is required")
 	}
-	stringValue7 := str.String(senderID)
-	_, ok, err := m.store.GetGatewayPairedSender(ctx, normalizeSource(source), stringValue7.Trim())
+	senderIDValue4 := str.String(senderID)
+	_, ok, err := m.store.GetGatewayPairedSender(ctx, normalizeSource(source), senderIDValue4.Trim())
 	return ok, err
 }
 
@@ -298,8 +298,8 @@ func (m *Manager) checkReady() error {
 	if m == nil || m.store == nil {
 		return errors.New("gateway pairing store is required")
 	}
-	stringValue8 := str.String(m.secret)
-	if stringValue8.Trim() == "" {
+	secretValue2 := str.String(m.secret)
+	if secretValue2.Trim() == "" {
 		return ErrSecretRequired
 	}
 
@@ -307,28 +307,28 @@ func (m *Manager) checkReady() error {
 }
 
 func normalizeIdentity(identity Identity) Identity {
-	stringValue9 := str.String(identity.SenderID)
-	stringValue10 := str.String(identity.DisplayName)
+	senderIDValue5 := str.String(identity.SenderID)
+	displayNameValue := str.String(identity.DisplayName)
 	return Identity{
 		Source:      normalizeSource(identity.Source),
-		SenderID:    stringValue9.Trim(),
-		DisplayName: stringValue10.Trim(),
+		SenderID:    senderIDValue5.Trim(),
+		DisplayName: displayNameValue.Trim(),
 		Metadata:    cloneMap(identity.Metadata),
 	}
 }
 
 func normalizeSource(source string) string {
-	stringValue11 := str.String(source)
-	return stringValue11.Normalized()
+	sourceValue := str.String(source)
+	return sourceValue.Normalized()
 }
 
 func deriveTOTPSecret(secret string, source string, senderID string) string {
-	stringValue12 := str.String(secret)
-	mac := hmac.New(sha256.New, []byte(stringValue12.Trim()))
+	secretValue3 := str.String(secret)
+	mac := hmac.New(sha256.New, []byte(secretValue3.Trim()))
 	mac.Write([]byte(source))
 	mac.Write([]byte{0})
-	stringValue13 := str.String(senderID)
-	mac.Write([]byte(stringValue13.Trim()))
+	senderIDValue6 := str.String(senderID)
+	mac.Write([]byte(senderIDValue6.Trim()))
 	sum := mac.Sum(nil)
 
 	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(sum)
@@ -341,13 +341,13 @@ func cloneMap(values map[string]string) map[string]string {
 
 	clone := make(map[string]string, len(values))
 	for key, value := range values {
-		stringValue14 := str.String(key)
-		key = stringValue14.Trim()
+		keyValue := str.String(key)
+		key = keyValue.Trim()
 		if key == "" {
 			continue
 		}
-		stringValue15 := str.String(value)
-		clone[key] = stringValue15.Trim()
+		valueText := str.String(value)
+		clone[key] = valueText.Trim()
 	}
 	if len(clone) == 0 {
 		return nil

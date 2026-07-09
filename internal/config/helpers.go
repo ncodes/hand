@@ -10,16 +10,16 @@ import (
 )
 
 func splitAndTrimCSV(value string) []string {
-	stringValue1 := str.String(value)
-	if stringValue1.Trim() == "" {
+	valueText := str.String(value).Trim()
+	if valueText == "" {
 		return nil
 	}
 
-	parts := strings.Split(value, ",")
+	parts := strings.Split(valueText, ",")
 	values := make([]string, 0, len(parts))
 	for _, part := range parts {
-		stringValue2 := str.String(part)
-		trimmed := stringValue2.Trim()
+		partValue := str.String(part)
+		trimmed := partValue.Trim()
 		if trimmed == "" {
 			continue
 		}
@@ -37,8 +37,8 @@ func dedupeAndTrim(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	out := make([]string, 0, len(values))
 	for _, value := range values {
-		stringValue3 := str.String(value)
-		trimmed := stringValue3.Trim()
+		value2 := str.String(value)
+		trimmed := value2.Trim()
 		if trimmed == "" {
 			continue
 		}
@@ -81,8 +81,8 @@ func getPathsFromBase(values []string, baseDir string) []string {
 	if len(values) == 0 {
 		return nil
 	}
-	stringValue4 := str.String(baseDir)
-	baseDir = stringValue4.Trim()
+	baseDirValue := str.String(baseDir)
+	baseDir = baseDirValue.Trim()
 	if baseDir == "" {
 		return values
 	}
@@ -118,8 +118,8 @@ func getDefaultFSRoots() []string {
 }
 
 func parseOptionalBoolEnv(key string) (bool, bool) {
-	stringValue5 := str.String(os.Getenv(key))
-	value := stringValue5.Normalized()
+	envValue := str.String(os.Getenv(key))
+	value := envValue.Normalized()
 	if value == "" {
 		return false, false
 	}
@@ -128,8 +128,8 @@ func parseOptionalBoolEnv(key string) (bool, bool) {
 }
 
 func parseDurationOrZero(value string) time.Duration {
-	stringValue6 := str.String(value)
-	parsed, err := time.ParseDuration(stringValue6.Trim())
+	value3 := str.String(value)
+	parsed, err := time.ParseDuration(value3.Trim())
 	if err != nil {
 		return 0
 	}
@@ -158,8 +158,8 @@ func normalizeRulePaths(files []string) []string {
 	seen := make(map[string]struct{}, len(files))
 
 	for _, file := range files {
-		stringValue7 := str.String(file)
-		path := stringValue7.Trim()
+		fileValue := str.String(file)
+		path := fileValue.Trim()
 		if path == "" {
 			continue
 		}

@@ -430,8 +430,8 @@ func consoleModuleANSIColor(t *testing.T, formatted string) int {
 
 func TestEnsureLogModule_AddsFallbackModuleOnlyWhenMissing(t *testing.T) {
 	withModule := ensureLogModule([]byte(`{"level":"info","module":"daemon","message":"hello"}`+"\n"), "morph")
-	stringValue1 := str.String(string(withModule))
-	require.JSONEq(t, `{"level":"info","module":"daemon","message":"hello"}`, stringValue1.Trim())
+	withModuleValue := str.String(string(withModule))
+	require.JSONEq(t, `{"level":"info","module":"daemon","message":"hello"}`, withModuleValue.Trim())
 	require.True(t, bytes.HasSuffix(withModule, []byte("\n")))
 
 	withoutModule := ensureLogModule([]byte(`{"level":"info","message":"hello"}`), "morph")

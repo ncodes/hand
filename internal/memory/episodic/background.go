@@ -131,8 +131,8 @@ func (s *Service) RunBackground(ctx context.Context, req BackgroundRequest) (Bac
 	}
 
 	opts := NormalizeBackgroundOptions(req.Options)
-	stringValue1 := str.String(req.RunID)
-	runID := stringValue1.Trim()
+	runIDValue := str.String(req.RunID)
+	runID := runIDValue.Trim()
 	if runID == "" {
 		runID = getBackgroundRunID(started)
 	}
@@ -192,8 +192,8 @@ func (s *Service) runBackgroundForSession(
 	opts BackgroundOptions,
 	session storage.Session,
 ) BackgroundSessionResult {
-	stringValue2 := str.String(session.ID)
-	sessionID := stringValue2.Trim()
+	iDValue := str.String(session.ID)
+	sessionID := iDValue.Trim()
 	messageCount, err := s.manager.CountMessages(ctx, sessionID, storage.MessageQueryOptions{})
 	if err != nil {
 		recordBackgroundFailure(recorder, runID, sessionID, 0, "count_messages", err)
@@ -273,8 +273,8 @@ func isSessionEligible(
 	messageCount int,
 	checkpointOffset int,
 	opts BackgroundOptions) (bool, string) {
-	stringValue3 := str.String(session.ID)
-	if stringValue3.Trim() == "" {
+	iDValue2 := str.String(session.ID)
+	if iDValue2.Trim() == "" {
 		return false, "missing_session_id"
 	}
 	if messageCount < opts.MinMessages {

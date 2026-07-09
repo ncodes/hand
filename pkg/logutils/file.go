@@ -96,15 +96,15 @@ func getLogFileSettings() logFileSettings {
 
 func getLogFilePath() string {
 	if configProvider != nil {
-		stringValue2 := str.String(configProvider().LogFile)
-		if path := stringValue2.Trim(); path != "" {
+		logFileValue := str.String(configProvider().LogFile)
+		if path := logFileValue.Trim(); path != "" {
 			return path
 		}
 	}
 
 	home, err := os.UserHomeDir()
-	stringValue1 := str.String(home)
-	if err != nil || stringValue1.Trim() == "" {
+	homeValue := str.String(home)
+	if err != nil || homeValue.Trim() == "" {
 		return defaultLogFilename
 	}
 

@@ -65,11 +65,11 @@ func newViewCommand() *cli.Command {
 			config.Set(cfg)
 			_ = logutils.ConfigureLogger("morph", cfg.Log.NoColor)
 			logutils.SetLogLevel(cfg.Log.Level)
-			stringValue1 := str.String(cmd.String("trace-dir"))
-			traceDir := stringValue1.Trim()
+			literalValue := str.String(cmd.String("trace-dir"))
+			traceDir := literalValue.Trim()
 			if traceDir == "" {
-				stringValue4 := str.String(cfg.Trace.Disk.Dir)
-				traceDir = stringValue4.Trim()
+				dirValue := str.String(cfg.Trace.Disk.Dir)
+				traceDir = dirValue.Trim()
 			}
 			if traceDir == "" {
 				traceDir = datadir.DebugTraceDir()
@@ -82,8 +82,8 @@ func newViewCommand() *cli.Command {
 			if err := app.Validate(); err != nil {
 				return err
 			}
-			stringValue2 := str.String(cmd.String("username"))
-			username := stringValue2.Trim()
+			literalValue2 := str.String(cmd.String("username"))
+			username := literalValue2.Trim()
 			password := cmd.String("password")
 			if (username == "") != (password == "") {
 				return fmt.Errorf("trace viewer basic auth requires both username and password")
@@ -91,8 +91,8 @@ func newViewCommand() *cli.Command {
 			if username != "" {
 				app.SetBasicAuth(username, password)
 			}
-			stringValue3 := str.String(cmd.String("listen"))
-			listenAddr := stringValue3.Trim()
+			literalValue3 := str.String(cmd.String("listen"))
+			listenAddr := literalValue3.Trim()
 			if listenAddr == "" {
 				listenAddr = "127.0.0.1:0"
 			}

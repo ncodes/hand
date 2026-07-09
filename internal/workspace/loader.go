@@ -55,8 +55,8 @@ func NormalizeRulePaths(files []string) []string {
 	seen := make(map[string]struct{}, len(files))
 
 	for _, file := range files {
-		stringValue1 := str.String(file)
-		path := stringValue1.Trim()
+		fileValue := str.String(file)
+		path := fileValue.Trim()
 		if path == "" {
 			continue
 		}
@@ -83,8 +83,8 @@ func Load(files ...string) (Result, error) {
 
 // LoadFromRoot reads workspace instruction files from root.
 func LoadFromRoot(root string, files ...string) (Result, error) {
-	stringValue2 := str.String(root)
-	root = stringValue2.Trim()
+	rootValue := str.String(root)
+	root = rootValue.Trim()
 	if root == "" {
 		return Result{}, nil
 	}

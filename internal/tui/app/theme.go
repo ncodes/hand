@@ -32,8 +32,8 @@ func adaptTUITheme(base tuiTheme, result termtheme.Result) tuiTheme {
 	if !ok {
 		return base
 	}
-	stringValue1 := str.String(result.Theme)
-	switch stringValue1.Normalized() {
+	themeValue := str.String(result.Theme)
+	switch themeValue.Normalized() {
 	case "dark":
 		return adaptDarkTUITheme(base, background)
 	case "light":
@@ -82,23 +82,22 @@ func (c themeRGB) Hex() string {
 }
 
 func parseThemeHexColor(value string) (themeRGB, bool) {
-	stringValue2 := str.String(value)
-	value = stringValue2.Trim()
-	if len(value) != 7 || !strings.HasPrefix(value, "#") {
+	valueText := str.String(value).Trim()
+	if len(valueText) != 7 || !strings.HasPrefix(valueText, "#") {
 		return themeRGB{}, false
 	}
 
-	red, err := strconv.ParseInt(value[1:3], 16, 32)
+	red, err := strconv.ParseInt(valueText[1:3], 16, 32)
 	if err != nil {
 		return themeRGB{}, false
 	}
 
-	green, err := strconv.ParseInt(value[3:5], 16, 32)
+	green, err := strconv.ParseInt(valueText[3:5], 16, 32)
 	if err != nil {
 		return themeRGB{}, false
 	}
 
-	blue, err := strconv.ParseInt(value[5:7], 16, 32)
+	blue, err := strconv.ParseInt(valueText[5:7], 16, 32)
 	if err != nil {
 		return themeRGB{}, false
 	}

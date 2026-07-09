@@ -8,8 +8,8 @@ const (
 )
 
 func ChunkText(text string, limit int) []string {
-	stringValue1 := str.String(text)
-	text = stringValue1.Trim()
+	textValue := str.String(text)
+	text = textValue.Trim()
 	if text == "" {
 		return nil
 	}
@@ -29,13 +29,13 @@ func ChunkText(text string, limit int) []string {
 }
 
 func SupportsNativeDraft(target Target) bool {
-	stringValue2 := str.String(target.ThreadID)
-	return target.ChatType == "private" && stringValue2.Trim() == ""
+	threadIDValue := str.String(target.ThreadID)
+	return target.ChatType == "private" && threadIDValue.Trim() == ""
 }
 
 func WithCursor(text string) string {
-	stringValue3 := str.String(text)
-	text = stringValue3.Trim()
+	textValue2 := str.String(text)
+	text = textValue2.Trim()
 	if text == "" {
 		return DraftCursor
 	}

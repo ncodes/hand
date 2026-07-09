@@ -58,8 +58,8 @@ func sanitizeToolCallMessageGroups(input []messages.Message) []messages.Message 
 		toolMessages := mapImmediateToolMessages(input, index+1)
 		sanitized = append(sanitized, message)
 		for _, toolCall := range message.ToolCalls {
-			stringValue1 := str.String(toolCall.ID)
-			toolCallID := stringValue1.Trim()
+			iDValue := str.String(toolCall.ID)
+			toolCallID := iDValue.Trim()
 			if toolCallID == "" {
 				continue
 			}
@@ -84,8 +84,8 @@ func mapImmediateToolMessages(input []messages.Message, start int) map[string]me
 		if message.Role != messages.RoleTool {
 			break
 		}
-		stringValue2 := str.String(message.ToolCallID)
-		toolCallID := stringValue2.Trim()
+		toolCallIDValue := str.String(message.ToolCallID)
+		toolCallID := toolCallIDValue.Trim()
 		if toolCallID == "" {
 			continue
 		}
@@ -113,12 +113,12 @@ func countImmediateToolMessages(input []messages.Message) int {
 
 // unavailableToolResultMessage creates a placeholder result for missing persisted tool output.
 func unavailableToolResultMessage(toolCall messages.ToolCall) messages.Message {
-	stringValue3 := str.String(toolCall.Name)
-	stringValue4 := str.String(toolCall.ID)
+	nameValue := str.String(toolCall.Name)
+	iDValue2 := str.String(toolCall.ID)
 	return messages.Message{
 		Role:       messages.RoleTool,
-		Name:       stringValue3.Trim(),
-		ToolCallID: stringValue4.Trim(),
+		Name:       nameValue.Trim(),
+		ToolCallID: iDValue2.Trim(),
 		Content:    "[Tool result unavailable: the previous run ended before this tool response was recorded.]",
 	}
 }

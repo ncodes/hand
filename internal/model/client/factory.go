@@ -120,8 +120,8 @@ func (f *ClientFactory) Resolve(req ClientRequest) (ResolvedClientRequest, error
 	if !ok {
 		return ResolvedClientRequest{}, fmt.Errorf("model API %q is not registered", apiID)
 	}
-	stringValue1 := str.String(req.BaseURL)
-	baseURL := stringValue1.Trim()
+	baseURLValue := str.String(req.BaseURL)
+	baseURL := baseURLValue.Trim()
 	if baseURL == "" {
 		baseURL = registry.GetBaseURL(provider.ID, api.ID)
 	}
@@ -129,8 +129,8 @@ func (f *ClientFactory) Resolve(req ClientRequest) (ResolvedClientRequest, error
 		return ResolvedClientRequest{}, fmt.Errorf("model base URL is required for provider %q API %q",
 			provider.ID, api.ID)
 	}
-	stringValue2 := str.String(req.Model)
-	modelID := stringValue2.Trim()
+	modelValue := str.String(req.Model)
+	modelID := modelValue.Trim()
 	model, modelKnown := registry.GetModel(provider.ID, modelID)
 	if modelID != "" && !modelKnown {
 		model = modelprovider.ModelDefinition{
@@ -139,14 +139,14 @@ func (f *ClientFactory) Resolve(req ClientRequest) (ResolvedClientRequest, error
 			API:      api.ID,
 		}
 	}
-	stringValue3 := str.String(req.APIKey)
+	aPIKeyValue := str.String(req.APIKey)
 	return ResolvedClientRequest{
 		Role:       req.Role,
 		Model:      model,
 		ModelKnown: modelKnown,
 		Provider:   provider,
 		API:        api,
-		APIKey:     stringValue3.Trim(),
+		APIKey:     aPIKeyValue.Trim(),
 		BaseURL:    baseURL,
 		Headers:    mergeHeaders(provider.Headers, req.Headers),
 		MaxRetries: req.MaxRetries,
@@ -317,22 +317,22 @@ func clientCacheKey(req ResolvedClientRequest) string {
 }
 
 func isOpenAISubscriptionBaseURL(baseURL string) bool {
-	stringValue4 := str.String(baseURL)
-	return strings.TrimRight(stringValue4.Trim(), "/") ==
+	baseURLValue2 := str.String(baseURL)
+	return strings.TrimRight(baseURLValue2.Trim(), "/") ==
 		strings.TrimRight(constants.DefaultOpenAISubscriptionBaseURL, "/")
 }
 
 func hasHeader(headers map[string]string, name string) bool {
-	stringValue5 := str.String(name)
-	name = stringValue5.Normalized()
+	nameValue := str.String(name)
+	name = nameValue.Normalized()
 	if name == "" {
 		return false
 	}
 
 	for key, value := range headers {
-		stringValue6 := str.String(key)
-		stringValue7 := str.String(value)
-		if stringValue6.Normalized() == name && stringValue7.Trim() != "" {
+		keyValue := str.String(key)
+		valueText := str.String(value)
+		if keyValue.Normalized() == name && valueText.Trim() != "" {
 			return true
 		}
 	}
@@ -344,10 +344,10 @@ func mergeHeaders(values ...map[string]string) map[string]string {
 	merged := make(map[string]string)
 	for _, headers := range values {
 		for key, value := range headers {
-			stringValue8 := str.String(key)
-			key = stringValue8.Trim()
-			stringValue9 := str.String(value)
-			value = stringValue9.Trim()
+			keyValue2 := str.String(key)
+			key = keyValue2.Trim()
+			value2 := str.String(value)
+			value = value2.Trim()
 			if key == "" || value == "" {
 				continue
 			}
@@ -376,8 +376,8 @@ func sortedHeaderKeys(headers map[string]string) []string {
 }
 
 func normalizeID(value string) string {
-	stringValue10 := str.String(value)
-	return stringValue10.Normalized()
+	value3 := str.String(value)
+	return value3.Normalized()
 }
 
 func newOpenAIClient(

@@ -5,12 +5,13 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/pkg/str"
 )
 
 type sessionCreator interface {
-	Create(context.Context, string) (storage.Session, error)
+	CreateWithOptions(context.Context, rpcclient.CreateSessionOptions) (storage.Session, error)
 }
 
 type newChatCompletedMsg struct {
@@ -36,7 +37,10 @@ func createNewChatCmd(ctx context.Context, client sessionCreator) tea.Cmd {
 			ctx = context.Background()
 		}
 
-		session, err := client.Create(ctx, "")
+		session, err := client.CreateWithOptions(ctx, rpcclient.CreateSessionOptions{
+			OriginSource: storage.SessionOriginSourceTUI,
+		})
+
 		return newChatCompletedMsg{Session: session, Err: err}
 	}
 }
@@ -45,8 +49,8 @@ func (m *model) completeNewChat(msg newChatCompletedMsg) tea.Cmd {
 	if msg.Err != nil {
 		return m.setStatus("new chat failed")
 	}
-	stringValue1 := str.String(msg.Session.ID)
-	if stringValue1.Trim() == "" {
+	iDValue := str.String(msg.Session.ID)
+	if iDValue.Trim() == "" {
 		return m.setStatus("new chat failed")
 	}
 

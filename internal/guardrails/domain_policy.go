@@ -19,10 +19,10 @@ func appendDomainRules(existing []domainRule, values []string, source string) []
 		if rule == "" {
 			continue
 		}
-		stringValue1 := str.String(source)
+		sourceValue := str.String(source)
 		existing = append(existing, domainRule{
 			Pattern: rule,
-			Source:  stringValue1.Trim(),
+			Source:  sourceValue.Trim(),
 		})
 	}
 
@@ -31,8 +31,8 @@ func appendDomainRules(existing []domainRule, values []string, source string) []
 
 func appendDomainRulesFromFiles(existing []domainRule, files []string) []domainRule {
 	for _, file := range files {
-		stringValue2 := str.String(file)
-		existing = appendDomainRules(existing, loadPolicyFile(file), stringValue2.Trim())
+		fileValue := str.String(file)
+		existing = appendDomainRules(existing, loadPolicyFile(file), fileValue.Trim())
 	}
 
 	return existing
@@ -54,8 +54,8 @@ func getFirstMatchingDomainRule(rules []domainRule, host string) (domainRule, bo
 }
 
 func loadPolicyFile(path string) []string {
-	stringValue3 := str.String(path)
-	path = stringValue3.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	if path == "" {
 		return nil
 	}
@@ -69,8 +69,8 @@ func loadPolicyFile(path string) []string {
 	var values []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		stringValue4 := str.String(scanner.Text())
-		line := stringValue4.Trim()
+		textValue := str.String(scanner.Text())
+		line := textValue.Trim()
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}

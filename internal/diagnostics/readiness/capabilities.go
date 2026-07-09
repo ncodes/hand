@@ -28,8 +28,8 @@ func buildWebCheck(cfg *config.Config) Check {
 	if cfg.Cap.Network != nil && !*cfg.Cap.Network {
 		return check("web tools", StatusWarn, "network capability is disabled")
 	}
-	stringValue1 := str.String(cfg.Web.Provider)
-	provider := stringValue1.Normalized()
+	providerValue := str.String(cfg.Web.Provider)
+	provider := providerValue.Normalized()
 	if provider == "" || provider == "native" {
 		return check("web tools", StatusWarn, "native web extraction is configured; web search requires a configured web provider")
 	}
@@ -54,8 +54,8 @@ func buildWebCheck(cfg *config.Config) Check {
 }
 
 func webAuthAction(provider string) Action {
-	stringValue2 := str.String(provider)
-	if stringValue2.Trim() == "" {
+	providerValue2 := str.String(provider)
+	if providerValue2.Trim() == "" {
 		provider = constants.WebProviderExa
 	}
 

@@ -60,11 +60,11 @@ func (p *TavilyProvider) Search(ctx context.Context, query string, count int) ([
 
 	results := make([]SearchResult, 0, len(response.Results))
 	for idx, result := range response.Results {
-		stringValue1 := str.String(result.Title)
-		stringValue2 := str.String(result.URL)
+		titleValue := str.String(result.Title)
+		uRLValue := str.String(result.URL)
 		results = append(results, SearchResult{
-			Title:    stringValue1.Trim(),
-			URL:      stringValue2.Trim(),
+			Title:    titleValue.Trim(),
+			URL:      uRLValue.Trim(),
 			Snippet:  truncateToMaxChars(result.Content, p.maxCharsPerResult),
 			Position: idx + 1,
 		})
@@ -113,11 +113,11 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 			getFirstNonEmpty(result.RawContent, result.Content),
 			p.maxExtractResponseBytes,
 			maxChars)
-		stringValue3 := str.String(result.URL)
-		stringValue4 := str.String(result.Title)
+		uRLValue2 := str.String(result.URL)
+		titleValue2 := str.String(result.Title)
 		results = append(results, ExtractResult{
-			URL:               stringValue3.Trim(),
-			Title:             stringValue4.Trim(),
+			URL:               uRLValue2.Trim(),
+			Title:             titleValue2.Trim(),
 			Content:           content,
 			ContentFormat:     format,
 			Truncated:         truncated,
@@ -125,17 +125,17 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 		})
 	}
 	for _, result := range response.FailedResults {
-		stringValue5 := str.String(result.URL)
+		uRLValue3 := str.String(result.URL)
 		results = append(results, ExtractResult{
-			URL:           stringValue5.Trim(),
+			URL:           uRLValue3.Trim(),
 			ContentFormat: format,
 			Error:         getFirstNonEmpty(result.Error, "extraction failed"),
 		})
 	}
 	for _, url := range response.FailedURLs {
-		stringValue6 := str.String(url)
+		urlValue := str.String(url)
 		results = append(results, ExtractResult{
-			URL:           stringValue6.Trim(),
+			URL:           urlValue.Trim(),
 			ContentFormat: format,
 			Error:         "extraction failed",
 		})

@@ -107,8 +107,8 @@ func (p OpenAISubscriptionProvider) Refresh(
 	credential appcredential.StoredCredential,
 ) (appcredential.StoredCredential, error) {
 	p = p.withDefaults()
-	stringValue1 := str.String(credential.Refresh)
-	refreshToken := stringValue1.Trim()
+	refreshValue := str.String(credential.Refresh)
+	refreshToken := refreshValue.Trim()
 	if refreshToken == "" {
 		return appcredential.StoredCredential{}, errors.New("OpenAI subscription refresh token is required")
 	}
@@ -135,8 +135,8 @@ func (p OpenAISubscriptionProvider) AuthHeaders(
 	_ context.Context,
 	credential appcredential.StoredCredential,
 ) (map[string]string, error) {
-	stringValue2 := str.String(credential.Token)
-	token := stringValue2.Trim()
+	tokenValue := str.String(credential.Token)
+	token := tokenValue.Trim()
 	if token == "" {
 		return nil, errors.New("OpenAI subscription access token is required")
 	}
@@ -156,16 +156,16 @@ func (p OpenAISubscriptionProvider) AuthHeaders(
 }
 
 func (p OpenAISubscriptionProvider) withDefaults() OpenAISubscriptionProvider {
-	stringValue3 := str.String(p.AuthorizeURL)
-	if stringValue3.Trim() == "" {
+	authorizeURLValue := str.String(p.AuthorizeURL)
+	if authorizeURLValue.Trim() == "" {
 		p.AuthorizeURL = openAISubscriptionAuthorize
 	}
-	stringValue4 := str.String(p.TokenURL)
-	if stringValue4.Trim() == "" {
+	tokenURLValue := str.String(p.TokenURL)
+	if tokenURLValue.Trim() == "" {
 		p.TokenURL = openAISubscriptionToken
 	}
-	stringValue5 := str.String(p.ListenAddr)
-	if stringValue5.Trim() == "" {
+	listenAddrValue := str.String(p.ListenAddr)
+	if listenAddrValue.Trim() == "" {
 		p.ListenAddr = fmt.Sprintf("127.0.0.1:%d", openAISubscriptionCallbackPort)
 	}
 	if p.HTTPClient == nil {
@@ -194,8 +194,8 @@ func (p OpenAISubscriptionProvider) listenForCallback() (net.Listener, string, e
 			return nil, "", err
 		}
 	}
-	stringValue6 := str.String(p.RedirectURI)
-	if redirectURI := stringValue6.Trim(); redirectURI != "" {
+	redirectURIValue := str.String(p.RedirectURI)
+	if redirectURI := redirectURIValue.Trim(); redirectURI != "" {
 		return listener, redirectURI, nil
 	}
 
@@ -216,14 +216,14 @@ func (p OpenAISubscriptionProvider) startCallbackServer(
 ) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc(openAISubscriptionCallbackPath, func(w http.ResponseWriter, r *http.Request) {
-		stringValue7 := str.String(r.URL.Query().Get("state"))
-		if got := stringValue7.Trim(); got != state {
+		getValue := str.String(r.URL.Query().Get("state"))
+		if got := getValue.Trim(); got != state {
 			http.Error(w, "invalid OAuth state", http.StatusBadRequest)
 			errCh <- errors.New("OpenAI OAuth state mismatch")
 			return
 		}
-		stringValue8 := str.String(r.URL.Query().Get("code"))
-		code := stringValue8.Trim()
+		getValue2 := str.String(r.URL.Query().Get("code"))
+		code := getValue2.Trim()
 		if code == "" {
 			http.Error(w, "missing OAuth code", http.StatusBadRequest)
 			errCh <- errors.New("OpenAI OAuth code is required")
@@ -311,16 +311,16 @@ func (p OpenAISubscriptionProvider) postToken(
 	if err := json.Unmarshal(body, &token); err != nil {
 		return appcredential.StoredCredential{}, err
 	}
-	stringValue9 := str.String(token.AccessToken)
-	if stringValue9.Trim() == "" {
+	accessTokenValue := str.String(token.AccessToken)
+	if accessTokenValue.Trim() == "" {
 		return appcredential.StoredCredential{}, errors.New("OpenAI token response did not include an access token")
 	}
-	stringValue10 := str.String(token.AccessToken)
-	stringValue11 := str.String(token.RefreshToken)
+	accessTokenValue2 := str.String(token.AccessToken)
+	refreshTokenValue := str.String(token.RefreshToken)
 	credential := appcredential.StoredCredential{
 		Type:    appcredential.TypeOAuth,
-		Token:   stringValue10.Trim(),
-		Refresh: stringValue11.Trim(),
+		Token:   accessTokenValue2.Trim(),
+		Refresh: refreshTokenValue.Trim(),
 		Scopes:  strings.Fields(token.Scope),
 	}
 	if token.ExpiresIn > 0 {
@@ -379,12 +379,12 @@ func getOpenAIAccountID(token string) (string, error) {
 		return "", errors.New("OpenAI subscription token is missing account metadata")
 	}
 	accountID, ok := authClaims["chatgpt_account_id"].(string)
-	stringValue12 := str.String(accountID)
-	if !ok || stringValue12.Trim() == "" {
+	accountIDValue := str.String(accountID)
+	if !ok || accountIDValue.Trim() == "" {
 		return "", errors.New("OpenAI subscription token is missing account ID")
 	}
-	stringValue13 := str.String(accountID)
-	return stringValue13.Trim(), nil
+	accountIDValue2 := str.String(accountID)
+	return accountIDValue2.Trim(), nil
 }
 
 func openURLInBrowser(rawURL string) error {

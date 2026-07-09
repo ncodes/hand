@@ -22,8 +22,8 @@ type ConfigInputs struct {
 func ResolveConfigInputs(cmd *cli.Command) (ConfigInputs, error) {
 	profileName := getCommandProfile(cmd)
 	resolved := profile.Active()
-	stringValue1 := str.String(resolved.HomeDir)
-	if profileName != "" || stringValue1.Trim() == "" {
+	homeDirValue := str.String(resolved.HomeDir)
+	if profileName != "" || homeDirValue.Trim() == "" {
 		var err error
 		resolved, err = profile.Resolve(profile.ResolveOptions{Name: profileName})
 		if err != nil {
@@ -40,12 +40,12 @@ func ResolveConfigInputs(cmd *cli.Command) (ConfigInputs, error) {
 	}
 	if cmd != nil {
 		if cmd.IsSet("env-file") {
-			stringValue2 := str.String(cmd.String("env-file"))
-			inputs.EnvPath = stringValue2.Trim()
+			literalValue := str.String(cmd.String("env-file"))
+			inputs.EnvPath = literalValue.Trim()
 		}
 		if cmd.IsSet("config") {
-			stringValue3 := str.String(cmd.String("config"))
-			inputs.ConfigPath = stringValue3.Trim()
+			literalValue2 := str.String(cmd.String("config"))
+			inputs.ConfigPath = literalValue2.Trim()
 		}
 	}
 
@@ -86,8 +86,8 @@ func AddStartupFilesystemRoots(cfg *config.Config, inputs ConfigInputs) {
 }
 
 func removeFilesystemRoot(roots []string, target string) []string {
-	stringValue4 := str.String(target)
-	target = stringValue4.Trim()
+	targetValue := str.String(target)
+	target = targetValue.Trim()
 	if target == "" {
 		return roots
 	}
@@ -105,8 +105,8 @@ func removeFilesystemRoot(roots []string, target string) []string {
 }
 
 func normalizeFilesystemRootTarget(root string) string {
-	stringValue5 := str.String(root)
-	root = stringValue5.Trim()
+	rootValue := str.String(root)
+	root = rootValue.Trim()
 	if root == "" {
 		return ""
 	}
@@ -126,8 +126,8 @@ func getCommandProfile(cmd *cli.Command) string {
 
 	for _, candidate := range cmd.Lineage() {
 		if candidate.IsSet("profile") {
-			stringValue6 := str.String(candidate.String("profile"))
-			return stringValue6.Trim()
+			literalValue3 := str.String(candidate.String("profile"))
+			return literalValue3.Trim()
 		}
 	}
 

@@ -70,14 +70,14 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
-			stringValue1 := str.String(req.Command)
-			if stringValue1.Trim() == "" {
+			commandValue := str.String(req.Command)
+			if commandValue.Trim() == "" {
 				return common.ToolError("invalid_input", "command is required"), nil
 			}
 
 			cwd := req.Cwd
-			stringValue2 := str.String(cwd)
-			if stringValue2.Trim() == "" {
+			cwdValue := str.String(cwd)
+			if cwdValue.Trim() == "" {
 				cwd = runtime.FilePolicy().Roots[0]
 			}
 
@@ -100,11 +100,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			timeout := common.WithTimeoutSeconds(req.TimeoutSeconds)
-			stringValue3 := str.String(req.Cwd)
+			cwdValue2 := str.String(req.Cwd)
 			log.Info().
 				Str("tool", "run_command").
 				Str("phase", "start").
-				Bool("cwd_provided", stringValue3.Trim() != "").
+				Bool("cwd_provided", cwdValue2.Trim() != "").
 				Int("args_count", len(req.Args)).
 				Int("env_overrides", len(req.Env)).
 				Bool("shell_mode", len(req.Args) == 0).
@@ -255,8 +255,8 @@ func buildRunCommandOutput(exitCode int, stdout, stderr string, timedOut bool, t
 }
 
 func buildCommand(ctx context.Context, command string, args []string) *exec.Cmd {
-	stringValue4 := str.String(command)
-	command = stringValue4.Trim()
+	commandValue2 := str.String(command)
+	command = commandValue2.Trim()
 	if len(args) > 0 {
 		return commandContext(ctx, command, args...)
 	}

@@ -31,15 +31,15 @@ func FormatMrkdwn(text string) string {
 	formatted = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^\[([^\]]+)\]\(([^)]+)\)$`).FindStringSubmatch(match)
 		label := strings.ReplaceAll(EscapeMrkdwnText(parts[1]), "|", "-")
-		stringValue1 := str.String(parts[2])
-		url := strings.ReplaceAll(stringValue1.Trim(), ">", "%3E")
+		partsValue := str.String(parts[2])
+		url := strings.ReplaceAll(partsValue.Trim(), ">", "%3E")
 		return nextPlaceholder("<" + url + "|" + label + ">")
 	})
 	formatted = regexp.MustCompile(`(?m)^#{1,6}\s+(.+)$`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^#{1,6}\s+(.+)$`).FindStringSubmatch(match)
 		inner := regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllString(parts[1], "$1")
-		stringValue2 := str.String(inner)
-		return nextPlaceholder("*" + EscapeMrkdwnText(stringValue2.Trim()) + "*")
+		innerValue := str.String(inner)
+		return nextPlaceholder("*" + EscapeMrkdwnText(innerValue.Trim()) + "*")
 	})
 	formatted = regexp.MustCompile(`\*\*(.+?)\*\*`).ReplaceAllStringFunc(formatted, func(match string) string {
 		parts := regexp.MustCompile(`^\*\*(.+?)\*\*$`).FindStringSubmatch(match)
@@ -84,8 +84,8 @@ func FormatStreamMarkdown(text string) string {
 	inFence := false
 	lines := strings.SplitAfter(text, "\n")
 	for _, line := range lines {
-		stringValue3 := str.String(strings.TrimSuffix(line, "\n"))
-		trimmed := stringValue3.Trim()
+		trimSuffixValue := str.String(strings.TrimSuffix(line, "\n"))
+		trimmed := trimSuffixValue.Trim()
 		fenceLine := strings.HasPrefix(trimmed, "```")
 		if fenceLine {
 			if inFence {
@@ -110,8 +110,8 @@ func FormatStreamMarkdown(text string) string {
 }
 
 func FormatStreamChunks(text string) []Chunk {
-	stringValue4 := str.String(text)
-	if stringValue4.Trim() == "" {
+	textValue := str.String(text)
+	if textValue.Trim() == "" {
 		return nil
 	}
 
@@ -139,8 +139,8 @@ func getFencedCodeBody(text string) string {
 	if !ok {
 		return text
 	}
-	stringValue5 := str.String(header)
-	if stringValue5.Trim() != "" && strings.Contains(body, "\n") {
+	headerValue := str.String(header)
+	if headerValue.Trim() != "" && strings.Contains(body, "\n") {
 		return body
 	}
 

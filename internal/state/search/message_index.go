@@ -23,16 +23,16 @@ type MessageIndexRow struct {
 
 // MessageIndexRowsFromMessage converts a message into the text rows used by lexical and vector search.
 func MessageIndexRowsFromMessage(sessionID string, message morphmsg.Message) []MessageIndexRow {
-	stringValue1 := str.String(sessionID)
+	sessionIDValue := str.String(sessionID)
 	baseRow := MessageIndexRow{
 		CreatedAt: message.CreatedAt,
 		UpdatedAt: message.CreatedAt,
 		MessageID: message.ID,
-		SessionID: stringValue1.Trim(),
+		SessionID: sessionIDValue.Trim(),
 		Role:      state.NormalizeMatchValue(string(message.Role)),
 	}
-	stringValue2 := str.String(message.Content)
-	body := stringValue2.Trim()
+	contentValue := str.String(message.Content)
+	body := contentValue.Trim()
 	switch message.Role {
 	case morphmsg.RoleAssistant:
 		rows := make([]MessageIndexRow, 0, len(message.ToolCalls)+1)
@@ -42,8 +42,8 @@ func MessageIndexRowsFromMessage(sessionID string, message morphmsg.Message) []M
 			rows = append(rows, row)
 		}
 		for _, toolCall := range message.ToolCalls {
-			stringValue3 := str.String(morphmsg.ToolCallSearchText(toolCall))
-			toolBody := stringValue3.Trim()
+			toolCallSearchTextValue := str.String(morphmsg.ToolCallSearchText(toolCall))
+			toolBody := toolCallSearchTextValue.Trim()
 			if toolBody == "" {
 				continue
 			}

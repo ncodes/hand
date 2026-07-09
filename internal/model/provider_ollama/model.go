@@ -7,18 +7,17 @@ import (
 )
 
 func NormalizeModelID(value string) string {
-	stringValue1 := str.String(value)
-	value = stringValue1.Trim()
-	if provider, model, ok := strings.Cut(value, "/"); ok {
+	valueText := str.String(value).Trim()
+	if provider, model, ok := strings.Cut(valueText, "/"); ok {
 		providerValue := str.String(provider)
 		if !strings.EqualFold(providerValue.Trim(), "ollama") {
-			return value
+			return valueText
 		}
-		stringValue3 := str.String(model)
-		return stringValue3.Trim()
+		modelValue := str.String(model)
+		return modelValue.Trim()
 	}
 
-	return value
+	return valueText
 }
 
 func NormalizeModelIDForComparison(value string) string {

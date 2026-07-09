@@ -242,8 +242,8 @@ func (p *MemoryProvider) RunReflectionBackground(
 	var firstErr error
 	result := ReflectionResult{}
 	for _, session := range sessions {
-		stringValue1 := str.String(session.ID)
-		sessionID := stringValue1.Trim()
+		iDValue := str.String(session.ID)
+		sessionID := iDValue.Trim()
 		if sessionID == "" {
 			continue
 		}
@@ -356,9 +356,9 @@ func (p *MemoryProvider) shouldReflectSession(
 
 func (p *MemoryProvider) hasUnreflectedReflectionSources(ctx context.Context, sessionID string) (bool, error) {
 	unreflected := false
-	stringValue2 := str.String(sessionID)
+	sessionIDValue := str.String(sessionID)
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
-		SessionID:       stringValue2.Trim(),
+		SessionID:       sessionIDValue.Trim(),
 		RerankerUseCase: RerankerUseCaseReflection,
 		Kinds:           []Kind{KindEpisodic},
 		Statuses:        []Status{StatusCandidate, StatusActive},
@@ -373,15 +373,15 @@ func (p *MemoryProvider) hasUnreflectedReflectionSources(ctx context.Context, se
 }
 
 func (p *MemoryProvider) normalizeReflectionRequest(ctx context.Context, req ReflectionRequest) (normalizedReflectionRequest, error) {
-	stringValue3 := str.String(req.SessionID)
-	sessionID := stringValue3.Trim()
+	sessionIDValue2 := str.String(req.SessionID)
+	sessionID := sessionIDValue2.Trim()
 	if sessionID == "" {
 		currentSessionID, err := p.manager.CurrentSession(ctx)
 		if err != nil {
 			return normalizedReflectionRequest{}, err
 		}
-		stringValue4 := str.String(currentSessionID)
-		sessionID = stringValue4.Trim()
+		currentSessionIDValue := str.String(currentSessionID)
+		sessionID = currentSessionIDValue.Trim()
 	}
 	if sessionID == "" {
 		return normalizedReflectionRequest{}, errors.New("reflection session id is required")
@@ -461,8 +461,8 @@ func (p *MemoryProvider) loadReflectionRelated(
 		}
 
 		for _, hit := range result.Hits {
-			stringValue5 := str.String(hit.Item.ID)
-			id := stringValue5.Trim()
+			iDValue2 := str.String(hit.Item.ID)
+			id := iDValue2.Trim()
 			if id == "" {
 				continue
 			}
@@ -507,9 +507,9 @@ func (p *MemoryProvider) checkReflectionCandidateRedundancy(
 
 	for _, hit := range result.Hits {
 		related := hit.Item
-		stringValue6 := str.String(related.ID)
-		stringValue7 := str.String(item.ID)
-		if stringValue6.Trim() == stringValue7.Trim() {
+		iDValue3 := str.String(related.ID)
+		iDValue4 := str.String(item.ID)
+		if iDValue3.Trim() == iDValue4.Trim() {
 			continue
 		}
 		switch {
@@ -539,11 +539,11 @@ func hasDuplicateReflectionCandidate(item MemoryItem, existing []MemoryItem) boo
 }
 
 func getReflectionSearchText(item MemoryItem) string {
-	stringValue8 := str.String(item.Title)
-	text := stringValue8.Trim()
+	titleValue := str.String(item.Title)
+	text := titleValue.Trim()
 	if text == "" {
-		stringValue9 := str.String(item.Text)
-		text = stringValue9.Trim()
+		textValue := str.String(item.Text)
+		text = textValue.Trim()
 	}
 	if len([]rune(text)) > 240 {
 		text = string([]rune(text)[:240])
@@ -568,8 +568,8 @@ func prepareReflectionCandidate(
 	if item.Metadata == nil {
 		item.Metadata = make(map[string]string)
 	}
-	stringValue10 := str.String(sessionID)
-	if sessionID = stringValue10.Trim(); sessionID != "" {
+	sessionIDValue3 := str.String(sessionID)
+	if sessionID = sessionIDValue3.Trim(); sessionID != "" {
 		item.Metadata["source_session_id"] = sessionID
 	}
 	item.Metadata["reflection_source_memory_ids"] = strings.Join(sourceIDs, ",")
@@ -631,9 +631,9 @@ func validateReflectionCandidate(item MemoryItem) error {
 	if item.Status != StatusCandidate {
 		return errors.New("reflection candidate must be stored as candidate")
 	}
-	stringValue11 := str.String(item.Title)
-	stringValue12 := str.String(item.Text)
-	if stringValue11.Trim() == "" && stringValue12.Trim() == "" {
+	titleValue2 := str.String(item.Title)
+	textValue2 := str.String(item.Text)
+	if titleValue2.Trim() == "" && textValue2.Trim() == "" {
 		return errors.New("reflection candidate text or title is required")
 	}
 	if !hasCandidateProvenance(item) {
@@ -652,12 +652,12 @@ func validateReflectionCandidate(item MemoryItem) error {
 }
 
 func checkProceduralReflectionMetadata(item MemoryItem) string {
-	stringValue13 := str.String(item.Metadata["procedural_trigger"])
-	if stringValue13.Trim() == "" {
+	metadataValue := str.String(item.Metadata["procedural_trigger"])
+	if metadataValue.Trim() == "" {
 		return "procedural_trigger_required"
 	}
-	stringValue14 := str.String(item.Metadata["procedural_steps"])
-	if stringValue14.Trim() == "" {
+	metadataValue2 := str.String(item.Metadata["procedural_steps"])
+	if metadataValue2.Trim() == "" {
 		return "procedural_steps_required"
 	}
 
@@ -671,8 +671,8 @@ func getSourceLinks(sources []MemoryItem) []SourceLink {
 			links = append(links, link)
 		}
 		if len(source.SourceLinks) == 0 {
-			stringValue15 := str.String(source.Metadata["source_session_id"])
-			if sessionID := stringValue15.Trim(); sessionID != "" {
+			metadataValue3 := str.String(source.Metadata["source_session_id"])
+			if sessionID := metadataValue3.Trim(); sessionID != "" {
 				links = append(links, SourceLink{
 					SessionID:     sessionID,
 					CreatedBy:     "reflection",
@@ -713,8 +713,8 @@ func cloneMemoryItems(items []MemoryItem) []MemoryItem {
 func getMemoryIDs(items []MemoryItem) []string {
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
-		stringValue16 := str.String(item.ID)
-		if id := stringValue16.Trim(); id != "" {
+		iDValue5 := str.String(item.ID)
+		if id := iDValue5.Trim(); id != "" {
 			ids = append(ids, id)
 		}
 	}
@@ -723,8 +723,8 @@ func getMemoryIDs(items []MemoryItem) []string {
 }
 
 func getReflectionSourceTag(id string) string {
-	stringValue17 := str.String(id)
-	id = stringValue17.Trim()
+	idValue := str.String(id)
+	id = idValue.Trim()
 	if id == "" {
 		return ""
 	}
@@ -766,8 +766,8 @@ func normalizeMemoryTags(tags []string) []string {
 	normalized := make([]string, 0, len(tags))
 	seen := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
-		stringValue18 := str.String(tag)
-		tag = stringValue18.Normalized()
+		tagValue := str.String(tag)
+		tag = tagValue.Normalized()
 		if tag == "" {
 			continue
 		}

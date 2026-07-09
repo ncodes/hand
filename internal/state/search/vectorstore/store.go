@@ -116,19 +116,19 @@ type ModelMetadata struct {
 
 // ValidateRecord checks that a vector record can be stored and searched.
 func ValidateRecord(record Record) error {
-	stringValue1 := str.String(record.ID)
-	if stringValue1.Trim() == "" {
+	iDValue := str.String(record.ID)
+	if iDValue.Trim() == "" {
 		return errors.New("vector id is required")
 	}
 	if err := ValidateRequiredSourceKind(record.SourceKind, "vector source kind"); err != nil {
 		return err
 	}
-	stringValue2 := str.String(record.SourceID)
-	if stringValue2.Trim() == "" {
+	sourceIDValue := str.String(record.SourceID)
+	if sourceIDValue.Trim() == "" {
 		return errors.New("vector source id is required")
 	}
-	stringValue3 := str.String(record.EmbeddingModel)
-	if stringValue3.Trim() == "" {
+	embeddingModelValue := str.String(record.EmbeddingModel)
+	if embeddingModelValue.Trim() == "" {
 		return errors.New("vector embedding model is required")
 	}
 	if record.Dimensions <= 0 {
@@ -142,8 +142,8 @@ func ValidateRecord(record Record) error {
 			return errors.New("vector value must be finite")
 		}
 	}
-	stringValue4 := str.String(record.ContentHash)
-	if stringValue4.Trim() == "" {
+	contentHashValue := str.String(record.ContentHash)
+	if contentHashValue.Trim() == "" {
 		return errors.New("vector content hash is required")
 	}
 	if err := validateTags(record.Tags, "vector tag"); err != nil {
@@ -155,8 +155,8 @@ func ValidateRecord(record Record) error {
 
 // ValidateSearchRequest checks that a vector search request has valid input and limits.
 func ValidateSearchRequest(req SearchRequest) error {
-	stringValue5 := str.String(req.EmbeddingModel)
-	if stringValue5.Trim() == "" {
+	embeddingModelValue2 := str.String(req.EmbeddingModel)
+	if embeddingModelValue2.Trim() == "" {
 		return errors.New("vector search embedding model is required")
 	}
 	if err := ValidateOptionalSourceKind(req.Filter.SourceKind, "vector search filter source kind"); err != nil {
@@ -188,20 +188,20 @@ func ValidateSearchRequest(req SearchRequest) error {
 
 // ValidateListRequest checks that a vector list request has valid filters and limits.
 func ValidateListRequest(req ListRequest) error {
-	stringValue6 := str.String(req.EmbeddingModel)
-	if stringValue6.Trim() == "" {
+	embeddingModelValue3 := str.String(req.EmbeddingModel)
+	if embeddingModelValue3.Trim() == "" {
 		return errors.New("vector list embedding model is required")
 	}
 	if err := ValidateOptionalSourceKind(req.Filter.SourceKind, "vector list filter source kind"); err != nil {
 		return err
 	}
 	for _, sourceID := range req.Filter.SourceIDs {
-		stringValue7 := str.String(sourceID)
-		if stringValue7.Trim() == "" {
+		sourceIDValue2 := str.String(sourceID)
+		if sourceIDValue2.Trim() == "" {
 			return errors.New("vector list filter source id is required")
 		}
-		stringValue8 := str.String(sourceID)
-		if stringValue8.Trim() != sourceID {
+		sourceIDValue3 := str.String(sourceID)
+		if sourceIDValue3.Trim() != sourceID {
 			return errors.New("vector list filter source id must be trimmed")
 		}
 	}
@@ -220,15 +220,15 @@ func ValidateDeleteRequest(req DeleteRequest) error {
 	if err := ValidateRequiredSourceKind(req.SourceKind, "source kind"); err != nil {
 		return err
 	}
-	stringValue9 := str.String(req.SessionID)
-	sessionID := stringValue9.Trim()
+	sessionIDValue := str.String(req.SessionID)
+	sessionID := sessionIDValue.Trim()
 	for _, sourceID := range req.SourceIDs {
-		stringValue10 := str.String(sourceID)
-		if stringValue10.Trim() == "" {
+		sourceIDValue4 := str.String(sourceID)
+		if sourceIDValue4.Trim() == "" {
 			return errors.New("source id is required")
 		}
-		stringValue11 := str.String(sourceID)
-		if stringValue11.Trim() != sourceID {
+		sourceIDValue5 := str.String(sourceID)
+		if sourceIDValue5.Trim() != sourceID {
 			return errors.New("source id must be trimmed")
 		}
 	}
@@ -258,8 +258,8 @@ func NormalizeTags(tags []string) []string {
 	normalized := make([]string, 0, len(tags))
 	seen := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
-		stringValue12 := str.String(tag)
-		tag = stringValue12.Normalized()
+		tagValue := str.String(tag)
+		tag = tagValue.Normalized()
 		if tag == "" {
 			continue
 		}
@@ -297,8 +297,8 @@ func NormalizeTagGroups(groups [][]string) [][]string {
 
 // ValidateRequiredSourceKind checks that kind is one of the supported vector source kinds.
 func ValidateRequiredSourceKind(sourceKind SourceKind, field string) error {
-	stringValue13 := str.String(string(sourceKind))
-	if stringValue13.Trim() == "" {
+	sourceKindValue := str.String(string(sourceKind))
+	if sourceKindValue.Trim() == "" {
 		return fmt.Errorf("%s is required", field)
 	}
 
@@ -307,8 +307,8 @@ func ValidateRequiredSourceKind(sourceKind SourceKind, field string) error {
 
 // ValidateOptionalSourceKind checks that a non-empty kind is one of the supported vector source kinds.
 func ValidateOptionalSourceKind(sourceKind SourceKind, field string) error {
-	stringValue14 := str.String(string(sourceKind))
-	if stringValue14.Trim() == "" {
+	sourceKindValue2 := str.String(string(sourceKind))
+	if sourceKindValue2.Trim() == "" {
 		return nil
 	}
 	switch sourceKind {
@@ -325,12 +325,12 @@ func finite(value float64) bool {
 
 func validateTags(tags []string, field string) error {
 	for _, tag := range tags {
-		stringValue15 := str.String(tag)
-		if stringValue15.Trim() == "" {
+		tagValue2 := str.String(tag)
+		if tagValue2.Trim() == "" {
 			return fmt.Errorf("%s is required", field)
 		}
-		stringValue16 := str.String(tag)
-		if stringValue16.Trim() != tag {
+		tagValue3 := str.String(tag)
+		if tagValue3.Trim() != tag {
 			return fmt.Errorf("%s must be trimmed", field)
 		}
 		if strings.ToLower(tag) != tag {

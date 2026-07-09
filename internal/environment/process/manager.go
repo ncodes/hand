@@ -67,19 +67,19 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 	if err := ctx.Err(); err != nil {
 		return Info{}, err
 	}
-	stringValue1 := str.String(req.Command)
-	command := stringValue1.Trim()
+	commandValue := str.String(req.Command)
+	command := commandValue.Trim()
 	if command == "" {
 		return Info{}, errors.New("command is required")
 	}
 	sessionID = normalizeProcessSessionID(sessionID)
-	stringValue2 := str.String(req.Label)
-	label := stringValue2.Trim()
+	labelValue := str.String(req.Label)
+	label := labelValue.Trim()
 
 	cmd := buildCommand(context.Background(), command, req.Args)
 	configureCommand(cmd)
-	stringValue3 := str.String(req.CWD)
-	cmd.Dir = stringValue3.Trim()
+	cWDValue := str.String(req.CWD)
+	cmd.Dir = cWDValue.Trim()
 	cmd.Env = os.Environ()
 	for key, value := range req.Env {
 		cmd.Env = append(cmd.Env, key+"="+value)
@@ -132,7 +132,7 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 	}
 
 	processID := s.nextProcessIDLocked(sessionID)
-	stringValue4 := str.String(req.CWD)
+	cWDValue2 := str.String(req.CWD)
 	process := &trackedProcess{
 		cmd:    cmd,
 		stdout: stdout,
@@ -143,7 +143,7 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 			Label:     label,
 			Command:   command,
 			Args:      append([]string(nil), req.Args...),
-			CWD:       stringValue4.Trim(),
+			CWD:       cWDValue2.Trim(),
 			Status:    StatusRunning,
 			StartedAt: startedAt,
 		},
@@ -294,8 +294,8 @@ func (s *DefaultManager) lookup(sessionID string, processID string) (*trackedPro
 		return nil, errors.New("process manager is required")
 	}
 	sessionID = normalizeProcessSessionID(sessionID)
-	stringValue5 := str.String(processID)
-	processID = stringValue5.Trim()
+	processIDValue := str.String(processID)
+	processID = processIDValue.Trim()
 	if processID == "" {
 		return nil, errors.New("process id is required")
 	}
@@ -326,8 +326,8 @@ func (s *DefaultManager) hasProcessLabelLocked(sessionID string, label string) b
 }
 
 func (s *DefaultManager) lookupByLabelLocked(sessionID string, label string) *trackedProcess {
-	stringValue6 := str.String(label)
-	label = stringValue6.Trim()
+	labelValue2 := str.String(label)
+	label = labelValue2.Trim()
 	if label == "" {
 		return nil
 	}
@@ -540,8 +540,8 @@ func (b *recentBuffer) wasTruncated() bool {
 }
 
 func buildCommand(ctx context.Context, command string, args []string) *exec.Cmd {
-	stringValue7 := str.String(command)
-	command = stringValue7.Trim()
+	commandValue2 := str.String(command)
+	command = commandValue2.Trim()
 	if len(args) > 0 {
 		return commandContext(ctx, command, args...)
 	}
@@ -554,8 +554,8 @@ func buildCommand(ctx context.Context, command string, args []string) *exec.Cmd 
 }
 
 func normalizeProcessSessionID(sessionID string) string {
-	stringValue8 := str.String(sessionID)
-	sessionID = stringValue8.Trim()
+	sessionIDValue := str.String(sessionID)
+	sessionID = sessionIDValue.Trim()
 	if sessionID == "" {
 		return "default"
 	}

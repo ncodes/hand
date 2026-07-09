@@ -33,13 +33,13 @@ func newFanoutTraceSession(
 	if primary == nil {
 		primary = trace.NoopSession()
 	}
-	stringValue1 := str.String(primary.ID())
-	if value := stringValue1.Trim(); value != "" {
+	iDValue := str.String(primary.ID())
+	if value := iDValue.Trim(); value != "" {
 		sessionID = value
 	}
-	stringValue2 := str.String(sessionID)
+	sessionIDValue := str.String(sessionID)
 	return fanoutTraceSession{
-		sessionID: stringValue2.Trim(),
+		sessionID: sessionIDValue.Trim(),
 		primary:   primary,
 		redactor:  guardrails.NewRedactor(),
 		onEvent:   onEvent,
@@ -49,8 +49,8 @@ func newFanoutTraceSession(
 // ID returns the primary trace session ID when available, otherwise the fallback session ID.
 func (s fanoutTraceSession) ID() string {
 	if s.primary != nil {
-		stringValue3 := str.String(s.primary.ID())
-		if id := stringValue3.Trim(); id != "" {
+		iDValue2 := str.String(s.primary.ID())
+		if id := iDValue2.Trim(); id != "" {
 			return id
 		}
 	}
@@ -66,7 +66,7 @@ func (s fanoutTraceSession) Record(eventType string, payload any) {
 	if s.onEvent == nil || !isStreamableTraceEvent(eventType) {
 		return
 	}
-	stringValue4 :=
+	eventTypeValue :=
 
 		// Live trace payloads may be rendered immediately in the TUI, so sanitize
 		// before they leave the trace subsystem.
@@ -74,7 +74,7 @@ func (s fanoutTraceSession) Record(eventType string, payload any) {
 		str.String(eventType)
 	event := trace.Event{
 		SessionID: s.ID(),
-		Type:      stringValue4.Trim(),
+		Type:      eventTypeValue.Trim(),
 		Timestamp: time.Now().UTC(),
 	}
 	if payload != nil {
@@ -93,8 +93,8 @@ func (s fanoutTraceSession) Close() {
 
 // isStreamableTraceEvent whitelists trace events that are useful during a live response.
 func isStreamableTraceEvent(eventType string) bool {
-	stringValue5 := str.String(eventType)
-	switch stringValue5.Trim() {
+	eventTypeValue2 := str.String(eventType)
+	switch eventTypeValue2.Trim() {
 	case trace.EvtToolInvocationStarted,
 		trace.EvtToolInvocationCompleted,
 		trace.EvtInputSafetyBlocked,

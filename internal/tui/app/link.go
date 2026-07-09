@@ -144,8 +144,8 @@ func skipANSIEscape(line string, start int) (int, bool) {
 }
 
 func sanitizeClickableLink(raw string) string {
-	stringValue1 := str.String(raw)
-	raw = stringValue1.Trim()
+	rawValue := str.String(raw)
+	raw = rawValue.Trim()
 	if raw == "" {
 		return ""
 	}

@@ -41,13 +41,13 @@ type LoadOptions struct {
 
 // Load reads the configured personality instructions.
 func Load(opts LoadOptions) (Result, error) {
-	stringValue1 := str.String(opts.ProfileHome)
-	opts.ProfileHome = stringValue1.Trim()
+	profileHomeValue := str.String(opts.ProfileHome)
+	opts.ProfileHome = profileHomeValue.Trim()
 	if opts.ProfileHome == "" {
 		opts.ProfileHome = datadir.ProjectHomeDir()
 	}
-	stringValue2 := str.String(opts.WorkspaceRoot)
-	if opts.AllowWorkspace && stringValue2.Trim() == "" {
+	workspaceRootValue := str.String(opts.WorkspaceRoot)
+	if opts.AllowWorkspace && workspaceRootValue.Trim() == "" {
 		root, err := getwd()
 		if err != nil {
 			return Result{}, fmt.Errorf("resolve workspace root: %w", err)
@@ -62,12 +62,12 @@ func loadWithOptions(opts LoadOptions) (Result, error) {
 	sections := make([]string, 0, 3)
 	safetyEvents := make([]guardrails.SafetyTracePayloadOptions, 0, 2)
 	seenPaths := make(map[string]struct{}, 2)
-	stringValue3 := str.String(opts.ProfileHome)
-	profileHome := stringValue3.Trim()
-	stringValue4 := str.String(opts.WorkspaceRoot)
-	workspaceRoot := stringValue4.Trim()
-	stringValue5 := str.String(opts.PersonalityName)
-	personalityName := stringValue5.Trim()
+	profileHomeValue2 := str.String(opts.ProfileHome)
+	profileHome := profileHomeValue2.Trim()
+	workspaceRootValue2 := str.String(opts.WorkspaceRoot)
+	workspaceRoot := workspaceRootValue2.Trim()
+	personalityNameValue := str.String(opts.PersonalityName)
+	personalityName := personalityNameValue.Trim()
 
 	if personalityName == "" {
 		globalPath := filepath.Join(profileHome, fileName)
@@ -134,13 +134,13 @@ func loadNamedPersonality(
 	opts LoadOptions,
 	seenPaths map[string]struct{},
 ) (string, bool, []guardrails.SafetyTracePayloadOptions, error) {
-	stringValue6 := str.String(opts.PersonalityName)
-	name := stringValue6.Trim()
+	personalityNameValue2 := str.String(opts.PersonalityName)
+	name := personalityNameValue2.Trim()
 	personalityConfig := opts.PersonalityConfig
 	sections := make([]string, 0, 2)
 	safetyEvents := make([]guardrails.SafetyTracePayloadOptions, 0, 2)
-	stringValue7 := str.String(personalityConfig.Soul)
-	if stringValue7.Trim() != "" {
+	soulValue := str.String(personalityConfig.Soul)
+	if soulValue.Trim() != "" {
 		section, found, events, err := loadFile(
 			personalityConfig.Soul,
 			opts.WorkspaceRoot,
@@ -155,11 +155,11 @@ func loadNamedPersonality(
 		}
 		safetyEvents = append(safetyEvents, events...)
 	}
-	stringValue8 := str.String(personalityConfig.Instruct)
-	if stringValue8.Trim() != "" {
+	instructValue := str.String(personalityConfig.Instruct)
+	if instructValue.Trim() != "" {
 		displayName := fmt.Sprintf("personality:%s.instruct", name)
-		stringValue9 := str.String(personalityConfig.Instruct)
-		content := stringValue9.Trim()
+		instructValue2 := str.String(personalityConfig.Instruct)
+		content := instructValue2.Trim()
 		scanned := guardrails.SafetyScan(content, displayName)
 		if scanned.Blocked {
 			safetyEvents = append(safetyEvents, loadedContentSafetyEvent(displayName, content, scanned.Findings))
@@ -219,8 +219,8 @@ func loadFile(
 	if err != nil {
 		return "", false, nil, fmt.Errorf("read personality file %q: %w", path, err)
 	}
-	stringValue10 := str.String(string(content))
-	contentText := stringValue10.Trim()
+	contentValue := str.String(string(content))
+	contentText := contentValue.Trim()
 	if contentText == "" {
 		return "", false, nil, nil
 	}
@@ -235,8 +235,8 @@ func loadFile(
 	if scanned.Blocked {
 		safetyEvents = append(safetyEvents, loadedContentSafetyEvent(displayPath, contentText, scanned.Findings))
 	}
-	stringValue11 := str.String(opts.Label)
-	label := stringValue11.Trim()
+	labelValue := str.String(opts.Label)
+	label := labelValue.Trim()
 	if label == "" {
 		label = displayPath
 	}
@@ -268,8 +268,8 @@ func getDisplayPath(path, workspaceRoot string) (string, error) {
 			}
 		}
 	}
-	stringValue12 := str.String(datadir.ProjectHomeDir())
-	if cleanedHome := stringValue12.Trim(); cleanedHome != "" {
+	projectHomeDirValue := str.String(datadir.ProjectHomeDir())
+	if cleanedHome := projectHomeDirValue.Trim(); cleanedHome != "" {
 		relativePath, err := filepath.Rel(cleanedHome, path)
 		if err == nil {
 			relativePath = filepath.ToSlash(relativePath)

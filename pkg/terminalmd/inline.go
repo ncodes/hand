@@ -15,8 +15,8 @@ func (r *Renderer) renderInlineChildren(node goldast.Node, source []byte) string
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
 		builder.WriteString(r.renderInline(child, source))
 	}
-	stringValue1 := str.String(builder.String())
-	return stringValue1.Trim()
+	textValue := str.String(builder.String())
+	return textValue.Trim()
 }
 
 // renderInline maps Goldmark inline nodes to terminal text.
@@ -95,6 +95,6 @@ func (r *Renderer) renderInline(node goldast.Node, source []byte) string {
 func (r *Renderer) renderInlineMarkdown(markdown string) string {
 	source := []byte(markdown)
 	document := r.md.Parser().Parse(text.NewReader(source))
-	stringValue2 := str.String(r.renderInlineChildren(document, source))
-	return stringValue2.Trim()
+	renderInlineChildrenValue := str.String(r.renderInlineChildren(document, source))
+	return renderInlineChildrenValue.Trim()
 }

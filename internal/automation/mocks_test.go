@@ -98,13 +98,20 @@ func (a *automationRuntimeAgentStub) Respond(
 	return a.output, nil
 }
 
-func (a *automationRuntimeAgentStub) CreateSession(context.Context, string) (core.Session, error) {
+func (a *automationRuntimeAgentStub) CreateSession(
+	_ context.Context,
+	_ string,
+	opts ...core.SessionCreateOptions,
+) (core.Session, error) {
 	a.created = true
 	if a.createErr != nil {
 		return core.Session{}, a.createErr
 	}
 	if a.createdSession.ID == "" {
 		a.createdSession.ID = testAutomationExecutionSessionID
+	}
+	if len(opts) > 0 && a.createdSession.Origin == (core.SessionOrigin{}) {
+		a.createdSession.Origin = opts[0].Origin
 	}
 
 	return a.createdSession, nil

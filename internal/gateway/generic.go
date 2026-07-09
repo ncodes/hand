@@ -28,7 +28,7 @@ var log = logutils.Module("gateway")
 
 type AgentService interface {
 	Respond(context.Context, string, agentcore.RespondOptions) (string, error)
-	CreateSession(context.Context, string) (storage.Session, error)
+	CreateSession(context.Context, string, ...storage.SessionCreateOptions) (storage.Session, error)
 	SaveGatewayBinding(context.Context, storage.GatewayBinding) error
 	GetGatewayBinding(context.Context, string) (storage.GatewayBinding, bool, error)
 }

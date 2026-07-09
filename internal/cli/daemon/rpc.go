@@ -203,8 +203,8 @@ var serveRPC = func(
 	var pairingSecret string
 	if cfg != nil {
 		gatewayCfg = cfg.Gateway
-		stringValue3 := str.String(cfg.Gateway.PairingSecret)
-		pairingSecret = stringValue3.Trim()
+		pairingSecretValue := str.String(cfg.Gateway.PairingSecret)
+		pairingSecret = pairingSecretValue.Trim()
 	}
 
 	grpcSrv := server.New(agent, server.Options{

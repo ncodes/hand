@@ -82,8 +82,8 @@ type MemoryPatch struct {
 }
 
 func (item MemoryItem) GuardrailSource() string {
-	stringValue1 := str.String(item.ID)
-	if id := stringValue1.Trim(); id != "" {
+	iDValue := str.String(item.ID)
+	if id := iDValue.Trim(); id != "" {
 		return "memory:" + id
 	}
 	return "memory"
@@ -199,8 +199,8 @@ func ApplyMemoryPatch(item MemoryItem, patch MemoryPatch, updatedAt time.Time) M
 			item.Metadata = make(map[string]string, len(patch.Metadata))
 		}
 		for key, value := range patch.Metadata {
-			stringValue2 := str.String(key)
-			if key = stringValue2.Trim(); key != "" {
+			keyValue := str.String(key)
+			if key = keyValue.Trim(); key != "" {
 				item.Metadata[key] = value
 			}
 		}
@@ -227,8 +227,8 @@ func NormalizeMemoryTags(tags []string) []string {
 	seen := make(map[string]struct{}, len(tags))
 	results := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		stringValue3 := str.String(tag)
-		tag = stringValue3.Normalized()
+		tagValue := str.String(tag)
+		tag = tagValue.Normalized()
 		if tag == "" {
 			continue
 		}
@@ -247,8 +247,8 @@ func NormalizeMemoryIDs(ids []string) []string {
 	seen := make(map[string]struct{}, len(ids))
 	results := make([]string, 0, len(ids))
 	for _, id := range ids {
-		stringValue4 := str.String(id)
-		id = stringValue4.Trim()
+		idValue := str.String(id)
+		id = idValue.Trim()
 		if id == "" {
 			continue
 		}
@@ -264,14 +264,14 @@ func NormalizeMemoryIDs(ids []string) []string {
 
 // CheckMemoryMatchesQuery checks memory matches query.
 func CheckMemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
-	stringValue5 := str.String(query.SessionID)
-	if sessionID := stringValue5.Trim(); sessionID != "" &&
+	sessionIDValue := str.String(query.SessionID)
+	if sessionID := sessionIDValue.Trim(); sessionID != "" &&
 		!CheckMemoryBelongsToSession(item, sessionID) {
 		return false
 	}
-	stringValue6 := str.String(item.ID)
+	iDValue2 := str.String(item.ID)
 	if ids := NormalizeMemoryIDs(query.IDs); len(ids) > 0 &&
-		!slices.Contains(ids, stringValue6.Trim()) {
+		!slices.Contains(ids, iDValue2.Trim()) {
 		return false
 	}
 
@@ -328,8 +328,8 @@ func CheckMemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
 
 // CheckMemoryMatchesSessionQuery checks memory matches session query.
 func CheckMemoryMatchesSessionQuery(item MemoryItem, query SessionMemoryQuery) bool {
-	stringValue7 := str.String(query.SessionID)
-	sessionID := stringValue7.Trim()
+	sessionIDValue2 := str.String(query.SessionID)
+	sessionID := sessionIDValue2.Trim()
 	if sessionID == "" || !CheckMemoryBelongsToSession(item, sessionID) {
 		return false
 	}
@@ -345,26 +345,26 @@ func CheckMemoryMatchesSessionQuery(item MemoryItem, query SessionMemoryQuery) b
 
 // CheckMemoryBelongsToSession checks memory belongs to session.
 func CheckMemoryBelongsToSession(item MemoryItem, sessionID string) bool {
-	stringValue8 := str.String(sessionID)
-	sessionID = stringValue8.Trim()
+	sessionIDValue3 := str.String(sessionID)
+	sessionID = sessionIDValue3.Trim()
 	if sessionID == "" {
 		return false
 	}
 
 	for _, link := range item.SourceLinks {
-		stringValue10 := str.String(link.SessionID)
-		if stringValue10.Trim() == sessionID {
+		sessionIDValue4 := str.String(link.SessionID)
+		if sessionIDValue4.Trim() == sessionID {
 			return true
 		}
 	}
-	stringValue9 := str.String(item.Metadata["source_session_id"])
-	return stringValue9.Trim() == sessionID
+	metadataValue := str.String(item.Metadata["source_session_id"])
+	return metadataValue.Trim() == sessionID
 }
 
 // GetSimpleMemoryScore returns a lightweight score for memory ranking.
 func GetSimpleMemoryScore(item MemoryItem, query string) float64 {
-	stringValue11 := str.String(query)
-	query = stringValue11.Normalized()
+	queryValue := str.String(query)
+	query = queryValue.Normalized()
 	if query == "" {
 		return 0
 	}
@@ -384,8 +384,8 @@ func GetSimpleMemoryScore(item MemoryItem, query string) float64 {
 }
 
 func checkMemoryItemMatchesTextQuery(item MemoryItem, query string) bool {
-	stringValue12 := str.String(query)
-	query = stringValue12.Normalized()
+	queryValue2 := str.String(query)
+	query = queryValue2.Normalized()
 	if query == "" {
 		return true
 	}
@@ -464,8 +464,8 @@ func getMemorySearchText(item MemoryItem) string {
 }
 
 func GetMemorySearchTokenPrefix(token string) string {
-	stringValue13 := str.String(token)
-	token = stringValue13.Normalized()
+	tokenValue := str.String(token)
+	token = tokenValue.Normalized()
 	runes := []rune(token)
 	if len(runes) <= 4 {
 		return token
@@ -478,8 +478,8 @@ func GetMemorySearchTokenPrefix(token string) string {
 }
 
 func SearchTokens(query string) []string {
-	stringValue14 := str.String(query)
-	fields := strings.FieldsFunc(stringValue14.Trim(), func(r rune) bool {
+	queryValue3 := str.String(query)
+	fields := strings.FieldsFunc(queryValue3.Trim(), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
 	if len(fields) == 0 {
@@ -489,8 +489,8 @@ func SearchTokens(query string) []string {
 	seen := make(map[string]struct{}, len(fields))
 	tokens := make([]string, 0, len(fields))
 	for _, field := range fields {
-		stringValue15 := str.String(field)
-		field = stringValue15.Normalized()
+		fieldValue := str.String(field)
+		field = fieldValue.Normalized()
 		if len([]rune(field)) < 3 {
 			continue
 		}
@@ -512,8 +512,8 @@ func HasAllMemoryTags(itemTags []string, queryTags []string) bool {
 		tags[tagValue.Normalized()] = struct{}{}
 	}
 	for _, tag := range queryTags {
-		stringValue16 := str.String(tag)
-		if _, ok := tags[stringValue16.Normalized()]; !ok {
+		tagValue2 := str.String(tag)
+		if _, ok := tags[tagValue2.Normalized()]; !ok {
 			return false
 		}
 	}
@@ -524,8 +524,8 @@ func HasAllMemoryTags(itemTags []string, queryTags []string) bool {
 func MemoryKindsToStrings(kinds []MemoryKind) []string {
 	values := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
-		stringValue17 := str.String(string(kind))
-		value := stringValue17.Trim()
+		kindValue := str.String(string(kind))
+		value := kindValue.Trim()
 		if value != "" {
 			values = append(values, value)
 		}
@@ -537,8 +537,8 @@ func MemoryKindsToStrings(kinds []MemoryKind) []string {
 func MemoryStatusesToStrings(statuses []MemoryStatus) []string {
 	values := make([]string, 0, len(statuses))
 	for _, status := range statuses {
-		stringValue18 := str.String(string(status))
-		value := stringValue18.Trim()
+		statusValue := str.String(string(status))
+		value := statusValue.Trim()
 		if value != "" {
 			values = append(values, value)
 		}

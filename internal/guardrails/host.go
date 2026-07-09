@@ -40,8 +40,8 @@ func (p HostPolicy) Check(host string) (HostBlock, bool) {
 
 	if rule, ok := getFirstMatchingDomainRule(p.DenyRules, host); ok {
 		message := `blocked by configured native host denylist policy: "` + host + `" matched "` + rule.Pattern + `"`
-		stringValue1 := str.String(rule.Source)
-		if source := stringValue1.Trim(); source != "" {
+		sourceValue := str.String(rule.Source)
+		if source := sourceValue.Trim(); source != "" {
 			message += ` from "` + source + `"`
 		}
 

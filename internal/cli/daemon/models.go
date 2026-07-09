@@ -98,8 +98,8 @@ func prepareDaemonRuntimeConfig(cfg *config.Config) *config.Config {
 
 	if cfg.Search.Vector.Enabled {
 		if _, err := cfg.ResolveEmbeddingModelAuth(); err == nil {
-			stringValue2 := str.String(cfg.SummaryModelEffective())
-			if stringValue2.Trim() != "" {
+			summaryModelEffectiveValue := str.String(cfg.SummaryModelEffective())
+			if summaryModelEffectiveValue.Trim() != "" {
 				if !needsRuntimeConfig {
 					return cfg
 				}
@@ -112,8 +112,8 @@ func prepareDaemonRuntimeConfig(cfg *config.Config) *config.Config {
 		runtimeCfg.Search.Vector.Enabled = false
 		needsRuntimeConfig = true
 	}
-	stringValue1 := str.String(cfg.SummaryModelEffective())
-	if stringValue1.Trim() == "" {
+	summaryModelEffectiveValue2 := str.String(cfg.SummaryModelEffective())
+	if summaryModelEffectiveValue2.Trim() == "" {
 		disabled := false
 		runtimeCfg.Memory.Enabled = &disabled
 		needsRuntimeConfig = true
@@ -131,9 +131,9 @@ func hasDaemonModelSelection(cfg *config.Config) bool {
 	if cfg == nil {
 		return false
 	}
-	stringValue3 := str.String(cfg.Models.Main.Name)
-	stringValue4 := str.String(cfg.Models.Main.Provider)
-	return stringValue3.Trim() != "" && stringValue4.Trim() != ""
+	nameValue := str.String(cfg.Models.Main.Name)
+	providerValue := str.String(cfg.Models.Main.Provider)
+	return nameValue.Trim() != "" && providerValue.Trim() != ""
 }
 
 func buildDaemonModelClients(cfg *config.Config) (models.Client, models.Client, models.Client, error) {
@@ -163,14 +163,14 @@ func buildDaemonModelClients(cfg *config.Config) (models.Client, models.Client, 
 }
 
 func buildDaemonMainModelClient(cfg *config.Config) (models.Client, config.ModelAuth, error) {
-	stringValue5 := str.String(cfg.Models.Main.Name)
-	if stringValue5.Trim() == "" {
+	nameValue2 := str.String(cfg.Models.Main.Name)
+	if nameValue2.Trim() == "" {
 		err := errors.New("model is required")
 		daemonLog.Warn().Err(err).Msg("Starting daemon without a configured model")
 		return unavailableModelClient{err: err}, config.ModelAuth{}, nil
 	}
-	stringValue6 := str.String(cfg.Models.Main.Provider)
-	if stringValue6.Trim() == "" {
+	providerValue2 := str.String(cfg.Models.Main.Provider)
+	if providerValue2.Trim() == "" {
 		err := errors.New("model provider is required")
 		daemonLog.Warn().Err(err).Msg("Starting daemon without a configured model provider")
 		return unavailableModelClient{err: err}, config.ModelAuth{}, nil

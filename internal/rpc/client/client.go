@@ -85,8 +85,9 @@ type RepairSessionOptions = search.VectorRepairOptions
 type RepairSessionResult = search.VectorRepairResult
 
 type CreateSessionOptions struct {
-	ID         string
-	AutoSwitch *bool
+	ID           string
+	OriginSource string
+	AutoSwitch   *bool
 }
 
 type SessionListOptions = storage.SessionListOptions
@@ -223,8 +224,8 @@ type Options struct {
 
 // NewClient returns a client configured with the supplied dependencies.
 func NewClient(ctx context.Context, opts Options) (*Client, error) {
-	stringValue1 := str.String(opts.Address)
-	address := stringValue1.Trim()
+	addressValue := str.String(opts.Address)
+	address := addressValue.Trim()
 	if address == "" {
 		return nil, fmt.Errorf("rpc address is required")
 	}
@@ -292,12 +293,12 @@ func prepareRPCConnection(reconnector rpcReconnector) {
 }
 
 func (c *Client) Respond(ctx context.Context, message string, opts RespondOptions) (string, error) {
-	stringValue2 := str.String(opts.Instruct)
-	stringValue3 := str.String(opts.SessionID)
+	instructValue := str.String(opts.Instruct)
+	sessionIDValue := str.String(opts.SessionID)
 	req := &morphpb.RespondRequest{
 		Message:  message,
-		Instruct: stringValue2.Trim(),
-		Id:       stringValue3.Trim(),
+		Instruct: instructValue.Trim(),
+		Id:       sessionIDValue.Trim(),
 	}
 	if opts.Stream != nil {
 		req.Stream = opts.Stream
@@ -357,19 +358,19 @@ func protoRespondTraceEventToTraceEvent(event *morphpb.RespondEvent) (trace.Even
 	if event == nil {
 		return trace.Event{}, false
 	}
-	stringValue5 := str.String(event.GetTraceType())
-	eventType := stringValue5.Trim()
+	traceTypeValue := str.String(event.GetTraceType())
+	eventType := traceTypeValue.Trim()
 	if eventType == "" {
 		return trace.Event{}, false
 	}
-	stringValue6 := str.String(event.GetTraceSessionId())
+	traceSessionIdValue := str.String(event.GetTraceSessionId())
 	traceEvent := trace.Event{
-		SessionID: stringValue6.Trim(),
+		SessionID: traceSessionIdValue.Trim(),
 		Type:      eventType,
 		Timestamp: protoTimestampToTime(event.GetTimestamp()),
 	}
-	stringValue7 := str.String(event.GetTracePayloadJson())
-	if payloadJSON := stringValue7.Trim(); payloadJSON != "" {
+	tracePayloadJsonValue := str.String(event.GetTracePayloadJson())
+	if payloadJSON := tracePayloadJsonValue.Trim(); payloadJSON != "" {
 		var payload any
 		if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
 			return trace.Event{}, false

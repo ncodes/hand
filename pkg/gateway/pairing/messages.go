@@ -7,10 +7,10 @@ import (
 )
 
 func ChallengeMessage(challenge Challenge) string {
-	stringValue1 := str.String(challenge.Code)
-	code := stringValue1.Trim()
-	stringValue2 := str.String(challenge.Request.Source)
-	source := stringValue2.Trim()
+	codeValue := str.String(challenge.Code)
+	code := codeValue.Trim()
+	sourceValue := str.String(challenge.Request.Source)
+	source := sourceValue.Trim()
 	if source == "" {
 		source = "gateway"
 	}

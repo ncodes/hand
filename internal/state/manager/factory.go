@@ -51,8 +51,8 @@ func OpenStoreWithRerankerClient(
 	}
 
 	cfg.Normalize()
-	stringValue1 := str.String(cfg.Storage.Backend)
-	switch stringValue1.Normalized() {
+	backendValue := str.String(cfg.Storage.Backend)
+	switch backendValue.Normalized() {
 	case "", "sqlite":
 		if err := validateSearchVectorConfig(cfg); err != nil {
 			return nil, err

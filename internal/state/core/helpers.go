@@ -12,8 +12,8 @@ import (
 
 // ValidateSessionID checks that id can be used as a persisted session ID.
 func ValidateSessionID(id string) error {
-	stringValue1 := str.String(id)
-	id = stringValue1.Trim()
+	idValue := str.String(id)
+	id = idValue.Trim()
 	if id == "" {
 		return errors.New("session id is required")
 	}
@@ -31,8 +31,8 @@ func ValidateSessionID(id string) error {
 
 // MarkSessionArchived returns session with archive metadata applied.
 func MarkSessionArchived(session Session, archivedAt time.Time, expiresAt time.Time) (Session, error) {
-	stringValue2 := str.String(session.ID)
-	session.ID = stringValue2.Trim()
+	iDValue := str.String(session.ID)
+	session.ID = iDValue.Trim()
 	if err := ValidateSessionID(session.ID); err != nil {
 		return Session{}, err
 	}
@@ -61,8 +61,8 @@ func MarkSessionArchived(session Session, archivedAt time.Time, expiresAt time.T
 
 // ClearSessionArchive returns session with archive metadata removed.
 func ClearSessionArchive(session Session) (Session, error) {
-	stringValue3 := str.String(session.ID)
-	session.ID = stringValue3.Trim()
+	iDValue2 := str.String(session.ID)
+	session.ID = iDValue2.Trim()
 	if err := ValidateSessionID(session.ID); err != nil {
 		return Session{}, err
 	}
@@ -80,14 +80,14 @@ func ClearSessionArchive(session Session) (Session, error) {
 
 // NormalizeSessionTitle normalizes session title.
 func NormalizeSessionTitle(title string) string {
-	stringValue4 := str.String(title)
-	return stringValue4.Trim()
+	titleValue := str.String(title)
+	return titleValue.Trim()
 }
 
 // NormalizeSessionTitleSource normalizes session title source.
 func NormalizeSessionTitleSource(source string) string {
-	stringValue5 := str.String(source)
-	source = stringValue5.Trim()
+	sourceValue := str.String(source)
+	source = sourceValue.Trim()
 	switch source {
 	case SessionTitleSourceGenerated, SessionTitleSourceManual:
 		return source
@@ -113,8 +113,8 @@ func CloneMessages(messages []morphmsg.Message) []morphmsg.Message {
 
 // NormalizeSessionSummary normalizes session summary.
 func NormalizeSessionSummary(summary SessionSummary) (SessionSummary, error) {
-	stringValue6 := str.String(summary.SessionID)
-	summary.SessionID = stringValue6.Trim()
+	sessionIDValue := str.String(summary.SessionID)
+	summary.SessionID = sessionIDValue.Trim()
 	if err := ValidateSessionID(summary.SessionID); err != nil {
 		if err.Error() == "session id is required" {
 			return SessionSummary{}, errors.New("session id is required")
@@ -122,8 +122,8 @@ func NormalizeSessionSummary(summary SessionSummary) (SessionSummary, error) {
 
 		return SessionSummary{}, err
 	}
-	stringValue7 := str.String(summary.SessionSummary)
-	summary.SessionSummary = stringValue7.Trim()
+	sessionSummaryValue := str.String(summary.SessionSummary)
+	summary.SessionSummary = sessionSummaryValue.Trim()
 	if summary.SessionSummary == "" {
 		return SessionSummary{}, errors.New("session summary is required")
 	}
@@ -145,8 +145,8 @@ func NormalizeSessionSummary(summary SessionSummary) (SessionSummary, error) {
 	} else {
 		summary.UpdatedAt = summary.UpdatedAt.UTC()
 	}
-	stringValue8 := str.String(summary.CurrentTask)
-	summary.CurrentTask = stringValue8.Trim()
+	currentTaskValue := str.String(summary.CurrentTask)
+	summary.CurrentTask = currentTaskValue.Trim()
 	summary.Discoveries = cloneStrings(summary.Discoveries)
 	summary.OpenQuestions = cloneStrings(summary.OpenQuestions)
 	summary.NextActions = cloneStrings(summary.NextActions)
@@ -172,16 +172,15 @@ func UniqueStrings(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	unique := make([]string, 0, len(values))
 	for _, value := range values {
-		stringValue9 := str.String(value)
-		value = stringValue9.Trim()
-		if value == "" {
+		valueText := str.String(value).Trim()
+		if valueText == "" {
 			continue
 		}
-		if _, ok := seen[value]; ok {
+		if _, ok := seen[valueText]; ok {
 			continue
 		}
-		seen[value] = struct{}{}
-		unique = append(unique, value)
+		seen[valueText] = struct{}{}
+		unique = append(unique, valueText)
 	}
 
 	return unique
@@ -189,8 +188,8 @@ func UniqueStrings(values []string) []string {
 
 // NormalizeMatchValue canonicalizes role, tool, and filter values before comparison.
 func NormalizeMatchValue(value string) string {
-	stringValue10 := str.String(value)
-	return strings.ToLower(strings.Join(strings.Fields(stringValue10.Trim()), " "))
+	value2 := str.String(value)
+	return strings.ToLower(strings.Join(strings.Fields(value2.Trim()), " "))
 }
 
 func cloneStrings(values []string) []string {
@@ -200,8 +199,8 @@ func cloneStrings(values []string) []string {
 
 	cloned := make([]string, 0, len(values))
 	for _, value := range values {
-		stringValue11 := str.String(value)
-		value = stringValue11.Trim()
+		value3 := str.String(value)
+		value = value3.Trim()
 		if value == "" {
 			continue
 		}

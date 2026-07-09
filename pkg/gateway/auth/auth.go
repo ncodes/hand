@@ -15,8 +15,8 @@ var (
 )
 
 func CheckBearer(header string, token string) error {
-	stringValue1 := str.String(token)
-	token = stringValue1.Trim()
+	tokenValue := str.String(token)
+	token = tokenValue.Trim()
 	if token == "" {
 		return nil
 	}

@@ -21,8 +21,8 @@ func (s *Store) RepairVectorStore(
 	if s.vectors == nil {
 		return search.VectorRepairResult{}, nil
 	}
-	stringValue1 := str.String(opts.SessionID)
-	sessionID := stringValue1.Trim()
+	sessionIDValue := str.String(opts.SessionID)
+	sessionID := sessionIDValue.Trim()
 	if sessionID != "" {
 		if err := state.ValidateSessionID(sessionID); err != nil {
 			return search.VectorRepairResult{}, err

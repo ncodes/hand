@@ -88,8 +88,8 @@ func SetFileOutput(out io.Writer) {
 }
 
 func ConfigureLogger(programName string, noColor bool) *zerolog.Logger {
-	stringValue1 := str.String(programName)
-	if stringValue1.Trim() == "" {
+	programNameValue := str.String(programName)
+	if programNameValue.Trim() == "" {
 		programName = "agent"
 	}
 
@@ -106,8 +106,8 @@ func GetLogger(programName string) *zerolog.Logger {
 }
 
 func SetLogLevel(level string) {
-	stringValue2 := str.String(level)
-	switch stringValue2.Normalized() {
+	levelValue := str.String(level)
+	switch levelValue.Normalized() {
 	case "debug":
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	case "warn":

@@ -129,10 +129,10 @@ func decodeHydratedPlanPayload(content string) (envtypes.Plan, bool) {
 	if explanationRaw, ok := raw["explanation"]; ok {
 		_ = json.Unmarshal(explanationRaw, &explanation)
 	}
-	stringValue3 := str.String(explanation)
+	explanationValue := str.String(explanation)
 	plan := envtypes.Plan{
 		Steps:       steps,
-		Explanation: stringValue3.Trim(),
+		Explanation: explanationValue.Trim(),
 	}
 
 	if err := envtypes.ValidatePlan(plan); err != nil {

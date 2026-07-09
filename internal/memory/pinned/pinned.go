@@ -79,17 +79,17 @@ func LoadFile() ([]state.MemoryItem, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read pinned memory file %q: %w", file, err)
 	}
-	stringValue1 := str.String(string(data))
-	text := stringValue1.Trim()
+	dataValue := str.String(string(data))
+	text := dataValue.Trim()
 	if text == "" {
 		return nil, nil
 	}
-	stringValue2 := str.String(filepath.Base(file))
+	baseValue := str.String(filepath.Base(file))
 	return []state.MemoryItem{{
 		ID:     getFileMemoryID(file),
 		Kind:   state.MemoryKindPinned,
 		Status: state.MemoryStatusActive,
-		Title:  stringValue2.Trim(),
+		Title:  baseValue.Trim(),
 		Text:   text,
 		Metadata: map[string]string{
 			"source": "file",
@@ -140,10 +140,10 @@ func PrepareItems(
 				return nil, err
 			}
 		}
-		stringValue3 := str.String(redacted.Text)
-		redacted.Text = stringValue3.Trim()
-		stringValue4 := str.String(redacted.Title)
-		redacted.Title = stringValue4.Trim()
+		textValue := str.String(redacted.Text)
+		redacted.Text = textValue.Trim()
+		titleValue := str.String(redacted.Title)
+		redacted.Title = titleValue.Trim()
 		redacted = truncateItem(redacted, itemLimit)
 		if redacted.Title == "" && redacted.Text == "" {
 			continue
@@ -168,8 +168,8 @@ func PrepareItems(
 // getAutoFileFromRoot performs a case-insensitive lookup so users do not have to
 // remember exact filename casing across platforms.
 func getAutoFileFromRoot(root string) (string, bool, error) {
-	stringValue5 := str.String(root)
-	root = stringValue5.Trim()
+	rootValue := str.String(root)
+	root = rootValue.Trim()
 	if root == "" {
 		return "", false, nil
 	}
@@ -204,8 +204,8 @@ func getAutoFileFromRoot(root string) (string, bool, error) {
 // getFileMemoryID makes file-pinned IDs stable across runs and distinct from
 // generated store-backed memory IDs.
 func getFileMemoryID(file string) string {
-	stringValue6 := str.String(file)
-	return "pinned_file:" + stringValue6.Trim()
+	fileValue := str.String(file)
+	return "pinned_file:" + fileValue.Trim()
 }
 
 func getItemCharCount(item state.MemoryItem) int {

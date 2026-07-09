@@ -128,8 +128,8 @@ func NewRegistry(
 	}
 
 	for _, model := range models {
-		stringValue1 := str.String(model.ID)
-		model.ID = stringValue1.Trim()
+		iDValue := str.String(model.ID)
+		model.ID = iDValue.Trim()
 		model.Owner = normalizeID(model.Owner)
 		model.Provider = normalizeID(model.Provider)
 		model.API = normalizeID(model.API)
@@ -204,8 +204,8 @@ func (r *Registry) GetModel(providerID, modelID string) (ModelDefinition, bool) 
 	}
 
 	providerID = normalizeID(providerID)
-	stringValue2 := str.String(modelID)
-	modelID = stringValue2.Trim()
+	modelIDValue := str.String(modelID)
+	modelID = modelIDValue.Trim()
 	if providerID == "" || modelID == "" {
 		return ModelDefinition{}, false
 	}
@@ -279,8 +279,8 @@ func (r *Registry) GetBaseURL(providerID, apiID string) string {
 	if apiID == "" {
 		apiID = provider.DefaultAPI
 	}
-	stringValue3 := str.String(provider.BaseURLs[apiID])
-	return stringValue3.Trim()
+	baseURLsValue := str.String(provider.BaseURLs[apiID])
+	return baseURLsValue.Trim()
 }
 
 // SupportsProviderAPI reports whether the provider can use the given API.
@@ -301,13 +301,13 @@ func (r *Registry) SupportsProviderAPI(providerID, apiID string) bool {
 	if provider.DefaultAPI == apiID {
 		return true
 	}
-	stringValue4 := str.String(provider.BaseURLs[apiID])
-	return stringValue4.Trim() != ""
+	baseURLsValue2 := str.String(provider.BaseURLs[apiID])
+	return baseURLsValue2.Trim() != ""
 }
 
 func normalizeID(value string) string {
-	stringValue5 := str.String(value)
-	return stringValue5.Normalized()
+	valueText := str.String(value)
+	return valueText.Normalized()
 }
 
 func cloneStringMap(values map[string]string) map[string]string {
@@ -318,8 +318,8 @@ func cloneStringMap(values map[string]string) map[string]string {
 	cloned := make(map[string]string, len(values))
 	for key, value := range values {
 		key = normalizeID(key)
-		stringValue6 := str.String(value)
-		value = stringValue6.Trim()
+		value2 := str.String(value)
+		value = value2.Trim()
 		if key == "" || value == "" {
 			continue
 		}
@@ -340,8 +340,8 @@ func cloneLocalProviderDefinition(value *LocalProviderDefinition) *LocalProvider
 	cloned := *value
 	cloned.NativeChatAPI = normalizeID(cloned.NativeChatAPI)
 	cloned.EmbeddingsAPI = normalizeID(cloned.EmbeddingsAPI)
-	stringValue7 := str.String(cloned.AuthMarker)
-	cloned.AuthMarker = stringValue7.Trim()
+	authMarkerValue := str.String(cloned.AuthMarker)
+	cloned.AuthMarker = authMarkerValue.Trim()
 	cloned.OpenAICompatibleChatAPIs = normalizeIDList(cloned.OpenAICompatibleChatAPIs)
 
 	return &cloned

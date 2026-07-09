@@ -103,9 +103,9 @@ func (t *Turn) retrieveMemoryInstruction(
 			Limit:     searchMemoryRetrievalLimit,
 			MaxChars:  searchMemoryRetrievalItemChars,
 		})
-		stringValue1 := str.String(userText)
+		userTextValue := str.String(userText)
 		query := memory.SearchQuery{
-			Text:            stringValue1.Trim(),
+			Text:            userTextValue.Trim(),
 			RerankerUseCase: memory.RerankerUseCaseTurnRetrieval,
 			Kinds: []memory.Kind{
 				memory.KindSemantic,
@@ -176,19 +176,19 @@ func recordMemoryRetrievalFailed(
 	err error,
 ) {
 	if traceSession != nil {
-		stringValue4 := str.String(providerName)
-		stringValue5 := str.String(operation)
+		providerNameValue := str.String(providerName)
+		operationValue := str.String(operation)
 		traceSession.Record(trace.EvtMemoryRetrievalFailed, trace.MemoryEventPayload{
-			Provider:  stringValue4.Trim(),
-			Operation: stringValue5.Trim(),
+			Provider:  providerNameValue.Trim(),
+			Operation: operationValue.Trim(),
 			Error:     err.Error(),
 		})
 	}
-	stringValue2 := str.String(providerName)
-	stringValue3 := str.String(operation)
+	providerNameValue2 := str.String(providerName)
+	operationValue2 := str.String(operation)
 	agentLog.Warn().
-		Str("provider", stringValue2.Trim()).
-		Str("operation", stringValue3.Trim()).
+		Str("provider", providerNameValue2.Trim()).
+		Str("operation", operationValue2.Trim()).
 		Err(err).
 		Msg("memory retrieval failed")
 }
@@ -226,14 +226,14 @@ func memoryRetrievalTraceItems(memoryItems []memory.MemoryItem) []trace.MemoryTr
 
 // memoryRetrievalTraceItem reduces a memory item to safe trace metadata.
 func memoryRetrievalTraceItem(item memory.MemoryItem) trace.MemoryTraceItem {
-	stringValue6 := str.String(item.ID)
-	stringValue7 := str.String(item.Text)
+	iDValue := str.String(item.ID)
+	textValue := str.String(item.Text)
 	return trace.MemoryTraceItem{
-		ID:          stringValue6.Trim(),
+		ID:          iDValue.Trim(),
 		Kind:        string(item.Kind),
 		Status:      string(item.Status),
 		Title:       truncateMemoryTraceText(item.Title),
-		TextChars:   len([]rune(stringValue7.Trim())),
+		TextChars:   len([]rune(textValue.Trim())),
 		Confidence:  item.Confidence,
 		Reflected:   item.Reflected,
 		SourceCount: len(item.SourceLinks),
@@ -242,11 +242,10 @@ func memoryRetrievalTraceItem(item memory.MemoryItem) trace.MemoryTraceItem {
 
 // truncateMemoryTraceText caps memory trace titles to a compact display length.
 func truncateMemoryTraceText(value string) string {
-	stringValue8 := str.String(value)
-	value = stringValue8.Trim()
-	runes := []rune(value)
+	valueText := str.String(value).Trim()
+	runes := []rune(valueText)
 	if len(runes) <= 120 {
-		return value
+		return valueText
 	}
 	return string(runes[:120])
 }
@@ -273,9 +272,9 @@ func sanitizeMemoryItemForPromptWithTrace(item memory.MemoryItem, traceSession t
 	item.Title = getMemoryPromptText(item.Title)
 	item.Text = getMemoryPromptText(item.Text)
 	content := strings.Join([]string{item.Title, item.Text}, "\n")
-	stringValue9 := str.String(item.Title)
-	stringValue10 := str.String(item.Text)
-	if stringValue9.Trim() == "" && stringValue10.Trim() == "" {
+	titleValue := str.String(item.Title)
+	textValue2 := str.String(item.Text)
+	if titleValue.Trim() == "" && textValue2.Trim() == "" {
 		return memory.MemoryItem{}, false
 	}
 
@@ -317,11 +316,11 @@ func recordMemorySafetyBlocked(
 func getMemoryPromptText(value string) string {
 	sanitized, ok := sanitizeMemoryPromptValue(value).(string)
 	if !ok {
-		stringValue12 := str.String(value)
-		return stringValue12.Trim()
+		value2 := str.String(value)
+		return value2.Trim()
 	}
-	stringValue11 := str.String(sanitized)
-	return stringValue11.Trim()
+	sanitizedValue := str.String(sanitized)
+	return sanitizedValue.Trim()
 }
 
 // memoryItemsToContextItems converts memory records into instruction-rendering items.

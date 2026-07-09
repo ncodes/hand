@@ -32,8 +32,8 @@ func (s *Store) ConfigureVectorStore(opts search.VectorStoreOptions) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
-	stringValue1 := str.String(opts.EmbeddingModel)
-	model := stringValue1.Trim()
+	embeddingModelValue := str.String(opts.EmbeddingModel)
+	model := embeddingModelValue.Trim()
 	if opts.Embedder == nil && opts.VectorStore == nil && model == "" {
 		s.vectors = nil
 		return nil
@@ -211,14 +211,14 @@ func (s *Store) searchMessagesVector(
 	opts base.SearchMessageOptions,
 	candidateLimit int,
 ) ([]*searchCandidate, error) {
-	stringValue2 := str.String(opts.Query)
+	queryValue := str.String(opts.Query)
 	req := search.EmbeddingRequest{
 		Model:        s.vectors.Model,
 		Relationship: "query_vector_for_session_message_retrieval",
 		Target:       "session_message_vectors",
 		Inputs: []search.EmbeddingInput{{
 			ID:         "query",
-			Text:       stringValue2.Trim(),
+			Text:       queryValue.Trim(),
 			SourceKind: search.SourceKindSessionMessage,
 		}},
 	}
@@ -239,11 +239,11 @@ func (s *Store) searchMessagesVector(
 			Msg("session search query embedding validation failed")
 		return nil, err
 	}
-	stringValue3 := str.String(embedding.Model)
+	modelValue := str.String(embedding.Model)
 	s.logSearchEvent("query embedding completed", id, opts).
 		Int("dimensions", embedding.Dimensions).
 		Str("source_kind", string(search.SourceKindSessionMessage)).
-		Str("embedding_model", stringValue3.Trim()).
+		Str("embedding_model", modelValue.Trim()).
 		Msg("session search query embedding completed for vector retrieval")
 
 	s.logSearchEvent("vector search started", id, opts).
@@ -253,7 +253,7 @@ func (s *Store) searchMessagesVector(
 		Str("target", "session_message_vectors").
 		Str("embedding_model", s.vectors.Model).
 		Msg("session search vector retrieval started for similar messages")
-	stringValue4 := str.String(string(opts.Role))
+	roleValue := str.String(string(opts.Role))
 	result, err := s.vectors.Store.Search(ctx, search.VectorSearchRequest{
 		EmbeddingModel: s.vectors.Model,
 		Dimensions:     embedding.Dimensions,
@@ -263,7 +263,7 @@ func (s *Store) searchMessagesVector(
 			SourceKind:      search.SourceKindSessionMessage,
 			SessionID:       id,
 			IgnoreSessionID: opts.IgnoreSessionID,
-			Role:            stringValue4.Trim(),
+			Role:            roleValue.Trim(),
 			ToolName:        base.NormalizeMatchValue(opts.ToolName),
 		},
 	})
@@ -386,9 +386,9 @@ func (s *Store) rerankSearchCandidates(
 		retrievalCandidates = append(retrievalCandidates, item)
 		candidateByID[item.ID] = candidate
 	}
-	stringValue5 := str.String(opts.Query)
+	queryValue2 := str.String(opts.Query)
 	result, err := search.RerankWithFallback(ctx, reranker, search.DeterministicReranker{}, search.RerankRequest{
-		Query:      stringValue5.Trim(),
+		Query:      queryValue2.Trim(),
 		Caller:     "session_search",
 		SourceKind: search.SourceKindSessionMessage,
 		Candidates: retrievalCandidates,
@@ -426,11 +426,11 @@ func (s *Store) rerankSearchCandidates(
 }
 
 func searchCandidateToRetrievalCandidate(candidate *searchCandidate) search.Candidate {
-	stringValue6 := str.String(candidate.MatchedText)
-	text := stringValue6.Trim()
+	matchedTextValue := str.String(candidate.MatchedText)
+	text := matchedTextValue.Trim()
 	if text == "" {
-		stringValue7 := str.String(candidate.Message.Content)
-		text = stringValue7.Trim()
+		contentValue := str.String(candidate.Message.Content)
+		text = contentValue.Trim()
 	}
 
 	return search.Candidate{
@@ -555,12 +555,12 @@ func (s *Store) vectorRecordsForMessages(
 		Target:       "session_message_vectors",
 		Inputs:       embeddingInputs,
 	}
-	stringValue8 := str.String(req.Model)
+	modelValue2 := str.String(req.Model)
 	s.logVectorEvent("embedding started").
 		Int("input_count", len(req.Inputs)).
 		Int("message_count", len(messages)).
 		Int("row_count", len(inputs)).
-		Str("embedding_model", stringValue8.Trim()).
+		Str("embedding_model", modelValue2.Trim()).
 		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Msg("session vector indexing embedding started for message rows")
 
@@ -574,13 +574,13 @@ func (s *Store) vectorRecordsForMessages(
 			Msg("session vector embedding validation failed")
 		return nil, err
 	}
-	stringValue9 := str.String(result.Model)
+	modelValue3 := str.String(result.Model)
 	s.logVectorEvent("embedding completed").
 		Int("input_count", len(req.Inputs)).
 		Int("message_count", len(messages)).
 		Int("row_count", len(inputs)).
 		Int("dimensions", result.Dimensions).
-		Str("embedding_model", stringValue9.Trim()).
+		Str("embedding_model", modelValue3.Trim()).
 		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Msg("session vector indexing embedding completed for message rows")
 
@@ -618,10 +618,10 @@ func (s *Store) upsertVectorRecords(ctx context.Context, records []search.Vector
 
 	model := records[0].EmbeddingModel
 	dimensions := records[0].Dimensions
-	stringValue10 := str.String(model)
+	modelValue4 := str.String(model)
 	s.logVectorEvent("upsert started").
 		Int("record_count", len(records)).
-		Str("embedding_model", stringValue10.Trim()).
+		Str("embedding_model", modelValue4.Trim()).
 		Int("dimensions", dimensions).
 		Str("target", "session_message_vectors").
 		Msg("session vector index upsert started for message rows")
@@ -632,10 +632,10 @@ func (s *Store) upsertVectorRecords(ctx context.Context, records []search.Vector
 			Msg("session vector upsert failed")
 		return err
 	}
-	stringValue11 := str.String(model)
+	modelValue5 := str.String(model)
 	s.logVectorEvent("upsert completed").
 		Int("record_count", len(records)).
-		Str("embedding_model", stringValue11.Trim()).
+		Str("embedding_model", modelValue5.Trim()).
 		Int("dimensions", dimensions).
 		Str("target", "session_message_vectors").
 		Msg("session vector index upsert completed for message rows")
@@ -680,8 +680,8 @@ func (s *Store) deleteVectorRows(ctx context.Context, sourceIDs []string) error 
 }
 
 func (s *Store) deleteVectorRowsBySession(ctx context.Context, sessionID string) error {
-	stringValue12 := str.String(sessionID)
-	sessionID = stringValue12.Trim()
+	sessionIDValue := str.String(sessionID)
+	sessionID = sessionIDValue.Trim()
 	if s == nil || s.vectors == nil || sessionID == "" {
 		return nil
 	}
@@ -779,8 +779,8 @@ func (s *Store) rerankerName() string {
 	if s == nil || s.vectors == nil || s.vectors.Reranker == nil {
 		return search.RerankerDeterministic
 	}
-	stringValue13 := str.String(s.vectors.Reranker.Name())
-	return stringValue13.Normalized()
+	nameValue := str.String(s.vectors.Reranker.Name())
+	return nameValue.Normalized()
 }
 
 func (s *Store) diagnosticsEnabled() bool {
@@ -788,12 +788,12 @@ func (s *Store) diagnosticsEnabled() bool {
 }
 
 func getSearchRerankResultName(result search.RerankResult, fallback string) string {
-	stringValue14 := str.String(result.Reranker)
-	if name := stringValue14.Normalized(); name != "" {
+	rerankerValue := str.String(result.Reranker)
+	if name := rerankerValue.Normalized(); name != "" {
 		return name
 	}
-	stringValue15 := str.String(fallback)
-	return stringValue15.Normalized()
+	fallbackValue := str.String(fallback)
+	return fallbackValue.Normalized()
 }
 
 func getSearchResultMessageCount(results []base.SearchMessageResult) int {

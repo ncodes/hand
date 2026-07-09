@@ -533,8 +533,8 @@ func TestBuildMemoryFlushRequest_UsesDefaultTriggerWhenEmpty(t *testing.T) {
 
 func TestBuildEpisodicExtractionInstructions_ReturnsCuratedExtractionPrompt(t *testing.T) {
 	instructions := BuildEpisodicExtractionInstructions()
-	stringValue1 := str.String(instructions)
-	require.Equal(t, stringValue1.Trim(), instructions)
+	instructionsValue := str.String(instructions)
+	require.Equal(t, instructionsValue.Trim(), instructions)
 	require.Contains(t, instructions, "Extract curated episodic memory candidates")
 	require.Contains(t, instructions, "task trace events")
 	require.Contains(t, instructions, "resolved issues")

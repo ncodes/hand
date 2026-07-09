@@ -64,13 +64,13 @@ func NormalizeUpdate(update Update) (InboundMessage, bool, error) {
 	if msg.From != nil && msg.From.IsBot {
 		return InboundMessage{}, false, nil
 	}
-	stringValue1 := str.String(msg.Text)
-	text := stringValue1.Trim()
+	textValue := str.String(msg.Text)
+	text := textValue.Trim()
 	if text == "" {
 		return InboundMessage{}, false, nil
 	}
-	stringValue2 := str.String(strconv.FormatInt(msg.Chat.ID, 10))
-	chatID := stringValue2.Trim()
+	formatIntValue := str.String(strconv.FormatInt(msg.Chat.ID, 10))
+	chatID := formatIntValue.Trim()
 	if chatID == "" || chatID == "0" {
 		return InboundMessage{}, false, ErrTelegramChatRequired
 	}
@@ -84,17 +84,17 @@ func NormalizeUpdate(update Update) (InboundMessage, bool, error) {
 	senderName := ""
 	if msg.From != nil && msg.From.ID != 0 {
 		senderID = strconv.FormatInt(msg.From.ID, 10)
-		stringValue4 := str.String(strings.Join([]string{msg.From.FirstName, msg.From.LastName}, " "))
-		senderName = stringValue4.Trim()
-		stringValue5 := str.String(msg.From.Username)
-		if username := stringValue5.Trim(); username != "" {
+		joinValue := str.String(strings.Join([]string{msg.From.FirstName, msg.From.LastName}, " "))
+		senderName = joinValue.Trim()
+		usernameValue := str.String(msg.From.Username)
+		if username := usernameValue.Trim(); username != "" {
 			if senderName != "" {
 				senderName += " "
 			}
 			senderName += "@" + username
 		}
 	}
-	stringValue3 := str.String(msg.Chat.Type)
+	trimmedValueValue := str.String(msg.Chat.Type)
 	return InboundMessage{
 		UpdateID:   update.UpdateID,
 		MessageID:  msg.MessageID,
@@ -105,7 +105,7 @@ func NormalizeUpdate(update Update) (InboundMessage, bool, error) {
 			ChatID:           chatID,
 			ThreadID:         threadID,
 			ReplyToMessageID: msg.MessageID,
-			ChatType:         stringValue3.Trim(),
+			ChatType:         trimmedValueValue.Trim(),
 		},
 	}, true, nil
 }

@@ -169,8 +169,8 @@ func getConfigGetPaths(cmd *cli.Command) ([]string, error) {
 
 	paths := make([]string, 0, cmd.Args().Len())
 	for _, arg := range cmd.Args().Slice() {
-		stringValue1 := str.String(arg)
-		path := stringValue1.Trim()
+		argValue := str.String(arg)
+		path := argValue.Trim()
 		if path == "" {
 			return nil, fmt.Errorf("config path is required")
 		}
@@ -188,34 +188,34 @@ func getSetConfigUpdates(cmd *cli.Command) ([]morphcli.ConfigUpdate, error) {
 	args := cmd.Args().Slice()
 	updates := make([]morphcli.ConfigUpdate, 0, len(args))
 	for index := 0; index < len(args); index++ {
-		stringValue2 := str.String(args[index])
-		raw := stringValue2.Trim()
+		argsValue := str.String(args[index])
+		raw := argsValue.Trim()
 		if raw == "" {
 			return nil, fmt.Errorf("config path and value are required")
 		}
 
 		path, value, ok := strings.Cut(raw, "=")
 		if ok {
-			stringValue5 := str.String(path)
-			path = stringValue5.Trim()
+			pathValue := str.String(path)
+			path = pathValue.Trim()
 			if path == "" {
 				return nil, fmt.Errorf("config path and value are required")
 			}
-			stringValue6 := str.String(value)
-			updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: stringValue6.Trim()})
+			valueText := str.String(value)
+			updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: valueText.Trim()})
 			continue
 		}
 
 		if index+1 >= len(args) {
 			return nil, fmt.Errorf("config path and value are required")
 		}
-		stringValue3 := str.String(raw)
-		path = stringValue3.Trim()
+		rawValue := str.String(raw)
+		path = rawValue.Trim()
 		if path == "" {
 			return nil, fmt.Errorf("config path and value are required")
 		}
-		stringValue4 := str.String(args[index+1])
-		updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: stringValue4.Trim()})
+		argsValue2 := str.String(args[index+1])
+		updates = append(updates, morphcli.ConfigUpdate{Path: path, Value: argsValue2.Trim()})
 		index++
 	}
 

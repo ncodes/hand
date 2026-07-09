@@ -27,8 +27,8 @@ func (r UseCaseReranker) Rerank(ctx context.Context, req RerankRequest) (RerankR
 }
 
 func (r UseCaseReranker) getOverride(useCase string) Reranker {
-	stringValue1 := str.String(useCase)
-	useCase = stringValue1.Normalized()
+	useCaseValue := str.String(useCase)
+	useCase = useCaseValue.Normalized()
 	if useCase == "" || len(r.Override) == 0 {
 		return nil
 	}

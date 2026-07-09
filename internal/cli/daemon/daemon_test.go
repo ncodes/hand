@@ -2612,8 +2612,8 @@ func testDaemonDependencies() Dependencies {
 
 func testDaemonConfigInputs(cmd *urfavecli.Command) (ConfigInputs, error) {
 	resolved := profile.Active()
-	stringValue1 := str.String(resolved.HomeDir)
-	if stringValue1.Trim() == "" {
+	homeDirValue := str.String(resolved.HomeDir)
+	if homeDirValue.Trim() == "" {
 		var err error
 		resolved, err = profile.Resolve(profile.ResolveOptions{})
 		if err != nil {
@@ -2655,8 +2655,8 @@ func testApplyDaemonConfigOverrides(cmd *urfavecli.Command, cfg *config.Config) 
 		cfg.Models.Summary.BaseURL = value
 	}
 	if value, ok := testCommandString(cmd, "model.api-key"); ok {
-		stringValue2 := str.String(cfg.Models.Main.Provider)
-		provider := stringValue2.Trim()
+		providerValue := str.String(cfg.Models.Main.Provider)
+		provider := providerValue.Trim()
 		if provider == "" {
 			provider = constants.DefaultModelProvider
 		}
@@ -2693,8 +2693,8 @@ func testApplyDaemonConfigOverrides(cmd *urfavecli.Command, cfg *config.Config) 
 func testCommandString(cmd *urfavecli.Command, name string) (string, bool) {
 	for _, candidate := range cmd.Lineage() {
 		if candidate.IsSet(name) {
-			stringValue3 := str.String(candidate.String(name))
-			return stringValue3.Trim(), true
+			nameValue := str.String(candidate.String(name))
+			return nameValue.Trim(), true
 		}
 	}
 

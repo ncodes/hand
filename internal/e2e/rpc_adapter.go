@@ -56,9 +56,9 @@ func (a *RPCAdapter) Send(ctx context.Context, req RootChatRequest) (RootChatRes
 			if event.TraceEvent != nil {
 				return
 			}
-			stringValue2 := str.String(event.Channel)
+			channelValue := str.String(event.Channel)
 			events = append(events, Event{
-				Channel: stringValue2.Trim(),
+				Channel: channelValue.Trim(),
 				Text:    event.Text,
 			})
 		},
@@ -66,8 +66,8 @@ func (a *RPCAdapter) Send(ctx context.Context, req RootChatRequest) (RootChatRes
 	if err != nil {
 		return RootChatResult{}, err
 	}
-	stringValue1 := str.String(req.SessionID)
-	sessionID := stringValue1.Trim()
+	sessionIDValue := str.String(req.SessionID)
+	sessionID := sessionIDValue.Trim()
 	if sessionID == "" {
 		session, err := client.SessionAPI().Current(normalizeHarnessContext(ctx))
 		if err != nil {

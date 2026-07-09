@@ -25,8 +25,8 @@ func Get(
 	if err := req.Validate(); err != nil {
 		return SessionMessagesResponse{}, err
 	}
-	stringValue1 := str.String(req.SessionID)
-	sessionID := stringValue1.Trim()
+	sessionIDValue := str.String(req.SessionID)
+	sessionID := sessionIDValue.Trim()
 	if sessionID == "" {
 		currentSessionID, err := manager.CurrentSession(ctx)
 		if err != nil {
@@ -70,23 +70,23 @@ func buildSessionMessagesResponse(
 	records []storage.MessageRecord,
 	maxChars int,
 ) SessionMessagesResponse {
-	stringValue2 := str.String(sessionID)
+	sessionIDValue2 := str.String(sessionID)
 	response := SessionMessagesResponse{
-		SessionID: stringValue2.Trim(),
+		SessionID: sessionIDValue2.Trim(),
 		Messages:  make([]SessionMessageRecord, 0, len(records)),
 	}
 
 	for _, messageRecord := range records {
 		message := messageRecord.Message
-		stringValue3 := str.String(message.Name)
-		stringValue4 := str.String(message.ToolCallID)
+		nameValue := str.String(message.Name)
+		toolCallIDValue := str.String(message.ToolCallID)
 		record := SessionMessageRecord{
 			MessageID:  message.ID,
 			Offset:     messageRecord.Offset,
 			Role:       string(message.Role),
-			Name:       stringValue3.Trim(),
+			Name:       nameValue.Trim(),
 			ToolName:   getMessageToolName(message),
-			ToolCallID: stringValue4.Trim(),
+			ToolCallID: toolCallIDValue.Trim(),
 			CreatedAt:  formatMessageTime(message.CreatedAt),
 		}
 
@@ -123,12 +123,12 @@ func messagesToMessageRecords(start int, messages []morphmsg.Message) []storage.
 
 func getMessageToolName(message morphmsg.Message) string {
 	if message.Role == morphmsg.RoleTool {
-		stringValue5 := str.String(message.Name)
-		return stringValue5.Trim()
+		nameValue2 := str.String(message.Name)
+		return nameValue2.Trim()
 	}
 	if len(message.ToolCalls) == 1 {
-		stringValue6 := str.String(message.ToolCalls[0].Name)
-		return stringValue6.Trim()
+		nameValue3 := str.String(message.ToolCalls[0].Name)
+		return nameValue3.Trim()
 	}
 	return ""
 }
@@ -141,11 +141,11 @@ func buildToolCallRecords(toolCalls []morphmsg.ToolCall, maxChars int) []Session
 	records := make([]SessionToolCallRecord, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
 		input, truncated := truncateMessageContent(toolCall.Input, maxChars)
-		stringValue7 := str.String(toolCall.ID)
-		stringValue8 := str.String(toolCall.Name)
+		iDValue := str.String(toolCall.ID)
+		nameValue4 := str.String(toolCall.Name)
 		records = append(records, SessionToolCallRecord{
-			ID:        stringValue7.Trim(),
-			Name:      stringValue8.Trim(),
+			ID:        iDValue.Trim(),
+			Name:      nameValue4.Trim(),
 			Input:     input,
 			Truncated: truncated,
 		})

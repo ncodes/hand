@@ -226,10 +226,10 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 				break
 			}
 			callCount++
-			stringValue1 := str.String(toolCall.Name)
-			if _, ok := memoryFlushToolNames[stringValue1.Trim()]; !ok {
-				stringValue2 := str.String(toolCall.Name)
-				recordMemoryFlushSkipped(traceSession, trigger, "unsupported_tool:"+stringValue2.Trim())
+			nameValue := str.String(toolCall.Name)
+			if _, ok := memoryFlushToolNames[nameValue.Trim()]; !ok {
+				nameValue2 := str.String(toolCall.Name)
+				recordMemoryFlushSkipped(traceSession, trigger, "unsupported_tool:"+nameValue2.Trim())
 				continue
 			}
 			agentLog.Debug().
@@ -269,16 +269,16 @@ func getMemoryFlushToolError(message morphmsg.Message) error {
 	}
 
 	var payload map[string]any
-	stringValue3 := str.String(message.Content)
-	if err := json.Unmarshal([]byte(stringValue3.Trim()), &payload); err != nil {
+	contentValue := str.String(message.Content)
+	if err := json.Unmarshal([]byte(contentValue.Trim()), &payload); err != nil {
 		return nil
 	}
 	errorValue, ok := payload["error"]
 	if !ok {
 		return nil
 	}
-	stringValue4 := str.String(message.Name)
-	toolName := stringValue4.Trim()
+	nameValue3 := str.String(message.Name)
+	toolName := nameValue3.Trim()
 	if toolName == "" {
 		toolName = getStringValue(payload["name"])
 	}
@@ -311,20 +311,19 @@ func getToolErrorText(value any) string {
 }
 
 func getToolErrorStringText(value string) string {
-	stringValue5 := str.String(value)
-	value = stringValue5.Trim()
-	if value == "" {
+	valueText := str.String(value).Trim()
+	if valueText == "" {
 		return ""
 	}
 
 	var payload map[string]any
-	if err := json.Unmarshal([]byte(value), &payload); err == nil {
+	if err := json.Unmarshal([]byte(valueText), &payload); err == nil {
 		if text := getToolErrorText(payload); text != "" {
 			return text
 		}
 	}
 
-	return value
+	return valueText
 }
 
 // invokeFlushTool uses the turn's tool boundary so memory flush follows normal tool behavior.
@@ -362,8 +361,8 @@ func (t *Turn) availableMemoryFlushToolDefinitions() ([]models.ToolDefinition, e
 
 func getStringValue(value any) string {
 	text, _ := value.(string)
-	stringValue6 := str.String(text)
-	return stringValue6.Trim()
+	textValue := str.String(text)
+	return textValue.Trim()
 }
 
 // recordMemoryFlushFailure records a failed or timed-out memory flush.
@@ -410,8 +409,8 @@ func recordMemoryFlushCompleted(
 
 // recordMemoryFlushSkipped records a non-fatal reason memory flush did no work.
 func recordMemoryFlushSkipped(traceSession trace.Session, trigger string, reason string) {
-	stringValue7 := str.String(reason)
-	reason = stringValue7.Trim()
+	reasonValue := str.String(reason)
+	reason = reasonValue.Trim()
 	agentLog.Debug().
 		Str("trigger", trigger).
 		Str("reason", reason).

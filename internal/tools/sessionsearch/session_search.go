@@ -43,32 +43,32 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if runtime == nil {
 				return common.ToolError("tool_error", "session search is not configured"), nil
 			}
-			stringValue1 := str.String(req.Query)
-			query := stringValue1.Trim()
+			queryValue := str.String(req.Query)
+			query := queryValue.Trim()
 			if query == "" {
 				return common.ToolError("invalid_input", "query is required"), nil
 			}
-			stringValue2 := str.String(req.Role)
-			role := stringValue2.Normalized()
+			roleValue := str.String(req.Role)
+			role := roleValue.Normalized()
 			switch role {
 			case "", "user", "assistant", "tool":
 			default:
 				return common.ToolError("invalid_input", fmt.Sprintf("unsupported role %q", role)), nil
 			}
-			stringValue3 := str.String(req.SessionID)
-			sessionID := stringValue3.Trim()
+			sessionIDValue := str.String(req.SessionID)
+			sessionID := sessionIDValue.Trim()
 			ignoreSessionID := ""
 			if sessionID == "" {
-				stringValue5 := str.String(tools.SessionIDFromContext(ctx))
-				ignoreSessionID = stringValue5.Trim()
+				sessionIDFromContextValue := str.String(tools.SessionIDFromContext(ctx))
+				ignoreSessionID = sessionIDFromContextValue.Trim()
 			}
-			stringValue4 := str.String(req.ToolName)
+			toolNameValue := str.String(req.ToolName)
 			results, err := runtime.SearchSession(ctx, envtypes.SessionSearchRequest{
 				SessionID:       sessionID,
 				IgnoreSessionID: ignoreSessionID,
 				Query:           query,
 				Role:            role,
-				ToolName:        stringValue4.Trim(),
+				ToolName:        toolNameValue.Trim(),
 				MaxResults:      req.MaxResults,
 			})
 			if err != nil {

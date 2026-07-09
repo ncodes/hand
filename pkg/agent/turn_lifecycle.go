@@ -47,8 +47,8 @@ func RunTurnLifecycle(
 	}
 
 	if lifecycle.SetRequestInstruction != nil {
-		stringValue1 := str.String(opts.Instruct)
-		lifecycle.SetRequestInstruction(stringValue1.Trim())
+		instructValue := str.String(opts.Instruct)
+		lifecycle.SetRequestInstruction(instructValue.Trim())
 	}
 
 	closer, err := openTurnLifecycle(ctx, opts, lifecycle)

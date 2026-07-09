@@ -60,8 +60,8 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			sessionID := tools.SessionIDFromContext(ctx)
-			stringValue1 := str.String(sessionID)
-			if stringValue1.Trim() == "" {
+			sessionIDValue := str.String(sessionID)
+			if sessionIDValue.Trim() == "" {
 				sessionID = "default"
 			}
 
@@ -131,10 +131,10 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 						Msg("plan update failed")
 					return common.ToolError("invalid_input", validationErr.Error()), nil
 				}
-				stringValue2 := str.String(req.Explanation)
+				explanationValue := str.String(req.Explanation)
 				plan = envtypes.Plan{
 					Steps:       steps,
-					Explanation: stringValue2.Trim(),
+					Explanation: explanationValue.Trim(),
 				}
 
 				if req.ClearCompleted {
@@ -193,12 +193,12 @@ func decodePlanSteps(rawSteps []map[string]any) ([]envtypes.PlanStep, error) {
 		id, _ := item["id"].(string)
 		content, _ := item["content"].(string)
 		status, _ := item["status"].(string)
-		stringValue3 := str.String(id)
-		id = stringValue3.Trim()
-		stringValue4 := str.String(content)
-		content = stringValue4.Trim()
-		stringValue5 := str.String(status)
-		status = stringValue5.Trim()
+		idValue := str.String(id)
+		id = idValue.Trim()
+		contentValue := str.String(content)
+		content = contentValue.Trim()
+		statusValue := str.String(status)
+		status = statusValue.Trim()
 
 		if id == "" {
 			return nil, errInvalidPlan("step id is required")
@@ -231,8 +231,8 @@ func decodePartialPlanSteps(rawSteps []map[string]any) ([]envtypes.PartialPlanSt
 
 	for _, item := range rawSteps {
 		id, _ := item["id"].(string)
-		stringValue6 := str.String(id)
-		id = stringValue6.Trim()
+		idValue2 := str.String(id)
+		id = idValue2.Trim()
 		if id == "" {
 			return nil, errInvalidPlan("step id is required")
 		}
@@ -245,19 +245,19 @@ func decodePartialPlanSteps(rawSteps []map[string]any) ([]envtypes.PartialPlanSt
 
 		if contentValue, ok := item["content"]; ok {
 			content, contentOK := contentValue.(string)
-			stringValue7 := str.String(content)
-			if !contentOK || stringValue7.Trim() == "" {
+			contentValue2 := str.String(content)
+			if !contentOK || contentValue2.Trim() == "" {
 				return nil, errInvalidPlan("step content is required")
 			}
-			stringValue8 := str.String(content)
-			trimmed := stringValue8.Trim()
+			contentValue3 := str.String(content)
+			trimmed := contentValue3.Trim()
 			update.Content = &trimmed
 		}
 
 		if statusValue, ok := item["status"]; ok {
 			status, statusOK := statusValue.(string)
-			stringValue9 := str.String(status)
-			status = stringValue9.Trim()
+			statusValue2 := str.String(status)
+			status = statusValue2.Trim()
 			if !statusOK || !envtypes.ValidPlanStatus(status) {
 				return nil, errInvalidPlan("step status is invalid")
 			}
@@ -280,12 +280,12 @@ func encodePlanOutput(plan envtypes.Plan, changes []trace.PlanToolChange) (tools
 			break
 		}
 	}
-	stringValue10 := str.String(plan.Explanation)
+	explanationValue2 := str.String(plan.Explanation)
 	output := map[string]any{
 		"steps":          plan.Steps,
 		"summary":        summary,
 		"active_step_id": activeStepID,
-		"explanation":    stringValue10.Trim(),
+		"explanation":    explanationValue2.Trim(),
 	}
 	if len(changes) > 0 {
 		output["changes"] = changes
@@ -395,13 +395,13 @@ func recordPlanEvent(ctx context.Context, sessionID string, plan envtypes.Plan, 
 	if recorder == nil {
 		return
 	}
-	stringValue11 := str.String(plan.Explanation)
+	explanationValue3 := str.String(plan.Explanation)
 	recorder.Record(trace.EvtPlanUpdated, trace.PlanEventPayload{
 		SessionID:    sessionID,
 		Steps:        planStepsToTracePayload(plan.Steps),
 		Summary:      planSummaryToTracePayload(summarizePlan(plan)),
 		ActiveStepID: getActivePlanStepID(plan),
-		Explanation:  stringValue11.Trim(),
+		Explanation:  explanationValue3.Trim(),
 		Changes:      append([]trace.PlanToolChange(nil), changes...),
 	})
 }
@@ -411,13 +411,13 @@ func recordPlanCleared(ctx context.Context, sessionID string, plan envtypes.Plan
 	if recorder == nil {
 		return
 	}
-	stringValue12 := str.String(plan.Explanation)
+	explanationValue4 := str.String(plan.Explanation)
 	recorder.Record(trace.EvtPlanCleared, trace.PlanEventPayload{
 		SessionID:    sessionID,
 		Steps:        planStepsToTracePayload(plan.Steps),
 		Summary:      planSummaryToTracePayload(summarizePlan(plan)),
 		ActiveStepID: "",
-		Explanation:  stringValue12.Trim(),
+		Explanation:  explanationValue4.Trim(),
 	})
 }
 

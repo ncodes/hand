@@ -7,8 +7,8 @@ import (
 )
 
 func ModelSetupEmbeddingUpdates(provider string, baseURL ...string) []ConfigUpdate {
-	stringValue1 := str.String(provider)
-	provider = stringValue1.Normalized()
+	providerValue := str.String(provider)
+	provider = providerValue.Normalized()
 
 	switch provider {
 	case constants.ModelProviderOpenRouter:
@@ -32,8 +32,8 @@ func ModelSetupEmbeddingUpdates(provider string, baseURL ...string) []ConfigUpda
 			{Path: "models.embedding.api", Value: modelprovider.APIOllamaEmbeddings},
 		}
 		if len(baseURL) > 0 {
-			stringValue2 := str.String(baseURL[0])
-			if value := stringValue2.Trim(); value != "" {
+			baseURLValue := str.String(baseURL[0])
+			if value := baseURLValue.Trim(); value != "" {
 				updates = append(updates, ConfigUpdate{Path: "models.embedding.baseUrl", Value: value})
 			}
 		}

@@ -45,8 +45,8 @@ func resetConfiguredDatabase(_ context.Context, cmd *cli.Command) error {
 
 	morphcli.ApplyConfigOverrides(cmd, cfg)
 	morphcli.AddStartupFilesystemRoots(cfg, inputs)
-	stringValue1 := str.String(cfg.Storage.Backend)
-	if stringValue1.Normalized() != "sqlite" {
+	backendValue := str.String(cfg.Storage.Backend)
+	if backendValue.Normalized() != "sqlite" {
 		return errors.New("database reset requires sqlite storage backend")
 	}
 

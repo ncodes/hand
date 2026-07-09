@@ -67,8 +67,8 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 	}
 
 	return func(ctx context.Context, cmd *urfavecli.Command) error {
-		stringValue1 := str.String(strings.Join(cmd.Args().Slice(), " "))
-		message := stringValue1.Trim()
+		joinValue := str.String(strings.Join(cmd.Args().Slice(), " "))
+		message := joinValue.Trim()
 		if message == "" {
 			return urfavecli.ShowAppHelp(cmd)
 		}
@@ -134,10 +134,10 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 		if cmd.IsSet("instruct") {
 			instruct = cfg.Session.Instruct
 		}
-		stringValue2 := str.String(cmd.String("session"))
+		literalValue := str.String(cmd.String("session"))
 		responseOptions := rpcclient.RespondOptions{
 			Instruct:  instruct,
-			SessionID: stringValue2.Trim(),
+			SessionID: literalValue.Trim(),
 			Stream:    cfg.Models.Main.Stream,
 		}
 		if cfg.StreamEnabled() {
@@ -169,8 +169,8 @@ func validateRootChatModelConfig(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is required")
 	}
-	stringValue3 := str.String(cfg.Models.Main.API)
-	if stringValue3.Trim() == "" {
+	aPIValue := str.String(cfg.Models.Main.API)
+	if aPIValue.Trim() == "" {
 		return nil
 	}
 
@@ -257,17 +257,17 @@ func rootChatModelRuntimeEqual(a rpcclient.ModelRuntime, b rpcclient.ModelRuntim
 }
 
 func normalizeRootChatModelRuntime(runtime rpcclient.ModelRuntime) rpcclient.ModelRuntime {
-	stringValue4 := str.String(runtime.Provider)
-	runtime.Provider = stringValue4.Normalized()
-	stringValue5 := str.String(runtime.API)
-	runtime.API = stringValue5.Normalized()
-	stringValue6 := str.String(runtime.Model)
-	runtime.Model = stringValue6.Trim()
+	providerValue := str.String(runtime.Provider)
+	runtime.Provider = providerValue.Normalized()
+	aPIValue2 := str.String(runtime.API)
+	runtime.API = aPIValue2.Normalized()
+	modelValue := str.String(runtime.Model)
+	runtime.Model = modelValue.Trim()
 	if runtime.Provider == constants.ModelProviderOllama {
 		runtime.Model = provider_ollama.NormalizeModelIDForComparison(runtime.Model)
 	}
-	stringValue7 := str.String(runtime.BaseURL)
-	runtime.BaseURL = strings.TrimRight(stringValue7.Trim(), "/")
+	baseURLValue := str.String(runtime.BaseURL)
+	runtime.BaseURL = strings.TrimRight(baseURLValue.Trim(), "/")
 	if runtime.ContextLength < 0 {
 		runtime.ContextLength = 0
 	}
@@ -412,8 +412,8 @@ func formatPullProgress(progress provider_ollama.PullProgress) string {
 }
 
 func FormatPullProgress(progress provider_ollama.PullProgress) string {
-	stringValue8 := str.String(progress.Status)
-	text := stringValue8.Trim()
+	statusValue := str.String(progress.Status)
+	text := statusValue.Trim()
 	if text == "" {
 		return ""
 	}
@@ -474,8 +474,8 @@ func (f *chatStreamFormatter) Format(event rpcclient.Event) string {
 	if event.TraceEvent != nil {
 		return ""
 	}
-	stringValue9 := str.String(event.Channel)
-	channel := stringValue9.Trim()
+	channelValue := str.String(event.Channel)
+	channel := channelValue.Trim()
 	if channel == "reasoning" && !f.reasoningActive {
 		f.reasoningStarted = f.now()
 		f.reasoningActive = true
@@ -599,8 +599,8 @@ func formatChatEvent(cfg *config.Config, event rpcclient.Event, noColor bool) st
 	if event.TraceEvent != nil {
 		return ""
 	}
-	stringValue10 := str.String(event.Channel)
-	if stringValue10.Trim() != "reasoning" || cfg == nil || noColor {
+	channelValue2 := str.String(event.Channel)
+	if channelValue2.Trim() != "reasoning" || cfg == nil || noColor {
 		return event.Text
 	}
 

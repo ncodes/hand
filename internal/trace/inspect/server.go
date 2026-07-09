@@ -44,8 +44,8 @@ func (a *App) SetBasicAuth(username, password string) {
 	if a == nil {
 		return
 	}
-	stringValue1 := str.String(username)
-	a.username = stringValue1.Trim()
+	usernameValue := str.String(username)
+	a.username = usernameValue.Trim()
 	a.password = password
 }
 
@@ -127,8 +127,8 @@ func (a *App) handleSessions(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (a *App) handleSession(w http.ResponseWriter, r *http.Request) {
-	stringValue2 := str.String(strings.TrimPrefix(r.URL.Path, "/api/sessions/"))
-	id := stringValue2.Trim()
+	trimPrefixValue := str.String(strings.TrimPrefix(r.URL.Path, "/api/sessions/"))
+	id := trimPrefixValue.Trim()
 	if id == "" {
 		http.NotFound(w, r)
 		return
@@ -194,6 +194,6 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
-	stringValue3 := str.String(message)
-	writeJSON(w, status, map[string]any{"error": stringValue3.Trim()})
+	messageValue := str.String(message)
+	writeJSON(w, status, map[string]any{"error": messageValue.Trim()})
 }

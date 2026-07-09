@@ -126,10 +126,10 @@ func normalizeRequest(ctx context.Context, req input) (episodic.Request, error) 
 }
 
 func normalizeSessionID(ctx context.Context, sessionID string) string {
-	stringValue1 := str.String(sessionID)
-	sessionID = stringValue1.Trim()
-	stringValue2 := str.String(tools.SessionIDFromContext(ctx))
-	currentSessionID := stringValue2.Trim()
+	sessionIDValue := str.String(sessionID)
+	sessionID = sessionIDValue.Trim()
+	sessionIDFromContextValue := str.String(tools.SessionIDFromContext(ctx))
+	currentSessionID := sessionIDFromContextValue.Trim()
 	if sessionID == "" {
 		return currentSessionID
 	}

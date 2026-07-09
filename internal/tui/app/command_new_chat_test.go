@@ -39,6 +39,7 @@ func TestModel_UpdateHandlesNewChatCommand(t *testing.T) {
 	runModel = updated.(model)
 	require.Equal(t, 1, client.createSessionCalls)
 	require.Empty(t, client.createSessionID)
+	require.Equal(t, storage.SessionOriginSourceTUI, client.createSessionOptions.OriginSource)
 	require.Equal(t, "session-new", runModel.sessionID)
 	require.Equal(t, "Fresh Thread", runModel.sessionTitle)
 	require.Empty(t, runModel.messages)

@@ -147,8 +147,8 @@ func UpdateDefinition(runtime envtypes.Runtime) tools.Definition {
 			if runtime == nil {
 				return common.ToolError("tool_error", "memory write is not configured"), nil
 			}
-			stringValue1 := str.String(input.ID)
-			if stringValue1.Trim() == "" {
+			iDValue := str.String(input.ID)
+			if iDValue.Trim() == "" {
 				return common.ToolError("invalid_input", "memory id is required"), nil
 			}
 
@@ -202,8 +202,8 @@ func DeleteDefinition(runtime envtypes.Runtime) tools.Definition {
 			if runtime == nil {
 				return common.ToolError("tool_error", "memory write is not configured"), nil
 			}
-			stringValue2 := str.String(input.ID)
-			id := stringValue2.Trim()
+			iDValue2 := str.String(input.ID)
+			id := iDValue2.Trim()
 			if id == "" {
 				return common.ToolError("invalid_input", "memory id is required"), nil
 			}
@@ -233,12 +233,12 @@ func memoryItemFromAddInput(
 	if err != nil {
 		return memory.MemoryItem{}, err
 	}
-	stringValue3 := str.String(input.Title)
-	stringValue4 := str.String(input.Text)
+	titleValue := str.String(input.Title)
+	textValue := str.String(input.Text)
 	item := memory.MemoryItem{
 		Kind:        kind,
-		Title:       stringValue3.Trim(),
-		Text:        stringValue4.Trim(),
+		Title:       titleValue.Trim(),
+		Text:        textValue.Trim(),
 		Tags:        trimStrings(input.Tags),
 		Metadata:    cloneMetadata(input.Metadata),
 		SourceLinks: sourceLinksFromInput(input.SourceLinks),
@@ -247,8 +247,8 @@ func memoryItemFromAddInput(
 	if item.Metadata == nil {
 		item.Metadata = make(map[string]string)
 	}
-	stringValue5 := str.String(input.SourceSessionID)
-	if sessionID := stringValue5.Trim(); sessionID != "" {
+	sourceSessionIDValue := str.String(input.SourceSessionID)
+	if sessionID := sourceSessionIDValue.Trim(); sessionID != "" {
 		item.Metadata["source_session_id"] = sessionID
 	}
 	if hasRunContext {
@@ -277,8 +277,8 @@ type memoryWriteSafetyResult struct {
 }
 
 func checkMemoryWriteSafety(item memory.MemoryItem) (memoryWriteSafetyResult, error) {
-	stringValue6 := str.String(strings.Join([]string{item.Title, item.Text}, "\n"))
-	content := stringValue6.Trim()
+	joinValue := str.String(strings.Join([]string{item.Title, item.Text}, "\n"))
+	content := joinValue.Trim()
 	result := memoryWriteSafetyResult{
 		Source:        item.GuardrailSource(),
 		ContentLength: len([]rune(content)),
@@ -329,8 +329,8 @@ func recordMemoryWriteSafetyBlocked(recorder tools.TraceRecorder, result memoryW
 }
 
 func parseKind(value string) (memory.Kind, error) {
-	stringValue7 := str.String(value)
-	switch stringValue7.Normalized() {
+	valueText := str.String(value)
+	switch valueText.Normalized() {
 	case string(memory.KindSemantic):
 		return memory.KindSemantic, nil
 	case string(memory.KindProcedural):
@@ -343,29 +343,29 @@ func parseKind(value string) (memory.Kind, error) {
 func sourceLinksFromInput(inputs []sourceLinkInput) []memory.SourceLink {
 	links := make([]memory.SourceLink, 0, len(inputs))
 	for _, input := range inputs {
-		stringValue8 := str.String(input.SessionID)
-		stringValue9 := str.String(input.CreatedBy)
-		stringValue10 := str.String(input.CreatedReason)
-		stringValue11 := str.String(input.SourceProfile)
-		stringValue12 := str.String(input.SourcePersonality)
-		stringValue13 := str.String(input.ParentSessionID)
-		stringValue14 := str.String(input.ChildSessionID)
-		stringValue15 := str.String(input.RunID)
-		stringValue16 := str.String(input.StateMode)
-		stringValue17 := str.String(input.SourceTrigger)
+		sessionIDValue := str.String(input.SessionID)
+		createdByValue := str.String(input.CreatedBy)
+		createdReasonValue := str.String(input.CreatedReason)
+		sourceProfileValue := str.String(input.SourceProfile)
+		sourcePersonalityValue := str.String(input.SourcePersonality)
+		parentSessionIDValue := str.String(input.ParentSessionID)
+		childSessionIDValue := str.String(input.ChildSessionID)
+		runIDValue := str.String(input.RunID)
+		stateModeValue := str.String(input.StateMode)
+		sourceTriggerValue := str.String(input.SourceTrigger)
 		link := memory.SourceLink{
-			SessionID:         stringValue8.Trim(),
+			SessionID:         sessionIDValue.Trim(),
 			MessageIDs:        append([]uint(nil), input.MessageIDs...),
 			Offsets:           append([]int(nil), input.Offsets...),
-			CreatedBy:         stringValue9.Trim(),
-			CreatedReason:     stringValue10.Trim(),
-			SourceProfile:     stringValue11.Trim(),
-			SourcePersonality: stringValue12.Trim(),
-			ParentSessionID:   stringValue13.Trim(),
-			ChildSessionID:    stringValue14.Trim(),
-			RunID:             stringValue15.Trim(),
-			StateMode:         stringValue16.Trim(),
-			SourceTrigger:     stringValue17.Trim(),
+			CreatedBy:         createdByValue.Trim(),
+			CreatedReason:     createdReasonValue.Trim(),
+			SourceProfile:     sourceProfileValue.Trim(),
+			SourcePersonality: sourcePersonalityValue.Trim(),
+			ParentSessionID:   parentSessionIDValue.Trim(),
+			ChildSessionID:    childSessionIDValue.Trim(),
+			RunID:             runIDValue.Trim(),
+			StateMode:         stateModeValue.Trim(),
+			SourceTrigger:     sourceTriggerValue.Trim(),
 		}
 		if link.SessionID == "" &&
 			len(link.MessageIDs) == 0 &&
@@ -379,13 +379,13 @@ func sourceLinksFromInput(inputs []sourceLinkInput) []memory.SourceLink {
 }
 
 func hasProvenance(item memory.MemoryItem) bool {
-	stringValue18 := str.String(item.Metadata["source_session_id"])
-	if stringValue18.Trim() != "" {
+	metadataValue := str.String(item.Metadata["source_session_id"])
+	if metadataValue.Trim() != "" {
 		return true
 	}
 	for _, link := range item.SourceLinks {
-		stringValue19 := str.String(link.SessionID)
-		if stringValue19.Trim() != "" ||
+		sessionIDValue2 := str.String(link.SessionID)
+		if sessionIDValue2.Trim() != "" ||
 			len(link.MessageIDs) > 0 ||
 			len(link.Offsets) > 0 {
 			return true
@@ -401,10 +401,10 @@ func cloneMetadata(metadata map[string]string) map[string]string {
 	}
 	cloned := make(map[string]string, len(metadata))
 	for key, value := range metadata {
-		stringValue20 := str.String(key)
-		if key = stringValue20.Trim(); key != "" {
-			stringValue21 := str.String(value)
-			cloned[key] = stringValue21.Trim()
+		keyValue := str.String(key)
+		if key = keyValue.Trim(); key != "" {
+			value2 := str.String(value)
+			cloned[key] = value2.Trim()
 		}
 	}
 
@@ -414,8 +414,8 @@ func cloneMetadata(metadata map[string]string) map[string]string {
 func trimStrings(values []string) []string {
 	trimmed := make([]string, 0, len(values))
 	for _, value := range values {
-		stringValue22 := str.String(value)
-		value = stringValue22.Trim()
+		value3 := str.String(value)
+		value = value3.Trim()
 		if value != "" {
 			trimmed = append(trimmed, value)
 		}
@@ -425,8 +425,8 @@ func trimStrings(values []string) []string {
 }
 
 func getReason(value string, fallback string) string {
-	stringValue23 := str.String(value)
-	if value = stringValue23.Trim(); value != "" {
+	value4 := str.String(value)
+	if value = value4.Trim(); value != "" {
 		return value
 	}
 

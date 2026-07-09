@@ -309,8 +309,8 @@ func TestBottomStatusPanelRenderer_RendersFromPanelData(t *testing.T) {
 }
 
 func trimRightSnapshotLines(value string) string {
-	stringValue1 := str.String(value)
-	lines := strings.Split(stringValue1.Trim(), "\n")
+	valueText := str.String(value)
+	lines := strings.Split(valueText.Trim(), "\n")
 	for index, line := range lines {
 		lines[index] = strings.TrimRight(line, " ")
 	}

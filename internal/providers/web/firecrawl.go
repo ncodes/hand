@@ -69,11 +69,11 @@ func (p *FirecrawlProvider) Search(ctx context.Context, query string, count int)
 
 	results := make([]SearchResult, 0, len(rawResults))
 	for idx, result := range rawResults {
-		stringValue1 := str.String(result.Title)
-		stringValue2 := str.String(result.URL)
+		titleValue := str.String(result.Title)
+		uRLValue := str.String(result.URL)
 		results = append(results, SearchResult{
-			Title:    stringValue1.Trim(),
-			URL:      stringValue2.Trim(),
+			Title:    titleValue.Trim(),
+			URL:      uRLValue.Trim(),
 			Snippet:  truncateToMaxChars(getFirstNonEmpty(result.Description, result.Snippet), p.maxCharsPerResult),
 			Position: idx + 1,
 		})
@@ -104,8 +104,8 @@ func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]Extra
 	maxChars := getExtractCharLimit(ctx, p.maxExtractCharsPerResult)
 	results := make([]ExtractResult, 0, len(urls))
 	for _, rawURL := range urls {
-		stringValue3 := str.String(rawURL)
-		url := stringValue3.Trim()
+		rawURLValue := str.String(rawURL)
+		url := rawURLValue.Trim()
 
 		var response scrapeResponse
 		err := p.client.postJSONLimited(ctx, "/v2/scrape", map[string]any{
@@ -132,10 +132,10 @@ func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]Extra
 			getFirstNonEmpty(response.Data.Text, response.Data.Markdown, response.Data.HTML),
 			p.maxExtractResponseBytes,
 			maxChars)
-		stringValue4 := str.String(response.Data.Metadata.Title)
+		titleValue2 := str.String(response.Data.Metadata.Title)
 		results = append(results, ExtractResult{
 			URL:               getFirstNonEmpty(response.Data.Metadata.SourceURL, url),
-			Title:             stringValue4.Trim(),
+			Title:             titleValue2.Trim(),
 			Content:           content,
 			ContentFormat:     format,
 			Truncated:         truncated,

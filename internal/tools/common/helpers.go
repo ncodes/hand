@@ -35,8 +35,8 @@ const (
 
 // DecodeInput decodes raw tool-call arguments into input.
 func DecodeInput(call tools.Call, target any) tools.Result {
-	stringValue1 := str.String(call.Input)
-	if stringValue1.Trim() == "" {
+	inputValue := str.String(call.Input)
+	if inputValue.Trim() == "" {
 		call.Input = "{}"
 	}
 	if err := json.Unmarshal([]byte(call.Input), target); err != nil {
@@ -132,8 +132,8 @@ func WithTimeoutSeconds(value int) int {
 func JoinStrings(parts ...string) string {
 	filtered := make([]string, 0, len(parts))
 	for _, part := range parts {
-		stringValue2 := str.String(part)
-		part = stringValue2.Trim()
+		partValue := str.String(part)
+		part = partValue.Trim()
 		if part == "" {
 			continue
 		}

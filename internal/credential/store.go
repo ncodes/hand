@@ -152,19 +152,19 @@ func IsExpired(credential StoredCredential) bool {
 }
 
 func normalizeProvider(provider string) string {
-	stringValue1 := str.String(provider)
-	return stringValue1.Normalized()
+	providerValue := str.String(provider)
+	return providerValue.Normalized()
 }
 
 func normalizeCredential(credential StoredCredential) StoredCredential {
-	stringValue2 := str.String(credential.Type)
-	credential.Type = stringValue2.Normalized()
-	stringValue3 := str.String(credential.Key)
-	credential.Key = stringValue3.Trim()
-	stringValue4 := str.String(credential.Token)
-	credential.Token = stringValue4.Trim()
-	stringValue5 := str.String(credential.Refresh)
-	credential.Refresh = stringValue5.Trim()
+	trimmedValueValue := str.String(credential.Type)
+	credential.Type = trimmedValueValue.Normalized()
+	keyValue := str.String(credential.Key)
+	credential.Key = keyValue.Trim()
+	tokenValue := str.String(credential.Token)
+	credential.Token = tokenValue.Trim()
+	refreshValue := str.String(credential.Refresh)
+	credential.Refresh = refreshValue.Trim()
 	credential.Scopes = normalizeStrings(credential.Scopes)
 	return credential
 }
@@ -177,12 +177,12 @@ func checkStoredCredential(credential StoredCredential) (StoredCredential, error
 	if credential.Type != TypeAPIKey && credential.Type != TypeOAuth {
 		return StoredCredential{}, fmt.Errorf("credential type must be one of: %s, %s", TypeAPIKey, TypeOAuth)
 	}
-	stringValue6 := str.String(credential.Key)
-	if credential.Type == TypeAPIKey && stringValue6.Trim() == "" {
+	keyValue2 := str.String(credential.Key)
+	if credential.Type == TypeAPIKey && keyValue2.Trim() == "" {
 		return StoredCredential{}, errors.New("API key credential is required")
 	}
-	stringValue7 := str.String(credential.Token)
-	if credential.Type == TypeOAuth && stringValue7.Trim() == "" {
+	tokenValue2 := str.String(credential.Token)
+	if credential.Type == TypeOAuth && tokenValue2.Trim() == "" {
 		return StoredCredential{}, errors.New("OAuth token credential is required")
 	}
 
@@ -206,16 +206,15 @@ func normalizeStrings(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
-		stringValue8 := str.String(value)
-		value = stringValue8.Trim()
-		if value == "" {
+		valueText := str.String(value).Trim()
+		if valueText == "" {
 			continue
 		}
-		if _, ok := seen[value]; ok {
+		if _, ok := seen[valueText]; ok {
 			continue
 		}
-		seen[value] = struct{}{}
-		normalized = append(normalized, value)
+		seen[valueText] = struct{}{}
+		normalized = append(normalized, valueText)
 	}
 	if len(normalized) == 0 {
 		return nil

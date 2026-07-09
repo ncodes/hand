@@ -83,8 +83,8 @@ func (m *model) finishTranscriptSelection(msg tea.MouseReleaseMsg) (bool, tea.Cm
 	m.applyTranscriptSelectionStyle()
 
 	text := m.selectedTranscriptText()
-	stringValue1 := str.String(text)
-	if stringValue1.Trim() == "" {
+	textValue := str.String(text)
+	if textValue.Trim() == "" {
 		m.restoreTranscriptContentAfterSelection()
 		return true, nil
 	}
@@ -297,8 +297,8 @@ func (m model) selectedTranscriptText() string {
 		return ""
 	}
 	text = removeTranscriptSelectionBodyIndent(text, getPanelHorizontalPadding(m.getMainPaneWidth()))
-	stringValue2 := str.String(text)
-	return compactTranscriptSelectionBlankLines(stringValue2.Trim())
+	textValue2 := str.String(text)
+	return compactTranscriptSelectionBlankLines(textValue2.Trim())
 }
 
 func removeTranscriptSelectionBodyIndent(text string, padding int) string {
@@ -331,8 +331,8 @@ func compactTranscriptSelectionBlankLines(text string) string {
 		if isTranscriptSelectionVisualPaddingLine(line) {
 			continue
 		}
-		stringValue3 := str.String(line)
-		if stringValue3.Trim() == "" {
+		lineValue := str.String(line)
+		if lineValue.Trim() == "" {
 			if blank {
 				continue
 			}
@@ -349,8 +349,8 @@ func compactTranscriptSelectionBlankLines(text string) string {
 }
 
 func isTranscriptSelectionVisualPaddingLine(line string) bool {
-	stringValue4 := str.String(line)
-	line = stringValue4.Trim()
+	lineValue2 := str.String(line)
+	line = lineValue2.Trim()
 	if line == "" {
 		return false
 	}

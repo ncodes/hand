@@ -175,8 +175,8 @@ func getEnvironmentTimezone(now time.Time) string {
 	if name == "" {
 		return location
 	}
-	stringValue1 := str.String(location + " (" + name + ", UTC" + getTimezoneOffset(offset) + ")")
-	return stringValue1.
+	trimmedValue := str.String(location + " (" + name + ", UTC" + getTimezoneOffset(offset) + ")")
+	return trimmedValue.
 		Trim()
 
 }
@@ -194,8 +194,8 @@ func getTimezoneOffset(offset int) string {
 // getFilesystemRoots normalizes configured roots and falls back to the process working directory.
 func getFilesystemRoots(configured []string, workingDirectory string) []string {
 	roots := configured
-	stringValue2 := str.String(workingDirectory)
-	if len(roots) == 0 && stringValue2.Trim() != "" {
+	workingDirectoryValue := str.String(workingDirectory)
+	if len(roots) == 0 && workingDirectoryValue.Trim() != "" {
 		roots = []string{workingDirectory}
 	}
 	return guardrails.NormalizeRoots(roots)
@@ -224,16 +224,15 @@ func sortedUnique(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	cleaned := make([]string, 0, len(values))
 	for _, value := range values {
-		stringValue3 := str.String(value)
-		value = stringValue3.Trim()
-		if value == "" {
+		valueText := str.String(value).Trim()
+		if valueText == "" {
 			continue
 		}
-		if _, ok := seen[value]; ok {
+		if _, ok := seen[valueText]; ok {
 			continue
 		}
-		seen[value] = struct{}{}
-		cleaned = append(cleaned, value)
+		seen[valueText] = struct{}{}
+		cleaned = append(cleaned, valueText)
 	}
 	sort.Strings(cleaned)
 	return cleaned
@@ -241,10 +240,10 @@ func sortedUnique(values []string) []string {
 
 // getFirstNonEmpty returns first when set, otherwise a trimmed second value.
 func getFirstNonEmpty(first, second string) string {
-	stringValue4 := str.String(first)
-	if stringValue4.Trim() != "" {
+	firstValue := str.String(first)
+	if firstValue.Trim() != "" {
 		return first
 	}
-	stringValue5 := str.String(second)
-	return stringValue5.Trim()
+	secondValue := str.String(second)
+	return secondValue.Trim()
 }

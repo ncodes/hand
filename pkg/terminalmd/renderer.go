@@ -106,16 +106,16 @@ func (r *Renderer) Render(markdown string) (string, error) {
 	if r == nil {
 		r = NewRenderer(Options{})
 	}
-	stringValue1 := str.String(markdown)
-	markdown = stringValue1.Trim()
+	markdownValue := str.String(markdown)
+	markdown = markdownValue.Trim()
 	if markdown == "" {
 		return "", nil
 	}
 
 	markdown = normalizeCommonMarkdownArtifacts(markdown)
 	blocks := r.renderWithTableBlocks(markdown)
-	stringValue2 := str.String(joinBlocks(blocks))
-	return stringValue2.Trim(), nil
+	joinBlocksValue := str.String(joinBlocks(blocks))
+	return joinBlocksValue.Trim(), nil
 }
 
 // normalizeOptions fills the small set of defaults needed for predictable

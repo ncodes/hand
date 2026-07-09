@@ -12,15 +12,15 @@ var statPath = os.Stat
 
 func buildProfileGroup(active profile.Profile, envPath string, configPath string) Group {
 	active = profile.WithMetadataPaths(active)
-	stringValue1 := str.String(envPath)
-	if stringValue1.Trim() != "" {
-		stringValue3 := str.String(envPath)
-		active.EnvPath = stringValue3.Trim()
+	envPathValue := str.String(envPath)
+	if envPathValue.Trim() != "" {
+		envPathValue2 := str.String(envPath)
+		active.EnvPath = envPathValue2.Trim()
 	}
-	stringValue2 := str.String(configPath)
-	if stringValue2.Trim() != "" {
-		stringValue4 := str.String(configPath)
-		active.ConfigPath = stringValue4.Trim()
+	configPathValue := str.String(configPath)
+	if configPathValue.Trim() != "" {
+		configPathValue2 := str.String(configPath)
+		active.ConfigPath = configPathValue2.Trim()
 	}
 
 	return Group{
@@ -36,8 +36,8 @@ func buildProfileGroup(active profile.Profile, envPath string, configPath string
 }
 
 func buildPathCheck(name string, path string, wantDir bool, optional bool) Check {
-	stringValue5 := str.String(path)
-	path = stringValue5.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	if path == "" {
 		status := StatusFail
 		if optional {
@@ -71,11 +71,10 @@ func buildPathCheck(name string, path string, wantDir bool, optional bool) Check
 }
 
 func defaultString(value string, fallback string) string {
-	stringValue6 := str.String(value)
-	value = stringValue6.Trim()
-	if value == "" {
+	valueText := str.String(value).Trim()
+	if valueText == "" {
 		return fallback
 	}
 
-	return value
+	return valueText
 }

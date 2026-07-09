@@ -82,8 +82,8 @@ func TestJSONLFactory_OpenSessionSecondOpenAppendsWithoutDuplicateChatStarted(t 
 	require.Len(t, matches, 1)
 	data, err := os.ReadFile(matches[0])
 	require.NoError(t, err)
-	stringValue1 := str.String(string(data))
-	lines := strings.Split(stringValue1.Trim(), "\n")
+	dataValue := str.String(string(data))
+	lines := strings.Split(dataValue.Trim(), "\n")
 	require.Len(t, lines, 3)
 
 	var types []string
@@ -149,8 +149,8 @@ func TestJSONLSession_RecordAfterCloseIsIgnored(t *testing.T) {
 	require.Len(t, matches, 1)
 	content, err := os.ReadFile(matches[0])
 	require.NoError(t, err)
-	stringValue2 := str.String(string(content))
-	require.Equal(t, 1, len(strings.Split(stringValue2.Trim(), "\n")))
+	contentValue := str.String(string(content))
+	require.Equal(t, 1, len(strings.Split(contentValue.Trim(), "\n")))
 }
 
 func TestJSONLSession_IDHandlesNilReceiver(t *testing.T) {

@@ -42,15 +42,15 @@ func (i Instructions) Append(instructions ...Instruction) Instructions {
 	appended := make(Instructions, 0, len(i)+len(instructions))
 	appended = append(appended, i...)
 	for _, instruction := range instructions {
-		stringValue1 := str.String(instruction.Value)
-		if stringValue1.Trim() == "" {
+		value := str.String(instruction.Value)
+		if value.Trim() == "" {
 			continue
 		}
-		stringValue2 := str.String(instruction.Name)
-		stringValue3 := str.String(instruction.Value)
+		nameValue := str.String(instruction.Name)
+		value2 := str.String(instruction.Value)
 		appended = append(appended, Instruction{
-			Name:  stringValue2.Trim(),
-			Value: stringValue3.Trim(),
+			Name:  nameValue.Trim(),
+			Value: value2.Trim(),
 		})
 	}
 
@@ -99,8 +99,8 @@ func (i *Instructions) UnmarshalJSON(data []byte) error {
 
 // GetByName searches for an Instruction by Name and returns it with true if found.
 func (i Instructions) GetByName(name string) (Instruction, bool) {
-	stringValue4 := str.String(name)
-	name = stringValue4.Trim()
+	nameValue2 := str.String(name)
+	name = nameValue2.Trim()
 	if name == "" {
 		return Instruction{}, false
 	}
@@ -115,8 +115,8 @@ func (i Instructions) GetByName(name string) (Instruction, bool) {
 
 // WithoutName returns a new Instructions slice excluding any Instruction with the given Name.
 func (i Instructions) WithoutName(name string) Instructions {
-	stringValue5 := str.String(name)
-	name = stringValue5.Trim()
+	nameValue3 := str.String(name)
+	name = nameValue3.Trim()
 	if name == "" {
 		return i
 	}
@@ -133,10 +133,10 @@ func (i Instructions) WithoutName(name string) Instructions {
 
 // Set adds, replaces, or removes a named instruction.
 func (i Instructions) Set(instruction Instruction) Instructions {
-	stringValue6 := str.String(instruction.Name)
-	instruction.Name = stringValue6.Trim()
-	stringValue7 := str.String(instruction.Value)
-	instruction.Value = stringValue7.Trim()
+	nameValue4 := str.String(instruction.Name)
+	instruction.Name = nameValue4.Trim()
+	value3 := str.String(instruction.Value)
+	instruction.Value = value3.Trim()
 
 	if instruction.Name == "" {
 		if instruction.Value == "" {

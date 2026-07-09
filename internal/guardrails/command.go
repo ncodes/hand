@@ -202,18 +202,17 @@ func normalizeCommandRules(values []string) []string {
 	out := make([]string, 0, len(values))
 
 	for _, value := range values {
-		stringValue1 := str.String(value)
-		value = strings.Join(strings.Fields(stringValue1.Trim()), " ")
-		if value == "" {
+		valueText := strings.Join(strings.Fields(str.String(value).Trim()), " ")
+		if valueText == "" {
 			continue
 		}
 
-		if _, ok := seen[value]; ok {
+		if _, ok := seen[valueText]; ok {
 			continue
 		}
 
-		seen[value] = struct{}{}
-		out = append(out, value)
+		seen[valueText] = struct{}{}
+		out = append(out, valueText)
 	}
 
 	return out
@@ -221,11 +220,11 @@ func normalizeCommandRules(values []string) []string {
 
 func getCommandTokens(command string, args []string) []string {
 	if len(args) > 0 {
-		stringValue2 := str.String(command)
-		tokens := []string{stringValue2.Trim()}
+		commandValue := str.String(command)
+		tokens := []string{commandValue.Trim()}
 		for _, arg := range args {
-			stringValue3 := str.String(arg)
-			trimmed := stringValue3.Trim()
+			argValue := str.String(arg)
+			trimmed := argValue.Trim()
 			if trimmed == "" {
 				continue
 			}
@@ -242,8 +241,8 @@ func normalizeTokens(tokens []string) []string {
 	out := make([]string, 0, len(tokens))
 
 	for _, token := range tokens {
-		stringValue4 := str.String(token)
-		token = stringValue4.Trim()
+		tokenValue := str.String(token)
+		token = tokenValue.Trim()
 		if token == "" {
 			continue
 		}

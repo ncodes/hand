@@ -84,10 +84,14 @@ func TestAgentRunner_RunPromptSessionTargets(t *testing.T) {
 				SessionTarget: test.target,
 				Payload:       Payload{Prompt: "hello"},
 			})
+
 			require.NoError(t, err)
 			require.Equal(t, test.wantSession, result.SessionID)
 			require.Equal(t, test.wantSession, agent.respondOptions.SessionID)
 			require.Equal(t, test.wantCreated, agent.created)
+			if test.wantCreated {
+				require.Equal(t, state.SessionOriginSourceAutomation, agent.createdSession.Origin.Source)
+			}
 		})
 	}
 }

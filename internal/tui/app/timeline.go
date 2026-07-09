@@ -50,9 +50,9 @@ func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader, s
 	}
 
 	return func() tea.Msg {
-		stringValue1 := str.String(sessionID)
+		sessionIDValue := str.String(sessionID)
 		timeline, err := client.Timeline(ctx, rpcclient.SessionTimelineOptions{
-			SessionID: stringValue1.Trim(),
+			SessionID: sessionIDValue.Trim(),
 		})
 		if err != nil {
 			return sessionTimelineLoadFailedMsg{Err: err}
@@ -131,8 +131,8 @@ func getStartupSessionID(ctx context.Context, client startupSessionLoader, remem
 }
 
 func getKnownStartupSessionID(sessions []storage.Session, id string) string {
-	stringValue2 := str.String(id)
-	id = stringValue2.Trim()
+	idValue := str.String(id)
+	id = idValue.Trim()
 	if id == "" {
 		return ""
 	}
@@ -141,8 +141,8 @@ func getKnownStartupSessionID(sessions []storage.Session, id string) string {
 	}
 
 	for _, session := range sessions {
-		stringValue3 := str.String(session.ID)
-		if stringValue3.Trim() == id {
+		iDValue := str.String(session.ID)
+		if iDValue.Trim() == id {
 			return id
 		}
 	}
@@ -197,10 +197,10 @@ func (m *model) refreshSessionTitleFromSession(session storage.Session) {
 }
 
 func getSessionDisplayName(session storage.Session) string {
-	stringValue4 := str.String(session.Title)
-	title := stringValue4.Trim()
-	stringValue5 := str.String(session.ID)
-	sessionID := stringValue5.Trim()
+	titleValue := str.String(session.Title)
+	title := titleValue.Trim()
+	iDValue2 := str.String(session.ID)
+	sessionID := iDValue2.Trim()
 	if title != "" {
 		if sessionID == storage.DefaultSessionID {
 			return fmt.Sprintf("%s (%s)", title, sessionID)
@@ -317,8 +317,8 @@ func getTimelineToolCallDetails(messages []agentapi.SessionTimelineMessage) map[
 	details := map[string]timelineToolCallDetail{}
 	for _, message := range messages {
 		for _, toolCall := range message.Message.ToolCalls {
-			stringValue6 := str.String(toolCall.ID)
-			id := stringValue6.Trim()
+			iDValue3 := str.String(toolCall.ID)
+			id := iDValue3.Trim()
 			if id == "" {
 				continue
 			}

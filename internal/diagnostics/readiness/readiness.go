@@ -96,21 +96,21 @@ func (r Report) Summary() string {
 }
 
 func check(name string, status Status, message string, actions ...Action) Check {
-	stringValue1 := str.String(name)
-	stringValue2 := str.String(message)
+	nameValue := str.String(name)
+	messageValue := str.String(message)
 	return Check{
-		Name:    stringValue1.Trim(),
+		Name:    nameValue.Trim(),
 		Status:  status,
-		Message: stringValue2.Trim(),
+		Message: messageValue.Trim(),
 		Actions: append([]Action(nil), actions...),
 	}
 }
 
 func commandAction(command string, description string) Action {
-	stringValue3 := str.String(command)
-	stringValue4 := str.String(description)
+	commandValue := str.String(command)
+	descriptionValue := str.String(description)
 	return Action{
-		Command:     stringValue3.Trim(),
-		Description: stringValue4.Trim(),
+		Command:     commandValue.Trim(),
+		Description: descriptionValue.Trim(),
 	}
 }

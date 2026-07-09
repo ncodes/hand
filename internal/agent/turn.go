@@ -484,7 +484,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 
 			if t.planHydrated {
 				plan := t.currentPlan(t.getStateSessionID())
-				stringValue1 := str.String(plan.Explanation)
+				explanationValue := str.String(plan.Explanation)
 				traceSession.Record(
 					trace.EvtPlanHydrated,
 					trace.PlanEventPayload{
@@ -492,7 +492,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 						Steps:        hydratedPlanStepsToTracePayload(plan.Steps),
 						Summary:      hydratedPlanSummaryToTracePayload(summarizeHydratedPlan(plan)),
 						ActiveStepID: getActiveHydratedPlanStepID(plan),
-						Explanation:  stringValue1.Trim(),
+						Explanation:  explanationValue.Trim(),
 						Source:       "history",
 					},
 				)
@@ -921,26 +921,26 @@ func getOutputSafetyTracePayload(sessionID string, content string, result guardr
 
 // safetyEventPayloadFromOptions normalizes guardrail trace payloads for logging/tracing.
 func safetyEventPayloadFromOptions(opts guardrails.SafetyTracePayloadOptions) trace.SafetyEventPayload {
-	stringValue2 := str.String(opts.SessionID)
-	stringValue3 := str.String(opts.Source)
-	stringValue4 := str.String(opts.Action)
-	stringValue5 := str.String(opts.Refusal)
+	sessionIDValue := str.String(opts.SessionID)
+	sourceValue := str.String(opts.Source)
+	actionValue := str.String(opts.Action)
+	refusalValue := str.String(opts.Refusal)
 	return trace.SafetyEventPayload{
-		SessionID:     stringValue2.Trim(),
-		Source:        stringValue3.Trim(),
-		Action:        stringValue4.Trim(),
+		SessionID:     sessionIDValue.Trim(),
+		Source:        sourceValue.Trim(),
+		Action:        actionValue.Trim(),
 		ContentLength: opts.ContentLength,
 		Blocked:       opts.Blocked,
 		Redacted:      opts.Redacted,
-		Refusal:       stringValue5.Trim(),
+		Refusal:       refusalValue.Trim(),
 		Findings:      guardrails.SafetyFindingLogFields(opts.Findings),
 	}
 }
 
 // getPlanToolInputState returns plan tool state representation for tracing if name/type matches.
 func getPlanToolInputState(name string, input string) *trace.PlanToolState {
-	stringValue6 := str.String(name)
-	if stringValue6.Normalized() != "plan_tool" {
+	nameValue := str.String(name)
+	if nameValue.Normalized() != "plan_tool" {
 		return nil
 	}
 	return trace.PlanToolInputState(input)
@@ -948,8 +948,8 @@ func getPlanToolInputState(name string, input string) *trace.PlanToolState {
 
 // getPlanToolOutputState returns plan tool output state for tracing where matched.
 func getPlanToolOutputState(name string, output string) *trace.PlanToolState {
-	stringValue7 := str.String(name)
-	if stringValue7.Normalized() != "plan_tool" {
+	nameValue2 := str.String(name)
+	if nameValue2.Normalized() != "plan_tool" {
 		return nil
 	}
 	return trace.PlanToolOutputState(output)
@@ -957,8 +957,8 @@ func getPlanToolOutputState(name string, output string) *trace.PlanToolState {
 
 // getProcessToolInputState returns process tool input state for tracing where matched.
 func getProcessToolInputState(name string, input string) *trace.ProcessToolState {
-	stringValue8 := str.String(name)
-	if stringValue8.Normalized() != "process" {
+	nameValue3 := str.String(name)
+	if nameValue3.Normalized() != "process" {
 		return nil
 	}
 	return trace.ProcessToolInputState(input)
@@ -966,8 +966,8 @@ func getProcessToolInputState(name string, input string) *trace.ProcessToolState
 
 // getProcessToolOutputState returns process tool output state for tracing where matched.
 func getProcessToolOutputState(name string, output string) *trace.ProcessToolState {
-	stringValue9 := str.String(name)
-	if stringValue9.Normalized() != "process" {
+	nameValue4 := str.String(name)
+	if nameValue4.Normalized() != "process" {
 		return nil
 	}
 	return trace.ProcessToolOutputState(output)
@@ -978,14 +978,14 @@ func (t *Turn) getStateSessionID() string {
 	if t == nil {
 		return storage.DefaultSessionID
 	}
-	stringValue10 := str.String(t.runCtx.Session.EffectiveID)
-	stringValue11 := str.String(t.runCtx.Session.PublicID)
-	if stringValue10.Trim() != "" || stringValue11.
+	effectiveIDValue := str.String(t.runCtx.Session.EffectiveID)
+	publicIDValue := str.String(t.runCtx.Session.PublicID)
+	if effectiveIDValue.Trim() != "" || publicIDValue.
 		Trim() != "" {
 		return t.runCtx.StateSessionID()
 	}
-	stringValue12 := str.String(t.sessionID)
-	if value := stringValue12.Trim(); value != "" {
+	sessionIDValue2 := str.String(t.sessionID)
+	if value := sessionIDValue2.Trim(); value != "" {
 		return value
 	}
 	return t.runCtx.StateSessionID()
@@ -996,8 +996,8 @@ func (t *Turn) getToolContext(ctx context.Context) context.Context {
 	if t == nil {
 		return tools.WithSessionID(ctx, "")
 	}
-	stringValue13 := str.String(t.runCtx.Session.PublicID)
-	if stringValue13.Trim() != "" {
+	publicIDValue2 := str.String(t.runCtx.Session.PublicID)
+	if publicIDValue2.Trim() != "" {
 		return tools.WithRunContext(ctx, t.runCtx)
 	}
 	return tools.WithSessionID(ctx, t.sessionID)
@@ -1144,13 +1144,13 @@ func (t *Turn) invokeToolWithLegacyRuntime(
 	if err != nil {
 		result["error"] = err.Error()
 	}
-	stringValue14 := str.String(toolResult.Error)
-	if stringValue14.Trim() != "" {
-		stringValue16 := str.String(toolResult.Error)
-		result["error"] = normalizeToolError(stringValue16.Trim())
+	errorValue := str.String(toolResult.Error)
+	if errorValue.Trim() != "" {
+		errorValue2 := str.String(toolResult.Error)
+		result["error"] = normalizeToolError(errorValue2.Trim())
 	}
-	stringValue15 := str.String(toolResult.Output)
-	if stringValue15.Trim() != "" {
+	outputValue := str.String(toolResult.Output)
+	if outputValue.Trim() != "" {
 		result["output"] = sanitizeToolOutputForModel(ctx, toolCall.Name, toolResult.Output, t.cfg)
 	}
 

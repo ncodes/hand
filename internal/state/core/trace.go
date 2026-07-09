@@ -73,8 +73,8 @@ func cloneTracePayload(payload any) any {
 
 // TraceEventMatchesQuery reports whether event satisfies query filters.
 func TraceEventMatchesQuery(event TraceEvent, query TraceQuery) bool {
-	stringValue1 := str.String(query.SessionID)
-	if sessionID := stringValue1.Trim(); sessionID != "" && event.SessionID != sessionID {
+	sessionIDValue := str.String(query.SessionID)
+	if sessionID := sessionIDValue.Trim(); sessionID != "" && event.SessionID != sessionID {
 		return false
 	}
 	if types := NormalizeTraceTypes(query.Types); len(types) > 0 && !slices.Contains(types, event.Type) {
@@ -92,8 +92,8 @@ func NormalizeTraceTypes(types []string) []string {
 	seen := make(map[string]struct{}, len(types))
 	results := make([]string, 0, len(types))
 	for _, eventType := range types {
-		stringValue2 := str.String(eventType)
-		eventType = stringValue2.Trim()
+		eventTypeValue := str.String(eventType)
+		eventType = eventTypeValue.Trim()
 		if eventType == "" {
 			continue
 		}

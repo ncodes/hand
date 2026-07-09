@@ -95,8 +95,8 @@ func setConfigValues(
 	updates []ConfigUpdate,
 	validate func(*Config) error,
 ) ([]string, error) {
-	stringValue1 := str.String(configPath)
-	configPath = stringValue1.Trim()
+	configPathValue := str.String(configPath)
+	configPath = configPathValue.Trim()
 	if configPath == "" {
 		return nil, fmt.Errorf("config path is required")
 	}
@@ -245,8 +245,8 @@ func resolveConfigPath(path string) ([]configPathStep, reflect.Type, error) {
 	current := reflect.TypeOf(Config{})
 	steps := make([]configPathStep, 0, len(parts))
 	for _, part := range parts {
-		stringValue2 := str.String(part)
-		part = stringValue2.Trim()
+		partValue := str.String(part)
+		part = partValue.Trim()
 		if part == "" {
 			return nil, nil, fmt.Errorf("invalid config path %q", path)
 		}
@@ -288,8 +288,8 @@ func getConfigPathValue(current reflect.Value, path string) (reflect.Value, erro
 	}
 
 	for _, part := range parts {
-		stringValue3 := str.String(part)
-		part = stringValue3.Trim()
+		partValue2 := str.String(part)
+		part = partValue2.Trim()
 		if part == "" {
 			return reflect.Value{}, fmt.Errorf("invalid config path %q", path)
 		}
@@ -330,8 +330,8 @@ func getConfigPathValue(current reflect.Value, path string) (reflect.Value, erro
 
 // NormalizeConfigPathAlias normalizes config path alias.
 func NormalizeConfigPathAlias(path string) string {
-	stringValue4 := str.String(path)
-	path = stringValue4.Trim()
+	pathValue := str.String(path)
+	path = pathValue.Trim()
 	switch strings.ToLower(path) {
 	case "search.enablerank":
 		return "search.enableRerank"
@@ -339,8 +339,8 @@ func NormalizeConfigPathAlias(path string) string {
 
 	parts := strings.Split(path, ".")
 	for index, part := range parts {
-		stringValue5 := str.String(part)
-		if strings.EqualFold(stringValue5.Trim(), "baseURL") {
+		partValue3 := str.String(part)
+		if strings.EqualFold(partValue3.Trim(), "baseURL") {
 			parts[index] = "baseUrl"
 		}
 	}
@@ -349,8 +349,8 @@ func NormalizeConfigPathAlias(path string) string {
 }
 
 func findConfigField(container reflect.Type, part string) (reflect.StructField, string, bool) {
-	stringValue6 := str.String(part)
-	part = stringValue6.Trim()
+	partValue4 := str.String(part)
+	part = partValue4.Trim()
 	for field := range container.Fields() {
 		field := field
 		key := getYAMLFieldName(field)
@@ -366,8 +366,8 @@ func findConfigField(container reflect.Type, part string) (reflect.StructField, 
 }
 
 func getYAMLFieldName(field reflect.StructField) string {
-	stringValue7 := str.String(field.Tag.Get("yaml"))
-	name := stringValue7.Trim()
+	getValue := str.String(field.Tag.Get("yaml"))
+	name := getValue.Trim()
 	if name == "" {
 		return field.Name
 	}
@@ -472,28 +472,28 @@ func scalarYAMLNode(tag string, value string) *yaml.Node {
 }
 
 func parseConfigBool(value string) (bool, error) {
-	stringValue8 := str.String(value)
-	switch stringValue8.Normalized() {
+	valueText := str.String(value)
+	switch valueText.Normalized() {
 	case "1", "true", "yes", "y", "on":
 		return true, nil
 	case "0", "false", "no", "n", "off":
 		return false, nil
 	default:
-		return false, fmt.Errorf("expected bool, got %q", value)
+		return false, fmt.Errorf("expected bool, got %q", valueText)
 	}
 }
 
 func configSliceValueToYAMLNode(value string, target reflect.Type) (*yaml.Node, error) {
 	var values []string
-	stringValue9 := str.String(value)
-	if strings.HasPrefix(stringValue9.Trim(), "[") {
+	value2 := str.String(value)
+	if strings.HasPrefix(value2.Trim(), "[") {
 		if err := yaml.Unmarshal([]byte(value), &values); err != nil {
 			return nil, err
 		}
 	} else {
 		for _, part := range strings.Split(value, ",") {
-			stringValue10 := str.String(part)
-			part = stringValue10.Trim()
+			partValue5 := str.String(part)
+			part = partValue5.Trim()
 			if part != "" {
 				values = append(values, part)
 			}

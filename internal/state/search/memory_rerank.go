@@ -23,8 +23,8 @@ func FilterMemoryHitsForEvidence(
 	query state.MemorySearchQuery,
 	hits []state.MemorySearchHit,
 ) []state.MemorySearchHit {
-	stringValue1 := str.String(query.Text)
-	if stringValue1.Trim() == "" {
+	textValue := str.String(query.Text)
+	if textValue.Trim() == "" {
 		return hits
 	}
 
@@ -92,8 +92,8 @@ func RerankMemoryHits(
 }
 
 func getMemoryRerankCaller(query state.MemorySearchQuery) string {
-	stringValue2 := str.String(query.RerankerUseCase)
-	if caller := stringValue2.Normalized(); caller != "" {
+	rerankerUseCaseValue := str.String(query.RerankerUseCase)
+	if caller := rerankerUseCaseValue.Normalized(); caller != "" {
 		return caller
 	}
 
@@ -130,8 +130,8 @@ func dedupeMemoryHits(hits []state.MemorySearchHit) []state.MemorySearchHit {
 
 	byID := make(map[string]state.MemorySearchHit, len(hits))
 	for _, hit := range hits {
-		stringValue3 := str.String(hit.Item.ID)
-		id := stringValue3.Trim()
+		iDValue := str.String(hit.Item.ID)
+		id := iDValue.Trim()
 		if id == "" {
 			continue
 		}
@@ -208,13 +208,13 @@ func memoryCandidate(query state.MemorySearchQuery, hit state.MemorySearchHit) C
 }
 
 func getMemoryCandidateText(item state.MemoryItem) string {
-	stringValue4 := str.String(strings.Join([]string{item.Title, item.Text}, "\n"))
-	text := stringValue4.Trim()
+	joinValue := str.String(strings.Join([]string{item.Title, item.Text}, "\n"))
+	text := joinValue.Trim()
 	if text != "" {
 		return text
 	}
-	stringValue5 := str.String(item.ID)
-	return stringValue5.Trim()
+	iDValue2 := str.String(item.ID)
+	return iDValue2.Trim()
 }
 
 func getMemoryCandidateFusedScore(query state.MemorySearchQuery, hit state.MemorySearchHit) float64 {
@@ -281,8 +281,8 @@ func memorySourceQualityBoost(links []state.MemorySourceLink) float64 {
 
 	score := 0.0
 	for _, link := range links {
-		stringValue6 := str.String(link.SessionID)
-		if stringValue6.Trim() != "" {
+		sessionIDValue := str.String(link.SessionID)
+		if sessionIDValue.Trim() != "" {
 			score += 0.04
 		}
 		if len(link.MessageIDs) > 0 {
@@ -291,13 +291,13 @@ func memorySourceQualityBoost(links []state.MemorySourceLink) float64 {
 		if len(link.Offsets) > 0 {
 			score += 0.02
 		}
-		stringValue7 := str.String(link.SummaryID)
-		if stringValue7.Trim() != "" {
+		summaryIDValue := str.String(link.SummaryID)
+		if summaryIDValue.Trim() != "" {
 			score += 0.02
 		}
-		stringValue8 := str.String(link.CreatedBy)
-		stringValue9 := str.String(link.CreatedReason)
-		if stringValue8.Trim() != "" || stringValue9.Trim() != "" {
+		createdByValue := str.String(link.CreatedBy)
+		createdReasonValue := str.String(link.CreatedReason)
+		if createdByValue.Trim() != "" || createdReasonValue.Trim() != "" {
 			score += 0.02
 		}
 	}

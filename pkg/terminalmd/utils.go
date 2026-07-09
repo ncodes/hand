@@ -9,8 +9,8 @@ import (
 )
 
 func isFenceLine(line string) bool {
-	stringValue1 := str.String(line)
-	trimmed := stringValue1.Trim()
+	lineValue := str.String(line)
+	trimmed := lineValue.Trim()
 	return strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")
 }
 

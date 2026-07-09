@@ -26,8 +26,8 @@ func manualCompactionStateFromTraceEvent(eventType string, payload any) manualCo
 	if compaction.Auto {
 		label = autoCompactionLabel
 	}
-	stringValue1 := str.String(eventType)
-	switch stringValue1.Trim() {
+	eventTypeValue := str.String(eventType)
+	switch eventTypeValue.Trim() {
 	case trace.EvtContextCompactionPending, trace.EvtContextCompactionRunning:
 		return manualCompactionState{Status: "running", Label: label}
 	case trace.EvtContextCompactionSucceeded:
@@ -40,13 +40,13 @@ func manualCompactionStateFromTraceEvent(eventType string, payload any) manualCo
 }
 
 func (state manualCompactionState) isVisible() bool {
-	stringValue2 := str.String(state.Status)
-	return stringValue2.Trim() != ""
+	statusValue := str.String(state.Status)
+	return statusValue.Trim() != ""
 }
 
 func (state manualCompactionState) isInProgress() bool {
-	stringValue3 := str.String(state.Status)
-	switch stringValue3.Normalized() {
+	statusValue2 := str.String(state.Status)
+	switch statusValue2.Normalized() {
 	case "pending", "running", "started":
 		return true
 	default:
@@ -55,20 +55,20 @@ func (state manualCompactionState) isInProgress() bool {
 }
 
 func (state manualCompactionState) displayText() string {
-	stringValue4 := str.String(state.Label)
-	label := stringValue4.Trim()
+	labelValue := str.String(state.Label)
+	label := labelValue.Trim()
 	if label == "" {
 		label = manualCompactionLabel
 	}
-	stringValue5 := str.String(state.Status)
-	switch stringValue5.Normalized() {
+	statusValue3 := str.String(state.Status)
+	switch statusValue3.Normalized() {
 	case "pending", "running", "started":
 		return label + " started"
 	case "succeeded", "completed":
 		return label + " completed"
 	case "failed":
-		stringValue6 := str.String(state.Error)
-		if err := stringValue6.Trim(); err != "" {
+		errorValue := str.String(state.Error)
+		if err := errorValue.Trim(); err != "" {
 			return label + " failed: " + err
 		}
 		return label + " failed"

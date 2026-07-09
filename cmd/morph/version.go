@@ -37,8 +37,8 @@ func formatVersionCommandOutput() string {
 }
 
 func getAppVersion() string {
-	stringValue1 := str.String(constants.AppVersion)
-	version := stringValue1.Trim()
+	appVersionValue := str.String(constants.AppVersion)
+	version := appVersionValue.Trim()
 	if version == "" {
 		return "dev"
 	}
@@ -47,8 +47,8 @@ func getAppVersion() string {
 }
 
 func getCommitHash() string {
-	stringValue2 := str.String(constants.CommitHash)
-	commit := stringValue2.Trim()
+	commitHashValue := str.String(constants.CommitHash)
+	commit := commitHashValue.Trim()
 	if commit == "" {
 		return "unknown"
 	}

@@ -110,8 +110,8 @@ func LoadCurrentName(homeDir string) (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
-	stringValue1 := str.String(getStateFileString(state, "current_profile"))
-	if value := stringValue1.Trim(); value != "" {
+	getStateFileStringValue := str.String(getStateFileString(state, "current_profile"))
+	if value := getStateFileStringValue.Trim(); value != "" {
 		name, err := NormalizeName(value)
 		if err != nil {
 			return "", false, err
@@ -160,8 +160,8 @@ func loadStateFile(path string) (stateFile, error) {
 
 		return nil, fmt.Errorf("read current profile: %w", err)
 	}
-	stringValue2 := str.String(string(data))
-	if len(stringValue2.Trim()) == 0 {
+	dataValue := str.String(string(data))
+	if len(dataValue.Trim()) == 0 {
 		return stateFile{}, nil
 	}
 
@@ -178,8 +178,8 @@ func loadStateFile(path string) (stateFile, error) {
 
 func getStateFileString(state stateFile, key string) string {
 	value, _ := state[key].(string)
-	stringValue3 := str.String(value)
-	return stringValue3.Trim()
+	valueText := str.String(value)
+	return valueText.Trim()
 }
 
 func encodeStateFile(state stateFile) []byte {
@@ -231,25 +231,25 @@ func List(homeDir string) ([]string, error) {
 
 // WithMetadataPaths returns profile with empty metadata paths filled from HomeDir.
 func WithMetadataPaths(profile Profile) Profile {
-	stringValue4 := str.String(profile.HomeDir)
-	homeDir := stringValue4.Trim()
+	homeDirValue := str.String(profile.HomeDir)
+	homeDir := homeDirValue.Trim()
 	if homeDir == "" {
 		return profile
 	}
-	stringValue5 := str.String(profile.ConfigPath)
-	if stringValue5.Trim() == "" {
+	configPathValue := str.String(profile.ConfigPath)
+	if configPathValue.Trim() == "" {
 		profile.ConfigPath = filepath.Join(homeDir, "config.yaml")
 	}
-	stringValue6 := str.String(profile.EnvPath)
-	if stringValue6.Trim() == "" {
+	envPathValue := str.String(profile.EnvPath)
+	if envPathValue.Trim() == "" {
 		profile.EnvPath = filepath.Join(homeDir, ".env")
 	}
-	stringValue7 := str.String(profile.RuntimePath)
-	if stringValue7.Trim() == "" {
+	runtimePathValue := str.String(profile.RuntimePath)
+	if runtimePathValue.Trim() == "" {
 		profile.RuntimePath = filepath.Join(homeDir, "runtime.json")
 	}
-	stringValue8 := str.String(profile.PIDPath)
-	if stringValue8.Trim() == "" {
+	pIDPathValue := str.String(profile.PIDPath)
+	if pIDPathValue.Trim() == "" {
 		profile.PIDPath = filepath.Join(homeDir, "morph.pid")
 	}
 
@@ -272,11 +272,11 @@ func Active() Profile {
 
 // ResolveName returns the normalized profile name from explicit input, environment, or default without reading stored current.
 func ResolveName(explicitName string, env map[string]string) (string, error) {
-	stringValue9 := str.String(explicitName)
-	name := stringValue9.Trim()
+	explicitNameValue := str.String(explicitName)
+	name := explicitNameValue.Trim()
 	if name == "" {
-		stringValue10 := str.String(envValue(env, EnvName))
-		name = stringValue10.Trim()
+		envValue := str.String(envValue(env, EnvName))
+		name = envValue.Trim()
 	}
 	if name == "" {
 		name = DefaultName
@@ -287,8 +287,8 @@ func ResolveName(explicitName string, env map[string]string) (string, error) {
 
 // NormalizeName validates a profile name and returns its canonical lowercase form.
 func NormalizeName(name string) (string, error) {
-	stringValue11 := str.String(name)
-	name = stringValue11.Trim()
+	nameValue := str.String(name)
+	name = nameValue.Trim()
 	if name == "" {
 		return DefaultName, nil
 	}
@@ -301,8 +301,8 @@ func NormalizeName(name string) (string, error) {
 
 // IsValidName reports whether name is a non-empty path-safe profile name.
 func IsValidName(name string) bool {
-	stringValue12 := str.String(name)
-	name = stringValue12.Trim()
+	nameValue2 := str.String(name)
+	name = nameValue2.Trim()
 	return name != "" && validName.MatchString(name)
 }
 
@@ -315,11 +315,11 @@ func envValue(env map[string]string, key string) string {
 }
 
 func resolveNameWithStoredCurrent(explicitName string, env map[string]string, homeDir string) (string, error) {
-	stringValue13 := str.String(explicitName)
-	name := stringValue13.Trim()
+	explicitNameValue2 := str.String(explicitName)
+	name := explicitNameValue2.Trim()
 	if name == "" {
-		stringValue14 := str.String(envValue(env, EnvName))
-		name = stringValue14.Trim()
+		envValue2 := str.String(envValue(env, EnvName))
+		name = envValue2.Trim()
 	}
 	if name != "" {
 		return NormalizeName(name)
@@ -337,8 +337,8 @@ func resolveNameWithStoredCurrent(explicitName string, env map[string]string, ho
 }
 
 func resolveHomeDir(homeDir string) (string, error) {
-	stringValue15 := str.String(homeDir)
-	homeDir = stringValue15.Trim()
+	homeDirValue2 := str.String(homeDir)
+	homeDir = homeDirValue2.Trim()
 	if homeDir == "" {
 		var err error
 		homeDir, err = userHomeDir()
@@ -346,8 +346,8 @@ func resolveHomeDir(homeDir string) (string, error) {
 			return "", fmt.Errorf("resolve user home dir: %w", err)
 		}
 	}
-	stringValue16 := str.String(homeDir)
-	if stringValue16.Trim() == "" {
+	homeDirValue3 := str.String(homeDir)
+	if homeDirValue3.Trim() == "" {
 		return "", errors.New("home directory is required")
 	}
 

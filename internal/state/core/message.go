@@ -29,8 +29,8 @@ type MessageRecord struct {
 
 // NormalizeMessageQueryOrder validates and canonicalizes message query order.
 func NormalizeMessageQueryOrder(order string) (string, error) {
-	stringValue1 := str.String(order)
-	switch stringValue1.Normalized() {
+	orderValue := str.String(order)
+	switch orderValue.Normalized() {
 	case "", MessageOrderAsc:
 		return MessageOrderAsc, nil
 	case MessageOrderDesc:

@@ -58,8 +58,8 @@ func newStatusCommand() *urfavecli.Command {
 }
 
 func writeDaemonStatus(out io.Writer, status morphcli.DaemonStatus) error {
-	stringValue1 := str.String(status.State)
-	if stringValue1.Trim() == "" {
+	stateValue := str.String(status.State)
+	if stateValue.Trim() == "" {
 		status.State = "unknown"
 	}
 
@@ -79,13 +79,12 @@ func writeDaemonStatus(out io.Writer, status morphcli.DaemonStatus) error {
 }
 
 func formatStatusValue(value string) string {
-	stringValue2 := str.String(value)
-	value = stringValue2.Trim()
-	if value == "" {
+	valueText := str.String(value).Trim()
+	if valueText == "" {
 		return "-"
 	}
 
-	return value
+	return valueText
 }
 
 func formatStatusTime(value time.Time) string {

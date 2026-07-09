@@ -61,8 +61,8 @@ func ensureTrailingNewline(text string) string {
 }
 
 func ChunkMarkdown(text string, limit int) []string {
-	stringValue1 := str.String(text)
-	text = stringValue1.Trim()
+	textValue := str.String(text)
+	text = textValue.Trim()
 	if text == "" {
 		return nil
 	}

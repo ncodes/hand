@@ -46,8 +46,8 @@ func runtimeInfoFromConfig(cfg *config.Config) runtimeInfo {
 	info.EmbeddingModel = getRuntimeValue(cfg.Models.Embedding.Name, info.EmbeddingModel)
 	info.Storage = getRuntimeValue(cfg.Storage.Backend, info.Storage)
 	info.Streaming = getRuntimeBoolValue(cfg.StreamEnabled())
-	stringValue1 := str.String(profile.Active().Name)
-	if active := stringValue1.Trim(); active != "" {
+	nameValue := str.String(profile.Active().Name)
+	if active := nameValue.Trim(); active != "" {
 		info.Profile = active
 	}
 
@@ -55,13 +55,12 @@ func runtimeInfoFromConfig(cfg *config.Config) runtimeInfo {
 }
 
 func getRuntimeValue(value string, fallback string) string {
-	stringValue2 := str.String(value)
-	value = stringValue2.Trim()
-	if value != "" {
-		return value
+	valueText := str.String(value).Trim()
+	if valueText != "" {
+		return valueText
 	}
-	stringValue3 := str.String(fallback)
-	return stringValue3.Trim()
+	fallbackValue := str.String(fallback)
+	return fallbackValue.Trim()
 }
 
 func getRuntimeBoolValue(enabled bool) string {

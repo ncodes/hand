@@ -68,8 +68,8 @@ func Detect(timeout time.Duration) Result {
 
 func detectExplicitEnvironment() (Result, bool) {
 	if value, ok := lookupEnv("MORPH_TUI_BACKGROUND"); ok {
-		stringValue1 := str.String(value)
-		background := stringValue1.Normalized()
+		valueText := str.String(value)
+		background := valueText.Normalized()
 		if _, err := parseHexBackground(background); err == nil {
 			return Result{
 				Theme:      ThemeFromBackground(background),
@@ -100,8 +100,8 @@ func detectThemeEnvironmentFallback() (Result, bool) {
 	if len(parts) == 0 {
 		return Result{}, false
 	}
-	stringValue2 := str.String(parts[len(parts)-1])
-	backgroundIndex, err := strconv.Atoi(stringValue2.Trim())
+	partsValue := str.String(parts[len(parts)-1])
+	backgroundIndex, err := strconv.Atoi(partsValue.Trim())
 	if err != nil {
 		return Result{}, false
 	}
@@ -124,8 +124,8 @@ func ParseOSC11(response string) (string, error) {
 	value := after
 	value = strings.TrimSuffix(value, "\x07")
 	value = strings.TrimSuffix(value, "\x1b\\")
-	stringValue3 := str.String(value)
-	value = stringValue3.Trim()
+	value2 := str.String(value)
+	value = value2.Trim()
 
 	if after0, ok0 := strings.CutPrefix(value, "rgb:"); ok0 {
 		return rgbToHex(after0)

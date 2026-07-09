@@ -79,11 +79,11 @@ func (a *TelegramAdapter) DispatchUpdate(ctx context.Context, update tg.Update) 
 }
 
 func (a *TelegramAdapter) authorize(ctx context.Context, inbound tg.InboundMessage) (bool, error) {
-	stringValue1 := str.String(inbound.SenderID)
-	senderID := stringValue1.Trim()
+	senderIDValue := str.String(inbound.SenderID)
+	senderID := senderIDValue.Trim()
 	if senderID == "" && inbound.Target.ChatType == "private" {
-		stringValue2 := str.String(inbound.Target.ChatID)
-		senderID = stringValue2.Trim()
+		chatIDValue := str.String(inbound.Target.ChatID)
+		senderID = chatIDValue.Trim()
 	}
 	if senderID == "" {
 		return false, nil
@@ -128,15 +128,15 @@ func (a *TelegramAdapter) authorize(ctx context.Context, inbound tg.InboundMessa
 }
 
 func hasAllowedSender(allowed []string, senderID string) bool {
-	stringValue3 := str.String(senderID)
-	senderID = stringValue3.Trim()
+	senderIDValue2 := str.String(senderID)
+	senderID = senderIDValue2.Trim()
 	if senderID == "" {
 		return false
 	}
 
 	for _, allowedID := range allowed {
-		stringValue4 := str.String(allowedID)
-		if stringValue4.Trim() == senderID {
+		allowedIDValue := str.String(allowedID)
+		if allowedIDValue.Trim() == senderID {
 			return true
 		}
 	}
@@ -145,6 +145,6 @@ func hasAllowedSender(allowed []string, senderID string) bool {
 }
 
 func gatewayPairingSecret(cfg config.GatewayConfig) string {
-	stringValue5 := str.String(cfg.PairingSecret)
-	return stringValue5.Trim()
+	pairingSecretValue := str.String(cfg.PairingSecret)
+	return pairingSecretValue.Trim()
 }

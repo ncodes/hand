@@ -17,8 +17,8 @@ type ConfigOptions struct {
 
 // DefaultSpec returns the default e2e scenario specification.
 func DefaultSpec(home string) HarnessSpec {
-	stringValue1 := str.String(home)
-	home = stringValue1.Trim()
+	homeValue := str.String(home)
+	home = homeValue.Trim()
 	dataDir := filepath.Join(home, "data")
 
 	return HarnessSpec{
@@ -37,13 +37,13 @@ func DefaultSpec(home string) HarnessSpec {
 // DefaultConfig returns the default e2e harness configuration.
 func DefaultConfig(opts ConfigOptions) *config.Config {
 	stream := opts.Stream
-	stringValue2 := str.String(opts.Name)
-	name := stringValue2.Trim()
+	nameValue := str.String(opts.Name)
+	name := nameValue.Trim()
 	if name == "" {
 		name = "Test Morph"
 	}
-	stringValue3 := str.String(opts.StorageBackend)
-	storageBackend := stringValue3.Trim()
+	storageBackendValue := str.String(opts.StorageBackend)
+	storageBackend := storageBackendValue.Trim()
 	if storageBackend == "" {
 		storageBackend = "sqlite"
 	}

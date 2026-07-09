@@ -16,8 +16,8 @@ type ModelRef struct {
 // String returns the canonical provider/model reference.
 func (r ModelRef) String() string {
 	provider := normalizeID(r.Provider)
-	stringValue1 := str.String(r.Model)
-	model := stringValue1.Trim()
+	modelValue := str.String(r.Model)
+	model := modelValue.Trim()
 	if provider == "" || model == "" {
 		return ""
 	}
@@ -27,15 +27,15 @@ func (r ModelRef) String() string {
 
 // ParseLocalModelRef parses refs such as ollama/llama3.1:8b.
 func ParseLocalModelRef(value string) (ModelRef, bool) {
-	stringValue2 := str.String(value)
-	provider, model, ok := strings.Cut(stringValue2.Trim(), "/")
+	valueText := str.String(value)
+	provider, model, ok := strings.Cut(valueText.Trim(), "/")
 	if !ok {
 		return ModelRef{}, false
 	}
-	stringValue3 := str.String(model)
+	modelValue2 := str.String(model)
 	ref := ModelRef{
 		Provider: normalizeID(provider),
-		Model:    stringValue3.Trim(),
+		Model:    modelValue2.Trim(),
 	}
 	if ref.Provider == "" || ref.Model == "" || !IsLocalProviderID(ref.Provider) {
 		return ModelRef{}, false

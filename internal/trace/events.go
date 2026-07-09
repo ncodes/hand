@@ -217,7 +217,7 @@ func EpisodicMemoryTraceEventTypes() []string {
 
 // IsEpisodicMemoryTraceEventType reports whether eventType belongs to episodic memory workflows.
 func IsEpisodicMemoryTraceEventType(eventType string) bool {
-	stringValue1 := str.String(eventType)
-	eventType = stringValue1.Trim()
+	eventTypeValue := str.String(eventType)
+	eventType = eventTypeValue.Trim()
 	return slices.Contains(episodicMemoryTraceEventTypes, eventType)
 }
