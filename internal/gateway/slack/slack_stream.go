@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wandxy/morph/internal/config"
 	slack "github.com/wandxy/morph/pkg/gateway/slack"
 	"github.com/wandxy/morph/pkg/str"
 )
@@ -19,6 +20,15 @@ type Sender struct {
 
 func NewSender(api API) *Sender {
 	return &Sender{api: api}
+}
+
+func SendFinal(
+	ctx context.Context,
+	cfg config.GatewaySlackConfig,
+	target slack.Target,
+	text string,
+) error {
+	return NewSender(NewHTTPClient(cfg.BotToken)).SendFinal(ctx, target, text)
 }
 
 func (s *Sender) SendFinal(ctx context.Context, target slack.Target, text string) error {

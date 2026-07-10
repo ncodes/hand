@@ -59,6 +59,10 @@ var newGatewayManager = func() gatewayManager {
 	return gateway.NewManager(gateway.Options{})
 }
 
+var newGatewayAutomationDeliverySink = func(cfg config.GatewayConfig) automation.DeliverySink {
+	return gateway.NewAutomationDeliverySink(cfg)
+}
+
 var stopGatewayTimeout = 5 * time.Second
 
 var newAutomationService = func(
@@ -107,7 +111,11 @@ func serveDaemonServices(ctx context.Context, cfg *config.Config, agent agentRun
 	}
 }
 
-func buildAutomationService(ctx context.Context, agent agentRunner) (*automation.Service, error) {
+func buildAutomationService(
+	ctx context.Context,
+	cfg *config.Config,
+	agent agentRunner,
+) (*automation.Service, error) {
 	if agent == nil {
 		return nil, nil
 	}
@@ -120,10 +128,15 @@ func buildAutomationService(ctx context.Context, agent agentRunner) (*automation
 		return nil, err
 	}
 
+	serviceOptions := automation.ServiceOptions{}
+	if cfg != nil {
+		serviceOptions.DeliverySink = newGatewayAutomationDeliverySink(cfg.Gateway)
+	}
+
 	return newAutomationService(
 		store,
 		automation.NewAgentRunner(automation.AgentRunnerOptions{}),
-		automation.ServiceOptions{})
+		serviceOptions)
 }
 
 func logGatewayStarted(cfg config.GatewayConfig) {
@@ -185,7 +198,7 @@ var serveRPC = func(
 ) error {
 	defer lis.Close()
 
-	automationService, err := buildAutomationService(ctx, agent)
+	automationService, err := buildAutomationService(ctx, cfg, agent)
 	if err != nil {
 		return err
 	}

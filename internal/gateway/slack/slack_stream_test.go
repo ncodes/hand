@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/config"
 	pkgslack "github.com/wandxy/morph/pkg/gateway/slack"
 )
 
@@ -374,6 +375,20 @@ func TestSender_SendFinalChunksLongText(t *testing.T) {
 	require.Len(t, calls, 2)
 	require.Equal(t, pkgslack.MarkdownTextLimit, len(calls[0].text))
 	require.Equal(t, 1, len(calls[1].text))
+}
+
+func TestSendFinal_UsesConfiguredSlackClient(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := SendFinal(
+		ctx,
+		config.GatewaySlackConfig{BotToken: "slack-token"},
+		pkgslack.Target{ChannelID: "C123"},
+		"message",
+	)
+
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestSender_SendFinalFormatsSlackMrkdwn(t *testing.T) {

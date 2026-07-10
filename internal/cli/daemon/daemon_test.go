@@ -19,6 +19,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
 	urfavecli "github.com/urfave/cli/v3"
+	"github.com/wandxy/morph/internal/automation"
 	"github.com/wandxy/morph/internal/brand"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
@@ -30,6 +31,7 @@ import (
 	provider_openai "github.com/wandxy/morph/internal/model/provider_openai"
 	"github.com/wandxy/morph/internal/profile"
 	morphruntime "github.com/wandxy/morph/internal/runtime"
+	"github.com/wandxy/morph/internal/state/storememory"
 	"github.com/wandxy/morph/pkg/logutils"
 	"github.com/wandxy/morph/pkg/str"
 	"google.golang.org/grpc"
@@ -1300,6 +1302,73 @@ func TestServeRPC_ReturnsWhenGRPCServeFails(t *testing.T) {
 	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
 
 	require.EqualError(t, err, "serve boom")
+}
+
+func TestBuildAutomationService_WiresGatewayDeliverySink(t *testing.T) {
+	originalNewAutomationService := newAutomationService
+	originalNewGatewayDeliverySink := newGatewayAutomationDeliverySink
+	t.Cleanup(func() {
+		newAutomationService = originalNewAutomationService
+		newGatewayAutomationDeliverySink = originalNewGatewayDeliverySink
+	})
+
+	expectedSink := morphgateway.NewAutomationDeliverySink(config.GatewayConfig{})
+	newGatewayAutomationDeliverySink = func(cfg config.GatewayConfig) automation.DeliverySink {
+		require.True(t, cfg.Enabled)
+		return expectedSink
+	}
+	var serviceOptions automation.ServiceOptions
+	newAutomationService = func(
+		_ automation.Store,
+		_ automation.Runner,
+		opts automation.ServiceOptions,
+	) (*automation.Service, error) {
+		serviceOptions = opts
+		return nil, nil
+	}
+	agent := &agentstub.AgentRunnerStub{AgentServiceStub: agentstub.AgentServiceStub{
+		AutomationStoreValue: storememory.NewStore(),
+		AutomationStoreOK:    true,
+	}}
+
+	_, err := buildAutomationService(
+		context.Background(),
+		&config.Config{Gateway: config.GatewayConfig{Enabled: true}},
+		agent,
+	)
+
+	require.NoError(t, err)
+	require.Same(t, expectedSink, serviceOptions.DeliverySink)
+
+	serviceOptions = automation.ServiceOptions{}
+	_, err = buildAutomationService(context.Background(), nil, agent)
+	require.NoError(t, err)
+	require.Nil(t, serviceOptions.DeliverySink)
+}
+
+func TestBuildAutomationService_HandlesUnavailableDependencies(t *testing.T) {
+	service, err := buildAutomationService(context.Background(), &config.Config{}, nil)
+	require.NoError(t, err)
+	require.Nil(t, service)
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	service, err = buildAutomationService(canceledCtx, &config.Config{}, &agentstub.AgentRunnerStub{})
+	require.NoError(t, err)
+	require.Nil(t, service)
+
+	expected := errors.New("automation store failed")
+	agent := &agentstub.AgentRunnerStub{AgentServiceStub: agentstub.AgentServiceStub{
+		AutomationStoreErr: expected,
+	}}
+	service, err = buildAutomationService(context.Background(), &config.Config{}, agent)
+	require.ErrorIs(t, err, expected)
+	require.Nil(t, service)
+
+	agent.AutomationStoreErr = nil
+	service, err = buildAutomationService(context.Background(), &config.Config{}, agent)
+	require.NoError(t, err)
+	require.Nil(t, service)
 }
 
 func TestServeRPC_ReturnsNilWhenGRPCServeReturnsServerStopped(t *testing.T) {

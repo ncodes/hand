@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/config"
 	tg "github.com/wandxy/morph/pkg/gateway/telegram"
 )
 
@@ -368,6 +369,20 @@ func TestTelegramSender_ChunksFinalDelivery(t *testing.T) {
 	require.Len(t, calls, 2)
 	require.Len(t, []rune(calls[0].text), tg.MessageTextLimit)
 	require.Equal(t, "y", calls[1].text)
+}
+
+func TestSendFinal_UsesConfiguredTelegramClient(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := SendFinal(
+		ctx,
+		config.GatewayTelegramConfig{BotToken: "telegram-token"},
+		tg.Target{ChatID: "123"},
+		"message",
+	)
+
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestTelegramSender_SimulatedFinalSendsRemainingChunks(t *testing.T) {

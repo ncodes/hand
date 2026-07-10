@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wandxy/morph/internal/config"
 	tg "github.com/wandxy/morph/pkg/gateway/telegram"
 	"github.com/wandxy/morph/pkg/str"
 )
@@ -196,6 +197,15 @@ type telegramSender struct {
 
 func newTelegramSender(api telegramAPI) *telegramSender {
 	return &telegramSender{api: api, minEditGap: 250 * time.Millisecond}
+}
+
+func SendFinal(
+	ctx context.Context,
+	cfg config.GatewayTelegramConfig,
+	target tg.Target,
+	text string,
+) error {
+	return newTelegramSender(newTelegramHTTPClient(cfg.BotToken)).SendFinal(ctx, target, text)
 }
 
 func (s *telegramSender) SendFinal(ctx context.Context, target tg.Target, text string) error {
