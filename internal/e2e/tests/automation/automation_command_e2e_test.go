@@ -51,6 +51,39 @@ func Test_E2E_AutomationCommand_RunsDueOneShotJob(t *testing.T) {
 	require.True(t, job.State.NextRunAt.IsZero())
 }
 
+func Test_E2E_AutomationCommand_RejectsInvalidDeliveryBeforePersistence(t *testing.T) {
+	daemon := startAutomationDaemon(t)
+	defer daemon.stop(t)
+
+	output, err := runAutomationCommand(t,
+		"automation", "add",
+		"--name", "Invalid delivery",
+		"--schedule", "every 5m",
+		"--prompt", "Say: no delivery",
+		"--delivery", "n",
+	)
+
+	require.ErrorContains(t, err, `unsupported automation delivery mode "n"`)
+	require.Empty(t, output)
+
+	_, err = daemon.client.AutomationAPI().Add(context.Background(), coreautomation.Job{
+		Enabled:  false,
+		Schedule: coreautomation.Schedule{Kind: coreautomation.ScheduleEvery, Every: 5 * time.Minute},
+		Payload: coreautomation.Payload{
+			Kind:   coreautomation.PayloadPrompt,
+			Prompt: "Say: no delivery",
+		},
+		Delivery: coreautomation.Delivery{Mode: coreautomation.DeliveryMode("n")},
+	})
+	require.ErrorContains(t, err, `unsupported automation delivery mode "n"`)
+
+	list, listErr := daemon.client.AutomationAPI().List(context.Background(), coreautomation.JobQuery{
+		IncludeDisabled: true,
+	})
+	require.NoError(t, listErr)
+	require.Empty(t, list.Jobs)
+}
+
 func Test_E2E_AutomationCommand_ManualRecurringRunPersistsAcrossDaemonRestart(t *testing.T) {
 	daemon := startAutomationDaemon(t)
 

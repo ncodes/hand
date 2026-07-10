@@ -443,10 +443,10 @@ func TestJobFromCommand_CoversDisabledAndSystemEvent(t *testing.T) {
 		"--base-url", "https://example.test",
 		"--provider", "openai",
 		"--model", "gpt-test",
+		"--delivery", "gateway",
 		"--channel", "telegram",
 		"--target", "user",
 		"--thread", "thread",
-		"--webhook-url", "https://hook.test",
 		"--best-effort",
 		"--delete-after-run",
 	}))
@@ -455,8 +455,42 @@ func TestJobFromCommand_CoversDisabledAndSystemEvent(t *testing.T) {
 	require.Equal(t, coreautomation.PayloadSystemEvent, api.added.Payload.Kind)
 	require.Equal(t, "wake", api.added.Payload.SystemEvent)
 	require.True(t, api.added.Payload.NoTimeout)
+	require.Equal(t, coreautomation.DeliveryGateway, api.added.Delivery.Mode)
+	require.Equal(t, "telegram", api.added.Delivery.Channel)
+	require.Equal(t, "user", api.added.Delivery.Target)
+	require.Equal(t, "thread", api.added.Delivery.ThreadID)
 	require.True(t, api.added.Delivery.BestEffort)
 	require.True(t, api.added.DeleteAfterRun)
+
+	require.NoError(t, newTestCommand().Run(context.Background(), []string{
+		"automation", "add",
+		"--schedule", "every 1h",
+		"--prompt", "notify",
+		"--delivery", "webhook",
+		"--webhook-url", "https://hook.test",
+	}))
+	require.Equal(t, coreautomation.DeliveryWebhook, api.added.Delivery.Mode)
+	require.Equal(t, "https://hook.test", api.added.Delivery.WebhookURL)
+}
+
+func TestNewCommand_RejectsInvalidDeliveryFlagsBeforeRPC(t *testing.T) {
+	api, _ := setupAutomationCommandTest(t)
+
+	err := newTestCommand().Run(context.Background(), []string{
+		"automation", "add",
+		"--schedule", "every 5m",
+		"--prompt", "notify",
+		"--delivery", "n",
+	})
+	require.EqualError(t, err, `unsupported automation delivery mode "n"`)
+	require.Empty(t, api.added)
+
+	err = newTestCommand().Run(context.Background(), []string{
+		"automation", "update", testAutomationCommandJobID,
+		"--target", "C1",
+	})
+	require.EqualError(t, err, "--delivery is required when setting delivery options")
+	require.Empty(t, api.patch)
 }
 
 func setupAutomationCommandTest(t *testing.T) (*automationCommandAPIStub, *bytes.Buffer) {

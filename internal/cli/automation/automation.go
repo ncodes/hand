@@ -290,7 +290,7 @@ func jobMutationFlags(add bool) []cli.Flag {
 		&cli.IntFlag{Name: "retry-attempts", Usage: "Retry attempts"},
 		&cli.DurationFlag{Name: "retry-backoff", Usage: "Initial retry backoff"},
 		&cli.DurationFlag{Name: "retry-max-delay", Usage: "Maximum retry delay"},
-		&cli.StringFlag{Name: "delivery", Usage: "Delivery mode"},
+		&cli.StringFlag{Name: "delivery", Usage: "Delivery mode: none, local, origin, gateway, or webhook"},
 		&cli.StringFlag{Name: "channel", Usage: "Delivery channel"},
 		&cli.StringFlag{Name: "target", Usage: "Delivery target"},
 		&cli.StringFlag{Name: "thread", Usage: "Delivery thread id"},
@@ -310,6 +310,10 @@ func jobFromCommand(cmd *cli.Command) (coreautomation.Job, error) {
 	if err != nil {
 		return coreautomation.Job{}, err
 	}
+	delivery, err := deliveryFromCommand(cmd)
+	if err != nil {
+		return coreautomation.Job{}, err
+	}
 
 	return coreautomation.Job{
 		Name:           strings.TrimSpace(cmd.String("name")),
@@ -317,7 +321,7 @@ func jobFromCommand(cmd *cli.Command) (coreautomation.Job, error) {
 		Enabled:        !cmd.Bool("disabled"),
 		Schedule:       schedule,
 		Payload:        payloadFromCommand(cmd),
-		Delivery:       deliveryFromCommand(cmd),
+		Delivery:       delivery,
 		Profile:        strings.TrimSpace(cmd.String("profile")),
 		SessionTarget:  strings.TrimSpace(cmd.String("session-target")),
 		DeleteAfterRun: cmd.Bool("delete-after-run"),
@@ -351,7 +355,10 @@ func patchFromCommand(cmd *cli.Command) (coreautomation.JobPatch, error) {
 		patch.Payload = &payload
 	}
 	if hasDeliveryFlag(cmd) {
-		delivery := deliveryFromCommand(cmd)
+		delivery, err := deliveryFromCommand(cmd)
+		if err != nil {
+			return coreautomation.JobPatch{}, err
+		}
 		patch.Delivery = &delivery
 	}
 	if cmd.IsSet("profile") {
@@ -403,34 +410,45 @@ func payloadFromCommand(cmd *cli.Command) coreautomation.Payload {
 	return payload
 }
 
-func deliveryFromCommand(cmd *cli.Command) coreautomation.Delivery {
+func deliveryFromCommand(cmd *cli.Command) (coreautomation.Delivery, error) {
+	mode := coreautomation.DeliveryMode(strings.ToLower(strings.TrimSpace(cmd.String("delivery"))))
+	switch mode {
+	case "", coreautomation.DeliveryNone, coreautomation.DeliveryLocal,
+		coreautomation.DeliveryOrigin, coreautomation.DeliveryGateway, coreautomation.DeliveryWebhook:
+	default:
+		return coreautomation.Delivery{}, fmt.Errorf("unsupported automation delivery mode %q", mode)
+	}
+	if mode == "" && hasDeliveryOptionFlag(cmd) {
+		return coreautomation.Delivery{}, fmt.Errorf("--delivery is required when setting delivery options")
+	}
+
 	return coreautomation.Delivery{
-		Mode:       coreautomation.DeliveryMode(strings.TrimSpace(cmd.String("delivery"))),
+		Mode:       mode,
 		Channel:    strings.TrimSpace(cmd.String("channel")),
 		Target:     strings.TrimSpace(cmd.String("target")),
 		ThreadID:   strings.TrimSpace(cmd.String("thread")),
 		WebhookURL: strings.TrimSpace(cmd.String("webhook-url")),
 		BestEffort: cmd.Bool("best-effort"),
-	}
+	}, nil
 }
 
 func hasPayloadFlag(cmd *cli.Command) bool {
-	for _, name := range []string{
+	return slices.ContainsFunc([]string{
 		"prompt", "system-event", "model", "provider", "base-url", "no-timeout",
 		"max-runtime", "max-iterations", "retry-attempts", "retry-backoff",
 		"retry-max-delay", "tool-group",
-	} {
-		if cmd.IsSet(name) {
-			return true
-		}
-	}
-
-	return false
+	}, cmd.IsSet)
 }
 
 func hasDeliveryFlag(cmd *cli.Command) bool {
 	return slices.ContainsFunc([]string{
 		"delivery", "channel", "target", "thread", "webhook-url", "best-effort",
+	}, cmd.IsSet)
+}
+
+func hasDeliveryOptionFlag(cmd *cli.Command) bool {
+	return slices.ContainsFunc([]string{
+		"channel", "target", "thread", "webhook-url", "best-effort",
 	}, cmd.IsSet)
 }
 

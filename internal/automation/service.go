@@ -369,7 +369,7 @@ func (s *Service) Add(ctx context.Context, job Job) (Job, error) {
 		return Job{}, errors.New("automation service is required")
 	}
 
-	prepared, err := s.prepareJobSchedule(job, s.getNow())
+	prepared, err := s.prepareAddedJob(job, s.getNow())
 	if err != nil {
 		return Job{}, err
 	}
@@ -387,21 +387,20 @@ func (s *Service) Update(ctx context.Context, patch JobPatch) (Job, error) {
 		return Job{}, errors.New("automation service is required")
 	}
 
-	if checkJobPatchNeedsScheduleRepair(patch) {
-		current, ok, err := s.store.GetJob(ctx, patch.ID)
-		if err != nil {
-			return Job{}, err
-		}
-		if !ok {
-			return Job{}, errors.New("automation job not found")
-		}
+	if err := ValidateJobID(patch.ID); err != nil {
+		return Job{}, err
+	}
+	current, ok, err := s.store.GetJob(ctx, patch.ID)
+	if err != nil {
+		return Job{}, err
+	}
+	if !ok {
+		return Job{}, errors.New("automation job not found")
+	}
 
-		candidate := applyServiceJobPatchForScheduleCheck(current, patch)
-		prepared, err := s.prepareJobSchedule(candidate, s.getNow())
-		if err != nil {
-			return Job{}, err
-		}
-		patch.State = &prepared.State
+	patch, err = s.prepareAutomationJobPatch(current, patch, s.getNow())
+	if err != nil {
+		return Job{}, err
 	}
 
 	updated, err := s.store.PatchJob(ctx, patch)
@@ -1306,21 +1305,6 @@ func checkJobPatchNeedsScheduleRepair(patch JobPatch) bool {
 	return patch.Schedule != nil ||
 		patch.Enabled != nil ||
 		patch.State != nil
-}
-
-func applyServiceJobPatchForScheduleCheck(job Job, patch JobPatch) Job {
-	job = job.Clone()
-	if patch.Enabled != nil {
-		job.Enabled = *patch.Enabled
-	}
-	if patch.Schedule != nil {
-		job.Schedule = *patch.Schedule
-	}
-	if patch.State != nil {
-		job.State = *patch.State
-	}
-
-	return job
 }
 
 func stopTimer(timer *time.Timer) {

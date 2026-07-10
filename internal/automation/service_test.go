@@ -14,6 +14,10 @@ import (
 	"github.com/wandxy/morph/internal/state/storememory"
 )
 
+func automationTestPromptPayload() Payload {
+	return Payload{Kind: PayloadPrompt, Prompt: "test"}
+}
+
 func TestNewService_Validation(t *testing.T) {
 	_, err := NewService(ServiceOptions{})
 	require.EqualError(t, err, "automation store is required")
@@ -109,6 +113,7 @@ func TestService_AddListUpdateRemove(t *testing.T) {
 	job, err := service.Add(ctx, Job{
 		ID:      testServiceJobA,
 		Enabled: true,
+		Payload: automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind:  ScheduleEvery,
 			Every: time.Hour,
@@ -144,6 +149,7 @@ func TestService_AddListUpdateRemove(t *testing.T) {
 	}, clock, &automationRunnerStub{}).Add(ctx, Job{
 		ID:      testServiceJobB,
 		Enabled: true,
+		Payload: automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind:  ScheduleEvery,
 			Every: time.Hour,
@@ -183,6 +189,7 @@ func TestService_UpdateRejectsInvalidScheduleBeforePersisting(t *testing.T) {
 	_, err := service.Add(ctx, Job{
 		ID:      testServiceJobA,
 		Enabled: true,
+		Payload: automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind:  ScheduleEvery,
 			Every: time.Hour,
@@ -220,6 +227,7 @@ func TestService_RunExecutesJobAndUpdatesState(t *testing.T) {
 	_, err := service.Add(ctx, Job{
 		ID:      testServiceJobA,
 		Enabled: true,
+		Payload: automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind: ScheduleAt,
 			At:   clock.Now(),
@@ -261,6 +269,7 @@ func TestService_RunDeliversSuccessfulOutputToGateway(t *testing.T) {
 	_, err = service.Add(ctx, Job{
 		ID:      testServiceJobA,
 		Enabled: true,
+		Payload: automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind: ScheduleAt,
 			At:   clock.Now(),
@@ -307,8 +316,9 @@ func TestService_RunTracksDeliveryFailure(t *testing.T) {
 	_, err = service.Add(ctx, Job{
 		ID:       testServiceJobA,
 		Enabled:  true,
+		Payload:  automationTestPromptPayload(),
 		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
-		Delivery: Delivery{Mode: DeliveryGateway, Target: "ops"},
+		Delivery: Delivery{Mode: DeliveryGateway, Channel: "slack", Target: "ops"},
 	})
 	require.NoError(t, err)
 
@@ -343,8 +353,9 @@ func TestService_RunRetriesDeliveryFailure(t *testing.T) {
 	_, err = service.Add(ctx, Job{
 		ID:       testServiceJobA,
 		Enabled:  true,
+		Payload:  automationTestPromptPayload(),
 		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
-		Delivery: Delivery{Mode: DeliveryGateway, Target: "ops"},
+		Delivery: Delivery{Mode: DeliveryGateway, Channel: "slack", Target: "ops"},
 	})
 	require.NoError(t, err)
 
@@ -398,8 +409,9 @@ func TestService_RunAllowsBestEffortDeliveryFailure(t *testing.T) {
 	_, err = service.Add(ctx, Job{
 		ID:       testServiceJobA,
 		Enabled:  true,
+		Payload:  automationTestPromptPayload(),
 		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
-		Delivery: Delivery{Mode: DeliveryGateway, Target: "ops", BestEffort: true},
+		Delivery: Delivery{Mode: DeliveryGateway, Channel: "slack", Target: "ops", BestEffort: true},
 	})
 	require.NoError(t, err)
 
@@ -542,7 +554,7 @@ func TestService_RunDeliversOriginFromMetadata(t *testing.T) {
 			metadataOriginChannel: " Slack ",
 			metadataOriginTarget:  " C1 ",
 			metadataOriginThread:  " 123.456 ",
-		}},
+		}, Kind: PayloadPrompt, Prompt: "test"},
 		Delivery: Delivery{Mode: DeliveryOrigin},
 	})
 	require.NoError(t, err)
@@ -582,6 +594,7 @@ func TestService_RunDeliversWebhook(t *testing.T) {
 	_, err := service.Add(ctx, Job{
 		ID:       testServiceJobA,
 		Enabled:  true,
+		Payload:  automationTestPromptPayload(),
 		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
 		Delivery: Delivery{Mode: DeliveryWebhook, WebhookURL: server.URL},
 	})
@@ -613,6 +626,7 @@ func TestService_RunTracksWebhookDeliveryFailure(t *testing.T) {
 	_, err := service.Add(ctx, Job{
 		ID:       testServiceJobA,
 		Enabled:  true,
+		Payload:  automationTestPromptPayload(),
 		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
 		Delivery: Delivery{Mode: DeliveryWebhook, WebhookURL: server.URL, BestEffort: true},
 	})
@@ -810,6 +824,7 @@ func TestService_RunUsesBackgroundContextWhenNil(t *testing.T) {
 	_, err := service.Add(context.Background(), Job{
 		ID:       testServiceJobA,
 		Enabled:  true,
+		Payload:  automationTestPromptPayload(),
 		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
 	})
 	require.NoError(t, err)
@@ -830,6 +845,7 @@ func TestService_RunFailureRecordsErrorAndNextRun(t *testing.T) {
 	_, err := service.Add(ctx, Job{
 		ID:      testServiceJobA,
 		Enabled: true,
+		Payload: automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind:  ScheduleEvery,
 			Every: time.Hour,
@@ -869,6 +885,7 @@ func TestService_RunRetriesTransientFailures(t *testing.T) {
 	_, err = service.Add(ctx, Job{
 		ID:       testServiceJobA,
 		Enabled:  true,
+		Payload:  automationTestPromptPayload(),
 		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
 	})
 	require.NoError(t, err)
@@ -914,6 +931,7 @@ func TestService_RunAppliesTimeoutPolicies(t *testing.T) {
 	_, err = service.Add(ctx, Job{
 		ID:       testServiceJobA,
 		Enabled:  true,
+		Payload:  automationTestPromptPayload(),
 		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
 	})
 	require.NoError(t, err)
@@ -935,7 +953,7 @@ func TestService_RunAppliesTimeoutPolicies(t *testing.T) {
 		ID:       testServiceJobB,
 		Enabled:  true,
 		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
-		Payload:  Payload{NoTimeout: true},
+		Payload:  Payload{Kind: PayloadPrompt, Prompt: "test", NoTimeout: true},
 	})
 	require.NoError(t, err)
 
@@ -1036,6 +1054,7 @@ func TestService_RunHandlesMissingJobAfterExecution(t *testing.T) {
 	_, err := service.Add(ctx, Job{
 		ID:      testServiceJobA,
 		Enabled: true,
+		Payload: automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind:  ScheduleEvery,
 			Every: time.Hour,
@@ -1057,6 +1076,7 @@ func TestService_RunDeletesOneShotJobAfterSuccess(t *testing.T) {
 		ID:             testServiceJobA,
 		Enabled:        true,
 		DeleteAfterRun: true,
+		Payload:        automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind: ScheduleAt,
 			At:   clock.Now(),
@@ -1080,6 +1100,7 @@ func TestService_RunDeletesOneShotJobAfterSuccess(t *testing.T) {
 		ID:             testServiceJobB,
 		Enabled:        true,
 		DeleteAfterRun: true,
+		Payload:        automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind: ScheduleAt,
 			At:   clock.Now(),
@@ -1101,6 +1122,7 @@ func TestService_RunQueuedManualRunRespectsContext(t *testing.T) {
 	_, err := service.Add(ctx, Job{
 		ID:      testServiceJobA,
 		Enabled: true,
+		Payload: automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind:  ScheduleEvery,
 			Every: time.Hour,
@@ -1153,6 +1175,7 @@ func TestService_RunQueuesAfterCapacityFrees(t *testing.T) {
 		_, err = service.Add(ctx, Job{
 			ID:       id,
 			Enabled:  true,
+			Payload:  automationTestPromptPayload(),
 			Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
 		})
 		require.NoError(t, err)
@@ -1192,6 +1215,7 @@ func TestService_StartExecutesDueJobOnce(t *testing.T) {
 	_, err := service.Add(ctx, Job{
 		ID:      testServiceJobA,
 		Enabled: true,
+		Payload: automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind: ScheduleAt,
 			At:   clock.Now(),
@@ -1234,6 +1258,7 @@ func TestService_StartHonorsMaxConcurrentRuns(t *testing.T) {
 		_, err = service.Add(ctx, Job{
 			ID:       id,
 			Enabled:  true,
+			Payload:  automationTestPromptPayload(),
 			Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
 		})
 		require.NoError(t, err)
@@ -1272,6 +1297,7 @@ func TestService_RunQueuesManualRuns(t *testing.T) {
 	_, err := service.Add(ctx, Job{
 		ID:       testServiceJobA,
 		Enabled:  true,
+		Payload:  automationTestPromptPayload(),
 		Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
 	})
 	require.NoError(t, err)
@@ -1797,6 +1823,7 @@ func TestService_ObservabilityRecordsLifecycleEvents(t *testing.T) {
 	_, err = service.Add(ctx, Job{
 		ID:      testServiceJobA,
 		Enabled: true,
+		Payload: automationTestPromptPayload(),
 		Schedule: Schedule{
 			Kind: ScheduleAt,
 			At:   clock.Now(),
@@ -2190,7 +2217,7 @@ func TestService_FinishJobRunBranches(t *testing.T) {
 	require.Zero(t, updated.State.NextRunAt)
 }
 
-func TestService_UpdateCanDisableInvalidSchedule(t *testing.T) {
+func TestService_UpdateRejectsDisablingInvalidJob(t *testing.T) {
 	ctx := context.Background()
 	store := storememory.NewStore()
 	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
@@ -2207,12 +2234,16 @@ func TestService_UpdateCanDisableInvalidSchedule(t *testing.T) {
 
 	disabled := false
 	state := JobState{LastError: "manual"}
-	updated, err := service.Update(ctx, JobPatch{
+	_, err = service.Update(ctx, JobPatch{
 		ID:      testServiceJobA,
 		Enabled: &disabled,
 		State:   &state,
 	})
+	require.EqualError(t, err, "automation cron schedule expression is required")
+
+	persisted, ok, err := store.GetJob(ctx, testServiceJobA)
 	require.NoError(t, err)
-	require.False(t, updated.Enabled)
-	require.Equal(t, "manual", updated.State.LastError)
+	require.True(t, ok)
+	require.True(t, persisted.Enabled)
+	require.Empty(t, persisted.State.LastError)
 }

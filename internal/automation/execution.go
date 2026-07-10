@@ -176,51 +176,15 @@ type sessionTarget struct {
 }
 
 func preparePayload(payload Payload) (Payload, error) {
-	payload = payload.Clone()
-	kind := str.String(payload.Kind)
-	prompt := str.String(payload.Prompt)
-	systemEvent := str.String(payload.SystemEvent)
-	model := str.String(payload.Model)
-	provider := str.String(payload.Provider)
-	baseURL := str.String(payload.BaseURL)
-
-	payload.Kind = PayloadKind(kind.Normalized())
+	payload = normalizeAutomationPayload(payload)
 	if payload.Kind == "" {
 		payload.Kind = PayloadPrompt
 	}
-	payload.Prompt = prompt.Trim()
-	payload.SystemEvent = systemEvent.Trim()
-	payload.Model = model.Trim()
-	payload.Provider = provider.Normalized()
-	payload.BaseURL = baseURL.Trim()
-	payload.ToolGroups = normalizeToolGroups(payload.ToolGroups)
-
-	switch payload.Kind {
-	case PayloadPrompt:
-		if payload.Prompt == "" {
-			return Payload{}, errors.New("automation prompt payload is required")
-		}
-	case PayloadSystemEvent:
-		if payload.SystemEvent == "" {
-			return Payload{}, errors.New("automation system event payload is required")
-		}
-	default:
-		return Payload{}, fmt.Errorf("unsupported automation payload kind %q", payload.Kind)
+	if err := checkAutomationPayloadContent(payload); err != nil {
+		return Payload{}, err
 	}
-	if payload.MaxIterations < 0 {
-		return Payload{}, errors.New("automation max iterations must be non-negative")
-	}
-	if payload.MaxRuntime < 0 {
-		return Payload{}, errors.New("automation max runtime must be non-negative")
-	}
-	if payload.RetryAttempts < 0 {
-		return Payload{}, errors.New("automation retry attempts must be non-negative")
-	}
-	if payload.RetryBackoff < 0 {
-		return Payload{}, errors.New("automation retry backoff must be non-negative")
-	}
-	if payload.RetryMaxDelay < 0 {
-		return Payload{}, errors.New("automation retry max delay must be non-negative")
+	if err := checkAutomationPayloadLimits(payload); err != nil {
+		return Payload{}, err
 	}
 
 	return payload, nil
