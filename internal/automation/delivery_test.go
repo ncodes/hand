@@ -113,3 +113,49 @@ func TestDeliverWebhookFailures(t *testing.T) {
 	err = deliverWebhook(context.Background(), server.Client(), server.URL, DeliveryRequest{})
 	require.EqualError(t, err, "automation webhook delivery failed: 502 Bad Gateway")
 }
+
+func TestDeliverWebhook_UsesCamelCaseJSON(t *testing.T) {
+	var body []byte
+	client := deliveryHTTPClientFunc(func(req *http.Request) (*http.Response, error) {
+		var err error
+		body, err = io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		return &http.Response{
+			StatusCode: http.StatusAccepted,
+			Body:       io.NopCloser(strings.NewReader("")),
+		}, nil
+	})
+
+	err := deliverWebhook(
+		context.Background(),
+		client,
+		"https://example.com/hook",
+		DeliveryRequest{
+			JobID:     "job",
+			RunID:     "run",
+			Status:    RunStatusOK,
+			Output:    "done",
+			SessionID: "session",
+			Target: DeliveryTarget{
+				Mode:     DeliveryWebhook,
+				ThreadID: "thread",
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"jobId": "job",
+		"runId": "run",
+		"status": "ok",
+		"output": "done",
+		"error": "",
+		"sessionId": "session",
+		"target": {
+			"mode": "webhook",
+			"channel": "",
+			"target": "",
+			"threadId": "thread"
+		}
+	}`, string(body))
+}

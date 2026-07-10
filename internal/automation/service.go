@@ -10,16 +10,17 @@ import (
 )
 
 const (
-	defaultMaxTimerSleep            = time.Minute
-	defaultStaleRunningAfter        = 10 * time.Minute
-	defaultAutomationRunTimeout     = 30 * time.Minute
-	defaultAutomationRetryAttempts  = 1
-	defaultAutomationRetryBackoff   = 30 * time.Second
-	defaultAutomationRetryMaxDelay  = 5 * time.Minute
-	defaultAutomationOneShotGrace   = 5 * time.Minute
-	defaultAutomationCatchUpStagger = 5 * time.Second
-	defaultRunHistoryRetention      = 30 * 24 * time.Hour
-	defaultRunHistoryCleanupLimit   = 500
+	defaultMaxTimerSleep             = time.Minute
+	defaultStaleRunningAfter         = 10 * time.Minute
+	defaultAutomationRunTimeout      = 30 * time.Minute
+	defaultAutomationDeliveryTimeout = 30 * time.Second
+	defaultAutomationRetryAttempts   = 1
+	defaultAutomationRetryBackoff    = 30 * time.Second
+	defaultAutomationRetryMaxDelay   = 5 * time.Minute
+	defaultAutomationOneShotGrace    = 5 * time.Minute
+	defaultAutomationCatchUpStagger  = 5 * time.Second
+	defaultRunHistoryRetention       = 30 * 24 * time.Hour
+	defaultRunHistoryCleanupLimit    = 500
 )
 
 var (
@@ -64,6 +65,7 @@ type ServiceOptions struct {
 	StaleRunningAfter          time.Duration
 	DisableAfterScheduleErrors int
 	DefaultRunTimeout          time.Duration
+	DefaultDeliveryTimeout     time.Duration
 	DefaultRetryAttempts       int
 	DefaultRetryBackoff        time.Duration
 	DefaultRetryMaxDelay       time.Duration
@@ -104,6 +106,7 @@ type Service struct {
 	staleRunningAfter          time.Duration
 	disableAfterScheduleErrors int
 	defaultRunTimeout          time.Duration
+	defaultDeliveryTimeout     time.Duration
 	defaultRetryAttempts       int
 	defaultRetryBackoff        time.Duration
 	defaultRetryMaxDelay       time.Duration
@@ -147,6 +150,10 @@ func NewService(opts ServiceOptions) (*Service, error) {
 	defaultRunTimeout := opts.DefaultRunTimeout
 	if defaultRunTimeout <= 0 {
 		defaultRunTimeout = defaultAutomationRunTimeout
+	}
+	defaultDeliveryTimeout := opts.DefaultDeliveryTimeout
+	if defaultDeliveryTimeout <= 0 {
+		defaultDeliveryTimeout = defaultAutomationDeliveryTimeout
 	}
 	defaultRetryAttempts := opts.DefaultRetryAttempts
 	if defaultRetryAttempts <= 0 {
@@ -193,6 +200,7 @@ func NewService(opts ServiceOptions) (*Service, error) {
 		staleRunningAfter:          staleRunningAfter,
 		disableAfterScheduleErrors: opts.DisableAfterScheduleErrors,
 		defaultRunTimeout:          defaultRunTimeout,
+		defaultDeliveryTimeout:     defaultDeliveryTimeout,
 		defaultRetryAttempts:       defaultRetryAttempts,
 		defaultRetryBackoff:        defaultRetryBackoff,
 		defaultRetryMaxDelay:       defaultRetryMaxDelay,
@@ -683,7 +691,9 @@ func (s *Service) deliverRunWithRetry(
 			"run_id":  runID,
 			"attempt": attempt,
 		})
-		deliveryResult, deliveryErr = s.deliverRun(ctx, job, runID, status, result, runErr, now)
+		deliveryCtx, cancel := s.contextWithDeliveryTimeout(ctx)
+		deliveryResult, deliveryErr = s.deliverRun(deliveryCtx, job, runID, status, result, runErr, now)
+		cancel()
 		if deliveryErr == nil || attempt == attempts || ctx.Err() != nil {
 			fields := map[string]any{
 				"job_id":   job.ID,
@@ -711,6 +721,14 @@ func (s *Service) deliverRunWithRetry(
 			return deliveryResult, sleepErr
 		}
 	}
+}
+
+func (s *Service) contextWithDeliveryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	return context.WithTimeout(ctx, s.defaultDeliveryTimeout)
 }
 
 func (s *Service) runAutomationWithRetry(ctx context.Context, job Job) (RunResult, error) {

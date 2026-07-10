@@ -46,6 +46,7 @@ func TestNewService_Validation(t *testing.T) {
 	require.Equal(t, defaultMaxTimerSleep, service.maxTimerSleep)
 	require.Equal(t, defaultStaleRunningAfter, service.staleRunningAfter)
 	require.Equal(t, defaultAutomationRunTimeout, service.defaultRunTimeout)
+	require.Equal(t, defaultAutomationDeliveryTimeout, service.defaultDeliveryTimeout)
 	require.Equal(t, defaultAutomationRetryAttempts, service.defaultRetryAttempts)
 	require.Equal(t, defaultAutomationRetryBackoff, service.defaultRetryBackoff)
 	require.Equal(t, defaultAutomationRetryMaxDelay, service.defaultRetryMaxDelay)
@@ -636,6 +637,46 @@ func TestService_RunTracksWebhookDeliveryFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, DeliveryStatusNotDelivered, run.DeliveryStatus)
 	require.Equal(t, "automation webhook delivery failed: 502 Bad Gateway: bad hook", run.DeliveryError)
+}
+
+func TestService_RunTimesOutWebhookDeliveryAndClearsRunningState(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	client := deliveryHTTPClientFunc(func(req *http.Request) (*http.Response, error) {
+		<-req.Context().Done()
+		return nil, req.Context().Err()
+	})
+	service, err := NewService(ServiceOptions{
+		Store:                  store,
+		Runner:                 &automationRunnerStub{results: []RunResult{{Output: "webhook body"}}},
+		HTTPClient:             client,
+		Now:                    clock.Now,
+		DefaultDeliveryTimeout: 10 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	_, err = service.Add(ctx, Job{
+		ID:       testServiceJobA,
+		Enabled:  true,
+		Payload:  automationTestPromptPayload(),
+		Schedule: Schedule{Kind: ScheduleAt, At: clock.Now()},
+		Delivery: Delivery{Mode: DeliveryWebhook, WebhookURL: "https://example.com/hook"},
+	})
+	require.NoError(t, err)
+
+	run, err := service.Run(ctx, testServiceJobA)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, RunStatusOK, run.Status)
+	require.Equal(t, DeliveryStatusNotDelivered, run.DeliveryStatus)
+	require.Contains(t, run.DeliveryError, context.DeadlineExceeded.Error())
+
+	job, ok, err := store.GetJob(ctx, testServiceJobA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Zero(t, job.State.RunningAt)
 }
 
 func TestService_DeliverRunBranches(t *testing.T) {

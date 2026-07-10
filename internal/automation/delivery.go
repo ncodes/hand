@@ -20,20 +20,20 @@ const (
 )
 
 type DeliveryTarget struct {
-	Mode     DeliveryMode
-	Channel  string
-	Target   string
-	ThreadID string
+	Mode     DeliveryMode `json:"mode"`
+	Channel  string       `json:"channel"`
+	Target   string       `json:"target"`
+	ThreadID string       `json:"threadId"`
 }
 
 type DeliveryRequest struct {
-	JobID     string
-	RunID     string
-	Status    RunStatus
-	Output    string
-	Error     string
-	SessionID string
-	Target    DeliveryTarget
+	JobID     string         `json:"jobId"`
+	RunID     string         `json:"runId"`
+	Status    RunStatus      `json:"status"`
+	Output    string         `json:"output"`
+	Error     string         `json:"error"`
+	SessionID string         `json:"sessionId"`
+	Target    DeliveryTarget `json:"target"`
 }
 
 type DeliveryResult struct {
