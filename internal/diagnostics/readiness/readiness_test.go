@@ -794,7 +794,7 @@ func TestBuild_ReportsAutomationReadiness(t *testing.T) {
 
 	originalOpenStore := openAutomationReadinessStore
 	t.Cleanup(func() { openAutomationReadinessStore = originalOpenStore })
-	openAutomationReadinessStore = func(*config.Config) (storage.Store, error) {
+	openAutomationReadinessStore = func(*config.Config, profile.Profile) (storage.Store, error) {
 		return store, nil
 	}
 
@@ -814,7 +814,7 @@ func TestBuild_ReportsAutomationStoreErrors(t *testing.T) {
 	originalOpenStore := openAutomationReadinessStore
 	t.Cleanup(func() { openAutomationReadinessStore = originalOpenStore })
 
-	openAutomationReadinessStore = func(*config.Config) (storage.Store, error) {
+	openAutomationReadinessStore = func(*config.Config, profile.Profile) (storage.Store, error) {
 		return storememory.NewStore(), nil
 	}
 	report := Build(context.Background(), Options{Config: readyConfig()})
@@ -824,24 +824,54 @@ func TestBuild_ReportsAutomationStoreErrors(t *testing.T) {
 	require.Equal(t, "no automation jobs to check", findReadinessCheck(t, report, "automation", "delivery targets").Message)
 
 	expected := errors.New("store failed")
-	openAutomationReadinessStore = func(*config.Config) (storage.Store, error) {
+	openAutomationReadinessStore = func(*config.Config, profile.Profile) (storage.Store, error) {
 		return nil, expected
 	}
 	report = Build(context.Background(), Options{Config: readyConfig()})
 	require.Equal(t, StatusFail, findReadinessCheck(t, report, "automation", "store").Status)
 
-	openAutomationReadinessStore = func(*config.Config) (storage.Store, error) {
+	openAutomationReadinessStore = func(*config.Config, profile.Profile) (storage.Store, error) {
 		return automationReadinessStoreStub{}, nil
 	}
 	report = Build(context.Background(), Options{Config: readyConfig()})
 	require.Equal(t, StatusFail, findReadinessCheck(t, report, "automation", "store").Status)
 
-	openAutomationReadinessStore = func(*config.Config) (storage.Store, error) {
+	openAutomationReadinessStore = func(*config.Config, profile.Profile) (storage.Store, error) {
 		return automationReadinessStoreStub{automationStore: automationReadinessListErrStore{err: expected}}, nil
 	}
 	report = Build(context.Background(), Options{Config: readyConfig()})
 	require.Equal(t, StatusWarn, findReadinessCheck(t, report, "automation", "scheduler").Status)
 	require.Equal(t, StatusFail, findReadinessCheck(t, report, "automation", "store").Status)
+}
+
+func TestOpenProfileAutomationReadinessStore_UsesRequestedProfileAndBackend(t *testing.T) {
+	originalProfile := profile.Active()
+	t.Cleanup(func() { profile.SetActive(originalProfile) })
+	activeHome := t.TempDir()
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "active", HomeDir: activeHome}))
+	requestedHome := t.TempDir()
+	requestedProfile := profile.WithMetadataPaths(profile.Profile{Name: "requested", HomeDir: requestedHome})
+
+	cfg := readyConfig()
+	store, err := openProfileAutomationReadinessStore(cfg, requestedProfile)
+	require.NoError(t, err)
+	closer, ok := store.(interface{ Close() error })
+	require.True(t, ok)
+	t.Cleanup(func() { require.NoError(t, closer.Close()) })
+	require.FileExists(t, filepath.Join(requestedHome, "data", "state.db"))
+	require.NoFileExists(t, filepath.Join(activeHome, "data", "state.db"))
+
+	cfg.Storage.Backend = "memory"
+	store, err = openProfileAutomationReadinessStore(cfg, requestedProfile)
+	require.NoError(t, err)
+	_, ok = store.Automation()
+	require.True(t, ok)
+
+	_, err = openProfileAutomationReadinessStore(nil, requestedProfile)
+	require.EqualError(t, err, "config is required")
+	cfg.Storage.Backend = "unsupported"
+	_, err = openProfileAutomationReadinessStore(cfg, requestedProfile)
+	require.EqualError(t, err, "storage backend must be one of: memory, sqlite")
 }
 
 func TestAutomationFindingsToCheck_CoversWarningsWithoutActions(t *testing.T) {

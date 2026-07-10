@@ -62,7 +62,7 @@ func Build(ctx context.Context, opts Options) Report {
 		buildSearchGroup(cfg),
 		buildSafetyGroup(cfg),
 		buildGatewayGroup(cfg),
-		buildAutomationGroup(ctx, cfg),
+		buildAutomationGroup(ctx, cfg, opts.Profile),
 		buildCapabilityGroup(cfg),
 	}}
 }

@@ -2,28 +2,37 @@ package readiness
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/wandxy/morph/internal/automation"
 	"github.com/wandxy/morph/internal/config"
-	manager "github.com/wandxy/morph/internal/state/manager"
+	"github.com/wandxy/morph/internal/profile"
+	storage "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/storememory"
+	"github.com/wandxy/morph/internal/state/storesqlite"
+	"github.com/wandxy/morph/pkg/str"
 )
 
-var openAutomationReadinessStore = manager.OpenStore
+var openAutomationReadinessStore = openProfileAutomationReadinessStore
 
-func buildAutomationGroup(ctx context.Context, cfg *config.Config) Group {
+func buildAutomationGroup(ctx context.Context, cfg *config.Config, activeProfile profile.Profile) Group {
 	if cfg == nil {
 		return Group{Name: "automation", Checks: []Check{check("config", StatusFail, "config is required")}}
 	}
 
 	storeCfg := *cfg
 	storeCfg.Search.Vector.Enabled = false
-	store, err := openAutomationReadinessStore(&storeCfg)
+	store, err := openAutomationReadinessStore(&storeCfg, activeProfile)
 	if err != nil {
 		return Group{Name: "automation", Checks: []Check{
 			check("scheduler", StatusWarn, "scheduler cannot verify state store"),
 			check("store", StatusFail, err.Error()),
 		}}
+	}
+	if closer, ok := store.(interface{ Close() error }); ok {
+		defer closer.Close()
 	}
 	automationStore, ok := store.Automation()
 	if !ok || automationStore == nil {
@@ -43,6 +52,34 @@ func buildAutomationGroup(ctx context.Context, cfg *config.Config) Group {
 
 	findings := automation.DiagnoseJobs(list.Jobs, automation.DiagnosticOptions{})
 	return Group{Name: "automation", Checks: buildAutomationChecks(list.Jobs, findings)}
+}
+
+func openProfileAutomationReadinessStore(
+	cfg *config.Config,
+	activeProfile profile.Profile,
+) (storage.Store, error) {
+	if cfg == nil {
+		return nil, errors.New("config is required")
+	}
+	backend := str.String(cfg.Storage.Backend).Normalized()
+	switch backend {
+	case "", "sqlite":
+		activeProfile = profile.WithMetadataPaths(activeProfile)
+		homeDir := str.String(activeProfile.HomeDir).Trim()
+		if homeDir == "" {
+			activeProfile = profile.WithMetadataPaths(profile.Active())
+			homeDir = str.String(activeProfile.HomeDir).Trim()
+		}
+		if homeDir == "" {
+			return nil, errors.New("automation profile home is required")
+		}
+
+		return storesqlite.NewStore(filepath.Join(homeDir, "data", "state.db"))
+	case "memory":
+		return storememory.NewStore(), nil
+	default:
+		return nil, errors.New("storage backend must be one of: memory, sqlite")
+	}
 }
 
 func buildAutomationChecks(jobs []automation.Job, findings []automation.DiagnosticFinding) []Check {

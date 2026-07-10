@@ -13,6 +13,7 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/profile"
 	"github.com/wandxy/morph/pkg/logutils"
 )
 
@@ -21,6 +22,13 @@ func init() {
 }
 
 func Test_E2E_DoctorCommand_ConfigPassAndFail(t *testing.T) {
+	originalProfile := profile.Active()
+	t.Cleanup(func() { profile.SetActive(originalProfile) })
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{
+		Name:    "doctor-e2e",
+		HomeDir: t.TempDir(),
+	}))
+
 	t.Run("passes for valid config", func(t *testing.T) {
 		configPath := filepath.Join(t.TempDir(), "config.yaml")
 		require.NoError(t, os.WriteFile(configPath, []byte(`
