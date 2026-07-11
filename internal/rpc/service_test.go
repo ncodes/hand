@@ -557,6 +557,27 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			ok: true,
 		},
 		{
+			name:      "automation resume detail excludes sensitive input",
+			eventType: trace.EvtToolInvocationStarted,
+			payload: map[string]any{
+				"ID":   "call_automation",
+				"Name": "automation",
+				"Input": `{
+					"action":"resume",
+					"id":"auto_q6fjD5VBDz4JsJMTbnTz0",
+					"job":{"prompt":"SECRET prompt"},
+					"target":{"chat_id":"SECRET target"},
+					"metadata":{"token":"SECRET token"}
+				}`,
+			},
+			expected: map[string]any{
+				"id":     "call_automation",
+				"name":   "automation",
+				"detail": "resume:auto_q6fjD5VBDz4JsJMTbnTz0",
+			},
+			ok: true,
+		},
+		{
 			name:      "search files detail",
 			eventType: trace.EvtToolInvocationStarted,
 			payload: map[string]any{
@@ -958,6 +979,46 @@ func TestRPCTraceToolDetailHelpers_HandleEmptyAndMixedInputs(t *testing.T) {
 	require.Contains(t, detail, "name=visible value")
 	require.Contains(t, detail, "path=/a/b/c/d/e/f/g/.../very-long-file-name.txt")
 	require.Contains(t, detail, "ratio=2.5")
+}
+
+func TestGetRPCAutomationToolDetail_ReturnsCanonicalActionDetail(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    map[string]any
+		expected string
+	}{
+		{name: "status", input: map[string]any{"action": "status"}, expected: "status"},
+		{name: "list", input: map[string]any{"action": "list"}, expected: "list"},
+		{
+			name: "add uses job name",
+			input: map[string]any{
+				"action": "add",
+				"job":    map[string]any{"id": "auto_job", "name": "Nigeria time", "prompt": "SECRET"},
+			},
+			expected: "add:Nigeria time",
+		},
+		{name: "update", input: map[string]any{"action": "update", "id": "auto_job"}, expected: "update:auto_job"},
+		{name: "pause", input: map[string]any{"action": "pause", "id": "auto_job"}, expected: "pause:auto_job"},
+		{name: "resume", input: map[string]any{"action": "resume", "id": "auto_job"}, expected: "resume:auto_job"},
+		{name: "run", input: map[string]any{"action": "run", "id": "auto_job"}, expected: "run:auto_job"},
+		{name: "remove", input: map[string]any{"action": "remove", "id": "auto_job"}, expected: "remove:auto_job"},
+		{
+			name: "runs uses query job id",
+			input: map[string]any{
+				"action":    "runs",
+				"run_query": map[string]any{"job_id": "auto_job"},
+			},
+			expected: "runs:auto_job",
+		},
+		{name: "normalizes action", input: map[string]any{"action": " RESUME ", "id": "auto_job"}, expected: "resume:auto_job"},
+		{name: "missing action", input: map[string]any{"id": "auto_job"}},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, getRPCAutomationToolDetail(tt.input))
+		})
+	}
 }
 
 func TestRPCPrimitiveFormattingHelpers_HandleBoundaryInputs(t *testing.T) {

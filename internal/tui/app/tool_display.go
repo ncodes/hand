@@ -206,9 +206,112 @@ func getToolDisplaySpecForAction(action string) toolDisplaySpec {
 			inputDetail:  getSessionMessagesToolDisplayDetail,
 			branchDetail: getSessionMessagesToolBranchDetail,
 		}
+	case "Automation":
+		return toolDisplaySpec{
+			inputDetail:  getAutomationToolDisplayDetail,
+			branchDetail: getAutomationToolBranchDetail,
+		}
 	default:
 		return toolDisplaySpec{}
 	}
+}
+
+func getAutomationToolDisplayDetail(fields map[string]any) string {
+	actionValue := str.String(getMapString(fields, "action"))
+	action := actionValue.Normalized()
+	if action == "" {
+		return "manage"
+	}
+
+	target := getMapString(fields, "id")
+	switch action {
+	case "add":
+		job, _ := fields["job"].(map[string]any)
+		target = firstNonEmptyToolDisplay(getMapString(job, "name"), getMapString(job, "id"))
+	case "runs":
+		query, _ := fields["run_query"].(map[string]any)
+		target = getMapString(query, "job_id")
+	}
+
+	if target == "" {
+		return action
+	}
+
+	return action + ":" + target
+}
+
+func getAutomationToolBranchDetail(detail string, completed bool) string {
+	action, target := parseAutomationToolDisplayDetail(detail)
+	if completed {
+		switch action {
+		case "status":
+			return "Checked automation status"
+		case "list":
+			return "Listed automations"
+		case "add":
+			return automationToolActionTarget("Added automation", target)
+		case "update":
+			return automationToolActionTarget("Updated automation", target)
+		case "pause":
+			return automationToolActionTarget("Paused automation", target)
+		case "resume":
+			return automationToolActionTarget("Resumed automation", target)
+		case "run":
+			return automationToolActionTarget("Ran automation", target)
+		case "remove":
+			return automationToolActionTarget("Removed automation", target)
+		case "runs":
+			if target != "" {
+				return "Listed runs for " + target
+			}
+			return "Listed automation runs"
+		default:
+			return "Managed automations"
+		}
+	}
+
+	switch action {
+	case "status":
+		return "Checking automation status"
+	case "list":
+		return "Listing automations"
+	case "add":
+		return automationToolActionTarget("Adding automation", target)
+	case "update":
+		return automationToolActionTarget("Updating automation", target)
+	case "pause":
+		return automationToolActionTarget("Pausing automation", target)
+	case "resume":
+		return automationToolActionTarget("Resuming automation", target)
+	case "run":
+		return automationToolActionTarget("Running automation", target)
+	case "remove":
+		return automationToolActionTarget("Removing automation", target)
+	case "runs":
+		if target != "" {
+			return "Listing runs for " + target
+		}
+		return "Listing automation runs"
+	default:
+		return "Managing automations"
+	}
+}
+
+func parseAutomationToolDisplayDetail(detail string) (string, string) {
+	detailValue := str.String(detail)
+	action, target, _ := strings.Cut(detailValue.Trim(), ":")
+	actionValue := str.String(action)
+	targetValue := str.String(target)
+	return actionValue.Normalized(), targetValue.Trim()
+}
+
+func automationToolActionTarget(label string, target string) string {
+	targetValue := str.String(target)
+	if target := targetValue.Trim(); target != "" {
+		return label + " " + target
+	}
+
+	return label
 }
 
 func getStaticToolBranchDetail(label string) func(string, bool) string {

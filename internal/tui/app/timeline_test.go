@@ -760,6 +760,109 @@ func TestRenderTranscriptCells_RendersMemoryToolsWithFriendlyText(t *testing.T) 
 	}
 }
 
+func TestRenderTranscriptCells_RendersAutomationActionsWithFriendlyText(t *testing.T) {
+	cases := []struct {
+		name            string
+		input           string
+		running         string
+		completed       string
+		runningBranch   string
+		completedBranch string
+	}{
+		{
+			name:            "status",
+			input:           `{"action":"status"}`,
+			running:         "Checking Automation Status",
+			completed:       "Checked Automation Status",
+			runningBranch:   "Checking automation status",
+			completedBranch: "Checked automation status",
+		},
+		{
+			name:            "list",
+			input:           `{"action":"list"}`,
+			running:         "Listing Automations",
+			completed:       "Listed Automations",
+			runningBranch:   "Listing automations",
+			completedBranch: "Listed automations",
+		},
+		{
+			name:            "add",
+			input:           `{"action":"add","job":{"name":"Nigeria time every 5 minutes"}}`,
+			running:         "Adding Automation",
+			completed:       "Added Automation",
+			runningBranch:   "Adding automation Nigeria time every 5 minutes",
+			completedBranch: "Added automation Nigeria time every 5 minutes",
+		},
+		{
+			name:            "update",
+			input:           `{"action":"update","id":"auto_job"}`,
+			running:         "Updating Automation",
+			completed:       "Updated Automation",
+			runningBranch:   "Updating automation auto_job",
+			completedBranch: "Updated automation auto_job",
+		},
+		{
+			name:            "pause",
+			input:           `{"action":"pause","id":"auto_job"}`,
+			running:         "Pausing Automation",
+			completed:       "Paused Automation",
+			runningBranch:   "Pausing automation auto_job",
+			completedBranch: "Paused automation auto_job",
+		},
+		{
+			name:            "resume",
+			input:           `{"action":"resume","id":"auto_job"}`,
+			running:         "Resuming Automation",
+			completed:       "Resumed Automation",
+			runningBranch:   "Resuming automation auto_job",
+			completedBranch: "Resumed automation auto_job",
+		},
+		{
+			name:            "run",
+			input:           `{"action":"run","id":"auto_job"}`,
+			running:         "Running Automation",
+			completed:       "Ran Automation",
+			runningBranch:   "Running automation auto_job",
+			completedBranch: "Ran automation auto_job",
+		},
+		{
+			name:            "remove",
+			input:           `{"action":"remove","id":"auto_job"}`,
+			running:         "Removing Automation",
+			completed:       "Removed Automation",
+			runningBranch:   "Removing automation auto_job",
+			completedBranch: "Removed automation auto_job",
+		},
+		{
+			name:            "runs",
+			input:           `{"action":"runs","run_query":{"job_id":"auto_job"}}`,
+			running:         "Listing Automation Runs",
+			completed:       "Listed Automation Runs",
+			runningBranch:   "Listing runs for auto_job",
+			completedBranch: "Listed runs for auto_job",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			detail := getToolInputDisplayDetail("automation", test.input)
+			running := stripANSI(renderTranscriptCells([]transcriptCell{
+				toolTranscriptTestCell("call_1", "automation", detail),
+			}))
+			completed := stripANSI(renderTranscriptCells([]transcriptCell{
+				toolTranscriptTestCell("call_1", "automation", detail, true),
+			}))
+
+			require.Contains(t, running, "● "+test.running)
+			require.Contains(t, running, "└ "+test.runningBranch)
+			require.Contains(t, completed, "● "+test.completed)
+			require.Contains(t, completed, "└ "+test.completedBranch)
+			require.NotContains(t, running, "└ automation")
+			require.NotContains(t, completed, "└ automation")
+		})
+	}
+}
+
 func TestRenderTranscriptCells_RendersSessionMessagesWithFriendlyText(t *testing.T) {
 	running := stripANSI(renderTranscriptCells([]transcriptCell{
 		toolTranscriptTestCell("call_1", "session_messages", ""),

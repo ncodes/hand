@@ -474,6 +474,8 @@ func getRPCTraceToolDetail(name string, input string) string {
 	}
 
 	switch action {
+	case "Automation":
+		return getRPCAutomationToolDetail(inputFields)
 	case "Run":
 		return getRPCRunToolDetail(inputFields)
 	case "Web Search", "Memory Search":
@@ -490,6 +492,40 @@ func getRPCTraceToolDetail(name string, input string) string {
 		}
 		return ""
 	}
+}
+
+func getRPCAutomationToolDetail(inputFields map[string]any) string {
+	actionValue := str.String(getRPCMapString(inputFields, "action"))
+	action := actionValue.Normalized()
+	switch action {
+	case "status", "list":
+		return action
+	case "add", "update", "pause", "resume", "run", "remove", "runs":
+	default:
+		return ""
+	}
+
+	target := getRPCMapString(inputFields, "id")
+	switch action {
+	case "add":
+		job, _ := inputFields["job"].(map[string]any)
+		target = getRPCMapString(job, "name", "id")
+	case "runs":
+		query, _ := inputFields["run_query"].(map[string]any)
+		target = getRPCMapString(query, "job_id")
+	}
+
+	if target == "" {
+		return action
+	}
+
+	sanitized, _ := guardrails.NewRedactor().Sanitize(target).(string)
+	sanitized = truncateRPCTraceToolDetail(sanitized, 80)
+	if sanitized == "" {
+		return action
+	}
+
+	return action + ":" + sanitized
 }
 
 func getRPCTraceToolInputFields(input string) map[string]any {

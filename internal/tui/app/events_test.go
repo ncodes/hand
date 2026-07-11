@@ -144,6 +144,24 @@ func TestTraceEventToTUIMessage_ConvertsToolInvocationStarted(t *testing.T) {
 	}, msg)
 }
 
+func TestTraceEventToTUIMessage_DerivesAutomationDetailFromTraceInput(t *testing.T) {
+	msg, ok := traceEventToTUIMessage(trace.Event{
+		Type: trace.EvtToolInvocationStarted,
+		Payload: map[string]any{
+			"id":    "call_1",
+			"name":  "automation",
+			"input": `{"action":"pause","id":"auto_q6fjD5VBDz4JsJMTbnTz0"}`,
+		},
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "automation",
+		Detail: "pause:auto_q6fjD5VBDz4JsJMTbnTz0",
+	}, msg)
+}
+
 func TestTraceEventToTUIMessage_ConvertsStreamedPlanInvocationStarted(t *testing.T) {
 	msg, ok := traceEventToTUIMessage(trace.Event{
 		Type: trace.EvtToolInvocationStarted,

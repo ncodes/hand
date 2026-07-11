@@ -200,7 +200,10 @@ func toolCallPayloadToTUIMessage(payload any) (any, bool) {
 		msg, ok := newToolInvocationStartedMsgWithState(
 			toolPayload.ID,
 			toolPayload.Name,
-			toolPayload.Detail,
+			firstNonEmptyTUI(
+				toolPayload.Detail,
+				getSafeTraceToolInputDisplayDetail(toolPayload.Name, toolPayload.Input),
+			),
 			toolPayload.PlanState,
 			toolPayload.ProcessState,
 			time.Time{},
@@ -240,6 +243,14 @@ func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 
 		return msg, true
 	}
+}
+
+func getSafeTraceToolInputDisplayDetail(name string, input string) string {
+	if normalizeToolDisplayName(name) != "automation" {
+		return ""
+	}
+
+	return getToolInputDisplayDetail(name, input)
 }
 
 func safetyPayloadToTUIMessage(kind string, payload any) (any, bool) {

@@ -348,6 +348,8 @@ func getToolTranscriptTitle(action string, completed bool, details []toolTranscr
 		}
 
 		return "Checking time"
+	case "Automation":
+		return getAutomationToolTranscriptTitle(details, completed)
 	}
 
 	if !completed {
@@ -368,6 +370,71 @@ func getToolTranscriptTitle(action string, completed bool, details []toolTranscr
 	default:
 		actionValue8 := str.String(action)
 		return actionValue8.Trim()
+	}
+}
+
+func getAutomationToolTranscriptTitle(details []toolTranscriptDetail, completed bool) string {
+	action := ""
+	for _, detail := range details {
+		candidate, _ := parseAutomationToolDisplayDetail(detail.text)
+		if candidate == "" {
+			continue
+		}
+		if action != "" && action != candidate {
+			if completed {
+				return "Managed Automations"
+			}
+			return "Managing Automations"
+		}
+		action = candidate
+	}
+
+	if completed {
+		switch action {
+		case "status":
+			return "Checked Automation Status"
+		case "list":
+			return "Listed Automations"
+		case "add":
+			return "Added Automation"
+		case "update":
+			return "Updated Automation"
+		case "pause":
+			return "Paused Automation"
+		case "resume":
+			return "Resumed Automation"
+		case "run":
+			return "Ran Automation"
+		case "remove":
+			return "Removed Automation"
+		case "runs":
+			return "Listed Automation Runs"
+		default:
+			return "Managed Automation"
+		}
+	}
+
+	switch action {
+	case "status":
+		return "Checking Automation Status"
+	case "list":
+		return "Listing Automations"
+	case "add":
+		return "Adding Automation"
+	case "update":
+		return "Updating Automation"
+	case "pause":
+		return "Pausing Automation"
+	case "resume":
+		return "Resuming Automation"
+	case "run":
+		return "Running Automation"
+	case "remove":
+		return "Removing Automation"
+	case "runs":
+		return "Listing Automation Runs"
+	default:
+		return "Managing Automation"
 	}
 }
 
