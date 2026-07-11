@@ -132,7 +132,11 @@ func NewUpdateCommand() *cli.Command {
 			}
 			defer closeClient()
 
-			patch, err := patchFromCommand(cmd)
+			current, err := fetchAutomationJobForUpdate(ctx, api, cmd)
+			if err != nil {
+				return err
+			}
+			patch, err := patchFromCommand(cmd, current)
 			if err != nil {
 				return err
 			}
@@ -328,7 +332,10 @@ func jobFromCommand(cmd *cli.Command) (coreautomation.Job, error) {
 	}, nil
 }
 
-func patchFromCommand(cmd *cli.Command) (coreautomation.JobPatch, error) {
+func patchFromCommand(
+	cmd *cli.Command,
+	current coreautomation.Job,
+) (coreautomation.JobPatch, error) {
 	id, err := getRequiredArg(cmd, "automation job id is required")
 	if err != nil {
 		return coreautomation.JobPatch{}, err
@@ -351,11 +358,11 @@ func patchFromCommand(cmd *cli.Command) (coreautomation.JobPatch, error) {
 		patch.Schedule = &schedule
 	}
 	if hasPayloadFlag(cmd) {
-		payload := payloadFromCommand(cmd)
+		payload := payloadUpdateFromCommand(cmd, current.Payload)
 		patch.Payload = &payload
 	}
 	if hasDeliveryFlag(cmd) {
-		delivery, err := deliveryFromCommand(cmd)
+		delivery, err := deliveryUpdateFromCommand(cmd, current.Delivery)
 		if err != nil {
 			return coreautomation.JobPatch{}, err
 		}
@@ -375,6 +382,35 @@ func patchFromCommand(cmd *cli.Command) (coreautomation.JobPatch, error) {
 	}
 
 	return patch, nil
+}
+
+func fetchAutomationJobForUpdate(
+	ctx context.Context,
+	api rpcclient.AutomationAPI,
+	cmd *cli.Command,
+) (coreautomation.Job, error) {
+	if !hasPayloadFlag(cmd) && !hasDeliveryFlag(cmd) {
+		return coreautomation.Job{}, nil
+	}
+	id, err := getRequiredArg(cmd, "automation job id is required")
+	if err != nil {
+		return coreautomation.Job{}, err
+	}
+	list, err := api.List(ctx, coreautomation.JobQuery{
+		IDs:             []string{id},
+		Limit:           1,
+		IncludeDisabled: true,
+	})
+	if err != nil {
+		return coreautomation.Job{}, err
+	}
+	for _, job := range list.Jobs {
+		if job.ID == id {
+			return job.Clone(), nil
+		}
+	}
+
+	return coreautomation.Job{}, fmt.Errorf("automation job not found")
 }
 
 func parseCommandSchedule(cmd *cli.Command) (coreautomation.Schedule, error) {
@@ -410,13 +446,59 @@ func payloadFromCommand(cmd *cli.Command) coreautomation.Payload {
 	return payload
 }
 
+func payloadUpdateFromCommand(
+	cmd *cli.Command,
+	payload coreautomation.Payload,
+) coreautomation.Payload {
+	payload = payload.Clone()
+	if cmd.IsSet("prompt") {
+		payload.Kind = coreautomation.PayloadPrompt
+		payload.Prompt = strings.TrimSpace(cmd.String("prompt"))
+		payload.SystemEvent = ""
+	}
+	if cmd.IsSet("system-event") {
+		payload.Kind = coreautomation.PayloadSystemEvent
+		payload.Prompt = ""
+		payload.SystemEvent = strings.TrimSpace(cmd.String("system-event"))
+	}
+	if cmd.IsSet("model") {
+		payload.Model = strings.TrimSpace(cmd.String("model"))
+	}
+	if cmd.IsSet("provider") {
+		payload.Provider = strings.TrimSpace(cmd.String("provider"))
+	}
+	if cmd.IsSet("base-url") {
+		payload.BaseURL = strings.TrimSpace(cmd.String("base-url"))
+	}
+	if cmd.IsSet("no-timeout") {
+		payload.NoTimeout = cmd.Bool("no-timeout")
+	}
+	if cmd.IsSet("max-runtime") {
+		payload.MaxRuntime = cmd.Duration("max-runtime")
+	}
+	if cmd.IsSet("max-iterations") {
+		payload.MaxIterations = cmd.Int("max-iterations")
+	}
+	if cmd.IsSet("retry-attempts") {
+		payload.RetryAttempts = cmd.Int("retry-attempts")
+	}
+	if cmd.IsSet("retry-backoff") {
+		payload.RetryBackoff = cmd.Duration("retry-backoff")
+	}
+	if cmd.IsSet("retry-max-delay") {
+		payload.RetryMaxDelay = cmd.Duration("retry-max-delay")
+	}
+	if cmd.IsSet("tool-group") {
+		payload.ToolGroups = append([]string(nil), cmd.StringSlice("tool-group")...)
+	}
+
+	return payload
+}
+
 func deliveryFromCommand(cmd *cli.Command) (coreautomation.Delivery, error) {
-	mode := coreautomation.DeliveryMode(strings.ToLower(strings.TrimSpace(cmd.String("delivery"))))
-	switch mode {
-	case "", coreautomation.DeliveryNone, coreautomation.DeliveryLocal,
-		coreautomation.DeliveryOrigin, coreautomation.DeliveryGateway, coreautomation.DeliveryWebhook:
-	default:
-		return coreautomation.Delivery{}, fmt.Errorf("unsupported automation delivery mode %q", mode)
+	mode, err := getDeliveryMode(cmd)
+	if err != nil {
+		return coreautomation.Delivery{}, err
 	}
 	if mode == "" && hasDeliveryOptionFlag(cmd) {
 		return coreautomation.Delivery{}, fmt.Errorf("--delivery is required when setting delivery options")
@@ -430,6 +512,60 @@ func deliveryFromCommand(cmd *cli.Command) (coreautomation.Delivery, error) {
 		WebhookURL: strings.TrimSpace(cmd.String("webhook-url")),
 		BestEffort: cmd.Bool("best-effort"),
 	}, nil
+}
+
+func deliveryUpdateFromCommand(
+	cmd *cli.Command,
+	delivery coreautomation.Delivery,
+) (coreautomation.Delivery, error) {
+	if cmd.IsSet("delivery") {
+		mode, err := getDeliveryMode(cmd)
+		if err != nil {
+			return coreautomation.Delivery{}, err
+		}
+		delivery.Mode = mode
+		switch mode {
+		case coreautomation.DeliveryNone, coreautomation.DeliveryLocal:
+			delivery.Channel = ""
+			delivery.Target = ""
+			delivery.ThreadID = ""
+			delivery.WebhookURL = ""
+		case coreautomation.DeliveryOrigin, coreautomation.DeliveryGateway:
+			delivery.WebhookURL = ""
+		case coreautomation.DeliveryWebhook:
+			delivery.Channel = ""
+			delivery.Target = ""
+			delivery.ThreadID = ""
+		}
+	}
+	if cmd.IsSet("channel") {
+		delivery.Channel = strings.TrimSpace(cmd.String("channel"))
+	}
+	if cmd.IsSet("target") {
+		delivery.Target = strings.TrimSpace(cmd.String("target"))
+	}
+	if cmd.IsSet("thread") {
+		delivery.ThreadID = strings.TrimSpace(cmd.String("thread"))
+	}
+	if cmd.IsSet("webhook-url") {
+		delivery.WebhookURL = strings.TrimSpace(cmd.String("webhook-url"))
+	}
+	if cmd.IsSet("best-effort") {
+		delivery.BestEffort = cmd.Bool("best-effort")
+	}
+
+	return delivery, nil
+}
+
+func getDeliveryMode(cmd *cli.Command) (coreautomation.DeliveryMode, error) {
+	mode := coreautomation.DeliveryMode(strings.ToLower(strings.TrimSpace(cmd.String("delivery"))))
+	switch mode {
+	case "", coreautomation.DeliveryNone, coreautomation.DeliveryLocal,
+		coreautomation.DeliveryOrigin, coreautomation.DeliveryGateway, coreautomation.DeliveryWebhook:
+		return mode, nil
+	default:
+		return "", fmt.Errorf("unsupported automation delivery mode %q", mode)
+	}
 }
 
 func hasPayloadFlag(cmd *cli.Command) bool {

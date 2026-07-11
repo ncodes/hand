@@ -123,6 +123,221 @@ func TestNewCommand_ListAndUpdateCallRPC(t *testing.T) {
 	require.Equal(t, "next", api.patch.Payload.Prompt)
 }
 
+func TestNewCommand_UpdatePreservesUnspecifiedPayloadAndDeliveryFields(t *testing.T) {
+	api, _ := setupAutomationCommandTest(t)
+	api.jobs = []coreautomation.Job{{
+		ID: testAutomationCommandJobID,
+		Payload: coreautomation.Payload{
+			Kind:          coreautomation.PayloadPrompt,
+			Prompt:        "summarize",
+			Model:         "old-model",
+			Provider:      "openai",
+			BaseURL:       "https://api.example.test",
+			NoTimeout:     true,
+			MaxRuntime:    2 * time.Minute,
+			MaxIterations: 4,
+			RetryAttempts: 3,
+			RetryBackoff:  time.Second,
+			RetryMaxDelay: 10 * time.Second,
+			ToolGroups:    []string{"core", "web"},
+			Metadata:      map[string]string{"origin": "test"},
+		},
+		Delivery: coreautomation.Delivery{
+			Mode:            coreautomation.DeliveryGateway,
+			Channel:         "telegram",
+			Target:          "old-target",
+			ThreadID:        "topic-1",
+			BestEffort:      true,
+			FailureTarget:   "admin",
+			FailureAfter:    3,
+			FailureCooldown: time.Hour,
+		},
+	}}
+
+	require.NoError(t, newTestCommand().Run(context.Background(), []string{
+		"automation", "update", testAutomationCommandJobID,
+		"--model", "new-model",
+		"--target=-1003973172572",
+	}))
+
+	require.Equal(t, []string{testAutomationCommandJobID}, api.jobQuery.IDs)
+	require.True(t, api.jobQuery.IncludeDisabled)
+	require.NotNil(t, api.patch.Payload)
+	require.Equal(t, coreautomation.Payload{
+		Kind:          coreautomation.PayloadPrompt,
+		Prompt:        "summarize",
+		Model:         "new-model",
+		Provider:      "openai",
+		BaseURL:       "https://api.example.test",
+		NoTimeout:     true,
+		MaxRuntime:    2 * time.Minute,
+		MaxIterations: 4,
+		RetryAttempts: 3,
+		RetryBackoff:  time.Second,
+		RetryMaxDelay: 10 * time.Second,
+		ToolGroups:    []string{"core", "web"},
+		Metadata:      map[string]string{"origin": "test"},
+	}, *api.patch.Payload)
+	require.NotNil(t, api.patch.Delivery)
+	require.Equal(t, coreautomation.Delivery{
+		Mode:            coreautomation.DeliveryGateway,
+		Channel:         "telegram",
+		Target:          "-1003973172572",
+		ThreadID:        "topic-1",
+		BestEffort:      true,
+		FailureTarget:   "admin",
+		FailureAfter:    3,
+		FailureCooldown: time.Hour,
+	}, *api.patch.Delivery)
+}
+
+func TestNewCommand_UpdateCanSwitchPayloadKindAndClearValues(t *testing.T) {
+	api, _ := setupAutomationCommandTest(t)
+	api.jobs = []coreautomation.Job{{
+		ID: testAutomationCommandJobID,
+		Payload: coreautomation.Payload{
+			Kind:       coreautomation.PayloadPrompt,
+			Prompt:     "summarize",
+			NoTimeout:  true,
+			MaxRuntime: time.Minute,
+		},
+		Delivery: coreautomation.Delivery{
+			Mode:       coreautomation.DeliveryGateway,
+			Channel:    "telegram",
+			Target:     "chat",
+			BestEffort: true,
+		},
+	}}
+
+	require.NoError(t, newTestCommand().Run(context.Background(), []string{
+		"automation", "update", testAutomationCommandJobID,
+		"--system-event", "wake",
+		"--no-timeout=false",
+		"--max-runtime", "0s",
+		"--best-effort=false",
+	}))
+
+	require.Equal(t, coreautomation.PayloadSystemEvent, api.patch.Payload.Kind)
+	require.Empty(t, api.patch.Payload.Prompt)
+	require.Equal(t, "wake", api.patch.Payload.SystemEvent)
+	require.False(t, api.patch.Payload.NoTimeout)
+	require.Zero(t, api.patch.Payload.MaxRuntime)
+	require.False(t, api.patch.Delivery.BestEffort)
+	require.Equal(t, coreautomation.DeliveryGateway, api.patch.Delivery.Mode)
+	require.Equal(t, "telegram", api.patch.Delivery.Channel)
+}
+
+func TestNewCommand_UpdateAppliesEveryPayloadAndDeliveryFlag(t *testing.T) {
+	api, _ := setupAutomationCommandTest(t)
+	api.jobs = []coreautomation.Job{{
+		ID: testAutomationCommandJobID,
+		Payload: coreautomation.Payload{
+			Kind:        coreautomation.PayloadSystemEvent,
+			SystemEvent: "wake",
+			Metadata:    map[string]string{"origin": "test"},
+		},
+		Delivery: coreautomation.Delivery{
+			Mode:       coreautomation.DeliveryWebhook,
+			WebhookURL: "https://old-hook.test",
+		},
+	}}
+
+	require.NoError(t, newTestCommand().Run(context.Background(), []string{
+		"automation", "update", testAutomationCommandJobID,
+		"--prompt", "summarize",
+		"--model", "new-model",
+		"--provider", "openai",
+		"--base-url", "https://api.example.test",
+		"--no-timeout=false",
+		"--max-runtime", "3m",
+		"--max-iterations", "8",
+		"--retry-attempts", "4",
+		"--retry-backoff", "2s",
+		"--retry-max-delay", "20s",
+		"--tool-group", "core",
+		"--delivery", "gateway",
+		"--channel", "telegram",
+		"--target", "chat",
+		"--thread", "topic",
+		"--best-effort=false",
+	}))
+
+	require.Equal(t, coreautomation.Payload{
+		Kind:          coreautomation.PayloadPrompt,
+		Prompt:        "summarize",
+		Model:         "new-model",
+		Provider:      "openai",
+		BaseURL:       "https://api.example.test",
+		MaxRuntime:    3 * time.Minute,
+		MaxIterations: 8,
+		RetryAttempts: 4,
+		RetryBackoff:  2 * time.Second,
+		RetryMaxDelay: 20 * time.Second,
+		ToolGroups:    []string{"core"},
+		Metadata:      map[string]string{"origin": "test"},
+	}, *api.patch.Payload)
+	require.Equal(t, coreautomation.Delivery{
+		Mode:       coreautomation.DeliveryGateway,
+		Channel:    "telegram",
+		Target:     "chat",
+		ThreadID:   "topic",
+		BestEffort: false,
+	}, *api.patch.Delivery)
+}
+
+func TestNewCommand_UpdateClearsRoutingWhenChangingToLocalDelivery(t *testing.T) {
+	api, _ := setupAutomationCommandTest(t)
+	api.jobs = []coreautomation.Job{{
+		ID: testAutomationCommandJobID,
+		Delivery: coreautomation.Delivery{
+			Mode:       coreautomation.DeliveryGateway,
+			Channel:    "telegram",
+			Target:     "chat",
+			ThreadID:   "topic",
+			BestEffort: true,
+		},
+	}}
+
+	require.NoError(t, newTestCommand().Run(context.Background(), []string{
+		"automation", "update", testAutomationCommandJobID,
+		"--delivery", "local",
+	}))
+
+	require.Equal(t, coreautomation.Delivery{
+		Mode:       coreautomation.DeliveryLocal,
+		BestEffort: true,
+	}, *api.patch.Delivery)
+}
+
+func TestNewCommand_UpdateReturnsCurrentJobLookupErrors(t *testing.T) {
+	t.Run("list failure", func(t *testing.T) {
+		api, _ := setupAutomationCommandTest(t)
+		expected := errors.New("list failed")
+		api.listErr = expected
+
+		err := newTestCommand().Run(context.Background(), []string{
+			"automation", "update", testAutomationCommandJobID,
+			"--model", "new-model",
+		})
+
+		require.ErrorIs(t, err, expected)
+		require.Empty(t, api.patch)
+	})
+
+	t.Run("job missing", func(t *testing.T) {
+		api, _ := setupAutomationCommandTest(t)
+		api.jobs = []coreautomation.Job{}
+
+		err := newTestCommand().Run(context.Background(), []string{
+			"automation", "update", testAutomationCommandJobID,
+			"--target", "chat",
+		})
+
+		require.EqualError(t, err, "automation job not found")
+		require.Empty(t, api.patch)
+	})
+}
+
 func TestNewCommand_PauseResumeRunRemoveAndRunsCallRPC(t *testing.T) {
 	api, output := setupAutomationCommandTest(t)
 
@@ -413,7 +628,8 @@ func TestGetAutomationAPI_ReturnsLoadError(t *testing.T) {
 }
 
 func TestPatchFromCommand_CoversOptionalFlags(t *testing.T) {
-	_, _ = setupAutomationCommandTest(t)
+	api, _ := setupAutomationCommandTest(t)
+	api.jobs = []coreautomation.Job{{ID: testAutomationCommandJobID}}
 	cmd := newTestCommand()
 	require.NoError(t, cmd.Run(context.Background(), []string{
 		"automation", "update", testAutomationCommandJobID,
@@ -473,7 +689,7 @@ func TestJobFromCommand_CoversDisabledAndSystemEvent(t *testing.T) {
 	require.Equal(t, "https://hook.test", api.added.Delivery.WebhookURL)
 }
 
-func TestNewCommand_RejectsInvalidDeliveryFlagsBeforeRPC(t *testing.T) {
+func TestNewCommand_RejectsInvalidDeliveryModeBeforeRPC(t *testing.T) {
 	api, _ := setupAutomationCommandTest(t)
 
 	err := newTestCommand().Run(context.Background(), []string{
@@ -486,10 +702,19 @@ func TestNewCommand_RejectsInvalidDeliveryFlagsBeforeRPC(t *testing.T) {
 	require.Empty(t, api.added)
 
 	err = newTestCommand().Run(context.Background(), []string{
-		"automation", "update", testAutomationCommandJobID,
+		"automation", "add",
+		"--schedule", "every 5m",
+		"--prompt", "notify",
 		"--target", "C1",
 	})
 	require.EqualError(t, err, "--delivery is required when setting delivery options")
+
+	api.jobs = []coreautomation.Job{{ID: testAutomationCommandJobID}}
+	err = newTestCommand().Run(context.Background(), []string{
+		"automation", "update", testAutomationCommandJobID,
+		"--delivery", "n",
+	})
+	require.EqualError(t, err, `unsupported automation delivery mode "n"`)
 	require.Empty(t, api.patch)
 }
 

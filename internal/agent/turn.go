@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -453,6 +454,8 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 	var traceSession trace.Session
 	budget := envbudget.New(0)
 	streamingEnabled := false
+	lastToolFailure := ""
+	repeatedToolFailureCount := 0
 
 	return agentcore.RunTurnLifecycle(ctx, msg, opts, agentcore.TurnLifecycle{
 		Load: t.load,
@@ -726,7 +729,36 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return agentcore.LoopDecision{}, err
 			}
-			return agentcore.LoopDecision{}, nil
+
+			failureSignature, failureMessage, failed := getEquivalentToolFailure(toolMessages)
+			if !failed {
+				lastToolFailure = ""
+				repeatedToolFailureCount = 0
+				return agentcore.LoopDecision{}, nil
+			}
+			if failureSignature == lastToolFailure {
+				repeatedToolFailureCount++
+			} else {
+				lastToolFailure = failureSignature
+				repeatedToolFailureCount = 1
+			}
+			if repeatedToolFailureCount < 2 {
+				return agentcore.LoopDecision{}, nil
+			}
+
+			reply := "I stopped retrying because " + toolMessages[0].Name +
+				" failed twice with the same error: " + failureMessage
+			repeatedFailureMessage, err := morphmsg.NewMessage(morphmsg.RoleAssistant, reply)
+			if err != nil {
+				return agentcore.LoopDecision{}, err
+			}
+			t.emittedMessages = append(t.emittedMessages, repeatedFailureMessage)
+			if err := t.appendSessionMessages([]morphmsg.Message{repeatedFailureMessage}); err != nil {
+				return agentcore.LoopDecision{}, err
+			}
+			traceSession.Record(trace.EvtFinalAssistantResponse, trace.FinalAssistantResponsePayload{Message: reply})
+
+			return agentcore.LoopDecision{Done: true, Reply: reply}, nil
 		},
 		OnExhausted: func(ctx context.Context) (string, error) {
 			// If iteration budget is exhausted, fallback to summary-based result and finish.
@@ -737,6 +769,32 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 			return t.summaryFallback(ctx, budget, traceSession)
 		},
 	})
+}
+
+func getEquivalentToolFailure(messages []morphmsg.Message) (string, string, bool) {
+	if len(messages) != 1 {
+		return "", "", false
+	}
+
+	var payload struct {
+		Name  string          `json:"name"`
+		Error json.RawMessage `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(messages[0].Content), &payload); err != nil || len(payload.Error) == 0 {
+		return "", "", false
+	}
+
+	var toolError tools.Error
+	if err := json.Unmarshal(payload.Error, &toolError); err == nil && toolError.Code != "" && toolError.Message != "" {
+		return messages[0].Name + "\x00" + toolError.Code + "\x00" + toolError.Message, toolError.Message, true
+	}
+
+	var message string
+	if err := json.Unmarshal(payload.Error, &message); err != nil || message == "" {
+		return "", "", false
+	}
+
+	return messages[0].Name + "\x00" + message, message, true
 }
 
 // trimSessionHistoryToSummary trims session history up to summary end offset.

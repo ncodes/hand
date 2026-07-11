@@ -2,7 +2,10 @@ package automation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
+	"time"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	storage "github.com/wandxy/morph/internal/state/core"
@@ -18,6 +21,108 @@ type input struct {
 	RunQuery        runQueryInput         `json:"run_query,omitempty"`
 	CaptureContext  bool                  `json:"capture_context,omitempty"`
 	IncludeDisabled bool                  `json:"include_disabled,omitempty"`
+	payloadUpdate   *payloadUpdateInput
+	deliveryUpdate  *deliveryUpdateInput
+}
+
+type payloadUpdateInput struct {
+	Kind          *storage.AutomationPayloadKind `json:"kind"`
+	Prompt        *string                        `json:"prompt"`
+	SystemEvent   *string                        `json:"system_event"`
+	Model         *string                        `json:"model"`
+	Provider      *string                        `json:"provider"`
+	BaseURL       *string                        `json:"base_url"`
+	NoTimeout     *bool                          `json:"no_timeout"`
+	MaxRuntime    *time.Duration                 `json:"max_runtime"`
+	MaxIterations *int                           `json:"max_iterations"`
+	RetryAttempts *int                           `json:"retry_attempts"`
+	RetryBackoff  *time.Duration                 `json:"retry_backoff"`
+	RetryMaxDelay *time.Duration                 `json:"retry_max_delay"`
+	ToolGroups    *[]string                      `json:"tool_groups"`
+	Metadata      *map[string]string             `json:"metadata"`
+}
+
+type deliveryUpdateInput struct {
+	Mode            *storage.AutomationDeliveryMode `json:"mode"`
+	Channel         *string                         `json:"channel"`
+	Target          *string                         `json:"target"`
+	ThreadID        *string                         `json:"thread_id"`
+	WebhookURL      *string                         `json:"webhook_url"`
+	BestEffort      *bool                           `json:"best_effort"`
+	FailureTarget   *string                         `json:"failure_target"`
+	FailureAfter    *int                            `json:"failure_after"`
+	FailureCooldown *time.Duration                  `json:"failure_cooldown"`
+}
+
+func (req *input) UnmarshalJSON(data []byte) error {
+	normalized, err := normalizeToolInputJSON(data)
+	if err != nil {
+		return err
+	}
+	data = normalized
+
+	type inputValue input
+	var value inputValue
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	var updates struct {
+		Job struct {
+			SessionTarget  *string              `json:"session_target"`
+			DeleteAfterRun *bool                `json:"delete_after_run"`
+			Payload        *payloadUpdateInput  `json:"payload"`
+			Delivery       *deliveryUpdateInput `json:"delivery"`
+		} `json:"job"`
+	}
+	if err := json.Unmarshal(data, &updates); err != nil {
+		return err
+	}
+
+	*req = input(value)
+	if updates.Job.SessionTarget != nil {
+		req.Job.SessionTarget = *updates.Job.SessionTarget
+	}
+	if updates.Job.DeleteAfterRun != nil {
+		req.Job.DeleteAfterRun = *updates.Job.DeleteAfterRun
+	}
+	req.payloadUpdate = updates.Job.Payload
+	req.deliveryUpdate = updates.Job.Delivery
+	if req.payloadUpdate != nil {
+		req.Job.Payload = applyPayloadUpdate(req.Job.Payload, *req.payloadUpdate)
+	}
+	if req.deliveryUpdate != nil {
+		req.Job.Delivery = applyDeliveryUpdate(req.Job.Delivery, *req.deliveryUpdate)
+	}
+
+	return nil
+}
+
+func normalizeToolInputJSON(data []byte) ([]byte, error) {
+	var value map[string]any
+	if err := json.Unmarshal(data, &value); err != nil {
+		return nil, err
+	}
+
+	job, _ := value["job"].(map[string]any)
+	schedule, _ := job["schedule"].(map[string]any)
+	at, exists := schedule["at"]
+	if !exists || at == nil {
+		return data, nil
+	}
+
+	atText, ok := at.(string)
+	if !ok {
+		return nil, errors.New("job.schedule.at must be an RFC3339 string or null")
+	}
+	if atText == "" {
+		delete(schedule, "at")
+		return json.Marshal(value)
+	}
+	if _, err := time.Parse(time.RFC3339, atText); err != nil {
+		return nil, errors.New("job.schedule.at must be an RFC3339 timestamp")
+	}
+
+	return data, nil
 }
 
 type jobQueryInput struct {
@@ -83,7 +188,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		}, "action"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
-			if result := common.DecodeInput(call, &req); result.Error != "" {
+			if result := decodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
 			service, err := getService(ctx, runtime)
@@ -99,6 +204,17 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			return common.EncodeOutput(result)
 		}),
 	}
+}
+
+func decodeInput(call tools.Call, target any) tools.Result {
+	if strings.TrimSpace(call.Input) == "" {
+		call.Input = "{}"
+	}
+	if err := json.Unmarshal([]byte(call.Input), target); err != nil {
+		return common.ToolError("invalid_input", err.Error())
+	}
+
+	return tools.Result{}
 }
 
 func getService(ctx context.Context, runtime envtypes.Runtime) (envtypes.AutomationService, error) {
@@ -138,7 +254,11 @@ func invoke(ctx context.Context, service envtypes.AutomationService, req input) 
 		created, err := service.Add(ctx, job)
 		return output{Status: "ok", Job: created}, err
 	case "update":
-		patch, err := patchFromInput(req)
+		current, err := loadAutomationJobForUpdate(ctx, service, req)
+		if err != nil {
+			return output{}, err
+		}
+		patch, err := patchFromInputWithCurrent(req, current)
 		if err != nil {
 			return output{}, err
 		}
@@ -201,6 +321,13 @@ func captureContext(ctx context.Context, job storage.AutomationJob) storage.Auto
 }
 
 func patchFromInput(req input) (storage.AutomationJobPatch, error) {
+	return patchFromInputWithCurrent(req, storage.AutomationJob{})
+}
+
+func patchFromInputWithCurrent(
+	req input,
+	current storage.AutomationJob,
+) (storage.AutomationJobPatch, error) {
 	patch := storage.AutomationJobPatch{
 		ID:            req.ID,
 		Name:          stringPtr(req.Job.Name),
@@ -214,17 +341,167 @@ func patchFromInput(req input) (storage.AutomationJobPatch, error) {
 		}
 		patch.Schedule = &req.Job.Schedule
 	}
-	if req.Job.Payload.Kind != "" || req.Job.Payload.Prompt != "" || req.Job.Payload.SystemEvent != "" {
+	if req.payloadUpdate != nil {
+		payload := applyPayloadUpdate(current.Payload, *req.payloadUpdate)
+		if err := checkToolPayload(payload); err != nil {
+			return storage.AutomationJobPatch{}, err
+		}
+		patch.Payload = &payload
+	} else if req.Job.Payload.Kind != "" || req.Job.Payload.Prompt != "" || req.Job.Payload.SystemEvent != "" {
 		if err := checkToolPayload(req.Job.Payload); err != nil {
 			return storage.AutomationJobPatch{}, err
 		}
 		patch.Payload = &req.Job.Payload
 	}
-	if req.Job.Delivery.Mode != "" {
+	if req.deliveryUpdate != nil {
+		delivery := applyDeliveryUpdate(current.Delivery, *req.deliveryUpdate)
+		patch.Delivery = &delivery
+	} else if req.Job.Delivery.Mode != "" {
 		patch.Delivery = &req.Job.Delivery
 	}
 
 	return patch, nil
+}
+
+func loadAutomationJobForUpdate(
+	ctx context.Context,
+	service envtypes.AutomationService,
+	req input,
+) (storage.AutomationJob, error) {
+	if req.payloadUpdate == nil && req.deliveryUpdate == nil {
+		return storage.AutomationJob{}, nil
+	}
+	list, err := service.List(ctx, storage.AutomationJobQuery{
+		IDs:             []string{req.ID},
+		Limit:           1,
+		IncludeDisabled: true,
+	})
+	if err != nil {
+		return storage.AutomationJob{}, err
+	}
+	for _, job := range list.Jobs {
+		if job.ID == req.ID {
+			return job.Clone(), nil
+		}
+	}
+
+	return storage.AutomationJob{}, errors.New("automation job not found")
+}
+
+func applyPayloadUpdate(
+	payload storage.AutomationPayload,
+	update payloadUpdateInput,
+) storage.AutomationPayload {
+	payload = payload.Clone()
+	if update.Kind != nil {
+		payload.Kind = *update.Kind
+	}
+	if update.Prompt != nil && (*update.Prompt != "" || payload.Kind == storage.AutomationPayloadPrompt) {
+		payload.Kind = storage.AutomationPayloadPrompt
+		payload.Prompt = *update.Prompt
+		payload.SystemEvent = ""
+	}
+	if update.SystemEvent != nil && (*update.SystemEvent != "" || payload.Kind == storage.AutomationPayloadSystemEvent) {
+		payload.Kind = storage.AutomationPayloadSystemEvent
+		payload.Prompt = ""
+		payload.SystemEvent = *update.SystemEvent
+	}
+	if update.Model != nil {
+		payload.Model = *update.Model
+	}
+	if update.Provider != nil {
+		payload.Provider = *update.Provider
+	}
+	if update.BaseURL != nil {
+		payload.BaseURL = *update.BaseURL
+	}
+	if update.NoTimeout != nil {
+		payload.NoTimeout = *update.NoTimeout
+	}
+	if update.MaxRuntime != nil {
+		payload.MaxRuntime = *update.MaxRuntime
+	}
+	if update.MaxIterations != nil {
+		payload.MaxIterations = *update.MaxIterations
+	}
+	if update.RetryAttempts != nil {
+		payload.RetryAttempts = *update.RetryAttempts
+	}
+	if update.RetryBackoff != nil {
+		payload.RetryBackoff = *update.RetryBackoff
+	}
+	if update.RetryMaxDelay != nil {
+		payload.RetryMaxDelay = *update.RetryMaxDelay
+	}
+	if update.ToolGroups != nil {
+		payload.ToolGroups = append([]string(nil), (*update.ToolGroups)...)
+	}
+	if update.Metadata != nil {
+		payload.Metadata = cloneStringMap(*update.Metadata)
+	}
+
+	return payload
+}
+
+func applyDeliveryUpdate(
+	delivery storage.AutomationDelivery,
+	update deliveryUpdateInput,
+) storage.AutomationDelivery {
+	if update.Mode != nil {
+		delivery.Mode = *update.Mode
+		switch delivery.Mode {
+		case storage.AutomationDeliveryNone, storage.AutomationDeliveryLocal:
+			delivery.Channel = ""
+			delivery.Target = ""
+			delivery.ThreadID = ""
+			delivery.WebhookURL = ""
+		case storage.AutomationDeliveryOrigin, storage.AutomationDeliveryGateway:
+			delivery.WebhookURL = ""
+		case storage.AutomationDeliveryWebhook:
+			delivery.Channel = ""
+			delivery.Target = ""
+			delivery.ThreadID = ""
+		}
+	}
+	if update.Channel != nil {
+		delivery.Channel = *update.Channel
+	}
+	if update.Target != nil {
+		delivery.Target = *update.Target
+	}
+	if update.ThreadID != nil {
+		delivery.ThreadID = *update.ThreadID
+	}
+	if update.WebhookURL != nil {
+		delivery.WebhookURL = *update.WebhookURL
+	}
+	if update.BestEffort != nil {
+		delivery.BestEffort = *update.BestEffort
+	}
+	if update.FailureTarget != nil {
+		delivery.FailureTarget = *update.FailureTarget
+	}
+	if update.FailureAfter != nil {
+		delivery.FailureAfter = *update.FailureAfter
+	}
+	if update.FailureCooldown != nil {
+		delivery.FailureCooldown = *update.FailureCooldown
+	}
+
+	return delivery
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]string, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+
+	return cloned
 }
 
 func jobQueryFromInput(input jobQueryInput, includeDisabled bool) storage.AutomationJobQuery {
@@ -263,6 +540,13 @@ func stringPtr(value string) *string {
 func checkToolJob(job storage.AutomationJob) error {
 	if err := checkToolSchedule(job.Schedule); err != nil {
 		return err
+	}
+	if job.Delivery.Mode == storage.AutomationDeliveryOrigin &&
+		(job.Delivery.Channel == "" || job.Delivery.Target == "") {
+		return errors.New(
+			"automation origin delivery requires a Slack or Telegram channel and target; " +
+				"TUI sessions should use local delivery with an explicit session target",
+		)
 	}
 
 	return checkToolPayload(job.Payload)
@@ -308,12 +592,15 @@ func checkToolPayload(payload storage.AutomationPayload) error {
 
 func jobSchema() map[string]any {
 	return common.ObjectSchema(map[string]any{
-		"id":               common.StringSchema("Optional for action=add. Ignored for action=update; use top-level id there."),
-		"name":             common.StringSchema("Human-readable job name."),
-		"description":      common.StringSchema("Human-readable job description."),
-		"enabled":          common.BooleanSchema("Whether the job is enabled."),
-		"profile":          common.StringSchema("Profile to run with."),
-		"session_target":   common.StringSchema("Session target: isolated, main, current, origin, or session:<id>."),
+		"id":          common.StringSchema("Optional for action=add. Ignored for action=update; use top-level id there."),
+		"name":        common.StringSchema("Human-readable job name."),
+		"description": common.StringSchema("Human-readable job description."),
+		"enabled":     common.BooleanSchema("Whether the job is enabled."),
+		"profile":     common.StringSchema("Profile to run with."),
+		"session_target": common.StringSchema(
+			"Session target: isolated, main, current, origin, or session:<id>. " +
+				"For TUI-created jobs, use session:<current-session-id> with local delivery.",
+		),
 		"delete_after_run": common.BooleanSchema("Delete after a successful run."),
 		"schedule": common.ObjectSchema(map[string]any{
 			"kind": common.StringSchema(
@@ -360,7 +647,8 @@ func jobSchema() map[string]any {
 		"delivery": common.ObjectSchema(map[string]any{
 			"mode": common.StringSchema(
 				"Delivery mode: none, local, origin, gateway, or webhook. " +
-					"If mode=webhook, webhook_url is required. If mode=gateway or origin, channel/target may be required by the configured delivery sink.",
+					"Use local for TUI sessions. If mode=webhook, webhook_url is required. " +
+					"If mode=gateway or origin, a Slack or Telegram channel and target are required.",
 			),
 			"channel":     common.StringSchema("Delivery channel. Usually required for gateway/origin delivery."),
 			"target":      common.StringSchema("Delivery target. Usually required for gateway/origin delivery."),

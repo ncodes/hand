@@ -45,6 +45,213 @@ func TestDefinition_AddCapturesContext(t *testing.T) {
 	require.Equal(t, "ses_projectaprojectaproje", out.Job.Payload.Metadata["origin_session_id"])
 }
 
+func TestDefinition_AddAcceptsStrictSchemaPlaceholders(t *testing.T) {
+	store := storememory.NewStore()
+	definition := Definition(&toolmocks.Runtime{
+		AutomationServiceValue: &automationToolServiceStub{store: store},
+		AutomationServiceOK:    true,
+	})
+
+	result, err := definition.Handler.Invoke(context.Background(), tools.Call{Input: `{
+		"action":"add",
+		"capture_context":false,
+		"id":"",
+		"include_disabled":false,
+		"job":{
+			"delete_after_run":false,
+			"delivery":{
+				"best_effort":false,
+				"channel":"",
+				"failure_after":0,
+				"failure_cooldown":0,
+				"failure_target":"",
+				"mode":"local",
+				"target":"",
+				"thread_id":"",
+				"webhook_url":""
+			},
+			"description":"Send the current Nigeria local time to this chat every 5 minutes.",
+			"enabled":true,
+			"id":"",
+			"name":"Nigeria time every 5 minutes",
+			"payload":{
+				"base_url":"",
+				"kind":"prompt",
+				"max_iterations":3,
+				"max_runtime":30000000000,
+				"model":"",
+				"no_timeout":false,
+				"prompt":"Check the current time in Nigeria and send it here in Nigerian Pidgin. Keep it brief.",
+				"provider":"",
+				"retry_attempts":0,
+				"retry_backoff":0,
+				"retry_max_delay":0,
+				"system_event":"",
+				"tool_groups":["core"]
+			},
+			"profile":"default",
+			"schedule":{"at":"","cron":"","every":300000000000,"kind":"every","timezone":""},
+			"session_target":"main"
+		},
+		"query":{"enabled":false,"ids":[],"include_disabled":false,"limit":0,"profile":"","session_target":""},
+		"run_query":{"ids":[],"job_id":"","limit":0,"status":[]}
+	}`})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	var out output
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &out))
+	require.Equal(t, "Nigeria time every 5 minutes", out.Job.Name)
+	require.Equal(t, "default", out.Job.Profile)
+	require.Equal(t, "main", out.Job.SessionTarget)
+	require.Equal(t, storage.AutomationDeliveryLocal, out.Job.Delivery.Mode)
+	require.Equal(t, 5*time.Minute, out.Job.Schedule.Every)
+	require.Equal(t, 30*time.Second, out.Job.Payload.MaxRuntime)
+	require.Equal(t, []string{"core"}, out.Job.Payload.ToolGroups)
+}
+
+func TestDefinition_StatusIgnoresStrictSchemaJobPlaceholders(t *testing.T) {
+	definition := Definition(&toolmocks.Runtime{
+		AutomationServiceValue: &automationToolServiceStub{store: storememory.NewStore()},
+		AutomationServiceOK:    true,
+	})
+
+	result, err := definition.Handler.Invoke(context.Background(), tools.Call{Input: `{
+		"action":"status",
+		"capture_context":false,
+		"id":"",
+		"include_disabled":true,
+		"job":{
+			"delivery":{"mode":"none"},
+			"payload":{"kind":"prompt"},
+			"schedule":{"at":null,"cron":null,"every":null,"kind":null,"timezone":null}
+		},
+		"query":{},
+		"run_query":{}
+	}`})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+}
+
+func TestDefinition_ReturnsFieldLevelTimestampErrors(t *testing.T) {
+	definition := Definition(&toolmocks.Runtime{
+		AutomationServiceValue: &automationToolServiceStub{store: storememory.NewStore()},
+		AutomationServiceOK:    true,
+	})
+
+	result, err := definition.Handler.Invoke(context.Background(), tools.Call{Input: `{
+		"action":"add",
+		"job":{
+			"schedule":{"kind":"at","at":"tomorrow"},
+			"payload":{"kind":"prompt","prompt":"notify"}
+		}
+	}`})
+
+	require.NoError(t, err)
+	require.Contains(t, result.Error, "job.schedule.at must be an RFC3339 timestamp")
+}
+
+func TestDefinition_UpdatePreservesUnspecifiedPayloadFields(t *testing.T) {
+	store := storememory.NewStore()
+	service := &automationToolServiceStub{store: store}
+	ctx := context.Background()
+	_, err := store.CreateJob(ctx, storage.AutomationJob{
+		ID:      testAutomationToolJobID,
+		Enabled: true,
+		Schedule: storage.AutomationSchedule{
+			Kind:  storage.AutomationScheduleEvery,
+			Every: time.Hour,
+		},
+		Payload: storage.AutomationPayload{
+			Kind:          storage.AutomationPayloadPrompt,
+			Prompt:        "summarize",
+			Model:         "old-model",
+			Provider:      "openai",
+			NoTimeout:     true,
+			MaxRuntime:    time.Minute,
+			MaxIterations: 4,
+			RetryAttempts: 3,
+			RetryBackoff:  time.Second,
+			RetryMaxDelay: 10 * time.Second,
+			ToolGroups:    []string{"core", "web"},
+			Metadata:      map[string]string{"origin": "test"},
+		},
+		Delivery: storage.AutomationDelivery{
+			Mode:            storage.AutomationDeliveryGateway,
+			Channel:         "telegram",
+			Target:          "old-target",
+			ThreadID:        "topic",
+			BestEffort:      true,
+			FailureTarget:   "admin",
+			FailureAfter:    3,
+			FailureCooldown: time.Hour,
+		},
+	})
+	require.NoError(t, err)
+	definition := Definition(&toolmocks.Runtime{
+		AutomationServiceValue: service,
+		AutomationServiceOK:    true,
+	})
+
+	result, err := definition.Handler.Invoke(ctx, tools.Call{Input: `{
+		"action": "update",
+		"id": "` + testAutomationToolJobID + `",
+		"job": {
+			"payload": {
+				"model": "new-model",
+				"no_timeout": false,
+				"max_runtime": 0,
+				"tool_groups": []
+			},
+			"delivery": {"target": "new-target"}
+		}
+	}`})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	var out output
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &out))
+	require.Equal(t, storage.AutomationPayload{
+		Kind:          storage.AutomationPayloadPrompt,
+		Prompt:        "summarize",
+		Model:         "new-model",
+		Provider:      "openai",
+		MaxIterations: 4,
+		RetryAttempts: 3,
+		RetryBackoff:  time.Second,
+		RetryMaxDelay: 10 * time.Second,
+		Metadata:      map[string]string{"origin": "test"},
+	}, out.Job.Payload)
+	require.Equal(t, storage.AutomationDelivery{
+		Mode:            storage.AutomationDeliveryGateway,
+		Channel:         "telegram",
+		Target:          "new-target",
+		ThreadID:        "topic",
+		BestEffort:      true,
+		FailureTarget:   "admin",
+		FailureAfter:    3,
+		FailureCooldown: time.Hour,
+	}, out.Job.Delivery)
+}
+
+func TestDefinition_UpdateReturnsCurrentJobLookupErrors(t *testing.T) {
+	expected := errors.New("list failed")
+	definition := Definition(&toolmocks.Runtime{
+		AutomationServiceValue: &automationToolServiceStub{listErr: expected},
+		AutomationServiceOK:    true,
+	})
+
+	result, err := definition.Handler.Invoke(context.Background(), tools.Call{Input: `{
+		"action": "update",
+		"id": "` + testAutomationToolJobID + `",
+		"job": {"payload": {"model": "new-model"}}
+	}`})
+
+	require.NoError(t, err)
+	require.Contains(t, result.Error, expected.Error())
+}
+
 func TestInvoke_StatusAndRun(t *testing.T) {
 	store := storememory.NewStore()
 	service := &automationToolServiceStub{store: store}
@@ -363,6 +570,18 @@ func TestInvoke_RejectsInvalidNestedJob(t *testing.T) {
 				},
 			},
 			err: "automation cron schedule expression is required",
+		},
+		{
+			name: "add origin delivery without a gateway route",
+			input: input{
+				Action: "add",
+				Job: storage.AutomationJob{
+					Schedule: storage.AutomationSchedule{Kind: storage.AutomationScheduleEvery, Every: time.Minute},
+					Payload:  storage.AutomationPayload{Kind: storage.AutomationPayloadPrompt, Prompt: "notify"},
+					Delivery: storage.AutomationDelivery{Mode: storage.AutomationDeliveryOrigin},
+				},
+			},
+			err: "automation origin delivery requires a Slack or Telegram channel and target; TUI sessions should use local delivery with an explicit session target",
 		},
 	}
 

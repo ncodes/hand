@@ -203,9 +203,14 @@ func normalizeStrictJSONSchemaValue(value any) any {
 		schemaType, _ := cloned["type"].(string)
 		properties, _ := cloned["properties"].(map[string]any)
 		if schemaType == "object" && len(properties) > 0 {
+			originalRequired := getJSONSchemaRequiredNames(typed["required"])
 			for key, property := range properties {
 				if propertySchema, ok := property.(map[string]any); ok && isUnsupportedStrictJSONObjectProperty(propertySchema) {
 					delete(properties, key)
+					continue
+				}
+				if _, required := originalRequired[key]; !required {
+					properties[key] = makeStrictJSONSchemaPropertyNullable(property)
 				}
 			}
 
@@ -227,6 +232,39 @@ func normalizeStrictJSONSchemaValue(value any) any {
 	default:
 		return value
 	}
+}
+
+func getJSONSchemaRequiredNames(value any) map[string]struct{} {
+	result := map[string]struct{}{}
+	switch values := value.(type) {
+	case []string:
+		for _, name := range values {
+			result[name] = struct{}{}
+		}
+	case []any:
+		for _, value := range values {
+			if name, ok := value.(string); ok {
+				result[name] = struct{}{}
+			}
+		}
+	}
+
+	return result
+}
+
+func makeStrictJSONSchemaPropertyNullable(value any) any {
+	schema, ok := value.(map[string]any)
+	if !ok {
+		return value
+	}
+
+	schemaType, ok := schema["type"].(string)
+	if !ok || schemaType == "null" {
+		return schema
+	}
+
+	schema["type"] = []any{schemaType, "null"}
+	return schema
 }
 
 func isUnsupportedStrictJSONObjectProperty(schema map[string]any) bool {

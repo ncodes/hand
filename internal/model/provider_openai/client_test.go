@@ -1309,6 +1309,8 @@ func TestBuildChatCompletionsTools_NormalizesStrictObjectSchema(t *testing.T) {
 	raw, err := json.Marshal(tools)
 	require.NoError(t, err)
 	require.Contains(t, string(raw), `"required":["include_hidden","path"]`)
+	require.Contains(t, string(raw), `"include_hidden":{"type":["boolean","null"]}`)
+	require.Contains(t, string(raw), `"path":{"type":["string","null"]}`)
 }
 
 func TestBuildResponsesTools_NormalizesStrictObjectSchema(t *testing.T) {
@@ -1327,6 +1329,8 @@ func TestBuildResponsesTools_NormalizesStrictObjectSchema(t *testing.T) {
 	raw, err := json.Marshal(tools)
 	require.NoError(t, err)
 	require.Contains(t, string(raw), `"required":["include_hidden","path"]`)
+	require.Contains(t, string(raw), `"include_hidden":{"type":["boolean","null"]}`)
+	require.Contains(t, string(raw), `"path":{"type":["string","null"]}`)
 }
 
 func TestNormalizeStrictJSONSchema_RecursesWithoutMutatingInput(t *testing.T) {
@@ -1347,10 +1351,39 @@ func TestNormalizeStrictJSONSchema_RecursesWithoutMutatingInput(t *testing.T) {
 	require.Equal(t, []string{"config", "path"}, normalized["required"])
 
 	nested := normalized["properties"].(map[string]any)["config"].(map[string]any)
+	require.Equal(t, []any{"object", "null"}, nested["type"])
 	require.Equal(t, []string{"recursive"}, nested["required"])
+	require.Equal(
+		t,
+		[]any{"boolean", "null"},
+		nested["properties"].(map[string]any)["recursive"].(map[string]any)["type"],
+	)
+	require.Equal(
+		t,
+		[]any{"string", "null"},
+		normalized["properties"].(map[string]any)["path"].(map[string]any)["type"],
+	)
 
 	_, ok := input["required"]
 	require.False(t, ok)
+}
+
+func TestNormalizeStrictJSONSchema_PreservesOriginallyRequiredProperties(t *testing.T) {
+	input := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"action": map[string]any{"type": "string"},
+			"id":     map[string]any{"type": "string"},
+		},
+		"required": []string{"action"},
+	}
+
+	normalized := normalizeStrictJSONSchema(input)
+	properties := normalized["properties"].(map[string]any)
+
+	require.Equal(t, "string", properties["action"].(map[string]any)["type"])
+	require.Equal(t, []any{"string", "null"}, properties["id"].(map[string]any)["type"])
+	require.Equal(t, []string{"action", "id"}, normalized["required"])
 }
 
 func TestNormalizeStrictJSONSchema_DropsFreeformObjectProperties(t *testing.T) {

@@ -268,6 +268,50 @@ func TestTurn_RunExecutesToolLoop(t *testing.T) {
 	require.Len(t, turn.Messages(), 4)
 }
 
+func TestTurn_RunStopsAfterRepeatedEquivalentToolFailures(t *testing.T) {
+	client := &mocks.ModelClientStub{Responses: []*models.Response{
+		{
+			RequiresToolCalls: true,
+			ToolCalls: []models.ToolCall{{
+				ID:    "call-1",
+				Name:  "automation",
+				Input: `{"action":"add","job":{"id":"first"}}`,
+			}},
+		},
+		{
+			RequiresToolCalls: true,
+			ToolCalls: []models.ToolCall{{
+				ID:    "call-2",
+				Name:  "automation",
+				Input: `{"action":"add","job":{"id":"second"}}`,
+			}},
+		},
+		{OutputText: "should not be reached"},
+	}}
+	callCount := 0
+	registry := &toolGroupRegistryStub{
+		definitions: []agenttool.Definition{{Name: "automation"}},
+		invoke: func(_ context.Context, call agenttool.Call) morphmsg.Message {
+			callCount++
+			return morphmsg.Message{
+				Role:       morphmsg.RoleTool,
+				Name:       call.Name,
+				ToolCallID: call.ID,
+				Content:    `{"name":"automation","error":{"code":"invalid_input","message":"job.schedule.at must be an RFC3339 timestamp"}}`,
+			}
+		},
+	}
+	turn := newTurnRunTestSubject(client, nil, registry, envbudget.New(4))
+
+	reply, err := turn.Run(context.Background(), "schedule this", agentcore.RespondOptions{})
+
+	require.NoError(t, err)
+	require.Contains(t, reply, "automation failed twice with the same error")
+	require.Contains(t, reply, "job.schedule.at must be an RFC3339 timestamp")
+	require.Equal(t, 2, callCount)
+	require.Equal(t, 2, client.CallCount)
+}
+
 func TestTurn_RunBlocksUnsafeInputBeforeModel(t *testing.T) {
 	stream := false
 	store := &stateStoreStub{session: storage.Session{ID: storage.DefaultSessionID}}
