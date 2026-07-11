@@ -6,7 +6,7 @@ description: Authorize gateway senders safely.
 # Pairing and Allowlists
 
 Slack and Telegram bots can be reached by anyone who finds them. Morph uses allowlists and pairing so only trusted
-senders trigger agent turns. Generic HTTP uses a shared bearer token instead — see
+senders trigger agent turns. Generic HTTP uses a shared bearer token instead; see
 [Generic HTTP](./generic-http#authentication).
 
 This guide covers the operator workflow. For enabling gateways, see the [Gateway Overview](./). For the underlying
@@ -27,18 +27,18 @@ run after that.
 
 For each inbound Slack or Telegram message, Morph:
 
-1. Reads the **sender id** from the platform payload — Telegram's numeric user id, or Slack's member id (`U…`).
+1. Reads the **sender id** from the platform payload: Telegram's numeric user id, or Slack's member id (`U…`).
 2. Checks **allowlists** in profile config: `gateway.allowedUsers` and the platform list (`gateway.telegram.allowedUsers`
    or `gateway.slack.allowedUsers`). If listed, the agent turn runs.
 3. If not allowlisted, checks the profile database for an **approved pairing** for that source and sender id. If found,
    the turn runs.
-4. If still unknown and the chat is **pairing-eligible** (see below), Morph posts a pairing code in the chat and stops —
+4. If still unknown and the chat is **pairing-eligible** (see below), Morph posts a pairing code in the chat and stops;
    no agent turn yet.
 5. If still unknown and the chat is **not** pairing-eligible (Telegram group, Slack channel), the message is dropped
    with no reply.
 
 Pairing approves the **sender identity**, not a session. Once approved, that person can trigger Morph in every context
-the platform allows. Session bindings are separate — keyed by conversation and thread. See
+the platform allows. Session bindings are separate, keyed by conversation and thread. See
 [Sessions](../../concepts/sessions).
 
 ## Allowlists
@@ -68,12 +68,12 @@ The daemon restarts when config is valid. You can also set comma-separated env v
 
 ### Find a sender id
 
-**Telegram** — numeric user id, not `@username`:
+**Telegram** (numeric user id, not `@username`):
 
 - Message a bot like `@userinfobot`, or
 - Have the user DM your bot once, then run `morph gateway pairing list telegram` and read the **sender id** column.
 
-**Slack** — member id starting with `U`:
+**Slack** (member id starting with `U`):
 
 - Open the member's profile in Slack → **More** → **Copy member ID** (wording varies by client), or
 - Same as Telegram: after they message the app, `morph gateway pairing list slack`.
@@ -86,11 +86,11 @@ Pairing codes are derived from `gateway.pairingSecret` in profile config. Set it
 morph config set gateway.pairingSecret "$(openssl rand -hex 32)"
 ```
 
-Or export `MORPH_GATEWAY_PAIRING_SECRET`. If this field is empty, Morph cannot issue codes — unlisted senders in
+Or export `MORPH_GATEWAY_PAIRING_SECRET`. If this field is empty, Morph cannot issue codes; unlisted senders in
 pairing-eligible chats see nothing useful, and logs show `gateway pairing secret is required`.
 
-Store the secret like a password (profile config or a secret manager, not git). Morph redacts it from traces and logs —
-see [Safety and Guardrails](../../concepts/safety-and-guardrails).
+Store the secret like a password (profile config or a secret manager, not git). Morph redacts it from traces and logs.
+See [Safety and Guardrails](../../concepts/safety-and-guardrails).
 
 Rotating the secret invalidates active codes immediately. Already-approved senders stay approved.
 
@@ -111,7 +111,7 @@ End-to-end for one new user:
 Codes rotate every **30 seconds**. If approve fails, wait for a fresh code in the chat. Each pending request **expires
 after one hour**; the user can message again to get a new one.
 
-Pending and approved records live in the active [profile](../../concepts/profiles) database — not in `config.yaml` —
+Pending and approved records live in the active [profile](../../concepts/profiles) database (not in `config.yaml`)
 and survive daemon restarts.
 
 ### Where pairing is offered
@@ -119,10 +119,10 @@ and survive daemon restarts.
 | Platform | Morph sends a pairing code | Morph ignores silently |
 | --- | --- | --- |
 | **Telegram** | Private chat with the bot | Groups and supergroups |
-| **Slack** | DM (`im`) or group DM (`mpim`) | Channels — need allowlist or prior DM pairing; use `@`-mention there |
+| **Slack** | DM (`im`) or group DM (`mpim`) | Channels: need allowlist or prior DM pairing; use `@`-mention there |
 
 For Telegram groups and Slack channels, allowlist senders or approve them in a private chat first. See
-[Telegram — Groups](./telegram#groups-and-supergroups) and [Slack — Channels](./slack#channels).
+[Telegram: Groups](./telegram#groups-and-supergroups) and [Slack: Channels](./slack#channels).
 
 ## Manage Pairings from the CLI
 
@@ -149,11 +149,11 @@ morph gateway pairing approve telegram <code>
 morph gateway pairing approve slack <code>
 ```
 
-`<source>` is `telegram` or `slack`. `<code>` is the 8-digit value from the user's chat — not their sender id.
+`<source>` is `telegram` or `slack`. `<code>` is the 8-digit value from the user's chat, not their sender id.
 
 On success: `approved telegram 123456789`. If nothing matches: `no pending gateway pairing matched code` (wrong or
 expired code, clock skew, or secret changed). Rarely, two pending senders share a code →
-`gateway pairing code matches multiple pending requests` — run `list`, then `clear-pending`.
+`gateway pairing code matches multiple pending requests`: run `list`, then `clear-pending`.
 
 ### Revoke an approved sender
 
@@ -188,7 +188,7 @@ the terminal. See [Session Guide](../sessions).
 ## Generic HTTP Has No Pairing
 
 `POST /v1/respond` has no per-sender allowlist or pairing. Protect the route with `gateway.authToken` and network
-controls — see [Generic HTTP](./generic-http#authentication).
+controls. See [Generic HTTP](./generic-http#authentication).
 
 ## Troubleshooting
 
@@ -201,12 +201,12 @@ controls — see [Generic HTTP](./generic-http#authentication).
 ### `no pending gateway pairing matched code`
 
 - Copy the **current** code from the user's chat (rotates every 30s).
-- Run `morph gateway pairing list <source>` — look for a non-expired pending row.
+- Run `morph gateway pairing list <source>`: look for a non-expired pending row.
 - After changing `gateway.pairingSecret`, restart the daemon so approve uses the same secret as the running gateway.
 
 ### Sender approved but messages still ignored
 
-- **Telegram groups / Slack channels:** no pairing prompts there — allowlist or approve in DM first.
+- **Telegram groups / Slack channels:** no pairing prompts there; allowlist or approve in DM first.
 - Confirm the correct **source** (`telegram` vs `slack`) and sender id from `morph gateway pairing list`.
 - **Slack channels:** user must `@`-mention the app; Slack app needs `app_mention` subscribed.
 

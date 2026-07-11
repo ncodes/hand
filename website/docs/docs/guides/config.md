@@ -30,8 +30,8 @@ A few things to know:
 - **Changes apply automatically.** A daemon running for the profile watches `config.yaml` and restarts to pick up a
   valid change, so you do not normally restart by morph. `.env` changes are the exception and need a manual restart. See
   [Daemon and RPC](../concepts/daemon-and-rpc).
-- **Precedence.** Flags beat environment variables, which beat `config.yaml`, which beats defaults — covered in
-  [Profiles and Config](../getting-started/profiles-and-config#config-precedence).
+- **Precedence.** Flags beat environment variables, which beat `config.yaml`, which beats defaults (covered in
+  [Profiles and Config](../getting-started/profiles-and-config#config-precedence)).
 
 ## Config by Section
 
@@ -109,7 +109,7 @@ See [Safety and Guardrails](../concepts/safety-and-guardrails) for how `exec.all
 morph config set gateway.enabled true
 ```
 
-Turning on Slack or Telegram additionally requires their credentials — `config set` validates the whole config, so
+Turning on Slack or Telegram additionally requires their credentials: `config set` validates the whole config, so
 enabling a platform without its token is rejected. Set the platform's tokens and mode together (under `gateway.slack` /
 `gateway.telegram`) as the platform guides walk through. See [Gateways](../concepts/gateways).
 

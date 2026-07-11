@@ -8,9 +8,9 @@ displayed_sidebar: null
 
 Morph separates what the model reads into two surfaces on every inference call:
 
-1. **`Instructions`** — the system prompt: static profile rules, runtime facts, retrieved memory, and turn-specific
+1. **`Instructions`**, the system prompt: static profile rules, runtime facts, retrieved memory, and turn-specific
    guidance. Assembled as named instruction blocks, then joined into one string.
-2. **`Messages`** — the conversation transcript: summarized tail history plus messages emitted during the current turn
+2. **`Messages`**, the conversation transcript: summarized tail history plus messages emitted during the current turn
    (user input, assistant replies, tool calls, tool results).
 
 This page explains how those surfaces are built, in what order, and where to change them. For when assembly runs inside
@@ -27,7 +27,7 @@ usually become instructions; user, assistant, and tool turns remain messages.
 
 ```mermaid
 flowchart TB
-  subgraph prepare [Daemon startup — environment.Prepare]
+  subgraph prepare [Daemon startup: environment.Prepare]
     PlanPol[planning.policy]
     Base[BuildBase agent name]
     Soul[SOUL.md personality]
@@ -37,13 +37,13 @@ flowchart TB
     PlanPol --> Base --> Soul --> Rules --> SessInst --> ToolGuide
   end
 
-  subgraph turnLoad [Turn load — once per user message]
+  subgraph turnLoad [Turn load: once per user message]
     BaseCopy[Copy base instructions from environment]
     Hist[Load session history from summary tail offset]
     BaseCopy --> Hist
   end
 
-  subgraph perStep [Each RunStep — before model call]
+  subgraph perStep [Each RunStep: before model call]
     PlanCtx[Plan context + policy]
     SumInst[Session summary instructions]
     Mem[memory.context retrieval]
@@ -74,7 +74,7 @@ because they depend on the resolved tool list, runtime facts, and session origin
 
 Instructions are `internal/instructions.Instruction` values with an optional `Name` and a markdown `Value`. Named blocks
 can be replaced or omitted during merge; unnamed blocks append in load order. Final system text is
-`Instructions.String()` — values joined with `\n\n`.
+`Instructions.String()`: values joined with `\n\n`.
 
 Common named blocks:
 
@@ -101,16 +101,16 @@ register.
 
 ### Core behavior and planning policy
 
-1. **`planning.policy`** — when to use `plan_tool` and how to maintain step status.
-2. **`BuildBase`** — agent identity, tool-use honesty, instruction-secrecy rules, and terminal-friendly formatting. The
+1. **`planning.policy`**: when to use `plan_tool` and how to maintain step status.
+2. **`BuildBase`**: agent identity, tool-use honesty, instruction-secrecy rules, and terminal-friendly formatting. The
    agent name comes from profile `name` (default `"Morph"`).
 
 ### Personality overlays
 
 `internal/personality` loads `SOUL.md`:
 
-- **Profile** — `<profile-home>/SOUL.md` when no named personality is active.
-- **Workspace** — `<cwd>/SOUL.md` when the process working directory contains that file.
+- **Profile**: `<profile-home>/SOUL.md` when no named personality is active.
+- **Workspace**: `<cwd>/SOUL.md` when the process working directory contains that file.
 
 Content is safety-scanned, truncated to **15,000** characters (`constants.PersonalityMaxContentLength`), and appended as
 an unnamed instruction block. Blocked findings are replaced with a `[BLOCKED: …]` placeholder and recorded for trace
@@ -152,16 +152,16 @@ model-visible tool schemas. See [Tools](../concepts/tools) and [Tools Runtime](.
 At the start of each turn, `Turn.load` copies the environment base instructions through `PromptProvider.LoadBaseInstructions`.
 Then, on **every** `RunStep`, `buildRequestInstructions` merges dynamic blocks in this order:
 
-1. **Plan context** — active non-completed plan steps from in-memory plan state (hydrated from prior `plan_tool`
+1. **Plan context**: active non-completed plan steps from in-memory plan state (hydrated from prior `plan_tool`
    messages). When present, **`planning.policy`** is moved to the top of the merged stack and plan markdown follows
    immediately after it (`internal/agent/plan.go`, `renderPlanInstructions`).
-2. **Session summary** — structured morphoff text from persisted compaction state: summary, current task, discoveries,
+2. **Session summary**, structured morphoff text from persisted compaction state: summary, current task, discoveries,
    open questions, and next actions (`summary.State.RenderSummaryInstructions`). This replaces older messages in
    **instructions**, not in the message list.
-3. **Memory context** — retrieved durable memory for this turn (`memory.context`). See [Memory at turn start](#memory-at-turn-start).
-4. **Environment context** — fresh runtime facts for this step (`environment.context`). See [Environment context](#environment-context).
-5. **Request instruct** — one-shot guidance from the client (`request.instruct`).
-6. **Extra blocks** — for example iteration-exhaustion summary fallback (`instruct.BuildSummary`).
+3. **Memory context**: retrieved durable memory for this turn (`memory.context`). See [Memory at turn start](#memory-at-turn-start).
+4. **Environment context**: fresh runtime facts for this step (`environment.context`). See [Environment context](#environment-context).
+5. **Request instruct**: one-shot guidance from the client (`request.instruct`).
+6. **Extra blocks**: for example iteration-exhaustion summary fallback (`instruct.BuildSummary`).
 
 The result becomes `model.Request.Instructions`. Tool JSON schemas are attached separately in `model.Request.Tools`.
 
@@ -190,7 +190,7 @@ PrefixMessages  +  SessionHistory  +  EmittedMessages
 | Slice | Contents |
 | --- | --- |
 | `PrefixMessages` | Reserved for recall-style prefix messages; currently unused in normal turns (`summary.State.Recall` returns `nil`). |
-| `SessionHistory` | Messages loaded from storage starting at the summary tail offset — older compacted messages are omitted from the transcript. |
+| `SessionHistory` | Messages loaded from storage starting at the summary tail offset; older compacted messages are omitted from the transcript. |
 | `EmittedMessages` | Everything appended during this turn: the user message, assistant replies, tool-call messages, and tool results. |
 
 The builder keeps assistant tool-call messages adjacent to their tool results. If a prior run ended before a tool result
@@ -215,7 +215,7 @@ Retrieval limits for pinned vs search items are defined in `internal/constants/m
 [Memory](../concepts/memory#retrieval-at-turn-start). Implementation details: [Memory System](./memory-system).
 
 Memory flush passes before compaction use separate instruction builders (`BuildMemoryFlushGuidance`,
-`BuildMemoryFlushRequest`) and a bounded auxiliary model call — not the main merge path. See
+`BuildMemoryFlushRequest`) and a bounded auxiliary model call, not the main merge path. See
 [Agent Loop](./agent-loop) and [Memory](../concepts/memory#how-memory-is-written).
 
 ## Environment Context
@@ -233,7 +233,7 @@ Typical fields include:
 - Web provider name when configured
 - Session ID and **session origin** (gateway account, conversation, thread, source)
 
-When the session origin indicates a chat surface, Morph adds **channel response guidance** — for example Telegram
+When the session origin indicates a chat surface, Morph adds **channel response guidance**, for example Telegram
 MarkdownV2 or Slack-compatible formatting hints (`renderEnvironmentSessionResponseGuidance` in
 `internal/instructions/builders.go`). Gateway bindings populate origin metadata; see
 [Gateway Internals](./gateway-internals).
@@ -248,8 +248,8 @@ Prompt assembly applies guardrails **before** text enters instructions or messag
 | Memory retrieval | `guardrails.Sanitize` on each item | Unsafe items dropped; retrieval traced |
 | Memory context budget | Character cap on `BuildMemoryContext` | Hard truncate of rendered block |
 | Workspace / personality size | `promptio.TruncateMiddle` | Middle truncation with explicit marker |
-| User input | Input safety in turn lifecycle | Blocked before messages persist — see [Agent Loop](./agent-loop#safety-checkpoints) |
-| Assistant / tool output | Output safety after model or tool handlers | Separate from instruction assembly — see [Safety and Guardrails](../concepts/safety-and-guardrails) |
+| User input | Input safety in turn lifecycle | Blocked before messages persist; see [Agent Loop](./agent-loop#safety-checkpoints) |
+| Assistant / tool output | Output safety after model or tool handlers | Separate from instruction assembly; see [Safety and Guardrails](../concepts/safety-and-guardrails) |
 
 Blocked workspace or personality content still occupies a short placeholder string so the model knows material was
 withheld; full blocked payloads are replayed into the turn trace via `recordLoadedContentSafety`.
@@ -297,24 +297,24 @@ When adding a new instruction source, prefer a named builder in `internal/instru
 
 Pages that link here:
 
-- [Agent Loop](./agent-loop) — when `buildRequestInstructions` and `Context` run inside `RunStep`.
-- [Development Architecture](./architecture) — agent orchestration packages and context subpackages.
-- [Learning Path](../getting-started/learning-path) — contributor reading order.
-- [Memory](../concepts/memory) — retrieval budgets and flush behavior.
-- [Config Guide](../guides/config) — `rules.files`, capabilities, and session instruct.
+- [Agent Loop](./agent-loop): when `buildRequestInstructions` and `Context` run inside `RunStep`.
+- [Development Architecture](./architecture): agent orchestration packages and context subpackages.
+- [Learning Path](../getting-started/learning-path): contributor reading order.
+- [Memory](../concepts/memory): retrieval budgets and flush behavior.
+- [Config Guide](../guides/config): `rules.files`, capabilities, and session instruct.
 
 Related internals:
 
-- [Tools Runtime](./tools-runtime) — tool registration and usage instructions.
-- [Session Storage](./session-storage) — summaries, compaction offsets, and message persistence.
-- [Memory System](./memory-system) — providers, search, and sanitization.
-- [Model Providers](./model-providers) — how `Instructions` and `Messages` are sent to APIs.
-- [Gateway Internals](./gateway-internals) — session origin and channel formatting hints.
+- [Tools Runtime](./tools-runtime): tool registration and usage instructions.
+- [Session Storage](./session-storage): summaries, compaction offsets, and message persistence.
+- [Memory System](./memory-system): providers, search, and sanitization.
+- [Model Providers](./model-providers): how `Instructions` and `Messages` are sent to APIs.
+- [Gateway Internals](./gateway-internals): session origin and channel formatting hints.
 
 Concepts and operations:
 
-- [Tools](../concepts/tools) — which tools register and contribute guidance blocks.
-- [Sessions](../concepts/sessions) — history vs summary split.
-- [Safety and Guardrails](../concepts/safety-and-guardrails) — scans applied around prompts.
-- [Contributing](../contributing) — change workflow.
-- [Testing](./testing) — run `make test` after prompt changes.
+- [Tools](../concepts/tools): which tools register and contribute guidance blocks.
+- [Sessions](../concepts/sessions): history vs summary split.
+- [Safety and Guardrails](../concepts/safety-and-guardrails): scans applied around prompts.
+- [Contributing](../contributing): change workflow.
+- [Testing](./testing): run `make test` after prompt changes.

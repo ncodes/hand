@@ -93,12 +93,12 @@ morph auth logout openai-codex
 Morph uses more than one model, and each is configured separately so you can match cost and capability to the job. Each
 role has its own `provider`, `name`, `api`, and optional `apiKey`:
 
-- **Main** (`models.main`) — runs your normal agent turns. This is the model you pick first.
-- **Summary** (`models.summary`) — produces session summaries and powers compaction; it also backs background memory
+- **Main** (`models.main`): runs your normal agent turns. This is the model you pick first.
+- **Summary** (`models.summary`): produces session summaries and powers compaction; it also backs background memory
   work. It falls back to the main model's provider and name when you do not set it, so a cheaper model here can reduce
   the cost of long sessions. See [Sessions](../concepts/sessions) and [Memory](../concepts/memory).
-- **Embedding** (`models.embedding`) — generates vectors for semantic search; only used when vector search is enabled.
-- **Reranker** (`reranker`) — an optional model that reorders search results when reranking is set to the LLM type.
+- **Embedding** (`models.embedding`): generates vectors for semantic search; only used when vector search is enabled.
+- **Reranker** (`reranker`): an optional model that reorders search results when reranking is set to the LLM type.
 
 The `api` field selects how requests are shaped for the provider (for example `openai-responses`,
 `openai-completions`, or `anthropic-messages`). Morph uses the provider's default API when this field is omitted, so set
@@ -109,15 +109,15 @@ set of model keys and defaults, see the [Config Reference](../reference/config).
 
 For each model request, Morph resolves a credential for the role's provider and uses the first source it finds:
 
-1. **Role-specific config** — the API key set directly on the role, such as `models.main.apiKey`.
-2. **Stored credential** — a credential saved by `morph auth login` in the profile's `auth.json`. OAuth tokens here are
+1. **Role-specific config**: the API key set directly on the role, such as `models.main.apiKey`.
+2. **Stored credential**: a credential saved by `morph auth login` in the profile's `auth.json`. OAuth tokens here are
    refreshed automatically when they expire.
-3. **Environment variables** for the provider — an OAuth token variable for provider subscription auth
+3. **Environment variables** for the provider: an OAuth token variable for provider subscription auth
    (`ANTHROPIC_OAUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, or `COPILOT_GITHUB_TOKEN`), a custom variable named by
    `models.providers.<provider>.apiKeyEnv`, or the provider's default key variable (`OPENAI_API_KEY`,
    `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`).
-4. **Provider config** — `models.providers.<provider>.apiKey`.
-5. **Local provider marker** — for local providers such as Ollama when no real auth is required.
+4. **Provider config**: `models.providers.<provider>.apiKey`.
+5. **Local provider marker**: for local providers such as Ollama when no real auth is required.
 
 Two consequences are worth knowing. A stored credential from `morph auth login` ranks **above** environment variables,
 so once you have logged in you do not also need to export a key, and a stored credential takes precedence over an

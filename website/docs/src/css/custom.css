@@ -2326,6 +2326,17 @@ html[data-theme='dark'] .token {
   text-transform: uppercase;
 }
 
+.morphDocsHome__tileLink {
+  color: var(--ifm-color-primary);
+  display: inline-block;
+  font-weight: 650;
+  margin-top: 1.5rem;
+}
+
+.morphDocsHome__tileLink:hover {
+  text-decoration: underline;
+}
+
 .morphDocsHome__featureVisual {
   align-items: center;
   background: #030507;

@@ -12,7 +12,7 @@ profiles), start with [Architecture](../concepts/architecture). For day-to-day c
 [Contributing](../contributing).
 
 The layout follows a simple rule: **`cmd/`** wires CLI commands, **`internal/`** holds application logic, and **`pkg/`**
-holds reusable libraries — with a few intentional cross-imports documented below.
+holds reusable libraries, with a few intentional cross-imports documented below.
 
 :::info
 When adding behavior, start in the owning `internal/` package. `cmd/*` should mostly parse flags, load profile-aware
@@ -107,7 +107,7 @@ Each command package exports `NewCommand()` (or `Run` for the root TUI) and stay
 | `cmd/doctor` | `morph doctor` | `internal/diagnostics` + readiness |
 | `cmd/trace` | `morph trace view` | Local trace JSONL viewer (`internal/trace/inspect`) |
 
-Shared CLI behavior — profile resolution, config load, env preload, daemon bootstrap — lives in **`internal/cli`**, not
+Shared CLI behavior (profile resolution, config load, env preload, daemon bootstrap) lives in **`internal/cli`**, not
 in each `cmd/*` package. When adding a flag that affects every command, start in `internal/cli/flags.go` and
 `internal/cli/main.go`.
 
@@ -128,7 +128,7 @@ Daemon code is split across two package layers:
 4. Start `internal/gateway.Manager` when enabled.
 5. Bind gRPC (`internal/rpc/server`) and write `internal/runtime` metadata (`runtime.json`).
 
-Config file watching and debounced restarts are implemented here — see [Daemon Operations](../operations/daemon#config-reload).
+Config file watching and debounced restarts are implemented here; see [Daemon Operations](../operations/daemon#config-reload).
 Gateway start/stop without config reload is exposed through RPC (`GatewayService`) and implemented in
 `internal/rpc/service.go` + `internal/gateway`.
 
@@ -145,9 +145,9 @@ The turn implementation lives in **`internal/agent/turn.go`**. It builds prompt 
 (`internal/agent/context`), calls into **`pkg/agent`** for the model/tool loop, and persists through
 `internal/state/manager`. Subpackages:
 
-- `internal/agent/context/compaction` — automatic context trimming
-- `internal/agent/context/summary` — session summary recall and updates
-- `internal/agent/runcontext` — per-turn metadata (session, trace session, instruct)
+- `internal/agent/context/compaction`: automatic context trimming
+- `internal/agent/context/summary`: session summary recall and updates
+- `internal/agent/runcontext`: per-turn metadata (session, trace session, instruct)
 
 Deep dive: [Agent Loop](./agent-loop) and [Prompt Assembly](./prompt-assembly).
 
@@ -202,15 +202,15 @@ pairing helpers on top of the store.
 
 Search and vectors:
 
-- **`internal/state/search`** — BM25 / hybrid search, reranking hooks, vector repair
-- **`internal/state/search/vectorstore/sqlite`** — embedding rows in the same SQLite DB
-- **`internal/db`** — SQLite open helpers (WAL, busy timeout, FTS5 when built with tags)
+- **`internal/state/search`**: BM25 / hybrid search, reranking hooks, vector repair
+- **`internal/state/search/vectorstore/sqlite`**: embedding rows in the same SQLite DB
+- **`internal/db`**: SQLite open helpers (WAL, busy timeout, FTS5 when built with tags)
 
 Deep dive: [Session Storage](./session-storage). Operator backup guide: [Backups and State](../operations/backups-and-state).
 
 ## Memory
 
-**`internal/memory`** is the policy layer between tools/agent and storage — guardrails, pinned files, episodic
+**`internal/memory`** is the policy layer between tools/agent and storage: guardrails, pinned files, episodic
 extraction, reflection, promotion, and background workers. Subpackages include `pinned`, `episodic`, `guardrails`, and
 `observability`. Storage stays dumb; lifecycle rules live here.
 
@@ -228,7 +228,7 @@ See [Memory System](./memory-system) and the [Memory Guide](../guides/memory).
 | `internal/personality` | Personality overlays |
 
 Tools depend on **`internal/environment.Environment`** for filesystem roots, web providers, memory provider, and trace
-sessions — not on RPC or CLI directly.
+sessions, not on RPC or CLI directly.
 
 Deep dive: [Tools Runtime](./tools-runtime). User model: [Tools](../concepts/tools).
 
@@ -283,7 +283,7 @@ Traces dual-write to disk (`traces/*.jsonl`) and/or the database depending on `t
 | `internal/tui/transcript`, `composer`, `layout`, `render` | UI building blocks |
 | `pkg/terminalmd`, `pkg/termtheme`, `pkg/jsonterms` | Markdown and theme rendering |
 
-The TUI is an RPC **client** only — it does not embed the agent loop. Package-local notes: `internal/tui/README.md`.
+The TUI is an RPC **client** only; it does not embed the agent loop. Package-local notes: `internal/tui/README.md`.
 
 Deep dive: [TUI Internals](./tui). User guide: [TUI Guide](../guides/tui).
 
@@ -313,16 +313,16 @@ make build         # produces build/morph
 make build-proto   # regenerate gRPC stubs after morph.proto edits
 ```
 
-SQLite-backed tests require **CGO** and the **`sqlite_fts5`** build tag — the Makefile sets both. Without them, FTS5
+SQLite-backed tests require **CGO** and the **`sqlite_fts5`** build tag; the Makefile sets both. Without them, FTS5
 tests fail with `no such module: fts5`. See [Testing](./testing) and [Contributing](../contributing).
 
 Other useful targets:
 
-- `make test-spec` — e2e/spec tests under `internal/e2e` and selected `cmd/*` packages
-- `make lint` — golangci-lint
-- `internal/e2e` — harness for live and isolated RPC tests (see package docs and `MORPH_E2E_*` env vars)
+- `make test-spec`: e2e/spec tests under `internal/e2e` and selected `cmd/*` packages
+- `make lint`: golangci-lint
+- `internal/e2e`: harness for live and isolated RPC tests (see package docs and `MORPH_E2E_*` env vars)
 
-Use **`internal/mocks`** and package-local `mocks_test.go` files for test doubles — follow existing patterns in the
+Use **`internal/mocks`** and package-local `mocks_test.go` files for test doubles; follow existing patterns in the
 package you are changing.
 
 ## Where To Change What
@@ -342,7 +342,7 @@ package you are changing.
 Pages that link here for implementation detail:
 
 - [Documentation home](../): high-level doc map including this page.
-- [Learning Path — Contributor](../getting-started/learning-path): contributor reading order starting here.
+- [Learning Path: Contributor](../getting-started/learning-path): contributor reading order starting here.
 - [Architecture](../concepts/architecture): user-facing runtime diagram and daemon model.
 - [Daemon and RPC](../concepts/daemon-and-rpc): why clients use gRPC and how endpoints resolve.
 - [Agent Loop](./agent-loop): turn iteration, streaming, persistence.

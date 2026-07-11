@@ -28,7 +28,7 @@ not part of durable user state and can be recreated by starting the daemon again
 
 Typical flow for chat:
 
-1. `MorphService.Respond` — server-streaming; receive `TEXT_DELTA`, selected display-safe `TRACE_EVENT` events, then
+1. `MorphService.Respond`: server-streaming; receive `TEXT_DELTA`, selected display-safe `TRACE_EVENT` events, then
    `DONE` or `ERROR`.
 2. Session commands use `SessionService` unary RPCs against the same connection.
 
@@ -85,13 +85,13 @@ instead. Event names: [Trace Events](./trace-events).
 
 `GetSessionTimelineRequest` fields:
 
-- `id` — session ID
-- `message_offset`, `message_limit` — message page
-- `trace_offset`, `trace_limit` — trace event page
+- `id`: session ID
+- `message_offset`, `message_limit`: message page
+- `trace_offset`, `trace_limit`: trace event page
 
 Messages include role, content, tool calls, and timestamps. Trace entries include `type` and `payload_json`.
 
-CLI equivalents: [CLI Reference](./cli#session--sessions-over-rpc). User guide: [Sessions Guide](../guides/sessions).
+CLI equivalents: [CLI Reference](./cli#session-sessions-over-rpc). User guide: [Sessions Guide](../guides/sessions).
 
 ## ModelService
 

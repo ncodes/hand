@@ -5,7 +5,7 @@ description: Messaging surfaces and session bridging.
 
 # Gateways
 
-Gateways let you reach the same Morph agent from outside the terminal — from Slack, from a Telegram chat, or from your
+Gateways let you reach the same Morph agent from outside the terminal: from Slack, from a Telegram chat, or from your
 own service over HTTP. A gateway receives an inbound message from an external platform, routes it to a Morph
 [session](./sessions), runs a normal agent turn, and sends the reply back to that platform. The agent, tools, memory,
 and history are exactly the same as in the TUI; only the surface differs.
@@ -18,10 +18,10 @@ endpoints, see [Gateway Routes](../reference/gateway-routes).
 
 Morph ships three gateway types, all served by the same daemon:
 
-- **Generic HTTP** — a plain JSON endpoint (`POST /v1/respond`) for your own integrations. You send text and a
+- **Generic HTTP**: a plain JSON endpoint (`POST /v1/respond`) for your own integrations. You send text and a
   conversation id; Morph returns the final reply in the response body.
-- **Slack** — connects a Slack app to Morph, either over Slack's Socket Mode or its Events API webhook.
-- **Telegram** — connects a Telegram bot to Morph, either by long polling or by webhook.
+- **Slack**: connects a Slack app to Morph, either over Slack's Socket Mode or its Events API webhook.
+- **Telegram**: connects a Telegram bot to Morph, either by long polling or by webhook.
 
 All three are configured under a single `gateway` section of the profile config and share the same session binding,
 authorization, and message-handling machinery; only the transport and platform details differ.
@@ -33,12 +33,12 @@ Gateways are part of the [daemon](./daemon-and-rpc), not a separate process. Whe
 configured Slack and Telegram components. When the daemon shuts down, the gateways stop with it, and if gateways are
 disabled it simply skips this step.
 
-Because settings are read at daemon, applying changed gateway settings means the daemon must restart — which it
+Because settings are read at daemon, applying changed gateway settings means the daemon must restart, which it
 does automatically when you edit `config.yaml` (see [Daemon and RPC](./daemon-and-rpc) for the config-reload behavior).
 
 Separately, you can control the running gateways without touching config: `morph gateway start`, `morph gateway stop`, and
 `morph gateway restart` operate them, and `morph gateway status` inspects them. These act on the daemon's current
-configuration — they are for operational control and recovery, not for loading new file edits. See
+configuration; they are for operational control and recovery, not for loading new file edits. See
 [Gateway Management](../operations/gateway-management).
 
 ## Transports
@@ -66,8 +66,8 @@ are in [Gateway Routes](../reference/gateway-routes).
 ## Conversations Become Sessions
 
 A gateway maps each external conversation to a Morph session so that an ongoing thread keeps a continuous history. The
-mapping is keyed by the conversation and its thread — for Slack, the team, channel, and thread; for Telegram, the chat
-and topic; for generic HTTP, the conversation id you supply — **not** by the individual sender. Everyone in a shared
+mapping is keyed by the conversation and its thread: for Slack, the team, channel, and thread; for Telegram, the chat
+and topic; for generic HTTP, the conversation id you supply, **not** by the individual sender. Everyone in a shared
 thread therefore talks to the same session.
 
 The binding is created the first time a conversation is seen and reused on every later message; it is stored in the
@@ -87,8 +87,8 @@ platform's own request verification (Slack signing secret / Telegram secret head
 
 - **Allowlists.** A sender is allowed immediately if they appear in the global `gateway.allowedUsers` list or the
   per-platform allowlist.
-- **Pairing.** Otherwise, a sender messaging the bot in a private chat receives a pairing challenge — a short code,
-  generated from `gateway.pairingSecret` — which an operator approves with `morph gateway pairing approve <source>
+- **Pairing.** Otherwise, a sender messaging the bot in a private chat receives a pairing challenge (a short code,
+  generated from `gateway.pairingSecret`), which an operator approves with `morph gateway pairing approve <source>
   <code>`. Once approved, the sender is remembered. Messages from unauthorized senders in non-private contexts (such as
   a public channel) are ignored rather than answered. Pending and approved pairings are managed with the
   `morph gateway pairing` commands and stored in the profile database.
@@ -102,7 +102,7 @@ The inbound path is the same for every gateway:
 1. The message arrives (webhook, socket event, or poll) and is normalized.
 2. For Slack and Telegram, the sender is authorized (allowlist or pairing); the generic endpoint checks its bearer token.
 3. The conversation is resolved to a session via its binding, creating one if needed.
-4. Morph runs a normal agent turn against that session — same tools, memory, and history as any other surface.
+4. Morph runs a normal agent turn against that session: same tools, memory, and history as any other surface.
 5. The reply is delivered back to the platform.
 
 Slack and Telegram **stream** the assistant's reply, updating the message as text arrives, while the generic HTTP
@@ -111,10 +111,10 @@ session, so the next message continues seamlessly.
 
 ## Profiles and Isolation
 
-Gateways belong to a [profile](./profiles): their configuration lives in the profile's `config.yaml`, and their state —
-session bindings and pairing records — lives in the profile's database alongside sessions and memory. A daemon runs one
+Gateways belong to a [profile](./profiles): their configuration lives in the profile's `config.yaml`, and their state
+(session bindings and pairing records) lives in the profile's database alongside sessions and memory. A daemon runs one
 profile at a time, so switching profiles means a different gateway configuration and a different set of bindings.
-Credentials such as bot tokens and signing secrets are part of profile config and are treated as secrets — they are
+Credentials such as bot tokens and signing secrets are part of profile config and are treated as secrets; they are
 redacted from traces and logs, as described in [Safety and Guardrails](./safety-and-guardrails).
 
 ## Where To Go Next

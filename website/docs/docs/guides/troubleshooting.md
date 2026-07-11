@@ -6,7 +6,7 @@ description: Fix common Morph setup and runtime issues.
 # Troubleshooting
 
 This guide collects recurring setup and runtime problems and points you to the right fix. Start with **`morph doctor`**
-on the active profile — it validates config, resolves model credentials, and reports readiness for the daemon,
+on the active profile: it validates config, resolves model credentials, and reports readiness for the daemon,
 gateway, search, and memory subsystems. For what each check means, see [Doctor](../operations/doctor).
 
 If you are new to Morph, the [Learning Path](../getting-started/learning-path) routes you here when something breaks
@@ -20,12 +20,12 @@ Run diagnostics before changing random settings:
 morph doctor
 ```
 
-`morph doctor` prints two layers (see [Doctor — Output formats](../operations/doctor#output-formats) for text vs
+`morph doctor` prints two layers (see [Doctor: Output formats](../operations/doctor#output-formats) for text vs
 `--json`):
 
-1. **Config diagnostics** — env/config files load and config validates. In text output, **config load** and
+1. **Config diagnostics**: env/config files load and config validates. In text output, **config load** and
    **config validation** appear under the **profile** group; credential checks appear under **models**.
-2. **Readiness groups** — profile paths, daemon reachability, models, session, memory, search, safety, gateway, and
+2. **Readiness groups**: profile paths, daemon reachability, models, session, memory, search, safety, gateway, and
    web tools.
 
 Each line is **PASS**, **WARN**, or **FAIL**. Only **FAIL** makes `morph doctor` exit with an error; **WARN** is
@@ -53,10 +53,10 @@ morph --profile <name> doctor
 When something misbehaves:
 
 1. Run `morph doctor` and fix any **FAIL** items (follow suggested commands when shown).
-2. Confirm the **daemon** is running if the feature needs it — TUI with an existing daemon, `morph daemon`, or a
+2. Confirm the **daemon** is running if the feature needs it: TUI with an existing daemon, `morph daemon`, or a
    long-lived `morph` session. See [Daemon and RPC](../concepts/daemon-and-rpc).
 3. Confirm **model auth** for the role involved (`morph auth status`, then `morph doctor` **models** group).
-4. Turn up logging if you need more detail (`log.level debug`) — see [Logging and Debug](#logging-and-debug).
+4. Turn up logging if you need more detail (`log.level debug`); see [Logging and Debug](#logging-and-debug).
 5. For gateway, search, memory, or session issues, use the focused section below or the platform guide.
 
 ## Daemon and RPC Unreachable
@@ -72,11 +72,11 @@ The daemon owns the agent runtime, storage, and gateways. Start it explicitly:
 morph daemon
 ```
 
-Or open the TUI (`morph`) — it starts a temporary daemon if none is running. RPC commands such as `morph session list` or
+Or open the TUI (`morph`): it starts a temporary daemon if none is running. RPC commands such as `morph session list` or
 `morph gateway status` do **not** start a daemon on their own.
 
-Doctor shows **daemon runtime** as a warning when nothing is listening. After `morph daemon`, re-run `morph doctor`
-— the **daemon** group should pass with the profile's RPC address and port.
+Doctor shows **daemon runtime** as a warning when nothing is listening. After `morph daemon`, re-run `morph doctor`:
+the **daemon** group should pass with the profile's RPC address and port.
 
 ### Wrong profile or endpoint
 
@@ -111,7 +111,7 @@ morph doctor
 ```
 
 Doctor's **models** group reports **main**, **summary**, and **embedding** (when vector search is on) with the provider,
-model name, and credential source. Readiness failures often include the exact next command — for example
+model name, and credential source. Readiness failures often include the exact next command, for example
 `morph auth login openai-codex` or setting a role-specific API key.
 
 Morph resolves credentials in order: role config → stored `auth.json` → environment → provider config. See
@@ -122,9 +122,9 @@ Morph resolves credentials in order: role config → stored `auth.json` → envi
 | Problem | What to do |
 | --- | --- |
 | No credential for provider | `morph auth login <provider>` or `morph auth login <provider> --api-key "<key>"` |
-| Wrong provider in config | `morph config set models.main.provider …` and `models.main.name …` — see [Config Guide](./config) |
+| Wrong provider in config | `morph config set models.main.provider …` and `models.main.name …`; see [Config Guide](./config) |
 | OAuth model not available on subscription | Pick a model that provider supports via OAuth, or use API key auth |
-| Summary/embedding failures | Set `models.summary` / `models.embedding` and auth for those providers — background memory and vector search depend on them |
+| Summary/embedding failures | Set `models.summary` / `models.embedding` and auth for those providers: background memory and vector search depend on them |
 
 Gateway turns use the same model runtime as the TUI. Fix **models** before debugging Slack or Telegram reply issues.
 
@@ -149,17 +149,17 @@ For the full local model flow, see [Local Models](./local-models).
 Symptoms: `morph config set` rejects a value; doctor **config validation** fails; daemon refuses invalid config.
 
 `morph config set` validates the **whole** profile config before writing. A common pattern is enabling a gateway
-platform without its required tokens — enable `gateway.enabled` first, then set platform tokens together. See
+platform without its required tokens: enable `gateway.enabled` first, then set platform tokens together. See
 [Gateway Overview](./gateway/).
 
 Other frequent validation errors:
 
-- **Log level** — must be `debug`, `info`, `warn`, or `error` (`morph config set log.level debug`).
-- **Gateway bind** — non-loopback `gateway.address` requires `gateway.authToken`.
-- **Slack/Telegram mode** — socket mode needs `gateway.slack.appToken`; webhook/HTTP modes need signing secrets or
+- **Log level**: must be `debug`, `info`, `warn`, or `error` (`morph config set log.level debug`).
+- **Gateway bind**: non-loopback `gateway.address` requires `gateway.authToken`.
+- **Slack/Telegram mode**: socket mode needs `gateway.slack.appToken`; webhook/HTTP modes need signing secrets or
   webhook secrets.
 
-Read the error message literally — it names the missing or invalid field. Cross-check [Config Reference](../reference/config).
+Read the error message literally: it names the missing or invalid field. Cross-check [Config Reference](../reference/config).
 
 `.env` changes are **not** picked up automatically; restart the daemon after editing `.env`. Changes to `config.yaml`
 via `morph config set` restart the daemon when valid.
@@ -181,8 +181,8 @@ For a focused package test:
 CGO_ENABLED=1 go test -tags sqlite_fts5 ./cmd/morph
 ```
 
-You need a C toolchain for CGO. See [Installation — Verify the runtime build](../getting-started/installation#verify-the-runtime-build)
-and [Search and Traces — SQLite FTS5](./search-and-traces#sqlite-fts5).
+You need a C toolchain for CGO. See [Installation: Verify the runtime build](../getting-started/installation#verify-the-runtime-build)
+and [Search and Traces: SQLite FTS5](./search-and-traces#sqlite-fts5).
 
 End users who install via the script do not configure FTS5 separately.
 
@@ -204,11 +204,11 @@ Fix with `morph config set` as doctor suggests, then `morph gateway restart` aft
 
 ### No events or no reply
 
-- **Daemon/gateway running** — `morph gateway status` should show `state=running`.
-- **Model auth** — gateway turns need working main model credentials.
-- **Sender authorization** — Slack/Telegram require allowlist or pairing; generic HTTP needs the bearer token. See
+- **Daemon/gateway running**: `morph gateway status` should show `state=running`.
+- **Model auth**: gateway turns need working main model credentials.
+- **Sender authorization**: Slack/Telegram require allowlist or pairing; generic HTTP needs the bearer token. See
   [Pairing and Allowlists](./gateway/pairing-and-allowlists).
-- **Platform setup** — tokens, event subscriptions, and mode-specific requirements differ by surface.
+- **Platform setup**: tokens, event subscriptions, and mode-specific requirements differ by surface.
 
 Platform guides with focused troubleshooting:
 
@@ -222,11 +222,11 @@ Platform guides with focused troubleshooting:
 
 **401 Unauthorized**
 
-- **Telegram** — `gateway.telegram.webhookSecret` must match the `secret_token` passed to Telegram's `setWebhook`. The
+- **Telegram**: `gateway.telegram.webhookSecret` must match the `secret_token` passed to Telegram's `setWebhook`. The
   proxy must forward `X-Telegram-Bot-Api-Secret-Token`.
-- **Slack HTTP mode** — signing secret must match the Slack app; proxy must forward the raw body and
+- **Slack HTTP mode**: signing secret must match the Slack app; proxy must forward the raw body and
   `X-Slack-Signature` / `X-Slack-Request-Timestamp` unchanged.
-- **Generic HTTP** — when `gateway.authToken` is set, callers need `Authorization: Bearer <token>` on `/v1/respond`.
+- **Generic HTTP**: when `gateway.authToken` is set, callers need `Authorization: Bearer <token>` on `/v1/respond`.
 
 **404 Not Found**
 
@@ -243,24 +243,24 @@ Symptoms: search returns nothing; doctor **search** or **memory** warnings; prom
 
 ### Search
 
-- Confirm messages were **persisted** — only stored session content is indexed.
+- Confirm messages were **persisted**: only stored session content is indexed.
 - **Vector search** needs `search.vector.enabled`, embedding model auth, and (when `search.vector.required` is true)
   a passing **embedding** check in doctor. Lexical BM25 search works without vectors.
 - **Ollama embeddings** use `/api/embeddings` and do not require a real API key. Confirm Ollama is reachable and the
   embedding model is installed with `ollama list`.
-- **Stale hybrid rankings** — `morph session repair` for the affected session. See [Search and Traces](./search-and-traces).
+- **Stale hybrid rankings**: `morph session repair` for the affected session. See [Search and Traces](./search-and-traces).
 
 ### Memory
 
 Doctor's **memory** group lists effective state for pinned, retrieval, flush, episodic, reflection, promotion, and write
 paths. Common issues:
 
-- **Daemon required** — background episodic/reflection/promotion loops run in the daemon, not in one-shot `morph -c`.
-- **Summary model** — background memory work uses `models.summary`; verify auth in doctor.
-- **Writes blocked** — safety rejection or `memory.write.enabled` / `cap.mem` off. Inspect traces for
+- **Daemon required**: background episodic/reflection/promotion loops run in the daemon, not in one-shot `morph -c`.
+- **Summary model**: background memory work uses `models.summary`; verify auth in doctor.
+- **Writes blocked**: safety rejection or `memory.write.enabled` / `cap.mem` off. Inspect traces for
   `memory.safety.blocked` or `memory.promotion.decision`.
 
-See [Memory Guide — Troubleshooting](./memory#troubleshooting) and [Search and Traces — Troubleshooting](./search-and-traces#troubleshooting).
+See [Memory Guide: Troubleshooting](./memory#troubleshooting) and [Search and Traces: Troubleshooting](./search-and-traces#troubleshooting).
 
 ## TUI and Terminal
 
@@ -269,13 +269,13 @@ Symptoms: blank or garbled UI; keybindings seem dead; TUI exits immediately.
 ### Connection and setup
 
 The TUI talks to the daemon over RPC. If credentials are missing, `/setup` or the first-run flow walks you through model
-configuration — see [TUI Guide](./tui) and [Provider Auth](./provider-auth).
+configuration; see [TUI Guide](./tui) and [Provider Auth](./provider-auth).
 
 If the TUI started a temporary daemon, exiting stops it; a separately started daemon keeps running.
 
 ### Rendering
 
-- Use a **modern terminal** with adequate size — very narrow windows can clip the layout.
+- Use a **modern terminal** with adequate size; very narrow windows can clip the layout.
 - Disable color if your terminal mishandles ANSI: `morph config set log.noColor true`.
 - **Cancel a stuck turn** with **Esc**; exit with **Ctrl+C** (twice to confirm).
 
@@ -299,7 +299,7 @@ Optional file logging via `log.file` in config (with rotation settings `log.maxS
 
 ### Debug request dumps
 
-For verbose provider request logging (development only — may include sensitive content):
+For verbose provider request logging (development only, may include sensitive content):
 
 ```bash
 morph config set debug.requests true
@@ -309,7 +309,7 @@ Restart the daemon after changing `debug.requests`. See [Config Guide](./config)
 
 ### Traces
 
-For turn-level detail — tool calls, memory events, timing — enable tracing and use `morph trace view` or database-backed
+For turn-level detail (tool calls, memory events, timing), enable tracing and use `morph trace view` or database-backed
 timeline hydration. See [Search and Traces](./search-and-traces).
 
 ## Where To Go Next

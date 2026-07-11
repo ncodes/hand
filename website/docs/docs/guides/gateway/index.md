@@ -5,13 +5,13 @@ description: Connect Morph to external messaging surfaces.
 
 # Gateway Overview
 
-Gateways let you talk to the same Morph agent from outside the terminal — from Slack, from a Telegram chat, or from your
+Gateways let you talk to the same Morph agent from outside the terminal: from Slack, from a Telegram chat, or from your
 own service over HTTP. A gateway receives a message, routes it to a bound [session](../../concepts/sessions), runs a
 normal agent turn, and sends the reply back. Tools, memory, and history are the same as in the TUI; only the surface
 differs.
 
-This guide is the starting point for enabling and operating gateways. For the underlying model — transports, session
-binding, and authorization — see [Gateways](../../concepts/gateways). For platform-specific setup, follow one of the
+This guide is the starting point for enabling and operating gateways. For the underlying model (transports, session
+binding, and authorization), see [Gateways](../../concepts/gateways). For platform-specific setup, follow one of the
 guides below.
 
 ## Prerequisites
@@ -20,8 +20,8 @@ Gateways run inside the [daemon](../../concepts/daemon-and-rpc) for the active [
 Before you enable one:
 
 - A daemon must be running for the profile (`morph daemon`, or keep `morph` open).
-- Model credentials must work (`morph auth status`, `morph doctor`) — gateway turns use the same agent runtime as the TUI.
-- Gateway bot tokens and signing secrets come from profile **config**, environment variables, or CLI flags — not from
+- Model credentials must work (`morph auth status`, `morph doctor`); gateway turns use the same agent runtime as the TUI.
+- Gateway bot tokens and signing secrets come from profile **config**, environment variables, or CLI flags, not from
   `auth.json`, which is for model providers only. See [Provider Auth](../provider-auth) for model auth and
   [Safety and Guardrails](../../concepts/safety-and-guardrails) for how gateway secrets are handled in logs and traces.
 
@@ -34,7 +34,7 @@ morph config set gateway.enabled true
 ```
 
 That opens the local HTTP listener (default `127.0.0.1:50052`) and makes the generic HTTP endpoint available. Enabling
-Slack or Telegram additionally requires their platform tokens — `morph config set` validates the whole config, so
+Slack or Telegram additionally requires their platform tokens; `morph config set` validates the whole config, so
 enabling a platform without its credentials is rejected. Set `gateway.enabled` first, then configure the platform and
 its tokens together as the platform guides describe. See [Config Guide](../config#enable-the-gateway).
 
@@ -61,8 +61,8 @@ hosted deployments:
 
 | Platform | Local-friendly default | Webhook mode |
 | --- | --- | --- |
-| Slack | `socket` — outbound WebSocket via app token | `http` — Events API at `/gateway/slack/webhook` |
-| Telegram | `polling` — outbound long polling | `webhook` — updates at `/gateway/telegram/webhook` |
+| Slack | `socket`: outbound WebSocket via app token | `http`: Events API at `/gateway/slack/webhook` |
+| Telegram | `polling`: outbound long polling | `webhook`: updates at `/gateway/telegram/webhook` |
 | Generic HTTP | Always inbound `POST /v1/respond` on the gateway listener | Same endpoint; expose it only with auth |
 
 Socket mode and polling are the simplest path on a laptop or private network. Webhook modes are for when Slack or
@@ -75,7 +75,7 @@ protects the generic HTTP route. Because that route is available on the same lis
 
 ## Manage the Running Gateway
 
-`morph gateway` commands talk to the daemon over RPC — they do not start a daemon and they do not reload config from
+`morph gateway` commands talk to the daemon over RPC; they do not start a daemon and they do not reload config from
 disk. Use `--profile` to target another profile.
 
 Check runtime state:
@@ -97,7 +97,7 @@ morph gateway restart
 starts automatically with the daemon; `stop` halts gateway components while the daemon and RPC server keep running.
 
 These commands operate on the daemon's **current** in-memory configuration. To apply new tokens, modes, or bind
-addresses from `config.yaml`, change config and let the daemon restart — or run `morph gateway restart` after the
+addresses from `config.yaml`, change config and let the daemon restart, or run `morph gateway restart` after the
 daemon has already reloaded. See [Gateway Management](../../operations/gateway-management).
 
 ## Verify with Doctor
@@ -120,7 +120,7 @@ Fix issues with `morph config set` as doctor suggests, or follow the platform gu
 ## Sessions and Continuity
 
 Each external conversation maps to one Morph session so threads keep continuous history. Bindings are stored in the
-profile database (`gateway_bindings`) and are keyed by conversation and thread — not by individual sender in a shared
+profile database (`gateway_bindings`) and are keyed by conversation and thread, not by individual sender in a shared
 thread. Gateway traffic never changes the **current session** your TUI or CLI uses; gateway turns target their bound
 session explicitly.
 
@@ -131,8 +131,8 @@ If a bound session is deleted, the next message from that conversation creates a
 
 Authorization differs by surface:
 
-- **Generic HTTP** — bearer token (`gateway.authToken`) for `/v1/respond`; there is no per-sender pairing.
-- **Slack and Telegram** — platform request verification plus sender allowlists and pairing. Allowlisted senders are
+- **Generic HTTP**: bearer token (`gateway.authToken`) for `/v1/respond`; there is no per-sender pairing.
+- **Slack and Telegram**: platform request verification plus sender allowlists and pairing. Allowlisted senders are
   accepted immediately; others can pair through a short code in private chat.
 
 Set a pairing secret before relying on pairing:
@@ -150,7 +150,7 @@ morph gateway pairing revoke telegram <sender-id>
 morph gateway pairing clear-pending
 ```
 
-For the full operator workflow — global and per-platform allowlists, pairing flow, and what gets approved — see
+For the full operator workflow (global and per-platform allowlists, pairing flow, and what gets approved), see
 [Pairing and Allowlists](./pairing-and-allowlists).
 
 Slack currently processes direct messages and group DMs; unpaired senders in other contexts are ignored rather than
@@ -160,7 +160,7 @@ answered. Telegram follows the same allowlist-or-pair pattern for private chats.
 
 ### Gateway commands fail to connect
 
-Start a daemon first — `morph daemon`, or keep `morph` open. Gateway commands use RPC like `morph session`; they do
+Start a daemon first: `morph daemon`, or keep `morph` open. Gateway commands use RPC like `morph session`; they do
 not bootstrap a daemon on their own.
 
 ### `state=failed` or `last_error` in status

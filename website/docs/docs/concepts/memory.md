@@ -19,16 +19,16 @@ back to the sessions it came from, and a confidence score.
 
 Kinds describe what an item is:
 
-- **pinned** — always-in-context facts (see below).
-- **semantic** — durable facts and preferences.
-- **episodic** — notable events distilled from conversations (decisions, outcomes, blockers).
-- **procedural** — how-to knowledge.
+- **pinned**: always-in-context facts (see below).
+- **semantic**: durable facts and preferences.
+- **episodic**: notable events distilled from conversations (decisions, outcomes, blockers).
+- **procedural**: how-to knowledge.
 
 Status describes where an item is in its lifecycle:
 
-- **candidate** — newly written, not yet trusted for use.
-- **active** — promoted and eligible to be retrieved into prompts.
-- **superseded** / **deleted** — replaced or removed.
+- **candidate**: newly written, not yet trusted for use.
+- **active**: promoted and eligible to be retrieved into prompts.
+- **superseded** / **deleted**: replaced or removed.
 
 This candidate-to-active distinction is central: most writes start as candidates, and only **active** items are ever
 retrieved into a prompt. Promotion (described below) is what moves a candidate to active.
@@ -36,7 +36,7 @@ retrieved into a prompt. Promotion (described below) is what moves a candidate t
 ## Pinned Memory
 
 Pinned memory is the always-nearby context. It comes from two sources: a profile-local `memory.md` file in the profile
-home, and any active items of kind `pinned` in the store. Unlike retrieval, pinned memory is query-independent — it is
+home, and any active items of kind `pinned` in the store. Unlike retrieval, pinned memory is query-independent: it is
 loaded at the start of every turn rather than searched for, so it is the place for facts that should always be in view.
 
 Pinned content is budgeted so it cannot crowd out the conversation: the profile config sets overall and per-item
@@ -52,7 +52,7 @@ Before the model runs, Morph assembles a memory context for the turn:
    message, keeping only a small number of high-scoring hits.
 3. The selected items are sanitized (PII redaction and a safety scan), then rendered into a single instruction block.
 
-That block is appended to the system instructions for the turn — it is part of how the prompt is assembled, not a user
+That block is appended to the system instructions for the turn: it is part of how the prompt is assembled, not a user
 message. The number of items, per-item size, a minimum relevance score, and an overall budget all bound how much memory
 can enter a prompt, so retrieval stays focused and small. See [Prompt Assembly](../development/prompt-assembly) for how
 instructions are composed.
@@ -68,7 +68,7 @@ you enable them.
   enough messages and has been idle for a configured interval.
 - **Reflection** consolidates unreflected episodic items into new, higher-level candidate memories, reusing related
   context to avoid duplicates, and marks the sources as reflected.
-- **Promotion** evaluates candidates against a policy — requiring provenance, no conflicts, and a confidence threshold —
+- **Promotion** evaluates candidates against a policy (requiring provenance, no conflicts, and a confidence threshold)
   and promotes those that pass to active. Rejected candidates are marked evaluated so they are not reconsidered
   endlessly.
 

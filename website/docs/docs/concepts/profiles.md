@@ -9,7 +9,7 @@ Profiles let one machine run distinct Morph configurations and state homes. A pr
 directory: its own config, credentials, sessions, memory, search index, and daemon runtime metadata. Switching profiles
 switches your entire working context.
 
-This page covers the concept — what a profile is, how the active one is chosen, and what switching does. For the
+This page covers the concept: what a profile is, how the active one is chosen, and what switching does. For the
 commands and a setup walkthrough, see [Profiles and Config](../getting-started/profiles-and-config).
 
 ## The Active Profile
@@ -49,7 +49,7 @@ When you do not select a profile, Morph falls back to `default`, so a new instal
 creates a profile's home directory on demand the first time it writes state there, but it does not store a current
 selection or write a starter `config.yaml` for you; the active config simply uses built-in defaults until a
 `config.yaml` exists. To create `default` explicitly with a starter config and mark it current, run
-`morph profile init default --use`. The `default` profile is otherwise an ordinary profile — it has no special powers,
+`morph profile init default --use`. The `default` profile is otherwise an ordinary profile; it has no special powers,
 and you can create and switch to others at any time.
 
 ## Switching Profiles Safely
@@ -63,7 +63,7 @@ merge any state. A few expectations follow from that:
   one profile is unaffected when you switch the current profile. Commands for a profile connect to that profile's
   runtime endpoint. See [Daemon and RPC](./daemon-and-rpc).
 - **Context switches wholesale.** A new active profile means a different model configuration, different credentials, and
-  a different set of sessions and memory — not a partial overlay on your previous profile.
+  a different set of sessions and memory, not a partial overlay on your previous profile.
 
 Because the active profile is resolved per command, you can also target a profile for a single command with `--profile`
 or `MORPH_PROFILE` without changing the stored current profile.

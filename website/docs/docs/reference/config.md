@@ -420,7 +420,7 @@ Name pattern: `[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`.
 | --- | --- | --- |
 | `soul` | string | path to soul file |
 | `instruct` | string | inline instruct text |
-| `state` | string | `"shared"` — `shared`, `isolated`, `readonly` |
+| `state` | string | `"shared"` (`shared`, `isolated`, `readonly`) |
 | `maxIterations` | int | `0` |
 | `model.*` | | same shape as `models.main`; inherits global when unset |
 | `memory.pinned` … `memory.flush` | `*bool` | nil → inherit |

@@ -25,7 +25,7 @@ Or set `MORPH_PROFILE=work` for a single command. The current profile is stored 
 Each profile has its own directory under `~/.morph/profiles/<name>/` with `config.yaml`, `.env`, `data/state.db`, and
 `traces/`. See [Backups and State](../operations/backups-and-state).
 
-### Config vs environment variables — which wins?
+### Config vs environment variables: which wins?
 
 Morph first loads the active profile's `config.yaml`. It also preloads the profile `.env` file into the process
 environment, then applies any supported `MORPH_*` variables over the YAML values before defaults and normalization run.
@@ -41,7 +41,7 @@ expect `MORPH_*` values to win for the current command. See [Environment Variabl
 **No.** It stops the **gateway runtime** (HTTP/Slack/Telegram ingress) inside the running daemon. The daemon and RPC
 keep serving TUI and `morph session` clients. To stop the daemon process, terminate the `morph daemon` process (Ctrl+C or
 your service manager). See [Gateway Management](../operations/gateway-management) and
-[CLI Reference](./cli#gateway--gateway-runtime-and-pairing).
+[CLI Reference](./cli#gateway-gateway-runtime-and-pairing).
 
 ### How do I start the daemon?
 
@@ -75,18 +75,18 @@ answer and exits; the TUI stays open as your working surface. See [CLI Reference
 
 ### Which Slack mode should I use locally?
 
-**Socket Mode** (`gateway.slack.mode: socket`) — no public HTTP URL required; uses `appToken` + `botToken`. Good for
+**Socket Mode** (`gateway.slack.mode: socket`): no public HTTP URL required; uses `appToken` + `botToken`. Good for
 development machines behind NAT.
 
-**HTTP** (`http`) — Slack posts to `/gateway/slack/webhook`; requires a reachable URL and `signingSecret`.
+**HTTP** (`http`): Slack posts to `/gateway/slack/webhook`; requires a reachable URL and `signingSecret`.
 
 See [Slack Gateway](../guides/gateway/slack) and [Gateway Routes](./gateway-routes).
 
 ### Which Telegram mode should I use locally?
 
-**Polling** (`gateway.telegram.mode: polling`) — daemon pulls updates; no webhook URL needed.
+**Polling** (`gateway.telegram.mode: polling`): daemon pulls updates; no webhook URL needed.
 
-**Webhook** (`webhook`) — Telegram POSTs to `/gateway/telegram/webhook`; requires registration via
+**Webhook** (`webhook`): Telegram POSTs to `/gateway/telegram/webhook`; requires registration via
 `morph gateway setwebhook telegram <url>` and `webhookSecret`.
 
 See [Telegram Gateway](../guides/gateway/telegram).

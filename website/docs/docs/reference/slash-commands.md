@@ -5,7 +5,7 @@ description: TUI slash command reference.
 
 # Slash Commands
 
-The Morph TUI accepts **slash commands** — messages that start with `/` — for session management, model selection, and
+The Morph TUI accepts **slash commands** (messages that start with `/`) for session management, model selection, and
 utility actions without leaving the chat surface. For general TUI behavior, see the [TUI Guide](../guides/tui). For the
 full CLI, see [CLI Reference](./cli).
 
@@ -52,7 +52,7 @@ Runs the same compaction path as `morph session compact` on the current session,
 ### `/models` and `/providers`
 
 The catalog is loaded locally. Selecting a model or entering an API key may call RPC `ModelService.SelectModel` or
-`SetProviderAPIKey`. For credential setup outside the TUI, use `morph auth login` — see
+`SetProviderAPIKey`. For credential setup outside the TUI, use `morph auth login`; see
 [Provider Auth](../guides/provider-auth).
 
 For Ollama, the catalog includes installed models discovered from the local runtime and suggested models that may need

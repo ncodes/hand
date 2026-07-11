@@ -19,21 +19,21 @@ You need a Slack app in your workspace with three credentials, depending on mode
 | Credential | Config key | Used for |
 | --- | --- | --- |
 | **Bot token** (`xoxb-…`) | `gateway.slack.botToken` | Posting replies and calling Slack APIs |
-| **App-level token** (`xapp-…`) | `gateway.slack.appToken` | Socket Mode only — outbound WebSocket connection |
-| **Signing secret** | `gateway.slack.signingSecret` | HTTP Events API only — verifies inbound webhook requests |
+| **App-level token** (`xapp-…`) | `gateway.slack.appToken` | Socket Mode only: outbound WebSocket connection |
+| **Signing secret** | `gateway.slack.signingSecret` | HTTP Events API only: verifies inbound webhook requests |
 
 Create the app at [api.slack.com/apps](https://api.slack.com/apps):
 
 1. **Create New App** → From scratch, pick a name and workspace.
 2. Under **OAuth & Permissions**, add **Bot Token Scopes**:
-   - `chat:write` — post replies
-   - `im:history` — receive direct messages
-   - `mpim:history` — receive group direct messages
-   - `app_mentions:read` — optional, only if you want `@`-mention handling in channels
+   - `chat:write`: post replies
+   - `im:history`: receive direct messages
+   - `mpim:history`: receive group direct messages
+   - `app_mentions:read`: optional, only if you want `@`-mention handling in channels
 3. Under **Event Subscriptions**, enable events and subscribe to **Bot Events**:
-   - `message.im` — DMs to the bot
-   - `message.mpim` — group DMs
-   - `app_mention` — optional, for `@`-mentions in channels
+   - `message.im`: DMs to the bot
+   - `message.mpim`: group DMs
+   - `app_mention`: optional, for `@`-mentions in channels
 4. **Socket Mode** (default): open **Settings** → **Socket Mode** and enable it.
 5. **App-level token** (socket mode): open **Basic Information** → **App-Level Tokens**, generate a token with scope
    `connections:write`, and copy the `xapp-…` value to `gateway.slack.appToken`.
@@ -45,7 +45,7 @@ Create the app at [api.slack.com/apps](https://api.slack.com/apps):
 If you add scopes or change event subscriptions later, **reinstall the app** to the workspace so the new permissions
 take effect.
 
-Keep tokens and the signing secret out of git and chat logs. Morph redacts gateway secrets from traces and logs — see
+Keep tokens and the signing secret out of git and chat logs. Morph redacts gateway secrets from traces and logs. See
 [Safety and Guardrails](../../concepts/safety-and-guardrails).
 
 ## Enable Slack in Morph
@@ -77,7 +77,7 @@ Optional environment overrides include `MORPH_GATEWAY_SLACK_ENABLED`, `MORPH_GAT
 
 ## Socket Mode (Default)
 
-Socket mode keeps traffic outbound — Morph opens a WebSocket to Slack, so you do not need a public URL for local use:
+Socket mode keeps traffic outbound: Morph opens a WebSocket to Slack, so you do not need a public URL for local use:
 
 ```bash
 morph config set gateway.slack.mode socket
@@ -101,7 +101,7 @@ morph config set gateway.slack.signingSecret "<signing-secret>"
 
 Requirements:
 
-- `gateway.slack.signingSecret` — Morph verifies every request with Slack's `X-Slack-Signature` and
+- `gateway.slack.signingSecret`: Morph verifies every request with Slack's `X-Slack-Signature` and
   `X-Slack-Request-Timestamp` headers (5-minute tolerance).
 - A **public HTTPS URL** that forwards to Morph's gateway listener at:
 
@@ -118,7 +118,7 @@ HTTP on the same listener when configured. See [Gateway Routes](../../reference/
 [Generic HTTP](./generic-http).
 
 If the gateway binds to a non-loopback address, `gateway.authToken` is still required for the shared listener even when
-you only use Slack webhooks — see [Gateway Overview](./).
+you only use Slack webhooks. See [Gateway Overview](./).
 
 ## What Messages Morph Processes
 
@@ -134,7 +134,7 @@ Morph normalizes Slack Events API payloads and ignores most noise:
 | Most message subtypes | No | `file_share` and `thread_broadcast` are allowed if they include text |
 | Empty text | No | Messages must include non-empty text |
 
-In shared contexts (channels and group DMs), everyone in the same thread talks to one Morph session — see
+In shared contexts (channels and group DMs), everyone in the same thread talks to one Morph session. See
 [Sessions](../../concepts/sessions).
 
 ## Authorize Senders
@@ -182,12 +182,12 @@ morph gateway pairing revoke slack <sender-id>
 morph gateway pairing clear-pending slack
 ```
 
-Pairing approves the **sender**, not a session — once approved, that user can trigger Morph in any context Morph allows.
+Pairing approves the **sender**, not a session; once approved, that user can trigger Morph in any context Morph allows.
 See [Pairing and Allowlists](./pairing-and-allowlists).
 
 ### Channels
 
-**Public and private channels never receive pairing prompts.** Unlisted senders there are ignored silently — the same
+**Public and private channels never receive pairing prompts.** Unlisted senders there are ignored silently, the same
 pattern as Telegram groups. To use Morph in a channel:
 
 1. Add the `@`-mention event subscription and invite the app to the channel.
@@ -203,7 +203,7 @@ Group DMs (`mpim`) do receive pairing prompts for unknown senders, same as one-o
 | Mode | Behavior |
 | --- | --- |
 | `thread` (default) | Replies go in the thread anchored to the inbound message |
-| `message` | Replies go as a top-level message in the channel — unless the inbound message is already a thread reply, in which case Morph still replies in that thread |
+| `message` | Replies go as a top-level message in the channel, unless the inbound message is already a thread reply, in which case Morph still replies in that thread |
 
 Set message mode when you prefer standalone replies instead of threaded ones:
 
@@ -211,7 +211,7 @@ Set message mode when you prefer standalone replies instead of threaded ones:
 morph config set gateway.slack.responseMode message
 ```
 
-Session binding is unchanged — it still keys on team, channel, and thread. Only the Slack delivery target changes.
+Session binding is unchanged: it still keys on team, channel, and thread. Only the Slack delivery target changes.
 
 ## How Replies Appear
 
@@ -225,7 +225,7 @@ Replies are formatted as Slack **mrkdwn**. Morph converts common markdown (bold,
 blockquotes, strikethrough) and escapes characters Slack treats specially. Existing Slack tokens such as `<@U…>` and
 `<#C…>` are preserved.
 
-Streaming uses a lighter formatter than the final pass — complex markdown may look slightly different while text is still
+Streaming uses a lighter formatter than the final pass; complex markdown may look slightly different while text is still
 arriving. Long replies are split into chunks within Slack's message size limits.
 
 ## Sessions and Continuity
@@ -239,8 +239,8 @@ If a bound session is deleted, the next message from that conversation creates a
 
 ## Verify the Bot
 
-1. Run `morph doctor` — the **gateway** group should show Slack enabled with your mode and tokens.
-2. Run `morph gateway status` — expect `state=running` and `slack=socket` or `slack=http`.
+1. Run `morph doctor`: the **gateway** group should show Slack enabled with your mode and tokens.
+2. Run `morph gateway status`: expect `state=running` and `slack=socket` or `slack=http`.
 3. In Slack, open a **DM** with the app and send a message. If you are not allowlisted, run the pairing command Morph
    replies with.
 4. Confirm Morph answers and that `morph session list` shows a session bound to that thread (separate from your TUI session).
@@ -272,7 +272,7 @@ group DM (`mpim`). Check daemon logs for dispatch errors.
 
 ### Channel messages ignored
 
-Expected for plain messages in channels — Morph only processes `@`-mentions there (`app_mention`), and only from
+Expected for plain messages in channels: Morph only processes `@`-mentions there (`app_mention`), and only from
 allowlisted or paired senders. Add the event subscription, invite the app, allowlist senders, or `@`-mention the bot.
 
 ### Group DM messages ignored
@@ -292,7 +292,7 @@ errors (rate limits, missing scopes, or workspace restrictions on streaming).
 
 ### Agent errors with no user-visible reply
 
-Check model credentials (`morph auth status`, `morph doctor`) and inspect traces for the bound session — see
+Check model credentials (`morph auth status`, `morph doctor`) and inspect traces for the bound session. See
 [Search and Traces](../search-and-traces).
 
 ## Where To Go Next

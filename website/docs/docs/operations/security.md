@@ -6,7 +6,7 @@ description: Operate Morph without leaking secrets or exposing unsafe surfaces.
 # Security
 
 Morph runs a capable agent on your machine: it reads files, runs commands, reaches the network, stores memory, and can
-accept messages from external gateways. This page is the **operator security guide** — where secrets live, what defaults
+accept messages from external gateways. This page is the **operator security guide**: where secrets live, what defaults
 protect you, what to check before exposing an endpoint, and how to harden a profile for shared or remote use.
 
 For how guardrails work inside a turn (scanning, redaction, command policy), see
@@ -19,7 +19,7 @@ Morph separates a few layers:
 
 | Layer | What it protects | Where to read more |
 | --- | --- | --- |
-| **Secrets handling** | Provider keys, gateway tokens, OAuth credentials | This page — [Provider secrets](#provider-secrets) |
+| **Secrets handling** | Provider keys, gateway tokens, OAuth credentials | This page ([Provider secrets](#provider-secrets)) |
 | **Network exposure** | RPC, gateway HTTP, webhook surfaces | [Network exposure](#network-exposure) |
 | **Sender authorization** | Who can trigger agent turns on Slack/Telegram | [Sender authorization](#sender-authorization) |
 | **Runtime guardrails** | Command, filesystem, web, and tool output policy | [Runtime guardrails](#runtime-guardrails) |
@@ -31,7 +31,7 @@ deliberate deployment decision.
 
 ## What Counts As A Secret
 
-Treat these as credentials — never commit them, never paste them into chats, and restrict file permissions on the
+Treat these as credentials; never commit them, never paste them into chats, and restrict file permissions on the
 machines that hold them:
 
 | Secret | Typical storage | Used for |
@@ -43,10 +43,10 @@ machines that hold them:
 | Slack bot token, app token, signing secret | `config.yaml`, `.env` | Slack gateway |
 | Telegram bot token, webhook secret | `config.yaml`, `.env` | Telegram gateway |
 
-Gateway bot tokens are **not** stored in `auth.json` — that file is for model providers only. See
+Gateway bot tokens are **not** stored in `auth.json`; that file is for model providers only. See
 [Provider Auth](../guides/provider-auth) and the [Gateway Overview](../guides/gateway/).
 
-Everything in a [profile](../concepts/profiles) home — sessions, memory, pairings, traces — is sensitive even when it
+Everything in a [profile](../concepts/profiles) home (sessions, memory, pairings, traces) is sensitive even when it
 is not a literal API key. Isolate profiles when you separate personal and work contexts, or experiments from production.
 
 ## Provider Secrets
@@ -56,13 +56,13 @@ is not a literal API key. Isolate profiles when you separate personal and work c
 Morph resolves model credentials from several sources, in the precedence order documented in
 [Provider Auth](../guides/provider-auth):
 
-1. **Role config** — `models.main.apiKey`, `models.summary.apiKey`, and similar
-2. **Stored credential** — `morph auth login` in `~/.morph/profiles/<profile>/auth.json`
-3. **Environment** — provider OAuth/key variables, including variables loaded from profile `.env`
-4. **Provider config** — `models.providers.<provider>.apiKey`
+1. **Role config**: `models.main.apiKey`, `models.summary.apiKey`, and similar
+2. **Stored credential**: `morph auth login` in `~/.morph/profiles/<profile>/auth.json`
+3. **Environment**: provider OAuth/key variables, including variables loaded from profile `.env`
+4. **Provider config**: `models.providers.<provider>.apiKey`
 
 Prefer `morph auth login` for interactive setup. For servers, inject secrets through profile-local `.env` or deployment
-environment variables — not checked-in YAML.
+environment variables, not checked-in YAML.
 
 ### File permissions
 
@@ -73,11 +73,11 @@ homes on local disks you control; network filesystems and shared home directorie
 
 - Do **not** commit `auth.json`, `.env`, or `config.yaml` that contains real keys.
 - Run `morph auth logout <provider>` when rotating or decommissioning a machine.
-- After credential changes, run `morph auth status` and `morph doctor` — the **models** group confirms each role resolves.
+- After credential changes, run `morph auth status` and `morph doctor`: the **models** group confirms each role resolves.
 - Stored credentials from `morph auth login` take precedence over ambient environment keys, but role-level `apiKey`
   config still overrides them. Be explicit about which profile is active (`morph profile current`) on shared shells.
 
-See [Troubleshooting — Provider auth](../guides/troubleshooting#provider-auth-and-model-errors) when turns fail before
+See [Troubleshooting: Provider auth](../guides/troubleshooting#provider-auth-and-model-errors) when turns fail before
 they start.
 
 ## Gateway Secrets
@@ -87,7 +87,7 @@ Gateway credentials belong in profile config or environment variables, not in so
 ### Generic HTTP bearer token
 
 `gateway.authToken` protects `POST /v1/respond`. When the listener is on loopback and the token is empty, local scripts
-can call the endpoint without auth — convenient on a trusted machine, unsafe if the port is reachable elsewhere.
+can call the endpoint without auth: convenient on a trusted machine, unsafe if the port is reachable elsewhere.
 
 **Config validation requires `gateway.authToken` when `gateway.address` is not loopback.** Generate a strong token before
 exposing the listener:
@@ -99,7 +99,7 @@ morph config set gateway.authToken "$(openssl rand -hex 32)"
 Store it where your client reads it (`.env` or deployment environment variables). Morph does not print it again. See
 [Generic HTTP Gateway](../guides/gateway/generic-http#authentication).
 
-Anyone with the token can run agent turns on any conversation id — there is no per-user allowlist on generic HTTP.
+Anyone with the token can run agent turns on any conversation id: there is no per-user allowlist on generic HTTP.
 
 ### Platform tokens and webhook secrets
 
@@ -129,7 +129,7 @@ Morph opens two TCP listeners when fully enabled: **RPC** (gRPC, default `127.0.
 ### RPC (gRPC)
 
 The RPC interface is **local-only by default** and uses **plaintext gRPC without application-level authentication**.
-Any process that can reach the bound address can invoke daemon RPC — including session control, gateway pairing
+Any process that can reach the bound address can invoke daemon RPC, including session control, gateway pairing
 approval, and model configuration via `ModelService`.
 
 | Setting | Default | Risk if widened |
@@ -144,17 +144,17 @@ auth. See [Daemon and RPC](../concepts/daemon-and-rpc).
 
 The gateway listener shares `gateway.address` and `gateway.port`. Socket Mode (Slack) and long polling (Telegram) keep
 platform traffic **outbound**, which avoids exposing an inbound port for those modes. Webhook modes require inbound
-HTTPS at your edge — terminate TLS in front of Morph and restrict source IPs where the platform allows.
+HTTPS at your edge: terminate TLS in front of Morph and restrict source IPs where the platform allows.
 
 Non-loopback gateway binds **require** `gateway.authToken` at validation time. Doctor reports this as either a config
 validation **FAIL** or a **gateway** listener **WARN**, depending on whether the gateway is already enabled. See
-[Doctor — gateway](./doctor#gateway).
+[Doctor: gateway](./doctor#gateway).
 
 ### Web fetches (SSRF)
 
 Tool-driven web access blocks internal and private addresses and honors domain blocklists. This limits server-side request
 forgery when the agent fetches URLs. It does not replace firewall rules on the host. See
-[Safety and Guardrails — Network policy](../concepts/safety-and-guardrails#network-policy) and [Tools](../concepts/tools).
+[Safety and Guardrails: Network policy](../concepts/safety-and-guardrails#network-policy) and [Tools](../concepts/tools).
 
 ## Sender Authorization
 
@@ -163,23 +163,23 @@ authorization** decides which human can trigger a turn.
 
 | Surface | Authorization model |
 | --- | --- |
-| **Generic HTTP** | Shared bearer token only — no per-sender concept |
+| **Generic HTTP** | Shared bearer token only: no per-sender concept |
 | **Slack / Telegram** | Allowlists (`gateway.allowedUsers`, platform lists) and/or pairing |
 
 Default posture for messaging gateways:
 
 1. Set `gateway.pairingSecret`.
 2. Allowlist trusted operator ids for production channels.
-3. Treat DM / private-chat pairing as onboarding — approve only people you intend to give agent access.
-4. Remember pairing approves a **sender identity**, not a single session — approved users can trigger Morph everywhere
-   the platform delivers their messages. See [Gateways — Authorization](../concepts/gateways#authorization-and-pairing).
+3. Treat DM / private-chat pairing as onboarding: approve only people you intend to give agent access.
+4. Remember pairing approves a **sender identity**, not a single session; approved users can trigger Morph everywhere
+   the platform delivers their messages. See [Gateways: Authorization](../concepts/gateways#authorization-and-pairing).
 
 Manage pairings with `morph gateway pairing list`, `approve`, and `revoke`. See
 [Pairing and Allowlists](../guides/gateway/pairing-and-allowlists).
 
 ## Runtime Guardrails
 
-Capabilities and policies limit what the model can **do** when tools are offered. These are structural — not all of them
+Capabilities and policies limit what the model can **do** when tools are offered. These are structural; not all of them
 are controlled by `safety.*` toggles.
 
 ### Capability switches (`cap`)
@@ -202,7 +202,7 @@ Environment overrides: `MORPH_CAP_FS`, `MORPH_CAP_NET`, `MORPH_CAP_EXEC`, `MORPH
 ### Filesystem roots (`fs`)
 
 File tools resolve paths against `fs.roots`. By default, roots include the process working directory when the daemon
-starts — **not** the profile home.
+starts, **not** the profile home.
 
 `fs.noProfileAccess` defaults to **true**, which prevents the profile home (where `auth.json` and `config.yaml` live)
 from being added as a root at daemon startup. Set `fs.noProfileAccess: false` only if you intentionally want the agent
@@ -214,19 +214,19 @@ Explicitly set `fs.roots` for deployments instead of relying on whatever directo
 morph config set fs.roots "/srv/myproject"
 ```
 
-See [Tools — Guardrails](../concepts/tools#guardrails-around-tool-calls).
+See [Tools: Guardrails](../concepts/tools#guardrails-around-tool-calls).
 
 ### Command policy (`exec`)
 
 `exec.allow`, `exec.ask`, and `exec.deny` pattern-match shell commands. Built-in dangerous-pattern checks always apply.
-There is no interactive approval UI in the tool path — `approval_required` returns a structured error to the model.
+There is no interactive approval UI in the tool path: `approval_required` returns a structured error to the model.
 
 :::info
 An approval UI is planned for a future release.
 :::
 
 For restrictive hosts, populate `exec.deny` broadly and use `exec.allow` for a short allowlist. See
-[Safety and Guardrails — Execution](../concepts/safety-and-guardrails#execution-and-filesystem-limits).
+[Safety and Guardrails: Execution](../concepts/safety-and-guardrails#execution-and-filesystem-limits).
 
 ### Safety toggles (`safety`)
 
@@ -238,9 +238,9 @@ Model-facing scanning and redaction:
 | `safety.output` | on | Scan and redact assistant/tool output |
 | `safety.pii` | on | Redact PII in output paths |
 
-Doctor's **safety** group always **PASS**es with the effective toggle summary — it reports exposure; it does not run
+Doctor's **safety** group always **PASS**es with the effective toggle summary: it reports exposure; it does not run
 classifiers. Disabling output safety does **not** disable secret redaction in traces. See
-[Doctor — safety](./doctor#safety).
+[Doctor: safety](./doctor#safety).
 
 Internal surfaces (traces, RPC detail strings, memory injection) always redact secrets; PII redaction there follows the
 same unconditional path described in [Safety and Guardrails](../concepts/safety-and-guardrails#redacting-secrets-and-pii).
@@ -250,28 +250,28 @@ same unconditional path described in [Safety and Guardrails](../concepts/safety-
 ### Traces and RPC
 
 Trace events and the live event stream redact secrets unconditionally. Safety events record rule categories, not blocked
-content. Inspect traces with `morph trace` — see [Search and Traces](../guides/search-and-traces) and
+content. Inspect traces with `morph trace`; see [Search and Traces](../guides/search-and-traces) and
 [Trace Events](../reference/trace-events).
 
 ### Log files
 
 Morph writes a rolling log file by default at `~/.morph/profiles/<profile>/morph.log`. Override the path with `log.file`;
 rotation is controlled by `log.maxSizeMB`, `log.maxBackups`, `log.maxAgeDays`, and `log.compress`. Log files live on
-disk with whatever permissions your umask allows — restrict access on shared systems.
+disk with whatever permissions your umask allows; restrict access on shared systems.
 
 Gateway and provider secrets are masked in structured log fields where Morph's redaction pipeline applies; still treat log
 directories as sensitive.
 
 ### Debug request logging
 
-`debug.requests: true` logs model request detail for debugging. Enable only temporarily on trusted machines — it can
+`debug.requests: true` logs model request detail for debugging. Enable only temporarily on trusted machines: it can
 include prompt and tool context you would not normally persist.
 
 ```bash
 morph config set debug.requests true
 ```
 
-Restart the daemon after changing debug settings. See [Troubleshooting — Logging and debug](../guides/troubleshooting#logging-and-debug).
+Restart the daemon after changing debug settings. See [Troubleshooting: Logging and debug](../guides/troubleshooting#logging-and-debug).
 
 ## Verify Before You Expose
 
@@ -283,18 +283,18 @@ morph doctor
 morph auth status
 ```
 
-1. **Doctor exits cleanly** — no **FAIL** items; review **WARN** (daemon down, vector off, gateway tokens missing,
+1. **Doctor exits cleanly**: no **FAIL** items; review **WARN** (daemon down, vector off, gateway tokens missing,
    non-loopback listener).
-2. **Gateway listener** — loopback for local-only; non-loopback only with `gateway.authToken` set and TLS/firewall at
+2. **Gateway listener**: loopback for local-only; non-loopback only with `gateway.authToken` set and TLS/firewall at
    the edge for webhooks.
-3. **RPC** — stays on `127.0.0.1` unless network access is deliberately restricted another way.
-4. **Pairing and allowlists** — `gateway.pairingSecret` set; allowlists populated for channels; pairing flow tested in
+3. **RPC**: stays on `127.0.0.1` unless network access is deliberately restricted another way.
+4. **Pairing and allowlists**: `gateway.pairingSecret` set; allowlists populated for channels; pairing flow tested in
    a DM first.
-5. **Capabilities** — disable `cap.exec`, `cap.fs`, or `cap.net` when the deployment does not need them.
-6. **Filesystem roots** — explicit `fs.roots`; leave `fs.noProfileAccess` true unless you have a reason not to.
-7. **Secrets not in git** — `.gitignore` profile homes or use separate secret injection for CI.
+5. **Capabilities**: disable `cap.exec`, `cap.fs`, or `cap.net` when the deployment does not need them.
+6. **Filesystem roots**: explicit `fs.roots`; leave `fs.noProfileAccess` true unless you have a reason not to.
+7. **Secrets not in git**: `.gitignore` profile homes or use separate secret injection for CI.
 
-After go-live, `morph gateway status` confirms runtime gateway health — doctor validates config; status validates the
+After go-live, `morph gateway status` confirms runtime gateway health: doctor validates config; status validates the
 running process. See [Gateway Management](./gateway-management).
 
 ## Deployment Patterns
@@ -302,7 +302,7 @@ running process. See [Gateway Management](./gateway-management).
 ### Personal workstation
 
 Defaults are usually sufficient: loopback RPC and gateway, `morph auth login`, doctor before first gateway enable.
-Temporary daemons from the TUI stop when you exit — use `morph daemon` for long-running gateways.
+Temporary daemons from the TUI stop when you exit; use `morph daemon` for long-running gateways.
 
 ### Shared server or VM
 
@@ -331,7 +331,7 @@ Temporary daemons from the TUI stop when you exit — use `morph daemon` for lon
 
 Pages that link here for operational security detail:
 
-- [Learning Path — Gateway track](../getting-started/learning-path): security as step 6 before going live.
+- [Learning Path: Gateway track](../getting-started/learning-path): security as step 6 before going live.
 - [Safety and Guardrails](../concepts/safety-and-guardrails): guardrail mechanics and what always runs.
 - [Doctor](./doctor): PASS/WARN/FAIL for safety toggles, gateway listener, and tools.
 - [Provider Auth](../guides/provider-auth): store and rotate model credentials safely.

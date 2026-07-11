@@ -6,7 +6,7 @@ description: HTTP gateway route reference.
 # Gateway Routes
 
 When `gateway.enabled` is true, the daemon serves an **HTTP listener** alongside gRPC (default `127.0.0.1:50052`).
-External clients — generic HTTP integrations, Slack Events API, Telegram webhooks — hit these routes. Slack **socket**
+External clients (generic HTTP integrations, Slack Events API, Telegram webhooks) hit these routes. Slack **socket**
 and Telegram **polling** modes do not add HTTP routes.
 
 Conceptual overview: [Gateways](../concepts/gateways). Setup guides: [Gateway Overview](../guides/gateway/).
@@ -33,7 +33,7 @@ headers for Telegram.
 
 No authentication. Returns `200` with body `ok`.
 
-### `/v1/respond` — Bearer token
+### `/v1/respond`: Bearer token
 
 | `gateway.authToken` | Behavior |
 | --- | --- |
@@ -43,7 +43,7 @@ No authentication. Returns `200` with body `ok`.
 When the gateway binds to a **non-loopback** address, config validation **requires** `gateway.authToken`. See
 [Security](../operations/security).
 
-### `/gateway/slack/webhook` — Slack signature
+### `/gateway/slack/webhook`: Slack signature
 
 Verifies Slack signing headers:
 
@@ -55,7 +55,7 @@ Secret: `gateway.slack.signingSecret` (required in HTTP mode). Timestamp toleran
 
 Slack `url_verification` challenges return `{"challenge":"<value>"}`.
 
-### `/gateway/telegram/webhook` — Telegram secret token
+### `/gateway/telegram/webhook`: Telegram secret token
 
 Header: `X-Telegram-Bot-Api-Secret-Token`  
 Secret: `gateway.telegram.webhookSecret`
@@ -67,7 +67,7 @@ Secret: `gateway.telegram.webhookSecret`
 
 Disabled integrations return `404` with a short message (`slack events are disabled`, `telegram webhook is disabled`).
 
-## `/v1/respond` — generic HTTP
+## `/v1/respond`: generic HTTP
 
 **Request** (`Content-Type: application/json`, max **1 MB**):
 
@@ -137,9 +137,9 @@ Recommended for local development: Slack **socket**, Telegram **polling**. See [
 
 After HTTP or socket delivery, inbound messages pass **sender checks** (not HTTP auth):
 
-1. **Allowlists** — `gateway.allowedUsers`, or per-channel `slack.allowedUsers` / `telegram.allowedUsers`
-2. **Approved pairings** — stored in profile state; managed via RPC/CLI pairing commands
-3. **Pairing challenge** — unpaired senders in private chats receive a code; non-private unpaired traffic is ignored
+1. **Allowlists**: `gateway.allowedUsers`, or per-channel `slack.allowedUsers` / `telegram.allowedUsers`
+2. **Approved pairings**: stored in profile state; managed via RPC/CLI pairing commands
+3. **Pairing challenge**: unpaired senders in private chats receive a code; non-private unpaired traffic is ignored
 
 Pairing: [Pairing and Allowlists](../guides/gateway/pairing-and-allowlists). RPC: [GatewayService](./rpc#gatewayservice).
 

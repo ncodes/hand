@@ -62,6 +62,15 @@ Start here if you want to tune how Morph remembers, retrieves, and retains conve
 
 Use [Profiles and Config](./profiles-and-config) to isolate experiments in a separate profile.
 
+## Automation User
+
+Start here if you want Morph to run on a schedule instead of only when you ask.
+
+1. [Automation Concept](../concepts/automation): jobs, runs, and delivery as separate, inspectable pieces.
+2. [Automation Guide](../guides/automation): create a recurring or one-shot job and deliver its output.
+3. [Automation Reference](../reference/automation): every command, flag, schedule form, and status.
+4. [Automation Operations](../operations/automation): diagnose a job that did not run and recover it.
+
 ## Contributor
 
 Start here if you want to read or change Morph's code.
@@ -71,8 +80,8 @@ Start here if you want to read or change Morph's code.
 3. [Prompt Assembly](../development/prompt-assembly): how prompts are built before each turn.
 4. Subsystem internals: [Model Providers](../development/model-providers),
    [Tools Runtime](../development/tools-runtime), [Session Storage](../development/session-storage),
-   [Memory System](../development/memory-system), [Gateway Internals](../development/gateway-internals), and
-   [TUI](../development/tui).
+   [Memory System](../development/memory-system), [Gateway Internals](../development/gateway-internals),
+   [Automation System](../development/automation-system), and [TUI](../development/tui).
 5. [Testing](../development/testing): how to run and write tests.
 6. [Contributing](../contributing): workflow and expectations for changes.
 

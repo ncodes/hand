@@ -17,7 +17,7 @@ guarded. For the implementation-level design, see [Tools Runtime](../development
 ## What a Tool Is
 
 A tool is a named capability with a description and a JSON schema for its inputs. The model sees only that public
-surface — name, description, and parameter schema — and decides when to call it. Behind that surface, each tool has a
+surface (name, description, and parameter schema) and decides when to call it. Behind that surface, each tool has a
 Handler that runs inside the daemon and returns a structured result.
 
 Tools also carry runtime metadata the model never sees: which **capabilities** they require (filesystem, exec, network,
@@ -29,24 +29,24 @@ gate and sandbox execution.
 
 Morph registers its built-in tools when the daemon prepares a profile's environment. They fall into a few groups:
 
-- **Filesystem** — `read_file`, `write_file`, `patch`, `list_files`, `search_files`.
-- **Shell / process** — `run_command` (one-shot commands) and `process` (managing longer-lived processes).
-- **Web** — `web_search` and `web_extract`.
-- **Sessions** — `session_search` and `session_messages`, for looking back over stored conversation history.
-- **Memory** — `memory_search` and `memory_extract` for reading, and `memory_add`, `memory_update`, `memory_delete`
+- **Filesystem**: `read_file`, `write_file`, `patch`, `list_files`, `search_files`.
+- **Shell / process**: `run_command` (one-shot commands) and `process` (managing longer-lived processes).
+- **Web**: `web_search` and `web_extract`.
+- **Sessions**: `session_search` and `session_messages`, for looking back over stored conversation history.
+- **Memory**: `memory_search` and `memory_extract` for reading, and `memory_add`, `memory_update`, `memory_delete`
   for writing.
-- **Utility / planning** — `time` and `plan_tool`.
+- **Utility / planning**: `time` and `plan_tool`.
 
 Not all of these are present in every turn. The filesystem, shell, session-history, planning, and `time` tools are
 always registered; the web and memory tools are only registered when their subsystem is configured and enabled (see
-below). On top of that, the capability switches below filter what the model actually sees each turn — only `time` and
+below). On top of that, the capability switches below filter what the model actually sees each turn: only `time` and
 `plan_tool` need no capability at all.
 
 ## Capabilities and Availability
 
 Tool availability is decided per turn, not baked in once. Two things govern whether a given tool reaches the model:
 
-**Capabilities.** Every profile has a set of capability switches under `cap` — `cap.fs` (filesystem), `cap.net`
+**Capabilities.** Every profile has a set of capability switches under `cap`: `cap.fs` (filesystem), `cap.net`
 (network), `cap.exec` (shell/process), `cap.mem` (memory), and `cap.browser`. Filesystem, network, exec, and memory
 are on by default; browser is off. Each tool declares the capabilities it needs, and a tool is hidden from the model
 whenever any required capability is off. Turning off `cap.exec`, for example, removes `run_command` and `process`
@@ -71,7 +71,7 @@ input and output sides:
   that escape those roots are rejected, and reads are capped in size.
 - **Command policy.** `run_command` evaluates each command against the profile's `exec.allow` / `exec.ask` / `exec.deny`
   rules plus built-in dangerous-pattern checks. A denied command returns a `command_denied` error; a command that needs
-  approval returns an `approval_required` error. These are structured tool errors the model receives — there is no
+  approval returns an `approval_required` error. These are structured tool errors the model receives; there is no
   interactive approval popup in the tool path, so the model must stop or ask the user.
 - **Web blocking.** Web tools honor blocked-domain rules before fetching.
 - **Output safety.** When output safety is enabled, a tool's output is scanned before it is returned to the model, and
@@ -88,7 +88,7 @@ When the model returns one or more tool calls, Morph runs them and loops:
 1. Morph batches the calls, running tools marked parallel-safe together and others one at a time.
 2. For each call it records a `tool.invocation.started` trace event, then invokes the tool's handler through the
    registry. An unknown tool name or a handler failure becomes a structured error rather than crashing the turn.
-3. The result — output or error — is wrapped as a `tool` message and appended to the conversation, and a
+3. The result (output or error) is wrapped as a `tool` message and appended to the conversation, and a
    `tool.invocation.completed` event is recorded.
 4. The model runs again with those results in context and may call more tools. This continues until the model produces a
    final answer or the turn hits its iteration budget (`session.maxIterations`).

@@ -22,11 +22,11 @@ not need one-off local-only branches.
 
 The model catalog combines several sources:
 
-1. **Registry catalog** — built-in suggested models.
-2. **Explicit profile config** — user-pinned provider model definitions. Explicit config wins and disables discovery for
+1. **Registry catalog**: built-in suggested models.
+2. **Explicit profile config**: user-pinned provider model definitions. Explicit config wins and disables discovery for
    that provider.
-3. **Runtime discovery** — for Ollama, Morph queries `GET /api/tags` and `POST /api/show`.
-4. **Short-lived cache** — local discovery results are cached briefly and refreshed manually by setup surfaces.
+3. **Runtime discovery**: for Ollama, Morph queries `GET /api/tags` and `POST /api/show`.
+4. **Short-lived cache**: local discovery results are cached briefly and refreshed manually by setup surfaces.
 
 For Ollama, installed models from discovery are shown before suggested catalog models. Suggested models that are not
 installed are marked as missing and can be pulled from setup flows.

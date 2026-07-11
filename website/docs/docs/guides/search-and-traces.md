@@ -7,7 +7,7 @@ description: Inspect history, traces, and runtime behavior.
 
 Morph keeps durable [session](../concepts/sessions) history in the active [profile](../concepts/profiles) store, so you
 can find past conversations and inspect what the agent did during a turn. **Search** helps you and the agent recall
-earlier messages; **traces** record the structured event stream behind each session — model requests, tool calls,
+earlier messages; **traces** record the structured event stream behind each session: model requests, tool calls,
 compaction, memory work, and safety decisions.
 
 This guide covers how search and tracing work in practice, how to configure them, and how to inspect results. For the
@@ -16,7 +16,7 @@ session model behind history and repair, see [Sessions](../concepts/sessions).
 ## Finding Past Messages
 
 Every persisted message is indexed for full-text search. When you ask the agent to look something up, it can call
-`session_search` to query prior messages — in the current session or across other sessions on the profile. Omit
+`session_search` to query prior messages, in the current session or across other sessions on the profile. Omit
 `session_id` to search everywhere except the current conversation; pass a specific id to search one session. Optional
 filters include `role` (`user`, `assistant`, `tool`) and `tool_name`.
 
@@ -40,7 +40,7 @@ pasting it back into the chat.
 
 ## Vector Search and Reranking
 
-Vector search improves recall when keywords do not match exactly — paraphrases, related terms, and semantic overlap.
+Vector search improves recall when keywords do not match exactly: paraphrases, related terms, and semantic overlap.
 It requires an **embedding** model:
 
 ```bash
@@ -50,7 +50,7 @@ morph auth login openai --api-key "<key>"
 ```
 
 Vector search defaults to **on** and **required** (`search.vector.enabled` and `search.vector.required`). When
-required is true, Morph expects embedding credentials to resolve — `morph doctor` reports a failure in the **search**
+required is true, Morph expects embedding credentials to resolve; `morph doctor` reports a failure in the **search**
 group if they are missing. To run lexical-only search instead:
 
 ```bash
@@ -113,7 +113,7 @@ Tracing is controlled by the `trace` config section:
 | Database traces | `trace.database.enabled` | on | Persist events in the profile SQLite store for timeline queries |
 | Event cap | `trace.database.maxEventsPerSession` | 10000 | Maximum trace events stored per session in the database |
 
-Disk and database backends can both be enabled — events are written to every configured sink. Turn one off if you only
+Disk and database backends can both be enabled: events are written to every configured sink. Turn one off if you only
 need files or only need database-backed timelines:
 
 ```bash
@@ -150,7 +150,7 @@ morph trace view --listen 127.0.0.1:8787
 ```
 
 The command prints a local URL when the server starts. Open it in a browser to browse sessions, inspect the event
-timeline, and — when the profile store is available — view memory items linked to a session.
+timeline, and, when the profile store is available, view memory items linked to a session.
 
 Optional basic auth (both username and password are required together). Generate the password first so you can enter
 it when the browser prompts:
@@ -181,7 +181,7 @@ See the [TUI Guide](./tui) for how the terminal client displays hydrated transcr
 ## SQLite FTS5
 
 Session message search depends on SQLite's FTS5 extension. Pre-built Morph binaries and the install script include FTS5
-support. If you **build from source**, compile with CGO enabled and the `sqlite_fts5` build tag — the Makefile targets
+support. If you **build from source**, compile with CGO enabled and the `sqlite_fts5` build tag; the Makefile targets
 handle this automatically:
 
 ```bash
@@ -198,20 +198,20 @@ End users who install via the script do not need to configure FTS5 separately.
 
 ### Search returns nothing
 
-- Confirm the message was persisted — ephemeral output that never became a stored message is not searchable.
+- Confirm the message was persisted: ephemeral output that never became a stored message is not searchable.
 - Try broader keywords; hybrid search helps when vector search and embeddings are configured.
 - Archived sessions remain searchable until hard-deleted after retention expires.
 
 ### Vector search fails readiness checks
 
-- Set `models.embedding` and authenticate the provider — see [Provider Auth](./provider-auth).
+- Set `models.embedding` and authenticate the provider; see [Provider Auth](./provider-auth).
 - Or disable vector search (`search.vector.enabled false`) for lexical-only mode.
 - Run `morph doctor` and fix **search** / **models** failures before expecting hybrid results.
 
 ### Trace files missing or empty
 
 - Confirm `trace.enabled` and at least one sink (`trace.disk.enabled` or `trace.database.enabled`) is on.
-- Traces are recorded during agent turns handled by the daemon — confirm a daemon was running for the conversation.
+- Traces are recorded during agent turns handled by the daemon; confirm a daemon was running for the conversation.
 - Check `<profile>/traces/` for `*-<session_id>.jsonl` files when disk tracing is enabled.
 
 ### Ambiguous trace files

@@ -102,7 +102,7 @@ session limits, trace disk/database paths, and more. Prefer `morph config set` f
 
 ## Subcommands
 
-### `auth` — provider credentials
+### `auth`: provider credentials
 
 | Subcommand | Usage | Notes |
 | --- | --- | --- |
@@ -112,7 +112,7 @@ session limits, trace disk/database paths, and more. Prefer `morph config set` f
 
 See [Provider Auth](../guides/provider-auth).
 
-### `config` — profile YAML
+### `config`: profile YAML
 
 | Subcommand | Usage |
 | --- | --- |
@@ -121,7 +121,7 @@ See [Provider Auth](../guides/provider-auth).
 
 Paths use dot notation (`session.maxIterations`). See [Config Reference](./config).
 
-### `daemon` — run the daemon
+### `daemon`: run the daemon
 
 | Invocation | Behavior |
 | --- | --- |
@@ -134,7 +134,7 @@ See [Daemon Operations](../operations/daemon).
 | --- | --- |
 | `--instruct` | Persistent server instruction until process exit |
 
-### `db` — local database
+### `db`: local database
 
 | Subcommand | Usage | Notes |
 | --- | --- | --- |
@@ -142,7 +142,7 @@ See [Daemon Operations](../operations/daemon).
 
 See [Backups and State](../operations/backups-and-state).
 
-### `doctor` — readiness checks
+### `doctor`: readiness checks
 
 ```bash
 morph doctor
@@ -152,7 +152,7 @@ morph doctor --json
 Exit code `1` on FAIL. Default output is human text; `--json` prints structured diagnostics. See
 [Doctor](../operations/doctor).
 
-### `gateway` — gateway runtime and pairing
+### `gateway`: gateway runtime and pairing
 
 | Subcommand | Description |
 | --- | --- |
@@ -167,9 +167,9 @@ Exit code `1` on FAIL. Default output is human text; `--json` prints structured 
 `morph gateway stop` stops the **gateway runtime**, not the daemon. See [Gateway Management](../operations/gateway-management)
 and [Gateway Routes](./gateway-routes).
 
-### `profile` — profile selection
+### `profile`: profile selection
 
-Profile subcommands do **not** take `--profile` — they manage which profile is active.
+Profile subcommands do **not** take `--profile`; they manage which profile is active.
 
 | Subcommand | Description |
 | --- | --- |
@@ -182,7 +182,7 @@ Profile subcommands do **not** take `--profile` — they manage which profile is
 
 See [Profiles](../concepts/profiles) and [Profiles and Config](../getting-started/profiles-and-config).
 
-### `setup` — guided provider setup
+### `setup`: guided provider setup
 
 | Invocation | Behavior |
 | --- | --- |
@@ -203,7 +203,7 @@ Local provider flags:
 
 See [Local Models](../guides/local-models) for the complete Ollama setup flow.
 
-### `session` — sessions over RPC
+### `session`: sessions over RPC
 
 Requires a subcommand. Uses daemon RPC; start the daemon first.
 
@@ -220,7 +220,7 @@ Requires a subcommand. Uses daemon RPC; start the daemon first.
 
 See [Sessions Guide](../guides/sessions) and [RPC Reference](./rpc#sessionservice).
 
-### `trace` — trace viewer
+### `trace`: trace viewer
 
 | Subcommand | Flags | Description |
 | --- | --- | --- |

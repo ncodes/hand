@@ -31,7 +31,7 @@ needs credentials for a model or web provider.
 | Lists | Comma-separated (`MORPH_FS_ROOTS=/tmp,/home/user/proj`) |
 | Durations | Go duration syntax (`24h`, `720h`, `10s`) |
 | Booleans | For most `MORPH_*` keys: **`1`**, **`true`**, or **`yes`** → true; any other non-empty value, including `false` or `no`, → false |
-| JSON | `MORPH_RERANKER_OVERRIDES` — JSON object matching `reranker.overrides` |
+| JSON | `MORPH_RERANKER_OVERRIDES`: JSON object matching `reranker.overrides` |
 
 Invalid numeric or duration env values are **ignored** (YAML value kept).
 
@@ -69,7 +69,7 @@ from `.env`, when you want the YAML/default value to win. `MORPH_LOG_NO_COLOR`, 
 | `MORPH_MODEL_EMBEDDING_PROVIDER` | `models.embedding.provider` |
 | `MORPH_MODEL_EMBEDDING_MODEL` | `models.embedding.name` |
 
-Role `apiKey` fields and `models.providers.*` are **not** overridden by `MORPH_*` — use YAML, `morph auth login`, or
+Role `apiKey` fields and `models.providers.*` are **not** overridden by `MORPH_*`; use YAML, `morph auth login`, or
 provider env vars below.
 
 ## RPC
@@ -285,7 +285,7 @@ Firecrawl base URL: `MORPH_FIRECRAWL_API_URL`. Details: [Provider Auth](../guide
 
 - Prefer **`morph auth login`** or profile `auth.json` over long-lived shell exports for OAuth and API keys.
 - Do not commit `.env` files with secrets. See [Security](../operations/security).
-- Gateway tokens in env (`MORPH_GATEWAY_*`) are as sensitive as YAML values — restrict file permissions on profile home.
+- Gateway tokens in env (`MORPH_GATEWAY_*`) are as sensitive as YAML values: restrict file permissions on profile home.
 
 ## Keys without env overrides
 

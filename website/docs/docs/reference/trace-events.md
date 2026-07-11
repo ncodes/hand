@@ -20,7 +20,7 @@ Each event has:
 | --- | --- |
 | `type` | Dot-separated event name (below) |
 | `timestamp` | UTC time |
-| `payload` | JSON object — decoded by `trace.DecodePayload` / `DecodePayloadJSON` |
+| `payload` | JSON object: decoded by `trace.DecodePayload` / `DecodePayloadJSON` |
 
 In RPC streams, trace events appear as `RespondEvent` with `trace_type` and `trace_payload_json`. Session timeline
 RPC returns the same types in `SessionService.Timeline`.
@@ -99,7 +99,7 @@ Policy overview: [Safety and Guardrails](../concepts/safety-and-guardrails).
 | `context.recall_summary.saved` | Recall summary produced |
 | `context.recall_summary.failed` | Recall summary failed |
 
-## Memory — retrieval and flush
+## Memory: retrieval and flush
 
 | Event type | When |
 | --- | --- |
@@ -114,7 +114,7 @@ Policy overview: [Safety and Guardrails](../concepts/safety-and-guardrails).
 | `memory.flush.timeout` | Flush timed out |
 | `memory.flush.completed` | Flush finished |
 
-## Memory — extraction (tool and background)
+## Memory: extraction (tool and background)
 
 | Event type | When |
 | --- | --- |
@@ -131,7 +131,7 @@ Policy overview: [Safety and Guardrails](../concepts/safety-and-guardrails).
 | `memory.extraction.failed` | Extraction failed |
 | `memory.extraction.completed` | Extraction finished |
 
-## Memory — episodic background
+## Memory: episodic background
 
 | Event type | When |
 | --- | --- |
@@ -143,7 +143,7 @@ Policy overview: [Safety and Guardrails](../concepts/safety-and-guardrails).
 | `memory.episodic_background.failed` | Background job failed |
 | `memory.episodic_background.completed` | Background job completed |
 
-## Memory — reflection and promotion
+## Memory: reflection and promotion
 
 | Event type | When |
 | --- | --- |
@@ -186,7 +186,7 @@ Trace payloads are JSON objects. Common payload families:
 | `PlanEventPayload` | Plan steps and hydration |
 | `SessionFailedPayload` | Errors |
 
-CLI inspection: `morph trace view`. Config: `trace.enabled`, `trace.disk`, `trace.database` — see
+CLI inspection: `morph trace view`. Config: `trace.enabled`, `trace.disk`, `trace.database`; see
 [Config Reference](./config#trace).
 
 ## Where To Go Next

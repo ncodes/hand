@@ -64,7 +64,7 @@ morph profile current
 morph profile list
 ```
 
-To inspect profile paths without full readiness checks, use `morph profile doctor` — see
+To inspect profile paths without full readiness checks, use `morph profile doctor`: see
 [Profiles and Config](../getting-started/profiles-and-config#inspect-profiles).
 
 ## Output Formats
@@ -73,13 +73,13 @@ Doctor can print the same checks in two formats:
 
 | Format | Command | Who uses it |
 | --- | --- | --- |
-| **Text (default)** | `morph doctor` | Human-readable report at the shell — grouped sections, `[PASS]` / `[WARN]` / `[FAIL]` labels, and `fix:` lines |
-| **JSON** | `morph doctor --json` | Scripts and CI — one JSON object on stdout |
+| **Text (default)** | `morph doctor` | Human-readable report at the shell: grouped sections, `[PASS]` / `[WARN]` / `[FAIL]` labels, and `fix:` lines |
+| **JSON** | `morph doctor --json` | Scripts and CI: one JSON object on stdout |
 
 Both formats honor the same PASS / WARN / FAIL rules and exit codes:
 
-- **Text (default)** — grouped sections (`profile:`, `models:`, …), `fix:` lines, and `[OK] doctor checks passed` on success.
-- **JSON** — one object with `groups`, `ok`, and `summary`; no final `[OK]` line.
+- **Text (default)**: grouped sections (`profile:`, `models:`, …), `fix:` lines, and `[OK] doctor checks passed` on success.
+- **JSON**: one object with `groups`, `ok`, and `summary`; no final `[OK]` line.
 
 Both formats use the same group names and order. In JSON, the grouped checks live under `groups`:
 
@@ -117,7 +117,7 @@ Every line is labeled **PASS**, **WARN**, or **FAIL**:
 
 | Status | Meaning | Exit code |
 | --- | --- | --- |
-| **PASS** | Check succeeded; subsystem is ready or intentionally disabled | — |
+| **PASS** | Check succeeded; subsystem is ready or intentionally disabled | - |
 | **WARN** | Informational; config is valid but something is off or optional is missing | Doctor still exits 0 |
 | **FAIL** | Blocking problem; fix before relying on the affected subsystem | Doctor exits non-zero |
 
@@ -165,15 +165,15 @@ string (`input=…, output=…, pii=…`) for convenience; text output shows tha
 
 When config loads successfully, both formats include one section per group (in this order):
 
-1. **profile** — resolved profile name and paths
-2. **daemon** — RPC probe against `runtime.json`
-3. **models** — main, summary, and embedding credential resolution
-4. **session** — compaction settings
-5. **memory** — master switch, backend, and sub-features
-6. **search** — vector search and reranker effective config
-7. **safety** — input/output/PII policy toggles
-8. **gateway** — listener bind, Telegram, Slack
-9. **tools** — web search / extraction credentials
+1. **profile**: resolved profile name and paths
+2. **daemon**: RPC probe against `runtime.json`
+3. **models**: main, summary, and embedding credential resolution
+4. **session**: compaction settings
+5. **memory**: master switch, backend, and sub-features
+6. **search**: vector search and reranker effective config
+7. **safety**: input/output/PII policy toggles
+8. **gateway**: listener bind, Telegram, Slack
+9. **tools**: web search / extraction credentials
 
 If config cannot load, text output shows a **`config:`** section only and doctor exits with an error. JSON output uses a
 single **config** group with the diagnostics that could run.
@@ -189,7 +189,7 @@ Confirms which profile Morph selected and whether expected paths exist:
 
 | Check | PASS | WARN | FAIL |
 | --- | --- | --- | --- |
-| name | Active profile name | — | — |
+| name | Active profile name | - | - |
 | home | Profile home directory exists | Path not set or missing | Path exists but is not a directory |
 | config | `config.yaml` found | Path not set or file missing | Path is a directory |
 | env | `.env` found | Path not set or file missing | Path is a directory |
@@ -206,14 +206,14 @@ Probes the daemon without starting it:
 
 | State | Status | Message (typical) | Fix |
 | --- | --- | --- | --- |
-| RPC reachable | **PASS** | `profile "…" is listening on host:port` | — |
+| RPC reachable | **PASS** | `profile "…" is listening on host:port` | - |
 | No daemon yet | **WARN** | `runtime metadata is not present` | `morph daemon` |
 | Stale PID or RPC down | **WARN** | `runtime pid … is not running` or dial error | `morph daemon` |
 | Invalid metadata | **FAIL** | Parse or validation error on `runtime.json` | Fix or remove stale `runtime.json`, then `morph daemon` |
 
 This is the same probe clients use before RPC calls. For startup banners, config reload, and shutdown, see
 [Daemon Operations](./daemon). For connection troubleshooting, see
-[Troubleshooting — Daemon and RPC unreachable](../guides/troubleshooting#daemon-and-rpc-unreachable).
+[Troubleshooting: Daemon and RPC unreachable](../guides/troubleshooting#daemon-and-rpc-unreachable).
 
 `morph daemon status` prints a short running/stopped summary; doctor adds config and subsystem context around that probe.
 
@@ -256,15 +256,15 @@ One check per effective memory feature. See [Memory Guide](../guides/memory) and
 | pinned, retrieval, flush, episodic, reflection, promotion, write | Master switch off or individual feature disabled |
 
 PASS lines include provider, backend, and feature-specific limits (intervals, max chars, and so on). Doctor does not
-run memory jobs — it only reports config. Background work still needs a running daemon and summary model auth.
+run memory jobs. It only reports config. Background work still needs a running daemon and summary model auth.
 
 ### search
 
 | Check | PASS | WARN | FAIL |
 | --- | --- | --- | --- |
-| search | Always enabled (lexical/BM25 path) | — | — |
+| search | Always enabled (lexical/BM25 path) | - | - |
 | vector | Vector search enabled and embedding auth OK | Vector search disabled | `search.vector.required: true` but embedding auth missing |
-| rerank | Reranker effectively enabled | Rerank disabled via config | — |
+| rerank | Reranker effectively enabled | Rerank disabled via config | - |
 
 Vector **WARN** means hybrid/semantic search is off; lexical search may still work. See
 [Search and Traces](../guides/search-and-traces).
@@ -291,7 +291,7 @@ the **gateway** **listener** check. See [Safety and Guardrails](../concepts/safe
 
 ### gateway
 
-Static config checks — doctor does not call Telegram or Slack APIs. For runtime gateway state, use
+Static config checks: doctor does not call Telegram or Slack APIs. For runtime gateway state, use
 `morph gateway status`.
 
 | Check | PASS | WARN |
@@ -313,8 +313,8 @@ Reports web search / extraction readiness with one check named **web tools**:
 
 | Situation | Status |
 | --- | --- |
-| Network capability disabled | **WARN** — network capability off |
-| `web.provider` empty or `native` | **WARN** — native extraction only; web search needs a provider |
+| Network capability disabled | **WARN**: network capability off |
+| `web.provider` empty or `native` | **WARN**: native extraction only; web search needs a provider |
 | Provider without managed credentials | **WARN** |
 | Credentials configured | **PASS** with provider and source |
 | Provider selected but no API key | **WARN** with `morph config set web.provider …` / `web.apiKey` fix |
@@ -324,8 +324,8 @@ Reports web search / extraction readiness with one check named **web tools**:
 | Command | What it tells you |
 | --- | --- |
 | `morph doctor` | Full profile readiness: config validation, auth resolution, daemon probe, subsystem flags |
-| `morph profile doctor` | Profile name and filesystem paths only — no model or daemon checks |
-| `morph auth status` | Stored provider credentials — not whether they match configured model roles |
+| `morph profile doctor` | Profile name and filesystem paths only, no model or daemon checks |
+| `morph auth status` | Stored provider credentials, not whether they match configured model roles |
 | `morph daemon status` | Short daemon running/stopped summary for the profile |
 | `morph gateway status` | Live gateway listener and platform connection state via RPC |
 | Daemon startup banner | What the running process chose at boot (may differ until you reload config) |
@@ -333,8 +333,8 @@ Reports web search / extraction readiness with one check named **web tools**:
 Doctor validates **before** you depend on RPC clients. Gateway status validates **after** the daemon is up.
 
 Documentation pages describe concepts and procedures; doctor evaluates **your** profile on **this machine** right now.
-If doctor passes but runtime behavior is still wrong, use daemon logs and [Troubleshooting](../guides/troubleshooting)
-— especially [logging and debug](../guides/troubleshooting#logging-and-debug).
+If doctor passes but runtime behavior is still wrong, use daemon logs and [Troubleshooting](../guides/troubleshooting),
+especially [logging and debug](../guides/troubleshooting#logging-and-debug).
 
 ## Typical Workflow
 
@@ -345,8 +345,8 @@ If doctor passes but runtime behavior is still wrong, use daemon logs and [Troub
 5. Re-run `morph doctor` until it exits cleanly.
 6. For gateways, run `morph gateway status` and platform-specific verification from the gateway guides.
 
-After `.env` changes, restart the daemon — doctor reads env at check time, but a running daemon may still need a
-restart. See [Daemon Operations — Config reload](./daemon#config-reload).
+After `.env` changes, restart the daemon: doctor reads env at check time, but a running daemon may still need a
+restart. See [Daemon Operations: Config reload](./daemon#config-reload).
 
 ## Where To Go Next
 

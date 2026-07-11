@@ -93,7 +93,7 @@ until the model produces a final answer.
 
 Several subsystems support that loop:
 
-- **Environment and tools** expose capabilities to the model — filesystem, command execution, web search and extraction,
+- **Environment and tools** expose capabilities to the model: filesystem, command execution, web search and extraction,
   session search, memory, and time. Each tool is gated by the profile's capability flags, so you control what the agent
   can touch. See [Tools](./tools).
 - **Model clients** abstract providers (OpenRouter, OpenAI, OpenAI Codex, Anthropic, GitHub Copilot) behind common API
@@ -106,7 +106,7 @@ Several subsystems support that loop:
 
 ## Gateways Attach to the Same Runtime
 
-When enabled, the gateway lets external clients — Slack, Telegram, or a generic HTTP caller — reach the same agent. The
+When enabled, the gateway lets external clients (Slack, Telegram, or a generic HTTP caller) reach the same agent. The
 daemon hosts the gateway as an HTTP server on its own address and port (default `50052`), separate from the gRPC
 listener. Inbound messages are mapped to a Morph session and answered by the same agent runtime the TUI and CLI use.
 

@@ -18,10 +18,10 @@ You need a bot token from [BotFather](https://t.me/BotFather):
 
 1. Open Telegram and message `@BotFather`.
 2. Send `/newbot`; follow the prompts for display name and username.
-3. Copy the token BotFather returns (`123456789:ABC…`) — use the raw value, not a `bot` URL prefix.
+3. Copy the token BotFather returns (`123456789:ABC…`); use the raw value, not a `bot` URL prefix.
 
 Keep the token secret. Store it in profile config or an environment variable, not in chat logs or git. Morph redacts
-gateway tokens from traces and logs — see [Safety and Guardrails](../../concepts/safety-and-guardrails).
+gateway tokens from traces and logs. See [Safety and Guardrails](../../concepts/safety-and-guardrails).
 
 ## Enable Telegram in Morph
 
@@ -33,7 +33,7 @@ morph config set gateway.telegram.botToken "<your-bot-token>"
 morph config set gateway.telegram.enabled true
 ```
 
-Polling is the default mode (`gateway.telegram.mode polling`) — Morph pulls updates over an outbound connection, so you
+Polling is the default mode (`gateway.telegram.mode polling`): Morph pulls updates over an outbound connection, so you
 do not need a public URL for local use. Confirm runtime state:
 
 ```bash
@@ -75,7 +75,7 @@ morph config set gateway.telegram.webhookSecret "<webhook-secret>"
 
 Requirements:
 
-- `gateway.telegram.webhookSecret` — 1–256 characters, letters, digits, underscore, or hyphen only. Telegram sends this
+- `gateway.telegram.webhookSecret`: 1–256 characters, letters, digits, underscore, or hyphen only. Telegram sends this
   back as the `X-Telegram-Bot-Api-Secret-Token` header; Morph rejects requests that do not match.
 - A **public HTTPS URL** that forwards to Morph's gateway listener at:
 
@@ -101,7 +101,7 @@ generic HTTP on the same listener when configured. See [Gateway Routes](../../re
 [Generic HTTP](./generic-http).
 
 If the gateway binds to a non-loopback address, `gateway.authToken` is still required for the shared listener even when
-you only use Telegram webhooks — see [Gateway Overview](./).
+you only use Telegram webhooks. See [Gateway Overview](./).
 
 ## Authorize Senders
 
@@ -146,7 +146,7 @@ morph gateway pairing revoke telegram <sender-id>
 morph gateway pairing clear-pending telegram
 ```
 
-Pairing approves the **sender**, not a session — once approved, that user can talk to the bot across chats Morph
+Pairing approves the **sender**, not a session; once approved, that user can talk to the bot across chats Morph
 allows. See [Pairing and Allowlists](./pairing-and-allowlists).
 
 ### Groups and supergroups
@@ -157,7 +157,7 @@ allows. See [Pairing and Allowlists](./pairing-and-allowlists).
 2. Allowlist every sender who should be able to trigger it (`gateway.telegram.allowedUsers` or pre-approve them via
    pairing in a private DM first).
 
-Forum **topics** map to separate Morph sessions via Telegram's thread id — each topic keeps its own binding and history.
+Forum **topics** map to separate Morph sessions via Telegram's thread id: each topic keeps its own binding and history.
 
 ## How Replies Appear
 
@@ -179,13 +179,13 @@ Each Telegram chat (and forum thread, when applicable) binds to one Morph sessio
 chat keeps continuous history across messages. Gateway traffic does not change the **current session** in your TUI or
 CLI. See [Sessions](../../concepts/sessions).
 
-Only **text** messages are processed today — messages must include non-empty text (ordinary chat messages and text
+Only **text** messages are processed today: messages must include non-empty text (ordinary chat messages and text
 commands like `/start`). Media-only messages without text are ignored.
 
 ## Verify the Bot
 
-1. Run `morph doctor` — the **gateway** group should show Telegram enabled with your mode and token.
-2. Run `morph gateway status` — expect `state=running` and `telegram=polling` or `telegram=webhook`.
+1. Run `morph doctor`: the **gateway** group should show Telegram enabled with your mode and token.
+2. Run `morph gateway status`: expect `state=running` and `telegram=polling` or `telegram=webhook`.
 3. In Telegram, open a **private chat** with your bot and send a message. If you are not allowlisted, complete pairing
    from the code Morph replies with.
 4. Confirm Morph answers and that `morph session list` shows a session bound to that chat (separate from your TUI session).
@@ -204,7 +204,7 @@ daemon logs for dispatch errors.
 
 ### Group messages ignored
 
-Expected for senders not on an allowlist — groups do not get pairing prompts. Add sender ids to
+Expected for senders not on an allowlist: groups do not get pairing prompts. Add sender ids to
 `gateway.telegram.allowedUsers` or approve senders in DM first.
 
 ### Webhook returns 401 or Telegram shows delivery errors
@@ -224,7 +224,7 @@ check daemon logs for Telegram API errors.
 
 ### Agent errors with no user-visible reply
 
-Check model credentials (`morph auth status`, `morph doctor`) and inspect traces for the bound session — see
+Check model credentials (`morph auth status`, `morph doctor`) and inspect traces for the bound session. See
 [Search and Traces](../search-and-traces).
 
 ## Where To Go Next

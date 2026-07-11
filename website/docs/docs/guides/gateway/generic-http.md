@@ -7,7 +7,7 @@ description: Use the generic HTTP gateway route.
 
 The generic HTTP gateway exposes a simple JSON API for your own apps, scripts, and automation. Send a message and a
 conversation id; Morph runs a full agent turn against the bound [session](../../concepts/sessions) and returns the
-assistant reply in one response. There is no Slack or Telegram setup — only the shared gateway listener and this route.
+assistant reply in one response. There is no Slack or Telegram setup: only the shared gateway listener and this route.
 
 For gateway prerequisites, lifecycle, and how surfaces fit together, start with the [Gateway Overview](./). For
 the underlying model, see [Gateways](../../concepts/gateways).
@@ -21,7 +21,7 @@ morph config set gateway.enabled true
 ```
 
 That starts the gateway listener inside the daemon (default `127.0.0.1:50052`) and registers `POST /v1/respond`. A
-daemon must be running for the profile — `morph daemon`, or keep `morph` open. Confirm it is up:
+daemon must be running for the profile: `morph daemon`, or keep `morph` open. Confirm it is up:
 
 ```bash
 morph gateway status
@@ -37,7 +37,7 @@ With default settings, the routes are:
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/health` | Liveness check — returns `ok` |
+| `GET` | `/health` | Liveness check, returns `ok` |
 | `POST` | `/v1/respond` | Send a message and receive the assistant reply |
 
 Example health check:
@@ -63,8 +63,8 @@ include:
 Authorization: Bearer <token>
 ```
 
-When `gateway.authToken` is empty and the listener is on loopback, requests are accepted without auth — convenient for
-local scripts, but only safe on a machine you trust.
+When `gateway.authToken` is empty and the listener is on loopback, requests are accepted without auth (convenient for
+local scripts, but only safe on a machine you trust).
 
 Binding the gateway to a non-loopback address **requires** `gateway.authToken`; config validation rejects an open public
 bind. Set a token before exposing the listener:
@@ -73,11 +73,11 @@ bind. Set a token before exposing the listener:
 morph config set gateway.authToken "$(openssl rand -hex 32)"
 ```
 
-Store the token wherever your client can read it — Morph does not print it again. You can also set `MORPH_GATEWAY_AUTH_TOKEN`
+Store the token wherever your client can read it; Morph does not print it again. You can also set `MORPH_GATEWAY_AUTH_TOKEN`
 or use `--gateway.auth-token`. Run `morph doctor` and fix any **gateway** / **listener** warnings before exposing the
 endpoint. See [Safety and Guardrails](../../concepts/safety-and-guardrails).
 
-Unlike Slack and Telegram, generic HTTP has no per-sender allowlist or pairing — anyone who can reach the endpoint and
+Unlike Slack and Telegram, generic HTTP has no per-sender allowlist or pairing; anyone who can reach the endpoint and
 present a valid bearer token shares the same access. Protect network path and token accordingly.
 
 ## Request and Response
@@ -136,14 +136,14 @@ For the full route table and auth rules, see [Gateway Routes](../../reference/ga
 ## Conversation IDs and Session Continuity
 
 Each `conversation_id` maps to one Morph session through a gateway binding stored in the profile database. The binding
-key looks like `generic::<conversation_id>:` — for example `generic::support-bot:` for `conversation_id`
+key looks like `generic::<conversation_id>:`, for example `generic::support-bot:` for `conversation_id`
 `support-bot`.
 
 - First message with a new id creates a session and saves the binding.
 - Later messages with the same id continue that session's history, memory, and tools context.
 - If the bound session is deleted, the next message creates a fresh session for that id.
 
-Gateway traffic does **not** change the **current session** your TUI or CLI uses — only the bound session for that
+Gateway traffic does **not** change the **current session** your TUI or CLI uses, only the bound session for that
 conversation id. See [Sessions](../../concepts/sessions) and the [Session Guide](../sessions).
 
 Pick conversation ids that are stable in your system: a support ticket id, user id, workspace id, or bot thread key.
@@ -152,7 +152,7 @@ Avoid reusing the same id for unrelated conversations.
 ## Synchronous Replies
 
 The generic route waits for the full agent turn to finish and returns one JSON body with the final assistant text. It
-does not stream partial output (Slack and Telegram do). Plan for turn latency in your client — set HTTP timeouts
+does not stream partial output (Slack and Telegram do). Plan for turn latency in your client: set HTTP timeouts
 generously and handle `internal_error` with retries where appropriate.
 
 ## Local Examples
@@ -208,7 +208,7 @@ Before exposing the gateway beyond localhost:
 1. Set `gateway.authToken` to a strong random value and give it only to trusted clients.
 2. Prefer a reverse proxy with TLS termination in front of Morph.
 3. Run `morph doctor` and resolve **gateway** readiness warnings.
-4. Treat the token like an API key — rotate it if leaked; it is stored in profile config, not `auth.json`.
+4. Treat the token like an API key (rotate it if leaked); it is stored in profile config, not `auth.json`.
 
 If you only need local automation on the same machine, keep `gateway.address` on loopback and avoid publishing the
 port.
@@ -223,7 +223,7 @@ stopped with `morph gateway stop`, run `morph gateway start`.
 ### 401 unauthorized
 
 `gateway.authToken` is set but the request is missing `Authorization: Bearer …` or the token does not match. Retrieve
-the token from your profile config or environment — Morph does not echo it after `config set`.
+the token from your profile config or environment; Morph does not echo it after `config set`.
 
 ### 400 bad_request
 

@@ -18,8 +18,8 @@ The agent runtime is stateful and expensive to build: it holds configured model 
 subsystem, and an open connection to the profile's storage. Constructing all of that on every command would be slow and
 would not share warm state between interactions.
 
-Running it once as a daemon keeps that runtime warm and lets many lightweight clients — the TUI, one-shot CLI chats,
-session and gateway commands, and external messaging gateways — share a single runtime and a single view of state for a
+Running it once as a daemon keeps that runtime warm and lets many lightweight clients (the TUI, one-shot CLI chats,
+session and gateway commands, and external messaging gateways) share a single runtime and a single view of state for a
 profile.
 
 ## Starting the Daemon
@@ -28,8 +28,8 @@ profile.
 (main, summary, and reranker), opens the state store, starts the agent, optionally starts the gateway, and binds the
 gRPC listener.
 
-If model or embedding credentials are missing, the daemon still starts but disables the parts that need them — the
-gateway, vector search, or memory — and logs a warning. This lets you start the daemon, fix configuration, and let the
+If model or embedding credentials are missing, the daemon still starts but disables the parts that need them (the
+gateway, vector search, or memory) and logs a warning. This lets you start the daemon, fix configuration, and let the
 change be picked up without fighting a hard failure.
 
 `morph daemon` is the only command in the `daemon` group; there is no `stop` or `restart` subcommand. You stop a
@@ -83,14 +83,14 @@ Because every RPC client resolves the profile first and then connects, they all 
 The daemon exposes four gRPC services. The full request and response messages are in the
 [RPC Reference](../reference/rpc); the summary below is by concern.
 
-- **`MorphService`** — `Respond` streams a reply back as it is produced. Events carry incremental assistant text and
+- **`MorphService`**: `Respond` streams a reply back as it is produced. Events carry incremental assistant text and
   reasoning, trace events, an error, or a final done signal, so clients can render output live. See
   [Sessions](./sessions) for how a reply is tied to a conversation.
-- **`SessionService`** — create, list, switch (`Use`), rename, archive and unarchive, compact, repair the vector index,
+- **`SessionService`**: create, list, switch (`Use`), rename, archive and unarchive, compact, repair the vector index,
   and inspect status and timeline of conversations.
-- **`ModelService`** — list providers and models, select a model, and set a provider API key. See
+- **`ModelService`**: list providers and models, select a model, and set a provider API key. See
   [Provider Auth](../guides/provider-auth).
-- **`GatewayService`** — control the messaging gateway at runtime: status, start, stop, restart, and pairing
+- **`GatewayService`**: control the messaging gateway at runtime: status, start, stop, restart, and pairing
   management.
 
 ## Gateway Control Through RPC
@@ -105,7 +105,7 @@ pairings at runtime without restarting the daemon. This is what `morph gateway .
 ## Config Reload and Shutdown
 
 The daemon watches its profile `config.yaml` and reloads automatically. On a change it debounces briefly, re-validates
-the new config, and — if valid — gracefully restarts the runtime so the change takes effect without a manual stop. An
+the new config, and (if valid) gracefully restarts the runtime so the change takes effect without a manual stop. An
 invalid change is logged and ignored, and the daemon keeps running the previous config. The profile `.env` is not
 watched, so environment changes still require a manual restart.
 

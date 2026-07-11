@@ -16,7 +16,7 @@ Contributor track lists this page as step two after architecture.
 
 ## Entry Points
 
-Every chat turn — RPC, TUI, gateway, or `morph --chat` — eventually calls the same method:
+Every chat turn (RPC, TUI, gateway, or `morph --chat`) eventually calls the same method:
 
 ```text
 internal/agent.Agent.Respond(ctx, message, opts)
@@ -39,7 +39,7 @@ Gateway dispatch reuses the same `Agent.Respond` path described in [Gateway Inte
 Production turns run through **`internal/agent/turn.go`**, not through `pkg/agent.Agent.Respond` directly.
 **`pkg/agent`** owns the reusable lifecycle/loop primitives (`RunTurnLifecycle`, `RunLoop`, `ExecuteToolCalls`) and a
 small reference `Agent` used by package tests and embedders. That reference agent defaults to **8** iterations; the
-daemon uses profile config instead — see [Iteration budget](#iteration-budget).
+daemon uses profile config instead; see [Iteration budget](#iteration-budget).
 :::
 
 ## Turn Lifecycle
@@ -98,13 +98,13 @@ memory, traces, RPC, or model providers. Those concerns stay in `internal/agent`
 
 `Turn.load` prepares everything needed before the first model call:
 
-1. **Session resolution** — `sessionStore.Resolve(ctx, opts.SessionID)`.
-2. **Summary state** — loaded via `internal/agent/context/summary`; determines the message tail offset so summarized
+1. **Session resolution**: `sessionStore.Resolve(ctx, opts.SessionID)`.
+2. **Summary state**: loaded via `internal/agent/context/summary`; determines the message tail offset so summarized
    history is not re-sent verbatim.
-3. **Message history** — `GetMessages` from the tail offset into `sessionHistory`.
-4. **Base instructions** — from the prompt provider (`internal/environment` via `NewPromptProvider`). Instruction
+3. **Message history**: `GetMessages` from the tail offset into `sessionHistory`.
+4. **Base instructions**: from the prompt provider (`internal/environment` via `NewPromptProvider`). Instruction
    composition order is documented in [Prompt Assembly](./prompt-assembly).
-5. **Plan hydration** — if a plan was stored in session history, plan state is restored and traced in `Prepare`.
+5. **Plan hydration**: if a plan was stored in session history, plan state is restored and traced in `Prepare`.
 
 At the end of load, the turn holds in-memory history, summary recall state, token counts (`lastPromptTokens`), and a
 fresh `runcontext.Context` for trace and tool identity.
@@ -113,12 +113,12 @@ fresh `runcontext.Context` for trace and tool identity.
 
 `LoadMemory` runs once per turn, after the user message is accepted:
 
-- **Memory retrieval** — `retrieveMemoryInstruction` (`internal/agent/memory_retrieval.go`) loads pinned and searched
+- **Memory retrieval**: `retrieveMemoryInstruction` (`internal/agent/memory_retrieval.go`) loads pinned and searched
   memory when enabled, sanitizes values, and renders a `memory.context` instruction block. Failures are traced but do
   not abort the turn. See [Memory System](./memory-system).
-- **Iteration budget** — `newIterationBudget()` reads `session.maxIterations` from the environment-backed config
+- **Iteration budget**: `newIterationBudget()` reads `session.maxIterations` from the environment-backed config
   (default **90**, from `constants.DefaultMaxIterations`). Each `RunStep` consumes one unit before dispatch.
-- **Streaming** — defaults to profile `models.main.stream`; `RespondOptions.Stream` overrides when non-nil.
+- **Streaming**: defaults to profile `models.main.stream`; `RespondOptions.Stream` overrides when non-nil.
 
 Configure the limit in profile YAML or with `morph config set session.maxIterations <n>`. The [Config Reference](../reference/config)
 documents the key.
@@ -180,18 +180,18 @@ Model provider wiring is covered in [Model Providers](./model-providers).
 
 When `RequiresToolCalls` is false:
 
-1. **Output safety** — `applyAssistantOutputSafety` runs for non-streaming responses when output safety is enabled.
+1. **Output safety**: `applyAssistantOutputSafety` runs for non-streaming responses when output safety is enabled.
    Streaming turns skip server-side assistant output scanning because clients receive deltas as they arrive.
-2. **Persist** — assistant message appended via `appendSessionMessages`.
-3. **Trace** — `final.assistant.response`.
-4. **Return** — `LoopDecision{Done: true, Reply: reply}` ends the loop.
+2. **Persist**: assistant message appended via `appendSessionMessages`.
+3. **Trace**: `final.assistant.response`.
+4. **Return**: `LoopDecision{Done: true, Reply: reply}` ends the loop.
 
 ### 6. Tool call path
 
 When the model requests tools:
 
 1. Persist an assistant message containing the tool calls.
-2. **`executeToolCalls`** — delegates to `pkg/agent.ExecuteToolCalls`:
+2. **`executeToolCalls`**: delegates to `pkg/agent.ExecuteToolCalls`:
    - `BuildToolCallBatches` groups consecutive `ParallelSafe` tools;
    - parallel batches run concurrently with shared cancellation;
    - sequential tools run one at a time.
@@ -236,8 +236,8 @@ uses `summaryFallback`.
 
 Event kinds:
 
-- **`text_delta`** — assistant or reasoning stream chunks (`EventKindTextDelta`).
-- **`trace_event`** — persisted trace events mirrored live (`EventKindTrace`).
+- **`text_delta`**: assistant or reasoning stream chunks (`EventKindTextDelta`).
+- **`trace_event`**: persisted trace events mirrored live (`EventKindTrace`).
 
 The RPC layer maps these to `RespondEvent` protobuf messages. When the model is not streaming, the RPC service sends one
 assistant `TEXT_DELTA` with the final reply before `DONE`. Event names and payloads are listed in
@@ -314,29 +314,29 @@ provider-agnostic.
 
 Pages that link here for deeper reading:
 
-- [Development Architecture](./architecture) — repository layout, daemon assembly, and the orchestration vs core loop split.
-- [Tools](../concepts/tools) — built-in tools, capabilities, guardrails, and how calls appear in the UI.
-- [Learning Path](../getting-started/learning-path) — contributor reading order.
+- [Development Architecture](./architecture): repository layout, daemon assembly, and the orchestration vs core loop split.
+- [Tools](../concepts/tools): built-in tools, capabilities, guardrails, and how calls appear in the UI.
+- [Learning Path](../getting-started/learning-path): contributor reading order.
 
 Conceptual background for turn inputs and outputs:
 
-- [Sessions](../concepts/sessions) — session identity, history, and summaries loaded at the start of each turn.
-- [Daemon and RPC](../concepts/daemon-and-rpc) — how clients reach `MorphService.Respond`.
+- [Sessions](../concepts/sessions): session identity, history, and summaries loaded at the start of each turn.
+- [Daemon and RPC](../concepts/daemon-and-rpc): how clients reach `MorphService.Respond`.
 
 Related internals:
 
-- [Prompt Assembly](./prompt-assembly) — instruction and context composition before each model call.
-- [Tools Runtime](./tools-runtime) — registry, schemas, and adding tools.
-- [Model Providers](./model-providers) — `Complete` / `CompleteStream` clients.
-- [Session Storage](./session-storage) — messages, summaries, and compaction persistence.
-- [Memory System](./memory-system) — retrieval, flush-before-compaction, and promotion.
-- [Gateway Internals](./gateway-internals) — inbound messages that share this loop.
-- [TUI](./tui) — rendering streaming text and trace events.
+- [Prompt Assembly](./prompt-assembly): instruction and context composition before each model call.
+- [Tools Runtime](./tools-runtime): registry, schemas, and adding tools.
+- [Model Providers](./model-providers): `Complete` / `CompleteStream` clients.
+- [Session Storage](./session-storage): messages, summaries, and compaction persistence.
+- [Memory System](./memory-system): retrieval, flush-before-compaction, and promotion.
+- [Gateway Internals](./gateway-internals): inbound messages that share this loop.
+- [TUI](./tui): rendering streaming text and trace events.
 
 References and operations:
 
-- [RPC Reference](../reference/rpc) — `MorphService.Respond` streaming protocol.
-- [Trace Events](../reference/trace-events) — event names emitted during turns.
-- [Config Reference](../reference/config) — `session.maxIterations`, streaming, safety, compaction.
-- [Contributing](../contributing) — workflow for changes that touch the loop.
-- [Testing](./testing) — running the suite (`make test`) after loop changes.
+- [RPC Reference](../reference/rpc): `MorphService.Respond` streaming protocol.
+- [Trace Events](../reference/trace-events): event names emitted during turns.
+- [Config Reference](../reference/config): `session.maxIterations`, streaming, safety, compaction.
+- [Contributing](../contributing): workflow for changes that touch the loop.
+- [Testing](./testing): running the suite (`make test`) after loop changes.

@@ -28,6 +28,7 @@ const sidebars: SidebarsConfig = {
         'concepts/tools',
         'concepts/gateways',
         'concepts/safety-and-guardrails',
+        'concepts/automation',
       ],
     },
     {
@@ -41,6 +42,7 @@ const sidebars: SidebarsConfig = {
         'guides/config',
         'guides/sessions',
         'guides/memory',
+        'guides/automation',
         'guides/search-and-traces',
         {
           type: 'category',
@@ -64,6 +66,7 @@ const sidebars: SidebarsConfig = {
         'operations/gateway-management',
         'operations/doctor',
         'operations/security',
+        'operations/automation',
         'operations/backups-and-state',
       ],
     },
@@ -76,6 +79,7 @@ const sidebars: SidebarsConfig = {
         'reference/config',
         'reference/environment-variables',
         'reference/gateway-routes',
+        'reference/automation',
         'reference/rpc',
         'reference/trace-events',
         'reference/faq',
