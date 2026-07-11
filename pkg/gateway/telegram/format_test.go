@@ -41,6 +41,12 @@ func TestFormatMarkdownV2_EscapesPlainText(t *testing.T) {
 	)
 }
 
+func TestFormatMarkdownV2_PreservesExistingEscapes(t *testing.T) {
+	input := `hello \(world\) \+ price \= 5\.00\!`
+
+	require.Equal(t, input, FormatMarkdownV2(input))
+}
+
 func TestFormatMarkdownV2_PreservesFencedCode(t *testing.T) {
 	input := "```go\nfmt.Println(`hi`)\n```"
 

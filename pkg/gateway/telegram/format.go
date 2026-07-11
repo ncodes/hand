@@ -9,6 +9,8 @@ import (
 
 const ParseModeMarkdownV2 = "MarkdownV2"
 
+const markdownV2EscapableCharacters = "_*[]()~`>#+-=|{}.!\\"
+
 var markdownV2EscapePattern = regexp.MustCompile(`([_*\[\]()~` + "`" + `>#\+\-=|{}.!\\])`)
 
 func FormatMarkdownV2(text string) string {
@@ -88,7 +90,28 @@ func FormatMarkdownV2(text string) string {
 }
 
 func EscapeMarkdownV2(text string) string {
-	return markdownV2EscapePattern.ReplaceAllString(text, `\$1`)
+	var escaped strings.Builder
+	escaped.Grow(len(text))
+
+	for i := 0; i < len(text); i++ {
+		character := text[i]
+		if character == '\\' && i+1 < len(text) && isMarkdownV2Escapable(text[i+1]) {
+			escaped.WriteByte(character)
+			escaped.WriteByte(text[i+1])
+			i++
+			continue
+		}
+		if isMarkdownV2Escapable(character) {
+			escaped.WriteByte('\\')
+		}
+		escaped.WriteByte(character)
+	}
+
+	return escaped.String()
+}
+
+func isMarkdownV2Escapable(character byte) bool {
+	return strings.ContainsRune(markdownV2EscapableCharacters, rune(character))
 }
 
 func PlainTextFromMarkdownV2(text string) string {

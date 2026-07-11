@@ -362,7 +362,9 @@ func TestBuildEnvironmentContext_ReturnsNamedInstructionWithRuntimeFacts(t *test
 	require.Contains(t, instruction.Value, "- Session ID: ses_123")
 	require.Contains(t, instruction.Value, "- Session origin: source=telegram; account=u_123; conversation=-100; thread=42")
 	require.Contains(t, instruction.Value, "- Channel response guidance: The user is reading this in Telegram")
-	require.Contains(t, instruction.Value, "Telegram MarkdownV2-compatible Markdown")
+	require.Contains(t, instruction.Value, "Use ordinary Markdown; the delivery layer handles Telegram formatting")
+	require.NotContains(t, instruction.Value, "MarkdownV2-compatible Markdown")
+	require.NotContains(t, instruction.Value, "escape literal MarkdownV2 control characters")
 }
 
 func TestBuildEnvironmentContext_ReturnsEmptyNamedInstructionWithoutFacts(t *testing.T) {

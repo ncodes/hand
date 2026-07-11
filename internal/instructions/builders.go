@@ -282,8 +282,8 @@ func renderEnvironmentSessionResponseGuidance(origin EnvironmentSessionOrigin) s
 	switch sourceValue2.Normalized() {
 	case "telegram":
 		return "The user is reading this in Telegram. Keep replies chat-friendly, concise, and readable on mobile. " +
-			"Use Telegram MarkdownV2-compatible Markdown: prefer short paragraphs and bullets, avoid markdown tables, " +
-			"avoid raw unsupported HTML, and escape literal MarkdownV2 control characters when you intend them as text."
+			"Use ordinary Markdown; the delivery layer handles Telegram formatting. Prefer short paragraphs and bullets, " +
+			"and avoid markdown tables and raw unsupported HTML."
 	case "slack":
 		return "The user is reading this in Slack. Keep replies chat-friendly and easy to scan. " +
 			"Use Slack streaming-compatible Markdown: use **bold**, _italic_, ~~strikethrough~~, `inline code`, " +
