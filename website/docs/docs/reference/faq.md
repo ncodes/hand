@@ -114,6 +114,29 @@ exhaustion, Morph runs a summary fallback model call. See [Sessions](../concepts
 Tools are gated by **capabilities** (`cap.net`, `cap.mem`) and subsystem config (web provider credentials, memory
 enabled). Run `morph doctor` and check [Tools](../concepts/tools).
 
+## Automation
+
+### Why didn't my automation job run?
+
+Check `morph automation list` for its `NEXT RUN` time and whether it's still `enabled`. A job with a broken schedule
+(for example, an invalid cron expression) disables itself after a few consecutive evaluation failures rather than
+retrying forever. `morph automation diagnose` reports invalid schedules and stuck running markers directly. See
+[Automation Operations](../operations/automation).
+
+### What's the difference between a run failing and a run not delivering?
+
+They're recorded separately. A run can finish with status `ok` and still fail to deliver, for example if a webhook
+endpoint is down, and that shows up as delivery status `not_delivered` on an otherwise successful run. A run that
+fails outright gets status `error` and only attempts delivery at all if a failure-notice threshold is configured
+and due. See [Automation](../concepts/automation#delivery-is-a-separate-outcome-from-execution).
+
+### Can I ask the agent to fix a stuck automation job?
+
+Not directly. The owner-only automation tool supports everyday actions (`add`, `update`, `pause`, `resume`, `run`,
+`remove`, `list`, `runs`, `status`), but `diagnose`, `inspect`, and `recover` are CLI-only operator commands with no
+tool or RPC equivalent. Run them yourself, or through a shell tool if one is available in your setup. See
+[Automation Reference](./automation#diagnostics-and-recovery-cli-only).
+
 ## API and integration
 
 ### Where is the gRPC API defined?
@@ -137,6 +160,7 @@ dev. See [Provider Auth](../guides/provider-auth) and [Environment Variables](./
 | Topic | Page |
 | --- | --- |
 | Commands and flags | [CLI Reference](./cli) |
+| Scheduled jobs, runs, delivery | [Automation Reference](./automation) |
 | TUI `/` commands | [Slash Commands](./slash-commands) |
 | Every config key | [Config Reference](./config) |
 | `MORPH_*` vars | [Environment Variables](./environment-variables) |

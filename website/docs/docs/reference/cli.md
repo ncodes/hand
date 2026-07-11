@@ -112,6 +112,22 @@ session limits, trace disk/database paths, and more. Prefer `morph config set` f
 
 See [Provider Auth](../guides/provider-auth).
 
+### `automation`: scheduled agent jobs
+
+| Subcommand | Usage | Notes |
+| --- | --- | --- |
+| `automation status` | `morph automation status` | Scheduler snapshot |
+| `automation list` | `morph automation list [--all] [--limit N]` | List jobs |
+| `automation add` | `morph automation add --schedule … --prompt …` | Create a job |
+| `automation update` | `morph automation update <job-id> …` | Patch a job; omitted flags unchanged |
+| `automation pause` / `resume` | `morph automation pause\|resume <job-id>` | Toggle `enabled` |
+| `automation run` | `morph automation run <job-id>` | Trigger a run now |
+| `automation remove` | `morph automation remove <job-id>` | Delete the job definition |
+| `automation runs` | `morph automation runs [--job ID] [--status …] [--limit N]` | List run history |
+| `automation diagnose` / `inspect` / `recover` | | Operator diagnostics and recovery |
+
+Full flag and enum reference: [Automation Reference](./automation). Walkthrough: [Automation Guide](../guides/automation).
+
 ### `config`: profile YAML
 
 | Subcommand | Usage |
@@ -243,6 +259,7 @@ Prints version and commit hash.
 | --- | --- |
 | *(default)* | TUI |
 | `auth` | Provider login / status / logout |
+| `automation` | Scheduled agent jobs, runs, delivery |
 | `config` | Get/set profile config |
 | `daemon` | Run daemon or check status |
 | `db` | SQLite reset |

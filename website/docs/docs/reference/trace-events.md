@@ -163,6 +163,23 @@ Policy overview: [Safety and Guardrails](../concepts/safety-and-guardrails).
 
 Conceptual background: [Memory](../concepts/memory).
 
+## Automation
+
+| Event type | When |
+| --- | --- |
+| `automation.service.started` | Scheduler started |
+| `automation.service.stopped` | Scheduler stopped |
+| `automation.job.started` | A due or manually triggered run began |
+| `automation.job.finished` | A run completed (any status) |
+| `automation.job.failed` | A run, delivery attempt, or state update failed |
+| `automation.job.skipped` | A run was skipped (startup catch-up, or a `system_event` payload) |
+| `automation.delivery.started` | A delivery attempt began |
+| `automation.delivery.finished` | A delivery attempt finished (success or failure) |
+| `automation.failure.backoff` | A retry or failure backoff delay was scheduled |
+
+Each event is emitted to both the structured daemon log and the tracer, if configured. Field and command reference:
+[Automation Reference](./automation). Model: [Automation](../concepts/automation).
+
 ## Plan and workspace
 
 | Event type | When |

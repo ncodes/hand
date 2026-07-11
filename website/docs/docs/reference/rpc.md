@@ -122,6 +122,22 @@ CLI: `morph gateway …`. Operations: [Gateway Management](../operations/gateway
 - **Pending:** `source`, `sender_id`, `display_name`, timestamps, expiry
 - **Approved:** `source`, `sender_id`, `display_name`, created/updated times
 
+## AutomationService
+
+| Method | Description |
+| --- | --- |
+| `Status` | Scheduler snapshot: running, job count, running count, next wake |
+| `List` | List jobs (optional filters, including disabled) |
+| `Add` | Create a job |
+| `Update` | Patch a job by ID |
+| `Remove` | Delete a job definition |
+| `Run` | Trigger a run now, independent of schedule |
+| `Runs` | List run history |
+
+Seven methods total. `diagnose`, `inspect`, and `recover` are CLI-only: the CLI computes them client-side from
+`List`/`Update`/`Runs` rather than calling a dedicated RPC method. CLI: [CLI Reference](./cli#automation-scheduled-agent-jobs).
+Model and workflow: [Automation](../concepts/automation). Full field reference: [Automation Reference](./automation).
+
 ## Health
 
 When enabled, the gRPC server registers the standard gRPC health service for liveness checks.
