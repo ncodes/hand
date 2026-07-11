@@ -27,6 +27,7 @@ import (
 	tracecmd "github.com/wandxy/morph/cmd/trace"
 	morphcli "github.com/wandxy/morph/internal/cli"
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/datadir"
 	"github.com/wandxy/morph/internal/e2e"
 	models "github.com/wandxy/morph/internal/model"
 	"github.com/wandxy/morph/internal/profile"
@@ -221,7 +222,20 @@ func Test_E2E_MorphRootChat_ConfigPrecedenceCLIOverridesEnvAndYAML(t *testing.T)
 }
 
 func Test_E2E_MorphRootChat_StartsDaemonAndReturnsModelErrorWhenUnconfigured(t *testing.T) {
+	userHome, err := os.UserHomeDir()
+	require.NoError(t, err)
+
 	resetRootChatE2E(t)
+	activeProfile := profile.Active()
+	require.NotEmpty(t, activeProfile.HomeDir)
+	require.Equal(t,
+		filepath.Join(activeProfile.HomeDir, "data", "state.db"),
+		datadir.StateDBPath(),
+	)
+	require.NotEqual(t,
+		filepath.Join(userHome, ".morph", "profiles", profile.DefaultName, "data", "state.db"),
+		datadir.StateDBPath(),
+	)
 
 	port, err := strconv.Atoi(nextTestPort(t))
 	require.NoError(t, err)
@@ -1168,8 +1182,19 @@ func TestPrepareLiveRootChatConfig_PreservesStorageBackend(t *testing.T) {
 func resetRootChatE2E(t *testing.T) {
 	t.Helper()
 
+	originalProfile := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(originalProfile)
+	})
+
 	config.Set(config.NewDefaultConfig())
-	profile.SetActive(profile.Profile{})
+	testHome := t.TempDir()
+	profileHome := filepath.Join(testHome, ".morph", "profiles", profile.DefaultName)
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{
+		Name:    profile.DefaultName,
+		HomeDir: profileHome,
+	}))
+	t.Setenv("HOME", testHome)
 
 	clearEnvKeys(
 		t,
@@ -1181,6 +1206,7 @@ func resetRootChatE2E(t *testing.T) {
 		"MORPH_RPC_PORT",
 		"MORPH_CONFIG",
 		"MORPH_ENV_FILE",
+		profile.EnvName,
 	)
 }
 

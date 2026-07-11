@@ -16,6 +16,7 @@ import (
 
 	daemoncmd "github.com/wandxy/morph/cmd/daemon"
 	morphcli "github.com/wandxy/morph/internal/cli"
+	"github.com/wandxy/morph/internal/datadir"
 	"github.com/wandxy/morph/internal/e2e"
 	"github.com/wandxy/morph/internal/profile"
 	"github.com/wandxy/morph/pkg/logutils"
@@ -27,6 +28,9 @@ func init() {
 
 func Test_E2E_DaemonCommand_BootsAndServesRPC(t *testing.T) {
 	resetDaemonCommandE2E(t)
+	activeProfile := profile.Active()
+	require.NotEmpty(t, activeProfile.HomeDir)
+	require.Equal(t, filepath.Join(activeProfile.HomeDir, "data", "state.db"), datadir.StateDBPath())
 
 	var startupBuffer bytes.Buffer
 	previousOutput := daemoncmd.SetOutput(&startupBuffer)
@@ -93,9 +97,12 @@ func resetDaemonCommandE2E(t *testing.T) {
 	t.Cleanup(func() {
 		profile.SetActive(originalProfile)
 	})
-	profile.SetActive(profile.Profile{})
-
-	t.Setenv("HOME", t.TempDir())
+	testHome := t.TempDir()
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{
+		Name:    profile.DefaultName,
+		HomeDir: filepath.Join(testHome, ".morph", "profiles", profile.DefaultName),
+	}))
+	t.Setenv("HOME", testHome)
 	clearDaemonCommandEnv(t,
 		"MORPH_NAME",
 		"OPENAI_API_KEY",
