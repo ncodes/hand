@@ -3,7 +3,9 @@ package storesqlite
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -136,6 +138,70 @@ func TestSQLiteStore_SessionLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 	require.Empty(t, current)
+}
+
+func TestSQLiteStore_ConcurrentMessageAppendsKeepUniqueSequences(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "session.db")
+	firstStore, err := NewStore(path)
+	require.NoError(t, err)
+	secondStore, err := NewStore(path)
+	require.NoError(t, err)
+	require.NoError(t, firstStore.Save(ctx, Session{ID: testSessionA}))
+
+	stores := []*Store{firstStore, secondStore}
+	errorsByAppend := make([]error, 12)
+	var waitGroup sync.WaitGroup
+	for index := range errorsByAppend {
+		waitGroup.Go(func() {
+			errorsByAppend[index] = stores[index%len(stores)].AppendMessages(ctx, testSessionA, []morphmsg.Message{{
+				Role:    morphmsg.RoleTool,
+				Content: fmt.Sprintf("result-%d", index),
+			}})
+		})
+	}
+	waitGroup.Wait()
+
+	for _, appendErr := range errorsByAppend {
+		require.NoError(t, appendErr)
+	}
+	var records []messageModel
+	require.NoError(t, firstStore.db.Where("session_id = ?", testSessionA).Order("sequence").Find(&records).Error)
+	require.Len(t, records, len(errorsByAppend))
+	for index, record := range records {
+		require.Equal(t, index, record.Sequence)
+	}
+}
+
+func TestSQLiteStore_AppendMessagesRetriesRealLock(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "session.db")
+	store, err := NewStore(path)
+	require.NoError(t, err)
+	locker, err := NewStore(path)
+	require.NoError(t, err)
+	require.NoError(t, store.Save(ctx, Session{ID: testSessionA}))
+	require.NoError(t, store.db.Exec("PRAGMA busy_timeout = 1").Error)
+
+	transaction := locker.db.Begin()
+	require.NoError(t, transaction.Error)
+	require.NoError(t, transaction.Exec("UPDATE sessions SET title = title WHERE id = ?", testSessionA).Error)
+	released := make(chan error, 1)
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		released <- transaction.Rollback().Error
+	}()
+
+	startedAt := time.Now()
+	err = store.AppendMessages(ctx, testSessionA, []morphmsg.Message{{Role: morphmsg.RoleTool, Content: "result"}})
+
+	require.NoError(t, err)
+	require.NoError(t, <-released)
+	require.GreaterOrEqual(t, time.Since(startedAt), 20*time.Millisecond)
+	var records []messageModel
+	require.NoError(t, store.db.Where("session_id = ?", testSessionA).Find(&records).Error)
+	require.Len(t, records, 1)
+	require.Equal(t, 0, records[0].Sequence)
 }
 
 func TestSQLiteStore_SavePersistsSessionOrigin(t *testing.T) {

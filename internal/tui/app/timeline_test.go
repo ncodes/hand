@@ -74,6 +74,41 @@ func toolTranscriptTestCell(id string, name string, detail string, completed ...
 	return newToolTranscriptCell(id, name, detail, nil, nil, time.Time{}, time.Time{}, isCompleted)
 }
 
+func TestRenderToolTranscriptGroup_RendersTerminalRunStates(t *testing.T) {
+	startedAt := time.Date(2026, 7, 11, 18, 0, 0, 0, time.UTC)
+	terminalAt := startedAt.Add(2 * time.Second)
+
+	for _, test := range []struct {
+		name   string
+		status toolTranscriptTerminalStatus
+		want   string
+	}{
+		{name: "failed", status: toolTranscriptTerminalStatusFailed, want: "Failed 1 shell command"},
+		{name: "interrupted", status: toolTranscriptTerminalStatusInterrupted, want: "Interrupted 1 shell command"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cell := toolTranscriptCell{
+				id:             "call_1",
+				action:         "Run",
+				detail:         "echo hello",
+				startedAt:      startedAt,
+				completedAt:    terminalAt,
+				terminalStatus: test.status,
+			}
+			group := toolTranscriptGroup{action: "Run"}
+			group.add(cell)
+
+			rendered := stripANSI(renderToolTranscriptGroupWithContext(
+				group,
+				transcriptRenderContext{Width: 80, Now: terminalAt},
+			))
+
+			require.Contains(t, rendered, test.want)
+			require.Contains(t, rendered, "$ echo hello (2s)")
+		})
+	}
+}
+
 func toolTranscriptTestCellWithTiming(
 	id string,
 	name string,

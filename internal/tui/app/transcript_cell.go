@@ -235,33 +235,44 @@ func renderTranscriptCellsWithFrame(cells []transcriptCell, width int, frame int
 	return defaultTranscriptRenderer.RenderCells(cells, ctx)
 }
 
+type toolTranscriptTerminalStatus string
+
+const (
+	toolTranscriptTerminalStatusFailed      toolTranscriptTerminalStatus = "failed"
+	toolTranscriptTerminalStatusInterrupted toolTranscriptTerminalStatus = "interrupted"
+)
+
 type toolTranscriptCell struct {
-	id           string
-	action       string
-	detail       string
-	planState    *trace.PlanToolState
-	processState *trace.ProcessToolState
-	startedAt    time.Time
-	completedAt  time.Time
-	completed    bool
+	id             string
+	action         string
+	detail         string
+	planState      *trace.PlanToolState
+	processState   *trace.ProcessToolState
+	startedAt      time.Time
+	completedAt    time.Time
+	completed      bool
+	terminalStatus toolTranscriptTerminalStatus
 }
 
 type toolTranscriptDetail struct {
-	id           string
-	text         string
-	planState    *trace.PlanToolState
-	processState *trace.ProcessToolState
-	startedAt    time.Time
-	completedAt  time.Time
-	completed    bool
+	id             string
+	text           string
+	planState      *trace.PlanToolState
+	processState   *trace.ProcessToolState
+	startedAt      time.Time
+	completedAt    time.Time
+	completed      bool
+	terminalStatus toolTranscriptTerminalStatus
 }
 
 type toolTranscriptGroup struct {
-	action       string
-	details      []toolTranscriptDetail
-	seenIDs      map[string]bool
-	completedIDs map[string]bool
-	completed    bool
+	action           string
+	details          []toolTranscriptDetail
+	seenIDs          map[string]bool
+	completedIDs     map[string]bool
+	terminalStatuses map[string]toolTranscriptTerminalStatus
+	completed        bool
+	terminalStatus   toolTranscriptTerminalStatus
 }
 
 func (cell toolTranscriptCell) Kind() transcriptCellKind {
@@ -335,6 +346,8 @@ func toolTranscriptPlainText(cell toolTranscriptCell) string {
 	}
 	if cell.completed {
 		lines = append(lines, "status: completed")
+	} else if cell.terminalStatus != "" {
+		lines = append(lines, "status: "+string(cell.terminalStatus))
 	}
 
 	return fmt.Sprintf("Tool %s:\n%s", action, strings.Join(lines, "\n"))
@@ -355,13 +368,22 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 			}
 			group.completedIDs[id] = true
 		}
+		if cell.terminalStatus != "" {
+			if group.terminalStatuses == nil {
+				group.terminalStatuses = map[string]toolTranscriptTerminalStatus{}
+			}
+			group.terminalStatuses[id] = cell.terminalStatus
+		}
 		if group.seenIDs[id] {
 			group.mergeToolTranscriptCell(id, cell)
 			return
 		}
 		group.seenIDs[id] = true
-	} else if cell.completed {
-		group.completed = true
+	} else {
+		group.completed = group.completed || cell.completed
+		if cell.terminalStatus != "" {
+			group.terminalStatus = cell.terminalStatus
+		}
 	}
 	detailValue3 := str.String(cell.detail)
 	detail := detailValue3.Trim()
@@ -372,13 +394,14 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 	if detail != "" || cell.planState != nil || cell.processState != nil {
 		idValue4 := str.String(cell.id)
 		group.details = append(group.details, toolTranscriptDetail{
-			id:           idValue4.Trim(),
-			text:         detail,
-			planState:    clonePlanToolDisplayState(cell.planState),
-			processState: cloneProcessToolDisplayState(cell.processState),
-			startedAt:    cell.startedAt,
-			completedAt:  cell.completedAt,
-			completed:    cell.completed,
+			id:             idValue4.Trim(),
+			text:           detail,
+			planState:      clonePlanToolDisplayState(cell.planState),
+			processState:   cloneProcessToolDisplayState(cell.processState),
+			startedAt:      cell.startedAt,
+			completedAt:    cell.completedAt,
+			completed:      cell.completed,
+			terminalStatus: cell.terminalStatus,
 		})
 	}
 }
@@ -396,6 +419,9 @@ func (group *toolTranscriptGroup) mergeToolTranscriptCell(id string, cell toolTr
 		}
 		if cell.completed {
 			group.details[index].completed = true
+		}
+		if cell.terminalStatus != "" {
+			group.details[index].terminalStatus = cell.terminalStatus
 		}
 		if merged := mergePlanToolDisplayState(group.details[index].planState, cell.planState); merged != nil {
 			group.details[index].planState = merged
@@ -447,6 +473,34 @@ func (group toolTranscriptGroup) isCompleted() bool {
 	}
 
 	return true
+}
+
+func (group toolTranscriptGroup) isFailed() bool {
+	if len(group.seenIDs) == 0 {
+		return group.terminalStatus == toolTranscriptTerminalStatusFailed
+	}
+
+	for id := range group.seenIDs {
+		if group.terminalStatuses[id] == toolTranscriptTerminalStatusFailed {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (group toolTranscriptGroup) isInterrupted() bool {
+	if len(group.seenIDs) == 0 {
+		return group.terminalStatus == toolTranscriptTerminalStatusInterrupted
+	}
+
+	for id := range group.seenIDs {
+		if group.terminalStatuses[id] == toolTranscriptTerminalStatusInterrupted {
+			return true
+		}
+	}
+
+	return false
 }
 
 func getToolActionName(name string) string {

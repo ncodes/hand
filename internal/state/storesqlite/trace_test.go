@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -65,6 +66,67 @@ func TestSQLiteStore_TraceAppendListAndPrune(t *testing.T) {
 	result, err = store.ListTraceEvents(ctx, base.TraceQuery{SessionID: otherSessionID})
 	require.NoError(t, err)
 	require.Equal(t, []string{"other"}, sqliteTraceEventTypes(result.Events))
+}
+
+func TestSQLiteStore_ConcurrentTraceAppendsKeepUniqueSequences(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "state.db")
+	firstStore, err := NewStore(path)
+	require.NoError(t, err)
+	secondStore, err := NewStore(path)
+	require.NoError(t, err)
+
+	stores := []*Store{firstStore, secondStore}
+	errorsByAppend := make([]error, 12)
+	var waitGroup sync.WaitGroup
+	for index := range errorsByAppend {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			_, errorsByAppend[index] = stores[index%len(stores)].AppendTraceEvent(ctx, base.TraceEvent{
+				SessionID: base.DefaultSessionID,
+				Type:      "concurrent",
+			})
+		}()
+	}
+	waitGroup.Wait()
+
+	for _, appendErr := range errorsByAppend {
+		require.NoError(t, appendErr)
+	}
+	result, err := firstStore.ListTraceEvents(ctx, base.TraceQuery{SessionID: base.DefaultSessionID})
+	require.NoError(t, err)
+	require.Len(t, result.Events, len(errorsByAppend))
+	for index, event := range result.Events {
+		require.Equal(t, index+1, event.Sequence)
+	}
+}
+
+func TestSQLiteStore_AppendTraceEventRetriesRealLock(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "state.db")
+	store, err := NewStore(path)
+	require.NoError(t, err)
+	locker, err := NewStore(path)
+	require.NoError(t, err)
+	require.NoError(t, store.db.Exec("PRAGMA busy_timeout = 1").Error)
+
+	transaction := locker.db.Begin()
+	require.NoError(t, transaction.Error)
+	require.NoError(t, transaction.Exec("INSERT INTO trace_events(session_id, sequence, type) VALUES (?, ?, ?)", "locker", 1, "lock").Error)
+	released := make(chan error, 1)
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		released <- transaction.Rollback().Error
+	}()
+
+	startedAt := time.Now()
+	event, err := store.AppendTraceEvent(ctx, base.TraceEvent{SessionID: base.DefaultSessionID, Type: "result"})
+
+	require.NoError(t, err)
+	require.NoError(t, <-released)
+	require.GreaterOrEqual(t, time.Since(startedAt), 20*time.Millisecond)
+	require.Equal(t, 1, event.Sequence)
 }
 
 func TestSQLiteStore_TraceValidation(t *testing.T) {

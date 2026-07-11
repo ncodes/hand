@@ -4823,6 +4823,12 @@ func TestModel_UpdateEscapeCancelsActiveResponse(t *testing.T) {
 	runModel.thinkingComposerActive = true
 	runModel.toolAnimationActive = true
 	runModel.events = make(chan tea.Msg)
+	runModel.messages = []transcriptCell{toolTranscriptCell{
+		id:        "call_1",
+		action:    "Automation",
+		detail:    "add:Reminder",
+		startedAt: time.Now().Add(-time.Second),
+	}}
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
 
@@ -4836,6 +4842,12 @@ func TestModel_UpdateEscapeCancelsActiveResponse(t *testing.T) {
 	require.Nil(t, runModel.events)
 	require.Equal(t, "response cancelled", runModel.status.Text())
 	require.ErrorIs(t, responseCtx.Err(), context.Canceled)
+	toolCell, ok := runModel.messages[0].(toolTranscriptCell)
+	require.True(t, ok)
+	require.Equal(t, toolTranscriptTerminalStatusInterrupted, toolCell.terminalStatus)
+	require.False(t, toolCell.completedAt.IsZero())
+	require.Contains(t, toolCell.PlainText(), "status: interrupted")
+	require.Contains(t, stripANSI(renderTranscriptCells(runModel.messages)), "Interrupted Automation")
 }
 
 func TestModel_UpdateEscapeIgnoresStaleCancelledCompletion(t *testing.T) {
@@ -4907,6 +4919,9 @@ func TestModel_SubmitPromptStartsResponseFollowFromSettledBottom(t *testing.T) {
 
 	updated, cmd := runModel.Update(responseCompletedMsg{ResponseID: runModel.responseID, Text: "final"})
 
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	updated, cmd = runModel.Update(responseEventsClosedMsg{ResponseID: runModel.responseID})
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.transcript.AtBottom())
@@ -5389,6 +5404,146 @@ func TestModel_UpdateSurfacesRPCErrorInStatusAndTranscript(t *testing.T) {
 	require.Equal(t, []string{"Error: daemon unavailable"}, transcriptCellPlainTexts(runModel.messages))
 }
 
+func TestModel_UpdateDrainsToolCompletionBeforeResponseError(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.responseID = 2
+	runModel.responseEventStreamActive = true
+	runModel.events = make(chan tea.Msg)
+	detail := getToolInputDisplayDetail(
+		"automation",
+		`{"action":"add","job":{"name":"One-time current time update"}}`,
+	)
+
+	updated, _ := runModel.Update(responseEventMsg{
+		ResponseID: 2,
+		Message: toolInvocationStartedMsg{
+			ID:     "call_1",
+			Name:   "automation",
+			Detail: detail,
+		},
+	})
+	runModel = updated.(model)
+
+	updated, cmd := runModel.Update(responseCompletedMsg{
+		ResponseID: 2,
+		Err:        errors.New("database is locked"),
+	})
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.responding)
+
+	updated, _ = runModel.Update(responseEventMsg{
+		ResponseID: 2,
+		Message: toolInvocationCompletedMsg{
+			ID:     "call_1",
+			Name:   "automation",
+			Detail: detail,
+		},
+	})
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(responseEventsClosedMsg{ResponseID: 2})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.responding)
+	require.False(t, runModel.toolAnimationActive)
+	rendered := stripANSI(renderTranscriptCells(runModel.messages))
+	require.Contains(t, rendered, "Added Automation")
+	require.Contains(t, rendered, "Added automation One-time current time update")
+	require.Equal(t, "Error: database is locked", runModel.messages[len(runModel.messages)-1].PlainText())
+}
+
+func TestModel_UpdateMarksRunningToolFailedWhenResponseFails(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.responseID = 2
+	runModel.responseStartMessageIndex = 99
+	runModel.events = make(chan tea.Msg)
+	detail := getToolInputDisplayDetail(
+		"automation",
+		`{"action":"add","job":{"name":"One-time current time update"}}`,
+	)
+
+	updated, _ := runModel.Update(responseEventMsg{
+		ResponseID: 2,
+		Message: toolInvocationStartedMsg{
+			ID:        "call_1",
+			Name:      "automation",
+			Detail:    detail,
+			StartedAt: time.Now().Add(-2 * time.Second),
+		},
+	})
+	runModel = updated.(model)
+
+	updated, cmd := runModel.Update(responseCompletedMsg{
+		ResponseID: 2,
+		Err:        errors.New("database is locked"),
+	})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	toolCell, ok := runModel.messages[0].(toolTranscriptCell)
+	require.True(t, ok)
+	require.Equal(t, toolTranscriptTerminalStatusFailed, toolCell.terminalStatus)
+	require.False(t, toolCell.completed)
+	require.False(t, toolCell.completedAt.IsZero())
+	require.False(t, runModel.toolAnimationActive)
+	require.Contains(t, toolCell.PlainText(), "status: failed")
+	rendered := stripANSI(renderTranscriptCells(runModel.messages))
+	require.Contains(t, rendered, "Failed Automation")
+	require.Contains(t, rendered, "Adding automation One-time current time update")
+}
+
+func TestModel_UpdateInterruptsUnfinishedToolWhenResponseCompletes(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.responseID = 2
+	runModel.messages = []transcriptCell{toolTranscriptCell{
+		id:        "call_1",
+		action:    "Automation",
+		detail:    "add:Reminder",
+		startedAt: time.Now().Add(-time.Second),
+	}}
+
+	updated, _ := runModel.Update(responseCompletedMsg{ResponseID: 2, Text: "Done"})
+	runModel = updated.(model)
+
+	toolCell, ok := runModel.messages[0].(toolTranscriptCell)
+	require.True(t, ok)
+	require.Equal(t, toolTranscriptTerminalStatusInterrupted, toolCell.terminalStatus)
+	require.False(t, toolCell.completedAt.IsZero())
+	require.Contains(t, stripANSI(renderTranscriptCells(runModel.messages)), "Interrupted Automation")
+	require.Equal(t, "Morph: Done", runModel.messages[1].PlainText())
+}
+
+func TestModel_TerminalizesOnlyToolsFromActiveResponse(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		finalize   func(*model)
+		wantStatus toolTranscriptTerminalStatus
+	}{
+		{name: "failed", finalize: func(value *model) { value.failRunningToolTranscriptCells(time.Now()) }, wantStatus: toolTranscriptTerminalStatusFailed},
+		{name: "interrupted", finalize: func(value *model) { value.interruptRunningToolTranscriptCells(time.Now()) }, wantStatus: toolTranscriptTerminalStatusInterrupted},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runModel := newModel()
+			runModel.messages = []transcriptCell{
+				toolTranscriptCell{id: "old", action: "Automation", detail: "add:Old"},
+				toolTranscriptCell{id: "current", action: "Automation", detail: "add:Current"},
+			}
+			runModel.responseStartMessageIndex = 1
+
+			test.finalize(&runModel)
+
+			historical := runModel.messages[0].(toolTranscriptCell)
+			current := runModel.messages[1].(toolTranscriptCell)
+			require.Empty(t, historical.terminalStatus)
+			require.Equal(t, test.wantStatus, current.terminalStatus)
+		})
+	}
+}
+
 func TestModel_UpdateSurfacesProviderErrorAsFriendlyMessage(t *testing.T) {
 	runModel := newModel()
 	runModel.responding = true
@@ -5484,6 +5639,26 @@ func TestModel_UpdateHandlesResponseEventsClosed(t *testing.T) {
 
 	require.Nil(t, cmd)
 	require.True(t, updated.(model).responding)
+}
+
+func TestModel_UpdateCompletesAfterResponseEventsCloseFirst(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.responseID = 3
+	runModel.responseEventStreamActive = true
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(responseEventsClosedMsg{ResponseID: 3})
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.responding)
+	require.False(t, runModel.responseEventStreamActive)
+	require.Nil(t, runModel.events)
+
+	updated, _ = runModel.Update(responseCompletedMsg{ResponseID: 3, Text: "done"})
+	runModel = updated.(model)
+	require.False(t, runModel.responding)
+	require.Equal(t, "Morph: done", runModel.messages[0].PlainText())
 }
 
 func TestModel_UpdateIgnoresStaleResponseCompletion(t *testing.T) {

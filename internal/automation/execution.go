@@ -30,6 +30,7 @@ const (
 var resolveProfileFromOptions = profile.Resolve
 
 type RuntimeAgent interface {
+	SetTurnCoordinator(morphagent.TurnCoordinator, string)
 	Start(context.Context) error
 	Respond(context.Context, string, agentcore.RespondOptions) (string, error)
 	CreateSession(context.Context, string, ...state.SessionCreateOptions) (state.Session, error)
@@ -141,6 +142,7 @@ func (r *AgentRunner) RunAutomation(ctx context.Context, job Job) (RunResult, er
 	if agent == nil {
 		return RunResult{}, errors.New("automation runtime agent is required")
 	}
+	agent.SetTurnCoordinator(nil, activeProfile.HomeDir)
 	if err := agent.Start(ctx); err != nil {
 		return RunResult{}, err
 	}

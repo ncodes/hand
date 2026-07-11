@@ -49,6 +49,8 @@ type tuiState struct {
 	responseStartMessageIndex  int
 	responseStartedAt          time.Time
 	responseRunningToolCount   int
+	responseEventStreamActive  bool
+	pendingResponseCompletion  *responseCompletedMsg
 	toolAnimationFrame         int
 	toolAnimationActive        bool
 	thinkingComposerFrame      int

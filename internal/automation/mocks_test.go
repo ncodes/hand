@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	morphagent "github.com/wandxy/morph/internal/agent"
 	"github.com/wandxy/morph/internal/model"
 	modelclient "github.com/wandxy/morph/internal/model/client"
 	"github.com/wandxy/morph/internal/state/core"
@@ -73,6 +74,11 @@ type automationRuntimeAgentStub struct {
 	respondContext context.Context
 	respondPrompt  string
 	respondOptions agentcore.RespondOptions
+	turnScope      string
+}
+
+func (a *automationRuntimeAgentStub) SetTurnCoordinator(_ morphagent.TurnCoordinator, scope string) {
+	a.turnScope = scope
 }
 
 func (a *automationRuntimeAgentStub) Start(context.Context) error {

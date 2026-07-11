@@ -32,6 +32,8 @@ import (
 
 var jsonMarshal = json.Marshal
 
+var listModelOptions = models.ListOptions
+
 const defaultRecallSummaryCacheTTL = constants.DefaultRecallSummaryCacheTTL
 
 const (
@@ -70,6 +72,8 @@ type Agent struct {
 	env                environment.Environment
 	stateMgr           *statemanager.Manager
 	recallSummaryCache *pkgcache.Cache[string, storage.SessionSummary]
+	turnCoordinator    TurnCoordinator
+	turnScope          string
 	turnMessages       []morphmsg.Message
 	initialized        bool
 }
@@ -99,7 +103,20 @@ func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client
 		summaryClient:      summaryClient,
 		rerankerClient:     rerankerClient,
 		recallSummaryCache: newRecallSummaryCache(),
+		turnCoordinator:    defaultTurnCoordinator,
+		turnScope:          getTurnCoordinationScope(),
 	}
+}
+
+func (a *Agent) SetTurnCoordinator(coordinator TurnCoordinator, scope string) {
+	if a == nil {
+		return
+	}
+	if coordinator == nil {
+		coordinator = defaultTurnCoordinator
+	}
+	a.turnCoordinator = coordinator
+	a.turnScope = str.String(scope).Trim()
 }
 
 // Start opens state, prepares the runtime environment, and marks the agent ready for requests.
@@ -164,7 +181,7 @@ func (a *Agent) ListProviders(context.Context) (ProviderList, error) {
 	}
 
 	auth := make(map[string]string)
-	currentProviderModels, err := models.ListOptions(models.OptionQuery{Provider: a.cfg.Models.Main.Provider})
+	currentProviderModels, err := listModelOptions(models.OptionQuery{Provider: a.cfg.Models.Main.Provider})
 	if err != nil {
 		return ProviderList{}, err
 	}
@@ -173,7 +190,7 @@ func (a *Agent) ListProviders(context.Context) (ProviderList, error) {
 		if _, ok := auth[provider.ID]; ok {
 			continue
 		}
-		providerModels, err := models.ListOptions(models.OptionQuery{Provider: provider.ID})
+		providerModels, err := listModelOptions(models.OptionQuery{Provider: provider.ID})
 		if err != nil {
 			return ProviderList{}, err
 		}
@@ -206,7 +223,7 @@ func (a *Agent) ListModels(_ context.Context, opts ...ModelListOptions) (ModelLi
 		return ModelList{}, errors.New("model provider is required")
 	}
 
-	modelsForProvider, err := models.ListOptions(models.OptionQuery{
+	modelsForProvider, err := listModelOptions(models.OptionQuery{
 		Provider: provider,
 		Current:  a.getCurrentModelForProvider(provider),
 	})
@@ -218,7 +235,7 @@ func (a *Agent) ListModels(_ context.Context, opts ...ModelListOptions) (ModelLi
 	}
 	authType := a.getProviderAuthTypeForModelList(provider, modelsForProvider)
 	if authType == "oauth" {
-		modelsForProvider, err = models.ListOptions(models.OptionQuery{
+		modelsForProvider, err = listModelOptions(models.OptionQuery{
 			Provider:  provider,
 			Current:   a.getCurrentModelForProvider(provider),
 			OAuthOnly: true,
@@ -536,6 +553,27 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts agentcore.RespondO
 	if a.env.Tools() == nil {
 		return "", errors.New("tool registry is required")
 	}
+
+	sessionID := str.String(opts.SessionID).Trim()
+	if sessionID == "" {
+		sessionID = storage.DefaultSessionID
+	} else if err := storage.ValidateSessionID(sessionID); err != nil {
+		return "", err
+	}
+	coordinator := a.turnCoordinator
+	if coordinator == nil {
+		coordinator = defaultTurnCoordinator
+	}
+	release, err := coordinator.Acquire(ctx, a.turnScope, sessionID)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	session, err := NewSessionStore(a.stateMgr).Resolve(ctx, sessionID)
+	if err != nil {
+		return "", err
+	}
+	opts.SessionID = session.ID
 
 	agentLog.Info().Str("session_id", opts.SessionID).
 		Str("model", a.cfg.Models.Main.Name).

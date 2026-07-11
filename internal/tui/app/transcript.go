@@ -307,8 +307,42 @@ func mergeToolTranscriptCells(existing toolTranscriptCell, completed toolTranscr
 		merged.id = completed.id
 	}
 	merged.completed = true
+	merged.terminalStatus = ""
 
 	return merged
+}
+
+func (m *model) failRunningToolTranscriptCells(failedAt time.Time) {
+	m.setRunningToolTranscriptCellsTerminal(failedAt, toolTranscriptTerminalStatusFailed)
+}
+
+func (m *model) interruptRunningToolTranscriptCells(interruptedAt time.Time) {
+	m.setRunningToolTranscriptCellsTerminal(interruptedAt, toolTranscriptTerminalStatusInterrupted)
+}
+
+func (m *model) setRunningToolTranscriptCellsTerminal(
+	terminalAt time.Time,
+	status toolTranscriptTerminalStatus,
+) {
+	startIndex := m.responseStartMessageIndex
+	if startIndex < 0 || startIndex > len(m.messages) {
+		startIndex = 0
+	}
+
+	changed := false
+	for index := startIndex; index < len(m.messages); index++ {
+		cell, ok := m.messages[index].(toolTranscriptCell)
+		if !ok || cell.completed || cell.terminalStatus != "" {
+			continue
+		}
+		cell.terminalStatus = status
+		cell.completedAt = terminalAt
+		m.applyAction(replaceTranscriptCellAction{Index: index, Cell: cell})
+		changed = true
+	}
+	if changed {
+		m.refreshTranscriptContentAfterMessageUpdate()
+	}
 }
 
 func (m *model) refreshTranscriptContentAfterMessageUpdate() {

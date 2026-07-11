@@ -38,7 +38,7 @@ func TestOpenSQLite_ConfiguresSQLiteConnection(t *testing.T) {
 
 	var busyTimeout int
 	require.NoError(t, db.Raw(`PRAGMA busy_timeout`).Scan(&busyTimeout).Error)
-	require.Equal(t, 10000, busyTimeout)
+	require.Equal(t, 2000, busyTimeout)
 
 	var journalMode string
 	require.NoError(t, db.Raw(`PRAGMA journal_mode`).Scan(&journalMode).Error)
@@ -47,6 +47,14 @@ func TestOpenSQLite_ConfiguresSQLiteConnection(t *testing.T) {
 	var foreignKeys int
 	require.NoError(t, db.Raw(`PRAGMA foreign_keys`).Scan(&foreignKeys).Error)
 	require.Equal(t, 1, foreignKeys)
+}
+
+func TestSQLiteDSN_UsesImmediateWriteTransactions(t *testing.T) {
+	dsn := sqliteDSN(filepath.Join(t.TempDir(), "state.db"))
+
+	require.Contains(t, dsn, "_txlock=immediate")
+	require.NotContains(t, dsn, "_journal_mode")
+	require.Contains(t, sqliteDSN("file:state.db?mode=rw"), "&_txlock=immediate")
 }
 
 func TestOpen_OpensSQLiteAtStateDBPath(t *testing.T) {

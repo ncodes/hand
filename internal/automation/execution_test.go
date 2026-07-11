@@ -19,8 +19,17 @@ import (
 func TestAgentRunner_RunPromptThroughRuntime(t *testing.T) {
 	factory := &automationModelClientFactoryStub{}
 	agent := &automationRuntimeAgentStub{output: "done"}
+	profileHome := t.TempDir()
 	runner := newExecutionTestRunner(t, AgentRunnerOptions{
 		ModelClientFactory: factory,
+		ProfileResolver: func(name str.String) (profile.Profile, error) {
+			return profile.Profile{
+				Name:       name.Trim(),
+				HomeDir:    profileHome,
+				ConfigPath: "config.yaml",
+				EnvPath:    ".env",
+			}, nil
+		},
 		AgentFactory: func(context.Context, *config.Config, models.Client, models.Client) RuntimeAgent {
 			return agent
 		},
@@ -43,6 +52,7 @@ func TestAgentRunner_RunPromptThroughRuntime(t *testing.T) {
 	require.True(t, agent.started)
 	require.True(t, agent.closed)
 	require.True(t, agent.created)
+	require.Equal(t, profileHome, agent.turnScope)
 	require.Equal(t, "summarize this", agent.respondPrompt)
 	require.Equal(t, testAutomationExecutionSessionID, agent.respondOptions.SessionID)
 	require.Equal(t, []string{"shell", "memory"}, agent.respondOptions.ToolGroups)

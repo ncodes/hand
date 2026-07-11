@@ -16,8 +16,8 @@ import (
 
 type traceEventModel struct {
 	ID          uint      `gorm:"primaryKey"`
-	SessionID   string    `gorm:"index:idx_trace_session_sequence,priority:1;index;not null"`
-	Sequence    int       `gorm:"index:idx_trace_session_sequence,priority:2;not null"`
+	SessionID   string    `gorm:"uniqueIndex:idx_trace_session_sequence,priority:1;not null"`
+	Sequence    int       `gorm:"uniqueIndex:idx_trace_session_sequence,priority:2;not null"`
 	Type        string    `gorm:"index"`
 	Timestamp   time.Time `gorm:"index"`
 	PayloadJSON string    `gorm:"type:text"`
@@ -48,28 +48,30 @@ func (s *Store) AppendTraceEvent(ctx context.Context, event base.TraceEvent) (ba
 	}
 
 	var record traceEventModel
-	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var last traceEventModel
-		err := tx.Where("session_id = ?", event.SessionID).
-			Order("sequence DESC").
-			Limit(1).
-			Find(&last).Error
-		if err != nil {
-			return err
-		}
+	err := runSQLiteWriteWithRetry(ctx, func(writeCtx context.Context) error {
+		return s.db.WithContext(writeCtx).Transaction(func(tx *gorm.DB) error {
+			var last traceEventModel
+			if err := tx.Where("session_id = ?", event.SessionID).
+				Order("sequence DESC").
+				Limit(1).
+				Find(&last).Error; err != nil {
+				return err
+			}
 
-		record = traceEventModel{
-			SessionID:   event.SessionID,
-			Sequence:    last.Sequence + 1,
-			Type:        event.Type,
-			Timestamp:   event.Timestamp,
-			PayloadJSON: toJSONString(event.Payload),
-		}
-		if err := tx.Create(&record).Error; err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
+			record = traceEventModel{
+				SessionID:   event.SessionID,
+				Sequence:    last.Sequence + 1,
+				Type:        event.Type,
+				Timestamp:   event.Timestamp,
+				PayloadJSON: toJSONString(event.Payload),
+			}
+			if err := tx.Create(&record).Error; err != nil {
+				return err
+			}
+			return nil
+		})
+	})
+	if err != nil {
 		return base.TraceEvent{}, err
 	}
 

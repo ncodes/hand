@@ -45,6 +45,8 @@ func TestSQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
 	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "title"))
 	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "title_source"))
 	require.False(t, store.db.Migrator().HasColumn(&sessionModel{}, "messages"))
+	require.True(t, store.db.Migrator().HasIndex(&messageModel{}, "idx_session_messages_session_sequence"))
+	require.True(t, store.db.Migrator().HasIndex(&traceEventModel{}, "idx_trace_session_sequence"))
 }
 
 func TestSQLiteStore_AggregateCapabilities(t *testing.T) {
@@ -146,7 +148,6 @@ func TestSQLiteStore_StorageInitializationErrors(t *testing.T) {
 			&gatewayPairingRequestModel{},
 			&gatewayPairedSenderModel{},
 		))
-
 		readonlyDB, err := gorm.Open(sqlite.Open("file:"+path+"?mode=ro"), &gorm.Config{})
 		require.NoError(t, err)
 

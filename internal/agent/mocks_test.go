@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,6 +37,7 @@ type stateStoreStub struct {
 	traceErrAt      int
 	traceCalls      int
 	traceAppendErr  error
+	getCalls        atomic.Int32
 	saveErr         error
 	getErr          error
 	listErr         error
@@ -72,6 +74,7 @@ func (s *stateStoreStub) Save(_ context.Context, session storage.Session) error 
 }
 
 func (s *stateStoreStub) Get(_ context.Context, id string, _ storage.SessionGetOptions) (storage.Session, bool, error) {
+	s.getCalls.Add(1)
 	if s.getErr != nil {
 		return storage.Session{}, false, s.getErr
 	}

@@ -113,9 +113,9 @@ func (summaryModel) TableName() string {
 
 // messageModel describes active session messages in append order.
 type messageModel struct {
-	ID         uint `gorm:"primaryKey"`
-	SessionID  string
-	Sequence   int `gorm:"index;not null"`
+	ID         uint   `gorm:"primaryKey"`
+	SessionID  string `gorm:"uniqueIndex:idx_session_messages_session_sequence,priority:1"`
+	Sequence   int    `gorm:"uniqueIndex:idx_session_messages_session_sequence,priority:2;not null"`
 	Role       string
 	Name       string
 	Content    string
@@ -521,36 +521,39 @@ func (s *Store) AppendMessages(ctx context.Context, id string, messages []morphm
 	}
 
 	var records []messageModel
-	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var record sessionModel
+	err := runSQLiteWriteWithRetry(ctx, func(writeCtx context.Context) error {
+		return s.db.WithContext(writeCtx).Transaction(func(tx *gorm.DB) error {
+			var record sessionModel
 
-		if err := tx.First(&record, "id = ?", id).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return errors.New("session not found")
-			}
-			return err
-		}
-
-		var nextSequence int64
-		if err := tx.Model(&messageModel{}).Where("session_id = ?", id).
-			Count(&nextSequence).Error; err != nil {
-			return err
-		}
-
-		records = messagesToMessageModelsWithOffset(id, messages, int(nextSequence))
-		if len(records) > 0 {
-			if err := tx.Create(&records).Error; err != nil {
+			if err := tx.First(&record, "id = ?", id).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return errors.New("session not found")
+				}
 				return err
 			}
-			if err := messageModels(records).searchRows().insert(tx); err != nil {
+
+			var nextSequence int
+			if err := tx.Model(&messageModel{}).Where("session_id = ?", id).
+				Select("COALESCE(MAX(sequence), -1) + 1").Scan(&nextSequence).Error; err != nil {
 				return err
 			}
-		}
 
-		record.UpdatedAt = time.Now().UTC()
+			records = messagesToMessageModelsWithOffset(id, messages, nextSequence)
+			if len(records) > 0 {
+				if err := tx.Create(&records).Error; err != nil {
+					return err
+				}
+				if err := messageModels(records).searchRows().insert(tx); err != nil {
+					return err
+				}
+			}
 
-		return tx.Save(&record).Error
-	}); err != nil {
+			record.UpdatedAt = time.Now().UTC()
+
+			return tx.Save(&record).Error
+		})
+	})
+	if err != nil {
 		return err
 	}
 

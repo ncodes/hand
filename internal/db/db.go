@@ -18,7 +18,7 @@ import (
 	"github.com/wandxy/morph/pkg/str"
 )
 
-const sqliteBusyTimeout = 10 * time.Second
+const sqliteBusyTimeout = 2 * time.Second
 
 // Open opens the configured database connection.
 func Open(cfg *config.Config) (*gorm.DB, error) {
@@ -82,12 +82,9 @@ func ConfigureSQLite(db *gorm.DB) error {
 func sqliteDSN(path string) string {
 	pathValue2 := str.String(path)
 	path = pathValue2.Trim()
-	if strings.HasPrefix(path, "file:") {
-		return path
-	}
 
 	params := "_busy_timeout=" + strconv.FormatInt(sqliteBusyTimeout.Milliseconds(), 10) +
-		"&_journal_mode=WAL&_foreign_keys=ON"
+		"&_foreign_keys=ON&_txlock=immediate"
 	if strings.Contains(path, "?") {
 		return path + "&" + params
 	}

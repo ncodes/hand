@@ -37,16 +37,23 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 		return renderRunTranscriptGroup(group, ctx)
 	}
 	completed := group.isCompleted()
+	failed := group.isFailed()
+	interrupted := group.isInterrupted()
 
 	headerTitle := getToolTranscriptTitle(action, completed, group.details)
+	if failed {
+		headerTitle = "Failed " + action
+	} else if interrupted {
+		headerTitle = "Interrupted " + action
+	}
 	headerDuration := ""
 	if len(group.details) == 1 {
 		headerDuration = renderToolTranscriptDuration(group.details[0], ctx.Now)
 	}
 	header := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(getToolTranscriptDotColor(completed))).
+		Foreground(lipgloss.Color(getToolTranscriptDotColor(completed, failed || interrupted))).
 		Bold(true).
-		Render(getToolTranscriptDot(completed, ctx.Frame)) +
+		Render(getToolTranscriptDot(completed, failed || interrupted, ctx.Frame)) +
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color(defaultTUITheme.ToolTitle)).
 			Render(" "+headerTitle) +
@@ -189,14 +196,22 @@ func renderRunTranscriptGroup(group toolTranscriptGroup, ctx transcriptRenderCon
 	verb := "Running"
 	suffix := "…"
 	completed := group.isCompleted()
-	if completed {
+	failed := group.isFailed()
+	interrupted := group.isInterrupted()
+	if failed {
+		verb = "Failed"
+		suffix = ""
+	} else if interrupted {
+		verb = "Interrupted"
+		suffix = ""
+	} else if completed {
 		verb = "Ran"
 		suffix = ""
 	}
 	header := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(getToolTranscriptDotColor(completed))).
+		Foreground(lipgloss.Color(getToolTranscriptDotColor(completed, failed || interrupted))).
 		Bold(true).
-		Render(getToolTranscriptDot(completed, ctx.Frame)) +
+		Render(getToolTranscriptDot(completed, failed || interrupted, ctx.Frame)) +
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color(defaultTUITheme.ToolTitle)).
 			Render(" "+verb+" ") +
@@ -259,7 +274,10 @@ func formatToolTranscriptDuration(duration time.Duration) string {
 	return fmt.Sprintf("%ds", seconds)
 }
 
-func getToolTranscriptDotColor(completed bool) string {
+func getToolTranscriptDotColor(completed bool, failed bool) string {
+	if failed {
+		return defaultTUITheme.ToolDeletion
+	}
 	if completed {
 		return defaultTUITheme.ToolCompletedDot
 	}
@@ -267,8 +285,8 @@ func getToolTranscriptDotColor(completed bool) string {
 	return defaultTUITheme.ToolRunningDot
 }
 
-func getToolTranscriptDot(completed bool, frame int) string {
-	if completed {
+func getToolTranscriptDot(completed bool, failed bool, frame int) string {
+	if completed || failed {
 		return "●"
 	}
 

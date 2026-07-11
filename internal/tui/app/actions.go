@@ -246,6 +246,8 @@ func (resetResponseStateAction) apply(state *tuiState) {
 	state.responseRunningToolCount = 0
 	state.thinkingComposerActive = false
 	state.toolAnimationActive = false
+	state.responseEventStreamActive = false
+	state.pendingResponseCompletion = nil
 	state.responseCancel = nil
 }
 

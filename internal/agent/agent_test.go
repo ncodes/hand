@@ -117,6 +117,15 @@ func TestAgent_StartAndRespondValidationBranches(t *testing.T) {
 	require.EqualError(t, err, "model client is required")
 }
 
+func TestAgent_SetAutomationServiceDelegatesToEnvironment(t *testing.T) {
+	(*Agent)(nil).SetAutomationService(nil)
+	(&Agent{}).SetAutomationService(nil)
+
+	env := &mocks.EnvironmentStub{}
+	(&Agent{env: env}).SetAutomationService(nil)
+	require.Equal(t, 1, env.AutomationSets)
+}
+
 func TestAgent_StartPropagatesStateAndEnvironmentErrors(t *testing.T) {
 	originalOpen := OpenStateStore
 	originalNewEnvironment := NewEnvironment
@@ -155,114 +164,178 @@ func TestAgent_StartPropagatesStateAndEnvironmentErrors(t *testing.T) {
 }
 
 func TestAgent_LifecycleHelpersValidateAndUseStateManager(t *testing.T) {
-	client := &mocks.ModelClientStub{}
-	core := NewAgent(context.Background(), &config.Config{}, client)
-	require.Same(t, client, core.summaryClient)
-	require.Same(t, client, core.rerankerClient)
-	summaryClient := &mocks.ModelClientStub{}
-	rerankerClient := &mocks.ModelClientStub{}
-	core = NewAgent(context.Background(), &config.Config{}, client, summaryClient, rerankerClient)
-	require.Same(t, summaryClient, core.summaryClient)
-	require.Same(t, rerankerClient, core.rerankerClient)
-	require.Nil(t, (*Agent)(nil).TurnMessages())
+	newCore := func(t *testing.T) (*Agent, *stateStoreStub) {
+		t.Helper()
 
-	core.turnMessages = []morphmsg.Message{{Role: morphmsg.RoleAssistant, Content: "hello"}}
-	messages := core.TurnMessages()
-	messages[0].Content = "changed"
-	require.Equal(t, "hello", core.turnMessages[0].Content)
+		store := &stateStoreStub{
+			session: storage.Session{
+				ID:               storage.DefaultSessionID,
+				Title:            "Default",
+				LastPromptTokens: 25,
+				Compaction:       storage.SessionCompaction{Status: storage.CompactionStatusSucceeded},
+				CreatedAt:        time.Unix(1, 0).UTC(),
+				UpdatedAt:        time.Unix(2, 0).UTC(),
+			},
+			summaries: map[string]storage.SessionSummary{
+				storage.DefaultSessionID: {
+					SessionID:          storage.DefaultSessionID,
+					SourceEndOffset:    2,
+					SourceMessageCount: 3,
+				},
+			},
+		}
+		manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
+		require.NoError(t, err)
 
-	store := &stateStoreStub{
-		session: storage.Session{
-			ID:               storage.DefaultSessionID,
-			Title:            "Default",
-			LastPromptTokens: 25,
-			Compaction:       storage.SessionCompaction{Status: storage.CompactionStatusSucceeded},
-			CreatedAt:        time.Unix(1, 0).UTC(),
-			UpdatedAt:        time.Unix(2, 0).UTC(),
-		},
-		summaries: map[string]storage.SessionSummary{
-			storage.DefaultSessionID: {SessionID: storage.DefaultSessionID, SourceEndOffset: 2, SourceMessageCount: 3},
-		},
-	}
-	manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
-	require.NoError(t, err)
-	core = &Agent{
-		cfg: &config.Config{
-			Platform: "cli",
-			Models:   config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 100}},
-		},
-		initialized: true,
-		stateMgr:    manager,
+		return &Agent{
+			cfg: &config.Config{
+				Platform: "cli",
+				Models:   config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 100}},
+			},
+			initialized: true,
+			stateMgr:    manager,
+		}, store
 	}
 
-	status, err := core.ContextStatus(context.Background(), storage.DefaultSessionID)
-	require.NoError(t, err)
-	require.Equal(t, 25, status.Used)
-	require.Equal(t, 75, status.Remaining)
-	require.Equal(t, 0.25, status.UsedPct)
-	require.Equal(t, 0.75, status.RemainingPct)
+	t.Run("uses default and optional model clients", func(t *testing.T) {
+		client := &mocks.ModelClientStub{}
+		core := NewAgent(context.Background(), &config.Config{}, client)
+		require.Same(t, client, core.summaryClient)
+		require.Same(t, client, core.rerankerClient)
 
-	status, err = core.GetSessionStatus(context.Background(), storage.DefaultSessionID)
-	require.NoError(t, err)
-	require.Equal(t, storage.DefaultSessionID, status.SessionID)
+		summaryClient := &mocks.ModelClientStub{}
+		rerankerClient := &mocks.ModelClientStub{}
+		core = NewAgent(context.Background(), &config.Config{}, client, summaryClient, rerankerClient)
+		require.Same(t, summaryClient, core.summaryClient)
+		require.Same(t, rerankerClient, core.rerankerClient)
+	})
 
-	loaded, ok, err := core.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, storage.DefaultSessionID, loaded.ID)
+	t.Run("returns a defensive copy of turn messages", func(t *testing.T) {
+		require.Nil(t, (*Agent)(nil).TurnMessages())
 
-	sessionID, err := storage.NewSessionID()
-	require.NoError(t, err)
-	created, err := core.CreateSession(context.Background(), sessionID)
-	require.NoError(t, err)
-	require.Equal(t, sessionID, created.ID)
-	require.Equal(t, storage.SessionOrigin{Source: storage.SessionOriginSourceCLI}, created.Origin)
+		core := &Agent{
+			turnMessages: []morphmsg.Message{{Role: morphmsg.RoleAssistant, Content: "hello"}},
+		}
+		messages := core.TurnMessages()
+		messages[0].Content = "changed"
 
-	current, err := core.CurrentSession(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, storage.DefaultSessionID, current.ID)
+		require.Equal(t, "hello", core.turnMessages[0].Content)
+	})
 
-	require.NoError(t, core.UseSession(context.Background(), storage.DefaultSessionID))
-	require.Equal(t, storage.DefaultSessionID, store.current)
+	t.Run("reports context and loads the session", func(t *testing.T) {
+		core, _ := newCore(t)
 
-	sessions, err := core.ListSessions(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, []string{sessionID}, agentTestSessionIDs(sessions))
+		status, err := core.ContextStatus(context.Background(), storage.DefaultSessionID)
+		require.NoError(t, err)
+		require.Equal(t, 25, status.Used)
+		require.Equal(t, 75, status.Remaining)
+		require.Equal(t, 0.25, status.UsedPct)
+		require.Equal(t, 0.75, status.RemainingPct)
 
-	archivedSessionID, err := storage.NewSessionID()
-	require.NoError(t, err)
-	store.sessions[archivedSessionID] = storage.Session{ID: archivedSessionID, Archived: true}
+		status, err = core.GetSessionStatus(context.Background(), storage.DefaultSessionID)
+		require.NoError(t, err)
+		require.Equal(t, storage.DefaultSessionID, status.SessionID)
 
-	archived := true
-	archivedSessions, err := core.ListSessions(
-		context.Background(),
-		storage.SessionListOptions{Archived: &archived},
-	)
-	require.NoError(t, err)
-	require.Equal(t, []string{archivedSessionID}, agentTestSessionIDs(archivedSessions))
-	require.NotNil(t, store.listOptions.Archived)
-	require.True(t, *store.listOptions.Archived)
+		loaded, ok, err := core.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, storage.DefaultSessionID, loaded.ID)
+	})
 
-	_, err = (*Agent)(nil).CreateSession(context.Background(), "")
-	require.EqualError(t, err, "agent is required")
-	_, err = (&Agent{}).ListSessions(context.Background())
-	require.EqualError(t, err, "environment has not been initialized")
-	_, err = (&Agent{}).ListSessions(context.Background(), storage.SessionListOptions{Archived: &archived})
-	require.EqualError(t, err, "environment has not been initialized")
-	require.EqualError(t, (*Agent)(nil).UseSession(context.Background(), ""), "agent is required")
-	require.EqualError(t, (&Agent{}).UseSession(context.Background(), ""), "environment has not been initialized")
-	_, err = (&Agent{}).CurrentSession(context.Background())
-	require.EqualError(t, err, "environment has not been initialized")
-	_, err = (*Agent)(nil).RepairSession(context.Background(), search.VectorRepairOptions{})
-	require.EqualError(t, err, "agent is required")
-	_, err = (&Agent{}).ContextStatus(context.Background(), "")
-	require.EqualError(t, err, "config is required")
-	_, err = (*Agent)(nil).ListSessions(context.Background())
-	require.EqualError(t, err, "agent is required")
-	_, err = (*Agent)(nil).ListSessions(context.Background(), storage.SessionListOptions{Archived: &archived})
-	require.EqualError(t, err, "agent is required")
-	_, err = (*Agent)(nil).CurrentSession(context.Background())
-	require.EqualError(t, err, "agent is required")
+	t.Run("creates and filters sessions", func(t *testing.T) {
+		core, store := newCore(t)
+
+		sessionID, err := storage.NewSessionID()
+		require.NoError(t, err)
+		created, err := core.CreateSession(context.Background(), sessionID)
+		require.NoError(t, err)
+		require.Equal(t, sessionID, created.ID)
+		require.Equal(t, storage.SessionOrigin{Source: storage.SessionOriginSourceCLI}, created.Origin)
+
+		explicitSessionID, err := storage.NewSessionID()
+		require.NoError(t, err)
+		explicitOrigin := storage.SessionOrigin{
+			Source:         storage.SessionOriginSourceTelegram,
+			AccountID:      "account",
+			ConversationID: "conversation",
+			ThreadID:       "thread",
+		}
+		created, err = core.CreateSession(
+			context.Background(),
+			explicitSessionID,
+			storage.SessionCreateOptions{Origin: explicitOrigin},
+		)
+		require.NoError(t, err)
+		require.Equal(t, explicitOrigin, created.Origin)
+
+		sessions, err := core.ListSessions(context.Background())
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{sessionID, explicitSessionID}, agentTestSessionIDs(sessions))
+
+		archivedSessionID, err := storage.NewSessionID()
+		require.NoError(t, err)
+		store.sessions[archivedSessionID] = storage.Session{ID: archivedSessionID, Archived: true}
+		archived := true
+		archivedSessions, err := core.ListSessions(
+			context.Background(),
+			storage.SessionListOptions{Archived: &archived},
+		)
+		require.NoError(t, err)
+		require.Equal(t, []string{archivedSessionID}, agentTestSessionIDs(archivedSessions))
+		require.NotNil(t, store.listOptions.Archived)
+		require.True(t, *store.listOptions.Archived)
+	})
+
+	t.Run("gets and selects the current session", func(t *testing.T) {
+		core, store := newCore(t)
+
+		current, err := core.CurrentSession(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, storage.DefaultSessionID, current.ID)
+
+		require.NoError(t, core.UseSession(context.Background(), storage.DefaultSessionID))
+		require.Equal(t, storage.DefaultSessionID, store.current)
+	})
+
+	t.Run("validates unavailable lifecycle dependencies", func(t *testing.T) {
+		_, err := (*Agent)(nil).CreateSession(context.Background(), "")
+		require.EqualError(t, err, "agent is required")
+
+		_, _, err = (*Agent)(nil).Get(context.Background(), "", storage.SessionGetOptions{})
+		require.EqualError(t, err, "agent is required")
+		_, _, err = (&Agent{}).Get(context.Background(), "", storage.SessionGetOptions{})
+		require.EqualError(t, err, "environment has not been initialized")
+
+		archived := true
+		_, err = (&Agent{}).ListSessions(context.Background())
+		require.EqualError(t, err, "environment has not been initialized")
+		_, err = (&Agent{}).ListSessions(context.Background(), storage.SessionListOptions{Archived: &archived})
+		require.EqualError(t, err, "environment has not been initialized")
+		_, err = (*Agent)(nil).ListSessions(context.Background())
+		require.EqualError(t, err, "agent is required")
+		_, err = (*Agent)(nil).ListSessions(
+			context.Background(),
+			storage.SessionListOptions{Archived: &archived},
+		)
+		require.EqualError(t, err, "agent is required")
+
+		require.EqualError(t, (*Agent)(nil).UseSession(context.Background(), ""), "agent is required")
+		require.EqualError(
+			t,
+			(&Agent{}).UseSession(context.Background(), ""),
+			"environment has not been initialized",
+		)
+
+		_, err = (&Agent{}).CurrentSession(context.Background())
+		require.EqualError(t, err, "environment has not been initialized")
+		_, err = (*Agent)(nil).CurrentSession(context.Background())
+		require.EqualError(t, err, "agent is required")
+
+		_, err = (*Agent)(nil).RepairSession(context.Background(), search.VectorRepairOptions{})
+		require.EqualError(t, err, "agent is required")
+		_, err = (&Agent{}).ContextStatus(context.Background(), "")
+		require.EqualError(t, err, "config is required")
+	})
 }
 
 func TestAgent_SessionOriginSourceUsesSupportedRuntimePlatform(t *testing.T) {
@@ -331,196 +404,286 @@ func TestAgent_GatewayBindingServiceOperations(t *testing.T) {
 }
 
 func TestAgent_GatewayPairingServiceOperations(t *testing.T) {
-	store := &stateStoreStub{}
-	manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
-	require.NoError(t, err)
-	core := &Agent{
-		initialized: true,
-		stateMgr:    manager,
+	const source = "telegram"
+	const senderID = "123"
+
+	request := pairing.PendingRequest{Source: source, SenderID: senderID}
+	sender := pairing.ApprovedSender{Source: source, SenderID: senderID}
+
+	newCore := func(t *testing.T, store *stateStoreStub) *Agent {
+		t.Helper()
+
+		manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
+		require.NoError(t, err)
+
+		return &Agent{initialized: true, stateMgr: manager}
 	}
-	request := pairing.PendingRequest{Source: "telegram", SenderID: "123"}
-	sender := pairing.ApprovedSender{Source: "telegram", SenderID: "123"}
 
-	require.NoError(t, core.SaveGatewayPairingRequest(context.Background(), request))
-	foundRequest, ok, err := core.GetGatewayPairingRequest(context.Background(), "telegram", "123")
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, request, foundRequest)
-	requests, err := core.ListGatewayPairingRequests(context.Background(), "telegram")
-	require.NoError(t, err)
-	require.Equal(t, []pairing.PendingRequest{request}, requests)
-	require.NoError(t, core.DeleteGatewayPairingRequest(context.Background(), "telegram", "123"))
-	requests, err = core.ListGatewayPairingRequests(context.Background(), "telegram")
-	require.NoError(t, err)
-	require.Empty(t, requests)
+	t.Run("manages pending requests", func(t *testing.T) {
+		core := newCore(t, &stateStoreStub{})
 
-	require.NoError(t, core.SaveGatewayPairingRequest(context.Background(), request))
-	require.NoError(t, core.ClearGatewayPairingRequests(context.Background(), "telegram"))
-	requests, err = core.ListGatewayPairingRequests(context.Background(), "telegram")
-	require.NoError(t, err)
-	require.Empty(t, requests)
+		require.NoError(t, core.SaveGatewayPairingRequest(context.Background(), request))
+		found, ok, err := core.GetGatewayPairingRequest(context.Background(), source, senderID)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, request, found)
 
-	require.NoError(t, core.SaveGatewayPairedSender(context.Background(), sender))
-	foundSender, ok, err := core.GetGatewayPairedSender(context.Background(), "telegram", "123")
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, sender, foundSender)
-	senders, err := core.ListGatewayPairedSenders(context.Background(), "telegram")
-	require.NoError(t, err)
-	require.Equal(t, []pairing.ApprovedSender{sender}, senders)
-	require.NoError(t, core.DeleteGatewayPairedSender(context.Background(), "telegram", "123"))
-	senders, err = core.ListGatewayPairedSenders(context.Background(), "telegram")
-	require.NoError(t, err)
-	require.Empty(t, senders)
+		requests, err := core.ListGatewayPairingRequests(context.Background(), source)
+		require.NoError(t, err)
+		require.Equal(t, []pairing.PendingRequest{request}, requests)
 
-	expected := errors.New("pairing failed")
-	store.pairingErr = expected
-	require.ErrorIs(t, core.SaveGatewayPairingRequest(context.Background(), request), expected)
-	_, _, err = core.GetGatewayPairingRequest(context.Background(), "telegram", "123")
-	require.ErrorIs(t, err, expected)
-	_, err = core.ListGatewayPairingRequests(context.Background(), "telegram")
-	require.ErrorIs(t, err, expected)
-	require.ErrorIs(t, core.DeleteGatewayPairingRequest(context.Background(), "telegram", "123"), expected)
-	require.ErrorIs(t, core.ClearGatewayPairingRequests(context.Background(), "telegram"), expected)
-	require.ErrorIs(t, core.SaveGatewayPairedSender(context.Background(), sender), expected)
-	_, _, err = core.GetGatewayPairedSender(context.Background(), "telegram", "123")
-	require.ErrorIs(t, err, expected)
-	_, err = core.ListGatewayPairedSenders(context.Background(), "telegram")
-	require.ErrorIs(t, err, expected)
-	require.ErrorIs(t, core.DeleteGatewayPairedSender(context.Background(), "telegram", "123"), expected)
+		require.NoError(t, core.DeleteGatewayPairingRequest(context.Background(), source, senderID))
+		requests, err = core.ListGatewayPairingRequests(context.Background(), source)
+		require.NoError(t, err)
+		require.Empty(t, requests)
+	})
 
-	require.EqualError(t,
-		(*Agent)(nil).SaveGatewayPairingRequest(context.Background(), request),
-		"agent is required",
-	)
-	require.EqualError(t,
-		(&Agent{}).SaveGatewayPairingRequest(context.Background(), request),
-		"environment has not been initialized",
-	)
-	_, _, err = (*Agent)(nil).GetGatewayPairingRequest(context.Background(), "telegram", "123")
-	require.EqualError(t, err, "agent is required")
-	_, _, err = (&Agent{}).GetGatewayPairingRequest(context.Background(), "telegram", "123")
-	require.EqualError(t, err, "environment has not been initialized")
-	_, err = (*Agent)(nil).ListGatewayPairingRequests(context.Background(), "telegram")
-	require.EqualError(t, err, "agent is required")
-	_, err = (&Agent{}).ListGatewayPairingRequests(context.Background(), "telegram")
-	require.EqualError(t, err, "environment has not been initialized")
-	require.EqualError(t,
-		(*Agent)(nil).DeleteGatewayPairingRequest(context.Background(), "telegram", "123"),
-		"agent is required",
-	)
-	require.EqualError(t,
-		(&Agent{}).DeleteGatewayPairingRequest(context.Background(), "telegram", "123"),
-		"environment has not been initialized",
-	)
-	require.EqualError(t,
-		(*Agent)(nil).ClearGatewayPairingRequests(context.Background(), "telegram"),
-		"agent is required",
-	)
-	require.EqualError(t,
-		(&Agent{}).ClearGatewayPairingRequests(context.Background(), "telegram"),
-		"environment has not been initialized",
-	)
-	require.EqualError(t,
-		(*Agent)(nil).SaveGatewayPairedSender(context.Background(), sender),
-		"agent is required",
-	)
-	require.EqualError(t,
-		(&Agent{}).SaveGatewayPairedSender(context.Background(), sender),
-		"environment has not been initialized",
-	)
-	_, _, err = (*Agent)(nil).GetGatewayPairedSender(context.Background(), "telegram", "123")
-	require.EqualError(t, err, "agent is required")
-	_, _, err = (&Agent{}).GetGatewayPairedSender(context.Background(), "telegram", "123")
-	require.EqualError(t, err, "environment has not been initialized")
-	_, err = (*Agent)(nil).ListGatewayPairedSenders(context.Background(), "telegram")
-	require.EqualError(t, err, "agent is required")
-	_, err = (&Agent{}).ListGatewayPairedSenders(context.Background(), "telegram")
-	require.EqualError(t, err, "environment has not been initialized")
-	require.EqualError(t,
-		(*Agent)(nil).DeleteGatewayPairedSender(context.Background(), "telegram", "123"),
-		"agent is required",
-	)
-	require.EqualError(t,
-		(&Agent{}).DeleteGatewayPairedSender(context.Background(), "telegram", "123"),
-		"environment has not been initialized",
-	)
+	t.Run("clears pending requests", func(t *testing.T) {
+		core := newCore(t, &stateStoreStub{})
+
+		require.NoError(t, core.SaveGatewayPairingRequest(context.Background(), request))
+		require.NoError(t, core.ClearGatewayPairingRequests(context.Background(), source))
+		requests, err := core.ListGatewayPairingRequests(context.Background(), source)
+		require.NoError(t, err)
+		require.Empty(t, requests)
+	})
+
+	t.Run("manages approved senders", func(t *testing.T) {
+		core := newCore(t, &stateStoreStub{})
+
+		require.NoError(t, core.SaveGatewayPairedSender(context.Background(), sender))
+		found, ok, err := core.GetGatewayPairedSender(context.Background(), source, senderID)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, sender, found)
+
+		senders, err := core.ListGatewayPairedSenders(context.Background(), source)
+		require.NoError(t, err)
+		require.Equal(t, []pairing.ApprovedSender{sender}, senders)
+
+		require.NoError(t, core.DeleteGatewayPairedSender(context.Background(), source, senderID))
+		senders, err = core.ListGatewayPairedSenders(context.Background(), source)
+		require.NoError(t, err)
+		require.Empty(t, senders)
+	})
+
+	t.Run("propagates pending request storage errors", func(t *testing.T) {
+		expected := errors.New("pairing failed")
+		core := newCore(t, &stateStoreStub{pairingErr: expected})
+
+		require.ErrorIs(t, core.SaveGatewayPairingRequest(context.Background(), request), expected)
+		_, _, err := core.GetGatewayPairingRequest(context.Background(), source, senderID)
+		require.ErrorIs(t, err, expected)
+		_, err = core.ListGatewayPairingRequests(context.Background(), source)
+		require.ErrorIs(t, err, expected)
+		require.ErrorIs(t, core.DeleteGatewayPairingRequest(context.Background(), source, senderID), expected)
+		require.ErrorIs(t, core.ClearGatewayPairingRequests(context.Background(), source), expected)
+	})
+
+	t.Run("propagates approved sender storage errors", func(t *testing.T) {
+		expected := errors.New("pairing failed")
+		core := newCore(t, &stateStoreStub{pairingErr: expected})
+
+		require.ErrorIs(t, core.SaveGatewayPairedSender(context.Background(), sender), expected)
+		_, _, err := core.GetGatewayPairedSender(context.Background(), source, senderID)
+		require.ErrorIs(t, err, expected)
+		_, err = core.ListGatewayPairedSenders(context.Background(), source)
+		require.ErrorIs(t, err, expected)
+		require.ErrorIs(t, core.DeleteGatewayPairedSender(context.Background(), source, senderID), expected)
+	})
+
+	t.Run("validates pending request dependencies", func(t *testing.T) {
+		require.EqualError(
+			t,
+			(*Agent)(nil).SaveGatewayPairingRequest(context.Background(), request),
+			"agent is required",
+		)
+		require.EqualError(
+			t,
+			(&Agent{}).SaveGatewayPairingRequest(context.Background(), request),
+			"environment has not been initialized",
+		)
+
+		_, _, err := (*Agent)(nil).GetGatewayPairingRequest(context.Background(), source, senderID)
+		require.EqualError(t, err, "agent is required")
+		_, _, err = (&Agent{}).GetGatewayPairingRequest(context.Background(), source, senderID)
+		require.EqualError(t, err, "environment has not been initialized")
+
+		_, err = (*Agent)(nil).ListGatewayPairingRequests(context.Background(), source)
+		require.EqualError(t, err, "agent is required")
+		_, err = (&Agent{}).ListGatewayPairingRequests(context.Background(), source)
+		require.EqualError(t, err, "environment has not been initialized")
+
+		require.EqualError(
+			t,
+			(*Agent)(nil).DeleteGatewayPairingRequest(context.Background(), source, senderID),
+			"agent is required",
+		)
+		require.EqualError(
+			t,
+			(&Agent{}).DeleteGatewayPairingRequest(context.Background(), source, senderID),
+			"environment has not been initialized",
+		)
+		require.EqualError(
+			t,
+			(*Agent)(nil).ClearGatewayPairingRequests(context.Background(), source),
+			"agent is required",
+		)
+		require.EqualError(
+			t,
+			(&Agent{}).ClearGatewayPairingRequests(context.Background(), source),
+			"environment has not been initialized",
+		)
+	})
+
+	t.Run("validates approved sender dependencies", func(t *testing.T) {
+		require.EqualError(
+			t,
+			(*Agent)(nil).SaveGatewayPairedSender(context.Background(), sender),
+			"agent is required",
+		)
+		require.EqualError(
+			t,
+			(&Agent{}).SaveGatewayPairedSender(context.Background(), sender),
+			"environment has not been initialized",
+		)
+
+		_, _, err := (*Agent)(nil).GetGatewayPairedSender(context.Background(), source, senderID)
+		require.EqualError(t, err, "agent is required")
+		_, _, err = (&Agent{}).GetGatewayPairedSender(context.Background(), source, senderID)
+		require.EqualError(t, err, "environment has not been initialized")
+
+		_, err = (*Agent)(nil).ListGatewayPairedSenders(context.Background(), source)
+		require.EqualError(t, err, "agent is required")
+		_, err = (&Agent{}).ListGatewayPairedSenders(context.Background(), source)
+		require.EqualError(t, err, "environment has not been initialized")
+
+		require.EqualError(
+			t,
+			(*Agent)(nil).DeleteGatewayPairedSender(context.Background(), source, senderID),
+			"agent is required",
+		)
+		require.EqualError(
+			t,
+			(&Agent{}).DeleteGatewayPairedSender(context.Background(), source, senderID),
+			"environment has not been initialized",
+		)
+	})
 }
 
 func TestAgent_LifecycleBranchesForCloseCreateUseAndStatus(t *testing.T) {
-	require.NoError(t, (*Agent)(nil).Close())
-	require.NoError(t, (&Agent{}).Close())
+	newCore := func(t *testing.T) (*Agent, *stateStoreStub, string) {
+		t.Helper()
 
-	otherID, err := storage.NewSessionID()
-	require.NoError(t, err)
-	store := &stateStoreStub{
-		session: storage.Session{ID: storage.DefaultSessionID},
-		sessions: map[string]storage.Session{
-			storage.DefaultSessionID: {ID: storage.DefaultSessionID},
-			otherID:                  {ID: otherID},
-		},
-		current: storage.DefaultSessionID,
+		otherID, err := storage.NewSessionID()
+		require.NoError(t, err)
+		store := &stateStoreStub{
+			session: storage.Session{ID: storage.DefaultSessionID},
+			sessions: map[string]storage.Session{
+				storage.DefaultSessionID: {ID: storage.DefaultSessionID},
+				otherID:                  {ID: otherID},
+			},
+			current: storage.DefaultSessionID,
+		}
+		manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
+		require.NoError(t, err)
+
+		return &Agent{
+			cfg:         &config.Config{Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 0}}},
+			initialized: true,
+			stateMgr:    manager,
+		}, store, otherID
 	}
-	manager, err := statemanager.NewManager(store, time.Hour, time.Hour)
-	require.NoError(t, err)
-	core := &Agent{
-		cfg:         &config.Config{Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 0}}},
-		initialized: true,
-		stateMgr:    manager,
-	}
-	require.NoError(t, core.Close())
 
-	_, err = (&Agent{}).CreateSession(context.Background(), "")
-	require.EqualError(t, err, "environment has not been initialized")
+	t.Run("closes absent and active state managers", func(t *testing.T) {
+		require.NoError(t, (*Agent)(nil).Close())
+		require.NoError(t, (&Agent{}).Close())
 
-	store.getErr = errors.New("resolve failed")
-	require.EqualError(t, core.UseSession(context.Background(), otherID), "resolve failed")
-	store.getErr = nil
-	require.NoError(t, core.UseSession(context.Background(), otherID))
-	require.Equal(t, otherID, store.current)
+		core, _, _ := newCore(t)
+		require.NoError(t, core.Close())
+	})
 
-	require.NoError(t, core.ArchiveSession(context.Background(), otherID))
-	require.Equal(t, otherID, store.archive.ID)
-	require.False(t, store.archive.ArchivedAt.IsZero())
+	t.Run("rejects session creation before initialization", func(t *testing.T) {
+		_, err := (&Agent{}).CreateSession(context.Background(), "")
+		require.EqualError(t, err, "environment has not been initialized")
+	})
 
-	unarchived, err := core.UnarchiveSession(context.Background(), otherID)
-	require.NoError(t, err)
-	require.Equal(t, otherID, unarchived.ID)
-	store.unarchiveErr = errors.New("session is not archived")
-	_, err = core.UnarchiveSession(context.Background(), otherID)
-	require.EqualError(t, err, "session is not archived")
-	store.unarchiveErr = nil
+	t.Run("selects a resolved session", func(t *testing.T) {
+		core, store, otherID := newCore(t)
 
-	renamed, err := core.RenameSession(context.Background(), otherID, "Renamed Chat")
-	require.NoError(t, err)
-	require.Equal(t, otherID, renamed.ID)
-	require.Equal(t, "Renamed Chat", renamed.Title)
-	require.Equal(t, storage.SessionTitleSourceManual, renamed.TitleSource)
+		store.getErr = errors.New("resolve failed")
+		require.EqualError(t, core.UseSession(context.Background(), otherID), "resolve failed")
 
-	store.current = storage.DefaultSessionID
-	traceSession := &mocks.TraceSessionStub{SessionID: "trace"}
-	core.env = &mocks.EnvironmentStub{TraceSession: traceSession}
-	require.NoError(t, core.UseSession(context.Background(), otherID))
-	require.Empty(t, traceSession.Events)
-	require.False(t, traceSession.Closed)
+		store.getErr = nil
+		require.NoError(t, core.UseSession(context.Background(), otherID))
+		require.Equal(t, otherID, store.current)
+	})
 
-	require.EqualError(t, (*Agent)(nil).ArchiveSession(context.Background(), ""), "agent is required")
-	require.EqualError(t, (&Agent{}).ArchiveSession(context.Background(), ""), "environment has not been initialized")
-	_, err = (*Agent)(nil).UnarchiveSession(context.Background(), "")
-	require.EqualError(t, err, "agent is required")
-	_, err = (&Agent{}).UnarchiveSession(context.Background(), "")
-	require.EqualError(t, err, "environment has not been initialized")
-	_, err = (*Agent)(nil).RenameSession(context.Background(), "", "Title")
-	require.EqualError(t, err, "agent is required")
-	_, err = (&Agent{}).RenameSession(context.Background(), "", "Title")
-	require.EqualError(t, err, "environment has not been initialized")
+	t.Run("archives and unarchives a session", func(t *testing.T) {
+		core, store, otherID := newCore(t)
 
-	_, err = (&Agent{}).RepairSession(context.Background(), search.VectorRepairOptions{})
-	require.EqualError(t, err, "environment has not been initialized")
-	_, err = (*Agent)(nil).ContextStatus(context.Background(), "")
-	require.EqualError(t, err, "agent is required")
-	_, err = (&Agent{cfg: &config.Config{}}).ContextStatus(context.Background(), "")
-	require.EqualError(t, err, "environment has not been initialized")
+		require.NoError(t, core.ArchiveSession(context.Background(), otherID))
+		require.Equal(t, otherID, store.archive.ID)
+		require.False(t, store.archive.ArchivedAt.IsZero())
+
+		unarchived, err := core.UnarchiveSession(context.Background(), otherID)
+		require.NoError(t, err)
+		require.Equal(t, otherID, unarchived.ID)
+
+		store.unarchiveErr = errors.New("session is not archived")
+		_, err = core.UnarchiveSession(context.Background(), otherID)
+		require.EqualError(t, err, "session is not archived")
+	})
+
+	t.Run("renames a session manually", func(t *testing.T) {
+		core, _, otherID := newCore(t)
+
+		renamed, err := core.RenameSession(context.Background(), otherID, "Renamed Chat")
+		require.NoError(t, err)
+		require.Equal(t, otherID, renamed.ID)
+		require.Equal(t, "Renamed Chat", renamed.Title)
+		require.Equal(t, storage.SessionTitleSourceManual, renamed.TitleSource)
+	})
+
+	t.Run("does not emit trace events while selecting a session", func(t *testing.T) {
+		core, store, otherID := newCore(t)
+		traceSession := &mocks.TraceSessionStub{SessionID: "trace"}
+		core.env = &mocks.EnvironmentStub{TraceSession: traceSession}
+
+		require.NoError(t, core.UseSession(context.Background(), otherID))
+		require.Equal(t, otherID, store.current)
+		require.Empty(t, traceSession.Events)
+		require.False(t, traceSession.Closed)
+	})
+
+	t.Run("validates archive and rename dependencies", func(t *testing.T) {
+		require.EqualError(t, (*Agent)(nil).ArchiveSession(context.Background(), ""), "agent is required")
+		require.EqualError(
+			t,
+			(&Agent{}).ArchiveSession(context.Background(), ""),
+			"environment has not been initialized",
+		)
+
+		_, err := (*Agent)(nil).UnarchiveSession(context.Background(), "")
+		require.EqualError(t, err, "agent is required")
+		_, err = (&Agent{}).UnarchiveSession(context.Background(), "")
+		require.EqualError(t, err, "environment has not been initialized")
+
+		_, err = (*Agent)(nil).RenameSession(context.Background(), "", "Title")
+		require.EqualError(t, err, "agent is required")
+		_, err = (&Agent{}).RenameSession(context.Background(), "", "Title")
+		require.EqualError(t, err, "environment has not been initialized")
+	})
+
+	t.Run("validates repair and context status dependencies", func(t *testing.T) {
+		_, err := (&Agent{}).RepairSession(context.Background(), search.VectorRepairOptions{})
+		require.EqualError(t, err, "environment has not been initialized")
+
+		_, err = (*Agent)(nil).ContextStatus(context.Background(), "")
+		require.EqualError(t, err, "agent is required")
+		_, err = (&Agent{cfg: &config.Config{}}).ContextStatus(context.Background(), "")
+		require.EqualError(t, err, "environment has not been initialized")
+	})
 }
 
 func TestAgent_EnsureStateManagerUsesPackageHooksAndCacheHelpers(t *testing.T) {
@@ -1011,6 +1174,61 @@ func TestAgent_ListProvidersReturnsKnownProvidersWithAuth(t *testing.T) {
 	require.True(t, list.Providers[0].Current)
 	require.Equal(t, "api-key", list.Providers[0].AuthType)
 	require.Greater(t, list.Providers[0].ModelCount, 0)
+}
+
+func TestAgent_ListProvidersPropagatesModelCatalogErrors(t *testing.T) {
+	originalListModelOptions := listModelOptions
+	t.Cleanup(func() { listModelOptions = originalListModelOptions })
+
+	expected := errors.New("catalog failed")
+	cfg := config.NewDefaultConfig()
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+
+	listModelOptions = func(models.OptionQuery) ([]models.Option, error) {
+		return nil, expected
+	}
+	_, err := NewAgent(context.Background(), cfg, nil).ListProviders(context.Background())
+	require.ErrorIs(t, err, expected)
+
+	calls := 0
+	listModelOptions = func(query models.OptionQuery) ([]models.Option, error) {
+		calls++
+		if calls == 2 {
+			return nil, expected
+		}
+		return originalListModelOptions(query)
+	}
+	_, err = NewAgent(context.Background(), cfg, nil).ListProviders(context.Background())
+	require.ErrorIs(t, err, expected)
+	require.Equal(t, 2, calls)
+}
+
+func TestAgent_ListModelsPropagatesModelCatalogErrors(t *testing.T) {
+	originalListModelOptions := listModelOptions
+	t.Cleanup(func() { listModelOptions = originalListModelOptions })
+
+	expected := errors.New("catalog failed")
+	cfg := config.NewDefaultConfig()
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+
+	listModelOptions = func(models.OptionQuery) ([]models.Option, error) {
+		return nil, expected
+	}
+	_, err := NewAgent(context.Background(), cfg, nil).ListModels(context.Background())
+	require.ErrorIs(t, err, expected)
+
+	t.Setenv("ANTHROPIC_OAUTH_TOKEN", "oauth-token")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	cfg.Models.Main.Provider = constants.ModelProviderAnthropic
+	cfg.Models.Main.Name = "claude-sonnet-4-6"
+	listModelOptions = func(query models.OptionQuery) ([]models.Option, error) {
+		if query.OAuthOnly {
+			return nil, expected
+		}
+		return originalListModelOptions(query)
+	}
+	_, err = NewAgent(context.Background(), cfg, nil).ListModels(context.Background())
+	require.ErrorIs(t, err, expected)
 }
 
 func TestAgent_ListModelsFiltersAnthropicOAuthModels(t *testing.T) {

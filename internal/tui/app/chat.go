@@ -83,6 +83,8 @@ func (m *model) startResponse(prompt string, followTranscript bool) tea.Cmd {
 	m.responseTranscriptFollow = followTranscript
 	m.responseTranscriptScrolled = false
 	m.responseRunningToolCount = 0
+	m.responseEventStreamActive = true
+	m.pendingResponseCompletion = nil
 	m.toolAnimationActive = false
 	m.stream.Reset()
 	m.applyAction(setLiveTranscriptCellAction{})
@@ -95,6 +97,33 @@ func (m *model) startResponse(prompt string, followTranscript bool) tea.Cmd {
 	)
 }
 
+func (m *model) handleResponseCompleted(msg responseCompletedMsg) tea.Cmd {
+	if !m.isActiveResponse(msg.ResponseID) {
+		return nil
+	}
+	if m.responseEventStreamActive {
+		m.pendingResponseCompletion = &msg
+		return nil
+	}
+
+	return m.completeResponse(msg)
+}
+
+func (m *model) handleResponseEventsClosed(msg responseEventsClosedMsg) tea.Cmd {
+	if !m.isActiveResponse(msg.ResponseID) {
+		return nil
+	}
+	m.responseEventStreamActive = false
+	m.events = nil
+	if m.pendingResponseCompletion == nil {
+		return nil
+	}
+
+	completion := *m.pendingResponseCompletion
+	m.pendingResponseCompletion = nil
+	return m.completeResponse(completion)
+}
+
 func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 	if !m.isActiveResponse(msg.ResponseID) {
 		return nil
@@ -102,28 +131,16 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 
 	shouldFollowTranscript := m.responseTranscriptFollow && !m.responseTranscriptScrolled
 	if msg.Err != nil {
+		m.failRunningToolTranscriptCells(currentTime())
 		errorMsg := sessionErrorMsg{Message: msg.Err.Error()}
 		m.addTranscriptMessage(errorMsg)
-		m.applyAction(setRespondingAction{Responding: false, ResponseID: m.responseID})
-		m.responseTranscriptFollow = false
-		m.responseTranscriptScrolled = false
-		m.responseRunningToolCount = 0
-		m.responseStartedAt = time.Time{}
-		m.thinkingComposerActive = false
-		m.events = nil
-		m.responseCancel = nil
+		m.resetResponseState()
 		return m.setStatus("response failed")
 	}
 
+	m.interruptRunningToolTranscriptCells(currentTime())
 	m.completeAssistantResponse(msg.Text, m.getCompletedResponseDuration())
-	m.applyAction(setRespondingAction{Responding: false, ResponseID: m.responseID})
-	m.responseTranscriptFollow = false
-	m.responseTranscriptScrolled = false
-	m.responseRunningToolCount = 0
-	m.responseStartedAt = time.Time{}
-	m.thinkingComposerActive = false
-	m.events = nil
-	m.responseCancel = nil
+	m.resetResponseState()
 	if shouldFollowTranscript {
 		m.resize()
 		m.transcript.GotoBottom()
@@ -142,15 +159,8 @@ func (m *model) cancelActiveResponse() tea.Cmd {
 	if m.responseCancel != nil {
 		m.responseCancel()
 	}
-	m.applyAction(setRespondingAction{Responding: false, ResponseID: m.responseID})
-	m.responseTranscriptFollow = false
-	m.responseTranscriptScrolled = false
-	m.responseRunningToolCount = 0
-	m.responseStartedAt = time.Time{}
-	m.thinkingComposerActive = false
-	m.toolAnimationActive = false
-	m.responseCancel = nil
-	m.events = nil
+	m.interruptRunningToolTranscriptCells(currentTime())
+	m.resetResponseState()
 
 	return m.setStatus("response cancelled")
 }

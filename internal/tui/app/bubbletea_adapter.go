@@ -70,12 +70,10 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.handleResponseEvent(msg)
 		return next, cmd, true
 	case responseEventsClosedMsg:
-		if !m.isActiveResponse(msg.ResponseID) {
-			return m, nil, true
-		}
-		return m, nil, true
+		cmd := m.handleResponseEventsClosed(msg)
+		return m, cmd, true
 	case responseCompletedMsg:
-		cmd := m.completeResponse(msg)
+		cmd := m.handleResponseCompleted(msg)
 		return m, cmd, true
 	case sessionTimelineLoadedMsg:
 		m.chatSwitching = false
