@@ -405,7 +405,7 @@ func TestWriteInspection_OutputsAllJobFields(t *testing.T) {
 		"Failure after:        2",
 		"Failure cooldown:     1h0m0s",
 		"State\n",
-		"Next run at:          2026-07-05T09:00:00Z",
+		"Next run at:          2026-07-05T10:00:00+01:00",
 		"Running at:           2026-07-05T08:02:00Z",
 		"Last run at:          2026-07-05T07:00:00Z",
 		"Last status:          error",

@@ -388,6 +388,21 @@ func TestCommandHelpersCoverScheduleAndArgumentBranches(t *testing.T) {
 	require.Nil(t, parseRunStatuses(""))
 }
 
+func TestFormatTimeInScheduleTimezone_UsesScheduleTimezoneWithUTCFallback(t *testing.T) {
+	value := time.Date(2026, 7, 5, 9, 0, 0, 0, time.UTC)
+
+	require.Equal(t, "-", formatTimeInScheduleTimezone(time.Time{}, coreautomation.Schedule{
+		Timezone: "Africa/Lagos",
+	}))
+	require.Equal(t, "2026-07-05T10:00:00+01:00", formatTimeInScheduleTimezone(value, coreautomation.Schedule{
+		Timezone: "Africa/Lagos",
+	}))
+	require.Equal(t, "2026-07-05T09:00:00Z", formatTimeInScheduleTimezone(value, coreautomation.Schedule{}))
+	require.Equal(t, "2026-07-05T09:00:00Z", formatTimeInScheduleTimezone(value, coreautomation.Schedule{
+		Timezone: "Missing/Zone",
+	}))
+}
+
 func TestSetOutputHandlesNilAndWriter(t *testing.T) {
 	previous := SetOutput(nil)
 	t.Cleanup(func() { SetOutput(previous) })

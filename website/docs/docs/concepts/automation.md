@@ -44,8 +44,8 @@ wall-clock slot (e.g. "always at 09:00"), use `cron` instead.
 :::
 
 Cron expressions resolve their timezone in this order: an explicit `TZ=<zone>` prefix on the expression itself,
-then the daemon's configured default timezone, then the server's local system timezone as a last resort. Whichever
-timezone is used to compute *when* a cron job fires, the resulting run time is always stored and displayed in UTC.
+then the daemon's configured default timezone, then the server's local system timezone as a last resort. The
+resulting run time is stored in UTC, but displayed in that same timezone wherever the job's next run is shown.
 
 ## Execution
 

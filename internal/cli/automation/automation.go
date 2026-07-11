@@ -654,3 +654,20 @@ func formatTime(value time.Time) string {
 
 	return value.UTC().Format(time.RFC3339)
 }
+
+func formatTimeInScheduleTimezone(value time.Time, schedule coreautomation.Schedule) string {
+	if value.IsZero() {
+		return "-"
+	}
+
+	timezone := strings.TrimSpace(schedule.Timezone)
+	if timezone == "" {
+		return formatTime(value)
+	}
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return formatTime(value)
+	}
+
+	return value.In(location).Format(time.RFC3339)
+}

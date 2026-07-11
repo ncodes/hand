@@ -42,7 +42,7 @@ func jobListToText(jobs []coreautomation.Job) string {
 			getDisplayText(job.Name),
 			job.Enabled,
 			getDisplayText(formatSchedule(job.Schedule)),
-			formatTime(job.State.NextRunAt),
+			formatTimeInScheduleTimezone(job.State.NextRunAt, job.Schedule),
 			getDisplayText(string(job.State.LastStatus)),
 		)
 	}
@@ -173,7 +173,7 @@ func appendInspectedJob(output *strings.Builder, job coreautomation.Job) {
 	appendOutputField(output, "Failure cooldown", job.Delivery.FailureCooldown.String())
 
 	appendOutputSection(output, "State")
-	appendOutputField(output, "Next run at", formatTime(job.State.NextRunAt))
+	appendOutputField(output, "Next run at", formatTimeInScheduleTimezone(job.State.NextRunAt, job.Schedule))
 	appendOutputField(output, "Running at", formatTime(job.State.RunningAt))
 	appendOutputField(output, "Last run at", formatTime(job.State.LastRunAt))
 	appendOutputField(output, "Last status", string(job.State.LastStatus))

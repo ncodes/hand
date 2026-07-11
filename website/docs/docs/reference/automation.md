@@ -107,8 +107,8 @@ schedule, not a one-shot delay.
 2. The daemon's configured default timezone.
 3. The server's local system timezone.
 
-Whichever timezone resolves the cron expression, the computed `NEXT RUN` is always stored and displayed in UTC.
-`at` and `every` schedules do not use a timezone at all.
+`NEXT RUN` is stored in UTC but displayed in the cron schedule's timezone when one is set, falling back to UTC
+otherwise. `at` and `every` schedules don't carry a separate timezone field.
 
 ## Payload
 
@@ -170,11 +170,11 @@ destination within that platform: a Telegram chat id, or a Slack channel/user id
 | Thread ID | `--thread` | Optional; Telegram forum topic or Slack thread timestamp |
 | Webhook URL | `--webhook-url` | Required for `webhook` |
 | Best effort | `--best-effort` | Run doesn't fail when delivery fails |
-| Failure target | (tool/RPC only) | Alternate destination for failure notices |
-| Failure after | (tool/RPC only) | Consecutive failures before a failure notice fires |
-| Failure cooldown | (tool/RPC only) | Minimum time between repeated failure notices |
+| Failure target | - | Alternate destination for failure notices |
+| Failure after | - | Consecutive failures before a failure notice fires |
+| Failure cooldown | - | Minimum time between repeated failure notices |
 
-The failure-notice fields have no CLI mutation flags today; they're set through the RPC/tool `delivery` object.
+The three failure-notice fields have no CLI flag; set them through the RPC or agent-tool `delivery` object.
 
 Execution and delivery are evaluated separately: delivery is only attempted for a run with status `ok`. A run with
 status `error` instead attempts a failure notice (only if the threshold above is due); a run with status `skipped`
@@ -240,8 +240,8 @@ stuck job through this tool.
 
 Schema differences from the CLI worth knowing:
 
-- Duration fields (`max_runtime`, `retry_backoff`, `retry_max_delay`) are **nanoseconds** in the tool's JSON schema,
-  not Go duration strings like the CLI's `--max-runtime 30m`.
+- Duration fields (`max_runtime`, `retry_backoff`, `retry_max_delay`) are plain numbers of **nanoseconds** in the
+  tool's schema, not a text value like the CLI's `--max-runtime 30m`. For example, 30 minutes is `1800000000000`.
 - `capture_context` (add-only): when true, stamps the active session as `origin_session_id` metadata and defaults
   `session_target` to `origin` if it was left unset.
 - `include_disabled` applies to `status` and `list` only.

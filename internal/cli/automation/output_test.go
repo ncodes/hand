@@ -18,8 +18,9 @@ func TestJobListToText_FormatsRowsAndEmptyState(t *testing.T) {
 		Name:    "Daily summary",
 		Enabled: true,
 		Schedule: coreautomation.Schedule{
-			Kind: coreautomation.ScheduleCron,
-			Cron: "0 8 * * *",
+			Kind:     coreautomation.ScheduleCron,
+			Cron:     "0 8 * * *",
+			Timezone: "Africa/Lagos",
 		},
 		State: coreautomation.JobState{
 			NextRunAt:  time.Date(2026, 7, 5, 9, 0, 0, 0, time.UTC),
@@ -30,7 +31,7 @@ func TestJobListToText_FormatsRowsAndEmptyState(t *testing.T) {
 	require.True(t, strings.HasPrefix(output, "ID"))
 	require.Contains(t, output, "ID                          NAME           ENABLED  SCHEDULE")
 	require.Contains(t, output, testAutomationCommandJobID+"  Daily summary  true     cron 0 8 * * *")
-	require.Contains(t, output, "2026-07-05T09:00:00Z  ok")
+	require.Contains(t, output, "2026-07-05T10:00:00+01:00  ok")
 }
 
 func TestRunListToText_FormatsRowsAndEmptyState(t *testing.T) {
