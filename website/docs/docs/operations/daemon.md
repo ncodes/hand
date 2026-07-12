@@ -20,8 +20,10 @@ connection problems, see [Troubleshooting](../guides/troubleshooting#daemon-and-
 2. Builds model clients for **main**, **summary**, and **reranker** roles when credentials exist.
 3. Opens the profile state store (SQLite by default).
 4. Starts the agent and background memory work.
-5. Starts the **gateway** HTTP server when `gateway.enabled` is true and model config is sufficient.
-6. Binds the **RPC** listener and writes `runtime.json` for clients to discover.
+5. Starts the **automation** scheduler, which loads persisted jobs and repairs anything left inconsistent by an
+   unclean shutdown.
+6. Starts the **gateway** HTTP server when `gateway.enabled` is true and model config is sufficient.
+7. Binds the **RPC** listener and writes `runtime.json` for clients to discover.
 
 If main model credentials are missing, the daemon still starts but turns are unavailable until auth is fixed. Missing
 summary or embedding credentials disable **memory**, **vector search**, or the **gateway** at startup with warnings in
@@ -263,6 +265,7 @@ See [Troubleshooting](../guides/troubleshooting) and [Doctor](./doctor).
 - [Architecture](../concepts/architecture): how the daemon fits in the stack.
 - [Profiles and Config](../getting-started/profiles-and-config): profile layout, config reload, and `.env`.
 - [Gateway Management](./gateway-management): `morph gateway` runtime control.
+- [Automation Operations](./automation): the scheduler that starts and stops with the daemon.
 - [TUI Guide](../guides/tui): interactive client and temporary daemon behavior.
 - [Provider Auth](../guides/provider-auth): credentials the daemon needs at startup.
 - [Doctor](./doctor): readiness checks before you rely on the daemon.

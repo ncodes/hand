@@ -24,6 +24,7 @@ control after config is ready, see [Gateway Management](./gateway-management).
 | Gateway tokens or modes changed | **gateway** group lists missing bot tokens, webhook secrets, or auth on non-loopback binds |
 | Memory or search seems inactive | **memory** and **search** groups show effective feature flags and embedding auth |
 | Local model setup fails | **models** and **search** groups show Ollama reachability, selected model availability, and embedding readiness |
+| A scheduled job isn't running | **automation** group shows invalid schedules, jobs wrongly stuck showing as running, or delivery target problems |
 | Before production or shared deploy | Surfaces WARN items (compaction off, vector search off, non-loopback gateway) you may want to address |
 
 Doctor is read-only. It does not start the daemon, reload config, or mutate profile files.
@@ -173,7 +174,8 @@ When config loads successfully, both formats include one section per group (in t
 6. **search**: vector search and reranker effective config
 7. **safety**: input/output/PII policy toggles
 8. **gateway**: listener bind, Telegram, Slack
-9. **tools**: web search / extraction credentials
+9. **automation**: scheduler state, invalid schedules, stuck jobs, delivery targets
+10. **tools**: web search / extraction credentials
 
 If config cannot load, text output shows a **`config:`** section only and doctor exits with an error. JSON output uses a
 single **config** group with the diagnostics that could run.
@@ -307,6 +309,22 @@ gateway switch is off, or when reading readiness alongside a validation error.
 Platform setup steps live in the [Gateway guides](../guides/gateway/). After fixing config, reload or restart the
 daemon and use [Gateway Management](./gateway-management) for `morph gateway restart`.
 
+### automation
+
+Inspects the scheduler's own state, not just its config:
+
+| Check | PASS | WARN / FAIL |
+| --- | --- | --- |
+| scheduler | State is inspectable | **WARN** if the store can't be reached |
+| store | Jobs are reachable, with a count | **FAIL** on a store error |
+| invalid schedules | None found | **WARN** or **FAIL** per job with a schedule that no longer evaluates (for example, a broken timezone) |
+| stuck running | None found | **WARN** per job wrongly stuck showing as running |
+| delivery targets | Configured targets look valid | **WARN** or **FAIL** per job with an incomplete or unsupported delivery target |
+
+Each finding includes the exact `morph automation …` command that fixes it. See
+[Automation Operations](./automation#diagnose-and-recover) for the full runbook and
+[Automation Reference](../reference/automation) for command and flag detail.
+
 ### tools
 
 Reports web search / extraction readiness with one check named **web tools**:
@@ -363,6 +381,7 @@ Pages that link here for readiness detail:
 - [Memory Guide](../guides/memory): **memory** group fields.
 - [Search and Traces](../guides/search-and-traces): **search** / vector / rerank checks.
 - [Gateway guides](../guides/gateway/): Telegram, Slack, and HTTP setup for **gateway** checks.
+- [Automation Operations](./automation): diagnose and recover findings from the **automation** group.
 - [Daemon and RPC](../concepts/daemon-and-rpc): why the **daemon** probe matters.
 - [Safety and Guardrails](../concepts/safety-and-guardrails): **safety** and gateway exposure warnings.
 - [Security](./security): harden credentials, exposure, and capabilities before go-live.

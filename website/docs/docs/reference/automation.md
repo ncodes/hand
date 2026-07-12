@@ -79,7 +79,7 @@ exist as shortcuts and take no flags of their own.
 :::note[A field showing empty or zero isn't necessarily "off"]
 `--max-runtime`, `--retry-attempts`, `--retry-backoff`, and `--retry-max-delay` have no CLI-visible default: if
 omitted, the job stores no explicit value, and the **daemon's built-in default** applies at run time instead (see
-[Automation Operations](../operations/automation) for the exact values). `morph automation inspect` showing `Max runtime: 0s`
+[Numeric Defaults](../operations/automation#numeric-defaults) for the exact values). `morph automation inspect` showing `Max runtime: 0s`
 does not mean "no timeout": only `--no-timeout` means that. None of these daemon-level defaults are configurable
 today; they are fixed constants.
 :::

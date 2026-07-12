@@ -60,9 +60,9 @@ ID             NAME                ENABLED  SCHEDULE     NEXT RUN               
 auto_<job-id>  Five minute check   true     every 5m0s   2026-07-11T18:35:00Z   -
 ```
 
-Nothing has run yet, so `LAST STATUS` shows `-`. `SCHEDULE` echoes back Go's duration formatting (`5m0s` for an input
-of `5m`). For cron jobs, `NEXT RUN` is shown in the schedule's effective timezone; schedules without a timezone
-fall back to UTC.
+Nothing has run yet, so `LAST STATUS` shows `-`. `SCHEDULE` echoes back your interval with an explicit unit for every
+part (`5m0s` for an input of `5m`). For cron jobs, `NEXT RUN` is shown in the schedule's effective timezone; schedules
+without a timezone fall back to UTC.
 
 ## Create a One-Shot Job
 

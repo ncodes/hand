@@ -237,6 +237,25 @@ Platform guides with focused troubleshooting:
 
 See [Gateway Routes](../reference/gateway-routes).
 
+## Automation
+
+Symptoms: a scheduled job never ran, is stuck showing as running, or its output never arrived where expected.
+
+```bash
+morph doctor
+morph automation diagnose
+```
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Job never becomes due | Disabled, or the schedule points at the wrong time | `morph automation inspect <job-id>`; resume it or fix the schedule |
+| Job wrongly stuck showing as running | Daemon stopped mid-run | `morph automation recover clear-running <job-id>` |
+| Job stopped running entirely (not just backing off) | Its schedule became invalid and it disabled itself | Fix the schedule, then `recover recompute-schedules` and `resume` |
+| Run succeeded but nothing arrived | Delivery failed independently of execution | `morph automation runs --job <job-id>`; check the `DELIVERY` column |
+
+Full runbooks: [Automation Operations](../operations/automation#diagnose-and-recover). Everyday commands and delivery
+setup: [Automation Guide](./automation).
+
 ## Search, Vector, and Memory
 
 Symptoms: search returns nothing; doctor **search** or **memory** warnings; promotion or retrieval seems broken.
@@ -318,6 +337,7 @@ timeline hydration. See [Search and Traces](./search-and-traces).
 - [Provider Auth](./provider-auth): credentials and model roles.
 - [Config Guide](./config): changing settings safely.
 - [Daemon Operations](../operations/daemon): starting and stopping the daemon.
+- [Automation Operations](../operations/automation): diagnosing and recovering scheduled jobs.
 - [Gateway Overview](./gateway/): external messaging surfaces.
 - [Installation](../getting-started/installation): install script, source build, FTS5.
 - [Profiles and Config](../getting-started/profiles-and-config): profile layout and precedence.

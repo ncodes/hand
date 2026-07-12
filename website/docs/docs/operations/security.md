@@ -42,6 +42,7 @@ machines that hold them:
 | `gateway.pairingSecret` | `config.yaml`, `.env` | Pairing code generation for Slack/Telegram |
 | Slack bot token, app token, signing secret | `config.yaml`, `.env` | Slack gateway |
 | Telegram bot token, webhook secret | `config.yaml`, `.env` | Telegram gateway |
+| Automation webhook URL | Stored on the job itself | Delivering a scheduled job's output to `webhook` delivery |
 
 Gateway bot tokens are **not** stored in `auth.json`; that file is for model providers only. See
 [Provider Auth](../guides/provider-auth) and the [Gateway Overview](../guides/gateway/).
@@ -245,6 +246,20 @@ classifiers. Disabling output safety does **not** disable secret redaction in tr
 Internal surfaces (traces, RPC detail strings, memory injection) always redact secrets; PII redaction there follows the
 same unconditional path described in [Safety and Guardrails](../concepts/safety-and-guardrails#redacting-secrets-and-pii).
 
+## Automation
+
+Scheduled jobs run **unattended**, so they deserve the same scrutiny as an interactive turn, not less:
+
+- **Tool and model access**: a job runs with the profile's normal tool access unless it sets `--tool-group` to
+  restrict itself, and can override the model or provider it runs with. Treat both as privileged settings: a
+  scheduled job with broad tool access does whatever the prompt tells it to, with nobody watching in real time.
+- **Delivery destinations**: a webhook URL, Slack channel, or Telegram chat set as a delivery target receives
+  whatever the job produces, on every run, going forward. Review delivery targets with the same care as gateway
+  allowlists, and rotate a webhook URL if it leaks the same way you would a token.
+
+See [Automation](../concepts/automation) for the model and [Automation Guide](../guides/automation) for delivery
+setup.
+
 ## Logs, Traces, and Redaction
 
 ### Traces and RPC
@@ -339,6 +354,7 @@ Pages that link here for operational security detail:
 - [Gateway Overview](../guides/gateway/): prerequisites and secret handling at enable time.
 - [Generic HTTP Gateway](../guides/gateway/generic-http): bearer auth for `/v1/respond`.
 - [Gateway Management](./gateway-management): runtime control after config is hardened.
+- [Automation Operations](./automation): unattended jobs, privileged overrides, and delivery targets.
 - [Daemon Operations](./daemon): process lifecycle, config reload, and `.env` restart rules.
 - [Profiles and Config](../getting-started/profiles-and-config): isolate secrets per profile.
 - [Profiles](../concepts/profiles): what lives in a profile home.
