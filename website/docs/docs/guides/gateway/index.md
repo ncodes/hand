@@ -127,6 +127,9 @@ session explicitly.
 If a bound session is deleted, the next message from that conversation creates a fresh session. See
 [Sessions](../../concepts/sessions) and the [Session Guide](../sessions).
 
+A configured Slack or Telegram gateway can also be used as a delivery destination for scheduled jobs, so a job's
+output posts into a chosen chat or channel on its own schedule. See [Automation Guide](../automation#gateway-telegram).
+
 ## Authorize Senders
 
 Authorization differs by surface:
@@ -196,3 +199,4 @@ its required tokens in the same pass the platform guide walks through.
 - [Config Guide](../config): changing gateway settings safely.
 - [Sessions](../../concepts/sessions): how conversations bind to sessions.
 - [Daemon and RPC](../../concepts/daemon-and-rpc): the process that owns gateways.
+- [Automation Guide](../automation): deliver scheduled jobs to a Slack or Telegram destination.

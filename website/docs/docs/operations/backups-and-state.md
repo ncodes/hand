@@ -51,7 +51,7 @@ for day-to-day use):
   runtime.json             # daemon RPC endpoint, pid, start time (not durable state)
   memory.md                # optional pinned memory file (see Memory Guide)
   data/
-    state.db               # SQLite: sessions, messages, memory, search, gateway state, traces (DB)
+    state.db               # SQLite: sessions, messages, memory, search, gateway state, automation jobs/runs, traces (DB)
     state.db-wal           # WAL journal (present while DB is in use)
     state.db-shm           # WAL shared memory (present while DB is in use)
   traces/                  # JSONL trace files when trace.disk.enabled is on
@@ -255,6 +255,7 @@ Pages that link here for state and backup detail:
 - [Memory](../concepts/memory) and [Memory Guide](../guides/memory): database memory and `memory.md`.
 - [Search and Traces](../guides/search-and-traces): FTS5, vectors, and trace files.
 - [Gateways](../concepts/gateways): bindings and pairings in the database.
+- [Automation Operations](./automation): jobs and run history in the same database.
 - [Daemon Operations](./daemon): stop, reload, and shutdown before backup.
 - [Doctor](./doctor): verify a restored profile is ready.
 - [Security](./security): encrypt and restrict backup archives that contain secrets.

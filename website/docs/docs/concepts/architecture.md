@@ -134,4 +134,5 @@ back up or move a profile by copying its directory. See [Profiles](./profiles), 
 - [Tools](./tools): how capabilities are exposed and gated.
 - [Memory](./memory): how Morph remembers across sessions.
 - [Gateways](./gateways): reaching the agent from external clients.
+- [Automation](./automation): running the same runtime on a schedule instead of only on demand.
 - [Development Architecture](../development/architecture): the package-level implementation map.

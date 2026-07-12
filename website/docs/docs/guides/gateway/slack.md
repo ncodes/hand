@@ -237,6 +237,9 @@ change the **current session** in your TUI or CLI. See [Sessions](../../concepts
 
 If a bound session is deleted, the next message from that conversation creates a fresh session.
 
+The same channel/user id doubles as a delivery target for scheduled jobs; see
+[Automation Guide: Gateway: Slack](../automation#gateway-slack).
+
 ## Verify the Bot
 
 1. Run `morph doctor`: the **gateway** group should show Slack enabled with your mode and tokens.
@@ -307,3 +310,4 @@ Check model credentials (`morph auth status`, `morph doctor`) and inspect traces
 - [Provider Auth](../provider-auth): model credentials used by gateway turns.
 - [Config Guide](../config): changing gateway settings safely.
 - [Sessions](../../concepts/sessions): how conversations bind to sessions.
+- [Automation Guide](../automation): deliver scheduled jobs to a Slack channel.

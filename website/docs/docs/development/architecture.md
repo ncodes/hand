@@ -125,8 +125,9 @@ Daemon code is split across two package layers:
 1. Load and normalize config; build model clients (`internal/model/client`).
 2. Construct `internal/agent.Agent` and call `Start`.
 3. Open the state store (`internal/state/manager.OpenStore`).
-4. Start `internal/gateway.Manager` when enabled.
-5. Bind gRPC (`internal/rpc/server`) and write `internal/runtime` metadata (`runtime.json`).
+4. Construct and start the `internal/automation.Service` scheduler.
+5. Start `internal/gateway.Manager` when enabled.
+6. Bind gRPC (`internal/rpc/server`) and write `internal/runtime` metadata (`runtime.json`).
 
 Config file watching and debounced restarts are implemented here; see [Daemon Operations](../operations/daemon#config-reload).
 Gateway start/stop without config reload is exposed through RPC (`GatewayService`) and implemented in
@@ -352,6 +353,7 @@ Pages that link here for implementation detail:
 - [Session Storage](./session-storage): SQLite schema, search, repair.
 - [Memory System](./memory-system): candidates, promotion, background workers.
 - [Gateway Internals](./gateway-internals): dispatch, pairing, platform adapters.
+- [Automation System](./automation-system): scheduler, execution, and delivery internals.
 - [TUI Internals](./tui): Bubble Tea model and RPC streaming.
 - [Testing](./testing): Makefile targets, FTS5, e2e harness.
 - [Contributing](../contributing): PR expectations and local checks.

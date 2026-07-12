@@ -6,7 +6,8 @@ displayed_sidebar: null
 
 # Testing
 
-This page should document test practices.
+This page should document test practices. For an example subsystem's full test layout (unit, store, RPC, gateway,
+and e2e), see [Automation System: Component Ownership](./automation-system#component-ownership).
 
 ## Content Outline
 

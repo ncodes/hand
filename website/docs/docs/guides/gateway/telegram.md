@@ -182,6 +182,9 @@ CLI. See [Sessions](../../concepts/sessions).
 Only **text** messages are processed today: messages must include non-empty text (ordinary chat messages and text
 commands like `/start`). Media-only messages without text are ignored.
 
+The same chat id doubles as a delivery target for scheduled jobs; see
+[Automation Guide: Gateway: Telegram](../automation#gateway-telegram).
+
 ## Verify the Bot
 
 1. Run `morph doctor`: the **gateway** group should show Telegram enabled with your mode and token.
@@ -237,3 +240,4 @@ Check model credentials (`morph auth status`, `morph doctor`) and inspect traces
 - [Gateway Routes](../../reference/gateway-routes): webhook path and auth headers.
 - [Gateway Management](../../operations/gateway-management): start, stop, and restart the gateway.
 - [Provider Auth](../provider-auth): model credentials used by gateway turns.
+- [Automation Guide](../automation): deliver scheduled jobs to a Telegram chat.

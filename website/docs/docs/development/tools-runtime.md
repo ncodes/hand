@@ -6,7 +6,8 @@ displayed_sidebar: null
 
 # Tools Runtime
 
-This page should document tool registration and dispatch.
+This page should document tool registration and dispatch. For a worked example of a tool built on this registry,
+see the owner-only automation tool in [Automation System](./automation-system#control-surfaces).
 
 ## Content Outline
 

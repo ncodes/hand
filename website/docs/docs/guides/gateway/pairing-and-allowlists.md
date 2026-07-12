@@ -190,6 +190,12 @@ the terminal. See [Session Guide](../sessions).
 `POST /v1/respond` has no per-sender allowlist or pairing. Protect the route with `gateway.authToken` and network
 controls. See [Generic HTTP](./generic-http#authentication).
 
+## Automation Delivery Has No Pairing Either
+
+A scheduled job delivering to Slack or Telegram sends outbound, unprompted by any sender; there is no inbound
+message to allowlist or pair. Review delivery targets themselves with the same care, since anyone who can edit a
+job's `--channel`/`--target` controls where its output goes. See [Automation Guide](../automation#delivery-examples).
+
 ## Troubleshooting
 
 ### Pairing code never arrives
@@ -230,3 +236,4 @@ Start the daemon first. Pairing commands do not start it or reload config from d
 - [Config Guide](../config): changing gateway settings safely.
 - [Profiles](../../concepts/profiles): where pairing state lives.
 - [Safety and Guardrails](../../concepts/safety-and-guardrails): secret handling in logs and traces.
+- [Automation Guide](../automation): deliver scheduled jobs to Slack or Telegram.

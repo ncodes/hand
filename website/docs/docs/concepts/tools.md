@@ -36,6 +36,8 @@ Morph registers its built-in tools when the daemon prepares a profile's environm
 - **Memory**: `memory_search` and `memory_extract` for reading, and `memory_add`, `memory_update`, `memory_delete`
   for writing.
 - **Utility / planning**: `time` and `plan_tool`.
+- **Automation**: an owner-only `automation` tool for creating and managing scheduled jobs conversationally. See
+  [Automation](./automation).
 
 Not all of these are present in every turn. The filesystem, shell, session-history, planning, and `time` tools are
 always registered; the web and memory tools are only registered when their subsystem is configured and enabled (see
@@ -117,3 +119,4 @@ guardrails, and trace streaming. For the registry contract and conventions, see 
 - [Safety and Guardrails](./safety-and-guardrails): the scans and policies applied to tool calls.
 - [Configuration](../guides/config): capability switches, exec rules, and web setup.
 - [Trace Events](../reference/trace-events): the tool events streamed to clients.
+- [Automation](./automation): the owner-only tool for scheduled jobs.

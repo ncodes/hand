@@ -55,7 +55,8 @@ agent does, you may see several kinds of entries:
 - **Assistant** text, rendered as Markdown, streaming in as it is produced.
 - **Reasoning** output, when the model exposes it, shown distinctly from the final answer.
 - **Tool activity**: each tool call appears as it starts and updates when it completes, so you can follow what the
-  agent is doing. See [Tools](../concepts/tools).
+  agent is doing. See [Tools](../concepts/tools). This is also how you manage scheduled jobs conversationally, for
+  example "pause my daily summary job"; see [Automation Guide](./automation#manage-automations-conversationally).
 - **Safety notices**, when a guardrail blocks or redacts something. See [Safety and Guardrails](../concepts/safety-and-guardrails).
 - **Compaction** markers, when the session summary is refreshed mid-conversation. See [Sessions](../concepts/sessions).
 
@@ -150,4 +151,5 @@ stopped as you leave; a daemon that was already running keeps running.
 - [Provider Auth](./provider-auth): set up provider credentials.
 - [Local Models](./local-models): configure Ollama chat and embeddings.
 - [Tools](../concepts/tools): what the tool activity in the transcript represents.
+- [Automation Guide](./automation): schedule jobs from the CLI or conversationally.
 - [TUI Internals](../development/tui): how the interface is implemented.

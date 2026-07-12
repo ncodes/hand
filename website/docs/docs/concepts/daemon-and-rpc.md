@@ -80,7 +80,7 @@ Because every RPC client resolves the profile first and then connects, they all 
 
 ## The RPC Surface
 
-The daemon exposes four gRPC services. The full request and response messages are in the
+The daemon exposes five gRPC services. The full request and response messages are in the
 [RPC Reference](../reference/rpc); the summary below is by concern.
 
 - **`MorphService`**: `Respond` streams a reply back as it is produced. Events carry incremental assistant text and
@@ -92,6 +92,8 @@ The daemon exposes four gRPC services. The full request and response messages ar
   [Provider Auth](../guides/provider-auth).
 - **`GatewayService`**: control the messaging gateway at runtime: status, start, stop, restart, and pairing
   management.
+- **`AutomationService`**: create, update, list, run, and remove scheduled jobs, and list their run history. See
+  [Automation](./automation).
 
 ## Gateway Control Through RPC
 
@@ -121,4 +123,5 @@ stale `runtime.json`, which the next client detects and removes during endpoint 
 - [Profiles and Config](../getting-started/profiles-and-config): how the profile and its runtime endpoint are resolved.
 - [Gateways](./gateways) and [Gateway Management](../operations/gateway-management): the messaging gateway and its
   runtime control.
+- [Automation](./automation): the scheduler that runs behind `AutomationService`.
 - [Doctor](../operations/doctor): readiness checks when a client cannot reach the daemon.

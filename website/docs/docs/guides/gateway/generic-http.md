@@ -250,3 +250,5 @@ model or narrower `instruct` for latency-sensitive integrations.
 - [Gateway Management](../../operations/gateway-management): start, stop, and restart the gateway runtime.
 - [Sessions](../../concepts/sessions): how bound sessions behave.
 - [Provider Auth](../provider-auth): model credentials used by gateway turns.
+- [Automation Guide](../automation#webhook): the reverse direction, Morph posting a scheduled job's output to your
+  own endpoint instead of you calling Morph.
