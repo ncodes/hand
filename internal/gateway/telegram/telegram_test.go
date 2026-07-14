@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/pkg/gateway/pairing"
 	tg "github.com/wandxy/morph/pkg/gateway/telegram"
@@ -34,6 +35,13 @@ func TestTelegramAdapter_DispatchUpdateResolvesSessionAndStreamsReply(t *testing
 	require.NoError(t, err)
 	require.True(t, handled)
 	require.Equal(t, "hello telegram", responder.message)
+	authorization, ok := permissions.FromContext(responder.respondContext)
+	require.True(t, ok)
+	require.Equal(t, permissions.ActorGatewayUser, authorization.Actor.Kind)
+	require.Equal(t, "9", authorization.Actor.ID)
+	require.Equal(t, permissions.SurfaceKindGateway, authorization.SurfaceKind)
+	require.Equal(t, permissions.SurfaceTelegram, authorization.Surface)
+	require.Equal(t, genericCreatedSessionID, authorization.SessionID)
 	require.Equal(t, genericCreatedSessionID, responder.options.SessionID)
 	require.NotNil(t, responder.options.OnEvent)
 	require.Equal(t, storage.GatewayBinding{

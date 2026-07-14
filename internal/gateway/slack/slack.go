@@ -9,6 +9,7 @@ import (
 
 	"github.com/wandxy/morph/internal/config"
 	gatewaysession "github.com/wandxy/morph/internal/gateway/session"
+	"github.com/wandxy/morph/internal/permissions"
 	agentcore "github.com/wandxy/morph/pkg/agent"
 	"github.com/wandxy/morph/pkg/gateway/bindings"
 	"github.com/wandxy/morph/pkg/gateway/pairing"
@@ -64,6 +65,11 @@ func (a *Adapter) DispatchInbound(ctx context.Context, inbound slack.InboundMess
 	if err != nil {
 		return false, err
 	}
+	ctx = permissions.WithContext(ctx, permissions.AuthorizationContext{
+		Actor:     permissions.Actor{Kind: permissions.ActorGatewayUser, ID: inbound.SenderID},
+		Surface:   permissions.SurfaceSlack,
+		SessionID: session.ID,
+	})
 
 	responseTarget := getSlackResponseTarget(a.cfg.Slack.ResponseMode, inbound)
 	err = a.sender.StreamTurn(ctx, responseTarget, func(onDelta func(string)) (string, error) {

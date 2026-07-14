@@ -17,13 +17,16 @@ import (
 	"github.com/wandxy/morph/internal/constants"
 	agentstub "github.com/wandxy/morph/internal/mocks/agentstub"
 	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/permissions"
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
+	"github.com/wandxy/morph/internal/rpc/rpcmeta"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
 	"github.com/wandxy/morph/internal/trace"
 	agent "github.com/wandxy/morph/pkg/agent"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	agentsession "github.com/wandxy/morph/pkg/agent/session"
+	"google.golang.org/grpc/metadata"
 )
 
 func requireRespondEvent(
@@ -59,10 +62,33 @@ func TestService_RespondReturnsMessage(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "hello", stub.ChatInput)
+	authorization, ok := permissions.FromContext(stub.RespondContext)
+	require.True(t, ok)
+	require.Equal(t, permissions.ActorRPCClient, authorization.Actor.Kind)
+	require.Equal(t, permissions.SurfaceKindRPC, authorization.SurfaceKind)
+	require.Equal(t, permissions.SurfaceRPC, authorization.Surface)
 	require.Equal(t, "be terse", stub.RespondOptions.Instruct)
 	require.Empty(t, stub.RespondOptions.SessionID)
 	requireRespondEvent(t, stream.events[0], morphpb.RespondEvent_TEXT_DELTA, "hello back", morphpb.RespondEvent_ASSISTANT)
 	requireRespondEvent(t, stream.events[1], morphpb.RespondEvent_DONE, "", morphpb.RespondEvent_CHANNEL_UNSPECIFIED)
+}
+
+func TestService_RespondClassifiesTUIClientWithoutElevatingRPCActor(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	svc := NewService(stub)
+	outgoing := rpcmeta.WithOutgoingPermissionSurface(context.Background(), permissions.SurfaceTUI)
+	outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
+	require.True(t, ok)
+	stream := &respondStreamServerStub{ctx: metadata.NewIncomingContext(context.Background(), outgoingMetadata)}
+
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
+
+	require.NoError(t, err)
+	authorization, ok := permissions.FromContext(stub.RespondContext)
+	require.True(t, ok)
+	require.Equal(t, permissions.ActorRPCClient, authorization.Actor.Kind)
+	require.Equal(t, permissions.SurfaceKindLocal, authorization.SurfaceKind)
+	require.Equal(t, permissions.SurfaceTUI, authorization.Surface)
 }
 
 func TestService_RespondSendsBufferedReplyWhenNotStreamed(t *testing.T) {

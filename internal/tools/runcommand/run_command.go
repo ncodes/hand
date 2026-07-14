@@ -14,6 +14,7 @@ import (
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 )
@@ -43,6 +44,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		),
 		Groups:   []string{"core"},
 		Requires: tools.Capabilities{Exec: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceProcess,
+			Action:   permissions.ActionExecute,
+			Effects:  []permissions.Effect{permissions.EffectExecution},
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"command": common.StringSchema("Command to run. Uses the shell when args are omitted."),
 			"args": map[string]any{

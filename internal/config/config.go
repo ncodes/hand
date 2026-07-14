@@ -9,6 +9,7 @@ import (
 
 	appcredential "github.com/wandxy/morph/internal/credential"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/internal/permissions"
 )
 
 // Config is the root runtime configuration for Morph.
@@ -33,6 +34,7 @@ type Config struct {
 	TUI           TUIConfig                    `yaml:"tui"`
 	Web           WebConfig                    `yaml:"web"`
 	Safety        SafetyConfig                 `yaml:"safety"`
+	Permissions   permissions.Policy           `yaml:"permissions"`
 	Rules         RulesConfig                  `yaml:"rules"`
 	Personalities map[string]PersonalityConfig `yaml:"personalities"`
 }

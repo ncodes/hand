@@ -8,6 +8,7 @@ import (
 	"time"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
@@ -155,6 +156,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		Name:        "automation",
 		Description: "Owner-only automation control: status, list, add, update, pause, resume, run, remove, and runs.",
 		Groups:      []string{"core"},
+		Permission: permissions.Operation{
+			Resource:      permissions.ResourceAutomation,
+			Action:        permissions.ActionManage,
+			Effects:       []permissions.Effect{permissions.EffectRead, permissions.EffectWrite, permissions.EffectExternalSystem},
+			OwnerRequired: true,
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"action": common.StringSchema(
 				"Required. Action: status, list, add, update, pause, resume, run, remove, or runs. " +

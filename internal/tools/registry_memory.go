@@ -8,21 +8,35 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/wandxy/morph/internal/permissions"
+	"github.com/wandxy/morph/internal/trace"
 	"github.com/wandxy/morph/pkg/str"
 )
+
+type RegistryOptions struct {
+	PermissionPolicy permissions.Policy
+}
 
 // InMemoryRegistry is a registry that stores tools in memory.
 type InMemoryRegistry struct {
 	mu          sync.RWMutex
 	definitions map[string]Definition
 	groups      map[string]Group
+	permissions permissions.Policy
 }
 
 // NewInMemoryRegistry creates a new InMemoryRegistry.
-func NewInMemoryRegistry() *InMemoryRegistry {
+func NewInMemoryRegistry(options ...RegistryOptions) *InMemoryRegistry {
+	var opts RegistryOptions
+	if len(options) > 0 {
+		opts = options[0]
+	}
+	opts.PermissionPolicy.Normalize()
+
 	return &InMemoryRegistry{
 		definitions: make(map[string]Definition),
 		groups:      make(map[string]Group),
+		permissions: opts.PermissionPolicy,
 	}
 }
 
@@ -42,6 +56,16 @@ func (r *InMemoryRegistry) Register(def Definition) error {
 	}
 	def.Groups = normalizeNames(def.Groups)
 	def.Platforms = normalizeNames(def.Platforms)
+	if !def.Permission.IsZero() {
+		if str.String(def.Permission.Tool).Trim() == "" {
+			def.Permission.Tool = def.Name
+		}
+		permission, err := def.Permission.Normalize()
+		if err != nil {
+			return err
+		}
+		def.Permission = permission
+	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -177,6 +201,7 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 	if !ok {
 		return Result{Error: Error{Code: "tool_not_registered", Message: "tool is not registered"}.String()}, nil
 	}
+	r.observePermission(ctx, def)
 
 	result, err := def.Handler.Invoke(ctx, call)
 	if err != nil {
@@ -190,6 +215,48 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 	}
 
 	return result, nil
+}
+
+func (r *InMemoryRegistry) observePermission(ctx context.Context, definition Definition) {
+	if definition.Permission.IsZero() {
+		return
+	}
+
+	authorization, ok := permissions.FromContext(ctx)
+	if !ok {
+		authorization = permissions.AuthorizationContext{
+			Actor:       permissions.Actor{Kind: permissions.ActorUnknown},
+			SurfaceKind: permissions.SurfaceKindUnknown,
+			Surface:     permissions.SurfaceUnknown,
+		}
+	}
+	evaluation := r.permissions.Evaluate(permissions.EvaluationInput{
+		Authorization: authorization,
+		Operation:     definition.Permission,
+	})
+	recorder := TraceRecorderFromContext(ctx)
+	if recorder == nil {
+		return
+	}
+
+	effects := make([]string, len(definition.Permission.Effects))
+	for index, effect := range definition.Permission.Effects {
+		effects[index] = string(effect)
+	}
+	recorder.Record(trace.EvtPermissionDecisionObserved, trace.PermissionDecisionPayload{
+		ActorKind:     string(authorization.Actor.Kind),
+		SurfaceKind:   string(authorization.SurfaceKind),
+		Surface:       string(authorization.Surface),
+		Tool:          definition.Permission.Tool,
+		Resource:      string(definition.Permission.Resource),
+		Action:        string(definition.Permission.Action),
+		Effects:       effects,
+		Decision:      string(evaluation.Decision),
+		ReasonCode:    evaluation.ReasonCode,
+		Rule:          evaluation.Rule,
+		Mode:          string(evaluation.Mode),
+		OwnerRequired: definition.Permission.OwnerRequired,
+	})
 }
 
 func (r *InMemoryRegistry) resolveGroup(

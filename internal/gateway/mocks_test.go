@@ -25,6 +25,7 @@ type genericResponderStub struct {
 	createdSession storage.Session
 	reply          string
 	err            error
+	respondContext context.Context
 	contextErr     error
 	getBindingErr  error
 	saveBindingErr error
@@ -41,6 +42,7 @@ func (s *genericResponderStub) Respond(
 	s.called = true
 	s.message = message
 	s.options = opts
+	s.respondContext = ctx
 	s.contextErr = ctx.Err()
 	if opts.OnEvent != nil {
 		opts.OnEvent(agentcore.Event{Kind: agentcore.EventKindTextDelta, Channel: "reasoning", Text: "ignored"})

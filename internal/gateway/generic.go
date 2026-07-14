@@ -14,6 +14,7 @@ import (
 	gatewaysession "github.com/wandxy/morph/internal/gateway/session"
 	slackprovider "github.com/wandxy/morph/internal/gateway/slack"
 	telegramprovider "github.com/wandxy/morph/internal/gateway/telegram"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	agentcore "github.com/wandxy/morph/pkg/agent"
 	gatewayauth "github.com/wandxy/morph/pkg/gateway/auth"
@@ -98,8 +99,13 @@ func handleGenericRespond(cfg config.GatewayConfig, service AgentService) http.H
 				"gateway request failed")
 			return
 		}
+		requestContext := permissions.WithContext(r.Context(), permissions.AuthorizationContext{
+			Actor:     permissions.Actor{Kind: permissions.ActorGatewayUser},
+			Surface:   permissions.SurfaceHTTP,
+			SessionID: session.ID,
+		})
 
-		text, err := service.Respond(r.Context(), req.Message, agentcore.RespondOptions{
+		text, err := service.Respond(requestContext, req.Message, agentcore.RespondOptions{
 			SessionID: session.ID,
 			Instruct:  req.Instruct,
 		})

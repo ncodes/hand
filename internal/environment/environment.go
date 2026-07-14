@@ -150,7 +150,11 @@ func (e *environment) MemoryProvider() memory.Provider {
 
 // NewEnvironment builds the runtime environment from config and process dependencies.
 func NewEnvironment(ctx context.Context, cfg *config.Config) Environment {
-	registry := tools.NewInMemoryRegistry()
+	var registryOptions tools.RegistryOptions
+	if cfg != nil {
+		registryOptions.PermissionPolicy = cfg.Permissions
+	}
+	registry := tools.NewInMemoryRegistry(registryOptions)
 
 	return &environment{
 		ctx:          ctx,

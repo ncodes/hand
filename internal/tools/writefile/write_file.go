@@ -11,6 +11,7 @@ import (
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 )
@@ -30,6 +31,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		Description: "Create or overwrite a text file under an allowed workspace root.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionUpdate,
+			Effects:  []permissions.Effect{permissions.EffectWrite},
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"path":        common.StringSchema("Path to the file relative to an allowed workspace root."),
 			"content":     common.StringSchema("Text content to write to the target file."),

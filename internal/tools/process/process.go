@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 	processenv "github.com/wandxy/morph/internal/environment/process"
 	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 	"github.com/wandxy/morph/pkg/logutils"
@@ -39,6 +40,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		Description: "Start, inspect, read, stop, or list tracked background processes.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Exec: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceProcess,
+			Action:   permissions.ActionManage,
+			Effects:  []permissions.Effect{permissions.EffectRead, permissions.EffectWrite, permissions.EffectExecution},
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"action": map[string]any{
 				"type":        "string",

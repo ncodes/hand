@@ -11,6 +11,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	models "github.com/wandxy/morph/internal/model"
 	modelclient "github.com/wandxy/morph/internal/model/client"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	state "github.com/wandxy/morph/internal/state/core"
 	agentcore "github.com/wandxy/morph/pkg/agent"
@@ -152,6 +153,12 @@ func (r *AgentRunner) RunAutomation(ctx context.Context, job Job) (RunResult, er
 	if err != nil {
 		return RunResult{}, err
 	}
+	ctx = permissions.WithContext(ctx, permissions.AuthorizationContext{
+		Actor:     permissions.Actor{Kind: permissions.ActorAutomation, ID: job.ID},
+		Surface:   permissions.SurfaceAutomation,
+		Profile:   activeProfile.Name,
+		SessionID: sessionID,
+	})
 
 	stream := false
 	output, err := agent.Respond(ctx, payload.Prompt, agentcore.RespondOptions{

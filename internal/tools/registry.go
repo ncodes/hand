@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/pkg/str"
 )
 
@@ -94,11 +95,7 @@ type Error struct {
 }
 
 func (e Error) String() string {
-	raw, err := json.Marshal(e)
-	if err != nil {
-		return `{"code":"tool_error","message":"failed to encode tool error"}`
-	}
-
+	raw, _ := json.Marshal(e)
 	return string(raw)
 }
 
@@ -111,6 +108,7 @@ type Definition struct {
 	ParallelSafe     bool
 	Groups           []string
 	Requires         Capabilities
+	Permission       permissions.Operation
 	Platforms        []string
 	Handler          Handler
 }

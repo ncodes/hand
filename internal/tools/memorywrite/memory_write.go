@@ -10,6 +10,7 @@ import (
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 	"github.com/wandxy/morph/internal/trace"
@@ -75,10 +76,15 @@ type deleteOutput struct {
 // AddDefinition returns the memory-write tool definition for adding memory.
 func AddDefinition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:             "memory_add",
-		Description:      "Create a source-linked semantic or procedural memory candidate and run it through promotion.",
-		Groups:           []string{"core"},
-		Requires:         tools.Capabilities{Memory: true},
+		Name:        "memory_add",
+		Description: "Create a source-linked semantic or procedural memory candidate and run it through promotion.",
+		Groups:      []string{"core"},
+		Requires:    tools.Capabilities{Memory: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceMemory,
+			Action:   permissions.ActionCreate,
+			Effects:  []permissions.Effect{permissions.EffectWrite},
+		},
 		UsageInstruction: instructions.BuildMemoryAddGuidance(),
 		InputSchema:      addInputSchema(),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
@@ -133,10 +139,15 @@ func AddDefinition(runtime envtypes.Runtime) tools.Definition {
 // UpdateDefinition returns the memory-write tool definition for updating memory.
 func UpdateDefinition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:             "memory_update",
-		Description:      "Replace an active semantic or procedural memory with a source-linked candidate through lifecycle promotion.",
-		Groups:           []string{"core"},
-		Requires:         tools.Capabilities{Memory: true},
+		Name:        "memory_update",
+		Description: "Replace an active semantic or procedural memory with a source-linked candidate through lifecycle promotion.",
+		Groups:      []string{"core"},
+		Requires:    tools.Capabilities{Memory: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceMemory,
+			Action:   permissions.ActionUpdate,
+			Effects:  []permissions.Effect{permissions.EffectWrite},
+		},
 		UsageInstruction: instructions.BuildMemoryUpdateGuidance(),
 		InputSchema:      updateInputSchema(),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
@@ -185,10 +196,15 @@ func UpdateDefinition(runtime envtypes.Runtime) tools.Definition {
 // DeleteDefinition returns the memory-write tool definition for deleting memory.
 func DeleteDefinition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:             "memory_delete",
-		Description:      "Delete a durable memory through the memory lifecycle.",
-		Groups:           []string{"core"},
-		Requires:         tools.Capabilities{Memory: true},
+		Name:        "memory_delete",
+		Description: "Delete a durable memory through the memory lifecycle.",
+		Groups:      []string{"core"},
+		Requires:    tools.Capabilities{Memory: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceMemory,
+			Action:   permissions.ActionDelete,
+			Effects:  []permissions.Effect{permissions.EffectWrite, permissions.EffectDestructive},
+		},
 		UsageInstruction: instructions.BuildMemoryDeleteGuidance(),
 		InputSchema: common.ObjectSchema(map[string]any{
 			"id":     common.StringSchema("Memory id to delete."),

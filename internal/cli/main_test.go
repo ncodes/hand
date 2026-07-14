@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	urfavecli "github.com/urfave/cli/v3"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/wandxy/morph/internal/config"
@@ -22,8 +23,10 @@ import (
 	agentstub "github.com/wandxy/morph/internal/mocks/agentstub"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/internal/rpc/rpcmeta"
 	"github.com/wandxy/morph/internal/runtime"
 	"github.com/wandxy/morph/internal/trace"
 	agent "github.com/wandxy/morph/pkg/agent"
@@ -51,6 +54,10 @@ func TestNewMainAction_TreatsUnknownArgsAsChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "hello world", stub.ChatInput)
+	outgoingMetadata, ok := metadata.FromOutgoingContext(stub.RespondContext)
+	require.True(t, ok)
+	incoming := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+	require.Equal(t, permissions.SurfaceCLI, rpcmeta.PermissionSurfaceFromIncomingContext(incoming))
 	require.Empty(t, stub.RespondOptions.Instruct)
 	require.Empty(t, stub.RespondOptions.SessionID)
 	require.True(t, stub.Closed)

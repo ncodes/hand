@@ -95,6 +95,7 @@ func (c *Config) normalizeFields() {
 	c.Exec.Allow = dedupeAndTrim(c.Exec.Allow)
 	c.Exec.Ask = dedupeAndTrim(c.Exec.Ask)
 	c.Exec.Deny = dedupeAndTrim(c.Exec.Deny)
+	c.Permissions.Normalize()
 	backendValue := str.String(c.Storage.Backend)
 	c.Storage.Backend = backendValue.Normalized()
 	providerValue5 := str.String(c.Memory.Provider)

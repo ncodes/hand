@@ -165,6 +165,8 @@ type ToolRegistryStub struct {
 	Definitions    tools.Definitions
 	Groups         []tools.Group
 	LastToolPolicy tools.Policy
+	InvokeContext  context.Context
+	InvokeCall     tools.Call
 	Result         tools.Result
 	Err            error
 	ResolveErr     error
@@ -193,7 +195,9 @@ func (s *ToolRegistryStub) Resolve(opts tools.Policy) (tools.Definitions, error)
 	return s.Definitions, s.ResolveErr
 }
 
-func (s *ToolRegistryStub) Invoke(context.Context, tools.Call) (tools.Result, error) {
+func (s *ToolRegistryStub) Invoke(ctx context.Context, call tools.Call) (tools.Result, error) {
+	s.InvokeContext = ctx
+	s.InvokeCall = call
 	return s.Result, s.Err
 }
 

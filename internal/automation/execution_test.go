@@ -11,6 +11,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	models "github.com/wandxy/morph/internal/model"
 	modelclient "github.com/wandxy/morph/internal/model/client"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	state "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/pkg/str"
@@ -54,6 +55,13 @@ func TestAgentRunner_RunPromptThroughRuntime(t *testing.T) {
 	require.True(t, agent.created)
 	require.Equal(t, profileHome, agent.turnScope)
 	require.Equal(t, "summarize this", agent.respondPrompt)
+	authorization, ok := permissions.FromContext(agent.respondContext)
+	require.True(t, ok)
+	require.Equal(t, permissions.ActorAutomation, authorization.Actor.Kind)
+	require.Equal(t, permissions.SurfaceKindAutomation, authorization.SurfaceKind)
+	require.Equal(t, permissions.SurfaceAutomation, authorization.Surface)
+	require.Equal(t, "work", authorization.Profile)
+	require.Equal(t, testAutomationExecutionSessionID, authorization.SessionID)
 	require.Equal(t, testAutomationExecutionSessionID, agent.respondOptions.SessionID)
 	require.Equal(t, []string{"shell", "memory"}, agent.respondOptions.ToolGroups)
 	require.NotNil(t, agent.respondOptions.Stream)

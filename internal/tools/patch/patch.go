@@ -14,6 +14,7 @@ import (
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 )
@@ -36,6 +37,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		Description: "Apply a unified diff patch under allowed workspace roots.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionUpdate,
+			Effects:  []permissions.Effect{permissions.EffectWrite},
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"patch": common.StringSchema("Unified diff patch content to apply."),
 			"strip": common.IntegerSchema("Number of leading path components to strip from file paths, similar to git apply -p."),

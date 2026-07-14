@@ -15,6 +15,7 @@ import (
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
 	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	storage "github.com/wandxy/morph/internal/state/core"
 	statemanager "github.com/wandxy/morph/internal/state/manager"
@@ -574,6 +575,19 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts agentcore.RespondO
 		return "", err
 	}
 	opts.SessionID = session.ID
+	authorization, ok := permissions.FromContext(ctx)
+	if !ok {
+		ctx = permissions.WithContext(ctx, permissions.AuthorizationContext{
+			Actor:     permissions.Actor{Kind: permissions.ActorLocalOwner},
+			Surface:   permissions.SurfaceCLI,
+			Profile:   a.cfg.Name,
+			SessionID: session.ID,
+		})
+	} else {
+		authorization.Profile = a.cfg.Name
+		authorization.SessionID = session.ID
+		ctx = permissions.WithContext(ctx, authorization)
+	}
 
 	agentLog.Info().Str("session_id", opts.SessionID).
 		Str("model", a.cfg.Models.Main.Name).

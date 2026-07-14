@@ -18,6 +18,7 @@ import (
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/mocks"
 	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	storage "github.com/wandxy/morph/internal/state/core"
 	statemanager "github.com/wandxy/morph/internal/state/manager"
@@ -76,6 +77,92 @@ func TestAgent_StartRespondAndCloseLifecycle(t *testing.T) {
 	require.Len(t, env.TraceRunContexts, 1)
 	require.Equal(t, storage.DefaultSessionID, env.TraceRunContexts[0].Session.PublicID)
 	require.NoError(t, core.Close())
+}
+
+func TestAgent_RespondPropagatesAuthorizationContextToTools(t *testing.T) {
+	tests := []struct {
+		name            string
+		ctx             context.Context
+		wantActor       permissions.ActorKind
+		wantActorID     string
+		wantSurfaceKind permissions.SurfaceKind
+		wantSurface     permissions.Surface
+		wantProfile     string
+		wantSessionID   string
+	}{
+		{
+			name:            "defaults direct calls to local CLI owner",
+			ctx:             context.Background(),
+			wantActor:       permissions.ActorLocalOwner,
+			wantSurfaceKind: permissions.SurfaceKindLocal,
+			wantSurface:     permissions.SurfaceCLI,
+			wantProfile:     "work",
+			wantSessionID:   storage.DefaultSessionID,
+		},
+		{
+			name: "preserves trusted gateway actor",
+			ctx: permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+				Actor:     permissions.Actor{Kind: permissions.ActorGatewayUser, ID: "123"},
+				Surface:   permissions.SurfaceTelegram,
+				Profile:   "untrusted-profile",
+				SessionID: storage.DefaultSessionID,
+			}),
+			wantActor:       permissions.ActorGatewayUser,
+			wantActorID:     "123",
+			wantSurfaceKind: permissions.SurfaceKindGateway,
+			wantSurface:     permissions.SurfaceTelegram,
+			wantProfile:     "work",
+			wantSessionID:   storage.DefaultSessionID,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			originalOpen := OpenStateStore
+			originalNewEnvironment := NewEnvironment
+			t.Cleanup(func() {
+				OpenStateStore = originalOpen
+				NewEnvironment = originalNewEnvironment
+			})
+
+			stream := false
+			store := &stateStoreStub{session: storage.Session{ID: storage.DefaultSessionID}}
+			OpenStateStore = func(*config.Config, models.Client) (storage.Store, error) {
+				return store, nil
+			}
+			registry := &mocks.ToolRegistryStub{
+				Definitions: morphtools.Definitions{{Name: "time"}},
+				Result:      morphtools.Result{Output: "12:00"},
+			}
+			env := &mocks.EnvironmentStub{ToolRegistry: registry, IterationBudget: envbudget.New(3)}
+			NewEnvironment = func(context.Context, *config.Config) environment.Environment { return env }
+			client := &mocks.ModelClientStub{Responses: []*models.Response{
+				{RequiresToolCalls: true, ToolCalls: []models.ToolCall{{ID: "call-1", Name: "time"}}},
+				{OutputText: "done"},
+			}}
+			core := NewAgent(context.Background(), &config.Config{
+				Name:     "work",
+				Platform: storage.SessionOriginSourceCLI,
+				Models: config.ModelsConfig{Main: config.MainModelConfig{
+					Name: "model", API: models.APIOpenAIResponses, ContextLength: 8192, Stream: &stream,
+				}},
+			}, client)
+
+			require.NoError(t, core.Start(context.Background()))
+			_, err := core.Respond(test.ctx, "what time is it?", agentcore.RespondOptions{})
+			require.NoError(t, err)
+			require.NoError(t, core.Close())
+
+			authorization, ok := permissions.FromContext(registry.InvokeContext)
+			require.True(t, ok)
+			require.Equal(t, test.wantActor, authorization.Actor.Kind)
+			require.Equal(t, test.wantActorID, authorization.Actor.ID)
+			require.Equal(t, test.wantSurfaceKind, authorization.SurfaceKind)
+			require.Equal(t, test.wantSurface, authorization.Surface)
+			require.Equal(t, test.wantProfile, authorization.Profile)
+			require.Equal(t, test.wantSessionID, authorization.SessionID)
+		})
+	}
 }
 
 func TestAgent_StartAndRespondValidationBranches(t *testing.T) {

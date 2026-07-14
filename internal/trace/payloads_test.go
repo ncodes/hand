@@ -68,6 +68,39 @@ func TestDecodePayloadJSON_DecodesKnownPayload(t *testing.T) {
 	require.Equal(t, UserMessageAcceptedPayload{Message: "hello"}, payload)
 }
 
+func TestDecodePayload_DecodesPermissionDecision(t *testing.T) {
+	payload, ok := DecodePayload(EvtPermissionDecisionObserved, map[string]any{
+		"actor_kind":     "local_owner",
+		"surface_kind":   "local",
+		"surface":        "cli",
+		"tool":           "write_file",
+		"resource":       "file",
+		"action":         "update",
+		"effects":        []string{"write"},
+		"decision":       "ask",
+		"reason_code":    "surface_default",
+		"rule":           "owner writes",
+		"mode":           "observe",
+		"owner_required": true,
+	})
+
+	require.True(t, ok)
+	require.Equal(t, PermissionDecisionPayload{
+		ActorKind:     "local_owner",
+		SurfaceKind:   "local",
+		Surface:       "cli",
+		Tool:          "write_file",
+		Resource:      "file",
+		Action:        "update",
+		Effects:       []string{"write"},
+		Decision:      "ask",
+		ReasonCode:    "surface_default",
+		Rule:          "owner writes",
+		Mode:          "observe",
+		OwnerRequired: true,
+	}, payload)
+}
+
 func TestToolInvocationStartedPayloadFrom_DecodesStructAndMapPayloads(t *testing.T) {
 	payload, ok := ToolInvocationStartedPayloadFrom(struct {
 		ID    string

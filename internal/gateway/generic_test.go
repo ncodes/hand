@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	agentcore "github.com/wandxy/morph/pkg/agent"
 	gatewaytypes "github.com/wandxy/morph/pkg/gateway/types"
@@ -64,6 +65,12 @@ func TestGenericRespondCallsResponderAndReturnsAssistantText(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "hello", responder.message)
+	authorization, ok := permissions.FromContext(responder.respondContext)
+	require.True(t, ok)
+	require.Equal(t, permissions.ActorGatewayUser, authorization.Actor.Kind)
+	require.Equal(t, permissions.SurfaceKindGateway, authorization.SurfaceKind)
+	require.Equal(t, permissions.SurfaceHTTP, authorization.Surface)
+	require.Equal(t, genericCreatedSessionID, authorization.SessionID)
 	require.Equal(t, agentcore.RespondOptions{SessionID: genericCreatedSessionID, Instruct: "be brief"}, responder.options)
 	require.Equal(t, storage.GatewayBinding{
 		Key:       "generic::default:",

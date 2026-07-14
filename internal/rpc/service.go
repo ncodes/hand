@@ -15,7 +15,9 @@ import (
 	"github.com/wandxy/morph/internal/gateway"
 	"github.com/wandxy/morph/internal/guardrails"
 	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/permissions"
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
+	"github.com/wandxy/morph/internal/rpc/rpcmeta"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
 	"github.com/wandxy/morph/internal/trace"
@@ -142,6 +144,11 @@ func (s *Service) Respond(req *morphpb.RespondRequest, stream morphpb.MorphServi
 	}
 
 	ctx := stream.Context()
+	ctx = permissions.WithContext(ctx, permissions.AuthorizationContext{
+		Actor:     permissions.Actor{Kind: permissions.ActorRPCClient},
+		Surface:   rpcmeta.PermissionSurfaceFromIncomingContext(ctx),
+		SessionID: req.GetId(),
+	})
 	streamed := false
 	var sendErr error
 	opts := agent.RespondOptions{

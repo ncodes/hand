@@ -128,6 +128,9 @@ func (c *Config) validate(options validationOptions) error {
 	if c.Memory.Backend != "" && c.Memory.Backend != "memory" && c.Memory.Backend != "sqlite" {
 		return errors.New("memory backend must be one of: memory, sqlite")
 	}
+	if err := c.Permissions.Validate(); err != nil {
+		return err
+	}
 	if c.Compaction.TriggerPercent >= 1 {
 		return errors.New("compaction trigger percent must be greater than zero and less than one")
 	}

@@ -6,7 +6,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/wandxy/morph/internal/permissions"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/internal/rpc/rpcmeta"
 	tuirpc "github.com/wandxy/morph/internal/tui/rpc"
 )
 
@@ -28,6 +30,7 @@ func respondToPromptCmd(
 		if ctx == nil {
 			ctx = context.Background()
 		}
+		ctx = rpcmeta.WithOutgoingPermissionSurface(ctx, permissions.SurfaceTUI)
 
 		reply, err := client.Respond(ctx, prompt, rpcclient.RespondOptions{
 			SessionID: sessionID,

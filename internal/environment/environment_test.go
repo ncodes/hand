@@ -29,6 +29,7 @@ import (
 	"github.com/wandxy/morph/internal/memory"
 	models "github.com/wandxy/morph/internal/model"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/personality"
 	"github.com/wandxy/morph/internal/profile"
 	storage "github.com/wandxy/morph/internal/state/core"
@@ -58,6 +59,133 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	require.Same(t, baseCtx, h.ctx)
 	require.Same(t, cfg, h.cfg)
 	require.Empty(t, env.Instructions())
+}
+
+func TestEnvironment_ProtectedToolsExposePermissionInventoryMetadata(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent"})
+	prepareTestEnvironment(t, env)
+	inventory := make(map[string]permissions.Operation)
+	for _, entry := range permissions.GetInventory() {
+		if entry.Boundary == "tool" {
+			inventory[entry.ID] = entry.Operation
+		}
+	}
+
+	want := map[string]permissions.Operation{
+		"run_command": {
+			Tool:     "run_command",
+			Resource: permissions.ResourceProcess,
+			Action:   permissions.ActionExecute,
+			Effects:  []permissions.Effect{permissions.EffectExecution},
+		},
+		"process": {
+			Tool:     "process",
+			Resource: permissions.ResourceProcess,
+			Action:   permissions.ActionManage,
+			Effects:  []permissions.Effect{permissions.EffectExecution, permissions.EffectRead, permissions.EffectWrite},
+		},
+		"write_file": {
+			Tool:     "write_file",
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionUpdate,
+			Effects:  []permissions.Effect{permissions.EffectWrite},
+		},
+		"patch": {
+			Tool:     "patch",
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionUpdate,
+			Effects:  []permissions.Effect{permissions.EffectWrite},
+		},
+		"memory_add": {
+			Tool:     "memory_add",
+			Resource: permissions.ResourceMemory,
+			Action:   permissions.ActionCreate,
+			Effects:  []permissions.Effect{permissions.EffectWrite},
+		},
+		"memory_update": {
+			Tool:     "memory_update",
+			Resource: permissions.ResourceMemory,
+			Action:   permissions.ActionUpdate,
+			Effects:  []permissions.Effect{permissions.EffectWrite},
+		},
+		"memory_delete": {
+			Tool:     "memory_delete",
+			Resource: permissions.ResourceMemory,
+			Action:   permissions.ActionDelete,
+			Effects:  []permissions.Effect{permissions.EffectDestructive, permissions.EffectWrite},
+		},
+		"automation": {
+			Tool:          "automation",
+			Resource:      permissions.ResourceAutomation,
+			Action:        permissions.ActionManage,
+			Effects:       []permissions.Effect{permissions.EffectExternalSystem, permissions.EffectRead, permissions.EffectWrite},
+			OwnerRequired: true,
+		},
+	}
+
+	for _, definition := range env.Tools().List() {
+		inventoryOperation, inventoried := inventory["tool."+definition.Name]
+		require.True(t, inventoried, definition.Name)
+		require.NotEmpty(t, inventoryOperation.Resource, definition.Name)
+		delete(inventory, "tool."+definition.Name)
+
+		expected, ok := want[definition.Name]
+		if !ok {
+			continue
+		}
+		require.Equal(t, expected, definition.Permission, definition.Name)
+		delete(want, definition.Name)
+	}
+	require.Empty(t, want)
+}
+
+func TestNewEnvironment_UsesConfiguredPermissionPolicyForObservation(t *testing.T) {
+	cfg := &config.Config{Permissions: permissions.Policy{Rules: []permissions.Rule{{
+		Name:         "allow owner inspect",
+		Profiles:     []string{"work"},
+		ActorKinds:   []permissions.ActorKind{permissions.ActorLocalOwner},
+		SurfaceKinds: []permissions.SurfaceKind{permissions.SurfaceKindLocal},
+		Tools:        []string{"inspect"},
+		Decision:     permissions.DecisionAllow,
+	}}}}
+	env := NewEnvironment(gctx.Background(), cfg).(*environment)
+	require.NoError(t, env.tools.Register(tools.Definition{
+		Name: "inspect",
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionRead,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
+		Handler: tools.HandlerFunc(func(gctx.Context, tools.Call) (tools.Result, error) {
+			return tools.Result{Output: "contents"}, nil
+		}),
+	}))
+	recorder := &environmentPermissionTraceRecorder{}
+	ctx := permissions.WithContext(gctx.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner},
+		Surface: permissions.SurfaceCLI,
+		Profile: "work",
+	})
+	ctx = tools.WithTraceRecorder(ctx, recorder)
+
+	result, err := env.tools.Invoke(ctx, tools.Call{Name: "inspect"})
+
+	require.NoError(t, err)
+	require.Equal(t, "contents", result.Output)
+	require.Len(t, recorder.events, 1)
+	require.Equal(t, trace.EvtPermissionDecisionObserved, recorder.events[0].Type)
+	payload, ok := recorder.events[0].Payload.(trace.PermissionDecisionPayload)
+	require.True(t, ok)
+	require.Equal(t, "allow", payload.Decision)
+	require.Equal(t, "allow owner inspect", payload.Rule)
+}
+
+type environmentPermissionTraceRecorder struct {
+	events []trace.Event
+}
+
+func (r *environmentPermissionTraceRecorder) Record(eventType string, payload any) {
+	r.events = append(r.events, trace.Event{Type: eventType, Payload: payload})
 }
 
 func prepareTestEnvironment(t *testing.T, env Environment) {

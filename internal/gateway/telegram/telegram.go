@@ -9,6 +9,7 @@ import (
 
 	"github.com/wandxy/morph/internal/config"
 	gatewaysession "github.com/wandxy/morph/internal/gateway/session"
+	"github.com/wandxy/morph/internal/permissions"
 	agentcore "github.com/wandxy/morph/pkg/agent"
 	"github.com/wandxy/morph/pkg/gateway/bindings"
 	"github.com/wandxy/morph/pkg/gateway/pairing"
@@ -56,6 +57,11 @@ func (a *TelegramAdapter) DispatchUpdate(ctx context.Context, update tg.Update) 
 	if err != nil {
 		return false, err
 	}
+	ctx = permissions.WithContext(ctx, permissions.AuthorizationContext{
+		Actor:     permissions.Actor{Kind: permissions.ActorGatewayUser, ID: inbound.SenderID},
+		Surface:   permissions.SurfaceTelegram,
+		SessionID: session.ID,
+	})
 
 	stopTyping := a.sender.StartTyping(ctx, inbound.Target)
 	defer stopTyping()

@@ -19,6 +19,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
 
 	agentapi "github.com/wandxy/morph/internal/agent"
 	"github.com/wandxy/morph/internal/config"
@@ -27,8 +28,10 @@ import (
 	modelcatalog "github.com/wandxy/morph/internal/model"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/internal/rpc/rpcmeta"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/trace"
 	"github.com/wandxy/morph/internal/tui/render"
@@ -5030,10 +5033,14 @@ func TestRespondToPromptCmd_StreamsDeltasTraceEventsAndCompletion(t *testing.T) 
 	require.Equal(t, responseCompletedMsg{ResponseID: 7, Text: "hello world"}, msg)
 	require.Equal(t, "hello", client.message)
 	require.Equal(t, "project-a", client.respondSessionID)
+	outgoingMetadata, ok := metadata.FromOutgoingContext(client.respondContext)
+	require.True(t, ok)
+	incoming := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+	require.Equal(t, permissions.SurfaceTUI, rpcmeta.PermissionSurfaceFromIncomingContext(incoming))
 	require.False(t, client.streamSet)
 	require.Equal(t, assistantTextDeltaMsg{Channel: "assistant", Text: "hello "}, <-events)
 	require.Equal(t, toolInvocationStartedMsg{ID: "call_1", Name: "read_file"}, <-events)
-	_, ok := <-events
+	_, ok = <-events
 	require.False(t, ok)
 }
 
@@ -6922,6 +6929,7 @@ type fakeTUIChatClient struct {
 	contextErr            error
 	contextSessionID      string
 	message               string
+	respondContext        context.Context
 	stream                bool
 	streamSet             bool
 	calls                 int
@@ -6945,11 +6953,12 @@ type fakeTUIChatClient struct {
 }
 
 func (c *fakeTUIChatClient) Respond(
-	_ context.Context,
+	ctx context.Context,
 	message string,
 	opts rpcclient.RespondOptions,
 ) (string, error) {
 	c.calls++
+	c.respondContext = ctx
 	c.message = message
 	c.respondSessionID = opts.SessionID
 	if opts.Stream != nil {

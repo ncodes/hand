@@ -35,9 +35,10 @@ type slackServiceStub struct {
 	getPairedErr   error
 	savePairingErr error
 
-	respondCalls int
-	lastMessage  string
-	lastOptions  agentcore.RespondOptions
+	respondCalls   int
+	respondContext context.Context
+	lastMessage    string
+	lastOptions    agentcore.RespondOptions
 }
 
 func newSlackServiceStub() *slackServiceStub {
@@ -56,10 +57,9 @@ func (s *slackServiceStub) Respond(
 	message string,
 	opts agentcore.RespondOptions,
 ) (string, error) {
-	_ = ctx
-
 	s.mu.Lock()
 	s.respondCalls++
+	s.respondContext = ctx
 	s.lastMessage = message
 	s.lastOptions = opts
 	s.mu.Unlock()

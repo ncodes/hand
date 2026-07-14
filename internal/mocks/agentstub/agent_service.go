@@ -16,6 +16,7 @@ import (
 // AgentServiceStub is a test stub for agent service.
 type AgentServiceStub struct {
 	ChatInput            string
+	RespondContext       context.Context
 	RespondOptions       rpcclient.RespondOptions
 	Reply                string
 	Deltas               []string
@@ -83,8 +84,9 @@ type AgentServiceStub struct {
 	AutomationStoreErr   error
 }
 
-func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
+func (s *AgentServiceStub) Respond(ctx context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
 	s.ChatInput = msg
+	s.RespondContext = ctx
 	s.RespondOptions = opts
 	if opts.OnEvent != nil {
 		events := s.Events

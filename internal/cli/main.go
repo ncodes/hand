@@ -15,7 +15,9 @@ import (
 	"github.com/wandxy/morph/internal/constants"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	provider_ollama "github.com/wandxy/morph/internal/model/provider_ollama"
+	"github.com/wandxy/morph/internal/permissions"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/internal/rpc/rpcmeta"
 	"github.com/wandxy/morph/internal/runtime"
 	"github.com/wandxy/morph/pkg/logutils"
 	"github.com/wandxy/morph/pkg/str"
@@ -135,6 +137,7 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 			instruct = cfg.Session.Instruct
 		}
 		literalValue := str.String(cmd.String("session"))
+		ctx = rpcmeta.WithOutgoingPermissionSurface(ctx, permissions.SurfaceCLI)
 		responseOptions := rpcclient.RespondOptions{
 			Instruct:  instruct,
 			SessionID: literalValue.Trim(),

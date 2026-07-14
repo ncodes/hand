@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/wandxy/morph/internal/permissions"
+	"github.com/wandxy/morph/internal/trace"
 )
 
 func TestInMemoryRegistry_RegisterAndGet(t *testing.T) {
@@ -55,26 +58,6 @@ func TestInMemoryRegistry_ListReturnsSortedDefinitions(t *testing.T) {
 	require.Equal(t, []string{"alpha", "zeta"}, definitions.Names())
 }
 
-func TestDefinitions_NameHelpers(t *testing.T) {
-	definitions := Definitions{
-		{Name: "alpha"},
-		{Name: "beta"},
-		{Name: " "},
-	}
-
-	require.True(t, definitions.Has("alpha"))
-	require.True(t, definitions.Has(" beta "))
-	require.False(t, definitions.Has("missing"))
-	require.Equal(t, []string{"alpha", "beta"}, definitions.Names())
-
-	definition, ok := definitions.Get(" beta ")
-	require.True(t, ok)
-	require.Equal(t, "beta", definition.Name)
-
-	_, ok = definitions.Get("")
-	require.False(t, ok)
-}
-
 func TestInMemoryRegistry_RejectsInvalidDefinitions(t *testing.T) {
 	registry := NewInMemoryRegistry()
 
@@ -108,26 +91,26 @@ func TestInMemoryRegistry_InvokeReturnsNormalizedUnknownToolError(t *testing.T) 
 	require.Equal(t, Error{Code: "tool_not_registered", Message: "tool is not registered"}.String(), result.Error)
 }
 
-func TestInMemoryRegistry_RejectsNilRegistry(t *testing.T) {
+func TestInMemoryRegistry_MutationsRejectNilRegistry(t *testing.T) {
 	var registry *InMemoryRegistry
-
-	err := registry.Register(Definition{
-		Name: "echo",
-		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
-			return Result{}, nil
-		}),
+	handler := HandlerFunc(func(context.Context, Call) (Result, error) {
+		return Result{}, nil
 	})
 
-	require.EqualError(t, err, "tool registry is required")
+	require.EqualError(t, registry.Register(Definition{Name: "echo", Handler: handler}), "tool registry is required")
+	require.EqualError(t, registry.RegisterGroup(Group{Name: "core"}), "tool registry is required")
 }
 
 func TestInMemoryRegistry_GetHandlesNilRegistry(t *testing.T) {
 	var registry *InMemoryRegistry
 
 	definition, ok := registry.Get("echo")
-
 	require.False(t, ok)
 	require.Equal(t, Definition{}, definition)
+
+	group, ok := registry.GetGroup("core")
+	require.False(t, ok)
+	require.Equal(t, Group{}, group)
 }
 
 func TestInMemoryRegistry_ListHandlesNilRegistry(t *testing.T) {
@@ -154,7 +137,11 @@ func TestInMemoryRegistry_GetTrimsName(t *testing.T) {
 
 func TestInMemoryRegistry_RegisterAndGetGroup(t *testing.T) {
 	registry := NewInMemoryRegistry()
-	require.NoError(t, registry.RegisterGroup(Group{Name: " core ", Tools: []string{"echo"}, Includes: []string{"shared"}}))
+	require.NoError(t, registry.RegisterGroup(Group{
+		Name:     " core ",
+		Tools:    []string{" echo ", "", "echo"},
+		Includes: []string{" shared ", "shared", " "},
+	}))
 
 	group, ok := registry.GetGroup("core")
 
@@ -162,6 +149,16 @@ func TestInMemoryRegistry_RegisterAndGetGroup(t *testing.T) {
 	require.Equal(t, "core", group.Name)
 	require.Equal(t, []string{"echo"}, group.Tools)
 	require.Equal(t, []string{"shared"}, group.Includes)
+}
+
+func TestInMemoryRegistry_ListGroupsReturnsSortedGroups(t *testing.T) {
+	registry := NewInMemoryRegistry()
+	require.NoError(t, registry.RegisterGroup(Group{Name: "zeta"}))
+	require.NoError(t, registry.RegisterGroup(Group{Name: "alpha"}))
+
+	groups := registry.ListGroups()
+
+	require.Equal(t, []Group{{Name: "alpha"}, {Name: "zeta"}}, groups)
 }
 
 func TestInMemoryRegistry_ResolveReturnsAllToolsWhenNoGroupsRequested(t *testing.T) {
@@ -216,6 +213,30 @@ func TestInMemoryRegistry_ResolveDeduplicatesTools(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, definitions, 1)
 	require.Equal(t, "echo", definitions[0].Name)
+}
+
+func TestInMemoryRegistry_ResolveSharedIncludedGroupOnceAndSortsTools(t *testing.T) {
+	registry := NewInMemoryRegistry()
+	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil })
+	require.NoError(t, registry.Register(Definition{Name: "zeta", Handler: handler}))
+	require.NoError(t, registry.Register(Definition{Name: "alpha", Handler: handler}))
+	require.NoError(t, registry.RegisterGroup(Group{Name: "shared", Tools: []string{"zeta", "alpha"}}))
+	require.NoError(t, registry.RegisterGroup(Group{Name: "first", Includes: []string{"shared"}}))
+	require.NoError(t, registry.RegisterGroup(Group{Name: "second", Includes: []string{"shared"}}))
+
+	definitions, err := registry.Resolve(Policy{GroupNames: []string{"second", "first"}})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"alpha", "zeta"}, definitions.Names())
+}
+
+func TestInMemoryRegistry_ResolveRejectsNilRegistry(t *testing.T) {
+	var registry *InMemoryRegistry
+
+	definitions, err := registry.Resolve(Policy{})
+
+	require.EqualError(t, err, "tool registry is required")
+	require.Nil(t, definitions)
 }
 
 func TestInMemoryRegistry_ResolveRejectsMissingReferencedTool(t *testing.T) {
@@ -324,4 +345,152 @@ func TestInMemoryRegistry_InvokePreservesStructuredResultErrors(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, string(raw), result.Error)
+}
+
+func TestInMemoryRegistry_RegisterNormalizesPermissionMetadata(t *testing.T) {
+	registry := NewInMemoryRegistry()
+	require.NoError(t, registry.Register(Definition{
+		Name: "write",
+		Permission: permissions.Operation{
+			Resource: " FILE ",
+			Action:   " UPDATE ",
+			Effects:  []permissions.Effect{" WRITE ", permissions.EffectWrite},
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil }),
+	}))
+
+	definition, ok := registry.Get("write")
+	require.True(t, ok)
+	require.Equal(t, permissions.Operation{
+		Tool:     "write",
+		Resource: permissions.ResourceFile,
+		Action:   permissions.ActionUpdate,
+		Effects:  []permissions.Effect{permissions.EffectWrite},
+	}, definition.Permission)
+}
+
+func TestInMemoryRegistry_RegisterRejectsInvalidPermissionMetadata(t *testing.T) {
+	registry := NewInMemoryRegistry()
+	err := registry.Register(Definition{
+		Name:       "write",
+		Permission: permissions.Operation{Resource: "database", Action: permissions.ActionUpdate},
+		Handler:    HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil }),
+	})
+
+	require.EqualError(t, err, "permission resource is invalid")
+}
+
+func TestInMemoryRegistry_InvokeObservesPermissionWithoutEnforcingDecision(t *testing.T) {
+	called := false
+	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+		Default: permissions.DecisionDeny,
+		Rules: []permissions.Rule{{
+			Name:       "ask owner writes",
+			ActorKinds: []permissions.ActorKind{permissions.ActorLocalOwner},
+			Effects:    []permissions.Effect{permissions.EffectWrite},
+			Decision:   permissions.DecisionAsk,
+		}},
+	}})
+	require.NoError(t, registry.Register(Definition{
+		Name: "write",
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionUpdate,
+			Effects:  []permissions.Effect{permissions.EffectWrite},
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			called = true
+			return Result{Output: "written"}, nil
+		}),
+	}))
+	recorder := &permissionTraceRecorder{}
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner},
+		Surface: permissions.SurfaceCLI,
+	})
+	ctx = WithTraceRecorder(ctx, recorder)
+
+	result, err := registry.Invoke(ctx, Call{
+		Name:  "write",
+		Input: `{"actor":"local_owner","surface":"cli"}`,
+	})
+
+	require.NoError(t, err)
+	require.True(t, called)
+	require.Equal(t, "written", result.Output)
+	require.Equal(t, []permissionTraceEvent{{
+		eventType: trace.EvtPermissionDecisionObserved,
+		payload: trace.PermissionDecisionPayload{
+			ActorKind:     string(permissions.ActorLocalOwner),
+			SurfaceKind:   string(permissions.SurfaceKindLocal),
+			Surface:       string(permissions.SurfaceCLI),
+			Tool:          "write",
+			Resource:      string(permissions.ResourceFile),
+			Action:        string(permissions.ActionUpdate),
+			Effects:       []string{string(permissions.EffectWrite)},
+			Decision:      string(permissions.DecisionAsk),
+			ReasonCode:    permissions.ReasonRuleMatched,
+			Rule:          "ask owner writes",
+			Mode:          string(permissions.ModeObserve),
+			OwnerRequired: false,
+		},
+	}}, recorder.events)
+}
+
+func TestInMemoryRegistry_InvokeObservesUnknownActorAndSkipsUnclassifiedTools(t *testing.T) {
+	registry := NewInMemoryRegistry()
+	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{Output: "ok"}, nil })
+	require.NoError(t, registry.Register(Definition{
+		Name:       "write",
+		Permission: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate},
+		Handler:    handler,
+	}))
+	require.NoError(t, registry.Register(Definition{Name: "echo", Handler: handler}))
+	recorder := &permissionTraceRecorder{}
+	ctx := WithTraceRecorder(context.Background(), recorder)
+
+	_, err := registry.Invoke(ctx, Call{Name: "write"})
+	require.NoError(t, err)
+	_, err = registry.Invoke(ctx, Call{Name: "echo"})
+	require.NoError(t, err)
+
+	require.Len(t, recorder.events, 1)
+	payload := recorder.events[0].payload
+	require.Equal(t, string(permissions.ActorUnknown), payload.ActorKind)
+	require.Equal(t, string(permissions.SurfaceKindUnknown), payload.SurfaceKind)
+	require.Equal(t, string(permissions.SurfaceUnknown), payload.Surface)
+	require.Equal(t, string(permissions.DecisionDeny), payload.Decision)
+	require.Equal(t, permissions.ReasonPolicyDefault, payload.ReasonCode)
+}
+
+func TestInMemoryRegistry_InvokeClassifiedToolWithoutRecorder(t *testing.T) {
+	registry := NewInMemoryRegistry()
+	require.NoError(t, registry.Register(Definition{
+		Name:       "read",
+		Permission: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionRead},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			return Result{Output: "contents"}, nil
+		}),
+	}))
+
+	result, err := registry.Invoke(context.Background(), Call{Name: "read"})
+
+	require.NoError(t, err)
+	require.Equal(t, "contents", result.Output)
+}
+
+type permissionTraceEvent struct {
+	eventType string
+	payload   trace.PermissionDecisionPayload
+}
+
+type permissionTraceRecorder struct {
+	events []permissionTraceEvent
+}
+
+func (r *permissionTraceRecorder) Record(eventType string, payload any) {
+	r.events = append(r.events, permissionTraceEvent{
+		eventType: eventType,
+		payload:   payload.(trace.PermissionDecisionPayload),
+	})
 }

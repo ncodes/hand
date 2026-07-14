@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/pkg/gateway/bindings"
 	"github.com/wandxy/morph/pkg/gateway/pairing"
@@ -26,6 +27,13 @@ func TestAdapter_DispatchesAllowedSenderAndCreatesSessionBinding(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, handled)
 	require.Equal(t, 1, service.callCount())
+	authorization, ok := permissions.FromContext(service.respondContext)
+	require.True(t, ok)
+	require.Equal(t, permissions.ActorGatewayUser, authorization.Actor.Kind)
+	require.Equal(t, "U1", authorization.Actor.ID)
+	require.Equal(t, permissions.SurfaceKindGateway, authorization.SurfaceKind)
+	require.Equal(t, permissions.SurfaceSlack, authorization.Surface)
+	require.Equal(t, service.createdSession.ID, authorization.SessionID)
 	require.Equal(t, "hello", service.lastMessage)
 	require.Equal(t, service.createdSession.ID, service.lastOptions.SessionID)
 	key, err := bindings.Slack("T1", "D1", "100.1")

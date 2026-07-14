@@ -28,6 +28,21 @@ type SafetyEventPayload struct {
 	Findings      []map[string]string `json:"findings,omitempty"`
 }
 
+type PermissionDecisionPayload struct {
+	ActorKind     string   `json:"actor_kind,omitempty"`
+	SurfaceKind   string   `json:"surface_kind,omitempty"`
+	Surface       string   `json:"surface,omitempty"`
+	Tool          string   `json:"tool,omitempty"`
+	Resource      string   `json:"resource,omitempty"`
+	Action        string   `json:"action,omitempty"`
+	Effects       []string `json:"effects,omitempty"`
+	Decision      string   `json:"decision,omitempty"`
+	ReasonCode    string   `json:"reason_code,omitempty"`
+	Rule          string   `json:"rule,omitempty"`
+	Mode          string   `json:"mode,omitempty"`
+	OwnerRequired bool     `json:"owner_required,omitempty"`
+}
+
 // UserMessageAcceptedPayload is the trace payload for user message accepted.
 type UserMessageAcceptedPayload struct {
 	Message string `json:"message,omitempty"`
@@ -332,6 +347,8 @@ func DecodePayload(eventType string, payload any) (any, bool) {
 		return ToolInvocationStartedPayloadFrom(payload)
 	case EvtToolInvocationCompleted:
 		return ToolInvocationCompletedPayloadFrom(payload)
+	case EvtPermissionDecisionObserved:
+		return decodePayloadAs[PermissionDecisionPayload](payload)
 	case EvtSummaryFallbackStarted:
 		return decodePayloadAs[SummaryFallbackStartedPayload](payload)
 	case EvtContextPreflight,

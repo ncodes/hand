@@ -33,6 +33,7 @@ type genericResponderStub struct {
 	createdSession storage.Session
 	reply          string
 	err            error
+	respondContext context.Context
 	contextErr     error
 	getBindingErr  error
 	saveBindingErr error
@@ -56,6 +57,7 @@ func (s *genericResponderStub) Respond(
 	s.calls++
 	s.message = message
 	s.options = opts
+	s.respondContext = ctx
 	s.contextErr = ctx.Err()
 	reply := s.reply
 	err := s.err

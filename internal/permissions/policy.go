@@ -1,0 +1,359 @@
+package permissions
+
+import (
+	"errors"
+	"slices"
+	"strings"
+
+	"github.com/wandxy/morph/pkg/str"
+)
+
+const (
+	ReasonHardDeny           = "hard_deny"
+	ReasonRuleMatched        = "rule_matched"
+	ReasonSurfaceDefault     = "surface_default"
+	ReasonSurfaceKindDefault = "surface_kind_default"
+	ReasonPolicyDefault      = "policy_default"
+)
+
+type Policy struct {
+	Mode                Mode                     `yaml:"mode"`
+	Default             Decision                 `yaml:"default"`
+	SurfaceKindDefaults map[SurfaceKind]Decision `yaml:"surfaceKinds"`
+	SurfaceDefaults     map[Surface]Decision     `yaml:"surfaces"`
+	Rules               []Rule                   `yaml:"rules"`
+}
+
+type Rule struct {
+	Name           string        `yaml:"name"`
+	Profiles       []string      `yaml:"profiles"`
+	ActorKinds     []ActorKind   `yaml:"actors"`
+	SurfaceKinds   []SurfaceKind `yaml:"surfaceKinds"`
+	Surfaces       []Surface     `yaml:"surfaces"`
+	Tools          []string      `yaml:"tools"`
+	Resources      []Resource    `yaml:"resources"`
+	Actions        []Action      `yaml:"actions"`
+	Effects        []Effect      `yaml:"effects"`
+	TargetPrefixes []string      `yaml:"targetPrefixes"`
+	Decision       Decision      `yaml:"decision"`
+	Reason         string        `yaml:"reason"`
+}
+
+type EvaluationInput struct {
+	Authorization  AuthorizationContext
+	Operation      Operation
+	HardDenyReason string
+}
+
+type Evaluation struct {
+	Decision   Decision
+	ReasonCode string
+	Reason     string
+	Rule       string
+	Mode       Mode
+}
+
+func (p *Policy) Normalize() {
+	if p == nil {
+		return
+	}
+
+	p.Mode = Mode(str.String(p.Mode).Normalized())
+	if p.Mode == "" {
+		p.Mode = ModeObserve
+	}
+	p.Default = Decision(str.String(p.Default).Normalized())
+	if p.Default == "" {
+		p.Default = DecisionDeny
+	}
+
+	if p.SurfaceKindDefaults == nil {
+		p.SurfaceKindDefaults = getDefaultSurfaceKindDecisions()
+	}
+	normalizedKindDefaults := make(map[SurfaceKind]Decision, len(p.SurfaceKindDefaults))
+	for kind, decision := range p.SurfaceKindDefaults {
+		normalizedKind := SurfaceKind(str.String(kind).Normalized())
+		normalizedDecision := Decision(str.String(decision).Normalized())
+		normalizedKindDefaults[normalizedKind] = normalizedDecision
+	}
+	p.SurfaceKindDefaults = normalizedKindDefaults
+
+	normalizedDefaults := make(map[Surface]Decision, len(p.SurfaceDefaults))
+	for surface, decision := range p.SurfaceDefaults {
+		normalizedSurface := Surface(str.String(surface).Normalized())
+		normalizedDecision := Decision(str.String(decision).Normalized())
+		normalizedDefaults[normalizedSurface] = normalizedDecision
+	}
+	p.SurfaceDefaults = normalizedDefaults
+
+	normalizedRules := make([]Rule, len(p.Rules))
+	copy(normalizedRules, p.Rules)
+	for index := range normalizedRules {
+		normalizedRules[index].normalize()
+	}
+	p.Rules = normalizedRules
+}
+
+func (p Policy) Validate() error {
+	p.Normalize()
+	if p.Mode != ModeObserve {
+		return errors.New("permission mode must be observe")
+	}
+	if !isValidDecision(p.Default) {
+		return errors.New("permission default must be one of: allow, ask, deny")
+	}
+	for kind, decision := range p.SurfaceKindDefaults {
+		if !isValidSurfaceKind(kind, false) {
+			return errors.New("permission surface kind default contains an invalid kind")
+		}
+		if !isValidDecision(decision) {
+			return errors.New("permission surface kind default must be one of: allow, ask, deny")
+		}
+	}
+	for surface, decision := range p.SurfaceDefaults {
+		if !isValidSurface(surface, false) {
+			return errors.New("permission surface default contains an invalid surface")
+		}
+		if !isValidDecision(decision) {
+			return errors.New("permission surface default must be one of: allow, ask, deny")
+		}
+	}
+
+	names := make(map[string]struct{}, len(p.Rules))
+	for _, rule := range p.Rules {
+		if err := rule.validate(); err != nil {
+			return err
+		}
+		if _, exists := names[rule.Name]; exists {
+			return errors.New("permission rule names must be unique")
+		}
+		names[rule.Name] = struct{}{}
+	}
+
+	return nil
+}
+
+func (p Policy) Evaluate(input EvaluationInput) Evaluation {
+	p.Normalize()
+	policyErr := p.Validate()
+	if p.Mode != ModeObserve {
+		p.Mode = ModeObserve
+	}
+	if !isValidDecision(p.Default) {
+		p.Default = DecisionDeny
+	}
+
+	if reason := str.String(input.HardDenyReason).Trim(); reason != "" {
+		return Evaluation{Decision: DecisionDeny, ReasonCode: ReasonHardDeny, Reason: reason, Mode: p.Mode}
+	}
+	if policyErr != nil {
+		return Evaluation{Decision: DecisionDeny, ReasonCode: ReasonPolicyDefault, Mode: p.Mode}
+	}
+
+	authorization, authorizationErr := input.Authorization.Normalize()
+	operation, operationErr := input.Operation.Normalize()
+	if authorizationErr != nil {
+		authorization = AuthorizationContext{
+			Actor: Actor{Kind: ActorUnknown}, SurfaceKind: SurfaceKindUnknown, Surface: SurfaceUnknown,
+		}
+	}
+	if operationErr != nil {
+		operation = Operation{Resource: ResourceUnknown, Action: ActionUnknown}
+	}
+
+	if rule, ok := p.getMatchingRule(authorization, operation); ok {
+		return Evaluation{
+			Decision:   rule.Decision,
+			ReasonCode: ReasonRuleMatched,
+			Reason:     rule.Reason,
+			Rule:       rule.Name,
+			Mode:       p.Mode,
+		}
+	}
+
+	if decision, ok := p.SurfaceDefaults[authorization.Surface]; ok && isValidDecision(decision) {
+		return Evaluation{Decision: decision, ReasonCode: ReasonSurfaceDefault, Mode: p.Mode}
+	}
+	if decision, ok := p.SurfaceKindDefaults[authorization.SurfaceKind]; ok && isValidDecision(decision) {
+		return Evaluation{Decision: decision, ReasonCode: ReasonSurfaceKindDefault, Mode: p.Mode}
+	}
+
+	return Evaluation{Decision: p.Default, ReasonCode: ReasonPolicyDefault, Mode: p.Mode}
+}
+
+func (p Policy) getMatchingRule(authorization AuthorizationContext, operation Operation) (Rule, bool) {
+	var selected Rule
+	selectedPriority := -1
+	selectedSpecificity := -1
+	for _, rule := range p.Rules {
+		if !rule.matches(authorization, operation) {
+			continue
+		}
+
+		priority := getDecisionPriority(rule.Decision)
+		specificity := rule.specificity()
+		if priority > selectedPriority || priority == selectedPriority && specificity > selectedSpecificity ||
+			priority == selectedPriority && specificity == selectedSpecificity && rule.Name < selected.Name {
+			selected = rule
+			selectedPriority = priority
+			selectedSpecificity = specificity
+		}
+	}
+
+	return selected, selectedPriority >= 0
+}
+
+func getDefaultSurfaceKindDecisions() map[SurfaceKind]Decision {
+	return map[SurfaceKind]Decision{
+		SurfaceKindLocal:      DecisionAsk,
+		SurfaceKindGateway:    DecisionDeny,
+		SurfaceKindAutomation: DecisionDeny,
+		SurfaceKindRPC:        DecisionDeny,
+		SurfaceKindACP:        DecisionDeny,
+	}
+}
+
+func (r *Rule) normalize() {
+	r.Name = str.String(r.Name).Trim()
+	r.Profiles = normalizeStrings(r.Profiles)
+	r.ActorKinds = normalizeValues(r.ActorKinds, func(value ActorKind) ActorKind {
+		return ActorKind(str.String(value).Normalized())
+	})
+	r.SurfaceKinds = normalizeValues(r.SurfaceKinds, func(value SurfaceKind) SurfaceKind {
+		return SurfaceKind(str.String(value).Normalized())
+	})
+	r.Surfaces = normalizeValues(r.Surfaces, func(value Surface) Surface {
+		return Surface(str.String(value).Normalized())
+	})
+	r.Tools = normalizeStrings(r.Tools)
+	r.Resources = normalizeValues(r.Resources, func(value Resource) Resource {
+		return Resource(str.String(value).Normalized())
+	})
+	r.Actions = normalizeValues(r.Actions, func(value Action) Action {
+		return Action(str.String(value).Normalized())
+	})
+	r.Effects = normalizeEffects(r.Effects)
+	r.TargetPrefixes = normalizeStrings(r.TargetPrefixes)
+	r.Decision = Decision(str.String(r.Decision).Normalized())
+	r.Reason = str.String(r.Reason).Trim()
+}
+
+func (r Rule) validate() error {
+	if r.Name == "" {
+		return errors.New("permission rule name is required")
+	}
+	if !isValidDecision(r.Decision) {
+		return errors.New("permission rule decision must be one of: allow, ask, deny")
+	}
+	for _, value := range r.ActorKinds {
+		if !isValidActorKind(value, false) {
+			return errors.New("permission rule contains an invalid actor")
+		}
+	}
+	for _, value := range r.SurfaceKinds {
+		if !isValidSurfaceKind(value, false) {
+			return errors.New("permission rule contains an invalid surface kind")
+		}
+	}
+	for _, value := range r.Resources {
+		if !isValidResource(value, false) {
+			return errors.New("permission rule contains an invalid resource")
+		}
+	}
+	for _, value := range r.Actions {
+		if !isValidAction(value, false) {
+			return errors.New("permission rule contains an invalid action")
+		}
+	}
+	for _, value := range r.Effects {
+		if !isValidEffect(value) {
+			return errors.New("permission rule contains an invalid effect")
+		}
+	}
+
+	return nil
+}
+
+func (r Rule) matches(authorization AuthorizationContext, operation Operation) bool {
+	return matchesValue(r.Profiles, authorization.Profile) &&
+		matchesValue(r.ActorKinds, authorization.Actor.Kind) &&
+		matchesValue(r.SurfaceKinds, authorization.SurfaceKind) &&
+		matchesValue(r.Surfaces, authorization.Surface) &&
+		matchesValue(r.Tools, operation.Tool) &&
+		matchesValue(r.Resources, operation.Resource) &&
+		matchesValue(r.Actions, operation.Action) &&
+		containsAllEffects(operation.Effects, r.Effects) &&
+		matchesTargetPrefix(r.TargetPrefixes, operation.Target)
+}
+
+func (r Rule) specificity() int {
+	return len(r.Profiles) + len(r.ActorKinds) + len(r.SurfaceKinds) + len(r.Surfaces) + len(r.Tools) + len(r.Resources) +
+		len(r.Actions) + len(r.Effects) + len(r.TargetPrefixes)
+}
+
+func getDecisionPriority(decision Decision) int {
+	switch decision {
+	case DecisionDeny:
+		return 3
+	case DecisionAsk:
+		return 2
+	case DecisionAllow:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func normalizeValues[T ~string](values []T, normalize func(T) T) []T {
+	result := make([]T, 0, len(values))
+	var zero T
+	for _, value := range values {
+		value = normalize(value)
+		if value == zero || slices.Contains(result, value) {
+			continue
+		}
+		result = append(result, value)
+	}
+	slices.SortFunc(result, func(left, right T) int {
+		return strings.Compare(string(left), string(right))
+	})
+	return result
+}
+
+func normalizeStrings(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = str.String(value).Trim()
+		if value == "" || slices.Contains(result, value) {
+			continue
+		}
+		result = append(result, value)
+	}
+	slices.Sort(result)
+	return result
+}
+
+func matchesValue[T comparable](allowed []T, value T) bool {
+	return len(allowed) == 0 || slices.Contains(allowed, value)
+}
+
+func containsAllEffects(values []Effect, required []Effect) bool {
+	for _, value := range required {
+		if !slices.Contains(values, value) {
+			return false
+		}
+	}
+	return true
+}
+
+func matchesTargetPrefix(prefixes []string, target string) bool {
+	if len(prefixes) == 0 {
+		return true
+	}
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(target, prefix) {
+			return true
+		}
+	}
+	return false
+}
