@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wandxy/morph/pkg/str"
 )
@@ -16,11 +17,16 @@ const (
 	ReasonPolicyDefault      = "policy_default"
 	ReasonApprovalRequired   = "approval_required"
 	ReasonOwnerRequired      = "owner_required"
+	ReasonFullAccess         = "full_access"
 )
 
 type Policy struct {
 	Mode                Mode                     `yaml:"mode"`
 	Default             Decision                 `yaml:"default"`
+	RequestRetention    time.Duration            `yaml:"requestRetention"`
+	GrantRetention      time.Duration            `yaml:"grantRetention"`
+	CleanupInterval     time.Duration            `yaml:"cleanupInterval"`
+	CleanupBatchSize    int                      `yaml:"cleanupBatchSize"`
 	SurfaceKindDefaults map[SurfaceKind]Decision `yaml:"surfaceKinds"`
 	SurfaceDefaults     map[Surface]Decision     `yaml:"surfaces"`
 	Rules               []Rule                   `yaml:"rules"`
@@ -69,6 +75,18 @@ func (p *Policy) Normalize() {
 	if p.Default == "" {
 		p.Default = DecisionDeny
 	}
+	if p.RequestRetention == 0 {
+		p.RequestRetention = DefaultApprovalRequestRetention
+	}
+	if p.GrantRetention == 0 {
+		p.GrantRetention = DefaultApprovalGrantRetention
+	}
+	if p.CleanupInterval == 0 {
+		p.CleanupInterval = DefaultApprovalCleanupInterval
+	}
+	if p.CleanupBatchSize == 0 {
+		p.CleanupBatchSize = DefaultApprovalCleanupBatchSize
+	}
 
 	if p.SurfaceKindDefaults == nil {
 		p.SurfaceKindDefaults = getDefaultSurfaceKindDecisions()
@@ -100,10 +118,22 @@ func (p *Policy) Normalize() {
 func (p Policy) Validate() error {
 	p.Normalize()
 	if !isValidMode(p.Mode) {
-		return errors.New("permission mode must be one of: observe, enforce")
+		return errors.New("permission mode must be one of: observe, enforce, full_access")
 	}
 	if !isValidDecision(p.Default) {
 		return errors.New("permission default must be one of: allow, ask, deny")
+	}
+	if p.RequestRetention < 0 {
+		return errors.New("permission request retention must be greater than or equal to zero")
+	}
+	if p.GrantRetention < 0 {
+		return errors.New("permission grant retention must be greater than or equal to zero")
+	}
+	if p.CleanupInterval <= 0 {
+		return errors.New("permission cleanup interval must be greater than zero")
+	}
+	if p.CleanupBatchSize <= 0 {
+		return errors.New("permission cleanup batch size must be greater than zero")
 	}
 	for kind, decision := range p.SurfaceKindDefaults {
 		if !isValidSurfaceKind(kind, false) {
@@ -151,6 +181,9 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 	}
 	if policyErr != nil {
 		return Evaluation{Decision: DecisionDeny, ReasonCode: ReasonPolicyDefault, Mode: p.Mode}
+	}
+	if p.Mode == ModeFullAccess {
+		return Evaluation{Decision: DecisionAllow, ReasonCode: ReasonFullAccess, Mode: p.Mode}
 	}
 
 	authorization, authorizationErr := input.Authorization.Normalize()
@@ -329,7 +362,7 @@ func getDecisionPriority(decision Decision) int {
 }
 
 func isValidMode(mode Mode) bool {
-	return mode == ModeObserve || mode == ModeEnforce
+	return mode == ModeObserve || mode == ModeEnforce || mode == ModeFullAccess
 }
 
 func normalizeValues[T ~string](values []T, normalize func(T) T) []T {

@@ -38,6 +38,7 @@ func New(service morphagent.ServiceAPI, opts Options) *grpc.Server {
 	morphpb.RegisterModelServiceServer(server, rpcService)
 	morphpb.RegisterGatewayServiceServer(server, rpc.NewGatewayService(rpcService))
 	morphpb.RegisterAutomationServiceServer(server, rpc.NewAutomationService(rpcService))
+	morphpb.RegisterPermissionServiceServer(server, rpc.NewPermissionService(rpcService))
 
 	if opts.Health {
 		healthcheck := health.NewServer()

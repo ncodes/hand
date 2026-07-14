@@ -16,6 +16,7 @@ import (
 	agentapi "github.com/wandxy/morph/internal/agent"
 	"github.com/wandxy/morph/internal/automation"
 	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/permissions"
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
@@ -33,6 +34,7 @@ type Client struct {
 	Model       *ModelService
 	Gateway     *GatewayService
 	Automation  *AutomationService
+	Permission  *PermissionService
 }
 
 type SessionService struct {
@@ -52,6 +54,11 @@ type GatewayService struct {
 
 type AutomationService struct {
 	client      morphpb.AutomationServiceClient
+	reconnector rpcReconnector
+}
+
+type PermissionService struct {
+	client      morphpb.PermissionServiceClient
 	reconnector rpcReconnector
 }
 
@@ -195,6 +202,16 @@ type AutomationAPI interface {
 	Runs(context.Context, automation.RunQuery) (automation.RunList, error)
 }
 
+type PermissionAPI interface {
+	ListApprovalRequests(context.Context, permissions.ApprovalQuery) ([]permissions.ApprovalRequest, error)
+	GetApprovalRequest(context.Context, string) (permissions.ApprovalRequest, bool, error)
+	ResolveApprovalRequest(context.Context, string, bool, permissions.GrantScope) (permissions.ApprovalRequest, error)
+	ListApprovalGrants(context.Context, permissions.GrantQuery) ([]permissions.ApprovalGrant, error)
+	RevokeApprovalGrant(context.Context, string) (permissions.ApprovalGrant, error)
+	DeleteApprovalRecord(context.Context, string) (permissions.ApprovalDeleteResult, error)
+	PruneApprovals(context.Context, bool) (permissions.ApprovalPruneResult, error)
+}
+
 // ServiceAPI combines chat and session operations.
 type ServiceAPI interface {
 	ChatAPI
@@ -248,6 +265,7 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 		Model:       newModelService(morphpb.NewModelServiceClient(conn), conn),
 		Gateway:     newGatewayService(morphpb.NewGatewayServiceClient(conn), conn),
 		Automation:  newAutomationService(morphpb.NewAutomationServiceClient(conn), conn),
+		Permission:  newPermissionService(morphpb.NewPermissionServiceClient(conn), conn),
 	}, nil
 }
 
@@ -267,6 +285,10 @@ func NewAutomationService(client morphpb.AutomationServiceClient) *AutomationSer
 	return newAutomationService(client, nil)
 }
 
+func NewPermissionService(client morphpb.PermissionServiceClient) *PermissionService {
+	return newPermissionService(client, nil)
+}
+
 func newSessionService(client morphpb.SessionServiceClient, reconnector rpcReconnector) *SessionService {
 	return &SessionService{client: client, reconnector: reconnector}
 }
@@ -277,6 +299,10 @@ func newModelService(client morphpb.ModelServiceClient, reconnector rpcReconnect
 
 func newGatewayService(client morphpb.GatewayServiceClient, reconnector rpcReconnector) *GatewayService {
 	return &GatewayService{client: client, reconnector: reconnector}
+}
+
+func newPermissionService(client morphpb.PermissionServiceClient, reconnector rpcReconnector) *PermissionService {
+	return &PermissionService{client: client, reconnector: reconnector}
 }
 
 func newAutomationService(client morphpb.AutomationServiceClient, reconnector rpcReconnector) *AutomationService {
@@ -420,6 +446,13 @@ func (c *Client) AutomationAPI() AutomationAPI {
 	}
 
 	return c.Automation
+}
+
+func (c *Client) PermissionAPI() PermissionAPI {
+	if c == nil {
+		return nil
+	}
+	return c.Permission
 }
 
 func (c *Client) Close() error {

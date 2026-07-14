@@ -42,6 +42,7 @@ type Service struct {
 	gatewayConfig        config.GatewayConfig
 	gatewayRuntime       GatewayRuntime
 	permissions          permissions.Engine
+	approvalService      *permissions.ApprovalService
 }
 
 var marshalRPCJSON = json.Marshal
@@ -86,6 +87,12 @@ func NewService(api morphagent.ServiceAPI) *Service {
 
 func NewServiceWithOptions(api morphagent.ServiceAPI, opts ServiceOptions) *Service {
 	gatewayPairingSecretValue := str.String(opts.GatewayPairingSecret)
+	var approvalService *permissions.ApprovalService
+	if provider, ok := api.(interface {
+		ApprovalService() *permissions.ApprovalService
+	}); ok {
+		approvalService = provider.ApprovalService()
+	}
 	return &Service{
 		api:                  api,
 		automation:           opts.Automation,
@@ -94,6 +101,7 @@ func NewServiceWithOptions(api morphagent.ServiceAPI, opts ServiceOptions) *Serv
 		gatewayConfig:        opts.GatewayConfig,
 		gatewayRuntime:       opts.GatewayRuntime,
 		permissions:          permissions.NewEngine(opts.PermissionPolicy),
+		approvalService:      approvalService,
 	}
 }
 
@@ -121,7 +129,7 @@ func (s *Service) getPermissionContext(ctx context.Context) context.Context {
 	}
 
 	return permissions.WithContext(ctx, permissions.AuthorizationContext{
-		Actor:   permissions.Actor{Kind: permissions.ActorRPCClient},
+		Actor:   rpcmeta.PermissionActorFromIncomingContext(ctx),
 		Surface: rpcmeta.PermissionSurfaceFromIncomingContext(ctx),
 	})
 }
@@ -177,7 +185,7 @@ func (s *Service) Respond(req *morphpb.RespondRequest, stream morphpb.MorphServi
 
 	ctx := stream.Context()
 	ctx = permissions.WithContext(ctx, permissions.AuthorizationContext{
-		Actor:     permissions.Actor{Kind: permissions.ActorRPCClient},
+		Actor:     rpcmeta.PermissionActorFromIncomingContext(ctx),
 		Surface:   rpcmeta.PermissionSurfaceFromIncomingContext(ctx),
 		SessionID: req.GetId(),
 	})
@@ -345,6 +353,24 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 		result.PlanState = toolPayload.PlanState
 		result.ProcessState = toolPayload.ProcessState
 		return result, result.hasData()
+	case trace.EvtPermissionApprovalChanged:
+		approvalPayload, ok := typedPayload.(trace.PermissionApprovalPayload)
+		if !payloadOK || !ok {
+			return nil, false
+		}
+		result := rpcPermissionApprovalPayload{
+			RequestID: str.String(approvalPayload.RequestID).Trim(),
+			Status:    str.String(approvalPayload.Status).Trim(),
+			Scope:     str.String(approvalPayload.Scope).Trim(),
+			Tool:      str.String(approvalPayload.Tool).Trim(),
+			Resource:  str.String(approvalPayload.Resource).Trim(),
+			Action:    str.String(approvalPayload.Action).Trim(),
+			Effects:   append([]string(nil), approvalPayload.Effects...),
+			Summary:   str.String(approvalPayload.Summary).Trim(),
+			Reason:    str.String(approvalPayload.Reason).Trim(),
+			ExpiresAt: approvalPayload.ExpiresAt,
+		}
+		return result, result.RequestID != "" && result.Status != ""
 	case trace.EvtInputSafetyBlocked,
 		trace.EvtOutputSafetyApplied,
 		trace.EvtToolOutputSafetyApplied,
@@ -472,6 +498,19 @@ func (p rpcToolInvocationCompletedPayload) hasData() bool {
 		p.Name != "" ||
 		p.PlanState != nil ||
 		p.ProcessState != nil
+}
+
+type rpcPermissionApprovalPayload struct {
+	RequestID string    `json:"request_id,omitempty"`
+	Status    string    `json:"status,omitempty"`
+	Scope     string    `json:"scope,omitempty"`
+	Tool      string    `json:"tool,omitempty"`
+	Resource  string    `json:"resource,omitempty"`
+	Action    string    `json:"action,omitempty"`
+	Effects   []string  `json:"effects,omitempty"`
+	Summary   string    `json:"operation_summary,omitempty"`
+	Reason    string    `json:"reason,omitempty"`
+	ExpiresAt time.Time `json:"expires_at,omitempty"`
 }
 
 type rpcSafetyEventPayload struct {

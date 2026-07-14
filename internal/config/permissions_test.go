@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -16,6 +17,10 @@ func TestLoad_ParsesPermissionPolicy(t *testing.T) {
 permissions:
   mode: observe
   default: deny
+  requestRetention: 720h
+  grantRetention: 1440h
+  cleanupInterval: 30m
+  cleanupBatchSize: 75
   surfaceKinds:
     gateway: deny
   surfaces:
@@ -40,6 +45,10 @@ permissions:
 	require.NoError(t, err)
 	require.Equal(t, permissions.DecisionDeny, cfg.Permissions.SurfaceKindDefaults[permissions.SurfaceKindGateway])
 	require.Equal(t, permissions.DecisionAsk, cfg.Permissions.SurfaceDefaults[permissions.SurfaceCLI])
+	require.Equal(t, 30*24*time.Hour, cfg.Permissions.RequestRetention)
+	require.Equal(t, 60*24*time.Hour, cfg.Permissions.GrantRetention)
+	require.Equal(t, 30*time.Minute, cfg.Permissions.CleanupInterval)
+	require.Equal(t, 75, cfg.Permissions.CleanupBatchSize)
 	require.Equal(t, permissions.Rule{
 		Name:           "owner workspace writes",
 		Profiles:       []string{"work"},
@@ -76,12 +85,39 @@ func TestConfig_ValidateRejectsInvalidPermissions(t *testing.T) {
 	cfg.Permissions.Mode = "audit"
 
 	err := cfg.ValidateRelaxed()
-	require.EqualError(t, err, "permission mode must be one of: observe, enforce")
+	require.EqualError(t, err, "permission mode must be one of: observe, enforce, full_access")
+}
+
+func TestConfig_ValidateRejectsInvalidPermissionRetention(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*permissions.Policy)
+		want   string
+	}{
+		{name: "request retention", mutate: func(policy *permissions.Policy) { policy.RequestRetention = -time.Second }, want: "permission request retention must be greater than or equal to zero"},
+		{name: "grant retention", mutate: func(policy *permissions.Policy) { policy.GrantRetention = -time.Second }, want: "permission grant retention must be greater than or equal to zero"},
+		{name: "cleanup interval", mutate: func(policy *permissions.Policy) { policy.CleanupInterval = -time.Second }, want: "permission cleanup interval must be greater than zero"},
+		{name: "cleanup batch", mutate: func(policy *permissions.Policy) { policy.CleanupBatchSize = -1 }, want: "permission cleanup batch size must be greater than zero"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := NewDefaultConfig()
+			test.mutate(&cfg.Permissions)
+			require.EqualError(t, cfg.ValidateRelaxed(), test.want)
+		})
+	}
 }
 
 func TestConfig_ValidateAcceptsPermissionEnforcement(t *testing.T) {
 	cfg := NewDefaultConfig()
 	cfg.Permissions.Mode = permissions.ModeEnforce
+
+	require.NoError(t, cfg.ValidateRelaxed())
+}
+
+func TestConfig_ValidateAcceptsFullAccessPermissions(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Permissions.Mode = permissions.ModeFullAccess
 
 	require.NoError(t, cfg.ValidateRelaxed())
 }

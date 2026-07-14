@@ -20,6 +20,7 @@ import (
 	memguardrails "github.com/wandxy/morph/internal/memory/guardrails"
 	memoryobservability "github.com/wandxy/morph/internal/memory/observability"
 	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/personality"
 	webprovider "github.com/wandxy/morph/internal/providers/web"
 	statemanager "github.com/wandxy/morph/internal/state/manager"
@@ -89,6 +90,7 @@ type Environment interface {
 
 	// SetStateManager wires state-backed features into the environment runtime.
 	SetStateManager(*statemanager.Manager)
+	SetApprovalService(permissions.Approver)
 	SetAutomationService(envtypes.AutomationService)
 	SetModelClient(models.Client)
 }
@@ -598,6 +600,15 @@ func (e *environment) SetStateManager(manager *statemanager.Manager) {
 	e.stateMgr = manager
 	if e.runtime != nil {
 		e.runtime.stateMgr = manager
+	}
+}
+
+func (e *environment) SetApprovalService(service permissions.Approver) {
+	if e == nil {
+		return
+	}
+	if registry, ok := e.tools.(*tools.InMemoryRegistry); ok {
+		registry.SetApprovalService(service)
 	}
 }
 

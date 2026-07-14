@@ -5385,6 +5385,1022 @@ func (x *ListAutomationRunsResponse) GetRuns() []*AutomationRun {
 	return nil
 }
 
+type PermissionApprovalRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ActorKind     string                 `protobuf:"bytes,2,opt,name=actor_kind,json=actorKind,proto3" json:"actor_kind,omitempty"`
+	SurfaceKind   string                 `protobuf:"bytes,3,opt,name=surface_kind,json=surfaceKind,proto3" json:"surface_kind,omitempty"`
+	Surface       string                 `protobuf:"bytes,4,opt,name=surface,proto3" json:"surface,omitempty"`
+	Profile       string                 `protobuf:"bytes,5,opt,name=profile,proto3" json:"profile,omitempty"`
+	SessionId     string                 `protobuf:"bytes,6,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Tool          string                 `protobuf:"bytes,7,opt,name=tool,proto3" json:"tool,omitempty"`
+	Resource      string                 `protobuf:"bytes,8,opt,name=resource,proto3" json:"resource,omitempty"`
+	Action        string                 `protobuf:"bytes,9,opt,name=action,proto3" json:"action,omitempty"`
+	Effects       []string               `protobuf:"bytes,10,rep,name=effects,proto3" json:"effects,omitempty"`
+	Summary       string                 `protobuf:"bytes,11,opt,name=summary,proto3" json:"summary,omitempty"`
+	Reason        string                 `protobuf:"bytes,12,opt,name=reason,proto3" json:"reason,omitempty"`
+	Status        string                 `protobuf:"bytes,13,opt,name=status,proto3" json:"status,omitempty"`
+	Scope         string                 `protobuf:"bytes,14,opt,name=scope,proto3" json:"scope,omitempty"`
+	GrantId       string                 `protobuf:"bytes,15,opt,name=grant_id,json=grantId,proto3" json:"grant_id,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,17,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	ResolvedAt    *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PermissionApprovalRequest) Reset() {
+	*x = PermissionApprovalRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PermissionApprovalRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PermissionApprovalRequest) ProtoMessage() {}
+
+func (x *PermissionApprovalRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PermissionApprovalRequest.ProtoReflect.Descriptor instead.
+func (*PermissionApprovalRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *PermissionApprovalRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetActorKind() string {
+	if x != nil {
+		return x.ActorKind
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetSurfaceKind() string {
+	if x != nil {
+		return x.SurfaceKind
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetSurface() string {
+	if x != nil {
+		return x.Surface
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetTool() string {
+	if x != nil {
+		return x.Tool
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetResource() string {
+	if x != nil {
+		return x.Resource
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetEffects() []string {
+	if x != nil {
+		return x.Effects
+	}
+	return nil
+}
+
+func (x *PermissionApprovalRequest) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetGrantId() string {
+	if x != nil {
+		return x.GrantId
+	}
+	return ""
+}
+
+func (x *PermissionApprovalRequest) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *PermissionApprovalRequest) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+func (x *PermissionApprovalRequest) GetResolvedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ResolvedAt
+	}
+	return nil
+}
+
+type PermissionGrant struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	RequestId     string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	ActorKind     string                 `protobuf:"bytes,3,opt,name=actor_kind,json=actorKind,proto3" json:"actor_kind,omitempty"`
+	Profile       string                 `protobuf:"bytes,4,opt,name=profile,proto3" json:"profile,omitempty"`
+	SessionId     string                 `protobuf:"bytes,5,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Scope         string                 `protobuf:"bytes,6,opt,name=scope,proto3" json:"scope,omitempty"`
+	Status        string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	ConsumedAt    *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=consumed_at,json=consumedAt,proto3" json:"consumed_at,omitempty"`
+	RevokedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=revoked_at,json=revokedAt,proto3" json:"revoked_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PermissionGrant) Reset() {
+	*x = PermissionGrant{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PermissionGrant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PermissionGrant) ProtoMessage() {}
+
+func (x *PermissionGrant) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PermissionGrant.ProtoReflect.Descriptor instead.
+func (*PermissionGrant) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *PermissionGrant) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PermissionGrant) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *PermissionGrant) GetActorKind() string {
+	if x != nil {
+		return x.ActorKind
+	}
+	return ""
+}
+
+func (x *PermissionGrant) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *PermissionGrant) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *PermissionGrant) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *PermissionGrant) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *PermissionGrant) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *PermissionGrant) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+func (x *PermissionGrant) GetConsumedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ConsumedAt
+	}
+	return nil
+}
+
+func (x *PermissionGrant) GetRevokedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RevokedAt
+	}
+	return nil
+}
+
+type ListPermissionRequestsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPermissionRequestsRequest) Reset() {
+	*x = ListPermissionRequestsRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPermissionRequestsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPermissionRequestsRequest) ProtoMessage() {}
+
+func (x *ListPermissionRequestsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPermissionRequestsRequest.ProtoReflect.Descriptor instead.
+func (*ListPermissionRequestsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *ListPermissionRequestsRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ListPermissionRequestsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListPermissionRequestsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type ListPermissionRequestsResponse struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Requests      []*PermissionApprovalRequest `protobuf:"bytes,1,rep,name=requests,proto3" json:"requests,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPermissionRequestsResponse) Reset() {
+	*x = ListPermissionRequestsResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPermissionRequestsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPermissionRequestsResponse) ProtoMessage() {}
+
+func (x *ListPermissionRequestsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPermissionRequestsResponse.ProtoReflect.Descriptor instead.
+func (*ListPermissionRequestsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *ListPermissionRequestsResponse) GetRequests() []*PermissionApprovalRequest {
+	if x != nil {
+		return x.Requests
+	}
+	return nil
+}
+
+type GetPermissionRequestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPermissionRequestRequest) Reset() {
+	*x = GetPermissionRequestRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPermissionRequestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPermissionRequestRequest) ProtoMessage() {}
+
+func (x *GetPermissionRequestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPermissionRequestRequest.ProtoReflect.Descriptor instead.
+func (*GetPermissionRequestRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *GetPermissionRequestRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type GetPermissionRequestResponse struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Request       *PermissionApprovalRequest `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPermissionRequestResponse) Reset() {
+	*x = GetPermissionRequestResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPermissionRequestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPermissionRequestResponse) ProtoMessage() {}
+
+func (x *GetPermissionRequestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPermissionRequestResponse.ProtoReflect.Descriptor instead.
+func (*GetPermissionRequestResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *GetPermissionRequestResponse) GetRequest() *PermissionApprovalRequest {
+	if x != nil {
+		return x.Request
+	}
+	return nil
+}
+
+type ResolvePermissionRequestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Approved      bool                   `protobuf:"varint,2,opt,name=approved,proto3" json:"approved,omitempty"`
+	Scope         string                 `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolvePermissionRequestRequest) Reset() {
+	*x = ResolvePermissionRequestRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolvePermissionRequestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolvePermissionRequestRequest) ProtoMessage() {}
+
+func (x *ResolvePermissionRequestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolvePermissionRequestRequest.ProtoReflect.Descriptor instead.
+func (*ResolvePermissionRequestRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *ResolvePermissionRequestRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ResolvePermissionRequestRequest) GetApproved() bool {
+	if x != nil {
+		return x.Approved
+	}
+	return false
+}
+
+func (x *ResolvePermissionRequestRequest) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+type ResolvePermissionRequestResponse struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Request       *PermissionApprovalRequest `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolvePermissionRequestResponse) Reset() {
+	*x = ResolvePermissionRequestResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolvePermissionRequestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolvePermissionRequestResponse) ProtoMessage() {}
+
+func (x *ResolvePermissionRequestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolvePermissionRequestResponse.ProtoReflect.Descriptor instead.
+func (*ResolvePermissionRequestResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{90}
+}
+
+func (x *ResolvePermissionRequestResponse) GetRequest() *PermissionApprovalRequest {
+	if x != nil {
+		return x.Request
+	}
+	return nil
+}
+
+type ListPermissionGrantsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPermissionGrantsRequest) Reset() {
+	*x = ListPermissionGrantsRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPermissionGrantsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPermissionGrantsRequest) ProtoMessage() {}
+
+func (x *ListPermissionGrantsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPermissionGrantsRequest.ProtoReflect.Descriptor instead.
+func (*ListPermissionGrantsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *ListPermissionGrantsRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ListPermissionGrantsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListPermissionGrantsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type ListPermissionGrantsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Grants        []*PermissionGrant     `protobuf:"bytes,1,rep,name=grants,proto3" json:"grants,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPermissionGrantsResponse) Reset() {
+	*x = ListPermissionGrantsResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPermissionGrantsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPermissionGrantsResponse) ProtoMessage() {}
+
+func (x *ListPermissionGrantsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPermissionGrantsResponse.ProtoReflect.Descriptor instead.
+func (*ListPermissionGrantsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *ListPermissionGrantsResponse) GetGrants() []*PermissionGrant {
+	if x != nil {
+		return x.Grants
+	}
+	return nil
+}
+
+type RevokePermissionGrantRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokePermissionGrantRequest) Reset() {
+	*x = RevokePermissionGrantRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokePermissionGrantRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokePermissionGrantRequest) ProtoMessage() {}
+
+func (x *RevokePermissionGrantRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokePermissionGrantRequest.ProtoReflect.Descriptor instead.
+func (*RevokePermissionGrantRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *RevokePermissionGrantRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type RevokePermissionGrantResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Grant         *PermissionGrant       `protobuf:"bytes,1,opt,name=grant,proto3" json:"grant,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokePermissionGrantResponse) Reset() {
+	*x = RevokePermissionGrantResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokePermissionGrantResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokePermissionGrantResponse) ProtoMessage() {}
+
+func (x *RevokePermissionGrantResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokePermissionGrantResponse.ProtoReflect.Descriptor instead.
+func (*RevokePermissionGrantResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *RevokePermissionGrantResponse) GetGrant() *PermissionGrant {
+	if x != nil {
+		return x.Grant
+	}
+	return nil
+}
+
+type DeletePermissionRecordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeletePermissionRecordRequest) Reset() {
+	*x = DeletePermissionRecordRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeletePermissionRecordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeletePermissionRecordRequest) ProtoMessage() {}
+
+func (x *DeletePermissionRecordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeletePermissionRecordRequest.ProtoReflect.Descriptor instead.
+func (*DeletePermissionRecordRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *DeletePermissionRecordRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type DeletePermissionRecordResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Kind          string                 `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	LinkedGrantId string                 `protobuf:"bytes,3,opt,name=linked_grant_id,json=linkedGrantId,proto3" json:"linked_grant_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeletePermissionRecordResponse) Reset() {
+	*x = DeletePermissionRecordResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeletePermissionRecordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeletePermissionRecordResponse) ProtoMessage() {}
+
+func (x *DeletePermissionRecordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeletePermissionRecordResponse.ProtoReflect.Descriptor instead.
+func (*DeletePermissionRecordResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *DeletePermissionRecordResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *DeletePermissionRecordResponse) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *DeletePermissionRecordResponse) GetLinkedGrantId() string {
+	if x != nil {
+		return x.LinkedGrantId
+	}
+	return ""
+}
+
+type PrunePermissionApprovalsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DryRun        bool                   `protobuf:"varint,1,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PrunePermissionApprovalsRequest) Reset() {
+	*x = PrunePermissionApprovalsRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[97]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrunePermissionApprovalsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrunePermissionApprovalsRequest) ProtoMessage() {}
+
+func (x *PrunePermissionApprovalsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[97]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrunePermissionApprovalsRequest.ProtoReflect.Descriptor instead.
+func (*PrunePermissionApprovalsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{97}
+}
+
+func (x *PrunePermissionApprovalsRequest) GetDryRun() bool {
+	if x != nil {
+		return x.DryRun
+	}
+	return false
+}
+
+type PrunePermissionApprovalsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Requests      int64                  `protobuf:"varint,1,opt,name=requests,proto3" json:"requests,omitempty"`
+	Grants        int64                  `protobuf:"varint,2,opt,name=grants,proto3" json:"grants,omitempty"`
+	RequestCutoff *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=request_cutoff,json=requestCutoff,proto3" json:"request_cutoff,omitempty"`
+	GrantCutoff   *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=grant_cutoff,json=grantCutoff,proto3" json:"grant_cutoff,omitempty"`
+	DryRun        bool                   `protobuf:"varint,5,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PrunePermissionApprovalsResponse) Reset() {
+	*x = PrunePermissionApprovalsResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[98]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrunePermissionApprovalsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrunePermissionApprovalsResponse) ProtoMessage() {}
+
+func (x *PrunePermissionApprovalsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[98]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrunePermissionApprovalsResponse.ProtoReflect.Descriptor instead.
+func (*PrunePermissionApprovalsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{98}
+}
+
+func (x *PrunePermissionApprovalsResponse) GetRequests() int64 {
+	if x != nil {
+		return x.Requests
+	}
+	return 0
+}
+
+func (x *PrunePermissionApprovalsResponse) GetGrants() int64 {
+	if x != nil {
+		return x.Grants
+	}
+	return 0
+}
+
+func (x *PrunePermissionApprovalsResponse) GetRequestCutoff() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RequestCutoff
+	}
+	return nil
+}
+
+func (x *PrunePermissionApprovalsResponse) GetGrantCutoff() *timestamppb.Timestamp {
+	if x != nil {
+		return x.GrantCutoff
+	}
+	return nil
+}
+
+func (x *PrunePermissionApprovalsResponse) GetDryRun() bool {
+	if x != nil {
+		return x.DryRun
+	}
+	return false
+}
+
 type GetSessionStatusResponse_Context struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Offset        int32                  `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
@@ -5399,7 +6415,7 @@ type GetSessionStatusResponse_Context struct {
 
 func (x *GetSessionStatusResponse_Context) Reset() {
 	*x = GetSessionStatusResponse_Context{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[83]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5411,7 +6427,7 @@ func (x *GetSessionStatusResponse_Context) String() string {
 func (*GetSessionStatusResponse_Context) ProtoMessage() {}
 
 func (x *GetSessionStatusResponse_Context) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[83]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5914,7 +6930,92 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"\x06status\x18\x03 \x03(\tR\x06status\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\x05R\x05limit\"I\n" +
 	"\x1aListAutomationRunsResponse\x12+\n" +
-	"\x04runs\x18\x01 \x03(\v2\x17.morph.v1.AutomationRunR\x04runs2M\n" +
+	"\x04runs\x18\x01 \x03(\v2\x17.morph.v1.AutomationRunR\x04runs\"\xd0\x04\n" +
+	"\x19PermissionApprovalRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"actor_kind\x18\x02 \x01(\tR\tactorKind\x12!\n" +
+	"\fsurface_kind\x18\x03 \x01(\tR\vsurfaceKind\x12\x18\n" +
+	"\asurface\x18\x04 \x01(\tR\asurface\x12\x18\n" +
+	"\aprofile\x18\x05 \x01(\tR\aprofile\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x06 \x01(\tR\tsessionId\x12\x12\n" +
+	"\x04tool\x18\a \x01(\tR\x04tool\x12\x1a\n" +
+	"\bresource\x18\b \x01(\tR\bresource\x12\x16\n" +
+	"\x06action\x18\t \x01(\tR\x06action\x12\x18\n" +
+	"\aeffects\x18\n" +
+	" \x03(\tR\aeffects\x12\x18\n" +
+	"\asummary\x18\v \x01(\tR\asummary\x12\x16\n" +
+	"\x06reason\x18\f \x01(\tR\x06reason\x12\x16\n" +
+	"\x06status\x18\r \x01(\tR\x06status\x12\x14\n" +
+	"\x05scope\x18\x0e \x01(\tR\x05scope\x12\x19\n" +
+	"\bgrant_id\x18\x0f \x01(\tR\agrantId\x129\n" +
+	"\n" +
+	"created_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"expires_at\x18\x11 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12;\n" +
+	"\vresolved_at\x18\x12 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"resolvedAt\"\xb4\x03\n" +
+	"\x0fPermissionGrant\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x02 \x01(\tR\trequestId\x12\x1d\n" +
+	"\n" +
+	"actor_kind\x18\x03 \x01(\tR\tactorKind\x12\x18\n" +
+	"\aprofile\x18\x04 \x01(\tR\aprofile\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x05 \x01(\tR\tsessionId\x12\x14\n" +
+	"\x05scope\x18\x06 \x01(\tR\x05scope\x12\x16\n" +
+	"\x06status\x18\a \x01(\tR\x06status\x129\n" +
+	"\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"expires_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12;\n" +
+	"\vconsumed_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"consumedAt\x129\n" +
+	"\n" +
+	"revoked_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\trevokedAt\"e\n" +
+	"\x1dListPermissionRequestsRequest\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"a\n" +
+	"\x1eListPermissionRequestsResponse\x12?\n" +
+	"\brequests\x18\x01 \x03(\v2#.morph.v1.PermissionApprovalRequestR\brequests\"-\n" +
+	"\x1bGetPermissionRequestRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"]\n" +
+	"\x1cGetPermissionRequestResponse\x12=\n" +
+	"\arequest\x18\x01 \x01(\v2#.morph.v1.PermissionApprovalRequestR\arequest\"c\n" +
+	"\x1fResolvePermissionRequestRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\bapproved\x18\x02 \x01(\bR\bapproved\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"a\n" +
+	" ResolvePermissionRequestResponse\x12=\n" +
+	"\arequest\x18\x01 \x01(\v2#.morph.v1.PermissionApprovalRequestR\arequest\"c\n" +
+	"\x1bListPermissionGrantsRequest\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"Q\n" +
+	"\x1cListPermissionGrantsResponse\x121\n" +
+	"\x06grants\x18\x01 \x03(\v2\x19.morph.v1.PermissionGrantR\x06grants\".\n" +
+	"\x1cRevokePermissionGrantRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"P\n" +
+	"\x1dRevokePermissionGrantResponse\x12/\n" +
+	"\x05grant\x18\x01 \x01(\v2\x19.morph.v1.PermissionGrantR\x05grant\"/\n" +
+	"\x1dDeletePermissionRecordRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"l\n" +
+	"\x1eDeletePermissionRecordResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12&\n" +
+	"\x0flinked_grant_id\x18\x03 \x01(\tR\rlinkedGrantId\":\n" +
+	"\x1fPrunePermissionApprovalsRequest\x12\x17\n" +
+	"\adry_run\x18\x01 \x01(\bR\x06dryRun\"\xf1\x01\n" +
+	" PrunePermissionApprovalsResponse\x12\x1a\n" +
+	"\brequests\x18\x01 \x01(\x03R\brequests\x12\x16\n" +
+	"\x06grants\x18\x02 \x01(\x03R\x06grants\x12A\n" +
+	"\x0erequest_cutoff\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\rrequestCutoff\x12=\n" +
+	"\fgrant_cutoff\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vgrantCutoff\x12\x17\n" +
+	"\adry_run\x18\x05 \x01(\bR\x06dryRun2M\n" +
 	"\fMorphService\x12=\n" +
 	"\aRespond\x12\x18.morph.v1.RespondRequest\x1a\x16.morph.v1.RespondEvent0\x012\xe0\x06\n" +
 	"\x0eSessionService\x12I\n" +
@@ -5952,7 +7053,17 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"\tUpdateJob\x12$.morph.v1.UpdateAutomationJobRequest\x1a%.morph.v1.UpdateAutomationJobResponse\x12X\n" +
 	"\tRemoveJob\x12$.morph.v1.RemoveAutomationJobRequest\x1a%.morph.v1.RemoveAutomationJobResponse\x12O\n" +
 	"\x06RunJob\x12!.morph.v1.RunAutomationJobRequest\x1a\".morph.v1.RunAutomationJobResponse\x12U\n" +
-	"\bListRuns\x12#.morph.v1.ListAutomationRunsRequest\x1a$.morph.v1.ListAutomationRunsResponseB4Z2github.com/wandxy/morph/internal/rpc/proto;morphpbb\x06proto3"
+	"\bListRuns\x12#.morph.v1.ListAutomationRunsRequest\x1a$.morph.v1.ListAutomationRunsResponse2\xbc\x05\n" +
+	"\x11PermissionService\x12a\n" +
+	"\fListRequests\x12'.morph.v1.ListPermissionRequestsRequest\x1a(.morph.v1.ListPermissionRequestsResponse\x12[\n" +
+	"\n" +
+	"GetRequest\x12%.morph.v1.GetPermissionRequestRequest\x1a&.morph.v1.GetPermissionRequestResponse\x12g\n" +
+	"\x0eResolveRequest\x12).morph.v1.ResolvePermissionRequestRequest\x1a*.morph.v1.ResolvePermissionRequestResponse\x12[\n" +
+	"\n" +
+	"ListGrants\x12%.morph.v1.ListPermissionGrantsRequest\x1a&.morph.v1.ListPermissionGrantsResponse\x12^\n" +
+	"\vRevokeGrant\x12&.morph.v1.RevokePermissionGrantRequest\x1a'.morph.v1.RevokePermissionGrantResponse\x12a\n" +
+	"\fDeleteRecord\x12'.morph.v1.DeletePermissionRecordRequest\x1a(.morph.v1.DeletePermissionRecordResponse\x12^\n" +
+	"\x05Prune\x12).morph.v1.PrunePermissionApprovalsRequest\x1a*.morph.v1.PrunePermissionApprovalsResponseB4Z2github.com/wandxy/morph/internal/rpc/proto;morphpbb\x06proto3"
 
 var (
 	file_internal_rpc_proto_morph_proto_rawDescOnce sync.Once
@@ -5967,7 +7078,7 @@ func file_internal_rpc_proto_morph_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_rpc_proto_morph_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_internal_rpc_proto_morph_proto_msgTypes = make([]protoimpl.MessageInfo, 85)
+var file_internal_rpc_proto_morph_proto_msgTypes = make([]protoimpl.MessageInfo, 101)
 var file_internal_rpc_proto_morph_proto_goTypes = []any{
 	(RespondEvent_Type)(0),                      // 0: morph.v1.RespondEvent.Type
 	(RespondEvent_Channel)(0),                   // 1: morph.v1.RespondEvent.Channel
@@ -6055,30 +7166,46 @@ var file_internal_rpc_proto_morph_proto_goTypes = []any{
 	(*RunAutomationJobResponse)(nil),            // 83: morph.v1.RunAutomationJobResponse
 	(*ListAutomationRunsRequest)(nil),           // 84: morph.v1.ListAutomationRunsRequest
 	(*ListAutomationRunsResponse)(nil),          // 85: morph.v1.ListAutomationRunsResponse
-	(*GetSessionStatusResponse_Context)(nil),    // 86: morph.v1.GetSessionStatusResponse.Context
-	nil,                                         // 87: morph.v1.AutomationPayload.MetadataEntry
-	(*timestamppb.Timestamp)(nil),               // 88: google.protobuf.Timestamp
+	(*PermissionApprovalRequest)(nil),           // 86: morph.v1.PermissionApprovalRequest
+	(*PermissionGrant)(nil),                     // 87: morph.v1.PermissionGrant
+	(*ListPermissionRequestsRequest)(nil),       // 88: morph.v1.ListPermissionRequestsRequest
+	(*ListPermissionRequestsResponse)(nil),      // 89: morph.v1.ListPermissionRequestsResponse
+	(*GetPermissionRequestRequest)(nil),         // 90: morph.v1.GetPermissionRequestRequest
+	(*GetPermissionRequestResponse)(nil),        // 91: morph.v1.GetPermissionRequestResponse
+	(*ResolvePermissionRequestRequest)(nil),     // 92: morph.v1.ResolvePermissionRequestRequest
+	(*ResolvePermissionRequestResponse)(nil),    // 93: morph.v1.ResolvePermissionRequestResponse
+	(*ListPermissionGrantsRequest)(nil),         // 94: morph.v1.ListPermissionGrantsRequest
+	(*ListPermissionGrantsResponse)(nil),        // 95: morph.v1.ListPermissionGrantsResponse
+	(*RevokePermissionGrantRequest)(nil),        // 96: morph.v1.RevokePermissionGrantRequest
+	(*RevokePermissionGrantResponse)(nil),       // 97: morph.v1.RevokePermissionGrantResponse
+	(*DeletePermissionRecordRequest)(nil),       // 98: morph.v1.DeletePermissionRecordRequest
+	(*DeletePermissionRecordResponse)(nil),      // 99: morph.v1.DeletePermissionRecordResponse
+	(*PrunePermissionApprovalsRequest)(nil),     // 100: morph.v1.PrunePermissionApprovalsRequest
+	(*PrunePermissionApprovalsResponse)(nil),    // 101: morph.v1.PrunePermissionApprovalsResponse
+	(*GetSessionStatusResponse_Context)(nil),    // 102: morph.v1.GetSessionStatusResponse.Context
+	nil,                                         // 103: morph.v1.AutomationPayload.MetadataEntry
+	(*timestamppb.Timestamp)(nil),               // 104: google.protobuf.Timestamp
 }
 var file_internal_rpc_proto_morph_proto_depIdxs = []int32{
 	0,   // 0: morph.v1.RespondEvent.type:type_name -> morph.v1.RespondEvent.Type
 	1,   // 1: morph.v1.RespondEvent.channel:type_name -> morph.v1.RespondEvent.Channel
-	88,  // 2: morph.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
+	104, // 2: morph.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
 	5,   // 3: morph.v1.CreateSessionResponse.session:type_name -> morph.v1.SessionSummary
 	5,   // 4: morph.v1.ListSessionsResponse.sessions:type_name -> morph.v1.SessionSummary
 	5,   // 5: morph.v1.UnarchiveSessionResponse.session:type_name -> morph.v1.SessionSummary
 	5,   // 6: morph.v1.RenameSessionResponse.session:type_name -> morph.v1.SessionSummary
-	88,  // 7: morph.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	104, // 7: morph.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
 	2,   // 8: morph.v1.RepairSessionRequest.type:type_name -> morph.v1.RepairSessionRequest.Type
 	24,  // 9: morph.v1.RepairSessionRequest.vector:type_name -> morph.v1.VectorRepairOption
 	2,   // 10: morph.v1.RepairSessionResponse.type:type_name -> morph.v1.RepairSessionRequest.Type
 	25,  // 11: morph.v1.RepairSessionResponse.vector:type_name -> morph.v1.VectorRepairResponse
 	26,  // 12: morph.v1.GetSessionStatusRequest.context:type_name -> morph.v1.GetSessionStatusRequestContext
-	86,  // 13: morph.v1.GetSessionStatusResponse.context:type_name -> morph.v1.GetSessionStatusResponse.Context
-	88,  // 14: morph.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
-	88,  // 15: morph.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
-	88,  // 16: morph.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
+	102, // 13: morph.v1.GetSessionStatusResponse.context:type_name -> morph.v1.GetSessionStatusResponse.Context
+	104, // 14: morph.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
+	104, // 15: morph.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
+	104, // 16: morph.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
 	30,  // 17: morph.v1.SessionTimelineMessage.tool_calls:type_name -> morph.v1.SessionTimelineToolCall
-	88,  // 18: morph.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
+	104, // 18: morph.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
 	31,  // 19: morph.v1.GetSessionTimelineResponse.messages:type_name -> morph.v1.SessionTimelineMessage
 	32,  // 20: morph.v1.GetSessionTimelineResponse.trace_events:type_name -> morph.v1.SessionTimelineTraceEvent
 	37,  // 21: morph.v1.ListProvidersResponse.providers:type_name -> morph.v1.ProviderOption
@@ -6088,34 +7215,34 @@ var file_internal_rpc_proto_morph_proto_depIdxs = []int32{
 	46,  // 25: morph.v1.StartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
 	46,  // 26: morph.v1.StopGatewayResponse.status:type_name -> morph.v1.GatewayStatus
 	46,  // 27: morph.v1.RestartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
-	88,  // 28: morph.v1.GatewayPairingRequest.created_at:type_name -> google.protobuf.Timestamp
-	88,  // 29: morph.v1.GatewayPairingRequest.last_seen_at:type_name -> google.protobuf.Timestamp
-	88,  // 30: morph.v1.GatewayPairingRequest.expires_at:type_name -> google.protobuf.Timestamp
-	88,  // 31: morph.v1.GatewayPairedSender.created_at:type_name -> google.protobuf.Timestamp
-	88,  // 32: morph.v1.GatewayPairedSender.updated_at:type_name -> google.protobuf.Timestamp
+	104, // 28: morph.v1.GatewayPairingRequest.created_at:type_name -> google.protobuf.Timestamp
+	104, // 29: morph.v1.GatewayPairingRequest.last_seen_at:type_name -> google.protobuf.Timestamp
+	104, // 30: morph.v1.GatewayPairingRequest.expires_at:type_name -> google.protobuf.Timestamp
+	104, // 31: morph.v1.GatewayPairedSender.created_at:type_name -> google.protobuf.Timestamp
+	104, // 32: morph.v1.GatewayPairedSender.updated_at:type_name -> google.protobuf.Timestamp
 	55,  // 33: morph.v1.ListGatewayPairingsResponse.pending:type_name -> morph.v1.GatewayPairingRequest
 	56,  // 34: morph.v1.ListGatewayPairingsResponse.approved:type_name -> morph.v1.GatewayPairedSender
 	56,  // 35: morph.v1.ApproveGatewayPairingResponse.sender:type_name -> morph.v1.GatewayPairedSender
-	88,  // 36: morph.v1.AutomationSchedule.at:type_name -> google.protobuf.Timestamp
-	87,  // 37: morph.v1.AutomationPayload.metadata:type_name -> morph.v1.AutomationPayload.MetadataEntry
-	88,  // 38: morph.v1.AutomationJobState.next_run_at:type_name -> google.protobuf.Timestamp
-	88,  // 39: morph.v1.AutomationJobState.running_at:type_name -> google.protobuf.Timestamp
-	88,  // 40: morph.v1.AutomationJobState.last_run_at:type_name -> google.protobuf.Timestamp
-	88,  // 41: morph.v1.AutomationJobState.last_failure_notice_at:type_name -> google.protobuf.Timestamp
-	88,  // 42: morph.v1.AutomationJob.created_at:type_name -> google.protobuf.Timestamp
-	88,  // 43: morph.v1.AutomationJob.updated_at:type_name -> google.protobuf.Timestamp
+	104, // 36: morph.v1.AutomationSchedule.at:type_name -> google.protobuf.Timestamp
+	103, // 37: morph.v1.AutomationPayload.metadata:type_name -> morph.v1.AutomationPayload.MetadataEntry
+	104, // 38: morph.v1.AutomationJobState.next_run_at:type_name -> google.protobuf.Timestamp
+	104, // 39: morph.v1.AutomationJobState.running_at:type_name -> google.protobuf.Timestamp
+	104, // 40: morph.v1.AutomationJobState.last_run_at:type_name -> google.protobuf.Timestamp
+	104, // 41: morph.v1.AutomationJobState.last_failure_notice_at:type_name -> google.protobuf.Timestamp
+	104, // 42: morph.v1.AutomationJob.created_at:type_name -> google.protobuf.Timestamp
+	104, // 43: morph.v1.AutomationJob.updated_at:type_name -> google.protobuf.Timestamp
 	65,  // 44: morph.v1.AutomationJob.schedule:type_name -> morph.v1.AutomationSchedule
 	66,  // 45: morph.v1.AutomationJob.payload:type_name -> morph.v1.AutomationPayload
 	67,  // 46: morph.v1.AutomationJob.delivery:type_name -> morph.v1.AutomationDelivery
 	68,  // 47: morph.v1.AutomationJob.state:type_name -> morph.v1.AutomationJobState
-	88,  // 48: morph.v1.AutomationRun.started_at:type_name -> google.protobuf.Timestamp
-	88,  // 49: morph.v1.AutomationRun.ended_at:type_name -> google.protobuf.Timestamp
+	104, // 48: morph.v1.AutomationRun.started_at:type_name -> google.protobuf.Timestamp
+	104, // 49: morph.v1.AutomationRun.ended_at:type_name -> google.protobuf.Timestamp
 	70,  // 50: morph.v1.AutomationRun.usage:type_name -> morph.v1.AutomationUsage
-	88,  // 51: morph.v1.GetAutomationStatusResponse.started_at:type_name -> google.protobuf.Timestamp
-	88,  // 52: morph.v1.GetAutomationStatusResponse.next_wake_at:type_name -> google.protobuf.Timestamp
+	104, // 51: morph.v1.GetAutomationStatusResponse.started_at:type_name -> google.protobuf.Timestamp
+	104, // 52: morph.v1.GetAutomationStatusResponse.next_wake_at:type_name -> google.protobuf.Timestamp
 	69,  // 53: morph.v1.ListAutomationJobsResponse.jobs:type_name -> morph.v1.AutomationJob
-	88,  // 54: morph.v1.AddAutomationJobRequest.created_at:type_name -> google.protobuf.Timestamp
-	88,  // 55: morph.v1.AddAutomationJobRequest.updated_at:type_name -> google.protobuf.Timestamp
+	104, // 54: morph.v1.AddAutomationJobRequest.created_at:type_name -> google.protobuf.Timestamp
+	104, // 55: morph.v1.AddAutomationJobRequest.updated_at:type_name -> google.protobuf.Timestamp
 	65,  // 56: morph.v1.AddAutomationJobRequest.schedule:type_name -> morph.v1.AutomationSchedule
 	66,  // 57: morph.v1.AddAutomationJobRequest.payload:type_name -> morph.v1.AutomationPayload
 	67,  // 58: morph.v1.AddAutomationJobRequest.delivery:type_name -> morph.v1.AutomationDelivery
@@ -6128,75 +7255,103 @@ var file_internal_rpc_proto_morph_proto_depIdxs = []int32{
 	69,  // 65: morph.v1.UpdateAutomationJobResponse.job:type_name -> morph.v1.AutomationJob
 	71,  // 66: morph.v1.RunAutomationJobResponse.run:type_name -> morph.v1.AutomationRun
 	71,  // 67: morph.v1.ListAutomationRunsResponse.runs:type_name -> morph.v1.AutomationRun
-	3,   // 68: morph.v1.MorphService.Respond:input_type -> morph.v1.RespondRequest
-	6,   // 69: morph.v1.SessionService.Create:input_type -> morph.v1.CreateSessionRequest
-	8,   // 70: morph.v1.SessionService.List:input_type -> morph.v1.ListSessionsRequest
-	10,  // 71: morph.v1.SessionService.Use:input_type -> morph.v1.UseSessionRequest
-	12,  // 72: morph.v1.SessionService.Archive:input_type -> morph.v1.ArchiveSessionRequest
-	14,  // 73: morph.v1.SessionService.Unarchive:input_type -> morph.v1.UnarchiveSessionRequest
-	16,  // 74: morph.v1.SessionService.Rename:input_type -> morph.v1.RenameSessionRequest
-	18,  // 75: morph.v1.SessionService.Current:input_type -> morph.v1.CurrentSessionRequest
-	20,  // 76: morph.v1.SessionService.Compact:input_type -> morph.v1.CompactSessionRequest
-	22,  // 77: morph.v1.SessionService.Repair:input_type -> morph.v1.RepairSessionRequest
-	27,  // 78: morph.v1.SessionService.Status:input_type -> morph.v1.GetSessionStatusRequest
-	29,  // 79: morph.v1.SessionService.Timeline:input_type -> morph.v1.GetSessionTimelineRequest
-	34,  // 80: morph.v1.ModelService.RuntimeModel:input_type -> morph.v1.RuntimeModelRequest
-	36,  // 81: morph.v1.ModelService.ListProviders:input_type -> morph.v1.ListProvidersRequest
-	39,  // 82: morph.v1.ModelService.ListModels:input_type -> morph.v1.ListModelsRequest
-	42,  // 83: morph.v1.ModelService.SelectModel:input_type -> morph.v1.SelectModelRequest
-	44,  // 84: morph.v1.ModelService.SetProviderAPIKey:input_type -> morph.v1.SetProviderAPIKeyRequest
-	47,  // 85: morph.v1.GatewayService.Status:input_type -> morph.v1.GetGatewayStatusRequest
-	49,  // 86: morph.v1.GatewayService.Start:input_type -> morph.v1.StartGatewayRequest
-	51,  // 87: morph.v1.GatewayService.Stop:input_type -> morph.v1.StopGatewayRequest
-	53,  // 88: morph.v1.GatewayService.Restart:input_type -> morph.v1.RestartGatewayRequest
-	57,  // 89: morph.v1.GatewayService.ListPairings:input_type -> morph.v1.ListGatewayPairingsRequest
-	59,  // 90: morph.v1.GatewayService.ApprovePairing:input_type -> morph.v1.ApproveGatewayPairingRequest
-	61,  // 91: morph.v1.GatewayService.RevokePairing:input_type -> morph.v1.RevokeGatewayPairingRequest
-	63,  // 92: morph.v1.GatewayService.ClearPendingPairings:input_type -> morph.v1.ClearPendingGatewayPairingsRequest
-	72,  // 93: morph.v1.AutomationService.Status:input_type -> morph.v1.GetAutomationStatusRequest
-	74,  // 94: morph.v1.AutomationService.ListJobs:input_type -> morph.v1.ListAutomationJobsRequest
-	76,  // 95: morph.v1.AutomationService.AddJob:input_type -> morph.v1.AddAutomationJobRequest
-	78,  // 96: morph.v1.AutomationService.UpdateJob:input_type -> morph.v1.UpdateAutomationJobRequest
-	80,  // 97: morph.v1.AutomationService.RemoveJob:input_type -> morph.v1.RemoveAutomationJobRequest
-	82,  // 98: morph.v1.AutomationService.RunJob:input_type -> morph.v1.RunAutomationJobRequest
-	84,  // 99: morph.v1.AutomationService.ListRuns:input_type -> morph.v1.ListAutomationRunsRequest
-	4,   // 100: morph.v1.MorphService.Respond:output_type -> morph.v1.RespondEvent
-	7,   // 101: morph.v1.SessionService.Create:output_type -> morph.v1.CreateSessionResponse
-	9,   // 102: morph.v1.SessionService.List:output_type -> morph.v1.ListSessionsResponse
-	11,  // 103: morph.v1.SessionService.Use:output_type -> morph.v1.UseSessionResponse
-	13,  // 104: morph.v1.SessionService.Archive:output_type -> morph.v1.ArchiveSessionResponse
-	15,  // 105: morph.v1.SessionService.Unarchive:output_type -> morph.v1.UnarchiveSessionResponse
-	17,  // 106: morph.v1.SessionService.Rename:output_type -> morph.v1.RenameSessionResponse
-	19,  // 107: morph.v1.SessionService.Current:output_type -> morph.v1.CurrentSessionResponse
-	21,  // 108: morph.v1.SessionService.Compact:output_type -> morph.v1.CompactSessionResponse
-	23,  // 109: morph.v1.SessionService.Repair:output_type -> morph.v1.RepairSessionResponse
-	28,  // 110: morph.v1.SessionService.Status:output_type -> morph.v1.GetSessionStatusResponse
-	33,  // 111: morph.v1.SessionService.Timeline:output_type -> morph.v1.GetSessionTimelineResponse
-	35,  // 112: morph.v1.ModelService.RuntimeModel:output_type -> morph.v1.RuntimeModelResponse
-	38,  // 113: morph.v1.ModelService.ListProviders:output_type -> morph.v1.ListProvidersResponse
-	41,  // 114: morph.v1.ModelService.ListModels:output_type -> morph.v1.ListModelsResponse
-	43,  // 115: morph.v1.ModelService.SelectModel:output_type -> morph.v1.SelectModelResponse
-	45,  // 116: morph.v1.ModelService.SetProviderAPIKey:output_type -> morph.v1.SetProviderAPIKeyResponse
-	48,  // 117: morph.v1.GatewayService.Status:output_type -> morph.v1.GetGatewayStatusResponse
-	50,  // 118: morph.v1.GatewayService.Start:output_type -> morph.v1.StartGatewayResponse
-	52,  // 119: morph.v1.GatewayService.Stop:output_type -> morph.v1.StopGatewayResponse
-	54,  // 120: morph.v1.GatewayService.Restart:output_type -> morph.v1.RestartGatewayResponse
-	58,  // 121: morph.v1.GatewayService.ListPairings:output_type -> morph.v1.ListGatewayPairingsResponse
-	60,  // 122: morph.v1.GatewayService.ApprovePairing:output_type -> morph.v1.ApproveGatewayPairingResponse
-	62,  // 123: morph.v1.GatewayService.RevokePairing:output_type -> morph.v1.RevokeGatewayPairingResponse
-	64,  // 124: morph.v1.GatewayService.ClearPendingPairings:output_type -> morph.v1.ClearPendingGatewayPairingsResponse
-	73,  // 125: morph.v1.AutomationService.Status:output_type -> morph.v1.GetAutomationStatusResponse
-	75,  // 126: morph.v1.AutomationService.ListJobs:output_type -> morph.v1.ListAutomationJobsResponse
-	77,  // 127: morph.v1.AutomationService.AddJob:output_type -> morph.v1.AddAutomationJobResponse
-	79,  // 128: morph.v1.AutomationService.UpdateJob:output_type -> morph.v1.UpdateAutomationJobResponse
-	81,  // 129: morph.v1.AutomationService.RemoveJob:output_type -> morph.v1.RemoveAutomationJobResponse
-	83,  // 130: morph.v1.AutomationService.RunJob:output_type -> morph.v1.RunAutomationJobResponse
-	85,  // 131: morph.v1.AutomationService.ListRuns:output_type -> morph.v1.ListAutomationRunsResponse
-	100, // [100:132] is the sub-list for method output_type
-	68,  // [68:100] is the sub-list for method input_type
-	68,  // [68:68] is the sub-list for extension type_name
-	68,  // [68:68] is the sub-list for extension extendee
-	0,   // [0:68] is the sub-list for field type_name
+	104, // 68: morph.v1.PermissionApprovalRequest.created_at:type_name -> google.protobuf.Timestamp
+	104, // 69: morph.v1.PermissionApprovalRequest.expires_at:type_name -> google.protobuf.Timestamp
+	104, // 70: morph.v1.PermissionApprovalRequest.resolved_at:type_name -> google.protobuf.Timestamp
+	104, // 71: morph.v1.PermissionGrant.created_at:type_name -> google.protobuf.Timestamp
+	104, // 72: morph.v1.PermissionGrant.expires_at:type_name -> google.protobuf.Timestamp
+	104, // 73: morph.v1.PermissionGrant.consumed_at:type_name -> google.protobuf.Timestamp
+	104, // 74: morph.v1.PermissionGrant.revoked_at:type_name -> google.protobuf.Timestamp
+	86,  // 75: morph.v1.ListPermissionRequestsResponse.requests:type_name -> morph.v1.PermissionApprovalRequest
+	86,  // 76: morph.v1.GetPermissionRequestResponse.request:type_name -> morph.v1.PermissionApprovalRequest
+	86,  // 77: morph.v1.ResolvePermissionRequestResponse.request:type_name -> morph.v1.PermissionApprovalRequest
+	87,  // 78: morph.v1.ListPermissionGrantsResponse.grants:type_name -> morph.v1.PermissionGrant
+	87,  // 79: morph.v1.RevokePermissionGrantResponse.grant:type_name -> morph.v1.PermissionGrant
+	104, // 80: morph.v1.PrunePermissionApprovalsResponse.request_cutoff:type_name -> google.protobuf.Timestamp
+	104, // 81: morph.v1.PrunePermissionApprovalsResponse.grant_cutoff:type_name -> google.protobuf.Timestamp
+	3,   // 82: morph.v1.MorphService.Respond:input_type -> morph.v1.RespondRequest
+	6,   // 83: morph.v1.SessionService.Create:input_type -> morph.v1.CreateSessionRequest
+	8,   // 84: morph.v1.SessionService.List:input_type -> morph.v1.ListSessionsRequest
+	10,  // 85: morph.v1.SessionService.Use:input_type -> morph.v1.UseSessionRequest
+	12,  // 86: morph.v1.SessionService.Archive:input_type -> morph.v1.ArchiveSessionRequest
+	14,  // 87: morph.v1.SessionService.Unarchive:input_type -> morph.v1.UnarchiveSessionRequest
+	16,  // 88: morph.v1.SessionService.Rename:input_type -> morph.v1.RenameSessionRequest
+	18,  // 89: morph.v1.SessionService.Current:input_type -> morph.v1.CurrentSessionRequest
+	20,  // 90: morph.v1.SessionService.Compact:input_type -> morph.v1.CompactSessionRequest
+	22,  // 91: morph.v1.SessionService.Repair:input_type -> morph.v1.RepairSessionRequest
+	27,  // 92: morph.v1.SessionService.Status:input_type -> morph.v1.GetSessionStatusRequest
+	29,  // 93: morph.v1.SessionService.Timeline:input_type -> morph.v1.GetSessionTimelineRequest
+	34,  // 94: morph.v1.ModelService.RuntimeModel:input_type -> morph.v1.RuntimeModelRequest
+	36,  // 95: morph.v1.ModelService.ListProviders:input_type -> morph.v1.ListProvidersRequest
+	39,  // 96: morph.v1.ModelService.ListModels:input_type -> morph.v1.ListModelsRequest
+	42,  // 97: morph.v1.ModelService.SelectModel:input_type -> morph.v1.SelectModelRequest
+	44,  // 98: morph.v1.ModelService.SetProviderAPIKey:input_type -> morph.v1.SetProviderAPIKeyRequest
+	47,  // 99: morph.v1.GatewayService.Status:input_type -> morph.v1.GetGatewayStatusRequest
+	49,  // 100: morph.v1.GatewayService.Start:input_type -> morph.v1.StartGatewayRequest
+	51,  // 101: morph.v1.GatewayService.Stop:input_type -> morph.v1.StopGatewayRequest
+	53,  // 102: morph.v1.GatewayService.Restart:input_type -> morph.v1.RestartGatewayRequest
+	57,  // 103: morph.v1.GatewayService.ListPairings:input_type -> morph.v1.ListGatewayPairingsRequest
+	59,  // 104: morph.v1.GatewayService.ApprovePairing:input_type -> morph.v1.ApproveGatewayPairingRequest
+	61,  // 105: morph.v1.GatewayService.RevokePairing:input_type -> morph.v1.RevokeGatewayPairingRequest
+	63,  // 106: morph.v1.GatewayService.ClearPendingPairings:input_type -> morph.v1.ClearPendingGatewayPairingsRequest
+	72,  // 107: morph.v1.AutomationService.Status:input_type -> morph.v1.GetAutomationStatusRequest
+	74,  // 108: morph.v1.AutomationService.ListJobs:input_type -> morph.v1.ListAutomationJobsRequest
+	76,  // 109: morph.v1.AutomationService.AddJob:input_type -> morph.v1.AddAutomationJobRequest
+	78,  // 110: morph.v1.AutomationService.UpdateJob:input_type -> morph.v1.UpdateAutomationJobRequest
+	80,  // 111: morph.v1.AutomationService.RemoveJob:input_type -> morph.v1.RemoveAutomationJobRequest
+	82,  // 112: morph.v1.AutomationService.RunJob:input_type -> morph.v1.RunAutomationJobRequest
+	84,  // 113: morph.v1.AutomationService.ListRuns:input_type -> morph.v1.ListAutomationRunsRequest
+	88,  // 114: morph.v1.PermissionService.ListRequests:input_type -> morph.v1.ListPermissionRequestsRequest
+	90,  // 115: morph.v1.PermissionService.GetRequest:input_type -> morph.v1.GetPermissionRequestRequest
+	92,  // 116: morph.v1.PermissionService.ResolveRequest:input_type -> morph.v1.ResolvePermissionRequestRequest
+	94,  // 117: morph.v1.PermissionService.ListGrants:input_type -> morph.v1.ListPermissionGrantsRequest
+	96,  // 118: morph.v1.PermissionService.RevokeGrant:input_type -> morph.v1.RevokePermissionGrantRequest
+	98,  // 119: morph.v1.PermissionService.DeleteRecord:input_type -> morph.v1.DeletePermissionRecordRequest
+	100, // 120: morph.v1.PermissionService.Prune:input_type -> morph.v1.PrunePermissionApprovalsRequest
+	4,   // 121: morph.v1.MorphService.Respond:output_type -> morph.v1.RespondEvent
+	7,   // 122: morph.v1.SessionService.Create:output_type -> morph.v1.CreateSessionResponse
+	9,   // 123: morph.v1.SessionService.List:output_type -> morph.v1.ListSessionsResponse
+	11,  // 124: morph.v1.SessionService.Use:output_type -> morph.v1.UseSessionResponse
+	13,  // 125: morph.v1.SessionService.Archive:output_type -> morph.v1.ArchiveSessionResponse
+	15,  // 126: morph.v1.SessionService.Unarchive:output_type -> morph.v1.UnarchiveSessionResponse
+	17,  // 127: morph.v1.SessionService.Rename:output_type -> morph.v1.RenameSessionResponse
+	19,  // 128: morph.v1.SessionService.Current:output_type -> morph.v1.CurrentSessionResponse
+	21,  // 129: morph.v1.SessionService.Compact:output_type -> morph.v1.CompactSessionResponse
+	23,  // 130: morph.v1.SessionService.Repair:output_type -> morph.v1.RepairSessionResponse
+	28,  // 131: morph.v1.SessionService.Status:output_type -> morph.v1.GetSessionStatusResponse
+	33,  // 132: morph.v1.SessionService.Timeline:output_type -> morph.v1.GetSessionTimelineResponse
+	35,  // 133: morph.v1.ModelService.RuntimeModel:output_type -> morph.v1.RuntimeModelResponse
+	38,  // 134: morph.v1.ModelService.ListProviders:output_type -> morph.v1.ListProvidersResponse
+	41,  // 135: morph.v1.ModelService.ListModels:output_type -> morph.v1.ListModelsResponse
+	43,  // 136: morph.v1.ModelService.SelectModel:output_type -> morph.v1.SelectModelResponse
+	45,  // 137: morph.v1.ModelService.SetProviderAPIKey:output_type -> morph.v1.SetProviderAPIKeyResponse
+	48,  // 138: morph.v1.GatewayService.Status:output_type -> morph.v1.GetGatewayStatusResponse
+	50,  // 139: morph.v1.GatewayService.Start:output_type -> morph.v1.StartGatewayResponse
+	52,  // 140: morph.v1.GatewayService.Stop:output_type -> morph.v1.StopGatewayResponse
+	54,  // 141: morph.v1.GatewayService.Restart:output_type -> morph.v1.RestartGatewayResponse
+	58,  // 142: morph.v1.GatewayService.ListPairings:output_type -> morph.v1.ListGatewayPairingsResponse
+	60,  // 143: morph.v1.GatewayService.ApprovePairing:output_type -> morph.v1.ApproveGatewayPairingResponse
+	62,  // 144: morph.v1.GatewayService.RevokePairing:output_type -> morph.v1.RevokeGatewayPairingResponse
+	64,  // 145: morph.v1.GatewayService.ClearPendingPairings:output_type -> morph.v1.ClearPendingGatewayPairingsResponse
+	73,  // 146: morph.v1.AutomationService.Status:output_type -> morph.v1.GetAutomationStatusResponse
+	75,  // 147: morph.v1.AutomationService.ListJobs:output_type -> morph.v1.ListAutomationJobsResponse
+	77,  // 148: morph.v1.AutomationService.AddJob:output_type -> morph.v1.AddAutomationJobResponse
+	79,  // 149: morph.v1.AutomationService.UpdateJob:output_type -> morph.v1.UpdateAutomationJobResponse
+	81,  // 150: morph.v1.AutomationService.RemoveJob:output_type -> morph.v1.RemoveAutomationJobResponse
+	83,  // 151: morph.v1.AutomationService.RunJob:output_type -> morph.v1.RunAutomationJobResponse
+	85,  // 152: morph.v1.AutomationService.ListRuns:output_type -> morph.v1.ListAutomationRunsResponse
+	89,  // 153: morph.v1.PermissionService.ListRequests:output_type -> morph.v1.ListPermissionRequestsResponse
+	91,  // 154: morph.v1.PermissionService.GetRequest:output_type -> morph.v1.GetPermissionRequestResponse
+	93,  // 155: morph.v1.PermissionService.ResolveRequest:output_type -> morph.v1.ResolvePermissionRequestResponse
+	95,  // 156: morph.v1.PermissionService.ListGrants:output_type -> morph.v1.ListPermissionGrantsResponse
+	97,  // 157: morph.v1.PermissionService.RevokeGrant:output_type -> morph.v1.RevokePermissionGrantResponse
+	99,  // 158: morph.v1.PermissionService.DeleteRecord:output_type -> morph.v1.DeletePermissionRecordResponse
+	101, // 159: morph.v1.PermissionService.Prune:output_type -> morph.v1.PrunePermissionApprovalsResponse
+	121, // [121:160] is the sub-list for method output_type
+	82,  // [82:121] is the sub-list for method input_type
+	82,  // [82:82] is the sub-list for extension type_name
+	82,  // [82:82] is the sub-list for extension extendee
+	0,   // [0:82] is the sub-list for field type_name
 }
 
 func init() { file_internal_rpc_proto_morph_proto_init() }
@@ -6215,9 +7370,9 @@ func file_internal_rpc_proto_morph_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_rpc_proto_morph_proto_rawDesc), len(file_internal_rpc_proto_morph_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   85,
+			NumMessages:   101,
 			NumExtensions: 0,
-			NumServices:   5,
+			NumServices:   6,
 		},
 		GoTypes:           file_internal_rpc_proto_morph_proto_goTypes,
 		DependencyIndexes: file_internal_rpc_proto_morph_proto_depIdxs,

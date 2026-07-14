@@ -2,10 +2,12 @@ package rpcmeta
 
 import (
 	"context"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 
 	"github.com/wandxy/morph/internal/permissions"
 )
@@ -36,4 +38,66 @@ func TestPermissionSurface_DefaultsUnsupportedOrMissingValuesToRPC(t *testing.T)
 		permissionSurfaceKey, string(permissions.SurfaceSlack),
 	))
 	require.Equal(t, permissions.SurfaceRPC, PermissionSurfaceFromIncomingContext(incoming))
+}
+
+func TestPermissionActor_ClassifiesOnlyLoopbackInteractiveClientsAsLocalOwner(t *testing.T) {
+	tests := []struct {
+		name    string
+		ctx     context.Context
+		expects permissions.ActorKind
+	}{
+		{
+			name: "loopback TUI",
+			ctx: incomingPermissionContext(
+				permissions.SurfaceTUI,
+				&net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 50051},
+			),
+			expects: permissions.ActorLocalOwner,
+		},
+		{
+			name: "loopback CLI",
+			ctx: incomingPermissionContext(
+				permissions.SurfaceCLI,
+				&net.TCPAddr{IP: net.ParseIP("::1"), Port: 50051},
+			),
+			expects: permissions.ActorLocalOwner,
+		},
+		{
+			name: "remote TUI spoof",
+			ctx: incomingPermissionContext(
+				permissions.SurfaceTUI,
+				&net.TCPAddr{IP: net.ParseIP("192.0.2.1"), Port: 50051},
+			),
+			expects: permissions.ActorRPCClient,
+		},
+		{
+			name:    "missing peer",
+			ctx:     incomingPermissionContext(permissions.SurfaceTUI, nil),
+			expects: permissions.ActorRPCClient,
+		},
+		{
+			name: "loopback generic RPC",
+			ctx: peer.NewContext(
+				context.Background(),
+				&peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 50051}},
+			),
+			expects: permissions.ActorRPCClient,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expects, PermissionActorFromIncomingContext(test.ctx).Kind)
+		})
+	}
+}
+
+func incomingPermissionContext(surface permissions.Surface, address net.Addr) context.Context {
+	outgoing := WithOutgoingPermissionSurface(context.Background(), surface)
+	outgoingMetadata, _ := metadata.FromOutgoingContext(outgoing)
+	ctx := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+	if address != nil {
+		ctx = peer.NewContext(ctx, &peer.Peer{Addr: address})
+	}
+	return ctx
 }

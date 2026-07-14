@@ -76,6 +76,7 @@ type Agent struct {
 	turnCoordinator    TurnCoordinator
 	turnScope          string
 	turnMessages       []morphmsg.Message
+	approvalService    *permissions.ApprovalService
 	initialized        bool
 }
 
@@ -143,10 +144,28 @@ func (a *Agent) Start(ctx context.Context) error {
 		return err
 	}
 
+	if store, ok := a.stateMgr.PermissionStore(); ok {
+		a.approvalService, err = permissions.NewApprovalService(store, permissions.ApprovalOptions{
+			Auditor:          permissionApprovalAuditor{},
+			RequestRetention: a.cfg.Permissions.RequestRetention,
+			GrantRetention:   a.cfg.Permissions.GrantRetention,
+			CleanupInterval:  a.cfg.Permissions.CleanupInterval,
+			CleanupBatchSize: a.cfg.Permissions.CleanupBatchSize,
+		})
+		if err != nil {
+			return err
+		}
+		if err := a.approvalService.Recover(context.WithoutCancel(ctx)); err != nil {
+			return err
+		}
+		a.approvalService.StartCleanup(ctx)
+	}
+
 	// Environment setup wires the durable state and summary model client into
 	// tools so they can execute with the same runtime identity as the agent.
 	a.env = NewEnvironment(ctx, a.cfg)
 	a.env.SetStateManager(a.stateMgr)
+	a.env.SetApprovalService(a.approvalService)
 	a.env.SetModelClient(a.summaryClient)
 	if err := a.env.Prepare(); err != nil {
 		return err
@@ -163,6 +182,38 @@ func (a *Agent) Start(ctx context.Context) error {
 	agentLog.Info().Msg("agent started")
 
 	return nil
+}
+
+type permissionApprovalAuditor struct{}
+
+func (permissionApprovalAuditor) ApprovalChanged(ctx context.Context, request permissions.ApprovalRequest) {
+	recorder := tools.TraceRecorderFromContext(ctx)
+	if recorder == nil {
+		return
+	}
+	effects := make([]string, len(request.Effects))
+	for index, effect := range request.Effects {
+		effects[index] = string(effect)
+	}
+	recorder.Record(trace.EvtPermissionApprovalChanged, trace.PermissionApprovalPayload{
+		RequestID: request.ID,
+		Status:    string(request.Status),
+		Scope:     string(request.Scope),
+		Tool:      request.Tool,
+		Resource:  string(request.Resource),
+		Action:    string(request.Action),
+		Effects:   effects,
+		Summary:   request.Summary,
+		Reason:    request.Reason,
+		ExpiresAt: request.ExpiresAt,
+	})
+}
+
+func (a *Agent) ApprovalService() *permissions.ApprovalService {
+	if a == nil {
+		return nil
+	}
+	return a.approvalService
 }
 
 func (a *Agent) SetAutomationService(service envtypes.AutomationService) {

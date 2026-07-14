@@ -139,6 +139,8 @@ func (factory transcriptCellFactory) FromTUIMessage(msg any) transcriptCell {
 		return factory.Error(value.Message)
 	case manualCompactionMsg:
 		return factory.ManualCompaction(value.State)
+	case permissionApprovalMsg:
+		return factory.System(permissionApprovalText(value))
 	default:
 		return nil
 	}

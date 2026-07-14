@@ -97,6 +97,7 @@ func isStreamableTraceEvent(eventType string) bool {
 	switch eventTypeValue2.Trim() {
 	case trace.EvtToolInvocationStarted,
 		trace.EvtToolInvocationCompleted,
+		trace.EvtPermissionApprovalChanged,
 		trace.EvtInputSafetyBlocked,
 		trace.EvtOutputSafetyApplied,
 		trace.EvtToolOutputSafetyApplied,

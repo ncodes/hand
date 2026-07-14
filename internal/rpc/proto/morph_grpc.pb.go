@@ -1556,3 +1556,333 @@ var AutomationService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "internal/rpc/proto/morph.proto",
 }
+
+const (
+	PermissionService_ListRequests_FullMethodName   = "/morph.v1.PermissionService/ListRequests"
+	PermissionService_GetRequest_FullMethodName     = "/morph.v1.PermissionService/GetRequest"
+	PermissionService_ResolveRequest_FullMethodName = "/morph.v1.PermissionService/ResolveRequest"
+	PermissionService_ListGrants_FullMethodName     = "/morph.v1.PermissionService/ListGrants"
+	PermissionService_RevokeGrant_FullMethodName    = "/morph.v1.PermissionService/RevokeGrant"
+	PermissionService_DeleteRecord_FullMethodName   = "/morph.v1.PermissionService/DeleteRecord"
+	PermissionService_Prune_FullMethodName          = "/morph.v1.PermissionService/Prune"
+)
+
+// PermissionServiceClient is the client API for PermissionService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type PermissionServiceClient interface {
+	ListRequests(ctx context.Context, in *ListPermissionRequestsRequest, opts ...grpc.CallOption) (*ListPermissionRequestsResponse, error)
+	GetRequest(ctx context.Context, in *GetPermissionRequestRequest, opts ...grpc.CallOption) (*GetPermissionRequestResponse, error)
+	ResolveRequest(ctx context.Context, in *ResolvePermissionRequestRequest, opts ...grpc.CallOption) (*ResolvePermissionRequestResponse, error)
+	ListGrants(ctx context.Context, in *ListPermissionGrantsRequest, opts ...grpc.CallOption) (*ListPermissionGrantsResponse, error)
+	RevokeGrant(ctx context.Context, in *RevokePermissionGrantRequest, opts ...grpc.CallOption) (*RevokePermissionGrantResponse, error)
+	DeleteRecord(ctx context.Context, in *DeletePermissionRecordRequest, opts ...grpc.CallOption) (*DeletePermissionRecordResponse, error)
+	Prune(ctx context.Context, in *PrunePermissionApprovalsRequest, opts ...grpc.CallOption) (*PrunePermissionApprovalsResponse, error)
+}
+
+type permissionServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewPermissionServiceClient(cc grpc.ClientConnInterface) PermissionServiceClient {
+	return &permissionServiceClient{cc}
+}
+
+func (c *permissionServiceClient) ListRequests(ctx context.Context, in *ListPermissionRequestsRequest, opts ...grpc.CallOption) (*ListPermissionRequestsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPermissionRequestsResponse)
+	err := c.cc.Invoke(ctx, PermissionService_ListRequests_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *permissionServiceClient) GetRequest(ctx context.Context, in *GetPermissionRequestRequest, opts ...grpc.CallOption) (*GetPermissionRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPermissionRequestResponse)
+	err := c.cc.Invoke(ctx, PermissionService_GetRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *permissionServiceClient) ResolveRequest(ctx context.Context, in *ResolvePermissionRequestRequest, opts ...grpc.CallOption) (*ResolvePermissionRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolvePermissionRequestResponse)
+	err := c.cc.Invoke(ctx, PermissionService_ResolveRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *permissionServiceClient) ListGrants(ctx context.Context, in *ListPermissionGrantsRequest, opts ...grpc.CallOption) (*ListPermissionGrantsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPermissionGrantsResponse)
+	err := c.cc.Invoke(ctx, PermissionService_ListGrants_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *permissionServiceClient) RevokeGrant(ctx context.Context, in *RevokePermissionGrantRequest, opts ...grpc.CallOption) (*RevokePermissionGrantResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokePermissionGrantResponse)
+	err := c.cc.Invoke(ctx, PermissionService_RevokeGrant_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *permissionServiceClient) DeleteRecord(ctx context.Context, in *DeletePermissionRecordRequest, opts ...grpc.CallOption) (*DeletePermissionRecordResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeletePermissionRecordResponse)
+	err := c.cc.Invoke(ctx, PermissionService_DeleteRecord_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *permissionServiceClient) Prune(ctx context.Context, in *PrunePermissionApprovalsRequest, opts ...grpc.CallOption) (*PrunePermissionApprovalsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PrunePermissionApprovalsResponse)
+	err := c.cc.Invoke(ctx, PermissionService_Prune_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// PermissionServiceServer is the server API for PermissionService service.
+// All implementations must embed UnimplementedPermissionServiceServer
+// for forward compatibility.
+type PermissionServiceServer interface {
+	ListRequests(context.Context, *ListPermissionRequestsRequest) (*ListPermissionRequestsResponse, error)
+	GetRequest(context.Context, *GetPermissionRequestRequest) (*GetPermissionRequestResponse, error)
+	ResolveRequest(context.Context, *ResolvePermissionRequestRequest) (*ResolvePermissionRequestResponse, error)
+	ListGrants(context.Context, *ListPermissionGrantsRequest) (*ListPermissionGrantsResponse, error)
+	RevokeGrant(context.Context, *RevokePermissionGrantRequest) (*RevokePermissionGrantResponse, error)
+	DeleteRecord(context.Context, *DeletePermissionRecordRequest) (*DeletePermissionRecordResponse, error)
+	Prune(context.Context, *PrunePermissionApprovalsRequest) (*PrunePermissionApprovalsResponse, error)
+	mustEmbedUnimplementedPermissionServiceServer()
+}
+
+// UnimplementedPermissionServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedPermissionServiceServer struct{}
+
+func (UnimplementedPermissionServiceServer) ListRequests(context.Context, *ListPermissionRequestsRequest) (*ListPermissionRequestsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRequests not implemented")
+}
+func (UnimplementedPermissionServiceServer) GetRequest(context.Context, *GetPermissionRequestRequest) (*GetPermissionRequestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRequest not implemented")
+}
+func (UnimplementedPermissionServiceServer) ResolveRequest(context.Context, *ResolvePermissionRequestRequest) (*ResolvePermissionRequestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveRequest not implemented")
+}
+func (UnimplementedPermissionServiceServer) ListGrants(context.Context, *ListPermissionGrantsRequest) (*ListPermissionGrantsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGrants not implemented")
+}
+func (UnimplementedPermissionServiceServer) RevokeGrant(context.Context, *RevokePermissionGrantRequest) (*RevokePermissionGrantResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeGrant not implemented")
+}
+func (UnimplementedPermissionServiceServer) DeleteRecord(context.Context, *DeletePermissionRecordRequest) (*DeletePermissionRecordResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteRecord not implemented")
+}
+func (UnimplementedPermissionServiceServer) Prune(context.Context, *PrunePermissionApprovalsRequest) (*PrunePermissionApprovalsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Prune not implemented")
+}
+func (UnimplementedPermissionServiceServer) mustEmbedUnimplementedPermissionServiceServer() {}
+func (UnimplementedPermissionServiceServer) testEmbeddedByValue()                           {}
+
+// UnsafePermissionServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to PermissionServiceServer will
+// result in compilation errors.
+type UnsafePermissionServiceServer interface {
+	mustEmbedUnimplementedPermissionServiceServer()
+}
+
+func RegisterPermissionServiceServer(s grpc.ServiceRegistrar, srv PermissionServiceServer) {
+	// If the following call panics, it indicates UnimplementedPermissionServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&PermissionService_ServiceDesc, srv)
+}
+
+func _PermissionService_ListRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPermissionRequestsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PermissionServiceServer).ListRequests(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PermissionService_ListRequests_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PermissionServiceServer).ListRequests(ctx, req.(*ListPermissionRequestsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PermissionService_GetRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPermissionRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PermissionServiceServer).GetRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PermissionService_GetRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PermissionServiceServer).GetRequest(ctx, req.(*GetPermissionRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PermissionService_ResolveRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolvePermissionRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PermissionServiceServer).ResolveRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PermissionService_ResolveRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PermissionServiceServer).ResolveRequest(ctx, req.(*ResolvePermissionRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PermissionService_ListGrants_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPermissionGrantsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PermissionServiceServer).ListGrants(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PermissionService_ListGrants_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PermissionServiceServer).ListGrants(ctx, req.(*ListPermissionGrantsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PermissionService_RevokeGrant_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokePermissionGrantRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PermissionServiceServer).RevokeGrant(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PermissionService_RevokeGrant_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PermissionServiceServer).RevokeGrant(ctx, req.(*RevokePermissionGrantRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PermissionService_DeleteRecord_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeletePermissionRecordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PermissionServiceServer).DeleteRecord(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PermissionService_DeleteRecord_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PermissionServiceServer).DeleteRecord(ctx, req.(*DeletePermissionRecordRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PermissionService_Prune_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PrunePermissionApprovalsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PermissionServiceServer).Prune(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PermissionService_Prune_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PermissionServiceServer).Prune(ctx, req.(*PrunePermissionApprovalsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// PermissionService_ServiceDesc is the grpc.ServiceDesc for PermissionService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var PermissionService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "morph.v1.PermissionService",
+	HandlerType: (*PermissionServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListRequests",
+			Handler:    _PermissionService_ListRequests_Handler,
+		},
+		{
+			MethodName: "GetRequest",
+			Handler:    _PermissionService_GetRequest_Handler,
+		},
+		{
+			MethodName: "ResolveRequest",
+			Handler:    _PermissionService_ResolveRequest_Handler,
+		},
+		{
+			MethodName: "ListGrants",
+			Handler:    _PermissionService_ListGrants_Handler,
+		},
+		{
+			MethodName: "RevokeGrant",
+			Handler:    _PermissionService_RevokeGrant_Handler,
+		},
+		{
+			MethodName: "DeleteRecord",
+			Handler:    _PermissionService_DeleteRecord_Handler,
+		},
+		{
+			MethodName: "Prune",
+			Handler:    _PermissionService_Prune_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "internal/rpc/proto/morph.proto",
+}

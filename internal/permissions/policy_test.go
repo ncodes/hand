@@ -74,7 +74,7 @@ func TestPolicy_ValidateRejectsInvalidConfiguration(t *testing.T) {
 		policy       Policy
 		errorMessage string
 	}{
-		{name: "mode", policy: Policy{Mode: "audit"}, errorMessage: "permission mode must be one of: observe, enforce"},
+		{name: "mode", policy: Policy{Mode: "audit"}, errorMessage: "permission mode must be one of: observe, enforce, full_access"},
 		{name: "default", policy: Policy{Default: "prompt"}, errorMessage: "permission default must be one of: allow, ask, deny"},
 		{name: "surface kind", policy: Policy{SurfaceKindDefaults: map[SurfaceKind]Decision{"remote": DecisionAsk}}, errorMessage: "permission surface kind default contains an invalid kind"},
 		{name: "surface kind decision", policy: Policy{SurfaceKindDefaults: map[SurfaceKind]Decision{SurfaceKindLocal: "prompt"}}, errorMessage: "permission surface kind default must be one of: allow, ask, deny"},
@@ -95,6 +95,34 @@ func TestPolicy_ValidateRejectsInvalidConfiguration(t *testing.T) {
 			require.EqualError(t, test.policy.Validate(), test.errorMessage)
 		})
 	}
+}
+
+func TestPolicy_EvaluateFullAccessBypassesPolicyApprovalAndOwnership(t *testing.T) {
+	policy := Policy{
+		Mode:  ModeFullAccess,
+		Rules: []Rule{{Name: "deny everything", Decision: DecisionDeny}},
+	}
+	input := EvaluationInput{
+		Authorization: AuthorizationContext{Actor: Actor{Kind: ActorGatewayUser}, Surface: SurfaceSlack},
+		Operation: Operation{
+			Resource: ResourceConfiguration, Action: ActionUpdate,
+			Effects: []Effect{EffectCredentialBearing}, OwnerRequired: true,
+		},
+		ApprovalReason: "confirmation normally required",
+	}
+
+	evaluation := policy.Evaluate(input)
+	require.Equal(t, DecisionAllow, evaluation.Decision)
+	require.Equal(t, ReasonFullAccess, evaluation.ReasonCode)
+	require.Equal(t, ModeFullAccess, evaluation.Mode)
+	require.Empty(t, evaluation.Rule)
+	require.Empty(t, evaluation.Reason)
+
+	input.HardDenyReason = "blocked by hard safety policy"
+	evaluation = policy.Evaluate(input)
+	require.Equal(t, DecisionDeny, evaluation.Decision)
+	require.Equal(t, ReasonHardDeny, evaluation.ReasonCode)
+	require.Equal(t, "blocked by hard safety policy", evaluation.Reason)
 }
 
 func TestPolicy_EvaluateUsesHardDenyThenRulePrecedence(t *testing.T) {

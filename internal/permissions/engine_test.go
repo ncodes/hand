@@ -59,6 +59,28 @@ func TestEngine_CheckEnforcesDecisions(t *testing.T) {
 	}
 }
 
+func TestEngine_CheckFullAccessAllowsPolicyDenialsButEnforcesHardDenials(t *testing.T) {
+	engine := NewEngine(Policy{
+		Mode:  ModeFullAccess,
+		Rules: []Rule{{Name: "deny everything", Decision: DecisionDeny}},
+	})
+	input := EvaluationInput{Operation: Operation{Resource: ResourceFile, Action: ActionUpdate}}
+
+	evaluation, err := engine.Check(context.Background(), input)
+	require.NoError(t, err)
+	require.Equal(t, DecisionAllow, evaluation.Decision)
+	require.Equal(t, ReasonFullAccess, evaluation.ReasonCode)
+	require.Equal(t, ModeFullAccess, evaluation.Mode)
+
+	input.HardDenyReason = "hard safety policy"
+	evaluation, err = engine.Check(context.Background(), input)
+	require.Equal(t, DecisionDeny, evaluation.Decision)
+	decisionErr, ok := GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, ErrorCodeDenied, decisionErr.Code)
+	require.Equal(t, ReasonHardDeny, evaluation.ReasonCode)
+}
+
 func TestDecisionError_UsesSafeFallbackMessages(t *testing.T) {
 	require.Empty(t, (*DecisionError)(nil).Error())
 	require.Equal(t, "approval required", (&DecisionError{Code: ErrorCodeApprovalRequired}).Error())

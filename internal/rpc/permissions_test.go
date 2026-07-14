@@ -52,6 +52,12 @@ func TestService_CheckPermissionHonorsModesAndOwnerRules(t *testing.T) {
 	require.NoError(t, allowOwnerOperation.checkPermission(context.Background(), permissions.Operation{
 		Resource: permissions.ResourceConfiguration, Action: permissions.ActionUpdate, OwnerRequired: true,
 	}))
+	fullAccess := NewServiceWithOptions(nil, ServiceOptions{PermissionPolicy: permissions.Policy{
+		Mode: permissions.ModeFullAccess, Default: permissions.DecisionDeny,
+	}})
+	require.NoError(t, fullAccess.checkPermission(context.Background(), permissions.Operation{
+		Resource: permissions.ResourceConfiguration, Action: permissions.ActionUpdate, OwnerRequired: true,
+	}))
 	require.Equal(t, codes.Internal, status.Code((*Service)(nil).checkPermission(context.Background(), operation)))
 
 	localContext := permissions.WithContext(context.Background(), permissions.AuthorizationContext{

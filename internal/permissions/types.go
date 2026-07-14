@@ -104,8 +104,9 @@ const (
 type Mode string
 
 const (
-	ModeObserve Mode = "observe"
-	ModeEnforce Mode = "enforce"
+	ModeObserve    Mode = "observe"
+	ModeEnforce    Mode = "enforce"
+	ModeFullAccess Mode = "full_access"
 )
 
 type Actor struct {

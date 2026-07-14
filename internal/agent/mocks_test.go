@@ -16,6 +16,7 @@ import (
 	"github.com/wandxy/morph/internal/memory"
 	"github.com/wandxy/morph/internal/mocks"
 	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	morphtools "github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/trace"
@@ -382,6 +383,8 @@ func (s *stateStoreStub) DeleteGatewayPairedSender(_ context.Context, source str
 func (s *stateStoreStub) Session() storage.SessionStore { return s }
 
 func (s *stateStoreStub) Automation() (storage.AutomationStore, bool) { return nil, false }
+
+func (s *stateStoreStub) Permission() (permissions.ApprovalStore, bool) { return nil, false }
 
 func (s *stateStoreStub) Memory() (storage.MemoryStore, bool) { return nil, false }
 

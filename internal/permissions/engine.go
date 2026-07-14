@@ -57,7 +57,7 @@ func (e Engine) Evaluate(ctx context.Context, input EvaluationInput) Evaluation 
 
 func (e Engine) Check(ctx context.Context, input EvaluationInput) (Evaluation, error) {
 	evaluation := e.Evaluate(ctx, input)
-	if evaluation.Mode != ModeEnforce || evaluation.Decision == DecisionAllow {
+	if evaluation.Mode == ModeObserve || evaluation.Decision == DecisionAllow {
 		return evaluation, nil
 	}
 

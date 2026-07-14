@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/permissions"
+	"github.com/wandxy/morph/internal/state/storememory"
 	"github.com/wandxy/morph/internal/trace"
 )
 
@@ -563,6 +565,68 @@ func TestInMemoryRegistry_InvokeEnforceAllowsHandlerAndRecordsResolvedOperation(
 	require.Equal(t, string(permissions.ModeEnforce), recorder.events[0].payload.Mode)
 }
 
+func TestInMemoryRegistry_InvokeFullAccessBypassesPolicyAndApproval(t *testing.T) {
+	called := false
+	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+		Mode:  permissions.ModeFullAccess,
+		Rules: []permissions.Rule{{Name: "deny writes", Decision: permissions.DecisionDeny}},
+	}})
+	require.NoError(t, registry.Register(Definition{
+		Name:       "write",
+		Permission: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate},
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return []permissions.EvaluationInput{{
+				Operation:      permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate},
+				ApprovalReason: "normally requires approval",
+			}}, nil
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			called = true
+			return Result{Output: "written"}, nil
+		}),
+	}))
+	recorder := &permissionTraceRecorder{}
+	ctx := WithTraceRecorder(context.Background(), recorder)
+
+	result, err := registry.Invoke(ctx, Call{Name: "write"})
+
+	require.NoError(t, err)
+	require.True(t, called)
+	require.Equal(t, "written", result.Output)
+	require.Len(t, recorder.events, 1)
+	require.Equal(t, string(permissions.DecisionAllow), recorder.events[0].payload.Decision)
+	require.Equal(t, permissions.ReasonFullAccess, recorder.events[0].payload.ReasonCode)
+	require.Equal(t, string(permissions.ModeFullAccess), recorder.events[0].payload.Mode)
+}
+
+func TestInMemoryRegistry_InvokeFullAccessPreservesHardDenial(t *testing.T) {
+	called := false
+	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{Mode: permissions.ModeFullAccess}})
+	require.NoError(t, registry.Register(Definition{
+		Name:       "write",
+		Permission: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate},
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return []permissions.EvaluationInput{{
+				Operation:      permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate},
+				HardDenyReason: "blocked by filesystem safety policy",
+			}}, nil
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			called = true
+			return Result{}, nil
+		}),
+	}))
+
+	result, err := registry.Invoke(context.Background(), Call{Name: "write"})
+
+	require.NoError(t, err)
+	require.False(t, called)
+	var toolErr Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, permissions.ErrorCodeDenied, toolErr.Code)
+	require.Equal(t, "blocked by filesystem safety policy", toolErr.Message)
+}
+
 func TestInMemoryRegistry_InvokeDenyOverridesAskAcrossResolvedOperations(t *testing.T) {
 	called := false
 	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
@@ -661,6 +725,126 @@ func TestInMemoryRegistry_InvokeRejectsInvalidPermissionResolution(t *testing.T)
 	}
 }
 
+func TestInMemoryRegistry_InvokeWaitsForAllowOnceAndRunsHandlerExactlyOnce(t *testing.T) {
+	store := storememory.NewStore()
+	approvals, err := permissions.NewApprovalService(store, permissions.ApprovalOptions{RequestTTL: time.Second})
+	require.NoError(t, err)
+	registry := NewInMemoryRegistry(RegistryOptions{
+		PermissionPolicy: permissions.Policy{
+			Mode: permissions.ModeEnforce,
+			SurfaceDefaults: map[permissions.Surface]permissions.Decision{
+				permissions.SurfaceTUI: permissions.DecisionAsk,
+			},
+		},
+	})
+	registry.SetApprovalService(approvals)
+	invocations := 0
+	require.NoError(t, registry.Register(Definition{
+		Name: "run_command",
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceProcess,
+			Action:   permissions.ActionExecute,
+			Effects:  []permissions.Effect{permissions.EffectExecution},
+			Target:   "fixed target",
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			invocations++
+			return Result{Output: "executed"}, nil
+		}),
+	}))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:     permissions.Actor{Kind: permissions.ActorLocalOwner, ID: "owner"},
+		Surface:   permissions.SurfaceTUI,
+		SessionID: "session",
+	})
+	resultCh := make(chan Result, 1)
+	go func() {
+		result, _ := registry.Invoke(ctx, Call{Name: "run_command"})
+		resultCh <- result
+	}()
+	var request permissions.ApprovalRequest
+	require.Eventually(t, func() bool {
+		requests, listErr := approvals.List(
+			context.Background(),
+			permissions.ApprovalQuery{Status: permissions.ApprovalPending},
+		)
+		if listErr != nil || len(requests) == 0 {
+			return false
+		}
+		request = requests[0]
+		return true
+	}, time.Second, time.Millisecond)
+	_, err = approvals.Resolve(context.Background(), request.ID, true, permissions.GrantOnce)
+	require.NoError(t, err)
+	require.Equal(t, "executed", (<-resultCh).Output)
+	require.Equal(t, 1, invocations)
+
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	result, err := registry.Invoke(cancelled, Call{Name: "run_command"})
+	require.NoError(t, err)
+	require.Contains(t, result.Error, permissions.ErrorCodeDenied)
+	require.Equal(t, 1, invocations)
+}
+
+func TestInMemoryRegistry_InvokePropagatesApprovalReason(t *testing.T) {
+	tests := []struct {
+		name           string
+		approvalReason string
+		want           string
+	}{
+		{name: "policy reason", want: "policy requires confirmation"},
+		{name: "resolver reason", approvalReason: "command requires confirmation", want: "command requires confirmation"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			approver := &approvalRecorder{}
+			registry := NewInMemoryRegistry(RegistryOptions{
+				PermissionPolicy: permissions.Policy{
+					Mode: permissions.ModeEnforce,
+					Rules: []permissions.Rule{{
+						Name: "ask for confirmation", Decision: permissions.DecisionAsk,
+						Reason: "policy requires confirmation",
+					}},
+				},
+				ApprovalService: approver,
+			})
+			require.NoError(t, registry.Register(Definition{
+				Name: "write_file",
+				ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+					return []permissions.EvaluationInput{{
+						ApprovalReason: test.approvalReason,
+						Operation: permissions.Operation{
+							Resource: permissions.ResourceFile,
+							Action:   permissions.ActionUpdate,
+							Effects:  []permissions.Effect{permissions.EffectWrite},
+						},
+					}}, nil
+				},
+				Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+					return Result{Output: "written"}, nil
+				}),
+			}))
+			ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+				Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+			})
+
+			result, err := registry.Invoke(ctx, Call{Name: "write_file"})
+
+			require.NoError(t, err)
+			require.Equal(t, "written", result.Output)
+			require.Equal(t, test.want, approver.input.ApprovalReason)
+		})
+	}
+}
+
+func TestInMemoryRegistry_SetApprovalServiceHandlesNilRegistry(t *testing.T) {
+	var registry *InMemoryRegistry
+	registry.SetApprovalService(nil)
+	require.Nil(t, registry.getApprovalService())
+}
+
 type permissionTraceEvent struct {
 	eventType string
 	payload   trace.PermissionDecisionPayload
@@ -675,4 +859,13 @@ func (r *permissionTraceRecorder) Record(eventType string, payload any) {
 		eventType: eventType,
 		payload:   payload.(trace.PermissionDecisionPayload),
 	})
+}
+
+type approvalRecorder struct {
+	input permissions.EvaluationInput
+}
+
+func (r *approvalRecorder) Authorize(_ context.Context, input permissions.EvaluationInput) error {
+	r.input = input
+	return nil
 }

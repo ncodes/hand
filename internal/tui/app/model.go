@@ -31,14 +31,15 @@ type model struct {
 	nameInput        textinput.Model
 	renameInput      textinput.Model
 	tuiState
-	chatClient    rpcclient.ChatAPI
-	sessionClient rpcclient.SessionAPI
-	modelClient   rpcclient.ModelAPI
-	timeline      sessionTimelineLoader
-	title         sessionTitleLoader
-	contextLoader sessionContextLoader
-	chatCtx       context.Context
-	events        <-chan tea.Msg
+	chatClient       rpcclient.ChatAPI
+	sessionClient    rpcclient.SessionAPI
+	modelClient      rpcclient.ModelAPI
+	permissionClient rpcclient.PermissionAPI
+	timeline         sessionTimelineLoader
+	title            sessionTitleLoader
+	contextLoader    sessionContextLoader
+	chatCtx          context.Context
+	events           <-chan tea.Msg
 }
 
 // newModel builds the initial TUI state and sizes child components.
@@ -100,6 +101,14 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	}
 	if provider, ok := client.(interface{ ModelAPI() rpcclient.ModelAPI }); ok {
 		appModel.modelClient = provider.ModelAPI()
+	}
+	if permissions, ok := client.(rpcclient.PermissionAPI); ok {
+		appModel.permissionClient = permissions
+	}
+	if provider, ok := client.(interface {
+		PermissionAPI() rpcclient.PermissionAPI
+	}); ok {
+		appModel.permissionClient = provider.PermissionAPI()
 	}
 	if timeline, ok := appModel.sessionClient.(sessionTimelineLoader); ok {
 		appModel.timeline = timeline

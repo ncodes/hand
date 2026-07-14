@@ -89,6 +89,11 @@ type tuiState struct {
 	exitAt                     time.Time
 	allowShell                 bool
 	selection                  transcriptSelection
+	pendingApprovalID          string
+	pendingApprovalAlways      bool
+	pendingApprovalOrder       []string
+	pendingApprovalMessages    map[string]permissionApprovalMsg
+	approvalMessageIndices     map[string]int
 }
 
 type commandViewState struct {
@@ -136,5 +141,7 @@ func newTUIState(history []string, thinkingComposerEnabled bool) tuiState {
 		historyAt:                len(history),
 		thinkingComposerEnabled:  thinkingComposerEnabled,
 		responseTranscriptFollow: false,
+		approvalMessageIndices:   make(map[string]int),
+		pendingApprovalMessages:  make(map[string]permissionApprovalMsg),
 	}
 }

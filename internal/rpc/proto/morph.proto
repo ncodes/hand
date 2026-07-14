@@ -53,6 +53,16 @@ service AutomationService {
   rpc ListRuns(ListAutomationRunsRequest) returns (ListAutomationRunsResponse);
 }
 
+service PermissionService {
+  rpc ListRequests(ListPermissionRequestsRequest) returns (ListPermissionRequestsResponse);
+  rpc GetRequest(GetPermissionRequestRequest) returns (GetPermissionRequestResponse);
+  rpc ResolveRequest(ResolvePermissionRequestRequest) returns (ResolvePermissionRequestResponse);
+  rpc ListGrants(ListPermissionGrantsRequest) returns (ListPermissionGrantsResponse);
+  rpc RevokeGrant(RevokePermissionGrantRequest) returns (RevokePermissionGrantResponse);
+  rpc DeleteRecord(DeletePermissionRecordRequest) returns (DeletePermissionRecordResponse);
+  rpc Prune(PrunePermissionApprovalsRequest) returns (PrunePermissionApprovalsResponse);
+}
+
 message RespondRequest {
   string message = 1;
   string instruct = 2;
@@ -597,4 +607,86 @@ message ListAutomationRunsRequest {
 
 message ListAutomationRunsResponse {
   repeated AutomationRun runs = 1;
+}
+
+message PermissionApprovalRequest {
+  string id = 1;
+  string actor_kind = 2;
+  string surface_kind = 3;
+  string surface = 4;
+  string profile = 5;
+  string session_id = 6;
+  string tool = 7;
+  string resource = 8;
+  string action = 9;
+  repeated string effects = 10;
+  string summary = 11;
+  string reason = 12;
+  string status = 13;
+  string scope = 14;
+  string grant_id = 15;
+  google.protobuf.Timestamp created_at = 16;
+  google.protobuf.Timestamp expires_at = 17;
+  google.protobuf.Timestamp resolved_at = 18;
+}
+
+message PermissionGrant {
+  string id = 1;
+  string request_id = 2;
+  string actor_kind = 3;
+  string profile = 4;
+  string session_id = 5;
+  string scope = 6;
+  string status = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  google.protobuf.Timestamp consumed_at = 10;
+  google.protobuf.Timestamp revoked_at = 11;
+}
+
+message ListPermissionRequestsRequest {
+  string status = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListPermissionRequestsResponse {
+  repeated PermissionApprovalRequest requests = 1;
+}
+
+message GetPermissionRequestRequest { string id = 1; }
+message GetPermissionRequestResponse { PermissionApprovalRequest request = 1; }
+
+message ResolvePermissionRequestRequest {
+  string id = 1;
+  bool approved = 2;
+  string scope = 3;
+}
+
+message ResolvePermissionRequestResponse { PermissionApprovalRequest request = 1; }
+
+message ListPermissionGrantsRequest {
+  string status = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListPermissionGrantsResponse { repeated PermissionGrant grants = 1; }
+message RevokePermissionGrantRequest { string id = 1; }
+message RevokePermissionGrantResponse { PermissionGrant grant = 1; }
+
+message DeletePermissionRecordRequest { string id = 1; }
+message DeletePermissionRecordResponse {
+  string id = 1;
+  string kind = 2;
+  string linked_grant_id = 3;
+}
+
+message PrunePermissionApprovalsRequest { bool dry_run = 1; }
+message PrunePermissionApprovalsResponse {
+  int64 requests = 1;
+  int64 grants = 2;
+  google.protobuf.Timestamp request_cutoff = 3;
+  google.protobuf.Timestamp grant_cutoff = 4;
+  bool dry_run = 5;
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	morphdb "github.com/wandxy/morph/internal/db"
+	"github.com/wandxy/morph/internal/permissions"
 	base "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
 	"github.com/wandxy/morph/pkg/str"
@@ -66,8 +67,18 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 	if err := ensureSearchIndex(db); err != nil {
 		return nil, err
 	}
+	if err := db.AutoMigrate(&approvalRequestModel{}, &approvalGrantModel{}); err != nil {
+		return nil, fmt.Errorf("failed to migrate permission db: %w", err)
+	}
 
 	return &Store{db: db}, nil
+}
+
+func (s *Store) Permission() (permissions.ApprovalStore, bool) {
+	if s == nil || s.db == nil {
+		return nil, false
+	}
+	return s, true
 }
 
 func (s *Store) Session() base.SessionStore {

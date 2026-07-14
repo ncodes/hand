@@ -15,6 +15,7 @@ import (
 
 type RegistryOptions struct {
 	PermissionPolicy permissions.Policy
+	ApprovalService  permissions.Approver
 }
 
 // InMemoryRegistry is a registry that stores tools in memory.
@@ -23,6 +24,7 @@ type InMemoryRegistry struct {
 	definitions map[string]Definition
 	groups      map[string]Group
 	permissions permissions.Engine
+	approvals   permissions.Approver
 }
 
 // NewInMemoryRegistry creates a new InMemoryRegistry.
@@ -37,7 +39,26 @@ func NewInMemoryRegistry(options ...RegistryOptions) *InMemoryRegistry {
 		definitions: make(map[string]Definition),
 		groups:      make(map[string]Group),
 		permissions: permissions.NewEngine(opts.PermissionPolicy),
+		approvals:   opts.ApprovalService,
 	}
+}
+
+func (r *InMemoryRegistry) SetApprovalService(service permissions.Approver) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.approvals = service
+}
+
+func (r *InMemoryRegistry) getApprovalService() permissions.Approver {
+	if r == nil {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.approvals
 }
 
 // Register registers a new tool in the registry.
@@ -236,6 +257,7 @@ func (r *InMemoryRegistry) checkPermissions(ctx context.Context, definition Defi
 		return Result{}, false
 	}
 
+	approvals := r.getApprovalService()
 	var selected *permissions.DecisionError
 	for _, input := range inputs {
 		evaluation, checkErr := r.permissions.Check(ctx, input)
@@ -243,6 +265,34 @@ func (r *InMemoryRegistry) checkPermissions(ctx context.Context, definition Defi
 		decisionErr, ok := permissions.GetDecisionError(checkErr)
 		if !ok {
 			continue
+		}
+		if decisionErr.Code == permissions.ErrorCodeApprovalRequired && approvals != nil {
+			approvalReason := str.String(input.ApprovalReason).Trim()
+			if approvalReason == "" {
+				approvalReason = evaluation.Reason
+			}
+			input.ApprovalReason = approvalReason
+			if err := approvals.Authorize(ctx, input); err == nil {
+				recheck := r.permissions.Evaluate(ctx, input)
+				r.recordPermissionDecision(ctx, input.Operation, recheck)
+				if recheck.Decision != permissions.DecisionDeny {
+					continue
+				}
+				decisionErr = &permissions.DecisionError{
+					Code:       permissions.ErrorCodeDenied,
+					Evaluation: recheck,
+				}
+			} else if approvalErr, approvalOK := permissions.GetDecisionError(err); approvalOK {
+				decisionErr = approvalErr
+			} else {
+				decisionErr = &permissions.DecisionError{
+					Code: permissions.ErrorCodeDenied,
+					Evaluation: permissions.Evaluation{
+						Decision: permissions.DecisionDeny,
+						Reason:   err.Error(),
+					},
+				}
+			}
 		}
 		if selected == nil || selected.Code == permissions.ErrorCodeApprovalRequired &&
 			decisionErr.Code == permissions.ErrorCodeDenied {

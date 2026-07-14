@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	storagemock "github.com/wandxy/morph/internal/state/mock"
 	"github.com/wandxy/morph/internal/state/search"
@@ -46,6 +47,8 @@ func (storeWithoutSession) Memory() (storage.MemoryStore, bool) {
 func (storeWithoutSession) Automation() (storage.AutomationStore, bool) {
 	return nil, false
 }
+
+func (storeWithoutSession) Permission() (permissions.ApprovalStore, bool) { return nil, false }
 
 func (storeWithoutSession) Trace() (storage.TraceStore, bool) {
 	return nil, false

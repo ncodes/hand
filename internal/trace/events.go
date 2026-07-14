@@ -21,6 +21,7 @@ const (
 	EvtToolInvocationStarted                      = "tool.invocation.started"
 	EvtToolInvocationCompleted                    = "tool.invocation.completed"
 	EvtPermissionDecisionObserved                 = "permission.decision.observed"
+	EvtPermissionApprovalChanged                  = "permission.approval.changed"
 	EvtSummaryFallbackStarted                     = "summary.fallback.started"
 	EvtContextPreflight                           = "context.preflight"
 	EvtContextPostflightUsage                     = "context.postflight.usage_recorded"
@@ -97,6 +98,7 @@ var episodicMemoryTraceEventTypes = []string{
 	EvtToolInvocationStarted,
 	EvtToolInvocationCompleted,
 	EvtPermissionDecisionObserved,
+	EvtPermissionApprovalChanged,
 	EvtContextCompactionTriggered,
 	EvtContextCompactionWarning,
 	EvtContextCompactionPending,
@@ -137,6 +139,7 @@ var allTraceEventTypes = []string{
 	EvtToolInvocationStarted,
 	EvtToolInvocationCompleted,
 	EvtPermissionDecisionObserved,
+	EvtPermissionApprovalChanged,
 	EvtSummaryFallbackStarted,
 	EvtContextPreflight,
 	EvtContextPostflightUsage,

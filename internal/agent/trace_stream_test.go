@@ -13,6 +13,10 @@ func TestIsStreamableTraceEvent_IncludesLiveToolOutputSafety(t *testing.T) {
 	require.True(t, isStreamableTraceEvent(trace.EvtToolOutputSafetyApplied))
 }
 
+func TestIsStreamableTraceEvent_IncludesPermissionApprovalLifecycle(t *testing.T) {
+	require.True(t, isStreamableTraceEvent(trace.EvtPermissionApprovalChanged))
+}
+
 func TestTraceFanoutSessionStreamsOnlyAllowedRedactedEvents(t *testing.T) {
 	primary := &mocks.TraceSessionStub{SessionID: "primary"}
 	var streamed []trace.Event
@@ -23,12 +27,17 @@ func TestTraceFanoutSessionStreamsOnlyAllowedRedactedEvents(t *testing.T) {
 	require.Equal(t, "primary", session.ID())
 	session.Record(trace.EvtToolInvocationStarted, map[string]any{"token": "secret"})
 	session.Record(trace.EvtModelRequest, map[string]any{"ignored": true})
+	session.Record(trace.EvtPermissionApprovalChanged, trace.PermissionApprovalPayload{
+		RequestID: "approval_1",
+		Status:    "pending",
+	})
 	session.Close()
 
 	require.True(t, primary.Closed)
-	require.Len(t, primary.Events, 2)
-	require.Len(t, streamed, 1)
+	require.Len(t, primary.Events, 3)
+	require.Len(t, streamed, 2)
 	require.Equal(t, trace.EvtToolInvocationStarted, streamed[0].Type)
+	require.Equal(t, trace.EvtPermissionApprovalChanged, streamed[1].Type)
 	require.Equal(t, "primary", streamed[0].SessionID)
 	require.False(t, isStreamableTraceEvent(trace.EvtModelRequest))
 	require.True(t, isStreamableTraceEvent(trace.EvtFinalAssistantResponse))

@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/wandxy/morph/internal/permissions"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	storage "github.com/wandxy/morph/internal/state/core"
 	agent "github.com/wandxy/morph/pkg/agent"
@@ -174,9 +175,10 @@ func (s *storageStoreStub) Session() storage.SessionStore { return s }
 func (s *storageStoreStub) Automation() (storage.AutomationStore, bool) {
 	return nil, false
 }
-func (s *storageStoreStub) Memory() (storage.MemoryStore, bool) { return nil, false }
-func (s *storageStoreStub) Trace() (storage.TraceStore, bool)   { return nil, false }
-func (s *storageStoreStub) SupportsVectorSearch() bool          { return false }
+func (s *storageStoreStub) Permission() (permissions.ApprovalStore, bool) { return nil, false }
+func (s *storageStoreStub) Memory() (storage.MemoryStore, bool)           { return nil, false }
+func (s *storageStoreStub) Trace() (storage.TraceStore, bool)             { return nil, false }
+func (s *storageStoreStub) SupportsVectorSearch() bool                    { return false }
 func (s *storageStoreStub) Archive(context.Context, string, storage.SessionArchiveRequest) (storage.Session, error) {
 	return storage.Session{}, nil
 }

@@ -1,6 +1,13 @@
 package tui
 
-import tea "charm.land/bubbletea/v2"
+import (
+	"errors"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/wandxy/morph/internal/permissions"
+	"github.com/wandxy/morph/internal/rpc/rpcmeta"
+)
 
 // Init focuses the input composer when Bubble Tea starts the program.
 func (m model) Init() tea.Cmd {
@@ -158,6 +165,24 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case safetyEventMsg:
 		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 		return next, cmd, true
+	case permissionApprovalMsg:
+		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
+		return next, cmd, true
+	case permissionResolutionCompletedMsg:
+		if msg.Err != nil {
+			failed := m.pendingApprovalMessages[msg.RequestID]
+			failed.RequestID = msg.RequestID
+			failed.Status = string(permissions.ApprovalFailed)
+			failed.Reason = msg.Err.Error()
+			m.updatePermissionApproval(failed)
+			cmd := m.setStatus("approval failed: " + msg.Err.Error())
+			return m, cmd, true
+		}
+		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: permissionApprovalMsg{
+			RequestID: msg.RequestID, Status: msg.Status, Scope: msg.Scope, Summary: msg.Summary,
+			Reason: msg.Reason, Effects: msg.Effects, ExpiresAt: msg.ExpiresAt,
+		}})
+		return next, cmd, true
 	default:
 		return m, nil, false
 	}
@@ -298,6 +323,21 @@ func (m model) handlePasteMsg(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
+	if m.pendingApprovalID != "" {
+		switch msg.Keystroke() {
+		case "y":
+			return m, m.resolvePermissionApproval(true, permissions.GrantOnce), true
+		case "s":
+			return m, m.resolvePermissionApproval(true, permissions.GrantSession), true
+		case "a":
+			if !m.pendingApprovalAlways {
+				return m, m.setStatus("always approval is unavailable for these effects"), true
+			}
+			return m, m.resolvePermissionApproval(true, permissions.GrantAlways), true
+		case "n":
+			return m, m.resolvePermissionApproval(false, ""), true
+		}
+	}
 	switch msg.Keystroke() {
 	case "ctrl+c":
 		next, cmd := m.confirmExit()
@@ -372,6 +412,37 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 	}
 
 	return m, nil, false
+}
+
+func (m model) resolvePermissionApproval(approved bool, scope permissions.GrantScope) tea.Cmd {
+	requestID := m.pendingApprovalID
+	client := m.permissionClient
+	ctx := m.chatCtx
+	return func() tea.Msg {
+		if client == nil {
+			return permissionResolutionCompletedMsg{RequestID: requestID, Err: errors.New("permission service is unavailable")}
+		}
+		ctx = rpcmeta.WithOutgoingPermissionSurface(ctx, permissions.SurfaceTUI)
+		request, err := client.ResolveApprovalRequest(ctx, requestID, approved, scope)
+		return permissionResolutionCompletedMsg{
+			RequestID: requestID,
+			Status:    string(request.Status),
+			Scope:     string(request.Scope),
+			Summary:   request.Summary,
+			Reason:    request.Reason,
+			Effects:   effectsToStrings(request.Effects),
+			ExpiresAt: request.ExpiresAt,
+			Err:       err,
+		}
+	}
+}
+
+func effectsToStrings(effects []permissions.Effect) []string {
+	values := make([]string, len(effects))
+	for index, effect := range effects {
+		values[index] = string(effect)
+	}
+	return values
 }
 
 func (m model) updateBubbleTeaChildren(msg tea.Msg) (tea.Model, tea.Cmd) {

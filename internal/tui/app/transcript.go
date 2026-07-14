@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/pkg/str"
 )
 
@@ -232,9 +233,103 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 		if value.State.isInProgress() {
 			return m.startToolAnimation()
 		}
+	case permissionApprovalMsg:
+		m.updatePermissionApproval(value)
 	}
 
 	return nil
+}
+
+func (m *model) updatePermissionApproval(message permissionApprovalMsg) {
+	cell := tuiMessageToTranscriptCell(message)
+	if cell == nil {
+		return
+	}
+	if m.approvalMessageIndices == nil {
+		m.approvalMessageIndices = make(map[string]int)
+	}
+	if m.pendingApprovalMessages == nil {
+		m.pendingApprovalMessages = make(map[string]permissionApprovalMsg)
+	}
+	if index, ok := m.approvalMessageIndices[message.RequestID]; ok && index >= 0 && index < len(m.messages) {
+		m.applyAction(replaceTranscriptCellAction{Index: index, Cell: cell})
+	} else {
+		m.approvalMessageIndices[message.RequestID] = len(m.messages)
+		m.applyAction(appendTranscriptCellAction{Cell: cell})
+	}
+	if message.Status == string(permissions.ApprovalPending) {
+		if _, exists := m.pendingApprovalMessages[message.RequestID]; !exists {
+			m.pendingApprovalOrder = append(m.pendingApprovalOrder, message.RequestID)
+		}
+		m.pendingApprovalMessages[message.RequestID] = message
+	} else {
+		delete(m.pendingApprovalMessages, message.RequestID)
+		m.pendingApprovalOrder = removeApprovalRequestID(m.pendingApprovalOrder, message.RequestID)
+	}
+	m.setCurrentPendingApproval()
+	m.refreshTranscriptContentAfterMessageUpdate()
+	m.resize()
+}
+
+func (m *model) setCurrentPendingApproval() {
+	m.pendingApprovalID = ""
+	m.pendingApprovalAlways = false
+	for len(m.pendingApprovalOrder) > 0 {
+		id := m.pendingApprovalOrder[0]
+		message, ok := m.pendingApprovalMessages[id]
+		if ok {
+			m.pendingApprovalID = id
+			m.pendingApprovalAlways = isAlwaysApprovalAvailable(message.Effects)
+			return
+		}
+		m.pendingApprovalOrder = m.pendingApprovalOrder[1:]
+	}
+}
+
+func removeApprovalRequestID(values []string, id string) []string {
+	for index, value := range values {
+		if value == id {
+			return append(values[:index], values[index+1:]...)
+		}
+	}
+	return values
+}
+
+func permissionApprovalText(message permissionApprovalMsg) string {
+	if message.Status != string(permissions.ApprovalPending) {
+		text := "Permission " + message.Status
+		if message.Scope != "" {
+			text += " (" + message.Scope + ")"
+		}
+		return text + " — " + message.Summary
+	}
+	parts := []string{"Permission approval required", message.Summary}
+	if len(message.Effects) > 0 {
+		parts = append(parts, "Effects: "+strings.Join(message.Effects, ", "))
+	}
+	if message.Reason != "" {
+		parts = append(parts, "Reason: "+message.Reason)
+	}
+	if !message.ExpiresAt.IsZero() {
+		parts = append(parts, "Expires: "+message.ExpiresAt.Format("15:04:05 MST"))
+	}
+	choices := "[y] allow once  [s] session  [n] deny"
+	if isAlwaysApprovalAvailable(message.Effects) {
+		choices = "[y] allow once  [s] session  [a] always  [n] deny"
+	}
+	parts = append(parts, choices)
+	return strings.Join(parts, "\n")
+}
+
+func isAlwaysApprovalAvailable(effects []string) bool {
+	for _, effect := range effects {
+		switch permissions.Effect(effect) {
+		case permissions.EffectDestructive, permissions.EffectCredentialBearing, permissions.EffectPrivilegeChanging,
+			permissions.EffectExecution, permissions.EffectNetwork, permissions.EffectExternalSystem:
+			return false
+		}
+	}
+	return true
 }
 
 func (m *model) addTranscriptMessage(msg any) {

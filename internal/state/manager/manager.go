@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
@@ -72,6 +73,14 @@ func (m *Manager) AutomationStore() (storage.AutomationStore, bool) {
 	}
 
 	return m.store.Automation()
+}
+
+func (m *Manager) PermissionStore() (permissions.ApprovalStore, bool) {
+	if m == nil || m.store == nil {
+		return nil, false
+	}
+
+	return m.store.Permission()
 }
 
 func (m *Manager) CreateAutomationJob(

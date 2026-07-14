@@ -13,6 +13,7 @@ import (
 	instruct "github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/memory"
 	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/permissions"
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/trace"
@@ -159,6 +160,8 @@ func (s *EnvironmentStub) HydratePlan(sessionID string, plan envtypes.Plan) {
 }
 
 func (s *EnvironmentStub) SetStateManager(*statemanager.Manager) {}
+
+func (s *EnvironmentStub) SetApprovalService(permissions.Approver) {}
 
 // ToolRegistryStub is a test stub for tool registry.
 type ToolRegistryStub struct {

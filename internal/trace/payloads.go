@@ -43,6 +43,19 @@ type PermissionDecisionPayload struct {
 	OwnerRequired bool     `json:"owner_required,omitempty"`
 }
 
+type PermissionApprovalPayload struct {
+	RequestID string    `json:"request_id,omitempty"`
+	Status    string    `json:"status,omitempty"`
+	Scope     string    `json:"scope,omitempty"`
+	Tool      string    `json:"tool,omitempty"`
+	Resource  string    `json:"resource,omitempty"`
+	Action    string    `json:"action,omitempty"`
+	Effects   []string  `json:"effects,omitempty"`
+	Summary   string    `json:"operation_summary,omitempty"`
+	Reason    string    `json:"reason,omitempty"`
+	ExpiresAt time.Time `json:"expires_at,omitempty"`
+}
+
 // UserMessageAcceptedPayload is the trace payload for user message accepted.
 type UserMessageAcceptedPayload struct {
 	Message string `json:"message,omitempty"`
@@ -349,6 +362,8 @@ func DecodePayload(eventType string, payload any) (any, bool) {
 		return ToolInvocationCompletedPayloadFrom(payload)
 	case EvtPermissionDecisionObserved:
 		return decodePayloadAs[PermissionDecisionPayload](payload)
+	case EvtPermissionApprovalChanged:
+		return decodePayloadAs[PermissionApprovalPayload](payload)
 	case EvtSummaryFallbackStarted:
 		return decodePayloadAs[SummaryFallbackStartedPayload](payload)
 	case EvtContextPreflight,

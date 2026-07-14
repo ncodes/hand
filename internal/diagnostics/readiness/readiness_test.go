@@ -17,6 +17,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/storememory"
@@ -1017,6 +1018,10 @@ func (s automationReadinessStoreStub) Automation() (storage.AutomationStore, boo
 	}
 
 	return s.automationStore, true
+}
+
+func (s automationReadinessStoreStub) Permission() (permissions.ApprovalStore, bool) {
+	return nil, false
 }
 
 func (automationReadinessStoreStub) Memory() (storage.MemoryStore, bool) {

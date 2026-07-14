@@ -2,9 +2,12 @@ package rpcmeta
 
 import (
 	"context"
+	"net"
+	"strings"
 
 	"github.com/wandxy/morph/internal/permissions"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 )
 
 const permissionSurfaceKey = "x-morph-permission-surface"
@@ -37,6 +40,30 @@ func PermissionSurfaceFromIncomingContext(ctx context.Context) permissions.Surfa
 	return surface
 }
 
+func PermissionActorFromIncomingContext(ctx context.Context) permissions.Actor {
+	surface := PermissionSurfaceFromIncomingContext(ctx)
+	if isSupportedClientSurface(surface) && isLoopbackPeer(ctx) {
+		return permissions.Actor{Kind: permissions.ActorLocalOwner}
+	}
+
+	return permissions.Actor{Kind: permissions.ActorRPCClient}
+}
+
 func isSupportedClientSurface(surface permissions.Surface) bool {
 	return surface == permissions.SurfaceCLI || surface == permissions.SurfaceTUI
+}
+
+func isLoopbackPeer(ctx context.Context) bool {
+	remotePeer, ok := peer.FromContext(ctx)
+	if !ok || remotePeer.Addr == nil {
+		return false
+	}
+
+	host, _, err := net.SplitHostPort(remotePeer.Addr.String())
+	if err != nil {
+		host = remotePeer.Addr.String()
+	}
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+
+	return ip != nil && ip.IsLoopback()
 }

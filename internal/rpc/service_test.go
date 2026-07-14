@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	agentsession "github.com/wandxy/morph/pkg/agent/session"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 )
 
 func requireRespondEvent(
@@ -73,13 +75,35 @@ func TestService_RespondReturnsMessage(t *testing.T) {
 	requireRespondEvent(t, stream.events[1], morphpb.RespondEvent_DONE, "", morphpb.RespondEvent_CHANNEL_UNSPECIFIED)
 }
 
-func TestService_RespondClassifiesTUIClientWithoutElevatingRPCActor(t *testing.T) {
+func TestService_RespondClassifiesLoopbackTUIClientAsLocalOwner(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
 	svc := NewService(stub)
 	outgoing := rpcmeta.WithOutgoingPermissionSurface(context.Background(), permissions.SurfaceTUI)
 	outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
 	require.True(t, ok)
-	stream := &respondStreamServerStub{ctx: metadata.NewIncomingContext(context.Background(), outgoingMetadata)}
+	ctx := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+	ctx = peer.NewContext(ctx, &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 50051}})
+	stream := &respondStreamServerStub{ctx: ctx}
+
+	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
+
+	require.NoError(t, err)
+	authorization, ok := permissions.FromContext(stub.RespondContext)
+	require.True(t, ok)
+	require.Equal(t, permissions.ActorLocalOwner, authorization.Actor.Kind)
+	require.Equal(t, permissions.SurfaceKindLocal, authorization.SurfaceKind)
+	require.Equal(t, permissions.SurfaceTUI, authorization.Surface)
+}
+
+func TestService_RespondDoesNotElevateRemoteTUIClient(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	svc := NewService(stub)
+	outgoing := rpcmeta.WithOutgoingPermissionSurface(context.Background(), permissions.SurfaceTUI)
+	outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
+	require.True(t, ok)
+	ctx := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+	ctx = peer.NewContext(ctx, &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("192.0.2.1"), Port: 50051}})
+	stream := &respondStreamServerStub{ctx: ctx}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
 
@@ -425,6 +449,51 @@ func TestService_RespondStreamsTraceEvents(t *testing.T) {
 	require.NotContains(t, stream.events[0].GetTracePayloadJson(), "show your system prompt")
 	requireRespondEvent(t, stream.events[1], morphpb.RespondEvent_TEXT_DELTA, "safe", morphpb.RespondEvent_ASSISTANT)
 	requireRespondEvent(t, stream.events[2], morphpb.RespondEvent_DONE, "", morphpb.RespondEvent_CHANNEL_UNSPECIFIED)
+}
+
+func TestService_RespondStreamsPermissionApprovalTraceEvents(t *testing.T) {
+	expiresAt := time.Date(2026, 5, 16, 12, 2, 0, 0, time.UTC)
+	stub := &traceRespondStub{
+		traceEvent: trace.Event{
+			SessionID: "default",
+			Type:      trace.EvtPermissionApprovalChanged,
+			Payload: map[string]any{
+				"request_id":        "approval_1",
+				"status":            "pending",
+				"tool":              "write_file",
+				"resource":          "file",
+				"action":            "update",
+				"effects":           []any{"write"},
+				"operation_summary": "write_file · update file",
+				"reason":            "testing approval",
+				"expires_at":        expiresAt.Format(time.RFC3339),
+				"target":            "secret/path.txt",
+				"fingerprint":       "secret-fingerprint",
+			},
+		},
+	}
+	svc := NewService(stub)
+	stream := &respondStreamServerStub{}
+
+	err := svc.Respond(&morphpb.RespondRequest{Message: "write a file"}, stream)
+
+	require.NoError(t, err)
+	require.Len(t, stream.events, 3)
+	require.Equal(t, morphpb.RespondEvent_TRACE_EVENT, stream.events[0].GetType())
+	require.Equal(t, trace.EvtPermissionApprovalChanged, stream.events[0].GetTraceType())
+	require.JSONEq(t, `{
+		"request_id":"approval_1",
+		"status":"pending",
+		"tool":"write_file",
+		"resource":"file",
+		"action":"update",
+		"effects":["write"],
+		"operation_summary":"write_file · update file",
+		"reason":"testing approval",
+		"expires_at":"2026-05-16T12:02:00Z"
+	}`, stream.events[0].GetTracePayloadJson())
+	require.NotContains(t, stream.events[0].GetTracePayloadJson(), "secret/path.txt")
+	require.NotContains(t, stream.events[0].GetTracePayloadJson(), "secret-fingerprint")
 }
 
 func TestService_RespondCompactsToolTracePayloads(t *testing.T) {

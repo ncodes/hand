@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	"github.com/wandxy/morph/pkg/gateway/pairing"
@@ -55,6 +56,8 @@ func (s *Store) Automation() (storage.AutomationStore, bool) {
 
 	return s.AutomationStore, true
 }
+
+func (s *Store) Permission() (permissions.ApprovalStore, bool) { return nil, false }
 
 func (s *Store) Memory() (storage.MemoryStore, bool) {
 	if s == nil || s.MemoryStore == nil {
