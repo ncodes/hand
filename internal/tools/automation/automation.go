@@ -162,6 +162,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			Effects:       []permissions.Effect{permissions.EffectRead, permissions.EffectWrite, permissions.EffectExternalSystem},
 			OwnerRequired: true,
 		},
+		ResolvePermission: resolvePermission,
 		InputSchema: common.ObjectSchema(map[string]any{
 			"action": common.StringSchema(
 				"Required. Action: status, list, add, update, pause, resume, run, remove, or runs. " +
@@ -211,6 +212,64 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			return common.EncodeOutput(result)
 		}),
 	}
+}
+
+func resolvePermission(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+	raw := call.Input
+	if strings.TrimSpace(raw) == "" {
+		raw = "{}"
+	}
+	var req input
+	if err := json.Unmarshal([]byte(raw), &req); err != nil {
+		return nil, tools.NewPermissionResolutionError("invalid_input", err.Error())
+	}
+
+	action := strings.TrimSpace(req.Action)
+	operation := permissions.Operation{
+		Resource: permissions.ResourceAutomation,
+	}
+	switch action {
+	case "status":
+		operation.Action = permissions.ActionRead
+		operation.Effects = []permissions.Effect{permissions.EffectRead}
+	case "list", "runs":
+		operation.Action = permissions.ActionList
+		operation.Effects = []permissions.Effect{permissions.EffectRead}
+		if action == "runs" {
+			operation.Target = strings.TrimSpace(req.RunQuery.JobID)
+		}
+	case "add":
+		operation.Action = permissions.ActionCreate
+		operation.Effects = []permissions.Effect{permissions.EffectExternalSystem, permissions.EffectWrite}
+		operation.Target = strings.TrimSpace(req.Job.ID)
+		operation.OwnerRequired = true
+	case "update", "pause", "resume":
+		operation.Action = permissions.ActionUpdate
+		operation.Effects = []permissions.Effect{permissions.EffectExternalSystem, permissions.EffectWrite}
+		operation.Target = strings.TrimSpace(req.ID)
+		operation.OwnerRequired = true
+	case "run":
+		operation.Action = permissions.ActionTrigger
+		operation.Effects = []permissions.Effect{permissions.EffectExecution, permissions.EffectExternalSystem}
+		operation.Target = strings.TrimSpace(req.ID)
+		operation.OwnerRequired = true
+	case "remove":
+		operation.Action = permissions.ActionDelete
+		operation.Effects = []permissions.Effect{
+			permissions.EffectDestructive,
+			permissions.EffectExternalSystem,
+			permissions.EffectWrite,
+		}
+		operation.Target = strings.TrimSpace(req.ID)
+		operation.OwnerRequired = true
+	default:
+		return nil, tools.NewPermissionResolutionError(
+			"invalid_input",
+			"unsupported action \""+action+"\"",
+		)
+	}
+
+	return []permissions.EvaluationInput{{Operation: operation}}, nil
 }
 
 func decodeInput(call tools.Call, target any) tools.Result {

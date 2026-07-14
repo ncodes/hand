@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -9,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	processenv "github.com/wandxy/morph/internal/environment/process"
 	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
@@ -45,6 +47,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			Action:   permissions.ActionManage,
 			Effects:  []permissions.Effect{permissions.EffectRead, permissions.EffectWrite, permissions.EffectExecution},
 		},
+		ResolvePermission: resolvePermission(runtime),
 		InputSchema: common.ObjectSchema(map[string]any{
 			"action": map[string]any{
 				"type":        "string",
@@ -127,6 +130,73 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("invalid_input", fmt.Sprintf("unsupported action %q", action)), nil
 			}
 		}),
+	}
+}
+
+func resolvePermission(runtime envtypes.Runtime) tools.PermissionResolver {
+	return func(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+		var req input
+		if err := json.Unmarshal([]byte(call.Input), &req); err != nil {
+			return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+		}
+		action := str.String(req.Action).Normalized()
+		if action == "" {
+			return nil, tools.NewPermissionResolutionError("invalid_input", "action is required")
+		}
+		if err := validateActionFields(action, req); err != nil {
+			return nil, tools.NewPermissionResolutionError("invalid_input", err.Error())
+		}
+
+		input := permissions.EvaluationInput{Operation: permissions.Operation{
+			Resource: permissions.ResourceProcess,
+		}}
+		switch action {
+		case "start":
+			command := str.String(req.Command).Trim()
+			if command == "" {
+				return nil, tools.NewPermissionResolutionError("invalid_input", "command is required for start")
+			}
+			input.Operation.Action = permissions.ActionStart
+			input.Operation.Effects = []permissions.Effect{permissions.EffectExecution, permissions.EffectWrite}
+			input.Operation.Target = command
+			if len(req.Args) > 0 {
+				input.Operation.Target += " " + strings.Join(req.Args, " ")
+			}
+			if runtime != nil {
+				evaluation := guardrails.EvaluateCommand(runtime.CommandPolicy(), req.Command, req.Args)
+				switch evaluation.Decision {
+				case guardrails.CommandDenied:
+					input.HardDenyReason = evaluation.Reason
+				case guardrails.CommandApprovalRequired:
+					input.ApprovalReason = "command requires approval"
+					if evaluation.Rule != "" {
+						input.ApprovalReason += ": " + evaluation.Rule
+					}
+				}
+			}
+		case "status", "read":
+			input.Operation.Action = permissions.ActionRead
+			input.Operation.Effects = []permissions.Effect{permissions.EffectRead}
+			input.Operation.Target = str.String(req.ProcessID).Trim()
+		case "stop":
+			input.Operation.Action = permissions.ActionStop
+			input.Operation.Effects = []permissions.Effect{
+				permissions.EffectDestructive,
+				permissions.EffectExecution,
+				permissions.EffectWrite,
+			}
+			input.Operation.Target = str.String(req.ProcessID).Trim()
+		case "list":
+			input.Operation.Action = permissions.ActionList
+			input.Operation.Effects = []permissions.Effect{permissions.EffectRead}
+		default:
+			return nil, tools.NewPermissionResolutionError(
+				"invalid_input",
+				fmt.Sprintf("unsupported action %q", action),
+			)
+		}
+
+		return []permissions.EvaluationInput{input}, nil
 	}
 }
 

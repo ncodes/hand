@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	nativemocks "github.com/wandxy/morph/internal/tools/mocks"
 )
@@ -145,6 +146,98 @@ func TestRunCommand_ToolReturnsDeniedWithoutExecution(t *testing.T) {
 	require.Equal(t, "command_denied", toolErr.Code)
 	require.Contains(t, toolErr.Message, "matched deny rule")
 	require.False(t, called)
+}
+
+func TestRunCommand_EnforcementBlocksPolicyDenialBeforeExecution(t *testing.T) {
+	originalCommandContext := commandContext
+	t.Cleanup(func() { commandContext = originalCommandContext })
+	called := false
+	commandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		called = true
+		return exec.CommandContext(ctx, name, args...)
+	}
+
+	root := t.TempDir()
+	registry := nativemocks.RegisterRuntimeWithPermissionPolicy(
+		t,
+		root,
+		guardrails.CommandPolicy{},
+		permissions.Policy{Mode: permissions.ModeEnforce, Rules: []permissions.Rule{{
+			Name: "deny execution", Effects: []permissions.Effect{permissions.EffectExecution}, Decision: permissions.DecisionDeny,
+		}}},
+		Definition,
+	)
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceCLI,
+	})
+
+	result, err := registry.Invoke(ctx, tools.Call{Name: "run_command", Input: `{"command":"printf","args":["hello"]}`})
+
+	require.NoError(t, err)
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, permissions.ErrorCodeDenied, toolErr.Code)
+	require.False(t, called)
+}
+
+func TestRunCommand_EnforcementPreservesCommandHardDenyAndApproval(t *testing.T) {
+	tests := []struct {
+		name          string
+		commandPolicy guardrails.CommandPolicy
+		code          string
+	}{
+		{name: "hard deny", commandPolicy: guardrails.CommandPolicy{Deny: []string{"git push"}}, code: permissions.ErrorCodeDenied},
+		{name: "approval", commandPolicy: guardrails.CommandPolicy{Ask: []string{"git push"}}, code: permissions.ErrorCodeApprovalRequired},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			originalCommandContext := commandContext
+			t.Cleanup(func() { commandContext = originalCommandContext })
+			called := false
+			commandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				called = true
+				return exec.CommandContext(ctx, name, args...)
+			}
+
+			registry := nativemocks.RegisterRuntimeWithPermissionPolicy(
+				t,
+				t.TempDir(),
+				test.commandPolicy,
+				permissions.Policy{Mode: permissions.ModeEnforce, Rules: []permissions.Rule{{
+					Name: "allow execution", Effects: []permissions.Effect{permissions.EffectExecution}, Decision: permissions.DecisionAllow,
+				}}},
+				Definition,
+			)
+			ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+				Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceCLI,
+			})
+
+			result, err := registry.Invoke(ctx, tools.Call{
+				Name: "run_command", Input: `{"command":"git","args":["push","origin","main"]}`,
+			})
+
+			require.NoError(t, err)
+			var toolErr tools.Error
+			require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+			require.Equal(t, test.code, toolErr.Code)
+			require.False(t, called)
+		})
+	}
+}
+
+func TestRunCommand_ResolvePermissionWithoutRuntimeClassifiesTarget(t *testing.T) {
+	resolver := resolvePermission(nil)
+
+	inputs, err := resolver(context.Background(), tools.Call{Input: `{"command":"printf","args":["hello"]}`})
+
+	require.NoError(t, err)
+	require.Equal(t, []permissions.EvaluationInput{{Operation: permissions.Operation{
+		Resource: permissions.ResourceProcess,
+		Action:   permissions.ActionExecute,
+		Effects:  []permissions.Effect{permissions.EffectExecution},
+		Target:   "printf hello",
+	}}}, inputs)
 }
 
 func TestRunCommand_ToolRejectsOutsideWorkingDirectory(t *testing.T) {

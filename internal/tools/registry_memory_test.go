@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -477,6 +478,187 @@ func TestInMemoryRegistry_InvokeClassifiedToolWithoutRecorder(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "contents", result.Output)
+}
+
+func TestInMemoryRegistry_InvokeEnforcesDenyAndAskBeforeHandler(t *testing.T) {
+	tests := []struct {
+		name     string
+		decision permissions.Decision
+		code     string
+	}{
+		{name: "deny", decision: permissions.DecisionDeny, code: permissions.ErrorCodeDenied},
+		{name: "ask", decision: permissions.DecisionAsk, code: permissions.ErrorCodeApprovalRequired},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			called := false
+			registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+				Mode:  permissions.ModeEnforce,
+				Rules: []permissions.Rule{{Name: test.name, Decision: test.decision, Reason: test.name + " reason"}},
+			}})
+			require.NoError(t, registry.Register(Definition{
+				Name:       "write",
+				Permission: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate},
+				Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+					called = true
+					return Result{Output: "written"}, nil
+				}),
+			}))
+			ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+				Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceCLI,
+			})
+
+			result, err := registry.Invoke(ctx, Call{Name: "write"})
+
+			require.NoError(t, err)
+			require.False(t, called)
+			var toolErr Error
+			require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+			require.Equal(t, test.code, toolErr.Code)
+			require.Equal(t, test.name+" reason", toolErr.Message)
+		})
+	}
+}
+
+func TestInMemoryRegistry_InvokeEnforceAllowsHandlerAndRecordsResolvedOperation(t *testing.T) {
+	called := false
+	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+		Mode: permissions.ModeEnforce,
+		Rules: []permissions.Rule{{
+			Name: "allow target", Actions: []permissions.Action{permissions.ActionDelete},
+			TargetPrefixes: []string{"memory-"}, Decision: permissions.DecisionAllow,
+		}},
+	}})
+	require.NoError(t, registry.Register(Definition{
+		Name:       "memory",
+		Permission: permissions.Operation{Resource: permissions.ResourceMemory, Action: permissions.ActionManage},
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return []permissions.EvaluationInput{{Operation: permissions.Operation{
+				Resource: permissions.ResourceMemory,
+				Action:   permissions.ActionDelete,
+				Effects:  []permissions.Effect{permissions.EffectDestructive},
+				Target:   "memory-1",
+			}}}, nil
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			called = true
+			return Result{Output: "deleted"}, nil
+		}),
+	}))
+	recorder := &permissionTraceRecorder{}
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceCLI,
+	})
+	ctx = WithTraceRecorder(ctx, recorder)
+
+	result, err := registry.Invoke(ctx, Call{Name: "memory"})
+
+	require.NoError(t, err)
+	require.True(t, called)
+	require.Equal(t, "deleted", result.Output)
+	require.Len(t, recorder.events, 1)
+	require.Equal(t, string(permissions.ActionDelete), recorder.events[0].payload.Action)
+	require.Equal(t, []string{string(permissions.EffectDestructive)}, recorder.events[0].payload.Effects)
+	require.Equal(t, string(permissions.ModeEnforce), recorder.events[0].payload.Mode)
+}
+
+func TestInMemoryRegistry_InvokeDenyOverridesAskAcrossResolvedOperations(t *testing.T) {
+	called := false
+	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+		Mode: permissions.ModeEnforce,
+		Rules: []permissions.Rule{
+			{Name: "ask writes", Actions: []permissions.Action{permissions.ActionUpdate}, Decision: permissions.DecisionAsk},
+			{Name: "deny deletes", Actions: []permissions.Action{permissions.ActionDelete}, Decision: permissions.DecisionDeny},
+		},
+	}})
+	require.NoError(t, registry.Register(Definition{
+		Name:       "patch",
+		Permission: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionManage},
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return []permissions.EvaluationInput{
+				{Operation: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate}},
+				{Operation: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionDelete}},
+			}, nil
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			called = true
+			return Result{}, nil
+		}),
+	}))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceCLI,
+	})
+
+	result, err := registry.Invoke(ctx, Call{Name: "patch"})
+
+	require.NoError(t, err)
+	require.False(t, called)
+	var toolErr Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, permissions.ErrorCodeDenied, toolErr.Code)
+}
+
+func TestInMemoryRegistry_InvokeRejectsInvalidPermissionResolution(t *testing.T) {
+	tests := []struct {
+		name     string
+		resolver PermissionResolver
+		code     string
+		message  string
+	}{
+		{
+			name: "typed error",
+			resolver: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+				return nil, NewPermissionResolutionError("path_outside_roots", "outside allowed roots")
+			},
+			code: "path_outside_roots", message: "outside allowed roots",
+		},
+		{
+			name: "plain error",
+			resolver: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+				return nil, errors.New("bad target")
+			},
+			code: "invalid_input", message: "bad target",
+		},
+		{
+			name: "no operations",
+			resolver: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+				return nil, nil
+			},
+			code: "invalid_input", message: "permission resolver returned no operations",
+		},
+		{
+			name: "invalid operation",
+			resolver: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+				return []permissions.EvaluationInput{{Operation: permissions.Operation{Resource: "database"}}}, nil
+			},
+			code: "invalid_input", message: "permission resource is invalid",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			called := false
+			registry := NewInMemoryRegistry()
+			require.NoError(t, registry.Register(Definition{
+				Name: "target", Permission: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate},
+				ResolvePermission: test.resolver,
+				Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+					called = true
+					return Result{}, nil
+				}),
+			}))
+
+			result, err := registry.Invoke(context.Background(), Call{Name: "target"})
+
+			require.NoError(t, err)
+			require.False(t, called)
+			var toolErr Error
+			require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+			require.Equal(t, test.code, toolErr.Code)
+			require.Equal(t, test.message, toolErr.Message)
+		})
+	}
 }
 
 type permissionTraceEvent struct {

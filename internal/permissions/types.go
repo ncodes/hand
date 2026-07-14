@@ -103,7 +103,10 @@ const (
 
 type Mode string
 
-const ModeObserve Mode = "observe"
+const (
+	ModeObserve Mode = "observe"
+	ModeEnforce Mode = "enforce"
+)
 
 type Actor struct {
 	Kind ActorKind

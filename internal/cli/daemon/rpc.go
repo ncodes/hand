@@ -15,6 +15,7 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/gateway"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	morphrpc "github.com/wandxy/morph/internal/rpc"
 	"github.com/wandxy/morph/internal/rpc/server"
@@ -131,6 +132,8 @@ func buildAutomationService(
 	serviceOptions := automation.ServiceOptions{}
 	if cfg != nil {
 		serviceOptions.DeliverySink = newGatewayAutomationDeliverySink(cfg.Gateway)
+		permissionEngine := permissions.NewEngine(cfg.Permissions)
+		serviceOptions.PermissionChecker = permissionEngine
 	}
 
 	return newAutomationService(
@@ -214,8 +217,10 @@ var serveRPC = func(
 
 	var gatewayCfg config.GatewayConfig
 	var pairingSecret string
+	var permissionPolicy permissions.Policy
 	if cfg != nil {
 		gatewayCfg = cfg.Gateway
+		permissionPolicy = cfg.Permissions
 		pairingSecretValue := str.String(cfg.Gateway.PairingSecret)
 		pairingSecret = pairingSecretValue.Trim()
 	}
@@ -227,6 +232,7 @@ var serveRPC = func(
 		GatewayConfig:        gatewayCfg,
 		GatewayRuntime:       manager,
 		Automation:           automationService,
+		PermissionPolicy:     permissionPolicy,
 	})
 
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)

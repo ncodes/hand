@@ -3,10 +3,12 @@ package runcommand
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
 	goruntime "runtime"
+	"strings"
 	"time"
 
 	"github.com/wandxy/morph/pkg/logutils"
@@ -19,6 +21,14 @@ import (
 	"github.com/wandxy/morph/internal/tools/common"
 )
 
+type input struct {
+	Command        string            `json:"command"`
+	Args           []string          `json:"args"`
+	Cwd            string            `json:"cwd"`
+	Env            map[string]string `json:"env"`
+	TimeoutSeconds int               `json:"timeout_seconds"`
+}
+
 var (
 	log            = logutils.Module("tool.runcommand")
 	currentGOOS    = goruntime.GOOS
@@ -27,14 +37,6 @@ var (
 
 // Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
-	type input struct {
-		Command        string            `json:"command"`
-		Args           []string          `json:"args"`
-		Cwd            string            `json:"cwd"`
-		Env            map[string]string `json:"env"`
-		TimeoutSeconds int               `json:"timeout_seconds"`
-	}
-
 	return tools.Definition{
 		Name: "run_command",
 		Description: common.JoinStrings(
@@ -49,6 +51,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			Action:   permissions.ActionExecute,
 			Effects:  []permissions.Effect{permissions.EffectExecution},
 		},
+		ResolvePermission: resolvePermission(runtime),
 		InputSchema: common.ObjectSchema(map[string]any{
 			"command": common.StringSchema("Command to run. Uses the shell when args are omitted."),
 			"args": map[string]any{
@@ -237,6 +240,46 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				elapsedSeconds,
 			))
 		}),
+	}
+}
+
+func resolvePermission(runtime envtypes.Runtime) tools.PermissionResolver {
+	return func(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+		var req input
+		if err := json.Unmarshal([]byte(call.Input), &req); err != nil {
+			return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+		}
+		command := str.String(req.Command).Trim()
+		if command == "" {
+			return nil, tools.NewPermissionResolutionError("invalid_input", "command is required")
+		}
+
+		target := command
+		if len(req.Args) > 0 {
+			target += " " + strings.Join(req.Args, " ")
+		}
+		input := permissions.EvaluationInput{Operation: permissions.Operation{
+			Resource: permissions.ResourceProcess,
+			Action:   permissions.ActionExecute,
+			Effects:  []permissions.Effect{permissions.EffectExecution},
+			Target:   target,
+		}}
+		if runtime == nil {
+			return []permissions.EvaluationInput{input}, nil
+		}
+
+		evaluation := guardrails.EvaluateCommand(runtime.CommandPolicy(), req.Command, req.Args)
+		switch evaluation.Decision {
+		case guardrails.CommandDenied:
+			input.HardDenyReason = evaluation.Reason
+		case guardrails.CommandApprovalRequired:
+			input.ApprovalReason = "command requires approval"
+			if evaluation.Rule != "" {
+				input.ApprovalReason += ": " + evaluation.Rule
+			}
+		}
+
+		return []permissions.EvaluationInput{input}, nil
 	}
 }
 

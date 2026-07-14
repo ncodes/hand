@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/storememory"
 	"github.com/wandxy/morph/internal/tools"
@@ -43,6 +44,92 @@ func TestDefinition_AddCapturesContext(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &out))
 	require.Equal(t, "origin", out.Job.SessionTarget)
 	require.Equal(t, "ses_projectaprojectaproje", out.Job.Payload.Metadata["origin_session_id"])
+}
+
+func TestDefinition_EnforcementDeniesBeforeAutomationMutation(t *testing.T) {
+	store := storememory.NewStore()
+	_, err := store.CreateJob(context.Background(), storage.AutomationJob{
+		ID: testAutomationToolJobID, Name: "keep", Enabled: true,
+	})
+	require.NoError(t, err)
+	service := &automationToolServiceStub{store: store}
+	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
+		Mode: permissions.ModeEnforce,
+		Rules: []permissions.Rule{{
+			Name: "deny automation deletes", Actions: []permissions.Action{permissions.ActionDelete}, Decision: permissions.DecisionDeny,
+		}},
+	}})
+	require.NoError(t, registry.Register(Definition(&toolmocks.Runtime{
+		AutomationServiceValue: service,
+		AutomationServiceOK:    true,
+	})))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceCLI,
+	})
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name: "automation", Input: `{"action":"remove","id":"` + testAutomationToolJobID + `"}`,
+	})
+
+	require.NoError(t, err)
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, permissions.ErrorCodeDenied, toolErr.Code)
+	jobs, err := store.ListJobs(context.Background(), storage.AutomationJobQuery{IDs: []string{testAutomationToolJobID}})
+	require.NoError(t, err)
+	require.Len(t, jobs.Jobs, 1)
+}
+
+func TestDefinition_ResolvePermissionClassifiesActions(t *testing.T) {
+	resolver := Definition(&toolmocks.Runtime{}).ResolvePermission
+	tests := []struct {
+		name    string
+		input   string
+		action  permissions.Action
+		effects []permissions.Effect
+		target  string
+		owner   bool
+	}{
+		{name: "status", input: `{"action":"status"}`, action: permissions.ActionRead, effects: []permissions.Effect{permissions.EffectRead}},
+		{name: "list", input: `{"action":"list"}`, action: permissions.ActionList, effects: []permissions.Effect{permissions.EffectRead}},
+		{name: "runs", input: `{"action":"runs","run_query":{"job_id":"job-1"}}`, action: permissions.ActionList, effects: []permissions.Effect{permissions.EffectRead}, target: "job-1"},
+		{name: "add", input: `{"action":"add","job":{"id":"job-1"}}`, action: permissions.ActionCreate, effects: []permissions.Effect{permissions.EffectExternalSystem, permissions.EffectWrite}, target: "job-1", owner: true},
+		{name: "update", input: `{"action":"update","id":"job-1"}`, action: permissions.ActionUpdate, effects: []permissions.Effect{permissions.EffectExternalSystem, permissions.EffectWrite}, target: "job-1", owner: true},
+		{name: "pause", input: `{"action":"pause","id":"job-1"}`, action: permissions.ActionUpdate, effects: []permissions.Effect{permissions.EffectExternalSystem, permissions.EffectWrite}, target: "job-1", owner: true},
+		{name: "resume", input: `{"action":"resume","id":"job-1"}`, action: permissions.ActionUpdate, effects: []permissions.Effect{permissions.EffectExternalSystem, permissions.EffectWrite}, target: "job-1", owner: true},
+		{name: "run", input: `{"action":"run","id":"job-1"}`, action: permissions.ActionTrigger, effects: []permissions.Effect{permissions.EffectExecution, permissions.EffectExternalSystem}, target: "job-1", owner: true},
+		{name: "remove", input: `{"action":"remove","id":"job-1"}`, action: permissions.ActionDelete, effects: []permissions.Effect{permissions.EffectDestructive, permissions.EffectExternalSystem, permissions.EffectWrite}, target: "job-1", owner: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			inputs, err := resolver(context.Background(), tools.Call{Input: test.input})
+
+			require.NoError(t, err)
+			require.Len(t, inputs, 1)
+			require.Equal(t, permissions.ResourceAutomation, inputs[0].Operation.Resource)
+			require.Equal(t, test.action, inputs[0].Operation.Action)
+			require.Equal(t, test.effects, inputs[0].Operation.Effects)
+			require.Equal(t, test.target, inputs[0].Operation.Target)
+			require.Equal(t, test.owner, inputs[0].Operation.OwnerRequired)
+		})
+	}
+}
+
+func TestDefinition_ResolvePermissionRejectsInvalidAction(t *testing.T) {
+	resolver := Definition(&toolmocks.Runtime{}).ResolvePermission
+
+	inputs, err := resolver(context.Background(), tools.Call{Input: `{}`})
+	require.EqualError(t, err, `unsupported action ""`)
+	require.Nil(t, inputs)
+
+	inputs, err = resolver(context.Background(), tools.Call{Input: `{"action":`})
+	require.EqualError(t, err, "unexpected end of JSON input")
+	require.Nil(t, inputs)
+
+	inputs, err = resolver(context.Background(), tools.Call{})
+	require.EqualError(t, err, `unsupported action ""`)
+	require.Nil(t, inputs)
 }
 
 func TestDefinition_AddAcceptsStrictSchemaPlaceholders(t *testing.T) {

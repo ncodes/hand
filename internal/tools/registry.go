@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/permissions"
@@ -56,6 +57,30 @@ func (f HandlerFunc) Invoke(ctx context.Context, call Call) (Result, error) {
 	return f(ctx, call)
 }
 
+type PermissionResolver func(context.Context, Call) ([]permissions.EvaluationInput, error)
+
+type PermissionResolutionError struct {
+	Code    string
+	Message string
+}
+
+func (e *PermissionResolutionError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+func NewPermissionResolutionError(code string, message string) error {
+	return &PermissionResolutionError{Code: str.String(code).Trim(), Message: str.String(message).Trim()}
+}
+
+func GetPermissionResolutionError(err error) (*PermissionResolutionError, bool) {
+	var resolutionErr *PermissionResolutionError
+	ok := errors.As(err, &resolutionErr)
+	return resolutionErr, ok
+}
+
 // Capabilities lists runtime permissions required or provided by a tool.
 type Capabilities struct {
 	Filesystem bool
@@ -101,16 +126,17 @@ func (e Error) String() string {
 
 // Definition describes one tool exposed to the model.
 type Definition struct {
-	Name             string
-	Description      string
-	UsageInstruction instructions.Instruction
-	InputSchema      map[string]any
-	ParallelSafe     bool
-	Groups           []string
-	Requires         Capabilities
-	Permission       permissions.Operation
-	Platforms        []string
-	Handler          Handler
+	Name              string
+	Description       string
+	UsageInstruction  instructions.Instruction
+	InputSchema       map[string]any
+	ParallelSafe      bool
+	Groups            []string
+	Requires          Capabilities
+	Permission        permissions.Operation
+	ResolvePermission PermissionResolver
+	Platforms         []string
+	Handler           Handler
 }
 
 // Definitions is a list of tool definitions with lookup helpers.

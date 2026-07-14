@@ -73,10 +73,17 @@ func TestConfig_NormalizePermissions(t *testing.T) {
 
 func TestConfig_ValidateRejectsInvalidPermissions(t *testing.T) {
 	cfg := NewDefaultConfig()
-	cfg.Permissions.Mode = "enforce"
+	cfg.Permissions.Mode = "audit"
 
 	err := cfg.ValidateRelaxed()
-	require.EqualError(t, err, "permission mode must be observe")
+	require.EqualError(t, err, "permission mode must be one of: observe, enforce")
+}
+
+func TestConfig_ValidateAcceptsPermissionEnforcement(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Permissions.Mode = permissions.ModeEnforce
+
+	require.NoError(t, cfg.ValidateRelaxed())
 }
 
 func TestNewDefaultConfig_ClonesPermissions(t *testing.T) {

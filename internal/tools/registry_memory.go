@@ -22,7 +22,7 @@ type InMemoryRegistry struct {
 	mu          sync.RWMutex
 	definitions map[string]Definition
 	groups      map[string]Group
-	permissions permissions.Policy
+	permissions permissions.Engine
 }
 
 // NewInMemoryRegistry creates a new InMemoryRegistry.
@@ -36,7 +36,7 @@ func NewInMemoryRegistry(options ...RegistryOptions) *InMemoryRegistry {
 	return &InMemoryRegistry{
 		definitions: make(map[string]Definition),
 		groups:      make(map[string]Group),
-		permissions: opts.PermissionPolicy,
+		permissions: permissions.NewEngine(opts.PermissionPolicy),
 	}
 }
 
@@ -201,7 +201,9 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 	if !ok {
 		return Result{Error: Error{Code: "tool_not_registered", Message: "tool is not registered"}.String()}, nil
 	}
-	r.observePermission(ctx, def)
+	if result, blocked := r.checkPermissions(ctx, def, call); blocked {
+		return result, nil
+	}
 
 	result, err := def.Handler.Invoke(ctx, call)
 	if err != nil {
@@ -217,46 +219,122 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 	return result, nil
 }
 
-func (r *InMemoryRegistry) observePermission(ctx context.Context, definition Definition) {
-	if definition.Permission.IsZero() {
-		return
+func (r *InMemoryRegistry) checkPermissions(ctx context.Context, definition Definition, call Call) (Result, bool) {
+	inputs, err := getPermissionInputs(ctx, definition, call)
+	if err != nil {
+		code := "invalid_input"
+		message := err.Error()
+		if resolutionErr, ok := GetPermissionResolutionError(err); ok {
+			if resolutionErr.Code != "" {
+				code = resolutionErr.Code
+			}
+			message = resolutionErr.Message
+		}
+		return Result{Error: Error{Code: code, Message: message}.String()}, true
+	}
+	if len(inputs) == 0 {
+		return Result{}, false
 	}
 
-	authorization, ok := permissions.FromContext(ctx)
-	if !ok {
-		authorization = permissions.AuthorizationContext{
-			Actor:       permissions.Actor{Kind: permissions.ActorUnknown},
-			SurfaceKind: permissions.SurfaceKindUnknown,
-			Surface:     permissions.SurfaceUnknown,
+	var selected *permissions.DecisionError
+	for _, input := range inputs {
+		evaluation, checkErr := r.permissions.Check(ctx, input)
+		r.recordPermissionDecision(ctx, input.Operation, evaluation)
+		decisionErr, ok := permissions.GetDecisionError(checkErr)
+		if !ok {
+			continue
+		}
+		if selected == nil || selected.Code == permissions.ErrorCodeApprovalRequired &&
+			decisionErr.Code == permissions.ErrorCodeDenied {
+			selected = decisionErr
 		}
 	}
-	evaluation := r.permissions.Evaluate(permissions.EvaluationInput{
-		Authorization: authorization,
-		Operation:     definition.Permission,
-	})
+	if selected == nil {
+		return Result{}, false
+	}
+
+	return Result{Error: Error{Code: selected.Code, Message: selected.Error()}.String()}, true
+}
+
+func getPermissionInputs(ctx context.Context, definition Definition, call Call) ([]permissions.EvaluationInput, error) {
+	if definition.ResolvePermission == nil {
+		if definition.Permission.IsZero() {
+			return nil, nil
+		}
+		return normalizePermissionInputs(definition.Name, []permissions.EvaluationInput{{
+			Operation: definition.Permission,
+		}})
+	}
+
+	inputs, err := definition.ResolvePermission(ctx, call)
+	if err != nil {
+		return nil, err
+	}
+	if len(inputs) == 0 {
+		return nil, errors.New("permission resolver returned no operations")
+	}
+
+	return normalizePermissionInputs(definition.Name, inputs)
+}
+
+func normalizePermissionInputs(toolName string, inputs []permissions.EvaluationInput) ([]permissions.EvaluationInput, error) {
+	normalized := make([]permissions.EvaluationInput, len(inputs))
+	for index, input := range inputs {
+		if str.String(input.Operation.Tool).Trim() == "" {
+			input.Operation.Tool = toolName
+		}
+		operation, err := input.Operation.Normalize()
+		if err != nil {
+			return nil, err
+		}
+		input.Operation = operation
+		normalized[index] = input
+	}
+
+	return normalized, nil
+}
+
+func (r *InMemoryRegistry) recordPermissionDecision(
+	ctx context.Context,
+	operation permissions.Operation,
+	evaluation permissions.Evaluation,
+) {
 	recorder := TraceRecorderFromContext(ctx)
 	if recorder == nil {
 		return
 	}
+	authorization := getAuthorizationContext(ctx)
 
-	effects := make([]string, len(definition.Permission.Effects))
-	for index, effect := range definition.Permission.Effects {
+	effects := make([]string, len(operation.Effects))
+	for index, effect := range operation.Effects {
 		effects[index] = string(effect)
 	}
 	recorder.Record(trace.EvtPermissionDecisionObserved, trace.PermissionDecisionPayload{
 		ActorKind:     string(authorization.Actor.Kind),
 		SurfaceKind:   string(authorization.SurfaceKind),
 		Surface:       string(authorization.Surface),
-		Tool:          definition.Permission.Tool,
-		Resource:      string(definition.Permission.Resource),
-		Action:        string(definition.Permission.Action),
+		Tool:          operation.Tool,
+		Resource:      string(operation.Resource),
+		Action:        string(operation.Action),
 		Effects:       effects,
 		Decision:      string(evaluation.Decision),
 		ReasonCode:    evaluation.ReasonCode,
 		Rule:          evaluation.Rule,
 		Mode:          string(evaluation.Mode),
-		OwnerRequired: definition.Permission.OwnerRequired,
+		OwnerRequired: operation.OwnerRequired,
 	})
+}
+
+func getAuthorizationContext(ctx context.Context) permissions.AuthorizationContext {
+	if authorization, ok := permissions.FromContext(ctx); ok {
+		return authorization
+	}
+
+	return permissions.AuthorizationContext{
+		Actor:       permissions.Actor{Kind: permissions.ActorUnknown},
+		SurfaceKind: permissions.SurfaceKindUnknown,
+		Surface:     permissions.SurfaceUnknown,
+	}
 }
 
 func (r *InMemoryRegistry) resolveGroup(

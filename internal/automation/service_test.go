@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/state/storememory"
 )
 
@@ -179,6 +180,82 @@ func TestService_AddListUpdateRemove(t *testing.T) {
 
 	err = service.Remove(ctx, "bad")
 	require.EqualError(t, err, "automation job id must be a valid auto_ nanoid")
+}
+
+func TestService_MutationPermissionRecheckBlocksSideEffects(t *testing.T) {
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner},
+		Surface: permissions.SurfaceCLI,
+	})
+	store := storememory.NewStore()
+	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
+	runner := &automationRunnerStub{}
+	setup := newAutomationTestService(t, store, clock, runner)
+	job, err := setup.Add(ctx, Job{
+		ID:      testServiceJobA,
+		Name:    "original",
+		Enabled: true,
+		Payload: automationTestPromptPayload(),
+		Schedule: Schedule{
+			Kind: ScheduleAt,
+			At:   clock.Now().Add(time.Hour),
+		},
+	})
+	require.NoError(t, err)
+
+	engine := permissions.NewEngine(permissions.Policy{
+		Mode: permissions.ModeEnforce,
+		SurfaceDefaults: map[permissions.Surface]permissions.Decision{
+			permissions.SurfaceCLI: permissions.DecisionDeny,
+		},
+	})
+	service, err := NewService(ServiceOptions{
+		Store:             store,
+		Runner:            runner,
+		Now:               clock.Now,
+		PermissionChecker: engine,
+	})
+	require.NoError(t, err)
+
+	_, err = service.Add(ctx, Job{
+		ID:      testServiceJobB,
+		Enabled: true,
+		Payload: automationTestPromptPayload(),
+		Schedule: Schedule{
+			Kind: ScheduleAt,
+			At:   clock.Now().Add(time.Hour),
+		},
+	})
+	requirePermissionDenied(t, err)
+	_, found, err := store.GetJob(ctx, testServiceJobB)
+	require.NoError(t, err)
+	require.False(t, found)
+
+	name := "changed"
+	_, err = service.Update(ctx, JobPatch{ID: job.ID, Name: &name})
+	requirePermissionDenied(t, err)
+	stored, found, err := store.GetJob(ctx, job.ID)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, "original", stored.Name)
+
+	err = service.Remove(ctx, job.ID)
+	requirePermissionDenied(t, err)
+	_, found, err = store.GetJob(ctx, job.ID)
+	require.NoError(t, err)
+	require.True(t, found)
+
+	_, err = service.Run(ctx, job.ID)
+	requirePermissionDenied(t, err)
+	require.Zero(t, runner.CallCount())
+}
+
+func requirePermissionDenied(t *testing.T, err error) {
+	t.Helper()
+
+	decisionErr, ok := permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeDenied, decisionErr.Code)
 }
 
 func TestService_UpdateRejectsInvalidScheduleBeforePersisting(t *testing.T) {

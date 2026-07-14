@@ -2,6 +2,7 @@ package memorywrite
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -85,6 +86,18 @@ func AddDefinition(runtime envtypes.Runtime) tools.Definition {
 			Action:   permissions.ActionCreate,
 			Effects:  []permissions.Effect{permissions.EffectWrite},
 		},
+		ResolvePermission: func(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+			var input addInput
+			if err := json.Unmarshal([]byte(call.Input), &input); err != nil {
+				return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+			}
+			return []permissions.EvaluationInput{{Operation: permissions.Operation{
+				Resource: permissions.ResourceMemory,
+				Action:   permissions.ActionCreate,
+				Effects:  []permissions.Effect{permissions.EffectWrite},
+				Target:   str.String(input.Kind).Normalized(),
+			}}}, nil
+		},
 		UsageInstruction: instructions.BuildMemoryAddGuidance(),
 		InputSchema:      addInputSchema(),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
@@ -148,6 +161,18 @@ func UpdateDefinition(runtime envtypes.Runtime) tools.Definition {
 			Action:   permissions.ActionUpdate,
 			Effects:  []permissions.Effect{permissions.EffectWrite},
 		},
+		ResolvePermission: func(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+			var input updateInput
+			if err := json.Unmarshal([]byte(call.Input), &input); err != nil {
+				return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+			}
+			return []permissions.EvaluationInput{{Operation: permissions.Operation{
+				Resource: permissions.ResourceMemory,
+				Action:   permissions.ActionUpdate,
+				Effects:  []permissions.Effect{permissions.EffectWrite},
+				Target:   str.String(input.ID).Trim(),
+			}}}, nil
+		},
 		UsageInstruction: instructions.BuildMemoryUpdateGuidance(),
 		InputSchema:      updateInputSchema(),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
@@ -204,6 +229,18 @@ func DeleteDefinition(runtime envtypes.Runtime) tools.Definition {
 			Resource: permissions.ResourceMemory,
 			Action:   permissions.ActionDelete,
 			Effects:  []permissions.Effect{permissions.EffectWrite, permissions.EffectDestructive},
+		},
+		ResolvePermission: func(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+			var input deleteInput
+			if err := json.Unmarshal([]byte(call.Input), &input); err != nil {
+				return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+			}
+			return []permissions.EvaluationInput{{Operation: permissions.Operation{
+				Resource: permissions.ResourceMemory,
+				Action:   permissions.ActionDelete,
+				Effects:  []permissions.Effect{permissions.EffectWrite, permissions.EffectDestructive},
+				Target:   str.String(input.ID).Trim(),
+			}}}, nil
 		},
 		UsageInstruction: instructions.BuildMemoryDeleteGuidance(),
 		InputSchema: common.ObjectSchema(map[string]any{

@@ -2,6 +2,7 @@ package writefile
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -18,14 +19,14 @@ import (
 
 var log = logutils.Module("tool.writefile")
 
+type input struct {
+	Path       string `json:"path"`
+	Content    string `json:"content"`
+	CreateDirs *bool  `json:"create_dirs"`
+}
+
 // Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
-	type input struct {
-		Path       string `json:"path"`
-		Content    string `json:"content"`
-		CreateDirs *bool  `json:"create_dirs"`
-	}
-
 	return tools.Definition{
 		Name:        "write_file",
 		Description: "Create or overwrite a text file under an allowed workspace root.",
@@ -35,6 +36,23 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			Resource: permissions.ResourceFile,
 			Action:   permissions.ActionUpdate,
 			Effects:  []permissions.Effect{permissions.EffectWrite},
+		},
+		ResolvePermission: func(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+			var req input
+			if err := json.Unmarshal([]byte(call.Input), &req); err != nil {
+				return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+			}
+			path := str.String(req.Path).Trim()
+			if path == "" {
+				return nil, tools.NewPermissionResolutionError("invalid_input", "path is required")
+			}
+
+			return []permissions.EvaluationInput{{Operation: permissions.Operation{
+				Resource: permissions.ResourceFile,
+				Action:   permissions.ActionUpdate,
+				Effects:  []permissions.Effect{permissions.EffectWrite},
+				Target:   filepath.ToSlash(filepath.Clean(path)),
+			}}}, nil
 		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"path":        common.StringSchema("Path to the file relative to an allowed workspace root."),

@@ -14,6 +14,8 @@ const (
 	ReasonSurfaceDefault     = "surface_default"
 	ReasonSurfaceKindDefault = "surface_kind_default"
 	ReasonPolicyDefault      = "policy_default"
+	ReasonApprovalRequired   = "approval_required"
+	ReasonOwnerRequired      = "owner_required"
 )
 
 type Policy struct {
@@ -43,6 +45,7 @@ type EvaluationInput struct {
 	Authorization  AuthorizationContext
 	Operation      Operation
 	HardDenyReason string
+	ApprovalReason string
 }
 
 type Evaluation struct {
@@ -96,8 +99,8 @@ func (p *Policy) Normalize() {
 
 func (p Policy) Validate() error {
 	p.Normalize()
-	if p.Mode != ModeObserve {
-		return errors.New("permission mode must be observe")
+	if !isValidMode(p.Mode) {
+		return errors.New("permission mode must be one of: observe, enforce")
 	}
 	if !isValidDecision(p.Default) {
 		return errors.New("permission default must be one of: allow, ask, deny")
@@ -136,7 +139,7 @@ func (p Policy) Validate() error {
 func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 	p.Normalize()
 	policyErr := p.Validate()
-	if p.Mode != ModeObserve {
+	if !isValidMode(p.Mode) {
 		p.Mode = ModeObserve
 	}
 	if !isValidDecision(p.Default) {
@@ -161,24 +164,45 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 		operation = Operation{Resource: ResourceUnknown, Action: ActionUnknown}
 	}
 
+	var evaluation Evaluation
 	if rule, ok := p.getMatchingRule(authorization, operation); ok {
-		return Evaluation{
+		evaluation = Evaluation{
 			Decision:   rule.Decision,
 			ReasonCode: ReasonRuleMatched,
 			Reason:     rule.Reason,
 			Rule:       rule.Name,
 			Mode:       p.Mode,
 		}
+	} else if decision, ok := p.SurfaceDefaults[authorization.Surface]; ok && isValidDecision(decision) {
+		evaluation = Evaluation{Decision: decision, ReasonCode: ReasonSurfaceDefault, Mode: p.Mode}
+	} else if decision, ok := p.SurfaceKindDefaults[authorization.SurfaceKind]; ok && isValidDecision(decision) {
+		evaluation = Evaluation{Decision: decision, ReasonCode: ReasonSurfaceKindDefault, Mode: p.Mode}
+	} else {
+		evaluation = Evaluation{Decision: p.Default, ReasonCode: ReasonPolicyDefault, Mode: p.Mode}
+	}
+	if operation.OwnerRequired && authorization.Actor.Kind != ActorLocalOwner &&
+		(operation.OwnerID == "" || authorization.Actor.ID != operation.OwnerID) &&
+		!(evaluation.Decision == DecisionAllow && evaluation.ReasonCode == ReasonRuleMatched) {
+		return Evaluation{
+			Decision:   DecisionDeny,
+			ReasonCode: ReasonOwnerRequired,
+			Reason:     "operation requires its owner",
+			Mode:       p.Mode,
+		}
 	}
 
-	if decision, ok := p.SurfaceDefaults[authorization.Surface]; ok && isValidDecision(decision) {
-		return Evaluation{Decision: decision, ReasonCode: ReasonSurfaceDefault, Mode: p.Mode}
-	}
-	if decision, ok := p.SurfaceKindDefaults[authorization.SurfaceKind]; ok && isValidDecision(decision) {
-		return Evaluation{Decision: decision, ReasonCode: ReasonSurfaceKindDefault, Mode: p.Mode}
+	if evaluation.Decision != DecisionDeny {
+		if reason := str.String(input.ApprovalReason).Trim(); reason != "" {
+			return Evaluation{
+				Decision:   DecisionAsk,
+				ReasonCode: ReasonApprovalRequired,
+				Reason:     reason,
+				Mode:       p.Mode,
+			}
+		}
 	}
 
-	return Evaluation{Decision: p.Default, ReasonCode: ReasonPolicyDefault, Mode: p.Mode}
+	return evaluation
 }
 
 func (p Policy) getMatchingRule(authorization AuthorizationContext, operation Operation) (Rule, bool) {
@@ -302,6 +326,10 @@ func getDecisionPriority(decision Decision) int {
 	default:
 		return 0
 	}
+}
+
+func isValidMode(mode Mode) bool {
+	return mode == ModeObserve || mode == ModeEnforce
 }
 
 func normalizeValues[T ~string](values []T, normalize func(T) T) []T {

@@ -5,10 +5,15 @@ import (
 	"fmt"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/pkg/logutils"
 )
 
 func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
+	if err := checkDaemonStartPermission(ctx, cfg); err != nil {
+		return err
+	}
+
 	config.Set(cfg)
 	_ = logutils.ConfigureLogger("morph", cfg.Log.NoColor)
 	logutils.SetLogLevel(cfg.Log.Level)
@@ -58,5 +63,27 @@ func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
 		}
 	}
 
+	return err
+}
+
+func checkDaemonStartPermission(ctx context.Context, cfg *config.Config) error {
+	if cfg == nil {
+		return nil
+	}
+	if _, ok := permissions.FromContext(ctx); !ok {
+		ctx = permissions.WithContext(ctx, permissions.AuthorizationContext{
+			Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner},
+			Surface: permissions.SurfaceCLI,
+		})
+	}
+
+	engine := permissions.NewEngine(cfg.Permissions)
+	_, err := engine.Check(ctx, permissions.EvaluationInput{Operation: permissions.Operation{
+		Resource:      permissions.ResourceDaemon,
+		Action:        permissions.ActionStart,
+		Effects:       []permissions.Effect{permissions.EffectPrivilegeChanging, permissions.EffectWrite},
+		Target:        "daemon",
+		OwnerRequired: true,
+	}})
 	return err
 }

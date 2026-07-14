@@ -12,6 +12,8 @@ import (
 
 	"github.com/wandxy/morph/internal/agent/runcontext"
 	processenv "github.com/wandxy/morph/internal/environment/process"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/tools"
 	toolmocks "github.com/wandxy/morph/internal/tools/mocks"
@@ -38,6 +40,114 @@ func TestProcess_ToolValidatesAction(t *testing.T) {
 	result, err = definition.Handler.Invoke(context.Background(), tools.Call{Name: "process", Input: `{"action":"unknown"}`})
 	require.NoError(t, err)
 	requireToolError(t, result.Error, "invalid_input", `unsupported action "unknown"`)
+}
+
+func TestProcess_EnforcementDeniesStartBeforeRuntimeMutation(t *testing.T) {
+	called := false
+	runtime := &toolmocks.Runtime{StartProcessFunc: func(
+		context.Context,
+		string,
+		processenv.StartRequest,
+	) (processenv.Info, error) {
+		called = true
+		return processenv.Info{}, nil
+	}}
+	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
+		Mode: permissions.ModeEnforce,
+		Rules: []permissions.Rule{{
+			Name: "deny process start", Actions: []permissions.Action{permissions.ActionStart}, Decision: permissions.DecisionDeny,
+		}},
+	}})
+	require.NoError(t, registry.Register(Definition(runtime)))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceCLI,
+	})
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name: "process", Input: `{"action":"start","command":"printf","args":["hello"]}`,
+	})
+
+	require.NoError(t, err)
+	requireToolError(t, result.Error, permissions.ErrorCodeDenied, "permission denied")
+	require.False(t, called)
+}
+
+func TestProcess_ResolvePermissionClassifiesActions(t *testing.T) {
+	definition := Definition(&toolmocks.Runtime{})
+	tests := []struct {
+		name    string
+		input   string
+		action  permissions.Action
+		effects []permissions.Effect
+		target  string
+	}{
+		{name: "start", input: `{"action":"start","command":"git","args":["status"]}`, action: permissions.ActionStart, effects: []permissions.Effect{permissions.EffectExecution, permissions.EffectWrite}, target: "git status"},
+		{name: "status", input: `{"action":"status","process_id":"proc-1"}`, action: permissions.ActionRead, effects: []permissions.Effect{permissions.EffectRead}, target: "proc-1"},
+		{name: "read", input: `{"action":"read","process_id":"proc-1"}`, action: permissions.ActionRead, effects: []permissions.Effect{permissions.EffectRead}, target: "proc-1"},
+		{name: "stop", input: `{"action":"stop","process_id":"proc-1"}`, action: permissions.ActionStop, effects: []permissions.Effect{permissions.EffectDestructive, permissions.EffectExecution, permissions.EffectWrite}, target: "proc-1"},
+		{name: "list", input: `{"action":"list"}`, action: permissions.ActionList, effects: []permissions.Effect{permissions.EffectRead}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			inputs, err := definition.ResolvePermission(context.Background(), tools.Call{Input: test.input})
+
+			require.NoError(t, err)
+			require.Len(t, inputs, 1)
+			require.Equal(t, test.action, inputs[0].Operation.Action)
+			require.Equal(t, test.effects, inputs[0].Operation.Effects)
+			require.Equal(t, test.target, inputs[0].Operation.Target)
+		})
+	}
+}
+
+func TestProcess_ResolvePermissionPreservesCommandConstraints(t *testing.T) {
+	tests := []struct {
+		name               string
+		policy             guardrails.CommandPolicy
+		wantHardDeny       bool
+		wantApprovalReason string
+	}{
+		{name: "deny", policy: guardrails.CommandPolicy{Deny: []string{"git push"}}, wantHardDeny: true},
+		{name: "ask", policy: guardrails.CommandPolicy{Ask: []string{"git push"}}, wantApprovalReason: "command requires approval: git push"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			definition := Definition(toolmocks.NewRuntime(t.TempDir(), test.policy))
+			inputs, err := definition.ResolvePermission(context.Background(), tools.Call{
+				Input: `{"action":"start","command":"git","args":["push","origin","main"]}`,
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, test.wantHardDeny, inputs[0].HardDenyReason != "")
+			require.Equal(t, test.wantApprovalReason, inputs[0].ApprovalReason)
+		})
+	}
+}
+
+func TestProcess_ResolvePermissionRejectsInvalidCalls(t *testing.T) {
+	definition := Definition(&toolmocks.Runtime{})
+	tests := []struct {
+		name    string
+		input   string
+		message string
+	}{
+		{name: "malformed", input: `{"action":`, message: "invalid tool input"},
+		{name: "missing action", input: `{}`, message: "action is required"},
+		{name: "unknown action", input: `{"action":"unknown"}`, message: `unsupported action "unknown"`},
+		{name: "missing command", input: `{"action":"start"}`, message: "command is required for start"},
+		{name: "invalid fields", input: `{"action":"list","stdout_bytes":1}`, message: "invalid process list request: stdout_bytes is only valid for action=read"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			inputs, err := definition.ResolvePermission(context.Background(), tools.Call{Input: test.input})
+
+			require.EqualError(t, err, test.message)
+			require.Nil(t, inputs)
+		})
+	}
 }
 
 func TestProcess_ToolRejectsReadOnlyFieldsForNonReadActions(t *testing.T) {

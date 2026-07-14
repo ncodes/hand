@@ -41,6 +41,7 @@ type Service struct {
 	gatewayPairingSecret string
 	gatewayConfig        config.GatewayConfig
 	gatewayRuntime       GatewayRuntime
+	permissions          permissions.Engine
 }
 
 var marshalRPCJSON = json.Marshal
@@ -51,6 +52,7 @@ type ServiceOptions struct {
 	GatewayConfig        config.GatewayConfig
 	GatewayRuntime       GatewayRuntime
 	Automation           AutomationAPI
+	PermissionPolicy     permissions.Policy
 }
 
 type ModelRuntime struct {
@@ -91,7 +93,37 @@ func NewServiceWithOptions(api morphagent.ServiceAPI, opts ServiceOptions) *Serv
 		gatewayPairingSecret: gatewayPairingSecretValue.Trim(),
 		gatewayConfig:        opts.GatewayConfig,
 		gatewayRuntime:       opts.GatewayRuntime,
+		permissions:          permissions.NewEngine(opts.PermissionPolicy),
 	}
+}
+
+func (s *Service) checkPermission(ctx context.Context, operation permissions.Operation) error {
+	if s == nil {
+		return status.Error(codes.Internal, "service is required")
+	}
+	ctx = s.getPermissionContext(ctx)
+
+	_, err := s.permissions.Check(ctx, permissions.EvaluationInput{Operation: operation})
+	decisionErr, ok := permissions.GetDecisionError(err)
+	if !ok {
+		return nil
+	}
+	if decisionErr.Code == permissions.ErrorCodeApprovalRequired {
+		return status.Error(codes.FailedPrecondition, "approval required: "+decisionErr.Error())
+	}
+
+	return status.Error(codes.PermissionDenied, "permission denied: "+decisionErr.Error())
+}
+
+func (s *Service) getPermissionContext(ctx context.Context) context.Context {
+	if _, ok := permissions.FromContext(ctx); ok {
+		return ctx
+	}
+
+	return permissions.WithContext(ctx, permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorRPCClient},
+		Surface: rpcmeta.PermissionSurfaceFromIncomingContext(ctx),
+	})
 }
 
 func ModelRuntimeFromConfig(cfg *config.Config) ModelRuntime {
@@ -1007,6 +1039,14 @@ func (s *Service) Create(ctx context.Context, req *morphpb.CreateSessionRequest)
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "create session request is required")
 	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource: permissions.ResourceSession,
+		Action:   permissions.ActionCreate,
+		Effects:  []permissions.Effect{permissions.EffectWrite},
+		Target:   req.GetId(),
+	}); err != nil {
+		return nil, err
+	}
 
 	session, err := s.createSession(ctx, req)
 	if err != nil {
@@ -1137,6 +1177,15 @@ func (s *Service) SelectModel(ctx context.Context, req *morphpb.SelectModelReque
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "select model request is required")
 	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource:      permissions.ResourceModel,
+		Action:        permissions.ActionUpdate,
+		Effects:       []permissions.Effect{permissions.EffectWrite},
+		Target:        req.GetProvider() + "/" + req.GetId(),
+		OwnerRequired: true,
+	}); err != nil {
+		return nil, err
+	}
 
 	model, err := s.api.SelectModel(ctx, req.GetId(), morphagent.ModelSelectOptions{Provider: req.GetProvider()})
 	if err != nil {
@@ -1159,6 +1208,18 @@ func (s *Service) SetProviderAPIKey(
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "set provider API key request is required")
 	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource: permissions.ResourceConfiguration,
+		Action:   permissions.ActionUpdate,
+		Effects: []permissions.Effect{
+			permissions.EffectCredentialBearing,
+			permissions.EffectWrite,
+		},
+		Target:        req.GetProvider(),
+		OwnerRequired: true,
+	}); err != nil {
+		return nil, err
+	}
 
 	if err := s.api.SetProviderAPIKey(ctx, req.GetProvider(), req.GetApiKey()); err != nil {
 		return nil, getGRPCError(err)
@@ -1177,6 +1238,14 @@ func (s *Service) Use(ctx context.Context, req *morphpb.UseSessionRequest) (*mor
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "use session request is required")
 	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource: permissions.ResourceSession,
+		Action:   permissions.ActionUpdate,
+		Effects:  []permissions.Effect{permissions.EffectWrite},
+		Target:   req.GetId(),
+	}); err != nil {
+		return nil, err
+	}
 
 	if err := s.api.UseSession(ctx, req.GetId()); err != nil {
 		return nil, getGRPCError(err)
@@ -1194,6 +1263,14 @@ func (s *Service) Archive(ctx context.Context, req *morphpb.ArchiveSessionReques
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "archive session request is required")
+	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource: permissions.ResourceSession,
+		Action:   permissions.ActionDelete,
+		Effects:  []permissions.Effect{permissions.EffectDestructive, permissions.EffectWrite},
+		Target:   req.GetId(),
+	}); err != nil {
+		return nil, err
 	}
 
 	if err := s.api.ArchiveSession(ctx, req.GetId()); err != nil {
@@ -1216,6 +1293,14 @@ func (s *Service) Unarchive(
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "unarchive session request is required")
 	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource: permissions.ResourceSession,
+		Action:   permissions.ActionUpdate,
+		Effects:  []permissions.Effect{permissions.EffectWrite},
+		Target:   req.GetId(),
+	}); err != nil {
+		return nil, err
+	}
 
 	session, err := s.api.UnarchiveSession(ctx, req.GetId())
 	if err != nil {
@@ -1234,6 +1319,14 @@ func (s *Service) Rename(ctx context.Context, req *morphpb.RenameSessionRequest)
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "rename session request is required")
+	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource: permissions.ResourceSession,
+		Action:   permissions.ActionUpdate,
+		Effects:  []permissions.Effect{permissions.EffectWrite},
+		Target:   req.GetId(),
+	}); err != nil {
+		return nil, err
 	}
 
 	session, err := s.api.RenameSession(ctx, req.GetId(), req.GetTitle())
@@ -1450,6 +1543,15 @@ func (s *Service) Start(
 	if err := s.checkGatewayRuntimeReady(); err != nil {
 		return nil, err
 	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource:      permissions.ResourceGateway,
+		Action:        permissions.ActionStart,
+		Effects:       []permissions.Effect{permissions.EffectNetwork, permissions.EffectWrite},
+		Target:        "gateway",
+		OwnerRequired: true,
+	}); err != nil {
+		return nil, err
+	}
 	cfg, err := normalizeGatewayRuntimeConfig(s.gatewayConfig)
 	if err != nil {
 		return nil, err
@@ -1468,6 +1570,15 @@ func (s *Service) Stop(
 	if err := s.checkGatewayRuntimeReady(); err != nil {
 		return nil, err
 	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource:      permissions.ResourceGateway,
+		Action:        permissions.ActionStop,
+		Effects:       []permissions.Effect{permissions.EffectNetwork, permissions.EffectWrite},
+		Target:        "gateway",
+		OwnerRequired: true,
+	}); err != nil {
+		return nil, err
+	}
 	if err := s.gatewayRuntime.Stop(ctx); err != nil {
 		return nil, getGRPCError(err)
 	}
@@ -1480,6 +1591,15 @@ func (s *Service) Restart(
 	_ *morphpb.RestartGatewayRequest,
 ) (*morphpb.RestartGatewayResponse, error) {
 	if err := s.checkGatewayRuntimeReady(); err != nil {
+		return nil, err
+	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource:      permissions.ResourceGateway,
+		Action:        permissions.ActionManage,
+		Effects:       []permissions.Effect{permissions.EffectNetwork, permissions.EffectWrite},
+		Target:        "gateway",
+		OwnerRequired: true,
+	}); err != nil {
 		return nil, err
 	}
 	cfg, err := normalizeGatewayRuntimeConfig(s.gatewayConfig)
@@ -1541,6 +1661,18 @@ func (s *Service) ApprovePairing(
 	if !ok {
 		return nil, status.Error(codes.Internal, "gateway pairing store is required")
 	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource: permissions.ResourceGateway,
+		Action:   permissions.ActionUpdate,
+		Effects: []permissions.Effect{
+			permissions.EffectPrivilegeChanging,
+			permissions.EffectWrite,
+		},
+		Target:        req.GetSource(),
+		OwnerRequired: true,
+	}); err != nil {
+		return nil, err
+	}
 
 	sender, ok, err := pairing.NewManager(pairing.Options{
 		Store:  store,
@@ -1573,6 +1705,19 @@ func (s *Service) RevokePairing(
 	if !ok {
 		return nil, status.Error(codes.Internal, "gateway pairing store is required")
 	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource: permissions.ResourceGateway,
+		Action:   permissions.ActionDelete,
+		Effects: []permissions.Effect{
+			permissions.EffectDestructive,
+			permissions.EffectPrivilegeChanging,
+			permissions.EffectWrite,
+		},
+		Target:        req.GetSource() + "/" + req.GetSenderId(),
+		OwnerRequired: true,
+	}); err != nil {
+		return nil, err
+	}
 	if err := store.DeleteGatewayPairedSender(ctx, req.GetSource(), req.GetSenderId()); err != nil {
 		return nil, getGRPCError(err)
 	}
@@ -1598,6 +1743,19 @@ func (s *Service) ClearPendingPairings(
 	source := ""
 	if req != nil {
 		source = req.GetSource()
+	}
+	if err := s.checkPermission(ctx, permissions.Operation{
+		Resource: permissions.ResourceGateway,
+		Action:   permissions.ActionDelete,
+		Effects: []permissions.Effect{
+			permissions.EffectDestructive,
+			permissions.EffectPrivilegeChanging,
+			permissions.EffectWrite,
+		},
+		Target:        source,
+		OwnerRequired: true,
+	}); err != nil {
+		return nil, err
 	}
 	if err := store.ClearGatewayPairingRequests(ctx, source); err != nil {
 		return nil, getGRPCError(err)

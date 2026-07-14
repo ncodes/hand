@@ -3,6 +3,7 @@ package patch
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"sort"
@@ -25,13 +26,18 @@ var (
 	writeFile = common.WriteFile
 )
 
+type input struct {
+	Patch string `json:"patch"`
+	Strip int    `json:"strip"`
+}
+
+type patchTarget struct {
+	newPath string
+	isNew   bool
+}
+
 // Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
-	type input struct {
-		Patch string `json:"patch"`
-		Strip int    `json:"strip"`
-	}
-
 	return tools.Definition{
 		Name:        "patch",
 		Description: "Apply a unified diff patch under allowed workspace roots.",
@@ -42,6 +48,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			Action:   permissions.ActionUpdate,
 			Effects:  []permissions.Effect{permissions.EffectWrite},
 		},
+		ResolvePermission: resolvePermission,
 		InputSchema: common.ObjectSchema(map[string]any{
 			"patch": common.StringSchema("Unified diff patch content to apply."),
 			"strip": common.IntegerSchema("Number of leading path components to strip from file paths, similar to git apply -p."),
@@ -103,6 +110,47 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 	}
 }
 
+func resolvePermission(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+	var req input
+	if err := json.Unmarshal([]byte(call.Input), &req); err != nil {
+		return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+	}
+	if str.String(req.Patch).Trim() == "" {
+		return nil, tools.NewPermissionResolutionError("invalid_input", "patch is required")
+	}
+
+	files, _, err := gitdiff.Parse(strings.NewReader(req.Patch))
+	if err != nil {
+		return nil, tools.NewPermissionResolutionError("internal_error", err.Error())
+	}
+	if len(files) == 0 {
+		return nil, tools.NewPermissionResolutionError("invalid_input", "invalid patch")
+	}
+
+	inputs := make([]permissions.EvaluationInput, 0, len(files))
+	for _, file := range files {
+		target, err := getPatchTarget(file, req.Strip)
+		if err != nil {
+			return nil, tools.NewPermissionResolutionError("invalid_input", err.Error())
+		}
+		action := permissions.ActionUpdate
+		if target.isNew {
+			action = permissions.ActionCreate
+		}
+		inputs = append(inputs, permissions.EvaluationInput{Operation: permissions.Operation{
+			Resource: permissions.ResourceFile,
+			Action:   action,
+			Effects:  []permissions.Effect{permissions.EffectWrite},
+			Target:   filepath.ToSlash(filepath.Clean(target.newPath)),
+		}})
+	}
+	sort.Slice(inputs, func(i, j int) bool {
+		return inputs[i].Operation.Target < inputs[j].Operation.Target
+	})
+
+	return inputs, nil
+}
+
 func applyUnifiedDiff(policy guardrails.FilesystemPolicy, raw string, strip int) ([]string, []string, error) {
 	files, _, err := gitdiff.Parse(strings.NewReader(raw))
 	if err != nil {
@@ -117,21 +165,12 @@ func applyUnifiedDiff(policy guardrails.FilesystemPolicy, raw string, strip int)
 	created := make([]string, 0)
 
 	for _, file := range files {
-		oldPath := stripPath(file.OldName, strip)
-		newPath := stripPath(file.NewName, strip)
-
-		if file.IsBinary {
-			return nil, nil, errors.New("binary patches are not supported")
-		}
-		if file.IsDelete || newPath == "/dev/null" {
-			return nil, nil, errors.New("delete patches are not supported")
-		}
-		isNewFile := file.IsNew || oldPath == "/dev/null"
-		if file.IsRename || (!isNewFile && oldPath != newPath) {
-			return nil, nil, errors.New("rename patches are not supported")
+		target, err := getPatchTarget(file, strip)
+		if err != nil {
+			return nil, nil, err
 		}
 
-		resolved, err := policy.Resolve(newPath)
+		resolved, err := policy.Resolve(target.newPath)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -150,7 +189,7 @@ func applyUnifiedDiff(policy guardrails.FilesystemPolicy, raw string, strip int)
 			return nil, nil, err
 		}
 
-		if isNewFile {
+		if target.isNew {
 			if err := mkdirAll(filepath.Dir(resolved.Absolute), 0o755); err != nil {
 				return nil, nil, err
 			}
@@ -166,6 +205,23 @@ func applyUnifiedDiff(policy guardrails.FilesystemPolicy, raw string, strip int)
 	sort.Strings(applied)
 	sort.Strings(created)
 	return applied, created, nil
+}
+
+func getPatchTarget(file *gitdiff.File, strip int) (patchTarget, error) {
+	oldPath := stripPath(file.OldName, strip)
+	newPath := stripPath(file.NewName, strip)
+	if file.IsBinary {
+		return patchTarget{}, errors.New("binary patches are not supported")
+	}
+	if file.IsDelete || newPath == "/dev/null" {
+		return patchTarget{}, errors.New("delete patches are not supported")
+	}
+	isNew := file.IsNew || oldPath == "/dev/null"
+	if file.IsRename || !isNew && oldPath != newPath {
+		return patchTarget{}, errors.New("rename patches are not supported")
+	}
+
+	return patchTarget{newPath: newPath, isNew: isNew}, nil
 }
 
 func patchSourceBytes(file *gitdiff.File, absolutePath string) ([]byte, error) {

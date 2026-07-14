@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/memory"
 	"github.com/wandxy/morph/internal/memory/episodic"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 )
 
@@ -176,10 +177,20 @@ func RegisterRuntime(
 	policy guardrails.CommandPolicy,
 	definitions ...func(envtypes.Runtime) tools.Definition,
 ) tools.Registry {
+	return RegisterRuntimeWithPermissionPolicy(t, root, policy, permissions.Policy{}, definitions...)
+}
+
+func RegisterRuntimeWithPermissionPolicy(
+	t *testing.T,
+	root string,
+	commandPolicy guardrails.CommandPolicy,
+	permissionPolicy permissions.Policy,
+	definitions ...func(envtypes.Runtime) tools.Definition,
+) tools.Registry {
 	t.Helper()
 
-	registry := tools.NewInMemoryRegistry()
-	runtime := NewRuntime(root, policy)
+	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{PermissionPolicy: permissionPolicy})
+	runtime := NewRuntime(root, commandPolicy)
 
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
 	for _, definition := range definitions {

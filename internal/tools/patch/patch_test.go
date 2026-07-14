@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	nativemocks "github.com/wandxy/morph/internal/tools/mocks"
 )
@@ -35,6 +36,81 @@ func TestPatch_ToolAppliesUnifiedDiff(t *testing.T) {
 	content, readErr := os.ReadFile(filepath.Join(root, "file.txt"))
 	require.NoError(t, readErr)
 	require.Equal(t, "hello\nthere\n", string(content))
+}
+
+func TestPatch_EnforcementChecksEveryTargetBeforeMutation(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "allowed.txt"), []byte("before\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "blocked.txt"), []byte("before\n"), 0o644))
+	registry := nativemocks.RegisterRuntimeWithPermissionPolicy(
+		t,
+		root,
+		guardrails.CommandPolicy{},
+		permissions.Policy{Mode: permissions.ModeEnforce, Rules: []permissions.Rule{
+			{Name: "allow patches", Tools: []string{"patch"}, Decision: permissions.DecisionAllow},
+			{Name: "deny blocked path", TargetPrefixes: []string{"blocked.txt"}, Decision: permissions.DecisionDeny},
+		}},
+		Definition,
+	)
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceCLI,
+	})
+	patch := "--- a/allowed.txt\n+++ b/allowed.txt\n@@ -1 +1 @@\n-before\n+after\n" +
+		"--- a/blocked.txt\n+++ b/blocked.txt\n@@ -1 +1 @@\n-before\n+after\n"
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name: "patch", Input: `{"patch":` + nativemocks.QuoteJSON(patch) + `}`,
+	})
+
+	require.NoError(t, err)
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, permissions.ErrorCodeDenied, toolErr.Code)
+	allowed, err := os.ReadFile(filepath.Join(root, "allowed.txt"))
+	require.NoError(t, err)
+	require.Equal(t, "before\n", string(allowed))
+	blocked, err := os.ReadFile(filepath.Join(root, "blocked.txt"))
+	require.NoError(t, err)
+	require.Equal(t, "before\n", string(blocked))
+}
+
+func TestPatch_ResolvePermissionRejectsInputWithoutDiff(t *testing.T) {
+	inputs, err := resolvePermission(context.Background(), tools.Call{Input: `{"patch":"not a diff"}`})
+
+	require.EqualError(t, err, "invalid patch")
+	require.Nil(t, inputs)
+}
+
+func TestPatch_EnforcementNormalizesTargetBeforeRuleMatching(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(root, "nested"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "blocked.txt"), []byte("before\n"), 0o644))
+	registry := nativemocks.RegisterRuntimeWithPermissionPolicy(
+		t,
+		root,
+		guardrails.CommandPolicy{},
+		permissions.Policy{Mode: permissions.ModeEnforce, Rules: []permissions.Rule{
+			{Name: "allow patches", Tools: []string{"patch"}, Decision: permissions.DecisionAllow},
+			{Name: "deny blocked file", TargetPrefixes: []string{"blocked.txt"}, Decision: permissions.DecisionDeny},
+		}},
+		Definition,
+	)
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceCLI,
+	})
+	patch := "--- a/nested/../blocked.txt\n+++ b/nested/../blocked.txt\n@@ -1 +1 @@\n-before\n+after\n"
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name: "patch", Input: `{"patch":` + nativemocks.QuoteJSON(patch) + `}`,
+	})
+
+	require.NoError(t, err)
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, permissions.ErrorCodeDenied, toolErr.Code)
+	content, readErr := os.ReadFile(filepath.Join(root, "blocked.txt"))
+	require.NoError(t, readErr)
+	require.Equal(t, "before\n", string(content))
 }
 
 func TestPatch_ToolRejectsDeletePatch(t *testing.T) {

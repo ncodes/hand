@@ -11,6 +11,7 @@ import (
 	"github.com/wandxy/morph/internal/agent/runcontext"
 	"github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/tools"
 	toolmocks "github.com/wandxy/morph/internal/tools/mocks"
@@ -30,6 +31,74 @@ func TestMemoryWrite_DefinitionsIncludeUsageInstructions(t *testing.T) {
 	require.Equal(t, tools.Capabilities{Memory: true}, add.Requires)
 	require.Equal(t, tools.Capabilities{Memory: true}, update.Requires)
 	require.Equal(t, tools.Capabilities{Memory: true}, deleteDefinition.Requires)
+}
+
+func TestMemoryDelete_EnforcementDeniesBeforeRuntimeMutation(t *testing.T) {
+	called := false
+	runtime := &toolmocks.Runtime{DeleteMemoryFunc: func(context.Context, memory.DeleteRequest) error {
+		called = true
+		return nil
+	}}
+	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
+		Mode: permissions.ModeEnforce,
+		Rules: []permissions.Rule{{
+			Name: "deny memory deletes", Actions: []permissions.Action{permissions.ActionDelete}, Decision: permissions.DecisionDeny,
+		}},
+	}})
+	require.NoError(t, registry.Register(DeleteDefinition(runtime)))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceCLI,
+	})
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name: "memory_delete", Input: `{"id":"memory-1","reason":"cleanup"}`,
+	})
+
+	require.NoError(t, err)
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, permissions.ErrorCodeDenied, toolErr.Code)
+	require.False(t, called)
+}
+
+func TestMemoryWrite_ResolvePermissionTargetsMutations(t *testing.T) {
+	tests := []struct {
+		name       string
+		definition tools.Definition
+		input      string
+		action     permissions.Action
+		effects    []permissions.Effect
+		target     string
+	}{
+		{name: "add", definition: AddDefinition(nil), input: `{"kind":"semantic"}`, action: permissions.ActionCreate, effects: []permissions.Effect{permissions.EffectWrite}, target: "semantic"},
+		{name: "update", definition: UpdateDefinition(nil), input: `{"id":"memory-1"}`, action: permissions.ActionUpdate, effects: []permissions.Effect{permissions.EffectWrite}, target: "memory-1"},
+		{name: "delete", definition: DeleteDefinition(nil), input: `{"id":"memory-1"}`, action: permissions.ActionDelete, effects: []permissions.Effect{permissions.EffectWrite, permissions.EffectDestructive}, target: "memory-1"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			inputs, err := test.definition.ResolvePermission(context.Background(), tools.Call{Input: test.input})
+
+			require.NoError(t, err)
+			require.Len(t, inputs, 1)
+			require.Equal(t, permissions.ResourceMemory, inputs[0].Operation.Resource)
+			require.Equal(t, test.action, inputs[0].Operation.Action)
+			require.Equal(t, test.effects, inputs[0].Operation.Effects)
+			require.Equal(t, test.target, inputs[0].Operation.Target)
+		})
+	}
+}
+
+func TestMemoryWrite_ResolvePermissionRejectsMalformedInput(t *testing.T) {
+	definitions := []tools.Definition{AddDefinition(nil), UpdateDefinition(nil), DeleteDefinition(nil)}
+	for _, definition := range definitions {
+		t.Run(definition.Name, func(t *testing.T) {
+			inputs, err := definition.ResolvePermission(context.Background(), tools.Call{Input: `{"id":`})
+
+			require.EqualError(t, err, "invalid tool input")
+			require.Nil(t, inputs)
+		})
+	}
 }
 
 func TestMemoryAdd_DefinitionRecordsAndPromotesSemanticMemory(t *testing.T) {

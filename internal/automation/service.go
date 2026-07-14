@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/pkg/str"
 )
 
@@ -54,6 +55,7 @@ type RunResult struct {
 type ServiceOptions struct {
 	Store                      Store
 	Runner                     Runner
+	PermissionChecker          permissions.Checker
 	DeliverySink               DeliverySink
 	Logger                     Logger
 	Tracer                     Tracer
@@ -95,6 +97,7 @@ type MaintenanceResult struct {
 type Service struct {
 	store                      Store
 	runner                     Runner
+	permissionChecker          permissions.Checker
 	deliverySink               DeliverySink
 	logger                     Logger
 	tracer                     Tracer
@@ -189,6 +192,7 @@ func NewService(opts ServiceOptions) (*Service, error) {
 	return &Service{
 		store:                      opts.Store,
 		runner:                     opts.Runner,
+		permissionChecker:          opts.PermissionChecker,
 		deliverySink:               opts.DeliverySink,
 		logger:                     opts.Logger,
 		tracer:                     opts.Tracer,
@@ -381,6 +385,17 @@ func (s *Service) Add(ctx context.Context, job Job) (Job, error) {
 	if err != nil {
 		return Job{}, err
 	}
+
+	if err := s.checkMutationPermission(ctx, permissions.Operation{
+		Resource:      permissions.ResourceAutomation,
+		Action:        permissions.ActionCreate,
+		Effects:       []permissions.Effect{permissions.EffectExternalSystem, permissions.EffectWrite},
+		Target:        prepared.ID,
+		OwnerRequired: true,
+	}); err != nil {
+		return Job{}, err
+	}
+
 	created, err := s.store.CreateJob(ctx, prepared)
 	if err != nil {
 		return Job{}, err
@@ -411,6 +426,16 @@ func (s *Service) Update(ctx context.Context, patch JobPatch) (Job, error) {
 		return Job{}, err
 	}
 
+	if err := s.checkMutationPermission(ctx, permissions.Operation{
+		Resource:      permissions.ResourceAutomation,
+		Action:        permissions.ActionUpdate,
+		Effects:       []permissions.Effect{permissions.EffectExternalSystem, permissions.EffectWrite},
+		Target:        patch.ID,
+		OwnerRequired: true,
+	}); err != nil {
+		return Job{}, err
+	}
+
 	updated, err := s.store.PatchJob(ctx, patch)
 	if err != nil {
 		return Job{}, err
@@ -424,6 +449,21 @@ func (s *Service) Remove(ctx context.Context, id string) error {
 	if s == nil {
 		return errors.New("automation service is required")
 	}
+
+	if err := s.checkMutationPermission(ctx, permissions.Operation{
+		Resource: permissions.ResourceAutomation,
+		Action:   permissions.ActionDelete,
+		Effects: []permissions.Effect{
+			permissions.EffectDestructive,
+			permissions.EffectExternalSystem,
+			permissions.EffectWrite,
+		},
+		Target:        id,
+		OwnerRequired: true,
+	}); err != nil {
+		return err
+	}
+
 	if err := s.store.DeleteJob(ctx, id); err != nil {
 		return err
 	}
@@ -447,6 +487,20 @@ func (s *Service) Run(ctx context.Context, id string) (Run, error) {
 	if !ok {
 		return Run{}, errors.New("automation job not found")
 	}
+
+	if err := s.checkMutationPermission(ctx, permissions.Operation{
+		Resource: permissions.ResourceAutomation,
+		Action:   permissions.ActionTrigger,
+		Effects: []permissions.Effect{
+			permissions.EffectExecution,
+			permissions.EffectExternalSystem,
+		},
+		Target:        id,
+		OwnerRequired: true,
+	}); err != nil {
+		return Run{}, err
+	}
+
 	if err := s.markJobRunning(ctx, job, s.getNow()); err != nil {
 		if errors.Is(err, errAutomationJobAlreadyRunning) || errors.Is(err, errAutomationCapacityReached) {
 			if err := s.waitRunSlot(ctx, job.ID); err != nil {
@@ -471,6 +525,15 @@ func (s *Service) Run(ctx context.Context, id string) (Run, error) {
 	}
 
 	return s.executeJob(ctx, loaded)
+}
+
+func (s *Service) checkMutationPermission(ctx context.Context, operation permissions.Operation) error {
+	if s.permissionChecker == nil {
+		return nil
+	}
+
+	_, err := s.permissionChecker.Check(ctx, permissions.EvaluationInput{Operation: operation})
+	return err
 }
 
 func (s *Service) runLoop(ctx context.Context, done chan struct{}) {

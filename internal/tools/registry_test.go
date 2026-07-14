@@ -38,3 +38,16 @@ func TestError_StringReturnsJSON(t *testing.T) {
 		Error{Code: "rate_limited", Message: `retry "later"`, Retryable: true}.String(),
 	)
 }
+
+func TestPermissionResolutionError_RoundTrips(t *testing.T) {
+	err := NewPermissionResolutionError(" path_outside_roots ", " outside allowed roots ")
+	resolutionErr, ok := GetPermissionResolutionError(err)
+	require.True(t, ok)
+	require.Equal(t, "path_outside_roots", resolutionErr.Code)
+	require.EqualError(t, resolutionErr, "outside allowed roots")
+	require.Empty(t, (*PermissionResolutionError)(nil).Error())
+
+	resolutionErr, ok = GetPermissionResolutionError(nil)
+	require.False(t, ok)
+	require.Nil(t, resolutionErr)
+}

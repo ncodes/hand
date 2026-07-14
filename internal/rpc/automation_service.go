@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/wandxy/morph/internal/automation"
+	"github.com/wandxy/morph/internal/permissions"
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -79,6 +80,14 @@ func (s *AutomationService) AddJob(
 	if err := s.checkRequest(req); err != nil {
 		return nil, err
 	}
+	ctx = s.service.getPermissionContext(ctx)
+	if err := s.service.checkPermission(ctx, automationPermissionOperation(
+		permissions.ActionCreate,
+		[]permissions.Effect{permissions.EffectExternalSystem, permissions.EffectWrite},
+		"",
+	)); err != nil {
+		return nil, err
+	}
 
 	job, err := s.service.automation.Add(ctx, automationJobFromAddRequest(req))
 	if err != nil {
@@ -93,6 +102,14 @@ func (s *AutomationService) UpdateJob(
 	req *morphpb.UpdateAutomationJobRequest,
 ) (*morphpb.UpdateAutomationJobResponse, error) {
 	if err := s.checkRequest(req); err != nil {
+		return nil, err
+	}
+	ctx = s.service.getPermissionContext(ctx)
+	if err := s.service.checkPermission(ctx, automationPermissionOperation(
+		permissions.ActionUpdate,
+		[]permissions.Effect{permissions.EffectExternalSystem, permissions.EffectWrite},
+		req.GetId(),
+	)); err != nil {
 		return nil, err
 	}
 
@@ -130,11 +147,37 @@ func (s *AutomationService) UpdateJob(
 	return &morphpb.UpdateAutomationJobResponse{Job: automationJobToProto(job)}, nil
 }
 
+func automationPermissionOperation(
+	action permissions.Action,
+	effects []permissions.Effect,
+	target string,
+) permissions.Operation {
+	return permissions.Operation{
+		Resource:      permissions.ResourceAutomation,
+		Action:        action,
+		Effects:       effects,
+		Target:        target,
+		OwnerRequired: true,
+	}
+}
+
 func (s *AutomationService) RemoveJob(
 	ctx context.Context,
 	req *morphpb.RemoveAutomationJobRequest,
 ) (*morphpb.RemoveAutomationJobResponse, error) {
 	if err := s.checkRequest(req); err != nil {
+		return nil, err
+	}
+	ctx = s.service.getPermissionContext(ctx)
+	if err := s.service.checkPermission(ctx, automationPermissionOperation(
+		permissions.ActionDelete,
+		[]permissions.Effect{
+			permissions.EffectDestructive,
+			permissions.EffectExternalSystem,
+			permissions.EffectWrite,
+		},
+		req.GetId(),
+	)); err != nil {
 		return nil, err
 	}
 
@@ -151,6 +194,14 @@ func (s *AutomationService) RunJob(
 	req *morphpb.RunAutomationJobRequest,
 ) (*morphpb.RunAutomationJobResponse, error) {
 	if err := s.checkRequest(req); err != nil {
+		return nil, err
+	}
+	ctx = s.service.getPermissionContext(ctx)
+	if err := s.service.checkPermission(ctx, automationPermissionOperation(
+		permissions.ActionTrigger,
+		[]permissions.Effect{permissions.EffectExecution, permissions.EffectExternalSystem},
+		req.GetId(),
+	)); err != nil {
 		return nil, err
 	}
 
