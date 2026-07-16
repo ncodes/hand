@@ -33,12 +33,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 
 	return tools.Definition{
 		Name:         "list_files",
-		Description:  "List files and directories under an allowed workspace root.",
+		Description:  "List files and directories at an absolute or workspace-relative path, subject to the current permission mode.",
 		ParallelSafe: true,
 		Groups:       []string{"core"},
 		Requires:     tools.Capabilities{Filesystem: true},
 		InputSchema: common.ObjectSchema(map[string]any{
-			"path":           common.StringSchema("Path relative to an allowed workspace root. Defaults to the workspace root when omitted."),
+			"path":           common.StringSchema("Absolute path or path relative to the configured workspace root. Defaults to the workspace root when omitted."),
 			"recursive":      common.BooleanSchema("When true, list directory contents recursively. Defaults to false."),
 			"include_hidden": common.BooleanSchema("When true, include hidden files and directories in the results."),
 			"max_entries":    common.IntegerSchema("Maximum number of entries to return. Values outside the supported range are clamped."),
@@ -49,7 +49,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return result, nil
 			}
 
-			resolved, err := runtime.FilePolicy().Resolve(req.Path)
+			resolved, err := common.ResolveFilesystemPath(ctx, runtime.FilePolicy(), req.Path)
 			if err != nil {
 				return common.FileError(err), nil
 			}
@@ -80,8 +80,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Msg("list files execution started")
 
 			entries := make([]entry, 0)
+			displayRoot := resolved.Root
+			if displayRoot == "" {
+				displayRoot = resolved.Absolute
+			}
 			appendEntry := func(path string, isDir bool, size int64) bool {
-				rel, relErr := filepath.Rel(resolved.Root, path)
+				rel, relErr := filepath.Rel(displayRoot, path)
 				if relErr != nil {
 					return false
 				}
@@ -117,7 +121,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 						return nil
 					}
 
-					rel, relErr := filepath.Rel(resolved.Root, path)
+					rel, relErr := filepath.Rel(displayRoot, path)
 					if relErr == nil && !req.IncludeHidden && common.HiddenPath(rel) && d.IsDir() {
 						return filepath.SkipDir
 					}

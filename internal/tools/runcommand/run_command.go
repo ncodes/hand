@@ -61,7 +61,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 					"type": "string",
 				},
 			},
-			"cwd": common.StringSchema("Working directory relative to an allowed workspace root."),
+			"cwd": common.StringSchema("Absolute working directory or path relative to the configured workspace root."),
 			"env": map[string]any{
 				"type":        "object",
 				"description": "Environment variable overrides.",
@@ -90,22 +90,24 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				cwd = runtime.FilePolicy().Roots[0]
 			}
 
-			resolved, err := runtime.FilePolicy().Resolve(cwd)
+			resolved, err := common.ResolveFilesystemPath(ctx, runtime.FilePolicy(), cwd)
 			if err != nil {
 				return common.FileError(err), nil
 			}
 
-			eval := guardrails.EvaluateCommand(runtime.CommandPolicy(), req.Command, req.Args)
-			switch eval.Decision {
-			case guardrails.CommandDenied:
-				return common.ToolError("command_denied", eval.Reason), nil
-			case guardrails.CommandApprovalRequired:
-				message := "command requires approval"
-				if eval.Rule != "" {
-					message = "command requires approval: " + eval.Rule
-				}
+			if !permissions.HasFullAccess(ctx) {
+				eval := guardrails.EvaluateCommand(runtime.CommandPolicy(), req.Command, req.Args)
+				switch eval.Decision {
+				case guardrails.CommandDenied:
+					return common.ToolError("command_denied", eval.Reason), nil
+				case guardrails.CommandApprovalRequired:
+					message := "command requires approval"
+					if eval.Rule != "" {
+						message = "command requires approval: " + eval.Rule
+					}
 
-				return common.ToolError("approval_required", message), nil
+					return common.ToolError("approval_required", message), nil
+				}
 			}
 
 			timeout := common.WithTimeoutSeconds(req.TimeoutSeconds)

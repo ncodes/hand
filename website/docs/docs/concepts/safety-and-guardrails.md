@@ -70,7 +70,8 @@ When the agent acts rather than reads, a different set of guardrails applies (th
   structured error, since there is no interactive approval prompt in the tool path. Commands that match nothing are
   allowed by default.
 - **Filesystem roots.** File tools resolve every path against the profile's allowed workspace roots (`fs.roots`) and
-  reject anything that escapes them. Reads are capped in size, and non-text files are refused.
+  reject anything that escapes them. Reads are capped in size, and non-text files are refused. The intentionally unsafe
+  `permissions.mode: full_access` setting bypasses the root boundary while retaining size and text validation.
 - **Time and size caps.** Commands have a default and maximum timeout, and tool reads and outputs are bounded, so a
   single tool call cannot hang the turn or flood the context window.
 

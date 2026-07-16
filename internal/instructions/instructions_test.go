@@ -367,6 +367,21 @@ func TestBuildEnvironmentContext_ReturnsNamedInstructionWithRuntimeFacts(t *test
 	require.NotContains(t, instruction.Value, "escape literal MarkdownV2 control characters")
 }
 
+func TestBuildEnvironmentContext_DescribesUnrestrictedFilesystemInFullAccessMode(t *testing.T) {
+	instruction := BuildEnvironmentContext(EnvironmentContext{
+		WorkingDirectory: "/workspace/morph",
+		FilesystemRoots:  []string{"/workspace/morph"},
+		FullAccess:       true,
+	})
+
+	require.Contains(
+		t,
+		instruction.Value,
+		"- Filesystem access: unrestricted (full_access); absolute paths anywhere on this computer are allowed.",
+	)
+	require.NotContains(t, instruction.Value, "Filesystem roots:")
+}
+
 func TestBuildEnvironmentContext_ReturnsEmptyNamedInstructionWithoutFacts(t *testing.T) {
 	require.Equal(t, Instruction{Name: EnvironmentContextInstructionName}, BuildEnvironmentContext(EnvironmentContext{}))
 }

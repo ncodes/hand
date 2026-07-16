@@ -443,6 +443,17 @@ func TestRenderStartupPanel_IncludesActiveProfile(t *testing.T) {
 	require.Contains(t, output, "Profile: work")
 }
 
+func TestRenderStartupPanel_WarnsWhenFullAccessIsEnabled(t *testing.T) {
+	output := renderStartupPanel(&config.Config{
+		Name:        "daemon",
+		Models:      config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"}},
+		Log:         config.LogConfig{NoColor: true},
+		Permissions: permissions.Policy{Mode: permissions.ModeFullAccess},
+	})
+
+	require.Contains(t, output, "Permissions: full_access (UNSAFE: command and filesystem guardrails bypassed)")
+}
+
 func TestGetStartupProfileName_DefaultsWhenActiveProfileIsEmpty(t *testing.T) {
 	original := profile.Active()
 	profile.SetActive(profile.Profile{})

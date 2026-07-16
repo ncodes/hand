@@ -28,7 +28,11 @@ func buildPermissionPolicyCheck(policy permissions.Policy) Check {
 		return check("policy", StatusFail, err.Error())
 	}
 	if policy.Mode == permissions.ModeFullAccess {
-		return check("policy", StatusWarn, "full access bypasses permission rules and approvals")
+		return check(
+			"policy",
+			StatusWarn,
+			"full access bypasses permission rules, approvals, command policy, and filesystem roots",
+		)
 	}
 
 	return check("policy", StatusPass, "permission policy is valid")

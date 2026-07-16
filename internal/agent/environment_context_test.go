@@ -12,6 +12,7 @@ import (
 	instruct "github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/mocks"
 	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	morphtools "github.com/wandxy/morph/internal/tools"
 	agenttool "github.com/wandxy/morph/pkg/agent/tool"
@@ -109,6 +110,25 @@ func TestTurn_BuildEnvironmentContextInstructionUsesConfigAndToolPolicy(t *testi
 - Session ID: session-1
 - Session origin: source=telegram; conversation=-100; thread=7
 - Channel response guidance: The user is reading this in Telegram. Keep replies chat-friendly, concise, and readable on mobile. Use ordinary Markdown; the delivery layer handles Telegram formatting. Prefer short paragraphs and bullets, and avoid markdown tables and raw unsupported HTML.`, runtime.GOOS, runtime.GOARCH), instruction.Value)
+}
+
+func TestTurn_BuildEnvironmentContextInstructionExposesFullFilesystemAccess(t *testing.T) {
+	originalGetwd := environmentContextGetwd
+	environmentContextGetwd = func() (string, error) { return "/workspace/morph", nil }
+	t.Cleanup(func() { environmentContextGetwd = originalGetwd })
+
+	turn := &Turn{
+		cfg: &config.Config{
+			FS:          config.FSConfig{Roots: []string{"/workspace/morph"}},
+			Permissions: permissions.Policy{Mode: permissions.ModeFullAccess},
+		},
+	}
+
+	instruction := turn.buildEnvironmentContextInstruction(nil)
+
+	require.Contains(t, instruction.Value, "Filesystem access: unrestricted (full_access)")
+	require.Contains(t, instruction.Value, "absolute paths anywhere on this computer are allowed")
+	require.NotContains(t, instruction.Value, "Filesystem roots:")
 }
 
 func TestTurn_ActiveToolPolicyAndGroupsFallbackToCoreRegistry(t *testing.T) {

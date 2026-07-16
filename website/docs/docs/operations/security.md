@@ -338,8 +338,11 @@ Delegated and extension runtimes are narrower still:
 - ACP and execute-code callers require a non-empty authenticated actor ID and a constrained scope.
 
 `morph doctor` reports invalid permission rules, `full_access`, impossible unattended `ask` defaults, and stale active
-grants. A configured remote approval notifier may report an unattended `ask` to a trusted operator channel, but it
-does not turn the unattended call into a waiting or self-approving request.
+grants. `full_access` is deliberately unsafe: it bypasses permission denials, command guardrails, and filesystem-root
+boundaries so Morph can act across the computer. The daemon startup panel, TUI, and readiness diagnostics identify this
+mode prominently.
+A configured remote approval notifier may report an unattended `ask` to a trusted operator channel, but it does not
+turn the unattended call into a waiting or self-approving request.
 
 Use this checklist before binding gateways broadly or morphing out pairing codes:
 

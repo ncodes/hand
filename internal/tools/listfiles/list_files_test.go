@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	nativemocks "github.com/wandxy/morph/internal/tools/mocks"
 )
@@ -41,6 +42,38 @@ func TestListFiles_ToolListsFiles(t *testing.T) {
 	require.Equal(t, "nested", payload.Entries[1].Path)
 	require.Equal(t, "dir", payload.Entries[1].Type)
 	require.Equal(t, int64(0), payload.Entries[1].Size)
+}
+
+func TestListFiles_FullAccessListsAbsolutePathOutsideWorkspace(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "alpha.txt"), []byte("alpha"), 0o644))
+	registry := nativemocks.RegisterRuntimeWithPermissionPolicy(
+		t,
+		root,
+		guardrails.CommandPolicy{},
+		permissions.Policy{Mode: permissions.ModeFullAccess},
+		Definition,
+	)
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "list_files",
+		Input: `{"path":` + nativemocks.QuoteJSON(outside) + `,"recursive":false}`,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	var payload struct {
+		Path    string `json:"path"`
+		Entries []struct {
+			Path string `json:"path"`
+		} `json:"entries"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Equal(t, filepath.ToSlash(outside), payload.Path)
+	require.Equal(t, []struct {
+		Path string `json:"path"`
+	}{{Path: "alpha.txt"}}, payload.Entries)
 }
 
 func TestListFiles_ToolListsDirectoryNonRecursivelyAndSkipsHiddenEntries(t *testing.T) {

@@ -1,15 +1,18 @@
 package common_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	common "github.com/wandxy/morph/internal/tools/common"
 	listfiles "github.com/wandxy/morph/internal/tools/listfiles"
@@ -22,6 +25,36 @@ import (
 	timetool "github.com/wandxy/morph/internal/tools/time"
 	writefile "github.com/wandxy/morph/internal/tools/writefile"
 )
+
+func TestResolveFilesystemPath_EnforcesRootsWithoutFullAccess(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+
+	_, err := common.ResolveFilesystemPath(
+		context.Background(),
+		guardrails.FilesystemPolicy{Roots: []string{root}},
+		outside,
+	)
+
+	require.EqualError(t, err, "path is outside allowed roots")
+}
+
+func TestResolveFilesystemPath_AllowsOutsideRootsWithFullAccess(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	ctx := permissions.WithFullAccess(context.Background())
+
+	resolved, err := common.ResolveFilesystemPath(
+		ctx,
+		guardrails.FilesystemPolicy{Roots: []string{root}},
+		outside,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, outside, resolved.Absolute)
+	require.Equal(t, filepath.ToSlash(outside), resolved.Relative)
+	require.Empty(t, resolved.Root)
+}
 
 func TestFileError_MapsKnownErrors(t *testing.T) {
 	tests := []struct {
@@ -149,6 +182,34 @@ func TestNativeToolDefinitions_AdvertiseArgumentDescriptions(t *testing.T) {
 				field, ok := property.(map[string]any)
 				require.True(t, ok, name)
 				require.NotEmpty(t, field["description"], name)
+			}
+		})
+	}
+}
+
+func TestNativeFilesystemToolDefinitions_DoNotClaimWorkspaceOnlyAccess(t *testing.T) {
+	root := t.TempDir()
+	runtime := nativemocks.NewRuntime(root, guardrails.CommandPolicy{})
+	definitions := tools.Definitions{
+		listfiles.Definition(runtime),
+		readfile.Definition(runtime),
+		searchfiles.Definition(runtime),
+		writefile.Definition(runtime),
+		patchtool.Definition(runtime),
+		runcommand.Definition(runtime),
+	}
+
+	for _, definition := range definitions {
+		t.Run(definition.Name, func(t *testing.T) {
+			require.NotContains(t, definition.Description, "allowed workspace root")
+
+			properties, _ := definition.InputSchema["properties"].(map[string]any)
+			for _, name := range []string{"path", "cwd"} {
+				property, ok := properties[name].(map[string]any)
+				if !ok {
+					continue
+				}
+				require.NotContains(t, property["description"], "allowed workspace root")
 			}
 		})
 	}

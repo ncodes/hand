@@ -5,6 +5,7 @@ import (
 )
 
 type authorizationContextKey struct{}
+type fullAccessContextKey struct{}
 
 func WithContext(ctx context.Context, authorization AuthorizationContext) context.Context {
 	if ctx == nil {
@@ -35,4 +36,21 @@ func FromContext(ctx context.Context) (AuthorizationContext, bool) {
 	}
 
 	return normalized, true
+}
+
+func WithFullAccess(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	return context.WithValue(ctx, fullAccessContextKey{}, true)
+}
+
+func HasFullAccess(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+
+	enabled, _ := ctx.Value(fullAccessContextKey{}).(bool)
+	return enabled
 }

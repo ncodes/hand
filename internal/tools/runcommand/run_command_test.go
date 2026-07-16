@@ -226,6 +226,39 @@ func TestRunCommand_EnforcementPreservesCommandHardDenyAndApproval(t *testing.T)
 	}
 }
 
+func TestRunCommand_FullAccessBypassesCommandAndWorkingDirectoryGuardrails(t *testing.T) {
+	originalCommandContext := commandContext
+	t.Cleanup(func() { commandContext = originalCommandContext })
+	called := false
+	commandContext = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
+		called = true
+		return exec.CommandContext(ctx, "printf", "allowed")
+	}
+
+	root := t.TempDir()
+	outside := t.TempDir()
+	registry := nativemocks.RegisterRuntimeWithPermissionPolicy(
+		t,
+		root,
+		guardrails.CommandPolicy{Deny: []string{"git push"}},
+		permissions.Policy{Mode: permissions.ModeFullAccess},
+		Definition,
+	)
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name: "run_command",
+		Input: `{"command":"git","args":["push","origin","main"],"cwd":` +
+			nativemocks.QuoteJSON(outside) + `}`,
+	})
+
+	require.NoError(t, err)
+	require.True(t, called)
+	require.Empty(t, result.Error)
+	var payload runCommandPayload
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Equal(t, "allowed", payload.Stdout)
+}
+
 func TestRunCommand_ResolvePermissionWithoutRuntimeClassifiesTarget(t *testing.T) {
 	resolver := resolvePermission(nil)
 

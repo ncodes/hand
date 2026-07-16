@@ -40,7 +40,7 @@ type patchTarget struct {
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:        "patch",
-		Description: "Apply a unified diff patch under allowed workspace roots.",
+		Description: "Apply a unified diff patch to absolute or workspace-relative paths, subject to the current permission mode.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
 		Permission: permissions.Operation{
@@ -75,7 +75,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("phase", "execute").
 				Msg("patch application started")
 
-			applied, created, err := applyUnifiedDiff(runtime.FilePolicy(), req.Patch, req.Strip)
+			applied, created, err := applyUnifiedDiff(ctx, runtime.FilePolicy(), req.Patch, req.Strip)
 			if err != nil {
 				log.Warn().
 					Err(err).
@@ -151,7 +151,12 @@ func resolvePermission(_ context.Context, call tools.Call) ([]permissions.Evalua
 	return inputs, nil
 }
 
-func applyUnifiedDiff(policy guardrails.FilesystemPolicy, raw string, strip int) ([]string, []string, error) {
+func applyUnifiedDiff(
+	ctx context.Context,
+	policy guardrails.FilesystemPolicy,
+	raw string,
+	strip int,
+) ([]string, []string, error) {
 	files, _, err := gitdiff.Parse(strings.NewReader(raw))
 	if err != nil {
 		return nil, nil, err
@@ -170,7 +175,7 @@ func applyUnifiedDiff(policy guardrails.FilesystemPolicy, raw string, strip int)
 			return nil, nil, err
 		}
 
-		resolved, err := policy.Resolve(target.newPath)
+		resolved, err := common.ResolveFilesystemPath(ctx, policy, target.newPath)
 		if err != nil {
 			return nil, nil, err
 		}

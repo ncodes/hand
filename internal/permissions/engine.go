@@ -42,6 +42,10 @@ func NewEngine(policy Policy) Engine {
 	return Engine{policy: policy}
 }
 
+func (e Engine) Mode() Mode {
+	return e.policy.Mode
+}
+
 func (e Engine) Evaluate(ctx context.Context, input EvaluationInput) Evaluation {
 	if authorization, ok := FromContext(ctx); ok {
 		input.Authorization = authorization

@@ -16,10 +16,15 @@ type lipglossBottomStatusPanelRenderer struct{}
 var defaultBottomStatusPanelRenderer bottomStatusPanelRenderer = lipglossBottomStatusPanelRenderer{}
 
 func (lipglossBottomStatusPanelRenderer) Render(panel bottomStatusPanel) string {
-	segments := []string{
+	segments := make([]string, 0, 3)
+	if panel.FullAccess {
+		segments = append(segments, renderBottomStatusDangerCell("Full access (unsafe)"))
+	}
+	segments = append(
+		segments,
 		renderBottomStatusMutedCell(panel.ModelName),
 		renderBottomStatusMutedCell(panel.Status),
-	}
+	)
 	if panel.Thinking {
 		segments = append([]string{renderThinkingStatusCell(panel.ThinkingFrame)}, segments...)
 	}
@@ -37,6 +42,19 @@ func (lipglossBottomStatusPanelRenderer) Render(panel bottomStatusPanel) string 
 		Padding(0, panel.HorizontalPadding).
 		Width(panel.Width).
 		Render(spaceAroundBottomStatusPanel(left, center, right, panel.ContentWidth))
+}
+
+func renderBottomStatusDangerCell(text string) string {
+	text = str.String(text).Trim()
+	if text == "" {
+		return ""
+	}
+
+	return lipgloss.NewStyle().
+		Inline(true).
+		Bold(true).
+		Foreground(lipgloss.Color(defaultTUITheme.ToolDeletion)).
+		Render(text)
 }
 
 func renderBottomStatusMutedCell(text string) string {

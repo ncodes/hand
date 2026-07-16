@@ -225,6 +225,9 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 	if result, blocked := r.checkPermissions(ctx, def, call); blocked {
 		return result, nil
 	}
+	if r.permissions.Mode() == permissions.ModeFullAccess {
+		ctx = permissions.WithFullAccess(ctx)
+	}
 
 	result, err := def.Handler.Invoke(ctx, call)
 	if err != nil {

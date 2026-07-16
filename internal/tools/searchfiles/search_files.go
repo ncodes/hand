@@ -54,13 +54,13 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 
 	return tools.Definition{
 		Name:         "search_files",
-		Description:  "Search file contents under an allowed workspace root.",
+		Description:  "Search file contents at an absolute or workspace-relative path, subject to the current permission mode.",
 		ParallelSafe: true,
 		Groups:       []string{"core"},
 		Requires:     tools.Capabilities{Filesystem: true},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"pattern":        common.StringSchema("Text or pattern to search for within files."),
-			"path":           common.StringSchema("Path relative to an allowed workspace root to search within. Defaults to the workspace root when omitted."),
+			"path":           common.StringSchema("Absolute path or path relative to the configured workspace root to search within. Defaults to the workspace root when omitted."),
 			"case_sensitive": common.BooleanSchema("When true, match text using case-sensitive search."),
 			"include_hidden": common.BooleanSchema("When true, include hidden files and directories in the search."),
 			"max_results":    common.IntegerSchema("Maximum number of matches to return. Values outside the supported range are clamped."),
@@ -75,7 +75,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("invalid_input", "pattern is required"), nil
 			}
 
-			resolved, err := runtime.FilePolicy().Resolve(req.Path)
+			resolved, err := common.ResolveFilesystemPath(ctx, runtime.FilePolicy(), req.Path)
 			if err != nil {
 				return common.FileError(err), nil
 			}
@@ -170,6 +170,7 @@ func searchWithRipgrep(
 	includeHidden bool,
 	limit int,
 ) ([]contentMatch, error) {
+	displayRoot := getSearchDisplayRoot(resolved)
 	args := []string{"--vimgrep", "--no-heading", "--color", "never", "--max-count", strconv.Itoa(limit)}
 	if includeHidden {
 		args = append(args, "--hidden")
@@ -204,7 +205,7 @@ func searchWithRipgrep(
 			continue
 		}
 
-		rel, _ := filepath.Rel(resolved.Root, parts[0])
+		rel, _ := filepath.Rel(displayRoot, parts[0])
 		lineNo, _ := strconv.Atoi(parts[1])
 		column, _ := strconv.Atoi(parts[2])
 
@@ -231,6 +232,7 @@ func searchWithGo(
 	limit int,
 ) ([]contentMatch, error) {
 	matches := make([]contentMatch, 0, limit)
+	displayRoot := getSearchDisplayRoot(resolved)
 	matchPattern := pattern
 	if !caseSensitive {
 		matchPattern = strings.ToLower(pattern)
@@ -243,7 +245,7 @@ func searchWithGo(
 
 		if d.IsDir() {
 			if path != resolved.Absolute {
-				rel, _ := filepath.Rel(resolved.Root, path)
+				rel, _ := filepath.Rel(displayRoot, path)
 				if !includeHidden && common.HiddenPath(rel) {
 					return filepath.SkipDir
 				}
@@ -252,7 +254,7 @@ func searchWithGo(
 			return nil
 		}
 
-		rel, _ := filepath.Rel(resolved.Root, path)
+		rel, _ := filepath.Rel(displayRoot, path)
 
 		if !includeHidden && common.HiddenPath(rel) {
 			return nil
@@ -301,4 +303,17 @@ func searchWithGo(
 	}
 
 	return matches, nil
+}
+
+func getSearchDisplayRoot(resolved guardrails.ResolvedPath) string {
+	if resolved.Root != "" {
+		return resolved.Root
+	}
+
+	info, err := os.Stat(resolved.Absolute)
+	if err == nil && !info.IsDir() {
+		return filepath.Dir(resolved.Absolute)
+	}
+
+	return resolved.Absolute
 }

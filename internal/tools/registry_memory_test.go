@@ -580,7 +580,8 @@ func TestInMemoryRegistry_InvokeFullAccessBypassesPolicyAndApproval(t *testing.T
 				ApprovalReason: "normally requires approval",
 			}}, nil
 		},
-		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+		Handler: HandlerFunc(func(ctx context.Context, _ Call) (Result, error) {
+			require.True(t, permissions.HasFullAccess(ctx))
 			called = true
 			return Result{Output: "written"}, nil
 		}),
@@ -599,7 +600,7 @@ func TestInMemoryRegistry_InvokeFullAccessBypassesPolicyAndApproval(t *testing.T
 	require.Equal(t, string(permissions.ModeFullAccess), recorder.events[0].payload.Mode)
 }
 
-func TestInMemoryRegistry_InvokeFullAccessPreservesHardDenial(t *testing.T) {
+func TestInMemoryRegistry_InvokeFullAccessBypassesHardDenial(t *testing.T) {
 	called := false
 	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{Mode: permissions.ModeFullAccess}})
 	require.NoError(t, registry.Register(Definition{
@@ -620,11 +621,8 @@ func TestInMemoryRegistry_InvokeFullAccessPreservesHardDenial(t *testing.T) {
 	result, err := registry.Invoke(context.Background(), Call{Name: "write"})
 
 	require.NoError(t, err)
-	require.False(t, called)
-	var toolErr Error
-	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
-	require.Equal(t, permissions.ErrorCodeDenied, toolErr.Code)
-	require.Equal(t, "blocked by filesystem safety policy", toolErr.Message)
+	require.True(t, called)
+	require.Empty(t, result.Error)
 }
 
 func TestInMemoryRegistry_InvokeDenyOverridesAskAcrossResolvedOperations(t *testing.T) {

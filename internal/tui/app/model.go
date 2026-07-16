@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 )
@@ -90,6 +91,9 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	}
 	appModel.runtimeInfo = runtimeInfo
 	appModel.modelName = getModelDisplayName(runtimeInfo.Model)
+	permissionPolicy := cfg.Permissions
+	permissionPolicy.Normalize()
+	appModel.fullAccess = permissionPolicy.Mode == permissions.ModeFullAccess
 	if sessions, ok := client.(rpcclient.SessionAPI); ok {
 		appModel.sessionClient = sessions
 	}

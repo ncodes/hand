@@ -123,9 +123,9 @@ func TestPolicy_EvaluateFullAccessBypassesPolicyApprovalAndOwnership(t *testing.
 
 	input.HardDenyReason = "blocked by hard safety policy"
 	evaluation = policy.Evaluate(input)
-	require.Equal(t, DecisionDeny, evaluation.Decision)
-	require.Equal(t, ReasonHardDeny, evaluation.ReasonCode)
-	require.Equal(t, "blocked by hard safety policy", evaluation.Reason)
+	require.Equal(t, DecisionAllow, evaluation.Decision)
+	require.Equal(t, ReasonFullAccess, evaluation.ReasonCode)
+	require.Empty(t, evaluation.Reason)
 }
 
 func TestPolicy_EvaluateUsesHardDenyThenRulePrecedence(t *testing.T) {

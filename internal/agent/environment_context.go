@@ -10,6 +10,7 @@ import (
 	"github.com/wandxy/morph/internal/guardrails"
 	instruct "github.com/wandxy/morph/internal/instructions"
 	models "github.com/wandxy/morph/internal/model"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/tools"
 	agentsession "github.com/wandxy/morph/pkg/agent/session"
@@ -49,6 +50,9 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 	if t.cfg != nil {
 		ctx.Platform = t.cfg.Platform
 		ctx.FilesystemRoots = getFilesystemRoots(t.cfg.FS.Roots, workingDirectory)
+		permissionPolicy := t.cfg.Permissions
+		permissionPolicy.Normalize()
+		ctx.FullAccess = permissionPolicy.Mode == permissions.ModeFullAccess
 		ctx.Model = t.cfg.Models.Main.Name
 		if summaryModel := t.cfg.SummaryModelEffective(); summaryModel != "" && summaryModel != t.cfg.Models.Main.Name {
 			ctx.SummaryModel = summaryModel

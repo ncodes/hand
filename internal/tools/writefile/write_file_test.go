@@ -131,6 +131,28 @@ func TestWriteFile_ExplicitGrantDoesNotOverrideFilesystemRoots(t *testing.T) {
 	require.ErrorIs(t, statErr, os.ErrNotExist)
 }
 
+func TestWriteFile_FullAccessOverridesFilesystemRoots(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	registry := nativemocks.RegisterRuntimeWithPermissionPolicy(
+		t,
+		root,
+		guardrails.CommandPolicy{},
+		permissions.Policy{Mode: permissions.ModeFullAccess},
+		Definition,
+	)
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name: "write_file", Input: `{"path":` + nativemocks.QuoteJSON(outside) + `,"content":"allowed"}`,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	content, readErr := os.ReadFile(outside)
+	require.NoError(t, readErr)
+	require.Equal(t, "allowed", string(content))
+}
+
 func TestWriteFile_EnforcementNormalizesTargetBeforeRuleMatching(t *testing.T) {
 	root := t.TempDir()
 	registry := nativemocks.RegisterRuntimeWithPermissionPolicy(

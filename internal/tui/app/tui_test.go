@@ -3021,6 +3021,19 @@ func TestModel_RenderBottomStatusPanelMovesContextToRight(t *testing.T) {
 	require.Greater(t, strings.Index(content, "64,000"), strings.Index(content, "default session"))
 }
 
+func TestModel_RenderBottomStatusPanelWarnsWhenFullAccessIsEnabled(t *testing.T) {
+	runModel := newModelWithClientContextAndConfig(
+		context.Background(),
+		nil,
+		&config.Config{Permissions: permissions.Policy{Mode: permissions.ModeFullAccess}},
+	)
+
+	content := stripANSI(runModel.renderBottomStatusPanel())
+
+	require.True(t, runModel.fullAccess)
+	require.Contains(t, content, "Full access (unsafe)")
+}
+
 func TestModel_RenderBottomStatusPanelShowsThinkingBeforeModel(t *testing.T) {
 	runModel := newModel()
 	runModel.modelName = "openai/gpt-4o-mini"

@@ -46,6 +46,7 @@ type EnvironmentContext struct {
 	Platform         string
 	WorkingDirectory string
 	FilesystemRoots  []string
+	FullAccess       bool
 	Capabilities     EnvironmentCapabilities
 	HasCapabilities  bool
 	ActiveToolGroups []string
@@ -165,7 +166,12 @@ func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 		lines = append(lines, fmt.Sprintf("- Working directory: %s", workingDirectory))
 	}
 
-	if roots := cleanList(ctx.FilesystemRoots); len(roots) > 0 {
+	if ctx.FullAccess {
+		lines = append(
+			lines,
+			"- Filesystem access: unrestricted (full_access); absolute paths anywhere on this computer are allowed.",
+		)
+	} else if roots := cleanList(ctx.FilesystemRoots); len(roots) > 0 {
 		lines = append(lines, fmt.Sprintf("- Filesystem roots: %s", strings.Join(roots, ", ")))
 	}
 

@@ -31,6 +31,7 @@ type tuiState struct {
 	modelName                  string
 	runtimeInfo                runtimeInfo
 	context                    string
+	fullAccess                 bool
 	messages                   []transcriptCell
 	live                       transcriptCell
 	showIntro                  bool

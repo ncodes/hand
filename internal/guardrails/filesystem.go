@@ -105,6 +105,36 @@ func (p FilesystemPolicy) Resolve(path string) (ResolvedPath, error) {
 	return ResolvedPath{}, errors.New("path is outside allowed roots")
 }
 
+func (p FilesystemPolicy) ResolveUnrestricted(path string) (ResolvedPath, error) {
+	if resolved, err := p.Resolve(path); err == nil {
+		return resolved, nil
+	}
+
+	p = p.Normalize()
+	path = str.String(path).Trim()
+	if path == "" {
+		path = "."
+	}
+
+	candidate := filepath.Clean(path)
+	if !filepath.IsAbs(candidate) {
+		if len(p.Roots) > 0 {
+			candidate = filepath.Clean(filepath.Join(p.Roots[0], candidate))
+		} else {
+			absolute, err := filepath.Abs(candidate)
+			if err != nil {
+				return ResolvedPath{}, err
+			}
+			candidate = filepath.Clean(absolute)
+		}
+	}
+
+	return ResolvedPath{
+		Absolute: candidate,
+		Relative: filepath.ToSlash(candidate),
+	}, nil
+}
+
 func firstRootCandidate(roots []string, path string) string {
 	candidate := filepath.Clean(filepath.Join(roots[0], path))
 	for _, root := range roots {

@@ -192,9 +192,6 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 		p.Default = DecisionDeny
 	}
 
-	if reason := str.String(input.HardDenyReason).Trim(); reason != "" {
-		return Evaluation{Decision: DecisionDeny, ReasonCode: ReasonHardDeny, Reason: reason, Mode: p.Mode}
-	}
 	if policyErr != nil {
 		return Evaluation{Decision: DecisionDeny, ReasonCode: ReasonPolicyDefault, Mode: p.Mode}
 	}
@@ -218,6 +215,9 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 	}
 	if p.Mode == ModeFullAccess {
 		return Evaluation{Decision: DecisionAllow, ReasonCode: ReasonFullAccess, Mode: p.Mode}
+	}
+	if reason := str.String(input.HardDenyReason).Trim(); reason != "" {
+		return Evaluation{Decision: DecisionDeny, ReasonCode: ReasonHardDeny, Reason: reason, Mode: p.Mode}
 	}
 
 	var evaluation Evaluation

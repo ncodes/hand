@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -10,9 +11,23 @@ import (
 	"strings"
 
 	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/pkg/str"
 )
+
+func ResolveFilesystemPath(
+	ctx context.Context,
+	policy guardrails.FilesystemPolicy,
+	path string,
+) (guardrails.ResolvedPath, error) {
+	if permissions.HasFullAccess(ctx) {
+		return policy.ResolveUnrestricted(path)
+	}
+
+	return policy.Resolve(path)
+}
 
 var (
 	LookPath       = exec.LookPath

@@ -78,6 +78,43 @@ func TestFilesystemPolicyResolve_RejectsWhenNoRootsAreConfigured(t *testing.T) {
 	require.EqualError(t, err, "access denied")
 }
 
+func TestFilesystemPolicyResolveUnrestricted_AllowsPathsOutsideRoots(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	policy := FilesystemPolicy{Roots: []string{root}}
+
+	resolved, err := policy.ResolveUnrestricted(outside)
+
+	require.NoError(t, err)
+	require.Empty(t, resolved.Root)
+	require.Equal(t, outside, resolved.Absolute)
+	require.Equal(t, filepath.ToSlash(outside), resolved.Relative)
+}
+
+func TestFilesystemPolicyResolveUnrestricted_PreservesRootRelativePaths(t *testing.T) {
+	root := t.TempDir()
+	policy := FilesystemPolicy{Roots: []string{root}}
+
+	resolved, err := policy.ResolveUnrestricted("dir/file.txt")
+
+	require.NoError(t, err)
+	require.Equal(t, root, resolved.Root)
+	require.Equal(t, filepath.Join(root, "dir", "file.txt"), resolved.Absolute)
+	require.Equal(t, "dir/file.txt", resolved.Relative)
+}
+
+func TestFilesystemPolicyResolveUnrestricted_UsesCurrentDirectoryWithoutRoots(t *testing.T) {
+	expected, err := filepath.Abs("dir/file.txt")
+	require.NoError(t, err)
+
+	resolved, err := (FilesystemPolicy{}).ResolveUnrestricted("dir/file.txt")
+
+	require.NoError(t, err)
+	require.Empty(t, resolved.Root)
+	require.Equal(t, filepath.Clean(expected), resolved.Absolute)
+	require.Equal(t, filepath.ToSlash(filepath.Clean(expected)), resolved.Relative)
+}
+
 func TestNormalizeRoots_DeduplicatesAndCleans(t *testing.T) {
 	root := t.TempDir()
 	roots := NormalizeRoots([]string{root, filepath.Join(root, "."), "", root})

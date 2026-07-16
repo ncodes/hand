@@ -21,12 +21,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 
 	return tools.Definition{
 		Name:         "read_file",
-		Description:  "Read a text file from an allowed workspace root.",
+		Description:  "Read a text file at an absolute or workspace-relative path, subject to the current permission mode.",
 		ParallelSafe: true,
 		Groups:       []string{"core"},
 		Requires:     tools.Capabilities{Filesystem: true},
 		InputSchema: common.ObjectSchema(map[string]any{
-			"path": common.StringSchema("Path to the text file relative to an allowed workspace root."),
+			"path": common.StringSchema("Absolute path to the text file or path relative to the configured workspace root."),
 		}, "path"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
@@ -40,7 +40,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("path", common.NormalizedDisplayPath(req.Path)).
 				Msg("read file tool started")
 
-			resolved, err := runtime.FilePolicy().Resolve(req.Path)
+			resolved, err := common.ResolveFilesystemPath(ctx, runtime.FilePolicy(), req.Path)
 			if err != nil {
 				log.Warn().
 					Err(err).

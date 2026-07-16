@@ -17,6 +17,7 @@ type bottomStatusPanel struct {
 	Thinking          bool
 	ThinkingFrame     int
 	ExitConfirmation  bool
+	FullAccess        bool
 }
 
 func getBottomStatusPanel(width int, m model) bottomStatusPanel {
@@ -31,5 +32,6 @@ func getBottomStatusPanel(width int, m model) bottomStatusPanel {
 		Thinking:          m.isModelThinking(),
 		ThinkingFrame:     m.thinkingComposerFrame,
 		ExitConfirmation:  m.hasPendingExitConfirmation(),
+		FullAccess:        m.fullAccess,
 	}
 }

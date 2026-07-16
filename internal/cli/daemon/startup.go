@@ -7,6 +7,7 @@ import (
 	"github.com/wandxy/morph/internal/brand"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	"github.com/wandxy/morph/pkg/str"
 )
@@ -70,6 +71,7 @@ func getStartupDetailRows(cfg *config.Config) []startupDetailRow {
 		{label: "Summary model", value: cfg.SummaryModelEffective()},
 		{label: "Summary provider", value: cfg.SummaryProviderEffective()},
 		{label: "Storage", value: getEffectiveStorageBackend(cfg)},
+		{label: "Permissions", value: getPermissionStartupSummary(cfg)},
 	}
 	if cfg.SummaryModelAPIEffective() != cfg.Models.Main.API {
 		rows = append(rows, startupDetailRow{label: "Summary API", value: cfg.SummaryModelAPIEffective()})
@@ -92,6 +94,19 @@ func getStartupDetailRows(cfg *config.Config) []startupDetailRow {
 	}
 
 	return rows
+}
+
+func getPermissionStartupSummary(cfg *config.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	policy := cfg.Permissions
+	policy.Normalize()
+	if policy.Mode == permissions.ModeFullAccess {
+		return "full_access (UNSAFE: command and filesystem guardrails bypassed)"
+	}
+
+	return string(policy.Mode)
 }
 
 func getStartupProfileName() string {

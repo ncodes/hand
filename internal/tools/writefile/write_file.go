@@ -29,7 +29,7 @@ type input struct {
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:        "write_file",
-		Description: "Create or overwrite a text file under an allowed workspace root.",
+		Description: "Create or overwrite a text file at an absolute or workspace-relative path, subject to the current permission mode.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
 		Permission: permissions.Operation{
@@ -58,7 +58,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				}}, nil
 		},
 		InputSchema: common.ObjectSchema(map[string]any{
-			"path":        common.StringSchema("Path to the file relative to an allowed workspace root."),
+			"path":        common.StringSchema("Absolute path to the file or path relative to the configured workspace root."),
 			"content":     common.StringSchema("Text content to write to the target file."),
 			"create_dirs": common.BooleanSchema("When true, create missing parent directories before writing. Defaults to true."),
 		}, "path", "content"),
@@ -76,7 +76,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("not_text", "content must be text"), nil
 			}
 
-			resolved, err := runtime.FilePolicy().Resolve(req.Path)
+			resolved, err := common.ResolveFilesystemPath(ctx, runtime.FilePolicy(), req.Path)
 			if err != nil {
 				return common.FileError(err), nil
 			}

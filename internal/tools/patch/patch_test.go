@@ -250,11 +250,11 @@ func TestApplyUnifiedDiff_RejectsInvalidAndBinaryPatchKinds(t *testing.T) {
 	root := t.TempDir()
 	policy := guardrails.FilesystemPolicy{Roots: []string{root}}
 
-	_, _, err := applyUnifiedDiff(policy, "not a patch", 0)
+	_, _, err := applyUnifiedDiff(context.Background(), policy, "not a patch", 0)
 	require.EqualError(t, err, "invalid patch")
 
 	binaryPatch := "diff --git a/file.bin b/file.bin\nindex 0000000..1111111\nBinary files a/file.bin and b/file.bin differ\n"
-	_, _, err = applyUnifiedDiff(policy, binaryPatch, 0)
+	_, _, err = applyUnifiedDiff(context.Background(), policy, binaryPatch, 0)
 	require.EqualError(t, err, "binary patches are not supported")
 }
 
@@ -263,7 +263,7 @@ func TestApplyUnifiedDiff_ReturnsSourceReadErrorForMissingExistingFile(t *testin
 	policy := guardrails.FilesystemPolicy{Roots: []string{root}}
 	patch := "--- a/missing.txt\n+++ b/missing.txt\n@@ -1 +1 @@\n-old\n+new\n"
 
-	_, _, err := applyUnifiedDiff(policy, patch, 0)
+	_, _, err := applyUnifiedDiff(context.Background(), policy, patch, 0)
 
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
@@ -274,7 +274,7 @@ func TestApplyUnifiedDiff_ReturnsNonConflictApplyErrorForShortSource(t *testing.
 	require.NoError(t, os.WriteFile(filepath.Join(root, "file.txt"), []byte("line 1\n"), 0o644))
 	patch := "--- a/file.txt\n+++ b/file.txt\n@@ -3 +3 @@\n-line 3\n+new line\n"
 
-	_, _, err := applyUnifiedDiff(policy, patch, 0)
+	_, _, err := applyUnifiedDiff(context.Background(), policy, patch, 0)
 
 	require.Error(t, err)
 	require.False(t, errors.Is(err, &gitdiff.Conflict{}))
@@ -291,7 +291,12 @@ func TestApplyUnifiedDiff_ReturnsMkdirErrorForNewFile(t *testing.T) {
 		return errors.New("mkdir failed")
 	}
 
-	_, _, err := applyUnifiedDiff(policy, "--- /dev/null\n+++ b/dir/new.txt\n@@ -0,0 +1 @@\n+hello\n", 0)
+	_, _, err := applyUnifiedDiff(
+		context.Background(),
+		policy,
+		"--- /dev/null\n+++ b/dir/new.txt\n@@ -0,0 +1 @@\n+hello\n",
+		0,
+	)
 
 	require.EqualError(t, err, "mkdir failed")
 }
@@ -308,7 +313,12 @@ func TestApplyUnifiedDiff_ReturnsWriteError(t *testing.T) {
 		return errors.New("write failed")
 	}
 
-	_, _, err := applyUnifiedDiff(policy, "--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-hello\n+world\n", 0)
+	_, _, err := applyUnifiedDiff(
+		context.Background(),
+		policy,
+		"--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-hello\n+world\n",
+		0,
+	)
 
 	require.EqualError(t, err, "write failed")
 }

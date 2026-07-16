@@ -35,3 +35,12 @@ func TestContext_RejectsMissingOrInvalidAuthorization(t *testing.T) {
 	_, ok = FromContext(ctx)
 	require.False(t, ok)
 }
+
+func TestContext_TracksFullAccessExecution(t *testing.T) {
+	require.False(t, HasFullAccess(nil))
+	require.False(t, HasFullAccess(context.Background()))
+
+	ctx := WithFullAccess(nil)
+
+	require.True(t, HasFullAccess(ctx))
+}
