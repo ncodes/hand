@@ -37,15 +37,18 @@ type EnsureDaemonFunc func(context.Context, *config.Config) (func() error, error
 
 // MainActionOptions controls main action.
 type MainActionOptions struct {
+	Input               io.Reader
 	Output              io.Writer
 	NewChatClient       NewChatClientFunc
 	EnsureDaemonRunning EnsureDaemonFunc
 	PullOllamaModel     func(context.Context, string, string, map[string]string, func(provider_ollama.PullProgress)) error
+	IsInteractive       func(io.Reader, io.Writer) bool
 	Now                 func() time.Time
 }
 
 // NewMainAction returns the root CLI action wired to the supplied chat client factory.
 func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Command) error {
+	input := opts.Input
 	output := opts.Output
 	if output == nil {
 		output = io.Discard
@@ -62,6 +65,10 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 	pullOllamaModel := opts.PullOllamaModel
 	if pullOllamaModel == nil {
 		pullOllamaModel = provider_ollama.EnsureModel
+	}
+	isInteractive := opts.IsInteractive
+	if isInteractive == nil {
+		isInteractive = isInteractiveTerminal
 	}
 	now := opts.Now
 	if now == nil {
@@ -138,19 +145,43 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 		}
 		literalValue := str.String(cmd.String("session"))
 		ctx = rpcmeta.WithOutgoingPermissionSurface(ctx, permissions.SurfaceCLI)
+		respondCtx, cancelRespond := context.WithCancel(ctx)
+		defer cancelRespond()
+
+		approvalHandler := newRootChatApprovalHandler(
+			input,
+			output,
+			getRootChatPermissionAPI(client),
+			isInteractive(input, output),
+		)
+		var approvalErr error
 		responseOptions := rpcclient.RespondOptions{
 			Instruct:  instruct,
 			SessionID: literalValue.Trim(),
 			Stream:    cfg.Models.Main.Stream,
 		}
+		handleEvent := func(event rpcclient.Event) bool {
+			handled, err := approvalHandler.Handle(respondCtx, event)
+			if err != nil && approvalErr == nil {
+				approvalErr = err
+				cancelRespond()
+			}
+			return handled
+		}
 		if cfg.StreamEnabled() {
 			formatter := newChatStreamFormatter(cfg, now, cmd.Bool("no-color"))
 			formatter.terminalLinefeeds = isTerminalWriter(output)
 			responseOptions.OnEvent = func(event rpcclient.Event) {
+				if handleEvent(event) {
+					return
+				}
 				_, _ = fmt.Fprint(output, formatter.Format(event))
 			}
 
-			_, err = client.Respond(ctx, message, responseOptions)
+			_, err = client.Respond(respondCtx, message, responseOptions)
+			if approvalErr != nil {
+				return approvalErr
+			}
 			if err != nil {
 				return err
 			}
@@ -158,7 +189,13 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 			return err
 		}
 
-		reply, err := client.Respond(ctx, message, responseOptions)
+		responseOptions.OnEvent = func(event rpcclient.Event) {
+			handleEvent(event)
+		}
+		reply, err := client.Respond(respondCtx, message, responseOptions)
+		if approvalErr != nil {
+			return approvalErr
+		}
 		if err != nil {
 			return err
 		}
@@ -430,6 +467,16 @@ func FormatPullProgress(progress provider_ollama.PullProgress) string {
 
 type fdWriter interface {
 	Fd() uintptr
+}
+
+func isInteractiveTerminal(input io.Reader, output io.Writer) bool {
+	reader, readerOK := input.(interface{ Fd() uintptr })
+	writer, writerOK := output.(fdWriter)
+	if !readerOK || !writerOK {
+		return false
+	}
+
+	return term.IsTerminal(reader.Fd()) && term.IsTerminal(writer.Fd())
 }
 
 func isTerminalWriter(output io.Writer) bool {

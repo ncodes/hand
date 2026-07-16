@@ -509,6 +509,7 @@ func TestNewCommand_RootActionUsesChatFlag(t *testing.T) {
 
 	var gotArgs []string
 	newRootChatAction = func(options morphcli.MainActionOptions) func(context.Context, *cli.Command) error {
+		require.Equal(t, os.Stdin, options.Input)
 		require.Equal(t, rootOutput, options.Output)
 		return func(_ context.Context, cmd *cli.Command) error {
 			gotArgs = cmd.Args().Slice()

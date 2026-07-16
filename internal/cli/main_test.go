@@ -438,6 +438,184 @@ func TestNewMainAction_IgnoresTraceEvents(t *testing.T) {
 	require.Equal(t, "hello back\n\n\x1b[90mWorked for 0s\x1b[0m\n", output.String())
 }
 
+func TestNewMainAction_ResolvesPermissionApprovalFromInteractiveRootChat(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	var output bytes.Buffer
+	api := &mainActionPermissionAPIStub{}
+	traceEvent := trace.Event{
+		Type: trace.EvtPermissionApprovalChanged,
+		Payload: trace.PermissionApprovalPayload{
+			RequestID: "approval_1",
+			Status:    string(permissions.ApprovalPending),
+			Effects:   []string{string(permissions.EffectWrite)},
+			Summary:   "write_file · update file",
+			Reason:    "file write requires approval",
+			ExpiresAt: time.Now().Add(time.Minute),
+		},
+	}
+	stub := &agentstub.AgentServiceStub{
+		Reply: "file updated",
+		Events: []rpcclient.Event{
+			{Kind: agent.EventKindTrace, TraceEvent: &traceEvent},
+			{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "file updated"},
+		},
+	}
+	client := &mainActionPermissionClient{AgentServiceStub: stub, api: api}
+	cmd := newMainActionTestCommandWithOptions(&output, MainActionOptions{
+		Input: strings.NewReader("y\n"),
+		IsInteractive: func(io.Reader, io.Writer) bool {
+			return true
+		},
+		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+			return client, nil
+		},
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--name", "flag-agent",
+		"--model.stream=true",
+		"hello",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "approval_1", api.requestID)
+	require.True(t, api.approved)
+	require.Equal(t, permissions.GrantOnce, api.scope)
+	require.Contains(t, output.String(), "Permission approval required")
+	require.Contains(t, output.String(), "[y] allow once")
+	require.Contains(t, output.String(), "[a] always")
+	require.Contains(t, output.String(), "Permission approved (once)")
+	require.Contains(t, output.String(), "file updated")
+}
+
+func TestNewMainAction_ReturnsApprovalRequiredForNonInteractiveRootChat(t *testing.T) {
+	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "OPENROUTER_API_KEY", "MORPH_MODEL_BASE_URL",
+		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
+	resetMainActionState(t)
+
+	var output bytes.Buffer
+	api := &mainActionPermissionAPIStub{}
+	traceEvent := trace.Event{
+		Type: trace.EvtPermissionApprovalChanged,
+		Payload: map[string]any{
+			"request_id":        "approval_1",
+			"status":            string(permissions.ApprovalPending),
+			"operation_summary": "write_file · update file",
+		},
+	}
+	stub := &agentstub.AgentServiceStub{
+		Events: []rpcclient.Event{{Kind: agent.EventKindTrace, TraceEvent: &traceEvent}},
+	}
+	client := &mainActionPermissionClient{AgentServiceStub: stub, api: api}
+	cmd := newMainActionTestCommandWithOptions(&output, MainActionOptions{
+		Input: strings.NewReader(""),
+		IsInteractive: func(io.Reader, io.Writer) bool {
+			return false
+		},
+		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+			return client, nil
+		},
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"morph",
+		"--name", "flag-agent",
+		"--model.stream=false",
+		"hello",
+	})
+
+	require.EqualError(t, err,
+		"approval required for write_file · update file; root chat input and output must be an interactive terminal (approval_1)")
+	require.Empty(t, api.requestID)
+	require.Empty(t, output.String())
+}
+
+func TestRootChatApprovalHandler_DeniesAndHidesUnsafeAlwaysApproval(t *testing.T) {
+	var output bytes.Buffer
+	api := &mainActionPermissionAPIStub{}
+	handler := newRootChatApprovalHandler(strings.NewReader("a\nn\n"), &output, api, true)
+	traceEvent := trace.Event{
+		Type: trace.EvtPermissionApprovalChanged,
+		Payload: trace.PermissionApprovalPayload{
+			RequestID: "approval_1",
+			Status:    string(permissions.ApprovalPending),
+			Effects:   []string{string(permissions.EffectExecution)},
+			Summary:   "run_command · execute process",
+		},
+	}
+
+	handled, err := handler.Handle(context.Background(), rpcclient.Event{
+		Kind:       agent.EventKindTrace,
+		TraceEvent: &traceEvent,
+	})
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.Equal(t, "approval_1", api.requestID)
+	require.False(t, api.approved)
+	require.Empty(t, api.scope)
+	require.NotContains(t, output.String(), "[a] always")
+	require.Contains(t, output.String(), "Choose y, s, n")
+	require.Contains(t, output.String(), "Permission denied")
+}
+
+func TestRootChatApprovalHandler_ReturnsResolutionFailure(t *testing.T) {
+	expected := errors.New("approval store unavailable")
+	handler := newRootChatApprovalHandler(
+		strings.NewReader("s\n"),
+		io.Discard,
+		&mainActionPermissionAPIStub{err: expected},
+		true,
+	)
+	traceEvent := trace.Event{
+		Type: trace.EvtPermissionApprovalChanged,
+		Payload: trace.PermissionApprovalPayload{
+			RequestID: "approval_1",
+			Status:    string(permissions.ApprovalPending),
+			Summary:   "write_file · update file",
+		},
+	}
+
+	handled, err := handler.Handle(context.Background(), rpcclient.Event{
+		Kind:       agent.EventKindTrace,
+		TraceEvent: &traceEvent,
+	})
+
+	require.True(t, handled)
+	require.ErrorIs(t, err, expected)
+	require.ErrorContains(t, err, "resolve permission approval")
+}
+
+func TestRootChatApprovalHandler_StopsWaitingWhenRequestExpires(t *testing.T) {
+	input, writer := io.Pipe()
+	t.Cleanup(func() {
+		require.NoError(t, input.Close())
+		require.NoError(t, writer.Close())
+	})
+	handler := newRootChatApprovalHandler(input, io.Discard, &mainActionPermissionAPIStub{}, true)
+	traceEvent := trace.Event{
+		Type: trace.EvtPermissionApprovalChanged,
+		Payload: trace.PermissionApprovalPayload{
+			RequestID: "approval_1",
+			Status:    string(permissions.ApprovalPending),
+			Summary:   "write_file · update file",
+			ExpiresAt: time.Now().Add(-time.Second),
+		},
+	}
+
+	handled, err := handler.Handle(context.Background(), rpcclient.Event{
+		Kind:       agent.EventKindTrace,
+		TraceEvent: &traceEvent,
+	})
+
+	require.True(t, handled)
+	require.EqualError(t, err, "permission approval approval_1 expired")
+}
+
 func TestNewMainAction_ReturnsStreamRespondError(t *testing.T) {
 	clearEnv(t, "MORPH_NAME", "MORPH_MODEL", "MORPH_MODEL_PROVIDER", "MORPH_MODEL_BASE_URL",
 		"MORPH_LOG_LEVEL", "MORPH_LOG_NO_COLOR", "MORPH_CONFIG", "MORPH_ENV_FILE")
@@ -1263,6 +1441,79 @@ func noopEnsureDaemonRunning(context.Context, *config.Config) (func() error, err
 type chatOnlyClient struct {
 	message string
 	closed  bool
+}
+
+type mainActionPermissionClient struct {
+	*agentstub.AgentServiceStub
+	api rpcclient.PermissionAPI
+}
+
+func (c *mainActionPermissionClient) PermissionAPI() rpcclient.PermissionAPI {
+	return c.api
+}
+
+type mainActionPermissionAPIStub struct {
+	requestID string
+	approved  bool
+	scope     permissions.GrantScope
+	err       error
+}
+
+func (s *mainActionPermissionAPIStub) ListApprovalRequests(
+	context.Context,
+	permissions.ApprovalQuery,
+) ([]permissions.ApprovalRequest, error) {
+	return nil, s.err
+}
+
+func (s *mainActionPermissionAPIStub) GetApprovalRequest(
+	context.Context,
+	string,
+) (permissions.ApprovalRequest, bool, error) {
+	return permissions.ApprovalRequest{}, false, s.err
+}
+
+func (s *mainActionPermissionAPIStub) ResolveApprovalRequest(
+	_ context.Context,
+	id string,
+	approved bool,
+	scope permissions.GrantScope,
+) (permissions.ApprovalRequest, error) {
+	s.requestID = id
+	s.approved = approved
+	s.scope = scope
+
+	return permissions.ApprovalRequest{
+		ID: id, Status: permissions.ApprovalApproved, Scope: scope,
+	}, s.err
+}
+
+func (s *mainActionPermissionAPIStub) ListApprovalGrants(
+	context.Context,
+	permissions.GrantQuery,
+) ([]permissions.ApprovalGrant, error) {
+	return nil, s.err
+}
+
+func (s *mainActionPermissionAPIStub) RevokeApprovalGrant(
+	context.Context,
+	string,
+) (permissions.ApprovalGrant, error) {
+	return permissions.ApprovalGrant{}, s.err
+}
+
+func (s *mainActionPermissionAPIStub) DeleteApprovalRecord(
+	context.Context,
+	string,
+) (permissions.ApprovalDeleteResult, error) {
+	return permissions.ApprovalDeleteResult{}, s.err
+}
+
+func (s *mainActionPermissionAPIStub) PruneApprovals(
+	context.Context,
+	bool,
+) (permissions.ApprovalPruneResult, error) {
+	return permissions.ApprovalPruneResult{}, s.err
 }
 
 type failingWriter struct{}

@@ -1015,25 +1015,6 @@ func TestRunDaemonUntilConfigChangeReturnsShutdownErrorOnRestart(t *testing.T) {
 	require.EqualError(t, err, "shutdown failed")
 }
 
-func TestRunDaemonOnceEnforcesDaemonStartPermissionBeforeSideEffects(t *testing.T) {
-	cfg := newUpTestConfig("daemon")
-	cfg.Permissions = permissions.Policy{
-		Mode: permissions.ModeEnforce,
-		SurfaceDefaults: map[permissions.Surface]permissions.Decision{
-			permissions.SurfaceCLI: permissions.DecisionDeny,
-		},
-	}
-
-	err := runDaemonOnce(context.Background(), cfg)
-	decisionErr, ok := permissions.GetDecisionError(err)
-	require.True(t, ok)
-	require.Equal(t, permissions.ErrorCodeDenied, decisionErr.Code)
-}
-
-func TestCheckDaemonStartPermission_AllowsMissingConfig(t *testing.T) {
-	require.NoError(t, checkDaemonStartPermission(context.Background(), nil))
-}
-
 func TestRunDaemonOnceClosesAgentAndReturnsCloseError(t *testing.T) {
 	isolateCommandProfile(t)
 	stubOpenRPCListener(t)

@@ -145,6 +145,7 @@ func newCommand() *cli.Command {
 
 func newRootAction() func(context.Context, *cli.Command) error {
 	chatAction := newRootChatAction(morphcli.MainActionOptions{
+		Input:  os.Stdin,
 		Output: rootOutput,
 	})
 
