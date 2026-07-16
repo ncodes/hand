@@ -47,12 +47,15 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return nil, tools.NewPermissionResolutionError("invalid_input", "path is required")
 			}
 
-			return []permissions.EvaluationInput{{Operation: permissions.Operation{
-				Resource: permissions.ResourceFile,
-				Action:   permissions.ActionUpdate,
-				Effects:  []permissions.Effect{permissions.EffectWrite},
-				Target:   filepath.ToSlash(filepath.Clean(path)),
-			}}}, nil
+			return []permissions.EvaluationInput{
+				{
+					Operation: permissions.Operation{
+						Resource: permissions.ResourceFile,
+						Action:   permissions.ActionUpdate,
+						Effects:  []permissions.Effect{permissions.EffectWrite},
+						Target:   filepath.ToSlash(filepath.Clean(path)),
+					},
+				}}, nil
 		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"path":        common.StringSchema("Path to the file relative to an allowed workspace root."),

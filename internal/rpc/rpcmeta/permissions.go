@@ -56,7 +56,8 @@ func PermissionSurfaceFromIncomingContext(ctx context.Context) permissions.Surfa
 
 func PermissionActorFromIncomingContext(ctx context.Context) permissions.Actor {
 	if ctx != nil {
-		if principalID, ok := ctx.Value(authenticatedPermissionPrincipalKey{}).(string); ok && strings.TrimSpace(principalID) != "" {
+		if principalID, ok := ctx.Value(authenticatedPermissionPrincipalKey{}).(string); ok &&
+			strings.TrimSpace(principalID) != "" {
 			return permissions.Actor{Kind: permissions.ActorRPCClient, ID: strings.TrimSpace(principalID)}
 		}
 	}
