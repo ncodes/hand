@@ -53,6 +53,7 @@ type stateStoreStub struct {
 	unarchiveErr    error
 	gatewayBinding  storage.GatewayBinding
 	gatewayFound    bool
+	permissionStore permissions.ApprovalStore
 	gatewaySaveErr  error
 	gatewayGetErr   error
 	pairingRequests []pairing.PendingRequest
@@ -384,7 +385,9 @@ func (s *stateStoreStub) Session() storage.SessionStore { return s }
 
 func (s *stateStoreStub) Automation() (storage.AutomationStore, bool) { return nil, false }
 
-func (s *stateStoreStub) Permission() (permissions.ApprovalStore, bool) { return nil, false }
+func (s *stateStoreStub) Permission() (permissions.ApprovalStore, bool) {
+	return s.permissionStore, s.permissionStore != nil
+}
 
 func (s *stateStoreStub) Memory() (storage.MemoryStore, bool) { return nil, false }
 

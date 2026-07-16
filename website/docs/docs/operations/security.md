@@ -290,6 +290,57 @@ Restart the daemon after changing debug settings. See [Troubleshooting: Logging 
 
 ## Verify Before You Expose
 
+## Permission Policy Across Surfaces
+
+Permission policy separates identity from authority. Pairing a Telegram or Slack sender permits that sender to reach
+Morph, but the sender remains a `gateway_user`; it does not become the local owner. Likewise, an authenticated RPC
+principal remains an `rpc_client`. Owner-only model, credential, gateway, daemon, and automation-management operations
+still require an explicit narrow rule.
+
+Unattended surfaces cannot display a local approval prompt. Keep gateway, automation, RPC, and ACP defaults at `deny`,
+or add explicit rules for the exact actors, actions, effects, and targets they require:
+
+```yaml
+permissions:
+  mode: enforce
+  default: deny
+  approvalRateLimit: 10
+  approvalRateWindow: 1m
+  surfaceKinds:
+    local: ask
+    gateway: deny
+    automation: deny
+    rpc: deny
+    acp: deny
+  rules:
+    - name: scheduled report execution
+      actors: [automation]
+      surfaces: [automation]
+      resources: [automation]
+      actions: [execute]
+      effects: [execution, external_system]
+      targetPrefixes: [auto_]
+      decision: allow
+      reason: approved scheduled reporting
+```
+
+Jobs persist their creator provenance, but execute as a separate `automation` actor. Morph re-evaluates the current
+policy and matching grant before every run. Removing a rule or revoking a grant therefore blocks the next run and
+records an actionable run error without changing the job.
+
+Delegated and extension runtimes are narrower still:
+
+- a subagent receives the intersection of its parent's effective scope and the delegated scope;
+- parent identity, run lineage, and the resulting scope are part of the grant fingerprint;
+- subagents cannot open local approval prompts or persist grants;
+- MCP fingerprints bind server identity, transport, tool, and normalized target;
+- browser fingerprints bind profile, CDP endpoint, tab/action target, and personal-versus-isolated mode;
+- ACP and execute-code callers require a non-empty authenticated actor ID and a constrained scope.
+
+`morph doctor` reports invalid permission rules, `full_access`, impossible unattended `ask` defaults, and stale active
+grants. A configured remote approval notifier may report an unattended `ask` to a trusted operator channel, but it
+does not turn the unattended call into a waiting or self-approving request.
+
 Use this checklist before binding gateways broadly or morphing out pairing codes:
 
 ```bash

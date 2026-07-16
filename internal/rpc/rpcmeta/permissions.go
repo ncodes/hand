@@ -12,6 +12,20 @@ import (
 
 const permissionSurfaceKey = "x-morph-permission-surface"
 
+type authenticatedPermissionPrincipalKey struct{}
+
+func WithAuthenticatedPermissionPrincipal(ctx context.Context, principalID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	principalID = strings.TrimSpace(principalID)
+	if principalID == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, authenticatedPermissionPrincipalKey{}, principalID)
+}
+
 func WithOutgoingPermissionSurface(ctx context.Context, surface permissions.Surface) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
@@ -41,6 +55,11 @@ func PermissionSurfaceFromIncomingContext(ctx context.Context) permissions.Surfa
 }
 
 func PermissionActorFromIncomingContext(ctx context.Context) permissions.Actor {
+	if ctx != nil {
+		if principalID, ok := ctx.Value(authenticatedPermissionPrincipalKey{}).(string); ok && strings.TrimSpace(principalID) != "" {
+			return permissions.Actor{Kind: permissions.ActorRPCClient, ID: strings.TrimSpace(principalID)}
+		}
+	}
 	surface := PermissionSurfaceFromIncomingContext(ctx)
 	if isSupportedClientSurface(surface) && isLoopbackPeer(ctx) {
 		return permissions.Actor{Kind: permissions.ActorLocalOwner}

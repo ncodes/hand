@@ -40,10 +40,82 @@ func TestApprovalService_AllowOnceResumesExactlyOneCoalescedInvocation(t *testin
 	require.Equal(t, permissions.GrantConsumed, grants[0].Status)
 }
 
+func TestApprovalService_RateLimitsInteractivePromptsAndReportsMetrics(t *testing.T) {
+	service, store := newApprovalService(t, permissions.ApprovalOptions{
+		RequestTTL: time.Second,
+		RateLimit:  1,
+		RateWindow: time.Minute,
+	})
+	ctx, cancel := context.WithCancel(approvalContext(context.Background(), "session"))
+	cancel()
+	require.ErrorIs(t, service.Authorize(ctx, approvalInput("first")), context.Canceled)
+
+	err := service.Authorize(approvalContext(context.Background(), "session"), approvalInput("second"))
+	decisionErr, ok := permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeApprovalRateLimited, decisionErr.Code)
+	require.Equal(t, "approval request rate limit exceeded", decisionErr.Error())
+	requests, err := store.ListApprovalRequests(context.Background(), permissions.ApprovalQuery{})
+	require.NoError(t, err)
+	require.Len(t, requests, 1)
+	require.Equal(t, permissions.ApprovalMetrics{
+		RequestsCreated: 1, RequestsRateLimited: 1,
+	}, service.Metrics())
+	require.Equal(t, permissions.ApprovalMetrics{}, (*permissions.ApprovalService)(nil).Metrics())
+}
+
+func TestApprovalService_UnattendedAskNotifiesTrustedChannelWithoutCreatingRequest(t *testing.T) {
+	notifier := &approvalNotifierStub{}
+	service, store := newApprovalService(t, permissions.ApprovalOptions{Notifier: notifier})
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorAutomation, ID: "auto_1"},
+		Surface: permissions.SurfaceAutomation,
+	})
+
+	err := service.Authorize(ctx, approvalInput("scheduled"))
+	decisionErr, ok := permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeApprovalRequired, decisionErr.Code)
+	require.Equal(t, "approval requires an interactive local owner surface", decisionErr.Error())
+	require.Len(t, notifier.notices, 1)
+	require.Equal(t, permissions.ActorAutomation, notifier.notices[0].Actor.Kind)
+	require.Equal(t, "run_command · execute process", notifier.notices[0].Summary)
+	requests, err := store.ListApprovalRequests(context.Background(), permissions.ApprovalQuery{})
+	require.NoError(t, err)
+	require.Empty(t, requests)
+	require.Equal(t, uint64(1), service.Metrics().RemoteNotices)
+}
+
+func TestApprovalService_SubagentCannotPersistGrantFromInteractiveSurface(t *testing.T) {
+	service, store := newApprovalService(t, permissions.ApprovalOptions{})
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorSubagent, ID: "child"},
+		Surface: permissions.SurfaceTUI,
+	})
+
+	err := service.Authorize(ctx, approvalInput("delegated"))
+	decisionErr, ok := permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeApprovalRequired, decisionErr.Code)
+	requests, err := store.ListApprovalRequests(context.Background(), permissions.ApprovalQuery{})
+	require.NoError(t, err)
+	require.Empty(t, requests)
+}
+
+type approvalNotifierStub struct {
+	notices []permissions.ApprovalNotice
+}
+
+func (s *approvalNotifierStub) NotifyApprovalRequired(_ context.Context, notice permissions.ApprovalNotice) {
+	s.notices = append(s.notices, notice)
+}
+
 func TestApprovalService_CancellingOneCoalescedWaiterDoesNotCancelTheOther(t *testing.T) {
 	store := storememory.NewStore()
 	wrapper := &approvalStoreObserver{ApprovalStore: store, waits: make(chan struct{}, 2)}
-	service, err := permissions.NewApprovalService(wrapper, permissions.ApprovalOptions{RequestTTL: time.Second})
+	service, err := permissions.NewApprovalService(wrapper, permissions.ApprovalOptions{
+		RequestTTL: time.Second, RateLimit: 1, RateWindow: time.Minute,
+	})
 	require.NoError(t, err)
 	base := approvalContext(context.Background(), "session")
 	cancelledCtx, cancel := context.WithCancel(base)
@@ -62,6 +134,10 @@ func TestApprovalService_CancellingOneCoalescedWaiterDoesNotCancelTheOther(t *te
 	_, err = service.Resolve(context.Background(), request.ID, true, permissions.GrantSession)
 	require.NoError(t, err)
 	require.NoError(t, <-results)
+	metrics := service.Metrics()
+	require.Equal(t, uint64(1), metrics.RequestsCreated)
+	require.Equal(t, uint64(1), metrics.RequestsCoalesced)
+	require.Zero(t, metrics.RequestsRateLimited)
 }
 
 type approvalStoreObserver struct {
@@ -92,6 +168,7 @@ func TestApprovalService_SessionGrantReusesOnlyMatchingTargetAndSession(t *testi
 	require.NoError(t, err)
 	require.NoError(t, <-result)
 	require.NoError(t, service.Authorize(ctx, input))
+	require.Equal(t, uint64(1), service.Metrics().GrantsReused)
 
 	cancelledCtx, cancel := context.WithCancel(approvalContext(context.Background(), "session-a"))
 	cancel()

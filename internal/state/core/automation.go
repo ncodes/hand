@@ -136,6 +136,17 @@ type AutomationJobState struct {
 	LastFailureNoticeAt time.Time           `json:"lastFailureNoticeAt,omitempty"`
 }
 
+type AutomationAuthorizationProvenance struct {
+	ActorKind   string    `json:"actorKind,omitempty"`
+	ActorID     string    `json:"actorId,omitempty"`
+	SurfaceKind string    `json:"surfaceKind,omitempty"`
+	Surface     string    `json:"surface,omitempty"`
+	Profile     string    `json:"profile,omitempty"`
+	SessionID   string    `json:"sessionId,omitempty"`
+	RunID       string    `json:"runId,omitempty"`
+	CapturedAt  time.Time `json:"capturedAt,omitempty"`
+}
+
 // AutomationUsage stores model token usage reported by an automation run.
 type AutomationUsage struct {
 	InputTokens      int `json:"inputTokens,omitempty"`
@@ -159,6 +170,7 @@ type AutomationJob struct {
 	Profile        string
 	SessionTarget  string
 	DeleteAfterRun bool
+	Authorization  AutomationAuthorizationProvenance
 	State          AutomationJobState
 }
 

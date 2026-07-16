@@ -112,6 +112,10 @@ func serveDaemonServices(ctx context.Context, cfg *config.Config, agent agentRun
 	}
 }
 
+type permissionApprovalServiceProvider interface {
+	ApprovalService() *permissions.ApprovalService
+}
+
 func buildAutomationService(
 	ctx context.Context,
 	cfg *config.Config,
@@ -134,6 +138,9 @@ func buildAutomationService(
 		serviceOptions.DeliverySink = newGatewayAutomationDeliverySink(cfg.Gateway)
 		permissionEngine := permissions.NewEngine(cfg.Permissions)
 		serviceOptions.PermissionChecker = permissionEngine
+		if provider, ok := agent.(permissionApprovalServiceProvider); ok {
+			serviceOptions.PermissionApprover = provider.ApprovalService()
+		}
 	}
 
 	return newAutomationService(

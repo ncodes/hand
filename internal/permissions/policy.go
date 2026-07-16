@@ -18,6 +18,7 @@ const (
 	ReasonApprovalRequired   = "approval_required"
 	ReasonOwnerRequired      = "owner_required"
 	ReasonFullAccess         = "full_access"
+	ReasonScopeExceeded      = "scope_exceeded"
 )
 
 type Policy struct {
@@ -27,24 +28,27 @@ type Policy struct {
 	GrantRetention      time.Duration            `yaml:"grantRetention"`
 	CleanupInterval     time.Duration            `yaml:"cleanupInterval"`
 	CleanupBatchSize    int                      `yaml:"cleanupBatchSize"`
+	ApprovalRateLimit   int                      `yaml:"approvalRateLimit"`
+	ApprovalRateWindow  time.Duration            `yaml:"approvalRateWindow"`
 	SurfaceKindDefaults map[SurfaceKind]Decision `yaml:"surfaceKinds"`
 	SurfaceDefaults     map[Surface]Decision     `yaml:"surfaces"`
 	Rules               []Rule                   `yaml:"rules"`
 }
 
 type Rule struct {
-	Name           string        `yaml:"name"`
-	Profiles       []string      `yaml:"profiles"`
-	ActorKinds     []ActorKind   `yaml:"actors"`
-	SurfaceKinds   []SurfaceKind `yaml:"surfaceKinds"`
-	Surfaces       []Surface     `yaml:"surfaces"`
-	Tools          []string      `yaml:"tools"`
-	Resources      []Resource    `yaml:"resources"`
-	Actions        []Action      `yaml:"actions"`
-	Effects        []Effect      `yaml:"effects"`
-	TargetPrefixes []string      `yaml:"targetPrefixes"`
-	Decision       Decision      `yaml:"decision"`
-	Reason         string        `yaml:"reason"`
+	Name             string        `yaml:"name"`
+	Profiles         []string      `yaml:"profiles"`
+	ActorKinds       []ActorKind   `yaml:"actors"`
+	ParentActorKinds []ActorKind   `yaml:"parentActors"`
+	SurfaceKinds     []SurfaceKind `yaml:"surfaceKinds"`
+	Surfaces         []Surface     `yaml:"surfaces"`
+	Tools            []string      `yaml:"tools"`
+	Resources        []Resource    `yaml:"resources"`
+	Actions          []Action      `yaml:"actions"`
+	Effects          []Effect      `yaml:"effects"`
+	TargetPrefixes   []string      `yaml:"targetPrefixes"`
+	Decision         Decision      `yaml:"decision"`
+	Reason           string        `yaml:"reason"`
 }
 
 type EvaluationInput struct {
@@ -86,6 +90,12 @@ func (p *Policy) Normalize() {
 	}
 	if p.CleanupBatchSize == 0 {
 		p.CleanupBatchSize = DefaultApprovalCleanupBatchSize
+	}
+	if p.ApprovalRateLimit == 0 {
+		p.ApprovalRateLimit = DefaultApprovalRateLimit
+	}
+	if p.ApprovalRateWindow == 0 {
+		p.ApprovalRateWindow = DefaultApprovalRateWindow
 	}
 
 	if p.SurfaceKindDefaults == nil {
@@ -135,6 +145,12 @@ func (p Policy) Validate() error {
 	if p.CleanupBatchSize <= 0 {
 		return errors.New("permission cleanup batch size must be greater than zero")
 	}
+	if p.ApprovalRateLimit <= 0 {
+		return errors.New("permission approval rate limit must be greater than zero")
+	}
+	if p.ApprovalRateWindow <= 0 {
+		return errors.New("permission approval rate window must be greater than zero")
+	}
 	for kind, decision := range p.SurfaceKindDefaults {
 		if !isValidSurfaceKind(kind, false) {
 			return errors.New("permission surface kind default contains an invalid kind")
@@ -182,10 +198,6 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 	if policyErr != nil {
 		return Evaluation{Decision: DecisionDeny, ReasonCode: ReasonPolicyDefault, Mode: p.Mode}
 	}
-	if p.Mode == ModeFullAccess {
-		return Evaluation{Decision: DecisionAllow, ReasonCode: ReasonFullAccess, Mode: p.Mode}
-	}
-
 	authorization, authorizationErr := input.Authorization.Normalize()
 	operation, operationErr := input.Operation.Normalize()
 	if authorizationErr != nil {
@@ -195,6 +207,17 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 	}
 	if operationErr != nil {
 		operation = Operation{Resource: ResourceUnknown, Action: ActionUnknown}
+	}
+	if authorization.Scope.Restricted && !authorization.Scope.Allows(operation) {
+		return Evaluation{
+			Decision:   DecisionDeny,
+			ReasonCode: ReasonScopeExceeded,
+			Reason:     "operation exceeds the actor's delegated scope",
+			Mode:       p.Mode,
+		}
+	}
+	if p.Mode == ModeFullAccess {
+		return Evaluation{Decision: DecisionAllow, ReasonCode: ReasonFullAccess, Mode: p.Mode}
 	}
 
 	var evaluation Evaluation
@@ -276,6 +299,11 @@ func (r *Rule) normalize() {
 	r.ActorKinds = normalizeValues(r.ActorKinds, func(value ActorKind) ActorKind {
 		return ActorKind(str.String(value).Normalized())
 	})
+	if len(r.ParentActorKinds) > 0 {
+		r.ParentActorKinds = normalizeValues(r.ParentActorKinds, func(value ActorKind) ActorKind {
+			return ActorKind(str.String(value).Normalized())
+		})
+	}
 	r.SurfaceKinds = normalizeValues(r.SurfaceKinds, func(value SurfaceKind) SurfaceKind {
 		return SurfaceKind(str.String(value).Normalized())
 	})
@@ -307,6 +335,11 @@ func (r Rule) validate() error {
 			return errors.New("permission rule contains an invalid actor")
 		}
 	}
+	for _, value := range r.ParentActorKinds {
+		if !isValidActorKind(value, false) {
+			return errors.New("permission rule contains an invalid parent actor")
+		}
+	}
 	for _, value := range r.SurfaceKinds {
 		if !isValidSurfaceKind(value, false) {
 			return errors.New("permission rule contains an invalid surface kind")
@@ -334,6 +367,7 @@ func (r Rule) validate() error {
 func (r Rule) matches(authorization AuthorizationContext, operation Operation) bool {
 	return matchesValue(r.Profiles, authorization.Profile) &&
 		matchesValue(r.ActorKinds, authorization.Actor.Kind) &&
+		matchesValue(r.ParentActorKinds, authorization.ParentActorKind) &&
 		matchesValue(r.SurfaceKinds, authorization.SurfaceKind) &&
 		matchesValue(r.Surfaces, authorization.Surface) &&
 		matchesValue(r.Tools, operation.Tool) &&
@@ -344,7 +378,7 @@ func (r Rule) matches(authorization AuthorizationContext, operation Operation) b
 }
 
 func (r Rule) specificity() int {
-	return len(r.Profiles) + len(r.ActorKinds) + len(r.SurfaceKinds) + len(r.Surfaces) + len(r.Tools) + len(r.Resources) +
+	return len(r.Profiles) + len(r.ActorKinds) + len(r.ParentActorKinds) + len(r.SurfaceKinds) + len(r.Surfaces) + len(r.Tools) + len(r.Resources) +
 		len(r.Actions) + len(r.Effects) + len(r.TargetPrefixes)
 }
 

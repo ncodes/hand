@@ -68,6 +68,8 @@ func TestGenericRespondCallsResponderAndReturnsAssistantText(t *testing.T) {
 	authorization, ok := permissions.FromContext(responder.respondContext)
 	require.True(t, ok)
 	require.Equal(t, permissions.ActorGatewayUser, authorization.Actor.Kind)
+	require.Equal(t, getGenericGatewayPrincipal("secret-token"), authorization.Actor.ID)
+	require.NotContains(t, authorization.Actor.ID, "secret-token")
 	require.Equal(t, permissions.SurfaceKindGateway, authorization.SurfaceKind)
 	require.Equal(t, permissions.SurfaceHTTP, authorization.Surface)
 	require.Equal(t, genericCreatedSessionID, authorization.SessionID)

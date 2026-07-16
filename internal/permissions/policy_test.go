@@ -52,12 +52,14 @@ func TestPolicy_NormalizeHandlesNilPolicyAndSortsDistinctValues(t *testing.T) {
 	})
 
 	policy := Policy{Rules: []Rule{{
-		Name:       "actors",
-		ActorKinds: []ActorKind{ActorSubagent, ActorLocalOwner},
-		Decision:   DecisionAllow,
+		Name:             "actors",
+		ActorKinds:       []ActorKind{ActorSubagent, ActorLocalOwner},
+		ParentActorKinds: []ActorKind{ActorGatewayUser, ActorLocalOwner},
+		Decision:         DecisionAllow,
 	}}}
 	policy.Normalize()
 	require.Equal(t, []ActorKind{ActorLocalOwner, ActorSubagent}, policy.Rules[0].ActorKinds)
+	require.Equal(t, []ActorKind{ActorGatewayUser, ActorLocalOwner}, policy.Rules[0].ParentActorKinds)
 	require.Equal(t, map[SurfaceKind]Decision{
 		SurfaceKindLocal:      DecisionAsk,
 		SurfaceKindGateway:    DecisionDeny,
@@ -83,6 +85,7 @@ func TestPolicy_ValidateRejectsInvalidConfiguration(t *testing.T) {
 		{name: "rule name", policy: Policy{Rules: []Rule{{Decision: DecisionAllow}}}, errorMessage: "permission rule name is required"},
 		{name: "rule decision", policy: Policy{Rules: []Rule{{Name: "rule", Decision: "prompt"}}}, errorMessage: "permission rule decision must be one of: allow, ask, deny"},
 		{name: "rule actor", policy: Policy{Rules: []Rule{{Name: "rule", Decision: DecisionAllow, ActorKinds: []ActorKind{"owner"}}}}, errorMessage: "permission rule contains an invalid actor"},
+		{name: "rule parent actor", policy: Policy{Rules: []Rule{{Name: "rule", Decision: DecisionAllow, ParentActorKinds: []ActorKind{"owner"}}}}, errorMessage: "permission rule contains an invalid parent actor"},
 		{name: "rule surface kind", policy: Policy{Rules: []Rule{{Name: "rule", Decision: DecisionAllow, SurfaceKinds: []SurfaceKind{"remote"}}}}, errorMessage: "permission rule contains an invalid surface kind"},
 		{name: "rule resource", policy: Policy{Rules: []Rule{{Name: "rule", Decision: DecisionAllow, Resources: []Resource{"database"}}}}, errorMessage: "permission rule contains an invalid resource"},
 		{name: "rule action", policy: Policy{Rules: []Rule{{Name: "rule", Decision: DecisionAllow, Actions: []Action{"download"}}}}, errorMessage: "permission rule contains an invalid action"},

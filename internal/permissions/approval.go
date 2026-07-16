@@ -21,6 +21,8 @@ const (
 	DefaultApprovalGrantRetention   = 30 * 24 * time.Hour
 	DefaultApprovalCleanupInterval  = time.Hour
 	DefaultApprovalCleanupBatchSize = 100
+	DefaultApprovalRateLimit        = 10
+	DefaultApprovalRateWindow       = time.Minute
 )
 
 type ApprovalStatus string
@@ -159,6 +161,29 @@ type ApprovalAuditor interface {
 	ApprovalChanged(context.Context, ApprovalRequest)
 }
 
+type ApprovalNotice struct {
+	Actor    Actor
+	Surface  Surface
+	Tool     string
+	Resource Resource
+	Action   Action
+	Effects  []Effect
+	Summary  string
+	Reason   string
+}
+
+type ApprovalNotifier interface {
+	NotifyApprovalRequired(context.Context, ApprovalNotice)
+}
+
+type ApprovalMetrics struct {
+	RequestsCreated     uint64
+	RequestsCoalesced   uint64
+	RequestsRateLimited uint64
+	GrantsReused        uint64
+	RemoteNotices       uint64
+}
+
 type Approver interface {
 	Authorize(context.Context, EvaluationInput) error
 }
@@ -173,13 +198,19 @@ type ApprovalOptions struct {
 	GrantRetention   time.Duration
 	CleanupInterval  time.Duration
 	CleanupBatchSize int
+	RateLimit        int
+	RateWindow       time.Duration
+	Notifier         ApprovalNotifier
 }
 
 type ApprovalService struct {
-	store   ApprovalStore
-	opts    ApprovalOptions
-	mu      sync.Mutex
-	waiters map[string][]chan ApprovalRequest
+	store          ApprovalStore
+	opts           ApprovalOptions
+	mu             sync.Mutex
+	waiters        map[string][]chan ApprovalRequest
+	rateWindows    map[string][]time.Time
+	pendingPrompts map[string]struct{}
+	metrics        ApprovalMetrics
 }
 
 func NewApprovalService(store ApprovalStore, opts ApprovalOptions) (*ApprovalService, error) {
@@ -213,8 +244,30 @@ func NewApprovalService(store ApprovalStore, opts ApprovalOptions) (*ApprovalSer
 	if opts.CleanupBatchSize <= 0 {
 		opts.CleanupBatchSize = DefaultApprovalCleanupBatchSize
 	}
+	if opts.RateLimit <= 0 {
+		opts.RateLimit = DefaultApprovalRateLimit
+	}
+	if opts.RateWindow <= 0 {
+		opts.RateWindow = DefaultApprovalRateWindow
+	}
 
-	return &ApprovalService{store: store, opts: opts, waiters: make(map[string][]chan ApprovalRequest)}, nil
+	return &ApprovalService{
+		store:          store,
+		opts:           opts,
+		waiters:        make(map[string][]chan ApprovalRequest),
+		rateWindows:    make(map[string][]time.Time),
+		pendingPrompts: make(map[string]struct{}),
+	}, nil
+}
+
+func (s *ApprovalService) Metrics() ApprovalMetrics {
+	if s == nil {
+		return ApprovalMetrics{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.metrics
 }
 
 func (s *ApprovalService) Recover(ctx context.Context) error {
@@ -251,8 +304,11 @@ func (s *ApprovalService) Prune(ctx context.Context, dryRun bool) (ApprovalPrune
 		return ApprovalPruneResult{}, errors.New("approval service is required")
 	}
 	return s.store.PruneApprovals(ctx, ApprovalPruneOptions{
-		Now: s.opts.Now(), RequestRetention: s.opts.RequestRetention,
-		GrantRetention: s.opts.GrantRetention, BatchSize: s.opts.CleanupBatchSize, DryRun: dryRun,
+		Now:              s.opts.Now(),
+		RequestRetention: s.opts.RequestRetention,
+		GrantRetention:   s.opts.GrantRetention,
+		BatchSize:        s.opts.CleanupBatchSize,
+		DryRun:           dryRun,
 	})
 }
 
@@ -282,13 +338,38 @@ func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) 
 				return fmt.Errorf("failed to consume approval grant: %w", err)
 			}
 		}
+		s.incrementMetric(func(metrics *ApprovalMetrics) { metrics.GrantsReused++ })
 		return nil
 	}
-	if !isInteractiveApprovalSurface(authorization.Surface) {
-		return &DecisionError{Code: ErrorCodeApprovalRequired, Evaluation: Evaluation{
-			Decision: DecisionAsk,
-			Reason:   "approval requires an interactive local surface",
-		}}
+	if !isInteractiveApprovalActor(authorization) {
+		if s.opts.Notifier != nil {
+			s.opts.Notifier.NotifyApprovalRequired(ctx, ApprovalNotice{
+				Actor:    authorization.Actor,
+				Surface:  authorization.Surface,
+				Tool:     operation.Tool,
+				Resource: operation.Resource,
+				Action:   operation.Action,
+				Effects:  append([]Effect(nil), operation.Effects...),
+				Summary:  getApprovalSummary(operation),
+				Reason:   input.ApprovalReason,
+			})
+			s.incrementMetric(func(metrics *ApprovalMetrics) { metrics.RemoteNotices++ })
+		}
+		return &DecisionError{
+			Code: ErrorCodeApprovalRequired,
+			Evaluation: Evaluation{
+				Decision: DecisionAsk,
+				Reason:   "approval requires an interactive local owner surface",
+			}}
+	}
+	if !s.reserveApprovalPrompt(authorization, fingerprint, now) {
+		s.incrementMetric(func(metrics *ApprovalMetrics) { metrics.RequestsRateLimited++ })
+		return &DecisionError{
+			Code: ErrorCodeApprovalRateLimited,
+			Evaluation: Evaluation{
+				Decision: DecisionDeny,
+				Reason:   "approval request rate limit exceeded",
+			}}
 	}
 
 	request := ApprovalRequest{
@@ -310,9 +391,15 @@ func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) 
 		CreatedAt:   now,
 		ExpiresAt:   now.Add(s.opts.RequestTTL),
 	}
-	request, _, err = s.store.CreateApprovalRequest(ctx, request)
+	request, inserted, err := s.store.CreateApprovalRequest(ctx, request)
 	if err != nil {
+		s.releaseApprovalPrompt(fingerprint)
 		return fmt.Errorf("failed to create approval request: %w", err)
+	}
+	if inserted {
+		s.incrementMetric(func(metrics *ApprovalMetrics) { metrics.RequestsCreated++ })
+	} else {
+		s.incrementMetric(func(metrics *ApprovalMetrics) { metrics.RequestsCoalesced++ })
 	}
 	s.audit(ctx, request)
 
@@ -322,10 +409,12 @@ func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) 
 	}
 	s.audit(ctx, resolved)
 	if resolved.Status != ApprovalApproved {
-		return &DecisionError{Code: ErrorCodeDenied, Evaluation: Evaluation{
-			Decision: DecisionDeny,
-			Reason:   "approval " + string(resolved.Status),
-		}}
+		return &DecisionError{
+			Code: ErrorCodeDenied,
+			Evaluation: Evaluation{
+				Decision: DecisionDeny,
+				Reason:   "approval " + string(resolved.Status),
+			}}
 	}
 	grant, ok, err = s.store.FindApprovalGrant(
 		ctx,
@@ -493,6 +582,7 @@ func (s *ApprovalService) wait(ctx context.Context, request ApprovalRequest) (Ap
 		return ApprovalRequest{}, err
 	}
 	if current.Status != ApprovalPending {
+		s.releaseApprovalPrompt(request.Fingerprint)
 		return current, nil
 	}
 
@@ -532,6 +622,7 @@ func (s *ApprovalService) wait(ctx context.Context, request ApprovalRequest) (Ap
 
 func (s *ApprovalService) notify(request ApprovalRequest) {
 	s.mu.Lock()
+	delete(s.pendingPrompts, request.Fingerprint)
 	waiters := append([]chan ApprovalRequest(nil), s.waiters[request.ID]...)
 	s.mu.Unlock()
 	for _, waiter := range waiters {
@@ -600,8 +691,53 @@ func normalizeApprovalInput(
 	return authorization, operation, Fingerprint(authorization, operation), nil
 }
 
-func isInteractiveApprovalSurface(surface Surface) bool {
-	return surface == SurfaceCLI || surface == SurfaceTUI
+func isInteractiveApprovalActor(authorization AuthorizationContext) bool {
+	return authorization.Actor.Kind == ActorLocalOwner &&
+		(authorization.Surface == SurfaceCLI ||
+			authorization.Surface == SurfaceTUI)
+}
+
+func (s *ApprovalService) reserveApprovalPrompt(
+	authorization AuthorizationContext,
+	fingerprint string,
+	now time.Time,
+) bool {
+	key := string(authorization.Actor.Kind) + "\x00" + authorization.Actor.ID + "\x00" + string(authorization.Surface)
+	cutoff := now.Add(-s.opts.RateWindow)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.pendingPrompts[fingerprint]; ok {
+		return true
+	}
+
+	window := s.rateWindows[key]
+	kept := window[:0]
+	for _, createdAt := range window {
+		if createdAt.After(cutoff) {
+			kept = append(kept, createdAt)
+		}
+	}
+	if len(kept) >= s.opts.RateLimit {
+		s.rateWindows[key] = kept
+		return false
+	}
+	s.rateWindows[key] = append(kept, now)
+	s.pendingPrompts[fingerprint] = struct{}{}
+
+	return true
+}
+
+func (s *ApprovalService) releaseApprovalPrompt(fingerprint string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.pendingPrompts, fingerprint)
+}
+
+func (s *ApprovalService) incrementMetric(update func(*ApprovalMetrics)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	update(&s.metrics)
 }
 
 func getApprovalSummary(operation Operation) string {

@@ -23,6 +23,7 @@ import (
 	storage "github.com/wandxy/morph/internal/state/core"
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	"github.com/wandxy/morph/internal/state/search"
+	"github.com/wandxy/morph/internal/state/storememory"
 	morphtools "github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/trace"
 	agentcore "github.com/wandxy/morph/pkg/agent"
@@ -76,6 +77,47 @@ func TestAgent_StartRespondAndCloseLifecycle(t *testing.T) {
 	require.Len(t, core.TurnMessages(), 2)
 	require.Len(t, env.TraceRunContexts, 1)
 	require.Equal(t, storage.DefaultSessionID, env.TraceRunContexts[0].Session.PublicID)
+	require.NoError(t, core.Close())
+}
+
+func TestAgent_StartConfiguresApprovalRateLimit(t *testing.T) {
+	originalOpen := OpenStateStore
+	originalNewEnvironment := NewEnvironment
+	t.Cleanup(func() {
+		OpenStateStore = originalOpen
+		NewEnvironment = originalNewEnvironment
+	})
+
+	store := &stateStoreStub{
+		session: storage.Session{ID: storage.DefaultSessionID}, permissionStore: storememory.NewStore(),
+	}
+	OpenStateStore = func(*config.Config, models.Client) (storage.Store, error) { return store, nil }
+	NewEnvironment = func(context.Context, *config.Config) environment.Environment {
+		return &mocks.EnvironmentStub{ToolRegistry: &mocks.ToolRegistryStub{}, IterationBudget: envbudget.New(1)}
+	}
+	cfg := &config.Config{
+		Models:      config.ModelsConfig{Main: config.MainModelConfig{Name: "model"}},
+		Permissions: permissions.Policy{ApprovalRateLimit: 1, ApprovalRateWindow: time.Hour},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	core := NewAgent(ctx, cfg, &mocks.ModelClientStub{})
+	require.NoError(t, core.Start(ctx))
+
+	approvalContext := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+	})
+	firstContext, cancelFirst := context.WithCancel(approvalContext)
+	cancelFirst()
+	input := permissions.EvaluationInput{Operation: permissions.Operation{
+		Tool: "write_file", Resource: permissions.ResourceFile, Action: permissions.ActionUpdate,
+		Effects: []permissions.Effect{permissions.EffectWrite}, Target: "workspace/a.txt",
+	}}
+	require.ErrorIs(t, core.ApprovalService().Authorize(firstContext, input), context.Canceled)
+	err := core.ApprovalService().Authorize(approvalContext, input)
+	decisionErr, ok := permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeApprovalRateLimited, decisionErr.Code)
 	require.NoError(t, core.Close())
 }
 

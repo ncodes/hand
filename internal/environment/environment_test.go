@@ -61,16 +61,9 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	require.Empty(t, env.Instructions())
 }
 
-func TestEnvironment_ProtectedToolsExposePermissionInventoryMetadata(t *testing.T) {
+func TestEnvironment_ProtectedToolsExposePermissionMetadata(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent"})
 	prepareTestEnvironment(t, env)
-	inventory := make(map[string]permissions.Operation)
-	for _, entry := range permissions.GetInventory() {
-		if entry.Boundary == "tool" {
-			inventory[entry.ID] = entry.Operation
-		}
-	}
-
 	want := map[string]permissions.Operation{
 		"run_command": {
 			Tool:     "run_command",
@@ -124,11 +117,6 @@ func TestEnvironment_ProtectedToolsExposePermissionInventoryMetadata(t *testing.
 	}
 
 	for _, definition := range env.Tools().List() {
-		inventoryOperation, inventoried := inventory["tool."+definition.Name]
-		require.True(t, inventoried, definition.Name)
-		require.NotEmpty(t, inventoryOperation.Resource, definition.Name)
-		delete(inventory, "tool."+definition.Name)
-
 		expected, ok := want[definition.Name]
 		if !ok {
 			continue

@@ -60,6 +60,11 @@ const (
 	ResourceDaemon        Resource = "daemon"
 	ResourcePlan          Resource = "plan"
 	ResourceClock         Resource = "clock"
+	ResourceMCP           Resource = "mcp"
+	ResourceBrowser       Resource = "browser"
+	ResourceDelegation    Resource = "delegation"
+	ResourceExecuteCode   Resource = "execute_code"
+	ResourceACP           Resource = "acp"
 )
 
 type Action string
@@ -122,7 +127,9 @@ type AuthorizationContext struct {
 	SessionID       string
 	RunID           string
 	ParentActorKind ActorKind
+	ParentActorID   string
 	ParentRunID     string
+	Scope           PermissionScope
 }
 
 func (c AuthorizationContext) Normalize() (AuthorizationContext, error) {
@@ -137,7 +144,13 @@ func (c AuthorizationContext) Normalize() (AuthorizationContext, error) {
 	c.SessionID = str.String(c.SessionID).Trim()
 	c.RunID = str.String(c.RunID).Trim()
 	c.ParentActorKind = ActorKind(str.String(c.ParentActorKind).Normalized())
+	c.ParentActorID = str.String(c.ParentActorID).Trim()
 	c.ParentRunID = str.String(c.ParentRunID).Trim()
+	scope, err := c.Scope.Normalize()
+	if err != nil {
+		return AuthorizationContext{}, err
+	}
+	c.Scope = scope
 
 	if !isValidActorKind(c.Actor.Kind, false) {
 		return AuthorizationContext{}, errors.New("permission actor kind is invalid")
@@ -154,6 +167,9 @@ func (c AuthorizationContext) Normalize() (AuthorizationContext, error) {
 	}
 	if c.ParentActorKind != "" && !isValidActorKind(c.ParentActorKind, false) {
 		return AuthorizationContext{}, errors.New("permission parent actor kind is invalid")
+	}
+	if c.ParentActorKind == "" && (c.ParentActorID != "" || c.ParentRunID != "") {
+		return AuthorizationContext{}, errors.New("permission parent actor kind is required for parent identity")
 	}
 
 	return c, nil
@@ -266,7 +282,12 @@ func isValidResource(value Resource, allowUnknown bool) bool {
 		ResourceModel,
 		ResourceDaemon,
 		ResourcePlan,
-		ResourceClock}
+		ResourceClock,
+		ResourceMCP,
+		ResourceBrowser,
+		ResourceDelegation,
+		ResourceExecuteCode,
+		ResourceACP}
 	return slices.Contains(valid, value) || allowUnknown && value == ResourceUnknown
 }
 

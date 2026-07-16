@@ -19,8 +19,9 @@ type (
 	Payload  = state.AutomationPayload
 	Delivery = state.AutomationDelivery
 
-	JobState = state.AutomationJobState
-	Usage    = state.AutomationUsage
+	JobState                = state.AutomationJobState
+	AuthorizationProvenance = state.AutomationAuthorizationProvenance
+	Usage                   = state.AutomationUsage
 
 	Job      = state.AutomationJob
 	JobPatch = state.AutomationJobPatch

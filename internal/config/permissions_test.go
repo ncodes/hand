@@ -21,6 +21,8 @@ permissions:
   grantRetention: 1440h
   cleanupInterval: 30m
   cleanupBatchSize: 75
+  approvalRateLimit: 12
+  approvalRateWindow: 2m
   surfaceKinds:
     gateway: deny
   surfaces:
@@ -49,6 +51,8 @@ permissions:
 	require.Equal(t, 60*24*time.Hour, cfg.Permissions.GrantRetention)
 	require.Equal(t, 30*time.Minute, cfg.Permissions.CleanupInterval)
 	require.Equal(t, 75, cfg.Permissions.CleanupBatchSize)
+	require.Equal(t, 12, cfg.Permissions.ApprovalRateLimit)
+	require.Equal(t, 2*time.Minute, cfg.Permissions.ApprovalRateWindow)
 	require.Equal(t, permissions.Rule{
 		Name:           "owner workspace writes",
 		Profiles:       []string{"work"},
@@ -98,6 +102,8 @@ func TestConfig_ValidateRejectsInvalidPermissionRetention(t *testing.T) {
 		{name: "grant retention", mutate: func(policy *permissions.Policy) { policy.GrantRetention = -time.Second }, want: "permission grant retention must be greater than or equal to zero"},
 		{name: "cleanup interval", mutate: func(policy *permissions.Policy) { policy.CleanupInterval = -time.Second }, want: "permission cleanup interval must be greater than zero"},
 		{name: "cleanup batch", mutate: func(policy *permissions.Policy) { policy.CleanupBatchSize = -1 }, want: "permission cleanup batch size must be greater than zero"},
+		{name: "approval rate limit", mutate: func(policy *permissions.Policy) { policy.ApprovalRateLimit = -1 }, want: "permission approval rate limit must be greater than zero"},
+		{name: "approval rate window", mutate: func(policy *permissions.Policy) { policy.ApprovalRateWindow = -time.Second }, want: "permission approval rate window must be greater than zero"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -133,17 +139,18 @@ func TestNewDefaultConfig_ClonesPermissions(t *testing.T) {
 		},
 		SurfaceDefaults: map[permissions.Surface]permissions.Decision{permissions.SurfaceCLI: permissions.DecisionAsk},
 		Rules: []permissions.Rule{{
-			Name:           "owner",
-			Profiles:       []string{"work"},
-			ActorKinds:     []permissions.ActorKind{permissions.ActorLocalOwner},
-			SurfaceKinds:   []permissions.SurfaceKind{permissions.SurfaceKindLocal},
-			Surfaces:       []permissions.Surface{permissions.SurfaceCLI},
-			Tools:          []string{"read_file"},
-			Resources:      []permissions.Resource{permissions.ResourceFile},
-			Actions:        []permissions.Action{permissions.ActionRead},
-			Effects:        []permissions.Effect{permissions.EffectRead},
-			TargetPrefixes: []string{"workspace/"},
-			Decision:       permissions.DecisionAllow,
+			Name:             "owner",
+			Profiles:         []string{"work"},
+			ActorKinds:       []permissions.ActorKind{permissions.ActorLocalOwner},
+			ParentActorKinds: []permissions.ActorKind{permissions.ActorLocalOwner},
+			SurfaceKinds:     []permissions.SurfaceKind{permissions.SurfaceKindLocal},
+			Surfaces:         []permissions.Surface{permissions.SurfaceCLI},
+			Tools:            []string{"read_file"},
+			Resources:        []permissions.Resource{permissions.ResourceFile},
+			Actions:          []permissions.Action{permissions.ActionRead},
+			Effects:          []permissions.Effect{permissions.EffectRead},
+			TargetPrefixes:   []string{"workspace/"},
+			Decision:         permissions.DecisionAllow,
 		}},
 	}
 
@@ -153,6 +160,7 @@ func TestNewDefaultConfig_ClonesPermissions(t *testing.T) {
 	first.Permissions.SurfaceKindDefaults[permissions.SurfaceKindLocal] = permissions.DecisionDeny
 	first.Permissions.Rules[0].Profiles[0] = "other"
 	first.Permissions.Rules[0].ActorKinds[0] = permissions.ActorGatewayUser
+	first.Permissions.Rules[0].ParentActorKinds[0] = permissions.ActorGatewayUser
 	first.Permissions.Rules[0].SurfaceKinds[0] = permissions.SurfaceKindGateway
 	first.Permissions.Rules[0].Surfaces[0] = permissions.SurfaceSlack
 	first.Permissions.Rules[0].Tools[0] = "memory_search"
@@ -165,6 +173,7 @@ func TestNewDefaultConfig_ClonesPermissions(t *testing.T) {
 	require.Equal(t, permissions.DecisionAsk, second.Permissions.SurfaceKindDefaults[permissions.SurfaceKindLocal])
 	require.Equal(t, "work", second.Permissions.Rules[0].Profiles[0])
 	require.Equal(t, permissions.ActorLocalOwner, second.Permissions.Rules[0].ActorKinds[0])
+	require.Equal(t, permissions.ActorLocalOwner, second.Permissions.Rules[0].ParentActorKinds[0])
 	require.Equal(t, permissions.SurfaceKindLocal, second.Permissions.Rules[0].SurfaceKinds[0])
 	require.Equal(t, permissions.SurfaceCLI, second.Permissions.Rules[0].Surfaces[0])
 	require.Equal(t, "read_file", second.Permissions.Rules[0].Tools[0])

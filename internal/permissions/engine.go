@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	ErrorCodeDenied           = "permission_denied"
-	ErrorCodeApprovalRequired = "approval_required"
+	ErrorCodeDenied              = "permission_denied"
+	ErrorCodeApprovalRequired    = "approval_required"
+	ErrorCodeApprovalRateLimited = "approval_rate_limited"
 )
 
 type DecisionError struct {

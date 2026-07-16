@@ -86,6 +86,9 @@ func TestSQLiteStore_AutomationJobLifecycle(t *testing.T) {
 		},
 		CreatedAt:   time.Date(2026, 7, 1, 9, 0, 0, 0, time.FixedZone("WAT", 3600)),
 		Description: "Run maintenance",
+		Authorization: state.AutomationAuthorizationProvenance{
+			ActorKind: "local_owner", ActorID: "owner", Surface: "tui", CapturedAt: firstRun,
+		},
 	})
 	require.NoError(t, err)
 	require.Equal(t, testAutomationJobB, created.ID)
@@ -108,6 +111,9 @@ func TestSQLiteStore_AutomationJobLifecycle(t *testing.T) {
 	require.Equal(t, time.Hour, loaded.Delivery.FailureCooldown)
 	require.Equal(t, state.AutomationRunStatusOK, loaded.State.LastStatus)
 	require.Equal(t, firstRun, loaded.State.LastFailureNoticeAt)
+	require.Equal(t, "local_owner", loaded.Authorization.ActorKind)
+	require.Equal(t, "owner", loaded.Authorization.ActorID)
+	require.Equal(t, firstRun, loaded.Authorization.CapturedAt)
 
 	_, err = store.CreateJob(ctx, state.AutomationJob{ID: testAutomationJobB, Enabled: true})
 	require.Error(t, err)

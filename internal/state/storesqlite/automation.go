@@ -12,20 +12,21 @@ import (
 )
 
 type automationJobModel struct {
-	ID             string     `gorm:"column:id;primaryKey"`
-	Name           string     `gorm:"column:name;not null;default:''"`
-	Description    string     `gorm:"column:description;not null;default:''"`
-	Enabled        bool       `gorm:"column:enabled;not null;index:idx_automation_jobs_enabled"`
-	CreatedAt      time.Time  `gorm:"column:created_at;autoCreateTime:false"`
-	UpdatedAt      time.Time  `gorm:"column:updated_at;autoUpdateTime:false;index:idx_automation_jobs_updated_at"`
-	ScheduleJSON   string     `gorm:"column:schedule_json;type:TEXT;not null;default:'{}'"`
-	PayloadJSON    string     `gorm:"column:payload_json;type:TEXT;not null;default:'{}'"`
-	DeliveryJSON   string     `gorm:"column:delivery_json;type:TEXT;not null;default:'{}'"`
-	Profile        string     `gorm:"column:profile;not null;default:'';index:idx_automation_jobs_profile"`
-	SessionTarget  string     `gorm:"column:session_target;not null;default:'';index:idx_automation_jobs_session_target"`
-	DeleteAfterRun bool       `gorm:"column:delete_after_run;not null;default:false"`
-	NextRunAt      *time.Time `gorm:"column:next_run_at;index:idx_automation_jobs_next_run_at"`
-	StateJSON      string     `gorm:"column:state_json;type:TEXT;not null;default:'{}'"`
+	ID                string     `gorm:"column:id;primaryKey"`
+	Name              string     `gorm:"column:name;not null;default:''"`
+	Description       string     `gorm:"column:description;not null;default:''"`
+	Enabled           bool       `gorm:"column:enabled;not null;index:idx_automation_jobs_enabled"`
+	CreatedAt         time.Time  `gorm:"column:created_at;autoCreateTime:false"`
+	UpdatedAt         time.Time  `gorm:"column:updated_at;autoUpdateTime:false;index:idx_automation_jobs_updated_at"`
+	ScheduleJSON      string     `gorm:"column:schedule_json;type:TEXT;not null;default:'{}'"`
+	PayloadJSON       string     `gorm:"column:payload_json;type:TEXT;not null;default:'{}'"`
+	DeliveryJSON      string     `gorm:"column:delivery_json;type:TEXT;not null;default:'{}'"`
+	Profile           string     `gorm:"column:profile;not null;default:'';index:idx_automation_jobs_profile"`
+	SessionTarget     string     `gorm:"column:session_target;not null;default:'';index:idx_automation_jobs_session_target"`
+	DeleteAfterRun    bool       `gorm:"column:delete_after_run;not null;default:false"`
+	AuthorizationJSON string     `gorm:"column:authorization_json;type:TEXT;not null;default:'{}'"`
+	NextRunAt         *time.Time `gorm:"column:next_run_at;index:idx_automation_jobs_next_run_at"`
+	StateJSON         string     `gorm:"column:state_json;type:TEXT;not null;default:'{}'"`
 }
 
 func (automationJobModel) TableName() string {
@@ -399,20 +400,21 @@ func automationJobToModel(job state.AutomationJob) automationJobModel {
 		nextRunAt = &next
 	}
 	return automationJobModel{
-		ID:             job.ID,
-		Name:           job.Name,
-		Description:    job.Description,
-		Enabled:        job.Enabled,
-		CreatedAt:      job.CreatedAt,
-		UpdatedAt:      job.UpdatedAt,
-		ScheduleJSON:   toJSONString(job.Schedule),
-		PayloadJSON:    toJSONString(job.Payload),
-		DeliveryJSON:   toJSONString(job.Delivery),
-		Profile:        job.Profile,
-		SessionTarget:  job.SessionTarget,
-		DeleteAfterRun: job.DeleteAfterRun,
-		NextRunAt:      nextRunAt,
-		StateJSON:      toJSONString(job.State),
+		ID:                job.ID,
+		Name:              job.Name,
+		Description:       job.Description,
+		Enabled:           job.Enabled,
+		CreatedAt:         job.CreatedAt,
+		UpdatedAt:         job.UpdatedAt,
+		ScheduleJSON:      toJSONString(job.Schedule),
+		PayloadJSON:       toJSONString(job.Payload),
+		DeliveryJSON:      toJSONString(job.Delivery),
+		Profile:           job.Profile,
+		SessionTarget:     job.SessionTarget,
+		DeleteAfterRun:    job.DeleteAfterRun,
+		AuthorizationJSON: toJSONString(job.Authorization),
+		NextRunAt:         nextRunAt,
+		StateJSON:         toJSONString(job.State),
 	}
 }
 
@@ -427,6 +429,9 @@ func automationModelToJob(record automationJobModel) (state.AutomationJob, error
 		Profile:        record.Profile,
 		SessionTarget:  record.SessionTarget,
 		DeleteAfterRun: record.DeleteAfterRun,
+	}
+	if err := fromJSONString(record.AuthorizationJSON, &job.Authorization); err != nil {
+		return state.AutomationJob{}, err
 	}
 	if err := fromJSONString(record.ScheduleJSON, &job.Schedule); err != nil {
 		return state.AutomationJob{}, err

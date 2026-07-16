@@ -42,6 +42,15 @@ type modelClientFactoryStub struct {
 	newClient func(modelclient.ClientRequest) (models.Client, error)
 }
 
+type approvalAgentRunnerStub struct {
+	*agentstub.AgentRunnerStub
+	approvalService *permissions.ApprovalService
+}
+
+func (s approvalAgentRunnerStub) ApprovalService() *permissions.ApprovalService {
+	return s.approvalService
+}
+
 func (s modelClientFactoryStub) NewClient(req modelclient.ClientRequest) (models.Client, error) {
 	return s.newClient(req)
 }
@@ -1364,6 +1373,33 @@ func TestBuildAutomationService_WiresGatewayDeliverySink(t *testing.T) {
 	_, err = buildAutomationService(context.Background(), nil, agent)
 	require.NoError(t, err)
 	require.Nil(t, serviceOptions.DeliverySink)
+}
+
+func TestBuildAutomationService_WiresPermissionApprover(t *testing.T) {
+	originalNewAutomationService := newAutomationService
+	t.Cleanup(func() { newAutomationService = originalNewAutomationService })
+	store := storememory.NewStore()
+	approvalService, err := permissions.NewApprovalService(store, permissions.ApprovalOptions{})
+	require.NoError(t, err)
+	agent := approvalAgentRunnerStub{
+		AgentRunnerStub: &agentstub.AgentRunnerStub{AgentServiceStub: agentstub.AgentServiceStub{
+			AutomationStoreValue: store, AutomationStoreOK: true,
+		}},
+		approvalService: approvalService,
+	}
+	var serviceOptions automation.ServiceOptions
+	newAutomationService = func(
+		_ automation.Store,
+		_ automation.Runner,
+		opts automation.ServiceOptions,
+	) (*automation.Service, error) {
+		serviceOptions = opts
+		return nil, nil
+	}
+
+	_, err = buildAutomationService(context.Background(), &config.Config{}, agent)
+	require.NoError(t, err)
+	require.Same(t, approvalService, serviceOptions.PermissionApprover)
 }
 
 func TestBuildAutomationService_HandlesUnavailableDependencies(t *testing.T) {

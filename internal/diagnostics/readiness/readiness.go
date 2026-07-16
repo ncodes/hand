@@ -61,6 +61,7 @@ func Build(ctx context.Context, opts Options) Report {
 		buildMemoryGroup(cfg),
 		buildSearchGroup(cfg),
 		buildSafetyGroup(cfg),
+		buildPermissionGroup(ctx, cfg, opts.Profile),
 		buildGatewayGroup(cfg),
 		buildAutomationGroup(ctx, cfg, opts.Profile),
 		buildCapabilityGroup(cfg),

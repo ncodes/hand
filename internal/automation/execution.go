@@ -154,10 +154,13 @@ func (r *AgentRunner) RunAutomation(ctx context.Context, job Job) (RunResult, er
 		return RunResult{}, err
 	}
 	ctx = permissions.WithContext(ctx, permissions.AuthorizationContext{
-		Actor:     permissions.Actor{Kind: permissions.ActorAutomation, ID: job.ID},
-		Surface:   permissions.SurfaceAutomation,
-		Profile:   activeProfile.Name,
-		SessionID: sessionID,
+		Actor:           permissions.Actor{Kind: permissions.ActorAutomation, ID: job.ID},
+		Surface:         permissions.SurfaceAutomation,
+		Profile:         activeProfile.Name,
+		SessionID:       sessionID,
+		ParentActorKind: permissions.ActorKind(job.Authorization.ActorKind),
+		ParentActorID:   job.Authorization.ActorID,
+		ParentRunID:     job.Authorization.RunID,
 	})
 
 	stream := false

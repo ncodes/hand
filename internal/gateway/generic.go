@@ -2,8 +2,10 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -100,7 +102,7 @@ func handleGenericRespond(cfg config.GatewayConfig, service AgentService) http.H
 			return
 		}
 		requestContext := permissions.WithContext(r.Context(), permissions.AuthorizationContext{
-			Actor:     permissions.Actor{Kind: permissions.ActorGatewayUser},
+			Actor:     permissions.Actor{Kind: permissions.ActorGatewayUser, ID: getGenericGatewayPrincipal(cfg.AuthToken)},
 			Surface:   permissions.SurfaceHTTP,
 			SessionID: session.ID,
 		})
@@ -122,6 +124,12 @@ func handleGenericRespond(cfg config.GatewayConfig, service AgentService) http.H
 			Text:           text,
 		})
 	}
+}
+
+func getGenericGatewayPrincipal(authToken string) string {
+	sum := sha256.Sum256([]byte(authToken))
+
+	return fmt.Sprintf("http:%x", sum[:8])
 }
 
 func decodeGenericRespondRequest(w http.ResponseWriter, r *http.Request, req *gatewaytypes.RespondRequest) error {

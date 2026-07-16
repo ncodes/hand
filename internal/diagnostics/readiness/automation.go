@@ -15,7 +15,7 @@ import (
 	"github.com/wandxy/morph/pkg/str"
 )
 
-var openAutomationReadinessStore = openProfileAutomationReadinessStore
+var openAutomationReadinessStore = openProfileReadinessStore
 
 func buildAutomationGroup(ctx context.Context, cfg *config.Config, activeProfile profile.Profile) Group {
 	if cfg == nil {
@@ -54,7 +54,7 @@ func buildAutomationGroup(ctx context.Context, cfg *config.Config, activeProfile
 	return Group{Name: "automation", Checks: buildAutomationChecks(list.Jobs, findings)}
 }
 
-func openProfileAutomationReadinessStore(
+func openProfileReadinessStore(
 	cfg *config.Config,
 	activeProfile profile.Profile,
 ) (storage.Store, error) {

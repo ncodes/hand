@@ -42,6 +42,95 @@ func TestReport_HasFailuresAndSummary(t *testing.T) {
 	require.Equal(t, "readiness checks passed", report.Summary())
 }
 
+func TestBuildPermissionGroup_ReportsUnsafeAndImpossiblePolicies(t *testing.T) {
+	fullAccess := readyConfig()
+	fullAccess.Permissions.Mode = permissions.ModeFullAccess
+	group := buildPermissionGroup(context.Background(), fullAccess, profile.Profile{})
+	require.Equal(t, StatusWarn, getReadinessGroupCheck(t, group, "policy").Status)
+
+	unattendedAsk := readyConfig()
+	unattendedAsk.Normalize()
+	unattendedAsk.Permissions.SurfaceKindDefaults[permissions.SurfaceKindAutomation] = permissions.DecisionAsk
+	group = buildPermissionGroup(context.Background(), unattendedAsk, profile.Profile{})
+	check := getReadinessGroupCheck(t, group, "unattended approvals")
+	require.Equal(t, StatusFail, check.Status)
+	require.Contains(t, check.Message, "automation surfaces")
+
+	exactAsk := readyConfig()
+	exactAsk.Normalize()
+	exactAsk.Permissions.SurfaceDefaults[permissions.SurfaceSlack] = permissions.DecisionAsk
+	group = buildPermissionGroup(context.Background(), exactAsk, profile.Profile{})
+	require.Equal(t, StatusFail, getReadinessGroupCheck(t, group, "unattended approvals").Status)
+
+	invalid := readyConfig()
+	invalid.Permissions.Mode = "invalid"
+	group = buildPermissionGroup(context.Background(), invalid, profile.Profile{})
+	require.Equal(t, StatusFail, getReadinessGroupCheck(t, group, "policy").Status)
+
+	group = buildPermissionGroup(context.Background(), nil, profile.Profile{})
+	require.Equal(t, StatusFail, getReadinessGroupCheck(t, group, "config").Status)
+}
+
+func TestBuildPermissionGroup_ReportsStaleActiveGrants(t *testing.T) {
+	originalOpen := openPermissionReadinessStore
+	t.Cleanup(func() { openPermissionReadinessStore = originalOpen })
+	store := storememory.NewStore()
+	now := time.Now()
+	request, _, err := store.CreateApprovalRequest(context.Background(), permissions.ApprovalRequest{
+		ID: "approval_stale", Fingerprint: "fingerprint", Actor: permissions.Actor{Kind: permissions.ActorLocalOwner},
+		SurfaceKind: permissions.SurfaceKindLocal, Surface: permissions.SurfaceCLI,
+		Resource: permissions.ResourceFile, Action: permissions.ActionRead,
+		Status: permissions.ApprovalPending, CreatedAt: now.Add(-3 * time.Hour), ExpiresAt: now.Add(-2 * time.Hour),
+	})
+	require.NoError(t, err)
+	_, err = store.ResolveApprovalRequest(
+		context.Background(), request.ID, permissions.ApprovalApproved, permissions.GrantSession, now.Add(-2*time.Hour),
+	)
+	require.NoError(t, err)
+	_, err = store.CreateApprovalGrant(context.Background(), permissions.ApprovalGrant{
+		ID: "grant_stale", RequestID: request.ID, Fingerprint: "fingerprint", Actor: permissions.Actor{Kind: permissions.ActorLocalOwner},
+		Scope: permissions.GrantSession, Status: permissions.GrantActive,
+		CreatedAt: now.Add(-2 * time.Hour), ExpiresAt: now.Add(-time.Hour),
+	})
+	require.NoError(t, err)
+	openPermissionReadinessStore = func(*config.Config, profile.Profile) (storage.Store, error) {
+		return store, nil
+	}
+
+	group := buildPermissionGroup(context.Background(), readyConfig(), profile.Profile{})
+	check := getReadinessGroupCheck(t, group, "grants")
+	require.Equal(t, StatusWarn, check.Status)
+	require.Equal(t, "1 active grants are stale", check.Message)
+}
+
+func TestBuildPermissionGroup_ReportsGrantStoreFailure(t *testing.T) {
+	originalOpen := openPermissionReadinessStore
+	t.Cleanup(func() { openPermissionReadinessStore = originalOpen })
+	store := storememory.NewStore()
+	openPermissionReadinessStore = func(*config.Config, profile.Profile) (storage.Store, error) {
+		return automationReadinessStoreStub{
+			permissionStore: permissionListErrorStore{ApprovalStore: store, err: errors.New("list failed")},
+		}, nil
+	}
+
+	group := buildPermissionGroup(context.Background(), readyConfig(), profile.Profile{})
+	check := getReadinessGroupCheck(t, group, "grants")
+	require.Equal(t, StatusFail, check.Status)
+	require.Equal(t, "list failed", check.Message)
+}
+
+func getReadinessGroupCheck(t *testing.T, group Group, name string) Check {
+	t.Helper()
+	for _, candidate := range group.Checks {
+		if candidate.Name == name {
+			return candidate
+		}
+	}
+	require.FailNow(t, "check not found", name)
+
+	return Check{}
+}
+
 func TestBuild_ReportsProfileAndMissingDaemonWithoutFailure(t *testing.T) {
 	home := t.TempDir()
 	configPath := filepath.Join(home, "config.yaml")
@@ -845,7 +934,7 @@ func TestBuild_ReportsAutomationStoreErrors(t *testing.T) {
 	require.Equal(t, StatusFail, findReadinessCheck(t, report, "automation", "store").Status)
 }
 
-func TestOpenProfileAutomationReadinessStore_UsesRequestedProfileAndBackend(t *testing.T) {
+func TestOpenProfileReadinessStore_UsesRequestedProfileAndBackend(t *testing.T) {
 	originalProfile := profile.Active()
 	t.Cleanup(func() { profile.SetActive(originalProfile) })
 	activeHome := t.TempDir()
@@ -854,7 +943,7 @@ func TestOpenProfileAutomationReadinessStore_UsesRequestedProfileAndBackend(t *t
 	requestedProfile := profile.WithMetadataPaths(profile.Profile{Name: "requested", HomeDir: requestedHome})
 
 	cfg := readyConfig()
-	store, err := openProfileAutomationReadinessStore(cfg, requestedProfile)
+	store, err := openProfileReadinessStore(cfg, requestedProfile)
 	require.NoError(t, err)
 	closer, ok := store.(interface{ Close() error })
 	require.True(t, ok)
@@ -863,15 +952,15 @@ func TestOpenProfileAutomationReadinessStore_UsesRequestedProfileAndBackend(t *t
 	require.NoFileExists(t, filepath.Join(activeHome, "data", "state.db"))
 
 	cfg.Storage.Backend = "memory"
-	store, err = openProfileAutomationReadinessStore(cfg, requestedProfile)
+	store, err = openProfileReadinessStore(cfg, requestedProfile)
 	require.NoError(t, err)
 	_, ok = store.Automation()
 	require.True(t, ok)
 
-	_, err = openProfileAutomationReadinessStore(nil, requestedProfile)
+	_, err = openProfileReadinessStore(nil, requestedProfile)
 	require.EqualError(t, err, "config is required")
 	cfg.Storage.Backend = "unsupported"
-	_, err = openProfileAutomationReadinessStore(cfg, requestedProfile)
+	_, err = openProfileReadinessStore(cfg, requestedProfile)
 	require.EqualError(t, err, "storage backend must be one of: memory, sqlite")
 }
 
@@ -1006,6 +1095,7 @@ func readyConfig() *config.Config {
 
 type automationReadinessStoreStub struct {
 	automationStore storage.AutomationStore
+	permissionStore permissions.ApprovalStore
 }
 
 func (automationReadinessStoreStub) Session() storage.SessionStore {
@@ -1021,7 +1111,19 @@ func (s automationReadinessStoreStub) Automation() (storage.AutomationStore, boo
 }
 
 func (s automationReadinessStoreStub) Permission() (permissions.ApprovalStore, bool) {
-	return nil, false
+	return s.permissionStore, s.permissionStore != nil
+}
+
+type permissionListErrorStore struct {
+	permissions.ApprovalStore
+	err error
+}
+
+func (s permissionListErrorStore) ListApprovalGrants(
+	context.Context,
+	permissions.GrantQuery,
+) ([]permissions.ApprovalGrant, error) {
+	return nil, s.err
 }
 
 func (automationReadinessStoreStub) Memory() (storage.MemoryStore, bool) {

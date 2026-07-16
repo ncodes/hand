@@ -283,6 +283,39 @@ See [Memory Guide: Troubleshooting](./memory#troubleshooting) and [Search and Tr
 
 ## TUI and Terminal
 
+## Permissions and Approvals
+
+If an operation reports `approval required` outside the TUI or interactive CLI, the caller is on an unattended surface.
+Morph intentionally fails that operation promptly. Add a narrow allow rule or create a matching grant through a trusted
+local-owner workflow; do not change the gateway, automation, or RPC default to `ask`.
+
+Useful checks:
+
+```bash
+morph doctor
+morph permissions pending
+morph permissions grants --status active
+morph permissions explain approval_ID
+morph permissions revoke grant_ID
+```
+
+Common diagnoses:
+
+- **Paired gateway user is denied:** pairing authenticated the sender but did not grant owner authority. Add only the
+  exact non-owner operation the sender needs.
+- **Automation worked and now fails:** its policy or matching grant changed. The failure is recorded in automation run
+  history; inspect active grants and the job ID target.
+- **Doctor reports unattended approvals:** a gateway, automation, RPC, or ACP default is `ask`. Change it to `deny` and
+  add explicit allow rules.
+- **Doctor reports stale grants:** run `morph permissions prune --dry-run`, inspect the result, then prune. Active but
+  expired records are never treated as authorization.
+- **Approval requests are rate limited:** wait for `permissions.approvalRateWindow` or reduce repeated tool attempts.
+  Increase the limit only after checking whether a model or client is retrying the same blocked action.
+- **MCP/browser approval no longer matches:** server, transport, tool, endpoint, profile, tab, action, or normalized
+  target changed. Material target changes intentionally require a new decision.
+- **Subagent scope denial:** the requested operation is outside either the parent scope or the delegated scope. A child
+  cannot widen that intersection or reuse the parent's grant.
+
 Symptoms: blank or garbled UI; keybindings seem dead; TUI exits immediately.
 
 ### Connection and setup

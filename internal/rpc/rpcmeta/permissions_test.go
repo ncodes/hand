@@ -92,6 +92,16 @@ func TestPermissionActor_ClassifiesOnlyLoopbackInteractiveClientsAsLocalOwner(t 
 	}
 }
 
+func TestPermissionActor_UsesAuthenticatedPrincipalWithoutGrantingOwnerAuthority(t *testing.T) {
+	ctx := WithAuthenticatedPermissionPrincipal(nil, " client-123 ")
+	actor := PermissionActorFromIncomingContext(ctx)
+	require.Equal(t, permissions.Actor{Kind: permissions.ActorRPCClient, ID: "client-123"}, actor)
+
+	unchanged := WithAuthenticatedPermissionPrincipal(context.Background(), " ")
+	require.Equal(t, permissions.ActorRPCClient, PermissionActorFromIncomingContext(unchanged).Kind)
+	require.Equal(t, permissions.ActorRPCClient, PermissionActorFromIncomingContext(nil).Kind)
+}
+
 func incomingPermissionContext(surface permissions.Surface, address net.Addr) context.Context {
 	outgoing := WithOutgoingPermissionSurface(context.Background(), surface)
 	outgoingMetadata, _ := metadata.FromOutgoingContext(outgoing)

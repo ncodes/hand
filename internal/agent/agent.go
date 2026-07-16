@@ -151,6 +151,8 @@ func (a *Agent) Start(ctx context.Context) error {
 			GrantRetention:   a.cfg.Permissions.GrantRetention,
 			CleanupInterval:  a.cfg.Permissions.CleanupInterval,
 			CleanupBatchSize: a.cfg.Permissions.CleanupBatchSize,
+			RateLimit:        a.cfg.Permissions.ApprovalRateLimit,
+			RateWindow:       a.cfg.Permissions.ApprovalRateWindow,
 		})
 		if err != nil {
 			return err

@@ -250,6 +250,144 @@ func TestService_MutationPermissionRecheckBlocksSideEffects(t *testing.T) {
 	require.Zero(t, runner.CallCount())
 }
 
+func TestService_AutomationRunReevaluatesRevokedGrantAndPreservesCreatorProvenance(t *testing.T) {
+	now := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
+	clock := newAutomationTestClock(now)
+	store := storememory.NewStore()
+	runner := &automationRunnerStub{}
+	creatorContext := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner, ID: "owner"},
+		Surface: permissions.SurfaceTUI, Profile: "default", SessionID: "default", RunID: "turn-1",
+	})
+	setup := newAutomationTestService(t, store, clock, runner)
+	job, err := setup.Add(creatorContext, Job{
+		ID: testServiceJobA, Enabled: true, Profile: "default", SessionTarget: SessionTargetMain,
+		Payload: automationTestPromptPayload(), Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+	})
+	require.NoError(t, err)
+	require.Equal(t, AuthorizationProvenance{
+		ActorKind: string(permissions.ActorLocalOwner), ActorID: "owner",
+		SurfaceKind: string(permissions.SurfaceKindLocal), Surface: string(permissions.SurfaceTUI),
+		Profile: "default", SessionID: "default", RunID: "turn-1", CapturedAt: now,
+	}, job.Authorization)
+
+	policy := permissions.Policy{
+		Mode: permissions.ModeEnforce,
+		SurfaceDefaults: map[permissions.Surface]permissions.Decision{
+			permissions.SurfaceTUI:        permissions.DecisionAllow,
+			permissions.SurfaceAutomation: permissions.DecisionAsk,
+		},
+	}
+	approvalService, err := permissions.NewApprovalService(store, permissions.ApprovalOptions{Now: clock.Now})
+	require.NoError(t, err)
+	service, err := NewService(ServiceOptions{
+		Store: store, Runner: runner, Now: clock.Now,
+		PermissionChecker: permissions.NewEngine(policy), PermissionApprover: approvalService,
+	})
+	require.NoError(t, err)
+
+	authorization, ok := permissions.FromContext(getAutomationExecutionContext(context.Background(), job, "run"))
+	require.True(t, ok)
+	operation := permissions.Operation{
+		Resource: permissions.ResourceAutomation, Action: permissions.ActionExecute,
+		Effects: []permissions.Effect{permissions.EffectExecution, permissions.EffectExternalSystem}, Target: job.ID,
+	}
+	request, _, err := store.CreateApprovalRequest(context.Background(), permissions.ApprovalRequest{
+		ID: "approval_automation", Fingerprint: permissions.Fingerprint(authorization, operation),
+		Actor: authorization.Actor, SurfaceKind: permissions.SurfaceKindAutomation,
+		Surface: permissions.SurfaceAutomation, Profile: authorization.Profile, SessionID: authorization.SessionID,
+		Resource: operation.Resource, Action: operation.Action, Effects: operation.Effects,
+		Status: permissions.ApprovalPending, CreatedAt: now, ExpiresAt: now.Add(time.Hour),
+	})
+	require.NoError(t, err)
+	_, err = store.ResolveApprovalRequest(
+		context.Background(), request.ID, permissions.ApprovalApproved, permissions.GrantSession, now,
+	)
+	require.NoError(t, err)
+	grant, err := store.CreateApprovalGrant(context.Background(), permissions.ApprovalGrant{
+		ID: "grant_automation", RequestID: request.ID, Fingerprint: permissions.Fingerprint(authorization, operation),
+		Actor: authorization.Actor, Profile: authorization.Profile, SessionID: authorization.SessionID,
+		Scope: permissions.GrantSession, Status: permissions.GrantActive,
+		CreatedAt: now, ExpiresAt: now.Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	_, err = service.Run(creatorContext, job.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, runner.CallCount())
+	_, err = approvalService.Revoke(context.Background(), grant.ID)
+	require.NoError(t, err)
+
+	_, err = service.Run(creatorContext, job.ID)
+	decisionErr, ok := permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeApprovalRequired, decisionErr.Code)
+	require.Equal(t, 1, runner.CallCount())
+	runs, err := store.ListRuns(context.Background(), RunQuery{JobID: job.ID})
+	require.NoError(t, err)
+	require.Len(t, runs.Runs, 2)
+	require.ElementsMatch(t, []RunStatus{RunStatusOK, RunStatusError}, []RunStatus{
+		runs.Runs[0].Status, runs.Runs[1].Status,
+	})
+	failedRun := runs.Runs[0]
+	if failedRun.Status != RunStatusError {
+		failedRun = runs.Runs[1]
+	}
+	require.Contains(t, failedRun.Error, "interactive local owner surface")
+}
+
+func TestService_CheckExecutionPermissionHandlesPolicyOutcomes(t *testing.T) {
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorAutomation, ID: testServiceJobA},
+		Surface: permissions.SurfaceAutomation,
+	})
+	job := Job{ID: testServiceJobA}
+
+	service := &Service{permissionChecker: permissions.NewEngine(permissions.Policy{
+		Mode: permissions.ModeEnforce,
+		SurfaceDefaults: map[permissions.Surface]permissions.Decision{
+			permissions.SurfaceAutomation: permissions.DecisionAllow,
+		},
+	})}
+	require.NoError(t, service.checkExecutionPermission(ctx, job))
+
+	service.permissionChecker = permissions.NewEngine(permissions.Policy{
+		Mode: permissions.ModeEnforce,
+		SurfaceDefaults: map[permissions.Surface]permissions.Decision{
+			permissions.SurfaceAutomation: permissions.DecisionDeny,
+		},
+	})
+	err := service.checkExecutionPermission(ctx, job)
+	decisionErr, ok := permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeDenied, decisionErr.Code)
+
+	service.permissionChecker = permissions.NewEngine(permissions.Policy{
+		Mode: permissions.ModeEnforce,
+		SurfaceDefaults: map[permissions.Surface]permissions.Decision{
+			permissions.SurfaceAutomation: permissions.DecisionAsk,
+		},
+	})
+	err = service.checkExecutionPermission(ctx, job)
+	decisionErr, ok = permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeApprovalRequired, decisionErr.Code)
+
+	service.permissionChecker = permissionCheckerFunc(func(context.Context, permissions.EvaluationInput) (permissions.Evaluation, error) {
+		return permissions.Evaluation{}, errors.New("checker unavailable")
+	})
+	require.EqualError(t, service.checkExecutionPermission(ctx, job), "checker unavailable")
+}
+
+type permissionCheckerFunc func(context.Context, permissions.EvaluationInput) (permissions.Evaluation, error)
+
+func (f permissionCheckerFunc) Check(
+	ctx context.Context,
+	input permissions.EvaluationInput,
+) (permissions.Evaluation, error) {
+	return f(ctx, input)
+}
+
 func requirePermissionDenied(t *testing.T, err error) {
 	t.Helper()
 

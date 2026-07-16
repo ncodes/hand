@@ -56,6 +56,7 @@ type ServiceOptions struct {
 	Store                      Store
 	Runner                     Runner
 	PermissionChecker          permissions.Checker
+	PermissionApprover         permissions.Approver
 	DeliverySink               DeliverySink
 	Logger                     Logger
 	Tracer                     Tracer
@@ -98,6 +99,7 @@ type Service struct {
 	store                      Store
 	runner                     Runner
 	permissionChecker          permissions.Checker
+	permissionApprover         permissions.Approver
 	deliverySink               DeliverySink
 	logger                     Logger
 	tracer                     Tracer
@@ -193,6 +195,7 @@ func NewService(opts ServiceOptions) (*Service, error) {
 		store:                      opts.Store,
 		runner:                     opts.Runner,
 		permissionChecker:          opts.PermissionChecker,
+		permissionApprover:         opts.PermissionApprover,
 		deliverySink:               opts.DeliverySink,
 		logger:                     opts.Logger,
 		tracer:                     opts.Tracer,
@@ -385,6 +388,7 @@ func (s *Service) Add(ctx context.Context, job Job) (Job, error) {
 	if err != nil {
 		return Job{}, err
 	}
+	prepared.Authorization = getAutomationAuthorizationProvenance(ctx, s.getNow())
 
 	if err := s.checkMutationPermission(ctx, permissions.Operation{
 		Resource:      permissions.ResourceAutomation,
@@ -536,6 +540,59 @@ func (s *Service) checkMutationPermission(ctx context.Context, operation permiss
 	return err
 }
 
+func (s *Service) checkExecutionPermission(ctx context.Context, job Job) error {
+	if s.permissionChecker == nil {
+		return nil
+	}
+
+	input := permissions.EvaluationInput{Operation: permissions.Operation{
+		Resource: permissions.ResourceAutomation,
+		Action:   permissions.ActionExecute,
+		Effects:  []permissions.Effect{permissions.EffectExecution, permissions.EffectExternalSystem},
+		Target:   job.ID,
+	}}
+	_, err := s.permissionChecker.Check(ctx, input)
+	decisionErr, ok := permissions.GetDecisionError(err)
+	if err == nil || !ok || decisionErr.Code != permissions.ErrorCodeApprovalRequired || s.permissionApprover == nil {
+		return err
+	}
+
+	return s.permissionApprover.Authorize(ctx, input)
+}
+
+func getAutomationAuthorizationProvenance(ctx context.Context, capturedAt time.Time) AuthorizationProvenance {
+	authorization, ok := permissions.FromContext(ctx)
+	if !ok {
+		return AuthorizationProvenance{}
+	}
+
+	return AuthorizationProvenance{
+		ActorKind:   string(authorization.Actor.Kind),
+		ActorID:     authorization.Actor.ID,
+		SurfaceKind: string(authorization.SurfaceKind),
+		Surface:     string(authorization.Surface),
+		Profile:     authorization.Profile,
+		SessionID:   authorization.SessionID,
+		RunID:       authorization.RunID,
+		CapturedAt:  capturedAt.UTC(),
+	}
+}
+
+func getAutomationExecutionContext(ctx context.Context, job Job, runID string) context.Context {
+	provenance := job.Authorization
+
+	return permissions.WithContext(ctx, permissions.AuthorizationContext{
+		Actor:           permissions.Actor{Kind: permissions.ActorAutomation, ID: job.ID},
+		Surface:         permissions.SurfaceAutomation,
+		Profile:         job.Profile,
+		SessionID:       job.SessionTarget,
+		RunID:           runID,
+		ParentActorKind: permissions.ActorKind(provenance.ActorKind),
+		ParentActorID:   provenance.ActorID,
+		ParentRunID:     provenance.RunID,
+	})
+}
+
 func (s *Service) runLoop(ctx context.Context, done chan struct{}) {
 	defer close(done)
 
@@ -623,7 +680,12 @@ func (s *Service) executeJob(ctx context.Context, job Job) (Run, error) {
 		},
 	)
 
-	result, runErr := s.runAutomationWithRetry(ctx, job)
+	executionContext := getAutomationExecutionContext(ctx, job, run.ID)
+	runErr := s.checkExecutionPermission(executionContext, job)
+	result := RunResult{}
+	if runErr == nil {
+		result, runErr = s.runAutomationWithRetry(executionContext, job)
+	}
 	finished := s.getNow()
 
 	status := result.Status
