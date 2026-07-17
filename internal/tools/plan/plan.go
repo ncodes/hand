@@ -2,11 +2,14 @@ package plan
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 
 	"github.com/wandxy/morph/pkg/logutils"
 	"github.com/wandxy/morph/pkg/str"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 	"github.com/wandxy/morph/internal/trace"
@@ -14,20 +17,26 @@ import (
 
 var log = logutils.Module("tool.plan")
 
+type input struct {
+	Steps          []map[string]any `json:"steps"`
+	Merge          bool             `json:"merge"`
+	Explanation    string           `json:"explanation"`
+	ClearCompleted bool             `json:"clear_completed"`
+}
+
 // Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
-	type input struct {
-		Steps          []map[string]any `json:"steps"`
-		Merge          bool             `json:"merge"`
-		Explanation    string           `json:"explanation"`
-		ClearCompleted bool             `json:"clear_completed"`
-	}
-
 	return tools.Definition{
 		Name: "plan_tool",
 		Description: "Read or update the current session plan for multi-step work. Omit `steps` to read the current" +
 			" plan without changing it. Provide `steps` to replace or merge plan items.",
 		Groups: []string{"core"},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourcePlan,
+			Action:   permissions.ActionManage,
+			Effects:  []permissions.Effect{permissions.EffectRead, permissions.EffectWrite},
+		},
+		ResolvePermission: resolvePermission,
 		InputSchema: common.ObjectSchema(map[string]any{
 			"steps": map[string]any{
 				"type": "array",
@@ -184,6 +193,37 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			return encodePlanOutput(plan, changes)
 		}),
 	}
+}
+
+func resolvePermission(ctx context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+	raw := strings.TrimSpace(call.Input)
+	if raw == "" {
+		raw = "{}"
+	}
+
+	var req input
+	if err := json.Unmarshal([]byte(raw), &req); err != nil {
+		return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+	}
+
+	action := permissions.ActionRead
+	effects := []permissions.Effect{permissions.EffectRead}
+	if req.Steps != nil {
+		action = permissions.ActionUpdate
+		effects = append(effects, permissions.EffectWrite)
+	}
+
+	target := str.String(tools.SessionIDFromContext(ctx)).Trim()
+	if target == "" {
+		target = "default"
+	}
+
+	return []permissions.EvaluationInput{{Operation: permissions.Operation{
+		Resource: permissions.ResourcePlan,
+		Action:   action,
+		Effects:  effects,
+		Target:   target,
+	}}}, nil
 }
 
 func decodePlanSteps(rawSteps []map[string]any) ([]envtypes.PlanStep, error) {

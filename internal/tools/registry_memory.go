@@ -85,6 +85,9 @@ func (r *InMemoryRegistry) Register(def Definition) error {
 	if def.Handler == nil {
 		return errors.New("tool handler is required")
 	}
+	if def.Permission.IsZero() && def.ResolvePermission == nil {
+		return errors.New("tool permission declaration is required")
+	}
 	def.Groups = normalizeNames(def.Groups)
 	def.Platforms = normalizeNames(def.Platforms)
 	if !def.Permission.IsZero() {

@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/permissions"
 )
 
 var DefaultConfig = Config{
@@ -176,6 +177,7 @@ func NewDefaultConfig() *Config {
 
 func NewProfileConfig() *Config {
 	cfg := NewDefaultConfig()
+	cfg.Permissions.Preset = permissions.PresetApproveForMe
 	cfg.Models.Main.Name = ""
 	cfg.Models.Main.Provider = ""
 	cfg.Models.Main.API = ""

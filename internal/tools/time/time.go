@@ -6,6 +6,7 @@ import (
 
 	"github.com/wandxy/morph/pkg/logutils"
 
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 )
@@ -23,6 +24,11 @@ func Definition() tools.Definition {
 		InputSchema:  common.ObjectSchema(nil),
 		ParallelSafe: true,
 		Groups:       []string{"core"},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceClock,
+			Action:   permissions.ActionRead,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
 		Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
 			log.Info().
 				Str("tool", "time").

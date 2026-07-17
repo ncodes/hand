@@ -9,6 +9,7 @@ import (
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/memory/episodic"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
@@ -33,6 +34,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		Groups:           []string{"core"},
 		Requires:         tools.Capabilities{Memory: true},
 		UsageInstruction: instructions.BuildMemoryExtractGuidance(),
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceMemory,
+			Action:   permissions.ActionCreate,
+			Effects:  []permissions.Effect{permissions.EffectRead, permissions.EffectWrite},
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"session_id":   common.StringSchema("Optional session id. When omitted, use the current session."),
 			"offset_start": common.IntegerSchema("Optional inclusive message offset start. Defaults to the start of the session."),

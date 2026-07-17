@@ -9,9 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	toolmocks "github.com/wandxy/morph/internal/tools/mocks"
 )
+
+func TestMemorySearch_DefinitionDeclaresPermission(t *testing.T) {
+	definition := Definition(&toolmocks.Runtime{})
+
+	require.Equal(t, permissions.Operation{
+		Resource: permissions.ResourceMemory,
+		Action:   permissions.ActionSearch,
+		Effects:  []permissions.Effect{permissions.EffectRead},
+	}, definition.Permission)
+}
 
 func TestMemorySearch_DefinitionSearchesRuntimeWithFilters(t *testing.T) {
 	var capturedQuery memory.SearchQuery

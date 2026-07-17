@@ -10,6 +10,7 @@ import (
 
 	"github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/memory/episodic"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	toolmocks "github.com/wandxy/morph/internal/tools/mocks"
 )
@@ -18,6 +19,11 @@ func TestMemoryExtract_DefinitionIncludesUsageInstruction(t *testing.T) {
 	definition := Definition(&toolmocks.Runtime{})
 
 	require.Equal(t, instructions.BuildMemoryExtractGuidance(), definition.UsageInstruction)
+	require.Equal(t, permissions.Operation{
+		Resource: permissions.ResourceMemory,
+		Action:   permissions.ActionCreate,
+		Effects:  []permissions.Effect{permissions.EffectRead, permissions.EffectWrite},
+	}, definition.Permission)
 }
 
 func TestMemoryExtract_DefinitionExtractsEpisodes(t *testing.T) {

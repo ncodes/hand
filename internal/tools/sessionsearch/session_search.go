@@ -6,6 +6,7 @@ import (
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 	"github.com/wandxy/morph/pkg/str"
@@ -28,6 +29,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		ParallelSafe:     true,
 		Groups:           []string{"core"},
 		Requires:         tools.Capabilities{Memory: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceSession,
+			Action:   permissions.ActionSearch,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"session_id":  common.StringSchema("Optional session id. When omitted, search other sessions and exclude the current session."),
 			"query":       common.StringSchema("Search query for prior messages."),

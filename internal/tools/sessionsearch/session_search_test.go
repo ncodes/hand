@@ -10,6 +10,7 @@ import (
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/instructions"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	toolmocks "github.com/wandxy/morph/internal/tools/mocks"
 )
@@ -18,6 +19,11 @@ func TestSessionSearch_DefinitionIncludesUsageInstruction(t *testing.T) {
 	definition := Definition(&toolmocks.Runtime{})
 
 	require.Equal(t, instructions.BuildSessionSearchGuidance(), definition.UsageInstruction)
+	require.Equal(t, permissions.Operation{
+		Resource: permissions.ResourceSession,
+		Action:   permissions.ActionSearch,
+		Effects:  []permissions.Effect{permissions.EffectRead},
+	}, definition.Permission)
 }
 
 func TestSessionSearch_ToolSearchesExplicitSession(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 )
 
@@ -128,6 +129,7 @@ func TestCommandInitCreatesStarterConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(data), "name: alpha\n")
 	require.Contains(t, string(data), "models:\n")
+	require.Contains(t, string(data), "permissions:\n    preset: approve\n")
 	require.Contains(t, string(data), "name: \"\"\n")
 	require.Contains(t, string(data), "provider: \"\"\n")
 	require.NotContains(t, string(data), "gpt-")
@@ -136,6 +138,7 @@ func TestCommandInitCreatesStarterConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "alpha", cfg.Name)
 	require.Empty(t, cfg.Web.Provider)
+	require.Equal(t, permissions.PresetApproveForMe, cfg.Permissions.Preset)
 	require.Equal(t, profileHome+"\n", output.String())
 }
 

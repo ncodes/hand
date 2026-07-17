@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/wandxy/morph/internal/constants"
+	"github.com/wandxy/morph/internal/permissions"
 )
 
 func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
@@ -67,6 +68,7 @@ func TestNewProfileConfig_LeavesModelSelectionEmpty(t *testing.T) {
 	require.Empty(t, cfg.Models.Embedding.BaseURL)
 	require.NotEmpty(t, cfg.FS.Roots)
 	require.Equal(t, DefaultConfig.RPC.Address, cfg.RPC.Address)
+	require.Equal(t, permissions.PresetApproveForMe, cfg.Permissions.Preset)
 }
 
 func TestCloneConfig_ClonesPersonalityPointers(t *testing.T) {

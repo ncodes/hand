@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 )
 
@@ -20,6 +21,11 @@ func TestDefinition_DeclaresObjectInputSchema(t *testing.T) {
 		"properties":           map[string]any{},
 		"required":             []string{},
 	}, definition.InputSchema)
+	require.Equal(t, permissions.Operation{
+		Resource: permissions.ResourceClock,
+		Action:   permissions.ActionRead,
+		Effects:  []permissions.Effect{permissions.EffectRead},
+	}, definition.Permission)
 }
 
 func TestDefinition_HandReturnsRFC3339Time(t *testing.T) {

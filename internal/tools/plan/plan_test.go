@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/morph/internal/environment"
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/tools"
 	nativemocks "github.com/wandxy/morph/internal/tools/mocks"
@@ -19,6 +20,62 @@ import (
 	"github.com/wandxy/morph/internal/trace"
 	"github.com/wandxy/morph/pkg/nanoid"
 )
+
+func TestPlanTool_ResolvesReadAndUpdatePermissions(t *testing.T) {
+	resolver := plantool.Definition(nil).ResolvePermission
+	require.NotNil(t, resolver)
+
+	tests := []struct {
+		name      string
+		input     string
+		sessionID string
+		want      permissions.Operation
+	}{
+		{
+			name:      "read current plan",
+			input:     " ",
+			sessionID: "session-1",
+			want: permissions.Operation{
+				Resource: permissions.ResourcePlan,
+				Action:   permissions.ActionRead,
+				Effects:  []permissions.Effect{permissions.EffectRead},
+				Target:   "session-1",
+			},
+		},
+		{
+			name:  "update default plan",
+			input: `{"steps":[]}`,
+			want: permissions.Operation{
+				Resource: permissions.ResourcePlan,
+				Action:   permissions.ActionUpdate,
+				Effects:  []permissions.Effect{permissions.EffectRead, permissions.EffectWrite},
+				Target:   "default",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := tools.WithSessionID(context.Background(), test.sessionID)
+			inputs, err := resolver(ctx, tools.Call{Name: "plan_tool", Input: test.input})
+
+			require.NoError(t, err)
+			require.Equal(t, []permissions.EvaluationInput{{Operation: test.want}}, inputs)
+		})
+	}
+}
+
+func TestPlanTool_ResolverRejectsMalformedInput(t *testing.T) {
+	resolver := plantool.Definition(nil).ResolvePermission
+
+	inputs, err := resolver(context.Background(), tools.Call{Input: `{"steps":`})
+
+	require.Nil(t, inputs)
+	resolutionErr, ok := tools.GetPermissionResolutionError(err)
+	require.True(t, ok)
+	require.Equal(t, "invalid_input", resolutionErr.Code)
+	require.Equal(t, "invalid tool input", resolutionErr.Message)
+}
 
 func TestPlanTool_ReadEmptyPlan(t *testing.T) {
 	registry := registerPlanRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
@@ -233,10 +290,11 @@ func TestPlanTool_RecordsPlanUpdatedAndClearedEvents(t *testing.T) {
 
 	payload := decodePlanOutputForTest(t, result.Output)
 	require.Empty(t, payload.Steps)
-	require.Len(t, traceSession.Events, 2)
-	require.Equal(t, trace.EvtPlanUpdated, traceSession.Events[0].Type)
-	require.Equal(t, trace.EvtPlanCleared, traceSession.Events[1].Type)
-	updatedPayload, ok := traceSession.Events[0].Payload.(trace.PlanEventPayload)
+	require.Len(t, traceSession.Events, 3)
+	require.Equal(t, trace.EvtPermissionDecisionObserved, traceSession.Events[0].Type)
+	require.Equal(t, trace.EvtPlanUpdated, traceSession.Events[1].Type)
+	require.Equal(t, trace.EvtPlanCleared, traceSession.Events[2].Type)
+	updatedPayload, ok := traceSession.Events[1].Payload.(trace.PlanEventPayload)
 	require.True(t, ok)
 	require.Empty(t, updatedPayload.Changes)
 }

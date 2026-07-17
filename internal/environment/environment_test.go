@@ -62,10 +62,34 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	require.Empty(t, env.Instructions())
 }
 
-func TestEnvironment_ProtectedToolsExposePermissionMetadata(t *testing.T) {
+func TestEnvironment_AllToolsExposePermissionMetadata(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent"})
 	prepareTestEnvironment(t, env)
 	want := map[string]permissions.Operation{
+		"time": {
+			Tool:     "time",
+			Resource: permissions.ResourceClock,
+			Action:   permissions.ActionRead,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
+		"list_files": {
+			Tool:     "list_files",
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionList,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
+		"read_file": {
+			Tool:     "read_file",
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionRead,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
+		"search_files": {
+			Tool:     "search_files",
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionSearch,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
 		"run_command": {
 			Tool:     "run_command",
 			Resource: permissions.ResourceProcess,
@@ -89,6 +113,46 @@ func TestEnvironment_ProtectedToolsExposePermissionMetadata(t *testing.T) {
 			Resource: permissions.ResourceFile,
 			Action:   permissions.ActionUpdate,
 			Effects:  []permissions.Effect{permissions.EffectWrite},
+		},
+		"plan_tool": {
+			Tool:     "plan_tool",
+			Resource: permissions.ResourcePlan,
+			Action:   permissions.ActionManage,
+			Effects:  []permissions.Effect{permissions.EffectRead, permissions.EffectWrite},
+		},
+		"session_search": {
+			Tool:     "session_search",
+			Resource: permissions.ResourceSession,
+			Action:   permissions.ActionSearch,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
+		"session_messages": {
+			Tool:     "session_messages",
+			Resource: permissions.ResourceSession,
+			Action:   permissions.ActionRead,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
+		"web_extract": {
+			Tool:     "web_extract",
+			Resource: permissions.ResourceNetwork,
+			Action:   permissions.ActionRead,
+			Effects: []permissions.Effect{
+				permissions.EffectExternalSystem,
+				permissions.EffectNetwork,
+				permissions.EffectRead,
+			},
+		},
+		"memory_search": {
+			Tool:     "memory_search",
+			Resource: permissions.ResourceMemory,
+			Action:   permissions.ActionSearch,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
+		"memory_extract": {
+			Tool:     "memory_extract",
+			Resource: permissions.ResourceMemory,
+			Action:   permissions.ActionCreate,
+			Effects:  []permissions.Effect{permissions.EffectRead, permissions.EffectWrite},
 		},
 		"memory_add": {
 			Tool:     "memory_add",
@@ -119,9 +183,7 @@ func TestEnvironment_ProtectedToolsExposePermissionMetadata(t *testing.T) {
 
 	for _, definition := range env.Tools().List() {
 		expected, ok := want[definition.Name]
-		if !ok {
-			continue
-		}
+		require.True(t, ok, "missing expected permission metadata for %s", definition.Name)
 		require.Equal(t, expected, definition.Permission, definition.Name)
 		delete(want, definition.Name)
 	}
@@ -1436,7 +1498,11 @@ func TestEnvironment_SessionSearchThenSessionMessagesWorkflow(t *testing.T) {
 		{ID: 13, Role: messages.RoleAssistant, Content: "after context", CreatedAt: now.Add(3 * time.Second)},
 	}))
 
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}})
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:        "Test Agent",
+		Permissions: permissions.Policy{Default: permissions.DecisionAllow},
+		Trace:       config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
+	})
 	env.SetStateManager(manager)
 	require.NoError(t, env.Prepare())
 

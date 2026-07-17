@@ -9,6 +9,7 @@ import (
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/memory"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 	"github.com/wandxy/morph/pkg/str"
@@ -66,6 +67,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		ParallelSafe: true,
 		Groups:       []string{"core"},
 		Requires:     tools.Capabilities{Memory: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceMemory,
+			Action:   permissions.ActionSearch,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"query": common.StringSchema("Search query for durable memory."),
 			"kinds": map[string]any{
