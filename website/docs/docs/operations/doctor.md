@@ -173,9 +173,10 @@ When config loads successfully, both formats include one section per group (in t
 5. **memory**: master switch, backend, and sub-features
 6. **search**: vector search and reranker effective config
 7. **safety**: input/output/PII policy toggles
-8. **gateway**: listener bind, Telegram, Slack
-9. **automation**: scheduler state, invalid schedules, stuck jobs, delivery targets
-10. **tools**: web search / extraction credentials
+8. **permissions**: policy validity, unattended-surface defaults, stale grants
+9. **gateway**: listener bind, Telegram, Slack
+10. **automation**: scheduler state, invalid schedules, stuck jobs, delivery targets
+11. **tools**: web search / extraction credentials
 
 If config cannot load, text output shows a **`config:`** section only and doctor exits with an error. JSON output uses a
 single **config** group with the diagnostics that could run.
@@ -291,6 +292,18 @@ Gateway exposure is covered separately: a non-loopback `gateway.address` without
 the **gateway** **listener** check. See [Safety and Guardrails](../concepts/safety-and-guardrails) and
 [Security](./security).
 
+### permissions
+
+| Check | PASS | WARN | FAIL |
+| --- | --- | --- | --- |
+| policy | Policy validates | Effective preset is `full_access` (bypasses permission rules, command guardrails, and filesystem roots) | Policy fails validation (bad decision, duplicate rule name, and the like) |
+| unattended approvals | Every non-local surface/surface-kind default is `allow` or `deny` | - | A gateway, automation, or RPC default is `ask`; that surface cannot wait for an interactive prompt |
+| grants | Active grants are current | Store could not be opened for inspection, or some active grants are already expired (stale) | Store opened but doesn't support permission records, or listing grants failed |
+
+Fix invalid policy with `morph config set permissions.…` or by editing `permissions.rules` directly; fix an unsafe
+`ask` default by setting it to `deny` and adding a narrow allow rule instead. Model and rule schema:
+[Permissions](../concepts/permissions). Config keys: [Config Reference: permissions](../reference/config#permissions).
+
 ### gateway
 
 Static config checks: doctor does not call Telegram or Slack APIs. For runtime gateway state, use
@@ -382,6 +395,7 @@ Pages that link here for readiness detail:
 - [Search and Traces](../guides/search-and-traces): **search** / vector / rerank checks.
 - [Gateway guides](../guides/gateway/): Telegram, Slack, and HTTP setup for **gateway** checks.
 - [Automation Operations](./automation): diagnose and recover findings from the **automation** group.
+- [Permissions](../concepts/permissions) and [Security](./security): model and hardening for the **permissions** group.
 - [Daemon and RPC](../concepts/daemon-and-rpc): why the **daemon** probe matters.
 - [Safety and Guardrails](../concepts/safety-and-guardrails): **safety** and gateway exposure warnings.
 - [Security](./security): harden credentials, exposure, and capabilities before go-live.

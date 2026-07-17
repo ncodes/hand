@@ -28,6 +28,7 @@ const sidebars: SidebarsConfig = {
         'concepts/tools',
         'concepts/gateways',
         'concepts/safety-and-guardrails',
+        'concepts/permissions',
         'concepts/automation',
       ],
     },

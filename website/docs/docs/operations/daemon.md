@@ -175,6 +175,7 @@ settings, including:
 - **Gateway** bind and enabled platforms (or `disabled`)
 - **Logs** level and color mode
 - **Debug requests**, **Traces**, **Safety** summary
+- **Permissions** effective preset, with `full_access` called out as unsafe
 - **Embedding** / **Reranker** when vector search is enabled
 
 Use this panel to confirm the daemon picked up the profile and config you expect before attaching clients.
@@ -269,6 +270,7 @@ See [Troubleshooting](../guides/troubleshooting) and [Doctor](./doctor).
 - [TUI Guide](../guides/tui): interactive client and temporary daemon behavior.
 - [Provider Auth](../guides/provider-auth): credentials the daemon needs at startup.
 - [Doctor](./doctor): readiness checks before you rely on the daemon.
+- [Permissions](../concepts/permissions): the preset shown in the startup panel.
 - [Backups and State](./backups-and-state): back up profile state with the daemon stopped.
 - [Troubleshooting](../guides/troubleshooting): connection and config problems.
 - [RPC Reference](../reference/rpc): gRPC services exposed by the daemon.

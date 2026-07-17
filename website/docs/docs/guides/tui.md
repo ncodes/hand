@@ -63,6 +63,28 @@ agent does, you may see several kinds of entries:
 Press **Esc** to cancel a response that is in progress. When a turn finishes, the assistant entry is annotated with how
 long it took (a "Worked for …" label) so you can see where each turn ended and how long it ran.
 
+## Permission Approval
+
+A shield icon in the bottom status row shows the active [permission](../concepts/permissions) preset (and turns red
+with "Full access (unsafe)" if you've selected that preset). Change it with `/permissions`, which opens a picker for
+**Ask for approval**, **Approve for me**, **Full access**, and **Custom**; selecting **Full access** requires pressing
+**Enter** a second time to confirm. The choice is written to this profile's config immediately and applies to every
+TUI and `--chat` session using that profile.
+
+When a turn hits an operation that needs a decision, the transcript shows what's being requested: its effects, why
+approval is needed, and when it expires. The composer accepts a single key while it's pending:
+
+| Key | Decision |
+| --- | --- |
+| `y` | Allow **once** |
+| `s` | Allow for this **session** (also expires after a fixed TTL, 8 hours by default, if the session runs longer) |
+| `a` | Allow **always** (only offered when no destructive, credential-bearing, privilege-changing, execution, network, or external-system effect is involved) |
+| `n` | Deny |
+
+The turn resumes as soon as you answer; if the request expires first, the operation is treated as denied. See
+[Permissions: Grants and Interactive Approval](../concepts/permissions#grants-and-interactive-approval) for how the
+resulting grant is scoped and reused.
+
 ## Navigating the Transcript
 
 The transcript scrolls independently of the composer:
@@ -90,11 +112,13 @@ are:
 | `/copy` | Copy the transcript |
 | `/models` | Show supported models |
 | `/providers` | Show supported model providers |
+| `/permissions` | Choose a permission preset (persists to this profile's config) |
 | `/setup` | Open setup |
 | `/changelog` | Show the latest changelog entry |
 
 A few of these open an interactive panel rather than acting immediately: `/chats` and `/archive` list sessions you can
-switch to or act on, and `/setup`, `/models`, and `/providers` drive model configuration. Inside those panels, **Esc**
+switch to or act on, `/setup`, `/models`, and `/providers` drive model configuration, and `/permissions` opens the
+preset picker described in [Permission Approval](#permission-approval). Inside those panels, **Esc**
 closes the panel and **Ctrl+Y** copies its contents. Note that `/clear` only clears what is displayed; it does not
 delete the session, whose history remains in the store. See [Slash Commands](../reference/slash-commands) for the full
 reference.
@@ -143,6 +167,9 @@ stopped as you leave; a daemon that was already running keeps running.
 | Ctrl+Y | Copy the transcript (or the open panel's contents) |
 | Ctrl+C | Exit (press again to confirm) |
 
+`y` / `s` / `a` / `n` decide a pending permission request (see [Permission Approval](#permission-approval)) and take
+over the composer only while one is outstanding; otherwise they type normally.
+
 ## Where To Go Next
 
 - [Slash Commands](../reference/slash-commands): the full in-chat command reference.
@@ -151,5 +178,6 @@ stopped as you leave; a daemon that was already running keeps running.
 - [Provider Auth](./provider-auth): set up provider credentials.
 - [Local Models](./local-models): configure Ollama chat and embeddings.
 - [Tools](../concepts/tools): what the tool activity in the transcript represents.
+- [Permissions](../concepts/permissions): the preset and approval model behind `/permissions` and the inline prompt.
 - [Automation Guide](./automation): schedule jobs from the CLI or conversationally.
 - [TUI Internals](../development/tui): how the interface is implemented.

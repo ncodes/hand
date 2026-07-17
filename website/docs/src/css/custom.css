@@ -455,16 +455,47 @@ body {
   padding-left: 1.4rem;
 }
 
-.theme-doc-markdown table {
+.theme-doc-markdown .morph-table-scroll {
+  border-radius: 8px;
+  margin-bottom: var(--ifm-spacing-vertical);
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.theme-doc-markdown .morph-table-scroll table {
   background: var(--morph-panel);
   border: 1px solid var(--morph-border);
   border-radius: 8px;
-  overflow: hidden;
+  display: table;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  margin-bottom: 0;
+  min-width: 100%;
+  width: 100%;
 }
 
 .theme-doc-markdown th {
   background: var(--morph-table-header-bg);
   color: var(--morph-text-strong);
+}
+
+.theme-doc-markdown th,
+.theme-doc-markdown td {
+  overflow-wrap: anywhere;
+  padding: 0.6rem 0.55rem;
+  vertical-align: top;
+}
+
+.theme-doc-markdown th:first-child,
+.theme-doc-markdown td:first-child {
+  min-width: 12rem;
+}
+
+.theme-doc-markdown th:nth-child(2),
+.theme-doc-markdown td:nth-child(2) {
+  min-width: 9rem;
 }
 
 .card,

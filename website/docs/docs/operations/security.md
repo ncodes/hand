@@ -131,7 +131,12 @@ Morph opens two TCP listeners when fully enabled: **RPC** (gRPC, default `127.0.
 
 The RPC interface is **local-only by default** and uses **plaintext gRPC without application-level authentication**.
 Any process that can reach the bound address can invoke daemon RPC, including session control, gateway pairing
-approval, and model configuration via `ModelService`.
+approval, and model configuration via `ModelService`. `PermissionService.ResolveRequest`, `RevokeGrant`,
+`DeleteRecord`, and `Prune` additionally require an interactive local-owner caller (loopback plus `cli`/`tui`
+surface); its read methods (`ListRequests`, `GetRequest`, `ListGrants`) do not, and expose approval/grant metadata to
+any caller that can reach the port. The responses include actor kind and session information but not actor IDs or
+normalized operation targets. See
+[RPC Reference: PermissionService](../reference/rpc#permissionservice).
 
 | Setting | Default | Risk if widened |
 | --- | --- | --- |
@@ -219,12 +224,11 @@ See [Tools: Guardrails](../concepts/tools#guardrails-around-tool-calls).
 
 ### Command policy (`exec`)
 
-`exec.allow`, `exec.ask`, and `exec.deny` pattern-match shell commands. Built-in dangerous-pattern checks always apply.
-There is no interactive approval UI in the tool path: `approval_required` returns a structured error to the model.
-
-:::info
-An approval UI is planned for a future release.
-:::
+`exec.allow`, `exec.ask`, and `exec.deny` pattern-match shell commands. Built-in dangerous-pattern checks apply except
+under the `full_access` permission preset, which bypasses them along with everything else in policy. A denied
+command returns a structured `command_denied` error. A command marked approval-required prompts interactively on
+surfaces that can wait for a human (CLI `--chat`, TUI); unattended surfaces get an immediate `approval_required`
+error instead. See [Permissions](../concepts/permissions) for the full model.
 
 For restrictive hosts, populate `exec.deny` broadly and use `exec.allow` for a short allowlist. See
 [Safety and Guardrails: Execution](../concepts/safety-and-guardrails#execution-and-filesystem-limits).
@@ -288,17 +292,19 @@ morph config set debug.requests true
 
 Restart the daemon after changing debug settings. See [Troubleshooting: Logging and debug](../guides/troubleshooting#logging-and-debug).
 
-## Verify Before You Expose
-
 ## Permission Policy Across Surfaces
 
-Permission policy separates identity from authority. Pairing a Telegram or Slack sender permits that sender to reach
-Morph, but the sender remains a `gateway_user`; it does not become the local owner. Likewise, an authenticated RPC
-principal remains an `rpc_client`. Owner-only model, credential, gateway, daemon, and automation-management operations
-still require an explicit narrow rule.
+Permission policy separates identity from authority: pairing a Telegram or Slack sender, or identifying an RPC
+caller, establishes who they are, not what they're allowed to do. Session mutations are permission-checked but not
+owner-required. Model selection, credential updates, gateway lifecycle/pairing, and automation mutations are marked
+owner-required; the local owner passes, while an explicit matching `allow` rule deliberately overrides that check.
+Daemon start and stop are local process-control operations outside permission policy.
+The full actor/surface model, decision precedence, and grant lifecycle are covered in
+[Permissions](../concepts/permissions); this section is the operator-facing summary.
 
-Unattended surfaces cannot display a local approval prompt. Keep gateway, automation, RPC, and ACP defaults at `deny`,
-or add explicit rules for the exact actors, actions, effects, and targets they require:
+Unattended surfaces (gateway, automation, RPC) cannot display a local approval prompt, so keep their defaults at
+`deny` and add explicit rules for the exact actors, actions, effects, and targets they require instead of loosening
+the default:
 
 ```yaml
 permissions:
@@ -311,14 +317,13 @@ permissions:
     gateway: deny
     automation: deny
     rpc: deny
-    acp: deny
   rules:
-    - name: trusted telegram sender reads memory
+    - name: trusted telegram sender reads files
       actors: [gateway_user]
       actorIds: ["123456789"]
       surfaces: [telegram]
-      resources: [memory]
-      actions: [read, search]
+      resources: [file]
+      actions: [read, search, list]
       effects: [read]
       decision: allow
       reason: approved Telegram sender
@@ -333,25 +338,22 @@ permissions:
       reason: approved scheduled reporting
 ```
 
-Jobs persist their creator provenance, but execute as a separate `automation` actor. Morph re-evaluates the current
-policy and matching grant before every run. Removing a rule or revoking a grant therefore blocks the next run and
+Jobs persist their creator provenance, but execute as a separate `automation` actor, and Morph re-evaluates the
+current policy and matching grant before every run: removing a rule or revoking a grant blocks the next run and
 records an actionable run error without changing the job.
 
-Delegated and extension runtimes are narrower still:
+`morph doctor` reports invalid permission rules, the `full_access` preset, impossible unattended `ask` defaults, and
+stale active grants. `full_access` is deliberately unsafe: it bypasses permission denials, command guardrails, and
+filesystem-root boundaries so Morph can act across the computer. Unlike `ask` and `approve`, it applies to
+**every** actor and surface, not just the local owner, so it also removes the deny-by-default posture on gateway,
+automation and RPC calls. The daemon startup panel, TUI, and readiness diagnostics identify this preset
+prominently. Unattended denials fail immediately without persisting an approval request; authorize them with a narrow
+`allow` rule rather than a post-hoc approval.
 
-- a subagent receives the intersection of its parent's effective scope and the delegated scope;
-- parent identity, run lineage, and the resulting scope are part of the grant fingerprint;
-- subagents cannot open local approval prompts or persist grants;
-- MCP fingerprints bind server identity, transport, tool, and normalized target;
-- browser fingerprints bind profile, CDP endpoint, tab/action target, and personal-versus-isolated mode;
-- ACP and execute-code callers require a non-empty authenticated actor ID and a constrained scope.
+Manage requests and grants with `morph permissions …`; see [CLI Reference: permissions](../reference/cli#permissions-approvals-and-grants)
+and [Troubleshooting: Permissions and Approvals](../guides/troubleshooting#permissions-and-approvals).
 
-`morph doctor` reports invalid permission rules, `full_access`, impossible unattended `ask` defaults, and stale active
-grants. The `full_access` preset is deliberately unsafe: it bypasses permission denials, command guardrails, and
-filesystem-root boundaries so Morph can act across the computer. The daemon startup panel, TUI, and readiness
-diagnostics identify this preset prominently.
-A configured remote approval notifier may report an unattended `ask` to a trusted operator channel, but it does not
-turn the unattended call into a waiting or self-approving request.
+## Verify Before You Expose
 
 Use this checklist before binding gateways broadly or morphing out pairing codes:
 
@@ -411,6 +413,7 @@ Pages that link here for operational security detail:
 
 - [Learning Path: Gateway track](../getting-started/learning-path): security as step 6 before going live.
 - [Safety and Guardrails](../concepts/safety-and-guardrails): guardrail mechanics and what always runs.
+- [Permissions](../concepts/permissions): the actor/surface model, decision precedence, and grant lifecycle.
 - [Doctor](./doctor): PASS/WARN/FAIL for safety toggles, gateway listener, and tools.
 - [Provider Auth](../guides/provider-auth): store and rotate model credentials safely.
 - [Pairing and Allowlists](../guides/gateway/pairing-and-allowlists): authorize Slack and Telegram senders.

@@ -138,6 +138,38 @@ Seven methods total. `diagnose`, `inspect`, and `recover` are CLI-only: the CLI 
 `List`/`Update`/`Runs` rather than calling a dedicated RPC method. CLI: [CLI Reference](./cli#automation-scheduled-agent-jobs).
 Model and workflow: [Automation](../concepts/automation). Full field reference: [Automation Reference](./automation).
 
+## PermissionService
+
+| Method | Description |
+| --- | --- |
+| `ListRequests` | List approval requests (optional status filter, pagination) |
+| `GetRequest` | Fetch a single approval request by ID |
+| `ResolveRequest`* | Approve (with a grant scope) or deny a pending request |
+| `ListGrants` | List approval grants (optional status filter, pagination) |
+| `RevokeGrant`* | Revoke an active grant by request or grant ID |
+| `DeleteRecord`* | Delete a terminal request or grant |
+| `Prune`* | Delete terminal history outside the configured retention window |
+
+\* `ResolveRequest`, `RevokeGrant`, `DeleteRecord`, and `Prune` require an interactive local owner (the same
+loopback + `cli`/`tui` check described below) and reject any other caller with `PERMISSION_DENIED`. Any RPC caller
+that can reach `ListRequests`, `GetRequest`, or `ListGrants` can read
+request metadata (actor kind, surface, profile, session, tool, resource, action, effects, reason, status, and
+timestamps) and grant metadata (request link, actor kind, profile, session, scope, status, and timestamps), regardless
+of surface or loopback status. Neither response includes the actor ID or normalized operation target.
+
+CLI: [CLI Reference: permissions](./cli#permissions-approvals-and-grants). Model, presets, and decision precedence:
+[Permissions](../concepts/permissions).
+
+Clients that need Morph to know where a call originated attach an outgoing permission surface and, for local
+clients, a preset override as gRPC metadata rather than a request field; see `internal/rpc/rpcmeta` for the exact
+keys if you're writing a new client. **This metadata is caller-provided, not authentication.** The server only
+classifies a caller as `local_owner` when the claimed surface is `cli`/`tui` **and** the connection itself is a
+loopback peer; a preset override is likewise honored only once that `local_owner`-over-loopback check has already
+passed. A remote or non-loopback caller claiming `cli`/`tui` is still authorized as an ordinary `rpc_client` and its
+preset override is ignored. `MorphService.Respond` also
+streams an `EvtPermissionApprovalChanged` trace event when a request is created or resolved, which is how the TUI and
+root `--chat` render their interactive approval prompts.
+
 ## Health
 
 When enabled, the gRPC server registers the standard gRPC health service for liveness checks.
@@ -149,3 +181,4 @@ When enabled, the gRPC server registers the standard gRPC health service for liv
 - [Trace Events](./trace-events): `TRACE_EVENT` payload types
 - [CLI Reference](./cli): commands that call these services
 - [Slash Commands](./slash-commands): TUI commands that call Session/Model services
+- [Permissions](../concepts/permissions): the model behind `PermissionService`

@@ -56,6 +56,12 @@ Root `--chat --instruct` applies to **one request**. `morph daemon --instruct` s
 persists until the daemon exits.
 :::
 
+:::note[Interactive permission approval]
+When run from a terminal, `--chat` prompts in place (`[y] allow once  [s] session  [a] always  [n] deny`) if the turn
+hits an operation that needs approval. Piped or non-interactive input/output fails that operation immediately instead
+of hanging. See [Permissions](../concepts/permissions#grants-and-interactive-approval).
+:::
+
 ## Global flags
 
 Visible flags appear in default help. Many advanced settings also exist as hidden global flags that mirror
@@ -183,6 +189,28 @@ Exit code `1` on FAIL. Default output is human text; `--json` prints structured 
 `morph gateway stop` stops the **gateway runtime**, not the daemon. See [Gateway Management](../operations/gateway-management)
 and [Gateway Routes](./gateway-routes).
 
+### `permissions`: approvals and grants
+
+| Subcommand | Usage | Notes |
+| --- | --- | --- |
+| `permissions list` | `morph permissions list [--status …] [--limit N] [--offset N]` | All approval requests |
+| `permissions pending` | `morph permissions pending [--limit N] [--offset N]` | Requests awaiting a decision |
+| `permissions grants` | `morph permissions grants [--status …] [--limit N] [--offset N]` | Approval grants |
+| `permissions approve` | `morph permissions approve <request-id> [--scope once\|session\|always]` | Approve a pending request (default scope `once`) |
+| `permissions deny` | `morph permissions deny <request-id>` | Deny a pending request |
+| `permissions revoke` | `morph permissions revoke <approval-or-grant-id>` | Revoke an active grant |
+| `permissions delete` | `morph permissions delete <approval-or-grant-id>` | Delete a terminal request or grant |
+| `permissions explain` | `morph permissions explain <request-id>` | Print status, effects, reason, and expiry |
+| `permissions prune` | `morph permissions prune [--dry-run]` | Delete terminal history outside `permissions.requestRetention` / `grantRetention` |
+| `permissions preset` | `morph permissions preset [ask\|approve\|full-access\|custom] [--yes]` | Show or set the profile preset; `--yes` required to set `full-access` |
+
+`status` filters accept `pending`, `approved`, `denied`, `expired`, `cancelled`, or `failed` for requests, and
+`active`, `consumed`, `expired`, or `revoked` for grants. `list`, `pending`, `grants`, `approve`, `deny`, `revoke`,
+`delete`, `explain`, and `prune` talk to the daemon over RPC, like `session`, so they need a reachable daemon.
+`preset` does not: it reads and writes `permissions.preset` directly in the profile's `config.yaml`, so it works even
+when no daemon is running. Concept and rule schema: [Permissions](../concepts/permissions). Config keys:
+[Config Reference: permissions](./config#permissions).
+
 ### `profile`: profile selection
 
 Profile subcommands do **not** take `--profile`; they manage which profile is active.
@@ -265,6 +293,7 @@ Prints version and commit hash.
 | `db` | SQLite reset |
 | `doctor` | Readiness diagnostics |
 | `gateway` | Gateway runtime, webhooks, pairing |
+| `permissions` | Approval requests, grants, and preset |
 | `profile` | Profile create, select, inspect |
 | `session` | Session CRUD and maintenance |
 | `trace` | Trace viewer |
@@ -311,6 +340,7 @@ MORPH_PROFILE=work morph session compact
 ## Where To Go Next
 
 - [Slash Commands](./slash-commands): in-TUI `/` commands
+- [Permissions](../concepts/permissions): the approval/grant model behind `morph permissions`
 - [Config Reference](./config): every config key and default
 - [Local Models](../guides/local-models): local Ollama setup and diagnostics
 - [Environment Variables](./environment-variables): `MORPH_*` overrides

@@ -64,15 +64,28 @@ passwords; PII redaction covers emails, phone numbers, payment numbers, and simi
 
 When the agent acts rather than reads, a different set of guardrails applies (these are detailed under [Tools](./tools)):
 
-- **Command policy.** `run_command` evaluates each command against your `exec.allow` / `exec.ask` / `exec.deny` rules
-  plus a built-in set of dangerous patterns (recursive deletes, disk writes, fork bombs, piping remote scripts to a
-  shell, and the like). A command can be **denied** or marked **approval-required**; both come back to the model as a
-  structured error, since there is no interactive approval prompt in the tool path. Commands that match nothing are
-  allowed by default.
-- **Filesystem roots.** File tools classify paths against the profile's workspace roots (`fs.roots`). **Ask for
-  approval** and **Approve for me** permit external reads and require approval for external writes; custom policies
-  remain root-bound. The intentionally unsafe `permissions.preset: full_access` setting bypasses the boundary without
-  per-operation approval. Size and text validation still apply.
+- **Command policy.** Every `run_command` call passes through two independent checks, both of which must clear:
+
+  | Layer | What it does |
+  | --- | --- |
+  | `exec.allow` / `exec.ask` / `exec.deny` + built-in dangerous-pattern detection (recursive deletes, disk writes, fork bombs, piping remote scripts to a shell) | Can **deny** the command outright, or mark it **approval-required** |
+  | Permission policy, evaluated on the command's `execution` effect | Applies regardless of the row above: under the default `ask` preset, this alone requires approval even for a command that matched nothing in `exec.*` |
+
+  A denial from either layer comes back to the model as a structured error. An approval-required command prompts
+  interactively on surfaces that can wait for a human (CLI `--chat`, TUI); unattended surfaces get an immediate
+  structured error instead, since they can't display a prompt. `permissions.preset: full_access` skips both layers.
+  See [Permissions](./permissions) for the full actor and decision model.
+
+- **Filesystem roots.** File tools classify paths against the profile's workspace roots (`fs.roots`):
+
+  | Preset | External reads | External writes |
+  | --- | --- | --- |
+  | Ask for approval / Approve for me | Permitted | Require approval |
+  | Custom | Root-bound, unless a rule explicitly authorizes the specific target | Same |
+  | Full access | Unrestricted, no per-operation approval | Unrestricted |
+
+  Size and text validation still apply no matter which preset is active.
+
 - **Time and size caps.** Commands have a default and maximum timeout, and tool reads and outputs are bounded, so a
   single tool call cannot hang the turn or flood the context window.
 
@@ -109,6 +122,7 @@ and [Security](../operations/security).
 ## Where To Go Next
 
 - [Tools](./tools): the command, filesystem, and tool-output guardrails in context.
+- [Permissions](./permissions): the actor/surface model and interactive-versus-unattended approval behavior.
 - [Memory](./memory): how memory is scanned on write and before injection.
 - [Gateways](./gateways): authentication and exposure for external surfaces.
 - [Doctor](../operations/doctor) and [Security](../operations/security): checking for unsafe configuration.

@@ -31,7 +31,8 @@ Start here once Morph runs and you want to use it well from the terminal.
 3. [Slash Commands](../reference/slash-commands): in-chat commands for fast control.
 4. [Memory Guide](../guides/memory): how Morph remembers context across sessions.
 5. [Search and Traces](../guides/search-and-traces): find past work and inspect what the agent did.
-6. [CLI Reference](../reference/cli): every command and flag for scripting and quick answers.
+6. [Permissions Concept](../concepts/permissions): what the approval prompt and `/permissions` preset picker mean.
+7. [CLI Reference](../reference/cli): every command and flag for scripting and quick answers.
 
 For the model behind your chats, see [Provider Auth](../guides/provider-auth) and [Config Guide](../guides/config).
 
@@ -44,8 +45,9 @@ Start here if you want to reach Morph from Slack, Telegram, or a generic HTTP cl
 3. Pick your transport: [Telegram](../guides/gateway/telegram), [Slack](../guides/gateway/slack), or
    [Generic HTTP](../guides/gateway/generic-http).
 4. [Pairing and Allowlists](../guides/gateway/pairing-and-allowlists): control who can talk to your agent.
-5. [Gateway Management](../operations/gateway-management): run, monitor, and troubleshoot the gateway.
-6. [Security](../operations/security): credentials, exposure, and safe defaults for a reachable agent.
+5. [Permissions Concept](../concepts/permissions): why pairing grants identity, not authority, over gateway surfaces.
+6. [Gateway Management](../operations/gateway-management): run, monitor, and troubleshoot the gateway.
+7. [Security](../operations/security): credentials, exposure, and safe defaults for a reachable agent.
 
 The [Gateway Routes](../reference/gateway-routes) reference lists the HTTP endpoints.
 
@@ -70,6 +72,9 @@ Start here if you want Morph to run on a schedule instead of only when you ask.
 2. [Automation Guide](../guides/automation): create a recurring or one-shot job and deliver its output.
 3. [Automation Reference](../reference/automation): every command, flag, schedule form, and status.
 4. [Automation Operations](../operations/automation): diagnose a job that did not run and recover it.
+
+Jobs run as a distinct `automation` actor under permission policy; see
+[Permissions](../concepts/permissions#custom-policy-rules) if a run is unexpectedly denied.
 
 ## Contributor
 

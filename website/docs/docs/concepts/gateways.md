@@ -102,7 +102,11 @@ The inbound path is the same for every gateway:
 1. The message arrives (webhook, socket event, or poll) and is normalized.
 2. For Slack and Telegram, the sender is authorized (allowlist or pairing); the generic endpoint checks its bearer token.
 3. The conversation is resolved to a session via its binding, creating one if needed.
-4. Morph runs a normal agent turn against that session: same tools, memory, and history as any other surface.
+4. Morph runs a normal agent turn against that session: the model sees the same tools, memory, and history it would
+   on any other surface. What differs is authority to actually *call* a permission-checked tool: the sender is a
+   `gateway_user` actor on the `gateway` surface kind. The `ask` and `approve` presets deny that surface outright, as
+   does the default `custom` policy, so those tool calls fail unless `custom` adds a matching allow rule for that
+   actor. See [Permissions: Custom Policy Rules](./permissions#custom-policy-rules) for a worked example.
 5. The reply is delivered back to the platform.
 
 Slack and Telegram **stream** the assistant's reply, updating the message as text arrives, while the generic HTTP

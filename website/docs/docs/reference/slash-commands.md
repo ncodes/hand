@@ -31,6 +31,7 @@ When input starts with `/`, the TUI shows a filtered command menu. Tab or arrow 
 | `/models` | Browse and select models for the current provider | Local-aware catalog + RPC `ModelService` |
 | `/providers` | Browse model providers, auth types, and local provider types | Local-aware catalog |
 | `/new-chat` | Create a new session and switch to it | RPC `SessionService.Create` |
+| `/permissions` | Choose a permission preset (persists to this profile's config) | Local config write (`permissions.preset`) |
 | `/setup` | Open profile setup for hosted or local providers | Local onboarding flow |
 
 ### `/chats` and `/archive`
@@ -57,6 +58,15 @@ The catalog is loaded locally. Selecting a model or entering an API key may call
 
 For Ollama, the catalog includes installed models discovered from the local runtime and suggested models that may need
 to be pulled. Use refresh in setup/model surfaces after changing local models outside Morph.
+
+### `/permissions`
+
+Opens a picker for the four presets (`ask`, `approve`, `full-access`, `custom`); selecting persists
+`permissions.preset` to the profile config. Selecting **Full access** requires pressing enter a second time to
+confirm because it's flagged as unsafe rather than applied silently. This picker changes the standing preset; it is
+separate from the inline approval prompt (`y`/`s`/`a`/`n`) that appears in the transcript when a specific operation
+needs a decision. See [TUI Guide: Permission approval](../guides/tui#permission-approval) and
+[Permissions](../concepts/permissions).
 
 ### `/setup`
 
@@ -88,4 +98,5 @@ Full method definitions: [RPC Reference](./rpc).
 - [CLI Reference](./cli): `morph session …` equivalents
 - [Sessions Guide](../guides/sessions): session workflows
 - [RPC Reference](./rpc): underlying gRPC API
+- [Permissions](../concepts/permissions): the preset and approval model behind `/permissions`
 - [Learning Path](../getting-started/learning-path): daily-driver track lists slash commands early

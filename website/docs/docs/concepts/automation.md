@@ -57,6 +57,51 @@ execution loop, not a separate lightweight executor. What differs is how that tu
   behavior for just that run, without touching your interactive session's config.
 - **Session target**: which conversation the run writes into.
 
+### Permission Policy Is a Prerequisite
+
+Before a due job's agent turn starts, the scheduler checks permission policy for an `automation` actor executing
+`resources: [automation]`, `actions: [execute]` on the job's ID. The `ask` and `approve` presets deny the `automation`
+surface kind, as does the default `custom` policy, so **every scheduled run is denied outright** because there's no
+interactive owner around to answer an `ask`, and `deny` doesn't wait for one. A job you create will sit there failing
+on schedule until you use `permissions.preset: custom` with an explicit rule.
+
+That rule only authorizes the run to *start*. Once inside, the job's prompt drives the same tool registry as any
+other turn and is still authorized as the `automation` actor. Each tool call needs an applicable rule for its
+operation. For example, a job that reads files, accesses the web, writes files, or runs commands needs additional,
+narrower rules for those actions:
+
+```yaml
+permissions:
+  preset: custom
+  default: deny
+  surfaceKinds:
+    local: ask
+    gateway: deny
+    automation: deny
+    rpc: deny
+  rules:
+    - name: allow scheduled job execution
+      actors: [automation]
+      surfaces: [automation]
+      resources: [automation]
+      actions: [execute]
+      effects: [execution, external_system]
+      decision: allow
+      reason: scheduled jobs are expected to run
+    - name: allow scheduled job to write its report
+      actors: [automation]
+      surfaces: [automation]
+      resources: [file]
+      actions: [update]
+      targetPrefixes: ["/srv/reports/"]
+      decision: allow
+      reason: scheduled report job writes its output file
+```
+
+See [Permissions: Custom Policy Rules](./permissions#custom-policy-rules) for the full rule schema, and
+[Troubleshooting: Permissions and Approvals](../guides/troubleshooting#permissions-and-approvals) if a previously
+working job starts failing after a policy change.
+
 ### Session Targets
 
 | Target | Where the run's messages go |
@@ -146,6 +191,7 @@ resuming makes it eligible again on its next due time.
 
 ## Where To Go Next
 
+- [Permissions](./permissions): the actor/policy model a scheduled run must clear before it starts.
 - [Automation Guide](../guides/automation): create, inspect, pause, resume, and remove jobs, with delivery examples.
 - [Automation Reference](../reference/automation): every command, flag, schedule form, and status value.
 - [Automation Operations](../operations/automation): startup recovery, retries, backoff, and diagnosing a stuck job.

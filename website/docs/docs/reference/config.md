@@ -160,6 +160,53 @@ Routes: [Gateway Routes](./gateway-routes). Guides: [Gateway Overview](../guides
 
 See [Safety and Guardrails](../concepts/safety-and-guardrails).
 
+## `permissions`
+
+Concept and decision model: [Permissions](../concepts/permissions). Operator guidance: [Security](../operations/security#permission-policy-across-surfaces).
+
+| Key | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `permissions.preset` | string | `"custom"` when omitted | One of `ask`, `approve`, `full_access`, `custom`. New profiles explicitly set `approve`. Non-`custom` presets replace `default`, `surfaceKinds`, `surfaces`, and `rules` with a fixed set (`surfaces` is cleared to empty). |
+| `permissions.default` | string | `"deny"` | Fallback decision (`allow`, `ask`, `deny`) when nothing else matches. Only used by `custom`. |
+| `permissions.surfaceKinds` | `map[string]string` | `local: ask`, `gateway: deny`, `automation: deny`, `rpc: deny` | Default decision per surface kind. Only used by `custom`. |
+| `permissions.surfaces` | `map[string]string` | `{}` | Default decision per concrete surface (`cli`, `tui`, `telegram`, `slack`, `http`, `automation`, `rpc`); takes precedence over `surfaceKinds`. Only used by `custom`. |
+| `permissions.rules` | `[]Rule` | `[]` | Matching is not array order. See [Rule fields](#rule-fields) for how the winning rule is picked. Only used by `custom`. |
+| `permissions.approvalRateLimit` | int | `10` | Max approval prompts per actor+surface within `approvalRateWindow` before further requests are rate-limited. |
+| `permissions.approvalRateWindow` | duration | `1m` | Window for `approvalRateLimit`. |
+| `permissions.requestRetention` | duration | `720h` (30d) | How long resolved approval requests are kept before `prune` deletes them. |
+| `permissions.grantRetention` | duration | `720h` (30d) | How long expired/revoked/consumed grants are kept before `prune` deletes them. |
+| `permissions.cleanupInterval` | duration | `1h` | How often the background prune sweep runs. |
+| `permissions.cleanupBatchSize` | int | `100` | Max records deleted **per record type** in one prune sweep: up to this many grants and up to this many requests, so up to `2 ×` this value total. |
+
+`full_access` is validated but deliberately unsafe: it bypasses permission rules, command guardrails, and filesystem-root
+boundaries. `morph permissions preset full-access` requires `--yes` to set it.
+
+### Rule fields
+
+Each entry in `permissions.rules` matches on the fields below (omitted fields match anything) and produces a `decision`:
+
+| Key | Type | Matches against |
+| --- | --- | --- |
+| `name` | string | Rule identity; required, must be unique |
+| `profiles` | `[]string` | Active profile name |
+| `actors` | `[]string` | Actor kind: `local_owner`, `gateway_user`, `automation`, `rpc_client` |
+| `actorIds` | `[]string` | Actor ID (paired sender ID, job ID, or RPC client ID) |
+| `surfaceKinds` | `[]string` | `local`, `gateway`, `automation`, `rpc` |
+| `surfaces` | `[]string` | `cli`, `tui`, `telegram`, `slack`, `http`, `automation`, `rpc` |
+| `tools` | `[]string` | Tool name on the operation (rules that require a tool are more specific) |
+| `resources` | `[]string` | `file`, `process`, `network`, `memory`, `session`, `automation`, `gateway`, `configuration`, `model`, `daemon`, `plan`, `clock` |
+| `actions` | `[]string` | `read`, `search`, `list`, `create`, `update`, `delete`, `execute`, `start`, `stop`, `trigger`, `manage`, `connect` |
+| `effects` | `[]string` | `read`, `write`, `execution`, `network`, `destructive`, `credential_bearing`, `external_system`, `privilege_changing`; a rule matches only if the operation has **all** listed effects |
+| `targetScopes` | `[]string` | `workspace`, `external` |
+| `targetPrefixes` | `[]string` | String-prefix match against the operation's normalized target |
+| `decision` | string | `allow`, `ask`, or `deny` (required) |
+| `reason` | string | Free text; a matching rule's `reason` becomes the approval request's stored reason, surfaced by `morph permissions explain` |
+
+Among matching rules, decision strength wins first (`deny` beats `ask` beats `allow`); only rules tied on decision
+are then broken by specificity (how many fields the rule constrains), then by rule name. A broad `deny` rule beats a
+narrow `allow` rule. See [Permissions: Custom Policy Rules](../concepts/permissions#custom-policy-rules) for a worked
+example.
+
 ## `storage`
 
 | Key | Type | Default | Valid |
@@ -433,6 +480,7 @@ Name pattern: `[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`.
 - `compaction.recentSessionTail`
 - `fs.noProfileAccess`
 - `models.providers.*.apiKey` (use auth store / provider env)
+- `permissions.*` (use `morph config set` or `morph permissions preset`)
 
 Full env mapping: [Environment Variables](./environment-variables).
 
@@ -442,5 +490,6 @@ Full env mapping: [Environment Variables](./environment-variables).
 - [Environment Variables](./environment-variables): `MORPH_*` overrides
 - [Provider Auth](../guides/provider-auth): models and web credentials
 - [Safety and Guardrails](../concepts/safety-and-guardrails): `safety`, `exec`, `fs`, `web`
+- [Permissions](../concepts/permissions): `permissions` model, presets, and rule schema
 - [Doctor](../operations/doctor): validation and readiness checks
 - [CLI Reference](./cli): `morph config get/set`

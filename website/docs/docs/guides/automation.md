@@ -32,6 +32,33 @@ morph automation status
 This reports whether the scheduler is running, how many jobs exist, how many are currently running, and when it
 next wakes up.
 
+### Permission Policy Must Allow Execution
+
+The `ask` and `approve` permission presets deny scheduled runs before their agent turn starts, as does the default
+`custom` policy: the `automation` surface kind is `deny`, and there's no interactive owner to answer an `ask` on an
+unattended run. Jobs you create will fail on every scheduled attempt until you use `permissions.preset: custom`
+(`morph permissions preset custom`) with an explicit allow rule directly in `config.yaml`. `permissions.rules` is a
+list of objects, which `morph config set` cannot write, so this one needs a direct edit:
+
+```yaml
+permissions:
+  preset: custom
+  rules:
+    - name: allow scheduled job execution
+      actors: [automation]
+      surfaces: [automation]
+      resources: [automation]
+      actions: [execute]
+      effects: [execution, external_system]
+      decision: allow
+      reason: scheduled jobs are expected to run
+```
+
+If a job's prompt also writes files, runs commands, or otherwise calls a permission-checked tool, that call is
+authorized separately as the same `automation` actor and needs its own rule. See
+[Automation: Permission Policy Is a Prerequisite](../concepts/automation#permission-policy-is-a-prerequisite) for a
+combined example, and [Permissions](../concepts/permissions) for the full model.
+
 ## Create a Recurring Job
 
 A recurring job uses `every <duration>`:
