@@ -230,6 +230,7 @@ func cloneConfig(cfg Config) Config {
 	for index := range cfg.Permissions.Rules {
 		cfg.Permissions.Rules[index].Profiles = slices.Clone(cfg.Permissions.Rules[index].Profiles)
 		cfg.Permissions.Rules[index].ActorKinds = slices.Clone(cfg.Permissions.Rules[index].ActorKinds)
+		cfg.Permissions.Rules[index].ActorIDs = slices.Clone(cfg.Permissions.Rules[index].ActorIDs)
 		cfg.Permissions.Rules[index].ParentActorKinds = slices.Clone(cfg.Permissions.Rules[index].ParentActorKinds)
 		cfg.Permissions.Rules[index].SurfaceKinds = slices.Clone(cfg.Permissions.Rules[index].SurfaceKinds)
 		cfg.Permissions.Rules[index].Surfaces = slices.Clone(cfg.Permissions.Rules[index].Surfaces)

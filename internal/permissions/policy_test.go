@@ -13,6 +13,7 @@ func TestPolicy_NormalizeAppliesConservativeDefaults(t *testing.T) {
 			Name:           " owner writes ",
 			Profiles:       []string{" work ", "work"},
 			ActorKinds:     []ActorKind{" LOCAL_OWNER ", ActorLocalOwner, ""},
+			ActorIDs:       []string{" 456 ", "123", "123", ""},
 			SurfaceKinds:   []SurfaceKind{" LOCAL ", SurfaceKindLocal},
 			Surfaces:       []Surface{" CLI ", SurfaceCLI},
 			Tools:          []string{" write_file ", "write_file"},
@@ -32,6 +33,7 @@ func TestPolicy_NormalizeAppliesConservativeDefaults(t *testing.T) {
 		Name:           "owner writes",
 		Profiles:       []string{"work"},
 		ActorKinds:     []ActorKind{ActorLocalOwner},
+		ActorIDs:       []string{"123", "456"},
 		SurfaceKinds:   []SurfaceKind{SurfaceKindLocal},
 		Surfaces:       []Surface{SurfaceCLI},
 		Tools:          []string{"write_file"},
@@ -150,6 +152,39 @@ func TestPolicy_EvaluateUsesHardDenyThenRulePrecedence(t *testing.T) {
 	require.Equal(t, ReasonHardDeny, evaluation.ReasonCode)
 	require.Equal(t, "hard safety policy", evaluation.Reason)
 	require.Empty(t, evaluation.Rule)
+}
+
+func TestPolicy_EvaluateMatchesSpecificGatewayActorID(t *testing.T) {
+	policy := Policy{
+		Preset:  PresetCustom,
+		Default: DecisionDeny,
+		Rules: []Rule{{
+			Name:       "allow telegram sender",
+			ActorKinds: []ActorKind{ActorGatewayUser},
+			ActorIDs:   []string{"123456789"},
+			Surfaces:   []Surface{SurfaceTelegram},
+			Decision:   DecisionAllow,
+		}},
+	}
+	operation := Operation{Resource: ResourceMemory, Action: ActionSearch, Effects: []Effect{EffectRead}}
+
+	allowed := policy.Evaluate(EvaluationInput{
+		Authorization: AuthorizationContext{
+			Actor: Actor{Kind: ActorGatewayUser, ID: "123456789"}, Surface: SurfaceTelegram,
+		},
+		Operation: operation,
+	})
+	require.Equal(t, DecisionAllow, allowed.Decision)
+	require.Equal(t, "allow telegram sender", allowed.Rule)
+
+	denied := policy.Evaluate(EvaluationInput{
+		Authorization: AuthorizationContext{
+			Actor: Actor{Kind: ActorGatewayUser, ID: "987654321"}, Surface: SurfaceTelegram,
+		},
+		Operation: operation,
+	})
+	require.Equal(t, DecisionDeny, denied.Decision)
+	require.Empty(t, denied.Rule)
 }
 
 func TestPolicy_EvaluateRequiresApprovalAfterAllowButPreservesDeny(t *testing.T) {

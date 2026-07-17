@@ -313,6 +313,15 @@ permissions:
     rpc: deny
     acp: deny
   rules:
+    - name: trusted telegram sender reads memory
+      actors: [gateway_user]
+      actorIds: ["123456789"]
+      surfaces: [telegram]
+      resources: [memory]
+      actions: [read, search]
+      effects: [read]
+      decision: allow
+      reason: approved Telegram sender
     - name: scheduled report execution
       actors: [automation]
       surfaces: [automation]

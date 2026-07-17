@@ -39,6 +39,7 @@ type Rule struct {
 	Name             string        `yaml:"name"`
 	Profiles         []string      `yaml:"profiles"`
 	ActorKinds       []ActorKind   `yaml:"actors"`
+	ActorIDs         []string      `yaml:"actorIds"`
 	ParentActorKinds []ActorKind   `yaml:"parentActors"`
 	SurfaceKinds     []SurfaceKind `yaml:"surfaceKinds"`
 	Surfaces         []Surface     `yaml:"surfaces"`
@@ -301,6 +302,7 @@ func (r *Rule) normalize() {
 	r.ActorKinds = normalizeValues(r.ActorKinds, func(value ActorKind) ActorKind {
 		return ActorKind(str.String(value).Normalized())
 	})
+	r.ActorIDs = normalizeStrings(r.ActorIDs)
 	if len(r.ParentActorKinds) > 0 {
 		r.ParentActorKinds = normalizeValues(r.ParentActorKinds, func(value ActorKind) ActorKind {
 			return ActorKind(str.String(value).Normalized())
@@ -380,6 +382,7 @@ func (r Rule) validate() error {
 func (r Rule) matches(authorization AuthorizationContext, operation Operation) bool {
 	return matchesValue(r.Profiles, authorization.Profile) &&
 		matchesValue(r.ActorKinds, authorization.Actor.Kind) &&
+		matchesValue(r.ActorIDs, authorization.Actor.ID) &&
 		matchesValue(r.ParentActorKinds, authorization.ParentActorKind) &&
 		matchesValue(r.SurfaceKinds, authorization.SurfaceKind) &&
 		matchesValue(r.Surfaces, authorization.Surface) &&
@@ -398,7 +401,7 @@ func (r Rule) specificity() int {
 		toolRequired = 1
 	}
 
-	return len(r.Profiles) + len(r.ActorKinds) + len(r.ParentActorKinds) + len(r.SurfaceKinds) + len(r.Surfaces) +
+	return len(r.Profiles) + len(r.ActorKinds) + len(r.ActorIDs) + len(r.ParentActorKinds) + len(r.SurfaceKinds) + len(r.Surfaces) +
 		len(r.Tools) + len(r.Resources) + len(r.Actions) + len(r.Effects) + len(r.TargetScopes) +
 		len(r.TargetPrefixes) + toolRequired
 }

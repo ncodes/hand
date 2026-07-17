@@ -31,6 +31,7 @@ permissions:
     - name: owner workspace writes
       profiles: [work]
       actors: [local_owner]
+      actorIds: [owner-1]
       surfaceKinds: [local]
       surfaces: [cli]
       tools: [write_file]
@@ -59,6 +60,7 @@ permissions:
 		Name:           "owner workspace writes",
 		Profiles:       []string{"work"},
 		ActorKinds:     []permissions.ActorKind{permissions.ActorLocalOwner},
+		ActorIDs:       []string{"owner-1"},
 		SurfaceKinds:   []permissions.SurfaceKind{permissions.SurfaceKindLocal},
 		Surfaces:       []permissions.Surface{permissions.SurfaceCLI},
 		Tools:          []string{"write_file"},
@@ -160,6 +162,7 @@ func TestNewDefaultConfig_ClonesPermissions(t *testing.T) {
 			Name:             "owner",
 			Profiles:         []string{"work"},
 			ActorKinds:       []permissions.ActorKind{permissions.ActorLocalOwner},
+			ActorIDs:         []string{"owner-1"},
 			ParentActorKinds: []permissions.ActorKind{permissions.ActorLocalOwner},
 			SurfaceKinds:     []permissions.SurfaceKind{permissions.SurfaceKindLocal},
 			Surfaces:         []permissions.Surface{permissions.SurfaceCLI},
@@ -179,6 +182,7 @@ func TestNewDefaultConfig_ClonesPermissions(t *testing.T) {
 	first.Permissions.SurfaceKindDefaults[permissions.SurfaceKindLocal] = permissions.DecisionDeny
 	first.Permissions.Rules[0].Profiles[0] = "other"
 	first.Permissions.Rules[0].ActorKinds[0] = permissions.ActorGatewayUser
+	first.Permissions.Rules[0].ActorIDs[0] = "owner-2"
 	first.Permissions.Rules[0].ParentActorKinds[0] = permissions.ActorGatewayUser
 	first.Permissions.Rules[0].SurfaceKinds[0] = permissions.SurfaceKindGateway
 	first.Permissions.Rules[0].Surfaces[0] = permissions.SurfaceSlack
@@ -193,6 +197,7 @@ func TestNewDefaultConfig_ClonesPermissions(t *testing.T) {
 	require.Equal(t, permissions.DecisionAsk, second.Permissions.SurfaceKindDefaults[permissions.SurfaceKindLocal])
 	require.Equal(t, "work", second.Permissions.Rules[0].Profiles[0])
 	require.Equal(t, permissions.ActorLocalOwner, second.Permissions.Rules[0].ActorKinds[0])
+	require.Equal(t, "owner-1", second.Permissions.Rules[0].ActorIDs[0])
 	require.Equal(t, permissions.ActorLocalOwner, second.Permissions.Rules[0].ParentActorKinds[0])
 	require.Equal(t, permissions.SurfaceKindLocal, second.Permissions.Rules[0].SurfaceKinds[0])
 	require.Equal(t, permissions.SurfaceCLI, second.Permissions.Rules[0].Surfaces[0])
