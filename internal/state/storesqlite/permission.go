@@ -79,10 +79,7 @@ func (s *Store) CreateApprovalRequest(
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		model, err := approvalRequestToModel(request)
-		if err != nil {
-			return err
-		}
+		model := approvalRequestToModel(request)
 		if err := tx.Create(&model).Error; err != nil {
 			return err
 		}
@@ -254,19 +251,24 @@ func (s *Store) ConsumeApprovalGrant(
 	id string,
 	now time.Time,
 ) (permissions.ApprovalGrant, error) {
-	result := s.db.WithContext(ctx).Model(&approvalGrantModel{}).
-		Where("id = ? AND status = ? AND scope = ? AND expires_at > ?", id, permissions.GrantActive, permissions.GrantOnce, now).
-		Updates(map[string]any{"status": permissions.GrantConsumed, "consumed_at": now})
-	if result.Error != nil {
-		return permissions.ApprovalGrant{}, result.Error
-	}
-	if result.RowsAffected != 1 {
-		return permissions.ApprovalGrant{}, errors.New("approval grant is not consumable")
-	}
 	var model approvalGrantModel
-	if err := s.db.WithContext(ctx).First(&model, "id = ?", id).Error; err != nil {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&approvalGrantModel{}).
+			Where("id = ? AND status = ? AND scope = ? AND expires_at > ?", id, permissions.GrantActive, permissions.GrantOnce, now).
+			Updates(map[string]any{"status": permissions.GrantConsumed, "consumed_at": now})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("approval grant is not consumable")
+		}
+
+		return tx.First(&model, "id = ?", id).Error
+	})
+	if err != nil {
 		return permissions.ApprovalGrant{}, err
 	}
+
 	return approvalGrantFromModel(model), nil
 }
 
@@ -460,11 +462,8 @@ func (s *Store) PruneApprovals(
 	return result, err
 }
 
-func approvalRequestToModel(request permissions.ApprovalRequest) (approvalRequestModel, error) {
-	effects, err := json.Marshal(request.Effects)
-	if err != nil {
-		return approvalRequestModel{}, err
-	}
+func approvalRequestToModel(request permissions.ApprovalRequest) approvalRequestModel {
+	effects, _ := json.Marshal(request.Effects)
 	model := approvalRequestModel{
 		ID: request.ID, Fingerprint: request.Fingerprint, ActorKind: string(request.Actor.Kind), ActorID: request.Actor.ID,
 		SurfaceKind: string(request.SurfaceKind), Surface: string(request.Surface), Profile: request.Profile,
@@ -476,7 +475,7 @@ func approvalRequestToModel(request permissions.ApprovalRequest) (approvalReques
 	if !request.ResolvedAt.IsZero() {
 		model.ResolvedAt = &request.ResolvedAt
 	}
-	return model, nil
+	return model
 }
 
 func approvalRequestFromModel(model approvalRequestModel) (permissions.ApprovalRequest, error) {
