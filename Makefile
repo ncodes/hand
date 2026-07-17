@@ -9,7 +9,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf de
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf unknown)
 LD_FLAGS := -X github.com/wandxy/morph/internal/constants.AppVersion=$(VERSION) -X github.com/wandxy/morph/internal/constants.CommitHash=$(COMMIT)
 
-.PHONY: install-tools install-lint install-hooks build-proto build test test-agent-baseline test-spec test-live test-live-sqlite test-live-memory test-live-all host-deps format-go check-go-readability lint install
+.PHONY: install-tools install-lint install-hooks build-proto build test test-agent-baseline test-spec test-live test-live-sqlite test-live-memory test-live-all host-deps lint install
 
 install-tools:
 	@$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
@@ -73,12 +73,6 @@ host-deps:
 	@$(GO) list -f 'direct imports for {{.ImportPath}}:{{range .Imports}}{{printf "\n  %s" .}}{{end}}' ./internal/host
 	@printf '\ninternal/host transitive morph imports:\n'
 	@$(GO) list -deps ./internal/host | grep '^github.com/wandxy/morph/' | sed 's/^/  /'
-
-format-go:
-	@$(GO) run ./cmd/goreadability format .
-
-check-go-readability:
-	@$(GO) run ./cmd/goreadability check .
 
 lint:
 	@version="$$(golangci-lint version 2>/dev/null)"; \
