@@ -111,8 +111,7 @@ func main() {
 }
 
 func newCommand() *cli.Command {
-	var cmd *cli.Command
-	cmd = &cli.Command{
+	cmd := &cli.Command{
 		Name:                          "morph",
 		Usage:                         "Run and manage your Morph daemon",
 		Description:                   morphcli.AppDescription,

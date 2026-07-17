@@ -103,6 +103,7 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 	if db == nil {
 		return nil, errors.New("vector db is required")
 	}
+
 	db = db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
 	if err := ensureSQLiteStorage(db); err != nil {
 		return nil, err
@@ -118,6 +119,7 @@ func (s *Store) Upsert(ctx context.Context, records []Record) error {
 	if len(records) == 0 {
 		return nil
 	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -129,10 +131,12 @@ func (s *Store) Upsert(ctx context.Context, records []Record) error {
 				if err := vectorstore.ValidateRecord(record); err != nil {
 					return err
 				}
+
 				if _, ok := ensuredDimensions[record.Dimensions]; !ok {
 					if err := ensureIndexTable(tx, record.Dimensions); err != nil {
 						return err
 					}
+
 					ensuredDimensions[record.Dimensions] = struct{}{}
 				}
 				if err := upsertRecord(tx, record); err != nil {
@@ -152,6 +156,7 @@ func (s *Store) Delete(ctx context.Context, req DeleteRequest) error {
 	if err := vectorstore.ValidateDeleteRequest(req); err != nil {
 		return err
 	}
+
 	sourceIDs := normalizeDeleteSourceIDs(req)
 	sessionIDValue := str.String(req.SessionID)
 	sessionID := sessionIDValue.Trim()
@@ -193,6 +198,7 @@ func (s *Store) Search(ctx context.Context, req SearchRequest) (SearchResult, er
 	if err := vectorstore.ValidateSearchRequest(req); err != nil {
 		return SearchResult{}, err
 	}
+
 	sourceKindValue := str.String(string(req.Filter.SourceKind))
 	if sourceKindValue.Trim() == "" {
 		return SearchResult{}, errors.New("vector search filter source kind is required")
@@ -458,6 +464,7 @@ func ensureSQLiteStorage(db *gorm.DB) error {
 )`).Error; err != nil {
 			return fmt.Errorf("failed to create vector record tags table: %w", err)
 		}
+
 		indexes := []string{
 			`CREATE INDEX IF NOT EXISTS idx_vectors_source ON ` + recordsTable + ` (source_kind, source_id)`,
 			`CREATE INDEX IF NOT EXISTS idx_vectors_session ON ` + recordsTable + ` (source_kind, session_id)`,
@@ -605,6 +612,7 @@ func ensureIndexTable(db *gorm.DB, dimensions int) error {
 	if dimensions <= 0 {
 		return errors.New("vector dimensions must be greater than zero")
 	}
+
 	exists, err := indexTableExists(db, dimensions)
 	if err != nil {
 		return err
@@ -727,6 +735,7 @@ func replaceRecordTags(tx *gorm.DB, recordID string, tags []string) error {
 	if err := tx.Exec(`DELETE FROM `+recordTagsTable+` WHERE record_id = ?`, recordID).Error; err != nil {
 		return fmt.Errorf("failed to delete vector record tags: %w", err)
 	}
+
 	for _, tag := range vectorstore.NormalizeTags(tags) {
 		if err := tx.Exec(
 			`INSERT INTO `+recordTagsTable+` (record_id, tag) VALUES (?, ?)`,
@@ -742,11 +751,11 @@ func replaceRecordTags(tx *gorm.DB, recordID string, tags []string) error {
 
 func appendTagFilters(sqlText *strings.Builder, args *[]any, tags []string) {
 	for idx, tag := range vectorstore.NormalizeTags(tags) {
-		sqlText.WriteString(fmt.Sprintf(`
+		_, _ = fmt.Fprintf(sqlText, `
 	AND EXISTS (
 		SELECT 1 FROM %s AS vrt%d
 		WHERE vrt%d.record_id = rv.id AND vrt%d.tag = ?
-	)`, recordTagsTable, idx, idx, idx))
+	)`, recordTagsTable, idx, idx, idx)
 		*args = append(*args, tag)
 	}
 }
@@ -760,10 +769,10 @@ func appendTagFiltersString(sqlText *string, args *[]any, tags []string) {
 
 func appendTagGroupFilters(sqlText *strings.Builder, args *[]any, groups [][]string) {
 	for groupIdx, group := range vectorstore.NormalizeTagGroups(groups) {
-		sqlText.WriteString(fmt.Sprintf(`
+		_, _ = fmt.Fprintf(sqlText, `
 	AND EXISTS (
 		SELECT 1 FROM %s AS vrg%d
-		WHERE vrg%d.record_id = rv.id AND vrg%d.tag IN (`, recordTagsTable, groupIdx, groupIdx, groupIdx))
+		WHERE vrg%d.record_id = rv.id AND vrg%d.tag IN (`, recordTagsTable, groupIdx, groupIdx, groupIdx)
 		for tagIdx, tag := range group {
 			if tagIdx > 0 {
 				sqlText.WriteString(`, `)
@@ -837,6 +846,7 @@ func normalizeDeleteSourceIDs(req DeleteRequest) []string {
 			if _, ok := seen[sourceID]; ok {
 				continue
 			}
+
 			seen[sourceID] = struct{}{}
 			sourceIDs = append(sourceIDs, sourceID)
 		}
@@ -851,6 +861,7 @@ func serialize(values []float64) ([]byte, error) {
 		if math.IsNaN(value) || math.IsInf(value, 0) {
 			return nil, errors.New("vector value must be finite")
 		}
+
 		converted := float32(value)
 		if math.IsInf(float64(converted), 0) {
 			return nil, errors.New("vector value exceeds float32 range")

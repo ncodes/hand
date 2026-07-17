@@ -38,6 +38,7 @@ func (s *Store) searchMemoryHybrid(
 		if requiredErr := s.handleVectorStoreError(err); requiredErr != nil {
 			return statememory.MemorySearchResult{}, requiredErr
 		}
+
 		vectorHits = nil
 	}
 
@@ -206,6 +207,7 @@ func (s *Store) getMemoryModelsByID(
 	for _, record := range records {
 		byID[record.ID] = record
 	}
+
 	return byID, nil
 }
 
@@ -261,6 +263,7 @@ func (s *Store) deleteMemoryVector(ctx context.Context, memoryID string) error {
 	if s == nil || s.vectors == nil {
 		return nil
 	}
+
 	memoryIDValue := str.String(memoryID)
 	memoryID = memoryIDValue.Trim()
 	if memoryID == "" {
@@ -288,6 +291,7 @@ func memorySearchRecordsToSearchHits(
 			LexicalScore: record.Score,
 		})
 	}
+
 	return hits, nil
 }
 
@@ -349,6 +353,7 @@ func sortMemoryHits(hits []statememory.MemorySearchHit) {
 		if !hits[i].Item.UpdatedAt.Equal(hits[j].Item.UpdatedAt) {
 			return hits[i].Item.UpdatedAt.After(hits[j].Item.UpdatedAt)
 		}
+
 		return hits[i].Item.ID < hits[j].Item.ID
 	})
 }

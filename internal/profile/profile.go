@@ -260,6 +260,7 @@ func WithMetadataPaths(profile Profile) Profile {
 func SetActive(profile Profile) {
 	activeMu.Lock()
 	defer activeMu.Unlock()
+
 	active = profile
 }
 
@@ -267,6 +268,7 @@ func SetActive(profile Profile) {
 func Active() Profile {
 	activeMu.RLock()
 	defer activeMu.RUnlock()
+
 	return active
 }
 

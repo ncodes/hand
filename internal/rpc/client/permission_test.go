@@ -117,6 +117,7 @@ func (s *permissionServiceClientStub) GetRequest(
 	if s.err != nil {
 		return nil, s.err
 	}
+
 	return &morphpb.GetPermissionRequestResponse{Request: s.request}, nil
 }
 
@@ -140,6 +141,7 @@ func (s *permissionServiceClientStub) ListGrants(
 	if s.err != nil {
 		return nil, s.err
 	}
+
 	return &morphpb.ListPermissionGrantsResponse{Grants: []*morphpb.PermissionGrant{s.grant}}, nil
 }
 
@@ -177,5 +179,6 @@ func (s *permissionServiceClientStub) Prune(
 	if s.err != nil {
 		return nil, s.err
 	}
+
 	return &morphpb.PrunePermissionApprovalsResponse{Requests: 2, Grants: 1, DryRun: req.GetDryRun()}, nil
 }

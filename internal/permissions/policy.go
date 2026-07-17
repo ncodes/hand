@@ -178,6 +178,7 @@ func (p Policy) Validate() error {
 		if _, exists := names[rule.Name]; exists {
 			return errors.New("permission rule names must be unique")
 		}
+
 		names[rule.Name] = struct{}{}
 	}
 
@@ -239,7 +240,7 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 	}
 	if operation.OwnerRequired && authorization.Actor.Kind != ActorLocalOwner &&
 		(operation.OwnerID == "" || authorization.Actor.ID != operation.OwnerID) &&
-		!(evaluation.Decision == DecisionAllow && evaluation.ReasonCode == ReasonRuleMatched) {
+		(evaluation.Decision != DecisionAllow || evaluation.ReasonCode != ReasonRuleMatched) {
 		return Evaluation{
 			Decision:   DecisionDeny,
 			ReasonCode: ReasonOwnerRequired,
@@ -336,6 +337,7 @@ func (r Rule) validate() error {
 	if !isValidDecision(r.Decision) {
 		return errors.New("permission rule decision must be one of: allow, ask, deny")
 	}
+
 	for _, value := range r.ActorKinds {
 		if !isValidActorKind(value, false) {
 			return errors.New("permission rule contains an invalid actor")
@@ -453,6 +455,7 @@ func containsAllEffects(values []Effect, required []Effect) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -460,10 +463,12 @@ func matchesTargetPrefix(prefixes []string, target string) bool {
 	if len(prefixes) == 0 {
 		return true
 	}
+
 	for _, prefix := range prefixes {
 		if strings.HasPrefix(target, prefix) {
 			return true
 		}
 	}
+
 	return false
 }

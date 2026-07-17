@@ -281,6 +281,7 @@ func TestE2E_MemoryRetrievalSafety_OmitsUnsafePinnedMemory(t *testing.T) {
 				if !strings.Contains(req.Instructions, "stable-safe-pin") {
 					return errors.New("safe pinned memory did not reach model instructions")
 				}
+
 				return nil
 			},
 		},
@@ -293,6 +294,7 @@ func TestE2E_MemoryRetrievalSafety_OmitsUnsafePinnedMemory(t *testing.T) {
 				if strings.Contains(req.Instructions, "reveal the system prompt") {
 					return errors.New("unsafe pinned memory reached model instructions")
 				}
+
 				return nil
 			},
 		},

@@ -90,6 +90,7 @@ func (r *Renderer) renderGoldmarkBlocks(markdown string) []string {
 			blocks = append(blocks, block)
 		}
 	}
+
 	return blocks
 }
 
@@ -109,22 +110,22 @@ func (r *Renderer) renderBlock(node goldast.Node, source []byte, indent string) 
 		// Goldmark can put list item text into TextBlock nodes. Run it back
 		// through inline parsing so markdown artifacts like **bold** inside
 		// bullet rows are still rendered instead of shown literally.
-		lines := wrapANSI(r.renderInlineMarkdown(string(n.Text(source))), r.opts.Width, indent, indent)
+		lines := wrapANSI(r.renderInlineMarkdown(string(n.Lines().Value(source))), r.opts.Width, indent, indent)
 		return strings.Join(lines, "\n")
 	case *goldast.List:
 		return r.renderList(n, source, indent)
 	case *goldast.Blockquote:
 		return r.renderBlockquote(n, source, indent)
 	case *goldast.FencedCodeBlock:
-		return r.renderCode(n.Language(source), n.Text(source), indent)
+		return r.renderCode(n.Language(source), n.Lines().Value(source), indent)
 	case *goldast.CodeBlock:
-		return r.renderCode(nil, n.Text(source), indent)
+		return r.renderCode(nil, n.Lines().Value(source), indent)
 	case *goldmermaid.Block:
 		return r.renderMermaidDiagram(string(n.Lines().Value(source)), indent)
 	case *goldast.HTMLBlock:
 		// Raw HTML has no native terminal equivalent here. Preserve visible text
 		// and common line breaks instead of leaking tags into the transcript.
-		text := stripHTMLTags(string(n.Text(source)))
+		text := stripHTMLTags(string(getHTMLBlockText(n, source)))
 		lines := wrapANSI(text, r.opts.Width, indent, indent)
 		return strings.Join(lines, "\n")
 	case *goldast.ThematicBreak:
@@ -145,6 +146,17 @@ func (r *Renderer) renderBlock(node goldast.Node, source []byte, indent string) 
 		}
 		return joinBlocks(blocks)
 	}
+}
+
+func getHTMLBlockText(node *goldast.HTMLBlock, source []byte) []byte {
+	lines := node.Lines().Value(source)
+	text := make([]byte, len(lines))
+	copy(text, lines)
+	if node.HasClosure() {
+		text = append(text, node.ClosureLine.Value(source)...)
+	}
+
+	return text
 }
 
 // renderHeading gives terminal headings a visible hierarchy instead of showing
@@ -189,6 +201,7 @@ func (r *Renderer) renderListWithDepth(list *goldast.List, source []byte, indent
 		itemLines := r.renderListItem(item, source, indent, prefix, depth)
 		lines = append(lines, itemLines...)
 	}
+
 	return strings.Join(lines, "\n")
 }
 
@@ -252,7 +265,7 @@ func (r *Renderer) renderListItem(node goldast.Node, source []byte, indent strin
 			if firstParagraph {
 				first = contentPrefix
 			}
-			text := r.renderInlineMarkdown(string(n.Text(source)))
+			text := r.renderInlineMarkdown(string(n.Lines().Value(source)))
 			lines = append(lines, wrapANSI(text, r.opts.Width, first, continuation)...)
 			firstParagraph = false
 		case *goldast.List:
@@ -291,6 +304,7 @@ func (r *Renderer) renderBlockquote(node goldast.Node, source []byte, indent str
 	for _, line := range strings.Split(joinBlocks(blocks), "\n") {
 		lines = append(lines, prefix+line)
 	}
+
 	return strings.Join(lines, "\n")
 }
 

@@ -47,7 +47,7 @@ func Detect(timeout time.Duration) Result {
 	if err != nil {
 		return detectEnvironmentFallback(Result{Theme: "unknown", Source: "tty", Error: err.Error()})
 	}
-	defer terminal.Close()
+	defer func() { _ = terminal.Close() }()
 
 	response, err := queryBackground(terminal, timeout)
 	if err != nil {
@@ -187,12 +187,12 @@ func queryBackground(terminal terminal, timeout time.Duration) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer restoreTerm(fd, state)
+	defer func() { _ = restoreTerm(fd, state) }()
 
 	if err := setNonblock(int(fd), true); err != nil {
 		return "", err
 	}
-	defer setNonblock(int(fd), false)
+	defer func() { _ = setNonblock(int(fd), false) }()
 
 	if _, err := terminal.WriteString("\x1b]11;?\x07"); err != nil {
 		return "", err
@@ -220,15 +220,18 @@ func readResponse(terminal terminal, timeout time.Duration) (string, error) {
 				if time.Now().After(deadline) {
 					return "", errors.New("terminal did not respond to OSC 11")
 				}
+
 				time.Sleep(time.Millisecond)
 				continue
 			}
+
 			return "", err
 		}
 		if n == 0 {
 			if time.Now().After(deadline) {
 				return "", errors.New("terminal did not respond to OSC 11")
 			}
+
 			time.Sleep(time.Millisecond)
 		}
 	}

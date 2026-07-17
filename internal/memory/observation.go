@@ -126,6 +126,7 @@ func getPromotionRelatedHitIDs(hits []SearchHit) []string {
 			ids = append(ids, id)
 		}
 	}
+
 	return ids
 }
 
@@ -136,5 +137,6 @@ func getPromotionTopRelatedScore(hits []SearchHit) float64 {
 			score = hit.Score
 		}
 	}
+
 	return score
 }

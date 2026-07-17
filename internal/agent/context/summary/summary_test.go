@@ -2173,6 +2173,7 @@ func requireCompactionSummaryEvent(t *testing.T, events []trace.Event, eventType
 		if event.Type != eventType {
 			continue
 		}
+
 		payload, ok := event.Payload.(trace.CompactionEventPayload)
 		require.True(t, ok)
 		return payload

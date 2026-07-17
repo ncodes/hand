@@ -40,6 +40,7 @@ func TestRunTurnLifecycle_RunsHooksInTurnOrder(t *testing.T) {
 			if remaining <= 0 {
 				return false
 			}
+
 			remaining--
 			return true
 		},

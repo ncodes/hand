@@ -39,6 +39,7 @@ func (m *model) startTranscriptSelection(msg tea.MouseClickMsg) bool {
 	if !m.isMouseInTranscript(msg.Mouse()) {
 		return false
 	}
+
 	if m.selection.active {
 		m.restoreTranscriptContentAfterSelection()
 	}
@@ -331,11 +332,13 @@ func compactTranscriptSelectionBlankLines(text string) string {
 		if isTranscriptSelectionVisualPaddingLine(line) {
 			continue
 		}
+
 		lineValue := str.String(line)
 		if lineValue.Trim() == "" {
 			if blank {
 				continue
 			}
+
 			blank = true
 			compact = append(compact, "")
 			continue
@@ -416,6 +419,7 @@ func highlightTranscriptSelection(
 	if start == end {
 		return content
 	}
+
 	if start > end {
 		start, end = end, start
 	}

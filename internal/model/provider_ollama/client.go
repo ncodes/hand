@@ -148,7 +148,7 @@ func (c *OllamaClient) postChat(ctx context.Context, providerReq chatRequest) (c
 	if err != nil {
 		return chatResponse{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if err := decodeOllamaResponseForModel(resp, &providerResp, providerReq.Model); err != nil {
 		return chatResponse{}, err
@@ -166,7 +166,7 @@ func (c *OllamaClient) completeStream(
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, ollamaStatusErrorForModel(resp, providerReq.Model)
@@ -323,7 +323,7 @@ func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) 
 		default:
 			return nil, errors.New("message role must be one of user, assistant, or tool; developer messages must be provided via instructions")
 		}
-		if content == "" && !(role == morphmsg.RoleAssistant && len(toolCalls) > 0) {
+		if content == "" && (role != morphmsg.RoleAssistant || len(toolCalls) == 0) {
 			return nil, errors.New("message content is required")
 		}
 		if role == morphmsg.RoleTool && toolCallID == "" {
@@ -399,6 +399,7 @@ func normalizeStructuredOutput(value *StructuredOutput) *StructuredOutput {
 	if value == nil {
 		return nil
 	}
+
 	nameValue4 := str.String(value.Name)
 	name := nameValue4.Trim()
 	if name == "" || len(value.Schema) == 0 {
@@ -587,10 +588,6 @@ func decodeOllamaResponseForModel(resp *http.Response, target any, model string)
 	}
 
 	return nil
-}
-
-func ollamaStatusError(resp *http.Response) error {
-	return ollamaStatusErrorForModel(resp, "")
 }
 
 func normalizeBaseURL(value string) (string, error) {

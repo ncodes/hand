@@ -703,6 +703,7 @@ func memoryHitIDs(hits []statememory.MemorySearchHit) []string {
 	for _, hit := range hits {
 		ids = append(ids, hit.Item.ID)
 	}
+
 	return ids
 }
 
@@ -1198,5 +1199,6 @@ func memoryItemIDs(items []statememory.MemoryItem) []string {
 	for _, item := range items {
 		ids = append(ids, item.ID)
 	}
+
 	return ids
 }

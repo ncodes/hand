@@ -165,6 +165,7 @@ func supportedEnvironmentKeys(t *testing.T) []string {
 			if _, ok := seen[match[1]]; ok {
 				continue
 			}
+
 			seen[match[1]] = struct{}{}
 			keys = append(keys, match[1])
 		}

@@ -285,6 +285,7 @@ func (f *JSONLFactory) OpenSession(_ context.Context, sessionID string, metadata
 	if f == nil {
 		return NoopSession()
 	}
+
 	directory := str.String(f.directory)
 	if directory.Trim() == "" {
 		return NoopSession()
@@ -351,6 +352,7 @@ func (f *StateFactory) OpenSession(ctx context.Context, sessionID string, metada
 		log.Warn().Str("sessionID", sessionID).Msg("Invalid trace session id; skipping state trace")
 		return NoopSession()
 	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -460,6 +462,7 @@ func (s *stateSession) ID() string {
 	if s == nil {
 		return ""
 	}
+
 	return s.id
 }
 
@@ -534,6 +537,7 @@ func (s multiSession) ID() string {
 			return id
 		}
 	}
+
 	return ""
 }
 

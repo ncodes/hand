@@ -297,7 +297,8 @@ func TestMemoryProvider_ExtractEpisodesRequiresExtractor(t *testing.T) {
 func TestMemoryProvider_StartBackground(t *testing.T) {
 	provider := defaultMemoryTestProvider(t, Options{})
 	require.NoError(t, provider.StartBackground(context.Background()))
-	require.NoError(t, provider.StartBackground(nil))
+	var nilContext context.Context
+	require.NoError(t, provider.StartBackground(nilContext))
 	require.Len(t, provider.backgroundStarters(), 3)
 
 	var missing *MemoryProvider
@@ -343,6 +344,7 @@ func TestMemoryProvider_StartBackgroundRunsEpisodicLoop(t *testing.T) {
 			cancel()
 			return true
 		}
+
 		return false
 	}, time.Second, time.Millisecond)
 
@@ -431,6 +433,7 @@ func TestMemoryProvider_StartBackgroundRunsReflectionLoop(t *testing.T) {
 		if len(generator.requests) == 0 {
 			return false
 		}
+
 		result, err := provider.Search(context.Background(), SearchQuery{
 			Tags:     []string{"reflection-source-mem_episode_reflect_loop"},
 			Statuses: []Status{StatusCandidate},
@@ -486,9 +489,11 @@ func (s *memoryModelClientStub) CompleteStream(
 }
 
 func TestBackgroundContext(t *testing.T) {
-	require.NotNil(t, getBackgroundContext(nil))
+	var nilContext context.Context
+	require.NotNil(t, getBackgroundContext(nilContext))
 
-	ctx := context.WithValue(context.Background(), "key", "value")
+	type contextKey string
+	ctx := context.WithValue(context.Background(), contextKey("key"), "value")
 	require.Same(t, ctx, getBackgroundContext(ctx))
 }
 

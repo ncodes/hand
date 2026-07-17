@@ -118,6 +118,7 @@ func (c *HTTPClient) call(ctx context.Context, method string, req any, out any) 
 	if c == nil {
 		return errors.New("slack client is required")
 	}
+
 	if c.client == nil {
 		c.client = http.DefaultClient
 	}
@@ -141,7 +142,7 @@ func (c *HTTPClient) call(ctx context.Context, method string, req any, out any) 
 	if err != nil {
 		return err
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	respBody, err := io.ReadAll(httpResp.Body)
 	if err != nil {

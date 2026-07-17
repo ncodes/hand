@@ -134,7 +134,7 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 		if err != nil {
 			return err
 		}
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 		if err := validateRootChatDaemonModel(ctx, cmd, cfg, client); err != nil {
 			return err
 		}
@@ -176,6 +176,7 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 				if handleEvent(event) {
 					return
 				}
+
 				_, _ = fmt.Fprint(output, formatter.Format(event))
 			}
 
@@ -210,6 +211,7 @@ func validateRootChatModelConfig(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is required")
 	}
+
 	aPIValue := str.String(cfg.Models.Main.API)
 	if aPIValue.Trim() == "" {
 		return nil
@@ -527,6 +529,7 @@ func (f *chatStreamFormatter) Format(event rpcclient.Event) string {
 	if event.TraceEvent != nil {
 		return ""
 	}
+
 	channelValue := str.String(event.Channel)
 	channel := channelValue.Trim()
 	if channel == "reasoning" && !f.reasoningActive {
@@ -637,6 +640,7 @@ func countTrailingNewlines(text string, limit int) int {
 		if text[i] != '\n' {
 			break
 		}
+
 		count++
 	}
 
@@ -652,6 +656,7 @@ func formatChatEvent(cfg *config.Config, event rpcclient.Event, noColor bool) st
 	if event.TraceEvent != nil {
 		return ""
 	}
+
 	channelValue2 := str.String(event.Channel)
 	if channelValue2.Trim() != "reasoning" || cfg == nil || noColor {
 		return event.Text

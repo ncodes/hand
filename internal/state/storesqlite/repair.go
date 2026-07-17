@@ -34,6 +34,7 @@ func (s *Store) RepairVectorStore(ctx context.Context, opts search.VectorRepairO
 	if s.vectors == nil {
 		return search.VectorRepairResult{}, nil
 	}
+
 	sessionIDValue := str.String(opts.SessionID)
 	sessionID := sessionIDValue.Trim()
 	if sessionID != "" {
@@ -100,6 +101,7 @@ func (s *Store) repairSessionIDs(ctx context.Context, sessionID string) ([]strin
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, errors.New("session not found")
 			}
+
 			return nil, err
 		}
 		return []string{sessionID}, nil

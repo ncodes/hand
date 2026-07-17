@@ -71,6 +71,7 @@ func joinBlocks(blocks []string) string {
 			clean = append(clean, block)
 		}
 	}
+
 	return strings.Join(clean, "\n\n")
 }
 
@@ -79,6 +80,7 @@ func maxLineWidth(value string) int {
 	for _, line := range strings.Split(value, "\n") {
 		width = max(width, ansi.StringWidth(line))
 	}
+
 	return width
 }
 

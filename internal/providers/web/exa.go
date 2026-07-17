@@ -181,6 +181,7 @@ func (p *ExaProvider) exaHeaders() map[string]string {
 	if p == nil || p.client == nil {
 		return nil
 	}
+
 	apiKey := str.String(p.client.apiKey)
 	if apiKey.Trim() == "" {
 		return nil

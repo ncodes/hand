@@ -74,6 +74,7 @@ func (c ConfigInput) Validate() error {
 	if c.AllowInMemory {
 		return nil
 	}
+
 	return errors.New("e2e config input requires real inputs or explicit in-memory fallback")
 }
 
@@ -130,6 +131,7 @@ func (s HarnessSpec) Validate() error {
 	if err := s.Isolation.Validate(); err != nil {
 		return err
 	}
+
 	return nil
 }
 

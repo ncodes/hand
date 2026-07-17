@@ -1284,7 +1284,7 @@ func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
 
 	searchErr := errors.New("memory search failed")
 	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:memory-search-error", func(tx *gorm.DB) {
-		tx.AddError(searchErr)
+		_ = tx.AddError(searchErr)
 	}))
 	_, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{})
 	require.ErrorIs(t, err, searchErr)
@@ -1294,7 +1294,7 @@ func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
 
 	upsertErr := errors.New("memory existing lookup failed")
 	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:memory-upsert-query-error", func(tx *gorm.DB) {
-		tx.AddError(upsertErr)
+		_ = tx.AddError(upsertErr)
 	}))
 	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{ID: "mem_error"})
 	require.ErrorIs(t, err, upsertErr)
@@ -1302,7 +1302,7 @@ func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
 
 	deleteErr := errors.New("memory delete failed")
 	require.NoError(t, store.db.Callback().Update().Before("gorm:update").Register("test:memory-delete-error", func(tx *gorm.DB) {
-		tx.AddError(deleteErr)
+		_ = tx.AddError(deleteErr)
 	}))
 	err = store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "mem_error"})
 	require.ErrorIs(t, err, deleteErr)
@@ -1311,7 +1311,7 @@ func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
 	hardDeleteErr := errors.New("memory hard delete failed")
 	require.NoError(t, store.db.Callback().Delete().Before("gorm:delete").Register("test:memory-hard-delete-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "memory_items" {
-			tx.AddError(hardDeleteErr)
+			_ = tx.AddError(hardDeleteErr)
 		}
 	}))
 	err = store.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "mem_error"})
@@ -1321,7 +1321,7 @@ func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
 	tagDeleteErr := errors.New("memory hard delete tag failed")
 	require.NoError(t, store.db.Callback().Delete().Before("gorm:delete").Register("test:memory-hard-delete-tag-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "memory_item_tags" {
-			tx.AddError(tagDeleteErr)
+			_ = tx.AddError(tagDeleteErr)
 		}
 	}))
 	err = store.HardDeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "mem_error"})
@@ -1361,7 +1361,7 @@ func TestSQLiteMemoryStore_PatchTransactionErrors(t *testing.T) {
 
 	queryErr := errors.New("memory patch query failed")
 	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:memory-patch-query-error", func(tx *gorm.DB) {
-		tx.AddError(queryErr)
+		_ = tx.AddError(queryErr)
 	}))
 	_, err = store.PatchMemory(context.Background(), statememory.MemoryPatch{ID: "mem_patch_error"})
 	require.ErrorIs(t, err, queryErr)
@@ -1380,7 +1380,7 @@ func TestSQLiteMemoryStore_PatchTransactionErrors(t *testing.T) {
 
 	updateErr := errors.New("memory patch update failed")
 	require.NoError(t, store.db.Callback().Update().Before("gorm:update").Register("test:memory-patch-update-error", func(tx *gorm.DB) {
-		tx.AddError(updateErr)
+		_ = tx.AddError(updateErr)
 	}))
 	reflected := true
 	_, err = store.PatchMemory(context.Background(), statememory.MemoryPatch{
@@ -1393,7 +1393,7 @@ func TestSQLiteMemoryStore_PatchTransactionErrors(t *testing.T) {
 	tagDeleteErr := errors.New("memory patch tag delete failed")
 	require.NoError(t, store.db.Callback().Delete().Before("gorm:delete").Register("test:memory-patch-tag-delete-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "memory_item_tags" {
-			tx.AddError(tagDeleteErr)
+			_ = tx.AddError(tagDeleteErr)
 		}
 	}))
 	tags := []string{"new"}
@@ -1407,7 +1407,7 @@ func TestSQLiteMemoryStore_PatchTransactionErrors(t *testing.T) {
 	tagCreateErr := errors.New("memory patch tag create failed")
 	require.NoError(t, store.db.Callback().Create().Before("gorm:create").Register("test:memory-patch-tag-create-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "memory_item_tags" {
-			tx.AddError(tagCreateErr)
+			_ = tx.AddError(tagCreateErr)
 		}
 	}))
 	_, err = store.PatchMemory(context.Background(), statememory.MemoryPatch{
@@ -1433,7 +1433,7 @@ func TestSQLiteMemoryStore_UpsertTransactionErrors(t *testing.T) {
 	saveErr := errors.New("memory save failed")
 	require.NoError(t, store.db.Callback().Create().Before("gorm:create").Register("test:memory-save-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "memory_items" {
-			tx.AddError(saveErr)
+			_ = tx.AddError(saveErr)
 		}
 	}))
 	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{ID: "mem_save_error"})
@@ -1443,7 +1443,7 @@ func TestSQLiteMemoryStore_UpsertTransactionErrors(t *testing.T) {
 	tagDeleteErr := errors.New("memory tag delete failed")
 	require.NoError(t, store.db.Callback().Delete().Before("gorm:delete").Register("test:memory-tag-delete-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "memory_item_tags" {
-			tx.AddError(tagDeleteErr)
+			_ = tx.AddError(tagDeleteErr)
 		}
 	}))
 	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{ID: "mem_tag_delete", Tags: []string{"tag"}})
@@ -1453,7 +1453,7 @@ func TestSQLiteMemoryStore_UpsertTransactionErrors(t *testing.T) {
 	tagCreateErr := errors.New("memory tag create failed")
 	require.NoError(t, store.db.Callback().Create().Before("gorm:create").Register("test:memory-tag-create-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "memory_item_tags" {
-			tx.AddError(tagCreateErr)
+			_ = tx.AddError(tagCreateErr)
 		}
 	}))
 	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{ID: "mem_tag_create", Tags: []string{"tag"}})
@@ -1620,6 +1620,7 @@ func callbackTable(tx *gorm.DB) string {
 	if tx.Statement.Schema != nil {
 		return tx.Statement.Schema.Table
 	}
+
 	return ""
 }
 
@@ -1654,6 +1655,7 @@ func sqliteMemoryItemIDs(items []statememory.MemoryItem) []string {
 	for _, item := range items {
 		ids = append(ids, item.ID)
 	}
+
 	return ids
 }
 
@@ -1662,6 +1664,7 @@ func sqliteMemoryHitIDs(hits []statememory.MemorySearchHit) []string {
 	for _, hit := range hits {
 		ids = append(ids, hit.Item.ID)
 	}
+
 	return ids
 }
 
@@ -1670,5 +1673,6 @@ func sqliteMemorySearchRecordIDs(records []memorySearchRecord) []string {
 	for _, record := range records {
 		ids = append(ids, record.ID)
 	}
+
 	return ids
 }

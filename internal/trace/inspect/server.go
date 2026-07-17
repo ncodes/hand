@@ -44,6 +44,7 @@ func (a *App) SetBasicAuth(username, password string) {
 	if a == nil {
 		return
 	}
+
 	usernameValue := str.String(username)
 	a.username = usernameValue.Trim()
 	a.password = password
@@ -72,6 +73,7 @@ func (a *App) Handler() http.Handler {
 			mux.ServeHTTP(w, r)
 			return
 		}
+
 		w.Header().Set("WWW-Authenticate", `Basic realm="Morph Trace Viewer", charset="UTF-8"`)
 		writeError(w, http.StatusUnauthorized, "authentication required")
 	})
@@ -144,6 +146,7 @@ func (a *App) handleSession(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusForbidden, err.Error())
 			return
 		}
+
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

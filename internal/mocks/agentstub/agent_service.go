@@ -247,6 +247,7 @@ func (s *AgentServiceStub) DeleteGatewayPairingRequest(_ context.Context, source
 		if request.Source == source && request.SenderID == senderID {
 			continue
 		}
+
 		kept = append(kept, request)
 	}
 	s.PairingRequests = kept
@@ -310,6 +311,7 @@ func (s *AgentServiceStub) DeleteGatewayPairedSender(_ context.Context, source s
 		if sender.Source == source && sender.SenderID == senderID {
 			continue
 		}
+
 		kept = append(kept, sender)
 	}
 	s.PairedSenders = kept

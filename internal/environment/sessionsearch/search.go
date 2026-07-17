@@ -30,6 +30,7 @@ func Search(
 	if manager == nil {
 		return nil, errors.New("state manager is required")
 	}
+
 	sessionIDValue := str.String(req.SessionID)
 	sessionID := sessionIDValue.Trim()
 	ignoreSessionIDValue := str.String(req.IgnoreSessionID)
@@ -118,6 +119,7 @@ func formatSearchTime(value time.Time) string {
 	if value.IsZero() {
 		return ""
 	}
+
 	return value.UTC().Format("2006-01-02T15:04:05Z07:00")
 }
 
@@ -128,6 +130,7 @@ func clampSearchResults(value int) int {
 	if value > maxSessionSearchResults {
 		return maxSessionSearchResults
 	}
+
 	return value
 }
 
@@ -172,10 +175,6 @@ func getSnippetAround(text string, matchIndex int, matchLen int, maxRunes int) s
 	}
 
 	startRune := utf8.RuneCountInString(text[:matchIndex])
-	matchRunes := utf8.RuneCountInString(text[matchIndex : matchIndex+matchLen])
-	if matchRunes == 0 {
-		matchRunes = 1
-	}
 
 	windowStart := max(startRune-(maxRunes/2), 0)
 	windowEnd := min(windowStart+maxRunes, len(runes))

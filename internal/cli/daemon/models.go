@@ -73,6 +73,7 @@ func rerankerModelClientRequired(cfg *config.Config) bool {
 	if cfg.RerankerEffective() == constants.RerankerLLM {
 		return true
 	}
+
 	for _, override := range cfg.Reranker.Overrides {
 		if cfg.RerankerOverrideEffective(override).Type == constants.RerankerLLM {
 			return true
@@ -103,6 +104,7 @@ func prepareDaemonRuntimeConfig(cfg *config.Config) *config.Config {
 				if !needsRuntimeConfig {
 					return cfg
 				}
+
 				return &runtimeCfg
 			}
 		} else {
@@ -131,6 +133,7 @@ func hasDaemonModelSelection(cfg *config.Config) bool {
 	if cfg == nil {
 		return false
 	}
+
 	nameValue := str.String(cfg.Models.Main.Name)
 	providerValue := str.String(cfg.Models.Main.Provider)
 	return nameValue.Trim() != "" && providerValue.Trim() != ""

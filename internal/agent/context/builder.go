@@ -105,6 +105,7 @@ func countImmediateToolMessages(input []messages.Message) int {
 		if message.Role != messages.RoleTool {
 			break
 		}
+
 		count++
 	}
 

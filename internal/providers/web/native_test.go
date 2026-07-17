@@ -579,7 +579,7 @@ func TestNativeProvider_DialContextReturnsConnectionAndDialErrors(t *testing.T) 
 		dial: func(context.Context, string, string) (net.Conn, error) {
 			clientConn, serverConn := net.Pipe()
 			t.Cleanup(func() {
-				serverConn.Close()
+				_ = serverConn.Close()
 			})
 			return clientConn, nil
 		},

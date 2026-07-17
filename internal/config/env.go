@@ -14,6 +14,7 @@ func applyEnvOverrides(cfg *Config) {
 	if cfg == nil {
 		return
 	}
+
 	envValue := str.String(os.Getenv("MORPH_NAME"))
 	if value := envValue.Trim(); value != "" {
 		cfg.Name = value

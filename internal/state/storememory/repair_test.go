@@ -405,5 +405,6 @@ func (s *memoryTestVectorStoreWithList) List(
 	if err := search.ValidateVectorListRequest(req); err != nil {
 		return search.VectorListResult{}, err
 	}
+
 	return search.VectorListResult{}, nil
 }

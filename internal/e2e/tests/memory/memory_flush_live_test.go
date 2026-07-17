@@ -361,6 +361,7 @@ func hasLiveMemoryFlushTrace(events []storage.TraceEvent, trigger string) bool {
 		if liveTracePayloadString(event, "trigger") != trigger {
 			continue
 		}
+
 		required[event.Type] = true
 	}
 
@@ -369,6 +370,7 @@ func hasLiveMemoryFlushTrace(events []storage.TraceEvent, trigger string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -391,6 +393,7 @@ func liveTraceEventTypes(events []storage.TraceEvent) []string {
 	for _, event := range events {
 		types = append(types, event.Type)
 	}
+
 	return types
 }
 
@@ -400,5 +403,6 @@ func liveTraceEventIndex(events []storage.TraceEvent, eventType string) int {
 			return idx
 		}
 	}
+
 	return -1
 }

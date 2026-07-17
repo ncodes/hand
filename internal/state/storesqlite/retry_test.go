@@ -71,7 +71,8 @@ func TestIsSQLiteLockError_ClassifiesSupportedErrors(t *testing.T) {
 
 func TestRunSQLiteWriteWithRetry_ProvidesBoundedContext(t *testing.T) {
 	var remaining time.Duration
-	err := runSQLiteWriteWithRetry(nil, func(ctx context.Context) error {
+	var nilContext context.Context
+	err := runSQLiteWriteWithRetry(nilContext, func(ctx context.Context) error {
 		deadline, ok := ctx.Deadline()
 		require.True(t, ok)
 		remaining = time.Until(deadline)

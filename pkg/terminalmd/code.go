@@ -30,6 +30,7 @@ func (r *Renderer) renderCode(language []byte, source []byte, indent string) str
 	for index, line := range lines {
 		lines[index] = indent + line
 	}
+
 	return strings.Join(lines, "\n")
 }
 

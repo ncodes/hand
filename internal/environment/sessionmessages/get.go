@@ -25,6 +25,7 @@ func Get(
 	if err := req.Validate(); err != nil {
 		return SessionMessagesResponse{}, err
 	}
+
 	sessionIDValue := str.String(req.SessionID)
 	sessionID := sessionIDValue.Trim()
 	if sessionID == "" {
@@ -118,6 +119,7 @@ func messagesToMessageRecords(start int, messages []morphmsg.Message) []storage.
 			Message: message,
 		})
 	}
+
 	return records
 }
 
@@ -130,6 +132,7 @@ func getMessageToolName(message morphmsg.Message) string {
 		nameValue3 := str.String(message.ToolCalls[0].Name)
 		return nameValue3.Trim()
 	}
+
 	return ""
 }
 
@@ -174,5 +177,6 @@ func formatMessageTime(value time.Time) string {
 	if value.IsZero() {
 		return ""
 	}
+
 	return value.UTC().Format("2006-01-02T15:04:05Z07:00")
 }

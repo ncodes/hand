@@ -112,6 +112,7 @@ func newSetCommand(output io.Writer) *cli.Command {
 					return err
 				}
 			}
+
 			return nil
 		},
 	}
@@ -140,6 +141,7 @@ func resolveKnownConfigInputs(cmd *cli.Command) (morphcli.ConfigInputs, error) {
 		if os.IsNotExist(err) {
 			return morphcli.ConfigInputs{}, fmt.Errorf("unknown profile %q", inputs.Profile.Name)
 		}
+
 		return morphcli.ConfigInputs{}, fmt.Errorf("read profile %q: %w", inputs.Profile.Name, err)
 	}
 	if !info.IsDir() {
@@ -153,6 +155,7 @@ func hasExplicitProfile(cmd *cli.Command) bool {
 	if cmd == nil {
 		return false
 	}
+
 	for _, candidate := range cmd.Lineage() {
 		if candidate.IsSet("profile") {
 			return true

@@ -75,7 +75,7 @@ func TestTavilyProvider_SearchNormalizesResults(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		captured.Path = r.URL.Path
 		captured.Authorization = r.Header.Get("Authorization")
@@ -149,7 +149,7 @@ func TestTavilyProvider_SearchReturnsClientErrors(t *testing.T) {
 
 func TestTavilyProvider_ExtractNormalizesResults(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		var body struct {
 			URLs          []string `json:"urls"`
@@ -213,7 +213,7 @@ func TestTavilyProvider_ExtractUsesContextOptions(t *testing.T) {
 		Query  string `json:"query"`
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
 
 		w.Header().Set("Content-Type", "application/json")

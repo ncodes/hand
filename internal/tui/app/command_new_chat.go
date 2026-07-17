@@ -49,6 +49,7 @@ func (m *model) completeNewChat(msg newChatCompletedMsg) tea.Cmd {
 	if msg.Err != nil {
 		return m.setStatus("new chat failed")
 	}
+
 	iDValue := str.String(msg.Session.ID)
 	if iDValue.Trim() == "" {
 		return m.setStatus("new chat failed")

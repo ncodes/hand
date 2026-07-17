@@ -343,6 +343,7 @@ func (s *Store) Validate() error {
 	if s == nil {
 		return errors.New("trace directory is required")
 	}
+
 	directory := str.String(s.directory)
 	if directory.Trim() == "" {
 		return errors.New("trace directory is required")
@@ -379,6 +380,7 @@ func (s *Store) ListSessions() ([]SessionSummary, error) {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".jsonl" {
 			continue
 		}
+
 		path := filepath.Join(s.directory, entry.Name())
 		detail, err := LoadSessionFile(path)
 		if err != nil {
@@ -463,7 +465,7 @@ func LoadSessionFile(path string) (SessionDetail, error) {
 	if err != nil {
 		return SessionDetail{}, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := newScanner(file)
 	buffer := make([]byte, 0, 64*1024)

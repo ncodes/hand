@@ -122,7 +122,7 @@ func SaveYAML(path string, cfg *Config) error {
 
 		return fmt.Errorf("open config file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	if _, err := file.Write(data); err != nil {
 		_ = os.Remove(path)
 		return fmt.Errorf("write config file: %w", err)
@@ -135,6 +135,7 @@ func SaveYAML(path string, cfg *Config) error {
 func Set(cfg *Config) {
 	configMu.Lock()
 	defer configMu.Unlock()
+
 	globalConfig = cfg
 }
 
@@ -191,6 +192,7 @@ func hasYAMLPath(data []byte, path ...string) bool {
 		if node == nil || node.Kind != yaml.MappingNode {
 			return false
 		}
+
 		node = getYAMLMappingValue(node, segment)
 	}
 

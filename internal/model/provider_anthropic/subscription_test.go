@@ -370,7 +370,7 @@ func TestAnthropicSubscriptionProvider_StartCallbackServerReportsServeError(t *t
 		make(chan string, 1),
 		errCh,
 	)
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	var err error
 	require.Eventually(t, func() bool {

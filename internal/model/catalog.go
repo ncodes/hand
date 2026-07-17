@@ -414,6 +414,7 @@ func getExplicitProviderConfig(
 	if cfg == nil || len(cfg.Models.Providers) == 0 {
 		return config.ProviderModelConfig{}, false
 	}
+
 	providerValue2 := str.String(provider)
 	provider = providerValue2.Normalized()
 	if providerConfig, ok := cfg.Models.Providers[provider]; ok {

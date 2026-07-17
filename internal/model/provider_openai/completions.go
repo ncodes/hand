@@ -39,6 +39,7 @@ func (chatCompletionsHandler) Complete(
 		if client.createChatStream == nil {
 			return nil, errors.New("model client is required")
 		}
+
 		return client.completeChatStream(ctx, params, onTextDelta)
 	}
 

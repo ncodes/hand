@@ -436,6 +436,7 @@ func (s *Service) now() time.Time {
 	if s != nil && s.nowFunc != nil {
 		return s.nowFunc().UTC()
 	}
+
 	return time.Now().UTC()
 }
 
@@ -522,6 +523,7 @@ func (s Service) loadTraceEvidence(ctx context.Context, sessionID string) ([]tas
 		if errors.Is(err, storage.ErrTraceStoreUnsupported) {
 			return nil, nil
 		}
+
 		return nil, err
 	}
 
@@ -530,6 +532,7 @@ func (s Service) loadTraceEvidence(ctx context.Context, sessionID string) ([]tas
 		if !trace.IsEpisodicMemoryTraceEventType(event.Type) {
 			continue
 		}
+
 		trimmedValueValue := str.String(event.Type)
 		traces = append(traces, taskTraceEvidence{
 			Ref:       getTraceEventRef(event),
@@ -538,6 +541,7 @@ func (s Service) loadTraceEvidence(ctx context.Context, sessionID string) ([]tas
 			Payload:   tracePayloadToText(event.Payload),
 		})
 	}
+
 	return traces, nil
 }
 
@@ -548,6 +552,7 @@ func getTraceEventRef(event storage.TraceEvent) string {
 	if event.ID > 0 {
 		return "trace_id:" + strconv.FormatUint(uint64(event.ID), 10)
 	}
+
 	return "trace:unknown"
 }
 
@@ -555,6 +560,7 @@ func getTraceEventTimestamp(event storage.TraceEvent) string {
 	if event.Timestamp.IsZero() {
 		return ""
 	}
+
 	return event.Timestamp.UTC().Format(time.RFC3339Nano)
 }
 
@@ -562,6 +568,7 @@ func tracePayloadToText(payload any) string {
 	if payload == nil {
 		return ""
 	}
+
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return ""
@@ -601,6 +608,7 @@ func getTraceEvidenceRefs(events []taskTraceEvidence) []string {
 			refs = append(refs, ref)
 		}
 	}
+
 	return refs
 }
 
@@ -706,6 +714,7 @@ func getSourceQuality(evidence messageEvidence) string {
 	if len(evidence.MessageIDs) > 0 && len(evidence.Offsets) > 0 {
 		return "high"
 	}
+
 	return "medium"
 }
 
@@ -716,6 +725,7 @@ func getUncertainty(confidence float64) string {
 	if confidence >= 0.65 {
 		return "medium"
 	}
+
 	return "high"
 }
 
@@ -726,6 +736,7 @@ func clampConfidence(confidence float64) float64 {
 	if confidence > 1 {
 		return 1
 	}
+
 	return confidence
 }
 
@@ -858,6 +869,7 @@ func truncateRunes(value string, maxChars int) string {
 	if maxChars <= 0 {
 		return ""
 	}
+
 	runes := []rune(value)
 	if len(runes) <= maxChars {
 		return value
@@ -869,5 +881,6 @@ func sanitizeUTF8(value string) string {
 	if utf8.ValidString(value) {
 		return value
 	}
+
 	return strings.ToValidUTF8(value, "")
 }

@@ -113,6 +113,7 @@ func (h *rootChatApprovalHandler) prompt(
 	if _, err := fmt.Fprintf(h.output, "\nPermission approval required\n%s\n", payload.Summary); err != nil {
 		return false, "", err
 	}
+
 	if len(payload.Effects) > 0 {
 		if _, err := fmt.Fprintf(h.output, "Effects: %s\n", strings.Join(payload.Effects, ", ")); err != nil {
 			return false, "", err

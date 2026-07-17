@@ -26,9 +26,9 @@ func sessionListToText(sessions []storage.Session) string {
 
 	var output strings.Builder
 	table := tabwriter.NewWriter(&output, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(table, "ID\tTITLE\tSOURCE\tUPDATED")
+	_, _ = fmt.Fprintln(table, "ID\tTITLE\tSOURCE\tUPDATED")
 	for _, session := range sessions {
-		fmt.Fprintf(
+		_, _ = fmt.Fprintf(
 			table,
 			"%s\t%s\t%s\t%s\n",
 			getSessionDisplayText(session.ID),

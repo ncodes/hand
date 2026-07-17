@@ -250,6 +250,7 @@ func (m model) renderSessionListCommandViewContent(content commandViewContent) s
 		if m.isArchiveCommandView() {
 			return "No archived chats."
 		}
+
 		return "No chats yet."
 	}
 
@@ -544,6 +545,7 @@ func (m *model) completeRenameChatSession(msg chatRenamedMsg) (tea.Model, tea.Cm
 	if msg.Err != nil {
 		return *m, m.setStatus("chat rename unavailable")
 	}
+
 	iDValue5 := str.String(msg.Session.ID)
 	sessionID := iDValue5.Trim()
 	if sessionID == "" {
@@ -645,6 +647,7 @@ func (m *model) completeArchiveChatSession(msg chatArchivedMsg) (tea.Model, tea.
 	if msg.Err != nil {
 		return *m, m.setStatus("chat archive unavailable")
 	}
+
 	iDValue9 := str.String(msg.ID)
 	sessionID := iDValue9.Trim()
 	if sessionID == "" {
@@ -777,6 +780,7 @@ func (m *model) completeUnarchiveArchivedChatSession(msg chatUnarchivedMsg) (tea
 	if msg.Err != nil {
 		return *m, m.setStatus("chat restore unavailable")
 	}
+
 	iDValue12 := str.String(msg.Session.ID)
 	sessionID := iDValue12.Trim()
 	if sessionID == "" {
@@ -887,6 +891,7 @@ func formatChatSessionActivity(value time.Time, now time.Time) string {
 	if value.IsZero() {
 		return "unknown"
 	}
+
 	if now.IsZero() {
 		now = chatsNow().UTC()
 	}

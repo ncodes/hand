@@ -74,10 +74,6 @@ func MessageRefFromSourceID(sourceID string) (string, uint, bool) {
 	return value[:idx], uint(messageID), true
 }
 
-func validateRequiredSourceKind(sourceKind SourceKind, field string) error {
-	return vectorstore.ValidateRequiredSourceKind(sourceKind, field)
-}
-
 func validateOptionalSourceKind(sourceKind SourceKind, field string) error {
 	return vectorstore.ValidateOptionalSourceKind(sourceKind, field)
 }

@@ -56,6 +56,7 @@ func (a *RPCAdapter) Send(ctx context.Context, req RootChatRequest) (RootChatRes
 			if event.TraceEvent != nil {
 				return
 			}
+
 			channelValue := str.String(event.Channel)
 			events = append(events, Event{
 				Channel: channelValue.Trim(),

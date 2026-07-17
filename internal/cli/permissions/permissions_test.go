@@ -502,6 +502,7 @@ func (s *permissionCommandAPIStub) ListApprovalRequests(
 			result = append(result, request)
 		}
 	}
+
 	return result, nil
 }
 
@@ -515,6 +516,7 @@ func (s *permissionCommandAPIStub) GetApprovalRequest(
 	if s.found != nil && !*s.found {
 		return permissiondomain.ApprovalRequest{}, false, nil
 	}
+
 	return s.requests[0], true, nil
 }
 
@@ -527,6 +529,7 @@ func (s *permissionCommandAPIStub) ResolveApprovalRequest(
 	if s.resolveErr != nil {
 		return permissiondomain.ApprovalRequest{}, s.resolveErr
 	}
+
 	if approved {
 		s.resolvedScope = scope
 	}
@@ -555,6 +558,7 @@ func (s *permissionCommandAPIStub) RevokeApprovalGrant(
 	if s.revokeErr != nil {
 		return permissiondomain.ApprovalGrant{}, s.revokeErr
 	}
+
 	s.revokedID = id
 	return permissiondomain.ApprovalGrant{ID: "grant_1", Status: permissiondomain.GrantRevoked}, nil
 }
@@ -566,6 +570,7 @@ func (s *permissionCommandAPIStub) DeleteApprovalRecord(
 	if s.deleteErr != nil {
 		return permissiondomain.ApprovalDeleteResult{}, s.deleteErr
 	}
+
 	s.deletedID = id
 	return permissiondomain.ApprovalDeleteResult{
 		ID: id, Kind: permissiondomain.ApprovalRecordRequest, LinkedGrantID: "grant_1",
@@ -579,6 +584,7 @@ func (s *permissionCommandAPIStub) PruneApprovals(
 	if s.pruneErr != nil {
 		return permissiondomain.ApprovalPruneResult{}, s.pruneErr
 	}
+
 	return permissiondomain.ApprovalPruneResult{DryRun: dryRun}, nil
 }
 

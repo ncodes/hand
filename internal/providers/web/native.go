@@ -363,6 +363,7 @@ func compactNativeLines(lines []string) []string {
 			if len(compacted) == 0 || blank {
 				continue
 			}
+
 			blank = true
 			compacted = append(compacted, "")
 			continue

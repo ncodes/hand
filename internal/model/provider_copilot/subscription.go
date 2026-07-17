@@ -310,7 +310,7 @@ func (p GitHubCopilotSubscriptionProvider) enableModel(
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("GitHub Copilot model policy request failed: %s", resp.Status)
@@ -412,7 +412,7 @@ func (p GitHubCopilotSubscriptionProvider) doJSON(req *http.Request, target any)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

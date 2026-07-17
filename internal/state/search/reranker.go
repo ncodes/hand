@@ -73,6 +73,7 @@ func RerankWithFallback(
 	if err := ValidateReranker(primary); err != nil {
 		return RerankResult{}, err
 	}
+
 	if fallback != nil {
 		if err := ValidateReranker(fallback); err != nil {
 			return RerankResult{}, err
@@ -109,6 +110,7 @@ func ValidateRerankResult(candidates []Candidate, result RerankResult) error {
 		if len(result.Items) != 0 {
 			return errors.New("rerank result must be empty when candidates are empty")
 		}
+
 		return nil
 	}
 	if len(result.Items) == 0 {
@@ -181,6 +183,7 @@ func ValidateReranker(reranker Reranker) error {
 	if reranker == nil {
 		return nil
 	}
+
 	nameValue := str.String(reranker.Name())
 	switch nameValue.Normalized() {
 	case RerankerNoop, RerankerDeterministic, RerankerLLM:

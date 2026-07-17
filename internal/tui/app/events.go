@@ -91,6 +91,7 @@ func agentEventToTUIMessage(event agent.Event) (any, bool) {
 	if event.Text == "" {
 		return nil, false
 	}
+
 	channelValue := str.String(event.Channel)
 	channel := channelValue.Trim()
 	if channel == "" {
@@ -164,6 +165,7 @@ func traceEventToTUIMessage(event trace.Event) (any, bool) {
 			if isUserStoppedSessionError(message) {
 				return nil, false
 			}
+
 			return sessionErrorMsg{Message: message}, true
 		}
 	case trace.EvtContextCompactionPending,

@@ -62,6 +62,7 @@ func normalizeStructuredOutput(value *StructuredOutput) *StructuredOutput {
 	if value == nil || len(value.Schema) == 0 {
 		return nil
 	}
+
 	nameValue := str.String(value.Name)
 	descriptionValue := str.String(value.Description)
 	return &StructuredOutput{
@@ -92,7 +93,7 @@ func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) 
 			return nil, errors.New("message role must be one of developer, user, assistant, or tool")
 		}
 
-		if content == "" && !(role == morphmsg.RoleAssistant && len(toolCalls) > 0) {
+		if content == "" && (role != morphmsg.RoleAssistant || len(toolCalls) == 0) {
 			return nil, errors.New("message content is required")
 		}
 		if role == morphmsg.RoleTool && toolCallID == "" {

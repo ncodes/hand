@@ -355,6 +355,7 @@ func loadLiveSessionMemoryItems(
 	for _, hit := range result.Hits {
 		items = append(items, hit.Item)
 	}
+
 	return items
 }
 
@@ -499,6 +500,7 @@ func getLiveMemoryDump(ctx context.Context, t *testing.T, store liveMemoryStore,
 		item := hit.Item
 		parts = append(parts, string(item.Kind)+":"+string(item.Status)+":"+item.Title+":"+item.Text)
 	}
+
 	return strings.Join(parts, " | ")
 }
 
@@ -551,6 +553,7 @@ func getRepoRoot(t *testing.T) string {
 		if hasRepoRootFiles(dir) {
 			return dir
 		}
+
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			t.Fatal("repo root not found")
@@ -566,5 +569,6 @@ func hasRepoRootFiles(dir string) bool {
 	if _, err := os.Stat(filepath.Join(dir, "config.yaml")); err != nil {
 		return false
 	}
+
 	return true
 }

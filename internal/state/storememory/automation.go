@@ -51,6 +51,7 @@ func (s *Store) GetJob(_ context.Context, id string) (state.AutomationJob, bool,
 	if s == nil {
 		return state.AutomationJob{}, false, errors.New("store is required")
 	}
+
 	jobID := str.String(id)
 	id = jobID.Trim()
 	if err := state.ValidateAutomationJobID(id); err != nil {
@@ -82,6 +83,7 @@ func (s *Store) ListJobs(_ context.Context, query state.AutomationJobQuery) (sta
 		if !automationJobMatchesQuery(job, query, idSet) {
 			continue
 		}
+
 		jobs = append(jobs, job.Clone())
 	}
 	sort.SliceStable(jobs, func(i, j int) bool {
@@ -109,6 +111,7 @@ func (s *Store) PatchJob(_ context.Context, patch state.AutomationJobPatch) (sta
 	if s == nil {
 		return state.AutomationJob{}, errors.New("store is required")
 	}
+
 	patchID := str.String(patch.ID)
 	patch.ID = patchID.Trim()
 	if err := state.ValidateAutomationJobID(patch.ID); err != nil {
@@ -132,6 +135,7 @@ func (s *Store) DeleteJob(_ context.Context, id string) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
+
 	jobID := str.String(id)
 	id = jobID.Trim()
 	if err := state.ValidateAutomationJobID(id); err != nil {
@@ -140,6 +144,7 @@ func (s *Store) DeleteJob(_ context.Context, id string) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	delete(s.automationJobs, id)
 
 	return nil
@@ -195,6 +200,7 @@ func (s *Store) FinishRun(_ context.Context, patch state.AutomationRunPatch) (st
 	if s == nil {
 		return state.AutomationRun{}, errors.New("store is required")
 	}
+
 	runID := str.String(patch.ID)
 	patch.ID = runID.Trim()
 	if err := state.ValidateAutomationRunID(patch.ID); err != nil {
@@ -218,11 +224,13 @@ func (s *Store) ListRuns(_ context.Context, query state.AutomationRunQuery) (sta
 	if s == nil {
 		return state.AutomationRunResult{}, errors.New("store is required")
 	}
+
 	queryJobID := str.String(query.JobID)
 	if id := queryJobID.Trim(); id != "" {
 		if err := state.ValidateAutomationJobID(id); err != nil {
 			return state.AutomationRunResult{}, err
 		}
+
 		query.JobID = id
 	}
 	idSet, err := automationIDSet(query.IDs, state.ValidateAutomationRunID)
@@ -239,12 +247,14 @@ func (s *Store) ListRuns(_ context.Context, query state.AutomationRunQuery) (sta
 		if !automationRunMatchesQuery(run, query, idSet, statusSet) {
 			continue
 		}
+
 		runs = append(runs, run.Clone())
 	}
 	sort.SliceStable(runs, func(i, j int) bool {
 		if !runs[i].StartedAt.Equal(runs[j].StartedAt) {
 			return runs[i].StartedAt.After(runs[j].StartedAt)
 		}
+
 		return runs[i].ID < runs[j].ID
 	})
 	if query.Limit > 0 && len(runs) > query.Limit {
@@ -268,6 +278,7 @@ func (s *Store) DeleteRuns(_ context.Context, query state.AutomationRunDeleteQue
 		if err := state.ValidateAutomationJobID(id); err != nil {
 			return 0, err
 		}
+
 		query.JobID = id
 	}
 
@@ -286,6 +297,7 @@ func (s *Store) DeleteRuns(_ context.Context, query state.AutomationRunDeleteQue
 		if !automationRunMatchesDeleteQuery(run, query, idSet, statusSet) {
 			continue
 		}
+
 		runs = append(runs, run.Clone())
 	}
 
@@ -293,6 +305,7 @@ func (s *Store) DeleteRuns(_ context.Context, query state.AutomationRunDeleteQue
 		if !runs[i].StartedAt.Equal(runs[j].StartedAt) {
 			return runs[i].StartedAt.Before(runs[j].StartedAt)
 		}
+
 		return runs[i].ID < runs[j].ID
 	})
 
@@ -311,6 +324,7 @@ func automationIDSet(ids []string, validate func(string) error) (map[string]stru
 	if len(ids) == 0 {
 		return nil, nil
 	}
+
 	values := make(map[string]struct{}, len(ids))
 	for _, rawID := range ids {
 		id := str.String(rawID)
@@ -323,6 +337,7 @@ func automationIDSet(ids []string, validate func(string) error) (map[string]stru
 		}
 		values[trimmedID] = struct{}{}
 	}
+
 	return values, nil
 }
 
@@ -358,6 +373,7 @@ func automationRunMatchesQuery(
 	if query.JobID != "" && run.JobID != query.JobID {
 		return false
 	}
+
 	if len(ids) > 0 {
 		if _, ok := ids[run.ID]; !ok {
 			return false
@@ -380,6 +396,7 @@ func automationRunMatchesDeleteQuery(
 	if query.JobID != "" && run.JobID != query.JobID {
 		return false
 	}
+
 	if len(ids) > 0 {
 		if _, ok := ids[run.ID]; !ok {
 			return false

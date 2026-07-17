@@ -1199,6 +1199,7 @@ func TestNewMainAction_PullProgressKeepsRecentLines(t *testing.T) {
 			} {
 				onProgress(progress)
 			}
+
 			return nil
 		},
 		NewChatClient: func(context.Context, *config.Config) (rpcclient.ChatClient, error) {

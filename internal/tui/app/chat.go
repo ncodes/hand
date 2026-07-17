@@ -126,6 +126,7 @@ func (m *model) handleResponseEventsClosed(msg responseEventsClosedMsg) tea.Cmd 
 	if !m.isActiveResponse(msg.ResponseID) {
 		return nil
 	}
+
 	m.responseEventStreamActive = false
 	m.events = nil
 	if m.pendingResponseCompletion == nil {

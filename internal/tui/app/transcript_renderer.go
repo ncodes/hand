@@ -225,6 +225,7 @@ func getProcessToolCellGroupKey(cell toolTranscriptCell) processToolDetailGroupK
 	if cell.processState == nil {
 		return processToolDetailGroupKey{}
 	}
+
 	processIDValue := str.String(cell.processState.ProcessID)
 	target := processIDValue.Trim()
 	if cell.processState.Operation == trace.ProcessToolOperationStart || target == "" {
@@ -315,6 +316,7 @@ func renderAssistantTranscriptCell(cell assistantTranscriptCell, width int) stri
 			lines[index] = renderAssistantTranscriptIndicator() + line
 			continue
 		}
+
 		lines[index] = renderAssistantTranscriptContinuationPrefix() + line
 	}
 

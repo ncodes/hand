@@ -100,6 +100,7 @@ func IsOperationAuthorized(ctx context.Context, operation Operation) bool {
 	if ctx == nil {
 		return false
 	}
+
 	operation, err := operation.Normalize()
 	if err != nil {
 		return false

@@ -44,6 +44,7 @@ func SessionIDFromContext(ctx context.Context) string {
 	if runCtx, ok := runcontext.FromContext(ctx); ok {
 		return runCtx.StateSessionID()
 	}
+
 	sessionID, _ := ctx.Value(sessionIDContextKey{}).(string)
 	return sessionID
 }
@@ -66,6 +67,7 @@ func TraceRecorderFromContext(ctx context.Context) TraceRecorder {
 	if ctx == nil {
 		return nil
 	}
+
 	recorder, _ := ctx.Value(traceRecorderContextKey{}).(TraceRecorder)
 	return recorder
 }

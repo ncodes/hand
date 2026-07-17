@@ -499,6 +499,7 @@ func findJSONCheck(t *testing.T, groups []jsonGroup, groupName string, checkName
 		if group.Name != groupName {
 			continue
 		}
+
 		for _, check := range group.Checks {
 			if check.Name == checkName {
 				return check
@@ -531,6 +532,7 @@ func requireInJSONCheckOrder(t *testing.T, groups []jsonGroup, groupName string,
 				offset++
 				break
 			}
+
 			offset++
 		}
 		require.Truef(t, found, "missing check %q after offset %d", checkName, offset)

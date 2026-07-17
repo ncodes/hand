@@ -183,7 +183,7 @@ func validateConfigYAML(
 		return fmt.Errorf("create validation config: %w", err)
 	}
 	tempPath := tempFile.Name()
-	defer os.Remove(tempPath)
+	defer func() { _ = os.Remove(tempPath) }()
 
 	if _, err := tempFile.Write(data); err != nil {
 		_ = tempFile.Close()
@@ -298,6 +298,7 @@ func getConfigPathValue(current reflect.Value, path string) (reflect.Value, erro
 			if current.IsNil() {
 				return reflect.Value{}, nil
 			}
+
 			current = current.Elem()
 		}
 		if current.Type() == durationType {
@@ -387,6 +388,7 @@ func configValueToString(value reflect.Value) (string, error) {
 		if value.IsNil() {
 			return "null", nil
 		}
+
 		value = value.Elem()
 	}
 
@@ -541,6 +543,7 @@ func setYAMLNodePath(root *yaml.Node, steps []configPathStep, valueNode *yaml.No
 	if root.Kind != yaml.DocumentNode {
 		return fmt.Errorf("config document must be a YAML document")
 	}
+
 	if len(root.Content) == 0 {
 		root.Content = []*yaml.Node{{Kind: yaml.MappingNode, Tag: "!!map"}}
 	}
@@ -572,6 +575,7 @@ func normalizeYAMLNodeMapping(node *yaml.Node) {
 	if node == nil {
 		return
 	}
+
 	if node.Kind == 0 || node.Kind == yaml.ScalarNode && node.Tag == "!!null" {
 		node.Kind = yaml.MappingNode
 		node.Tag = "!!map"

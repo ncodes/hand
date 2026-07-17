@@ -243,7 +243,9 @@ func countLeadingSpaces(value string) int {
 		if char != ' ' {
 			return count
 		}
+
 		count++
 	}
+
 	return count
 }

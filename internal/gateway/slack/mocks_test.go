@@ -179,6 +179,7 @@ func (s *slackServiceStub) ListGatewayPairingRequests(
 			requests = append(requests, request)
 		}
 	}
+
 	return requests, nil
 }
 
@@ -203,6 +204,7 @@ func (s *slackServiceStub) ClearGatewayPairingRequests(ctx context.Context, sour
 			delete(s.pendingRequests, key)
 		}
 	}
+
 	return nil
 }
 
@@ -246,6 +248,7 @@ func (s *slackServiceStub) ListGatewayPairedSenders(ctx context.Context, source 
 			senders = append(senders, sender)
 		}
 	}
+
 	return senders, nil
 }
 
@@ -349,6 +352,7 @@ func (a *fakeSlackAPI) AppendStream(ctx context.Context, stream pkgslack.Stream,
 		if a.appendErrAfterErr != nil {
 			return a.appendErrAfterErr
 		}
+
 		return errSlackTest
 	}
 	return a.appendErr
@@ -462,8 +466,6 @@ func (c *fakeSocketConn) Receive() ([]byte, error) {
 	}
 	c.mu.Unlock()
 	<-c.closedCh
-	c.mu.Lock()
-	c.mu.Unlock()
 	return nil, errSlackTest
 }
 

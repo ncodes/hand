@@ -58,6 +58,7 @@ func (s *memoryStore) ListGatewayPairingRequests(_ context.Context, source strin
 			requests = append(requests, request)
 		}
 	}
+
 	return requests, nil
 }
 
@@ -77,6 +78,7 @@ func (s *memoryStore) ClearGatewayPairingRequests(_ context.Context, source stri
 			delete(s.pending, key)
 		}
 	}
+
 	return nil
 }
 
@@ -110,6 +112,7 @@ func (s *memoryStore) ListGatewayPairedSenders(_ context.Context, source string)
 			senders = append(senders, sender)
 		}
 	}
+
 	return senders, nil
 }
 

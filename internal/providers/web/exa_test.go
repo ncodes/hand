@@ -69,7 +69,7 @@ func TestExaProvider_SearchNormalizesResults(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		captured.Path = r.URL.Path
 		captured.APIKey = r.Header.Get("x-api-key")
@@ -118,7 +118,7 @@ func TestExaProvider_SearchUsesConfiguredHighlightLimit(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
 
 		w.Header().Set("Content-Type", "application/json")
@@ -239,7 +239,7 @@ func TestExaProvider_SearchReturnsProviderErrors(t *testing.T) {
 
 func TestExaProvider_ExtractNormalizesResults(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		var body struct {
 			URLs []string `json:"urls"`
@@ -302,7 +302,7 @@ func TestExaProvider_ExtractUsesContextOptions(t *testing.T) {
 		} `json:"highlights"`
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
 
 		w.Header().Set("Content-Type", "application/json")

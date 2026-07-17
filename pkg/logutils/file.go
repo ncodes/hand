@@ -33,6 +33,7 @@ func getFileOutputLocked() io.Writer {
 		if fileSettings.path == "" || fileSettings == settings {
 			return fileOutput
 		}
+
 		closeFileLocked()
 		fileOutput = nil
 		fileSettings = logFileSettings{}

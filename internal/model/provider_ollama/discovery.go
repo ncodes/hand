@@ -87,7 +87,7 @@ func (d *Discoverer) fetchTags(ctx context.Context) (tagsResponse, error) {
 	if err != nil {
 		return tagsResponse{}, enrichOllamaConnectionError(d.baseURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var tags tagsResponse
 	if err := decodeOllamaResponse(resp, &tags); err != nil {
@@ -109,7 +109,7 @@ func (d *Discoverer) fetchShow(ctx context.Context, model string) (showResponse,
 	if err != nil {
 		return showResponse{}, enrichOllamaConnectionError(d.baseURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var show showResponse
 	if err := decodeOllamaResponse(resp, &show); err != nil {

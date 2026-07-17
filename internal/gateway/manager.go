@@ -118,6 +118,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 func (m *Manager) Wait() <-chan error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	if m.done != nil {
 		return m.done
 	}
@@ -142,6 +143,7 @@ func (m *Manager) Status() Status {
 func (m *Manager) setFailed(cfg config.GatewayConfig, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.state = StateFailed
 	m.status = statusFromConfig(cfg, StateFailed, err)
 }
@@ -149,6 +151,7 @@ func (m *Manager) setFailed(cfg config.GatewayConfig, err error) {
 func (m *Manager) finish(cfg config.GatewayConfig, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.cancel = nil
 	m.running = false
 	if err != nil {
@@ -242,6 +245,7 @@ func runComponents(ctx context.Context, components []component) error {
 				<-runCtx.Done()
 				return
 			}
+
 			done <- componentResult{name: item.name, err: item.run(runCtx)}
 		})
 	}
@@ -252,8 +256,8 @@ func runComponents(ctx context.Context, components []component) error {
 		cancel()
 		_ = stopComponents(context.Background(), components)
 		wg.Wait()
-		if result.err != nil && !(stoppedByContext && errors.Is(result.err, context.Canceled)) {
-			return componentError{name: result.name, err: result.err}
+		if result.err != nil && (!stoppedByContext || !errors.Is(result.err, context.Canceled)) {
+			return componentError(result)
 		}
 
 		return nil
@@ -275,6 +279,7 @@ func stopComponents(ctx context.Context, components []component) error {
 		if components[index].stop == nil {
 			continue
 		}
+
 		if err := components[index].stop(ctx); err != nil && result == nil {
 			result = err
 		}

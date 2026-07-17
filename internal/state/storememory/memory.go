@@ -44,6 +44,7 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 		if !hits[i].Item.UpdatedAt.Equal(hits[j].Item.UpdatedAt) {
 			return hits[i].Item.UpdatedAt.After(hits[j].Item.UpdatedAt)
 		}
+
 		return hits[i].Item.ID < hits[j].Item.ID
 	})
 
@@ -84,6 +85,7 @@ func (s *Store) ListSessionMemories(_ context.Context, query statememory.Session
 		if !items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
 			return items[i].UpdatedAt.After(items[j].UpdatedAt)
 		}
+
 		return items[i].ID < items[j].ID
 	})
 
@@ -139,6 +141,7 @@ func (s *Store) PatchMemory(ctx context.Context, patch statememory.MemoryPatch) 
 	if s == nil {
 		return statememory.MemoryItem{}, errors.New("store is required")
 	}
+
 	iDValue2 := str.String(patch.ID)
 	id := iDValue2.Trim()
 	if id == "" {
@@ -175,6 +178,7 @@ func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRe
 	if s == nil {
 		return errors.New("store is required")
 	}
+
 	iDValue3 := str.String(req.ID)
 	id := iDValue3.Trim()
 	if id == "" {
@@ -200,6 +204,7 @@ func (s *Store) HardDeleteMemory(ctx context.Context, req statememory.MemoryDele
 	if s == nil {
 		return errors.New("store is required")
 	}
+
 	iDValue4 := str.String(req.ID)
 	id := iDValue4.Trim()
 	if id == "" {

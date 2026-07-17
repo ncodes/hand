@@ -287,6 +287,7 @@ func getService(ctx context.Context, runtime envtypes.Runtime) (envtypes.Automat
 	if runtime == nil {
 		return nil, errors.New("automation runtime is required")
 	}
+
 	service, ok, err := runtime.AutomationService(ctx)
 	if err != nil {
 		return nil, err
@@ -405,6 +406,7 @@ func patchFromInputWithCurrent(
 		if err := checkToolSchedule(req.Job.Schedule); err != nil {
 			return storage.AutomationJobPatch{}, err
 		}
+
 		patch.Schedule = &req.Job.Schedule
 	}
 	if req.payloadUpdate != nil {
@@ -417,6 +419,7 @@ func patchFromInputWithCurrent(
 		if err := checkToolPayload(req.Job.Payload); err != nil {
 			return storage.AutomationJobPatch{}, err
 		}
+
 		patch.Payload = &req.Job.Payload
 	}
 	if req.deliveryUpdate != nil {
@@ -437,6 +440,7 @@ func loadAutomationJobForUpdate(
 	if req.payloadUpdate == nil && req.deliveryUpdate == nil {
 		return storage.AutomationJob{}, nil
 	}
+
 	list, err := service.List(ctx, storage.AutomationJobQuery{
 		IDs:             []string{req.ID},
 		Limit:           1,

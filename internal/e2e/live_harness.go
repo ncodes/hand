@@ -254,6 +254,7 @@ func checkOutput(check func(string) error, output string) error {
 	if check == nil {
 		return nil
 	}
+
 	outputValue2 := str.String(output)
 	return check(outputValue2.Trim())
 }

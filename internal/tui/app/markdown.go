@@ -100,6 +100,7 @@ func isSetextHeadingUnderline(line string) bool {
 	if len(line) < 2 {
 		return false
 	}
+
 	for _, char := range line {
 		if char != '=' && char != '-' {
 			return false

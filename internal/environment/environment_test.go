@@ -49,7 +49,8 @@ func init() {
 }
 
 func TestNewEnvironment_InitializesDependencies(t *testing.T) {
-	baseCtx := gctx.WithValue(gctx.Background(), "requestID", "req-123")
+	type contextKey string
+	baseCtx := gctx.WithValue(gctx.Background(), contextKey("requestID"), "req-123")
 	dir := t.TempDir()
 	cfg := &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}}
 
@@ -2379,6 +2380,7 @@ func readJSONLines(t *testing.T, path string) []trace.Event {
 		if len(raw) == 0 {
 			continue
 		}
+
 		var event trace.Event
 		require.NoError(t, json.Unmarshal(raw, &event))
 		lines = append(lines, event)
@@ -2392,6 +2394,7 @@ func traceEventTypes(events []trace.Event) []string {
 	for _, event := range events {
 		types = append(types, event.Type)
 	}
+
 	return types
 }
 
@@ -2400,6 +2403,7 @@ func stateTraceEventTypes(events []storage.TraceEvent) []string {
 	for _, event := range events {
 		types = append(types, event.Type)
 	}
+
 	return types
 }
 
@@ -2410,6 +2414,7 @@ func splitLines(data []byte) [][]byte {
 		if b != '\n' {
 			continue
 		}
+
 		lines = append(lines, data[start:i])
 		start = i + 1
 	}

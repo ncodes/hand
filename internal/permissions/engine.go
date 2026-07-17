@@ -26,6 +26,7 @@ func (e *DecisionError) Error() string {
 	if e.Code == ErrorCodeApprovalRequired {
 		return "approval required"
 	}
+
 	return "permission denied"
 }
 

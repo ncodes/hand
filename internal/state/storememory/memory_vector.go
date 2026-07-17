@@ -29,6 +29,7 @@ func (s *Store) searchMemoryHybrid(
 		if requiredErr := s.handleVectorStoreError(err); requiredErr != nil {
 			return statememory.MemorySearchResult{}, requiredErr
 		}
+
 		vectorHits = nil
 	}
 
@@ -52,6 +53,7 @@ func (s *Store) memoryLexicalHits(
 		if !statememory.CheckMemoryMatchesQuery(item, query) {
 			continue
 		}
+
 		score := statememory.GetSimpleMemoryScore(item, query.Text)
 		hits = append(hits, statememory.MemorySearchHit{
 			Item:         item.Clone(),
@@ -135,6 +137,7 @@ func (s *Store) memoryVectorSourceIDs(query statememory.MemorySearchQuery, limit
 		if !statememory.CheckMemoryMatchesQuery(item, filterQuery) {
 			continue
 		}
+
 		sourceIDs = append(sourceIDs, search.StableMemoryItemID(item.ID))
 	}
 	sort.Strings(sourceIDs)
@@ -231,6 +234,7 @@ func (s *Store) deleteMemoryVector(ctx context.Context, memoryID string) error {
 	if s == nil || s.vectors == nil {
 		return nil
 	}
+
 	memoryIDValue := str.String(memoryID)
 	memoryID = memoryIDValue.Trim()
 	if memoryID == "" {
@@ -301,6 +305,7 @@ func sortMemoryHits(hits []statememory.MemorySearchHit) {
 		if !hits[i].Item.UpdatedAt.Equal(hits[j].Item.UpdatedAt) {
 			return hits[i].Item.UpdatedAt.After(hits[j].Item.UpdatedAt)
 		}
+
 		return hits[i].Item.ID < hits[j].Item.ID
 	})
 }

@@ -30,6 +30,7 @@ func (o Observability) Logger() memory.Logger {
 	if o.logger == nil {
 		return nil
 	}
+
 	return logger{logger: o.logger}
 }
 
@@ -38,6 +39,7 @@ func (o Observability) Tracer() memory.Tracer {
 	if o.traceSession == nil {
 		return nil
 	}
+
 	return tracer{traceSession: o.traceSession}
 }
 
@@ -69,6 +71,7 @@ func (l logger) event(event *zerolog.Event, message string, fields map[string]an
 	if event == nil {
 		return
 	}
+
 	if len(fields) > 0 {
 		event = event.Fields(fields)
 	}

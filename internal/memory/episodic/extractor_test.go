@@ -32,13 +32,13 @@ type recordedEvent struct {
 type fakeCandidateExtractor struct {
 	result CandidateResult
 	err    error
-	req    CandidateRequest
 }
 
-func (e fakeCandidateExtractor) ExtractCandidates(_ context.Context, req CandidateRequest) (CandidateResult, error) {
+func (e fakeCandidateExtractor) ExtractCandidates(_ context.Context, _ CandidateRequest) (CandidateResult, error) {
 	if e.err != nil {
 		return CandidateResult{}, e.err
 	}
+
 	return e.result, nil
 }
 
@@ -1228,6 +1228,7 @@ func traceEventNames(recorder *recordingTrace) []string {
 	for _, event := range recorder.events {
 		names = append(names, event.name)
 	}
+
 	return names
 }
 
@@ -1236,6 +1237,7 @@ func traceEvidenceTypes(events []taskTraceEvidence) []string {
 	for _, event := range events {
 		types = append(types, event.Type)
 	}
+
 	return types
 }
 
@@ -1246,6 +1248,7 @@ func tracePayloadFor(t *testing.T, recorder *recordingTrace, name string) map[st
 		if event.name != name {
 			continue
 		}
+
 		payload := trace.PayloadFields(event.payload)
 		require.NotNil(t, payload)
 		return payload
@@ -1262,9 +1265,10 @@ func tracePayloadsFor(t *testing.T, recorder *recordingTrace, name string) strin
 		if event.name != name {
 			continue
 		}
+
 		payload := trace.PayloadFields(event.payload)
 		require.NotNil(t, payload)
-		payloads.WriteString(fmt.Sprint(payload))
+		_, _ = fmt.Fprint(&payloads, payload)
 		payloads.WriteString("\n")
 	}
 
@@ -1277,6 +1281,7 @@ func memoryHitText(hits []storage.MemorySearchHit) string {
 		text.WriteString(hit.Item.Text)
 		text.WriteString("\n")
 	}
+
 	return text.String()
 }
 
@@ -1285,6 +1290,7 @@ func memoryItemsByCandidateKind(items []storage.MemoryItem) map[string]storage.M
 	for _, item := range items {
 		byKind[item.Metadata["candidate_kind"]] = item
 	}
+
 	return byKind
 }
 

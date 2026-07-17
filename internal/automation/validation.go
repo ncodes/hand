@@ -309,6 +309,7 @@ func checkAutomationWebhookURL(value string) error {
 	if value == "" {
 		return errors.New("automation webhook URL is required")
 	}
+
 	parsed, err := url.ParseRequestURI(value)
 	if err != nil {
 		return errors.New("automation webhook URL must be an absolute HTTP or HTTPS URL")

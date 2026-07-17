@@ -47,7 +47,7 @@ func TestViewCommand_ServesTraceViewerAndPrintsURL(t *testing.T) {
 	waitForServer(t, url+"/api/sessions")
 	resp, err := http.Get(url + "/api/sessions")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	cancel()
@@ -77,7 +77,7 @@ func TestViewCommand_UsesExplicitTraceDir(t *testing.T) {
 	waitForServer(t, url+"/api/sessions/session")
 	resp, err := http.Get(url + "/api/sessions/session")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	cancel()
@@ -104,7 +104,7 @@ func TestViewCommand_UsesDefaultTraceDirFallback(t *testing.T) {
 	waitForServer(t, url+"/api/sessions")
 	resp, err := http.Get(url + "/api/sessions")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var payload struct {
@@ -148,7 +148,7 @@ func TestViewCommand_LogsResolvedArguments(t *testing.T) {
 
 	resp, err := http.Get(url + "/api/sessions")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	cancel()
@@ -185,7 +185,7 @@ func TestViewCommand_RequiresBasicAuthWhenConfigured(t *testing.T) {
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
 	req, err = http.NewRequest(http.MethodGet, url+"/api/sessions", nil)
@@ -193,7 +193,7 @@ func TestViewCommand_RequiresBasicAuthWhenConfigured(t *testing.T) {
 	req.SetBasicAuth("viewer", "secret")
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	cancel()
@@ -249,7 +249,7 @@ func waitForServer(t *testing.T, url string) {
 	for time.Now().Before(deadline) {
 		resp, err := http.Get(url)
 		if err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -262,7 +262,7 @@ func writeTraceSession(t *testing.T, dir, id string) {
 	path := filepath.Join(dir, id+".jsonl")
 	file, err := os.Create(path)
 	require.NoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	encoder := json.NewEncoder(file)
 	require.NoError(t, encoder.Encode(morphtrace.Event{

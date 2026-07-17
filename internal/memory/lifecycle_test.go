@@ -932,6 +932,7 @@ func lifecycleHitIDs(hits []SearchHit) []string {
 	for _, hit := range hits {
 		ids = append(ids, hit.Item.ID)
 	}
+
 	return ids
 }
 
@@ -940,6 +941,7 @@ func lifecycleItemIDs(items []MemoryItem) []string {
 	for _, item := range items {
 		ids = append(ids, item.ID)
 	}
+
 	return ids
 }
 
@@ -948,6 +950,7 @@ func lifecycleHitsByID(hits []SearchHit) map[string]MemoryItem {
 	for _, hit := range hits {
 		items[hit.Item.ID] = hit.Item
 	}
+
 	return items
 }
 

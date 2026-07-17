@@ -92,6 +92,7 @@ func TestSender_StreamTurnStreamsFencedCodeAsMarkdownText(t *testing.T) {
 		} {
 			onDelta(delta)
 		}
+
 		return reply, nil
 	})
 
@@ -140,6 +141,7 @@ func TestSender_StreamTurnKeepsFencedCodePackageAndImportLines(t *testing.T) {
 		} {
 			onDelta(delta)
 		}
+
 		return reply, nil
 	})
 
@@ -452,7 +454,7 @@ func TestSlackStreamAppender_FlushesOnTicker(t *testing.T) {
 		return len(api.allCalls()) == 1
 	}, time.Second, 10*time.Millisecond)
 
-	err, state := appender.Stop()
+	state, err := appender.Stop()
 	require.NoError(t, err)
 	require.True(t, state.visible)
 	require.Equal(t, []slackAPICall{
@@ -477,7 +479,7 @@ func TestSlackStreamAppender_FlushesOnContextCancellation(t *testing.T) {
 		return len(api.allCalls()) == 1
 	}, time.Second, 10*time.Millisecond)
 
-	err, state := appender.Stop()
+	state, err := appender.Stop()
 	require.NoError(t, err)
 	require.True(t, state.visible)
 }
@@ -495,7 +497,7 @@ func TestSlackStreamAppender_SkipsBlankAndAfterError(t *testing.T) {
 	appender.Append("first")
 	appender.Append("ignored")
 
-	err, state := appender.Stop()
+	state, err := appender.Stop()
 
 	require.ErrorIs(t, err, errSlackTest)
 	require.False(t, state.visible)
@@ -518,7 +520,7 @@ func TestSlackStreamAppender_StreamsFencedCodeAsMarkdownText(t *testing.T) {
 	appender.Append("fmt.Println(1)\n")
 	appender.Append("```\n")
 
-	err, state := appender.Stop()
+	state, err := appender.Stop()
 
 	require.NoError(t, err)
 	require.True(t, state.visible)
@@ -550,7 +552,7 @@ func TestSlackStreamAppender_PreservesWhitespaceOnlyDeltasInFencedCode(t *testin
 	appender.Append("import \"fmt\"\n")
 	appender.Append("```")
 
-	err, state := appender.Stop()
+	state, err := appender.Stop()
 
 	require.NoError(t, err)
 	require.True(t, state.visible)

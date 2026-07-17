@@ -45,6 +45,7 @@ func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader, s
 	if client == nil {
 		return nil
 	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -66,6 +67,7 @@ func loadStartupSessionTimelineCmd(ctx context.Context, client startupSessionLoa
 	if client == nil {
 		return nil
 	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -205,6 +207,7 @@ func getSessionDisplayName(session storage.Session) string {
 		if sessionID == storage.DefaultSessionID {
 			return fmt.Sprintf("%s (%s)", title, sessionID)
 		}
+
 		return title
 	}
 	if sessionID != "" {
@@ -280,6 +283,7 @@ func sessionTimelineToTranscriptCells(timeline rpcclient.SessionTimeline) []tran
 			if hasMessageTranscript && isMessageBackedTimelineEvent(msg) {
 				continue
 			}
+
 			if cell := tuiMessageToTranscriptCell(msg); cell != nil && !cell.IsEmpty() {
 				entries = append(entries, transcriptTimelineEntry{
 					at:    event.Event.Timestamp,

@@ -40,6 +40,7 @@ func New(options ...Option) *Fetcher {
 		if option == nil {
 			continue
 		}
+
 		option(fetcher)
 	}
 
@@ -51,6 +52,7 @@ func WithResolveHost(resolveHost ResolveHostFunc) Option {
 		if fetcher == nil {
 			return
 		}
+
 		fetcher.ResolveHost = resolveHost
 	}
 }
@@ -60,6 +62,7 @@ func WithDial(dial DialFunc) Option {
 		if fetcher == nil {
 			return
 		}
+
 		fetcher.Dial = dial
 	}
 }
@@ -69,6 +72,7 @@ func WithPolicy(policy Policy) Option {
 		if fetcher == nil {
 			return
 		}
+
 		fetcher.Policy = policy
 	}
 }
@@ -264,7 +268,7 @@ func (f *Fetcher) Get(ctx context.Context, req GetRequest) (*GetResponse, error)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, truncated, err := readResponseBody(resp.Body, req.MaxBytes)
 	if err != nil {

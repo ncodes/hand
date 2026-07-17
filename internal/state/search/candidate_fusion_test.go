@@ -97,6 +97,7 @@ func TestSearchCandidateSet_MergeAndSorted(t *testing.T) {
 		if candidate == nil {
 			return ""
 		}
+
 		return candidate.id
 	})
 
@@ -126,5 +127,6 @@ func (c *testSearchCandidate) CandidateMatchRef() *CandidateMatch {
 	if c == nil {
 		return nil
 	}
+
 	return c.match
 }

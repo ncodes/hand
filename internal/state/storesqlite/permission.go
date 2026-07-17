@@ -135,6 +135,7 @@ func (s *Store) ListApprovalRequests(
 		}
 		result = append(result, request)
 	}
+
 	return result, nil
 }
 
@@ -152,6 +153,7 @@ func (s *Store) ResolveApprovalRequest(
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("approval request not found")
 			}
+
 			return err
 		}
 		if model.Status != string(permissions.ApprovalPending) {
@@ -168,6 +170,7 @@ func (s *Store) ResolveApprovalRequest(
 			if model.Status != string(status) || model.Scope != string(scope) {
 				return errors.New("approval request is already resolved")
 			}
+
 			var err error
 			result, err = approvalRequestFromModel(model)
 			return err
@@ -201,6 +204,7 @@ func (s *Store) CreateApprovalGrant(
 		if err := tx.Create(&model).Error; err != nil {
 			return err
 		}
+
 		result := tx.Model(&approvalRequestModel{}).
 			Where("id = ? AND status = ?", grant.RequestID, permissions.ApprovalApproved).
 			Update("grant_id", grant.ID)
@@ -228,6 +232,7 @@ func (s *Store) FindApprovalGrant(
 		Update("status", permissions.GrantExpired).Error; err != nil {
 		return permissions.ApprovalGrant{}, false, err
 	}
+
 	var model approvalGrantModel
 	err := s.db.WithContext(ctx).
 		Where("fingerprint = ? AND actor_kind = ? AND actor_id = ? AND profile = ? AND status = ?",
@@ -287,6 +292,7 @@ func (s *Store) ListApprovalGrants(
 	for index, model := range models {
 		result[index] = approvalGrantFromModel(model)
 	}
+
 	return result, nil
 }
 
@@ -301,6 +307,7 @@ func (s *Store) RevokeApprovalGrant(
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("approval grant not found")
 			}
+
 			return err
 		}
 		if model.Status == string(permissions.GrantRevoked) {
@@ -309,6 +316,7 @@ func (s *Store) RevokeApprovalGrant(
 		if model.Status != string(permissions.GrantActive) {
 			return errors.New("approval grant is not active")
 		}
+
 		model.Status = string(permissions.GrantRevoked)
 		model.RevokedAt = &now
 		return tx.Save(&model).Error
@@ -324,6 +332,7 @@ func (s *Store) DeleteApprovalRequest(ctx context.Context, id string, now time.T
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("approval request not found")
 			}
+
 			return err
 		}
 		switch permissions.ApprovalStatus(model.Status) {
@@ -366,6 +375,7 @@ func (s *Store) DeleteApprovalGrant(ctx context.Context, id string, now time.Tim
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("approval grant not found")
 			}
+
 			return err
 		}
 		switch permissions.GrantStatus(model.Status) {
@@ -377,6 +387,7 @@ func (s *Store) DeleteApprovalGrant(ctx context.Context, id string, now time.Tim
 		default:
 			return errors.New("approval grant is not terminal")
 		}
+
 		return tx.Delete(&model).Error
 	})
 }

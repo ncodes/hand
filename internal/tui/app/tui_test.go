@@ -3565,6 +3565,7 @@ func TestModel_UpdateQuitsOnSecondQuickCtrlC(t *testing.T) {
 		if len(times) == 0 {
 			return time.Date(2026, 5, 16, 9, 0, 1, 0, time.UTC)
 		}
+
 		value := times[0]
 		times = times[1:]
 		return value
@@ -3592,6 +3593,7 @@ func TestModel_UpdateDoesNotQuitOnSlowSecondCtrlC(t *testing.T) {
 		if len(times) == 0 {
 			return time.Date(2026, 5, 16, 9, 0, 3, 0, time.UTC)
 		}
+
 		value := times[0]
 		times = times[1:]
 		return value
@@ -5769,11 +5771,10 @@ func TestModel_UpdateMergesCompletedToolAfterInterleavedSafetyEvent(t *testing.T
 		toolInvocationCompletedMsg{ID: "call_1", Name: "web_extract"},
 	} {
 		updated, cmd := runModel.Update(msg)
-		if index == 0 {
+		switch index {
+		case 0, 2:
 			require.NotNil(t, cmd)
-		} else if index == 2 {
-			require.NotNil(t, cmd)
-		} else {
+		default:
 			require.Nil(t, cmd)
 		}
 		runModel = updated.(model)

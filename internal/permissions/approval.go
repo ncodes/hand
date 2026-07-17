@@ -217,6 +217,7 @@ func NewApprovalService(store ApprovalStore, opts ApprovalOptions) (*ApprovalSer
 	if store == nil {
 		return nil, errors.New("approval store is required")
 	}
+
 	if opts.RequestTTL <= 0 {
 		opts.RequestTTL = DefaultApprovalRequestTTL
 	}
@@ -264,6 +265,7 @@ func (s *ApprovalService) Metrics() ApprovalMetrics {
 	if s == nil {
 		return ApprovalMetrics{}
 	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -277,6 +279,7 @@ func (s *ApprovalService) Recover(ctx context.Context) error {
 	if _, err := s.store.CancelPendingApprovals(ctx, s.opts.Now()); err != nil {
 		return err
 	}
+
 	_, err := s.Prune(ctx, false)
 	return err
 }
@@ -285,6 +288,7 @@ func (s *ApprovalService) StartCleanup(ctx context.Context) {
 	if s == nil || s.store == nil {
 		return
 	}
+
 	go func() {
 		ticker := time.NewTicker(s.opts.CleanupInterval)
 		defer ticker.Stop()
@@ -303,6 +307,7 @@ func (s *ApprovalService) Prune(ctx context.Context, dryRun bool) (ApprovalPrune
 	if s == nil || s.store == nil {
 		return ApprovalPruneResult{}, errors.New("approval service is required")
 	}
+
 	return s.store.PruneApprovals(ctx, ApprovalPruneOptions{
 		Now:              s.opts.Now(),
 		RequestRetention: s.opts.RequestRetention,
@@ -316,6 +321,7 @@ func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) 
 	if s == nil || s.store == nil {
 		return errors.New("approval service is unavailable")
 	}
+
 	authorization, operation, fingerprint, err := normalizeApprovalInput(ctx, input)
 	if err != nil {
 		return err
@@ -442,6 +448,7 @@ func (s *ApprovalService) Resolve(ctx context.Context, id string, approved bool,
 	if s == nil || s.store == nil {
 		return ApprovalRequest{}, errors.New("approval service is required")
 	}
+
 	if !approved {
 		scope = ""
 	} else if scope != GrantOnce && scope != GrantSession && scope != GrantAlways {
@@ -462,6 +469,7 @@ func (s *ApprovalService) Resolve(ctx context.Context, id string, approved bool,
 		if existing.Status == wantedStatus && existing.Scope == scope {
 			return existing, nil
 		}
+
 		return ApprovalRequest{}, errors.New("approval request is already resolved")
 	}
 	if approved && scope == GrantAlways && !isAlwaysApprovalAvailable(existing.Effects) {
@@ -519,6 +527,7 @@ func (s *ApprovalService) Revoke(ctx context.Context, id string) (ApprovalGrant,
 	if s == nil || s.store == nil {
 		return ApprovalGrant{}, errors.New("approval service is required")
 	}
+
 	id = strings.TrimSpace(id)
 	if strings.HasPrefix(id, ApprovalRequestIDPrefix) {
 		request, ok, err := s.store.GetApprovalRequest(ctx, id)
@@ -540,6 +549,7 @@ func (s *ApprovalService) Delete(ctx context.Context, id string) (ApprovalDelete
 	if s == nil || s.store == nil {
 		return ApprovalDeleteResult{}, errors.New("approval service is required")
 	}
+
 	id = strings.TrimSpace(id)
 	switch {
 	case strings.HasPrefix(id, ApprovalRequestIDPrefix):
@@ -636,6 +646,7 @@ func (s *ApprovalService) notify(request ApprovalRequest) {
 func (s *ApprovalService) removeWaiter(id string, waiter chan ApprovalRequest) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	values := s.waiters[id]
 	for index, value := range values {
 		if value == waiter {
@@ -707,6 +718,7 @@ func (s *ApprovalService) reserveApprovalPrompt(
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if _, ok := s.pendingPrompts[fingerprint]; ok {
 		return true
 	}
@@ -731,12 +743,14 @@ func (s *ApprovalService) reserveApprovalPrompt(
 func (s *ApprovalService) releaseApprovalPrompt(fingerprint string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	delete(s.pendingPrompts, fingerprint)
 }
 
 func (s *ApprovalService) incrementMetric(update func(*ApprovalMetrics)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	update(&s.metrics)
 }
 
@@ -752,5 +766,6 @@ func isAlwaysApprovalAvailable(effects []Effect) bool {
 			return false
 		}
 	}
+
 	return true
 }

@@ -160,6 +160,7 @@ func parseKinds(values []string) ([]memory.Kind, error) {
 			return nil, fmt.Errorf("unsupported memory kind %q", value)
 		}
 	}
+
 	return kinds, nil
 }
 
@@ -173,6 +174,7 @@ func getBoundedPositive(value int, fallback int, max int, name string) (int, err
 	if value > max {
 		return max, nil
 	}
+
 	return value, nil
 }
 
@@ -194,6 +196,7 @@ func searchHitsToOutputResults(hits []memory.SearchHit, maxChars int) []result {
 			SourceLinks: sourceLinksToOutputSourceLinks(item.SourceLinks),
 		})
 	}
+
 	return results
 }
 
@@ -241,6 +244,7 @@ func sourceLinksToOutputSourceLinks(links []memory.SourceLink) []sourceLink {
 			CreatedReason: link.CreatedReason,
 		})
 	}
+
 	return results
 }
 
@@ -267,6 +271,7 @@ func sanitizeStrings(values []string) []string {
 		}
 		sanitized = append(sanitized, value)
 	}
+
 	return sanitized
 }
 
@@ -284,5 +289,6 @@ func cleanStrings(values []string) []string {
 		}
 		cleaned = append(cleaned, value)
 	}
+
 	return cleaned
 }

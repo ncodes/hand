@@ -96,6 +96,7 @@ func (r *AgentRunner) RunAutomation(ctx context.Context, job Job) (RunResult, er
 	if r == nil {
 		return RunResult{}, errors.New("automation runner is required")
 	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -147,7 +148,7 @@ func (r *AgentRunner) RunAutomation(ctx context.Context, job Job) (RunResult, er
 	if err := agent.Start(ctx); err != nil {
 		return RunResult{}, err
 	}
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	sessionID, err := resolveRunSessionID(ctx, agent, target)
 	if err != nil {
@@ -275,6 +276,7 @@ func resolveAutomationProfile(name str.String) (profile.Profile, error) {
 		if activeName.Trim() != "" {
 			return profile.WithMetadataPaths(active), nil
 		}
+
 		return resolveProfileFromOptions(profile.ResolveOptions{})
 	}
 	if activeName.Trim() == trimmed && activeHomeDir.Trim() != "" {
@@ -288,6 +290,7 @@ func applyPayloadOverrides(cfg *config.Config, payload Payload) {
 	if cfg == nil {
 		return
 	}
+
 	if payload.Provider != "" {
 		cfg.Models.Main.Provider = payload.Provider
 	}
@@ -307,6 +310,7 @@ func (r *AgentRunner) newModelClients(cfg *config.Config) (models.Client, models
 	if cfg == nil {
 		return nil, nil, errors.New("config is required")
 	}
+
 	auth, err := cfg.ResolveModelAuth()
 	if err != nil {
 		return nil, nil, err

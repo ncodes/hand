@@ -177,7 +177,7 @@ func runDaemonUntilConfigChange(
 	if err != nil {
 		return daemonConfigSnapshot{}, false, err
 	}
-	defer watcher.close()
+	defer func() { _ = watcher.close() }()
 
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()

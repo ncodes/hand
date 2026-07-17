@@ -70,7 +70,7 @@ func buildPermissionGrantCheck(ctx context.Context, cfg *config.Config, activePr
 		return check("grants", StatusWarn, "permission grants cannot be inspected")
 	}
 	if closer, ok := store.(interface{ Close() error }); ok {
-		defer closer.Close()
+		defer func() { _ = closer.Close() }()
 	}
 	permissionStore, ok := store.Permission()
 	if !ok || permissionStore == nil {

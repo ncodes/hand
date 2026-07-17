@@ -36,6 +36,7 @@ func TestTurnCoordinator_AcquireSerializesMatchingSessions(t *testing.T) {
 		value := coordinator.(*turnCoordinator)
 		value.mu.Lock()
 		defer value.mu.Unlock()
+
 		gate := value.gates[getTurnCoordinationKey("profile", "default")]
 		return gate != nil && gate.refs == 2
 	}, time.Second, time.Millisecond)
@@ -98,6 +99,7 @@ func TestTurnCoordinator_AcquireStopsWaitingWhenContextIsCancelled(t *testing.T)
 	require.Eventually(t, func() bool {
 		coordinatorValue.mu.Lock()
 		defer coordinatorValue.mu.Unlock()
+
 		gate := coordinatorValue.gates[getTurnCoordinationKey("profile", "default")]
 		return gate != nil && gate.refs == 2
 	}, time.Second, time.Millisecond)
@@ -108,7 +110,8 @@ func TestTurnCoordinator_AcquireStopsWaitingWhenContextIsCancelled(t *testing.T)
 
 func TestTurnCoordinator_AcquireAcceptsNilContextAndReleaseIsIdempotent(t *testing.T) {
 	coordinator := NewTurnCoordinator()
-	release, err := coordinator.Acquire(nil, "profile", "default")
+	var nilContext context.Context
+	release, err := coordinator.Acquire(nilContext, "profile", "default")
 	require.NoError(t, err)
 
 	release()
@@ -238,6 +241,7 @@ func TestAgent_RespondSerializesMatchingSessionsAcrossAgents(t *testing.T) {
 		value := coordinator.(*turnCoordinator)
 		value.mu.Lock()
 		defer value.mu.Unlock()
+
 		gate := value.gates[getTurnCoordinationKey("profile", storage.DefaultSessionID)]
 		return gate != nil && gate.refs == 2
 	}, time.Second, time.Millisecond)

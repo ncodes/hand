@@ -140,7 +140,7 @@ func (c *socketClient) Run(ctx context.Context, handler func(context.Context, sl
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	stopContextClose := context.AfterFunc(ctx, func() {
 		_ = conn.Close()
@@ -232,7 +232,7 @@ func (c *socketClient) openConnection(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var body struct {
 		OK    bool   `json:"ok"`

@@ -109,6 +109,7 @@ func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResul
 			rerankDebugLogEvent(req, RerankerLLM).Err(err).Msg("llm rerank timed out, using fallback")
 			return options.Fallback.Rerank(ctx, rerankRequestWithCandidateSet(req, candidates))
 		}
+
 		rerankDebugLogEvent(req, RerankerLLM).Err(err).Msg("llm rerank structured request failed, retrying without structured output")
 		modelReq.StructuredOutput = nil
 		resp, err = options.Client.Complete(ctx, modelReq)
@@ -255,6 +256,7 @@ func parseLLMRerankResponse(resp *models.Response) (RerankResult, error) {
 	if resp.RequiresToolCalls {
 		return RerankResult{}, errors.New("llm rerank requested tool calls")
 	}
+
 	outputTextValue := str.String(resp.OutputText)
 	if outputTextValue.Trim() == "" {
 		return RerankResult{}, errors.New("llm rerank response is empty")
@@ -270,10 +272,7 @@ func parseLLMRerankResponse(resp *models.Response) (RerankResult, error) {
 
 	items := make([]RerankItem, 0, len(payload.Items))
 	for _, item := range payload.Items {
-		items = append(items, RerankItem{
-			CandidateID: item.CandidateID,
-			Score:       item.Score,
-		})
+		items = append(items, RerankItem(item))
 	}
 
 	return RerankResult{Items: items}, nil
@@ -310,6 +309,7 @@ func truncateString(value string, maxChars int) string {
 	if maxChars <= 0 {
 		return ""
 	}
+
 	runes := []rune(value)
 	if len(runes) <= maxChars {
 		return value

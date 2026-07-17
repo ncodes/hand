@@ -148,6 +148,7 @@ func GetWebProviderConfigAPIKey(provider string, cfg *Config) string {
 	if !IsWebCredentialProvider(provider) {
 		return ""
 	}
+
 	providerValue5 := str.String(cfg.Web.Provider)
 	providerValue6 := str.String(provider)
 	if providerValue5.Normalized() != providerValue6.Normalized() {
@@ -169,5 +170,6 @@ func getCredentialFromEnv(keys []string) (string, string) {
 			return value, key
 		}
 	}
+
 	return "", ""
 }

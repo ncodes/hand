@@ -350,7 +350,7 @@ func TestSQLiteStore_GetMessagesByIDs_ValidationAndErrors(t *testing.T) {
 
 	boom := errors.New("query failed")
 	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:get-messages-by-ids-error", func(tx *gorm.DB) {
-		tx.AddError(boom)
+		_ = tx.AddError(boom)
 	}))
 	defer func() {
 		require.NoError(t, store.db.Callback().Query().Remove("test:get-messages-by-ids-error"))
@@ -411,7 +411,7 @@ func TestSQLiteStore_GetMessageWindow_ValidationNotFoundAndErrors(t *testing.T) 
 
 	boom := errors.New("anchor lookup failed")
 	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:get-message-window-anchor-error", func(tx *gorm.DB) {
-		tx.AddError(boom)
+		_ = tx.AddError(boom)
 	}))
 
 	_, err = store.GetMessageWindow(context.Background(), testSessionA, 1, 0, 0)
@@ -423,7 +423,7 @@ func TestSQLiteStore_GetMessageWindow_ValidationNotFoundAndErrors(t *testing.T) 
 	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:get-message-window-range-error", func(tx *gorm.DB) {
 		queryCount++
 		if queryCount == 2 {
-			tx.AddError(boom)
+			_ = tx.AddError(boom)
 		}
 	}))
 	defer func() {
@@ -669,7 +669,7 @@ func TestSQLiteStore_GetAndHelperFunctionsEdgeCases(t *testing.T) {
 		}
 	}))
 	t.Cleanup(func() {
-		store.db.Callback().Query().Remove("test:blank_session_id")
+		_ = store.db.Callback().Query().Remove("test:blank_session_id")
 	})
 
 	session, ok, err = store.Get(context.Background(), testSessionA, base.SessionGetOptions{})

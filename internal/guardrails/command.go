@@ -297,5 +297,6 @@ func isForkBombCommand(joined string) bool {
 			return true
 		}
 	}
+
 	return false
 }

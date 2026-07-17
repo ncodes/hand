@@ -54,6 +54,7 @@ func (r *Runtime) FilePolicy() guardrails.FilesystemPolicy {
 	if r == nil {
 		return guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots(nil)}
 	}
+
 	return r.filePolicy
 }
 
@@ -61,6 +62,7 @@ func (r *Runtime) CommandPolicy() guardrails.CommandPolicy {
 	if r == nil {
 		return guardrails.CommandPolicy{}.Normalize()
 	}
+
 	return r.commandPolicy
 }
 
@@ -72,6 +74,7 @@ func (r *Runtime) StartProcess(
 	if r == nil || r.processMgr == nil {
 		return process.Info{}, errors.New("process manager is required")
 	}
+
 	return r.processMgr.Start(ctx, sessionID, req)
 }
 
@@ -79,6 +82,7 @@ func (r *Runtime) GetProcess(sessionID string, processID string) (process.Info, 
 	if r == nil || r.processMgr == nil {
 		return process.Info{}, errors.New("process manager is required")
 	}
+
 	return r.processMgr.Get(sessionID, processID)
 }
 
@@ -86,6 +90,7 @@ func (r *Runtime) ReadProcess(sessionID string, req process.ReadRequest) (proces
 	if r == nil || r.processMgr == nil {
 		return process.Output{}, errors.New("process manager is required")
 	}
+
 	return r.processMgr.Read(sessionID, req)
 }
 
@@ -93,6 +98,7 @@ func (r *Runtime) StopProcess(ctx context.Context, sessionID string, processID s
 	if r == nil || r.processMgr == nil {
 		return process.Info{}, errors.New("process manager is required")
 	}
+
 	return r.processMgr.Stop(ctx, sessionID, processID)
 }
 
@@ -100,6 +106,7 @@ func (r *Runtime) ListProcesses(sessionID string) []process.Info {
 	if r == nil || r.processMgr == nil {
 		return nil
 	}
+
 	return r.processMgr.List(sessionID)
 }
 
@@ -193,6 +200,7 @@ func (r *Runtime) ExtractEpisodes(ctx context.Context, req episodic.Request) (ep
 	if r == nil || r.memory == nil {
 		return episodic.Result{}, errors.New("memory provider is required")
 	}
+
 	supported, err := r.SupportsMemoryExtraction(ctx)
 	if err != nil {
 		return episodic.Result{}, err
@@ -386,6 +394,7 @@ func (r *Runtime) GetPlan(sessionID string) planstore.Plan {
 	if r == nil || r.plans == nil {
 		return planstore.Plan{}
 	}
+
 	return r.plans.Get(sessionID)
 }
 
@@ -393,6 +402,7 @@ func (r *Runtime) ReplacePlan(sessionID string, plan planstore.Plan) (planstore.
 	if r == nil || r.plans == nil {
 		return planstore.ClonePlan(plan), errors.New("plan store is required")
 	}
+
 	return r.plans.Replace(sessionID, plan)
 }
 
@@ -400,6 +410,7 @@ func (r *Runtime) MergePlan(sessionID string, updates []planstore.PartialPlanSte
 	if r == nil || r.plans == nil {
 		return planstore.Plan{}, errors.New("plan store is required")
 	}
+
 	return r.plans.Merge(sessionID, updates, explanation, clearCompleted)
 }
 
@@ -407,6 +418,7 @@ func (r *Runtime) ClearPlan(sessionID string) planstore.Plan {
 	if r == nil || r.plans == nil {
 		return planstore.Plan{}
 	}
+
 	return r.plans.Clear(sessionID)
 }
 
@@ -414,5 +426,6 @@ func (r *Runtime) HydratePlan(sessionID string, plan planstore.Plan) {
 	if r == nil || r.plans == nil {
 		return
 	}
+
 	r.plans.Hydrate(sessionID, plan)
 }

@@ -44,6 +44,7 @@ func buildOllamaReadinessChecks(ctx context.Context, cfg *config.Config) []Check
 	if cfg == nil {
 		return nil
 	}
+
 	providerValue := str.String(cfg.Models.Main.Provider)
 	mainIsOllama := providerValue.Normalized() == constants.ModelProviderOllama
 	modelEmbeddingProviderEffectiveValue := str.String(cfg.ModelEmbeddingProviderEffective())
@@ -103,6 +104,7 @@ func getOllamaReadinessBaseURL(cfg *config.Config) string {
 	if cfg == nil {
 		return ""
 	}
+
 	providerValue2 := str.String(cfg.Models.Main.Provider)
 	if providerValue2.Normalized() == constants.ModelProviderOllama {
 		baseURLValue := str.String(cfg.Models.Main.BaseURL)
@@ -318,6 +320,7 @@ func isMissingAuthError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	errorValue := str.String(err.Error())
 	message := errorValue.Normalized()
 	return strings.Contains(message, "api key is required") ||

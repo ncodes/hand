@@ -22,6 +22,7 @@ func validateSearch(ctx context.Context, guardrails Guardrails, query SearchQuer
 	if guardrails == nil {
 		return nil
 	}
+
 	return guardrails.ValidateSearch(ctx, query)
 }
 
@@ -34,6 +35,7 @@ func validateWrite(ctx context.Context, guardrails Guardrails, item MemoryItem) 
 	if err := guardrails.ValidateWrite(ctx, item); err != nil {
 		return err
 	}
+
 	return guardrails.SafetyScan(ctx, item)
 }
 
@@ -43,6 +45,7 @@ func validateDelete(ctx context.Context, guardrails Guardrails, req DeleteReques
 	if guardrails == nil {
 		return nil
 	}
+
 	return guardrails.ValidateDelete(ctx, req)
 }
 
@@ -52,5 +55,6 @@ func redactItem(ctx context.Context, guardrails Guardrails, item MemoryItem) (Me
 	if guardrails == nil {
 		return item, nil
 	}
+
 	return guardrails.Redact(ctx, item)
 }

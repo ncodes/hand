@@ -165,6 +165,7 @@ func (c *OpenAIClient) complete(
 			err = enrichModelClientError(err)
 			return
 		}
+
 		logModelClientRequestCompleted(normalizedReq, stream, resp)
 	}()
 

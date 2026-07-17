@@ -479,6 +479,7 @@ func resolveBufferLimit(value *int, field string) (int, error) {
 	if *value <= 0 {
 		return 0, fmt.Errorf("%s must be greater than zero", field)
 	}
+
 	return *value, nil
 }
 
@@ -489,6 +490,7 @@ func resolveOutputBufferLimit(value *int, field string) (int, error) {
 	if *value < 0 {
 		return 0, fmt.Errorf("%s must be greater than or equal to zero", field)
 	}
+
 	return *value, nil
 }
 
@@ -499,6 +501,7 @@ func resolveCursor(value *int, field string) (*int, error) {
 	if *value < 0 {
 		return nil, fmt.Errorf("%s must be greater than or equal to zero", field)
 	}
+
 	cursor := *value
 	return &cursor, nil
 }
@@ -542,10 +545,12 @@ func cloneEnv(env map[string]string) map[string]string {
 	if len(env) == 0 {
 		return nil
 	}
+
 	cloned := make(map[string]string, len(env))
 	for key, value := range env {
 		cloned[key] = value
 	}
+
 	return cloned
 }
 

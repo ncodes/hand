@@ -49,6 +49,7 @@ func startTelegramPolling(
 			if !sleepTelegramPollingRetry(ctx) {
 				return nil
 			}
+
 			continue
 		}
 

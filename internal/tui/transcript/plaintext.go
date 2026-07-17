@@ -17,6 +17,7 @@ func PlainTexts[T PlainTextCell](cells []T) []string {
 		if cell.IsEmpty() {
 			continue
 		}
+
 		if text := cell.PlainText(); text != "" {
 			values = append(values, text)
 		}

@@ -119,6 +119,7 @@ func getToolTranscriptBranchDisplayDetail(action string, detail toolTranscriptDe
 		if branch := getProcessToolBranchDetail(detail.processState, detail.completed); branch != "" {
 			return branch
 		}
+
 		textValue := str.String(detail.text)
 		return textValue.Trim()
 	}
@@ -506,6 +507,7 @@ func getProcessToolErrorDetail(state *trace.ProcessToolState) string {
 	if state == nil {
 		return ""
 	}
+
 	errorValue := str.String(state.Error)
 	message := errorValue.Trim()
 	if message == "" {
@@ -623,8 +625,12 @@ func mergeProcessToolDisplayState(current *trace.ProcessToolState, next *trace.P
 }
 
 func hasProcessToolError(state *trace.ProcessToolState) bool {
+	if state == nil {
+		return false
+	}
+
 	errorValue2 := str.String(state.Error)
-	return state != nil && errorValue2.Trim() != ""
+	return errorValue2.Trim() != ""
 }
 
 func formatProcessBytes(value int) string {

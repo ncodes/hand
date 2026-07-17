@@ -253,6 +253,7 @@ func (s *Service) runBackgroundForSession(
 				recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundWindowCheckpoint, getBackgroundPayload(runID, sessionID, messageCount, "processed", fields))
 				logBackground("checkpointed processed episodic extraction window", runID, sessionID, messageCount, "processed", fields)
 			}
+
 			return sessionResult
 		}
 
@@ -301,6 +302,7 @@ func normalizeCheckpointOffset(offset int, messageCount int) int {
 	if offset > messageCount {
 		return messageCount
 	}
+
 	return offset
 }
 

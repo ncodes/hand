@@ -81,6 +81,7 @@ func sanitizeValue(value any, options RedactorOptions) any {
 				sanitized[key] = "[REDACTED]"
 				continue
 			}
+
 			sanitized[key] = sanitizeValue(item, options)
 		}
 

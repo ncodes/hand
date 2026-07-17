@@ -100,6 +100,7 @@ func getPermissionStartupSummary(cfg *config.Config) string {
 	if cfg == nil {
 		return ""
 	}
+
 	policy := cfg.Permissions
 	policy.Normalize()
 	if policy.EffectivePreset() == permissions.PresetFullAccess {
@@ -302,6 +303,7 @@ func getEffectiveStorageBackend(cfg *config.Config) string {
 	if cfg == nil {
 		return "sqlite"
 	}
+
 	backendValue := str.String(cfg.Storage.Backend)
 	backend := backendValue.Normalized()
 	if backend == "" {
@@ -315,6 +317,7 @@ func styleStartup(value string, noColor bool) string {
 	if noColor {
 		return value
 	}
+
 	return colorGray + value + colorReset
 }
 
@@ -322,5 +325,6 @@ func styleLabel(value string, noColor bool) string {
 	if noColor {
 		return value + ":"
 	}
+
 	return colorGray + value + ":" + colorReset
 }

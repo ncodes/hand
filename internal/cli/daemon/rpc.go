@@ -206,7 +206,7 @@ var serveRPC = func(
 	lis net.Listener,
 	manager gatewayManager,
 ) error {
-	defer lis.Close()
+	defer func() { _ = lis.Close() }()
 
 	automationService, err := buildAutomationService(ctx, cfg, agent)
 	if err != nil {
@@ -216,7 +216,8 @@ var serveRPC = func(
 		if err := automationService.Start(ctx); err != nil {
 			return err
 		}
-		defer automationService.Stop()
+
+		defer func() { _ = automationService.Stop() }()
 		if binder, ok := agent.(automationServiceBinder); ok {
 			binder.SetAutomationService(automationService)
 		}

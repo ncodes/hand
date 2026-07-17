@@ -228,6 +228,7 @@ func (p *MemoryProvider) RunReflectionBackground(
 	if p == nil || p.manager == nil {
 		return ReflectionResult{}, errors.New("memory provider is required")
 	}
+
 	manager, ok := p.manager.(reflectionBackgroundStateManager)
 	if !ok {
 		return ReflectionResult{}, errors.New("session listing is required")
@@ -667,9 +668,7 @@ func checkProceduralReflectionMetadata(item MemoryItem) string {
 func getSourceLinks(sources []MemoryItem) []SourceLink {
 	links := make([]SourceLink, 0, len(sources))
 	for _, source := range sources {
-		for _, link := range source.SourceLinks {
-			links = append(links, link)
-		}
+		links = append(links, source.SourceLinks...)
 		if len(source.SourceLinks) == 0 {
 			metadataValue3 := str.String(source.Metadata["source_session_id"])
 			if sessionID := metadataValue3.Trim(); sessionID != "" {
@@ -681,6 +680,7 @@ func getSourceLinks(sources []MemoryItem) []SourceLink {
 			}
 		}
 	}
+
 	return cloneSourceLinks(links)
 }
 
@@ -699,6 +699,7 @@ func cloneSourceLinks(links []SourceLink) []SourceLink {
 		link.Offsets = append([]int(nil), link.Offsets...)
 		cloned = append(cloned, link)
 	}
+
 	return cloned
 }
 
@@ -707,6 +708,7 @@ func cloneMemoryItems(items []MemoryItem) []MemoryItem {
 	for _, item := range items {
 		cloned = append(cloned, item.Clone())
 	}
+
 	return cloned
 }
 

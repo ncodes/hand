@@ -148,6 +148,7 @@ func (s *fakeHTTPServer) Serve(net.Listener) error {
 	if s.serveErr != nil {
 		return s.serveErr
 	}
+
 	<-s.getDone()
 	return http.ErrServerClosed
 }

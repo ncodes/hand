@@ -93,6 +93,7 @@ func getPathsFromBase(values []string, baseDir string) []string {
 			resolved = append(resolved, value)
 			continue
 		}
+
 		resolved = append(resolved, filepath.Join(baseDir, value))
 	}
 

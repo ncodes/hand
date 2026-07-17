@@ -190,6 +190,7 @@ func (m *Manager) Code(source string, senderID string, at time.Time) (string, er
 	if err := m.checkReady(); err != nil {
 		return "", err
 	}
+
 	senderIDValue := str.String(senderID)
 	secret := deriveTOTPSecret(m.secret, normalizeSource(source), senderIDValue.Trim())
 	return totp.GenerateCodeCustom(secret, at.UTC(), m.validateOpts())
@@ -202,6 +203,7 @@ func (m *Manager) Verify(source string, senderID string, code string, at time.Ti
 	if m.verifyCode != nil {
 		return m.verifyCode(source, senderID, code, at)
 	}
+
 	senderIDValue2 := str.String(senderID)
 	secret := deriveTOTPSecret(m.secret, normalizeSource(source), senderIDValue2.Trim())
 	codeValue := str.String(code)
@@ -234,6 +236,7 @@ func (m *Manager) Approve(ctx context.Context, source string, code string) (Appr
 		if !request.ExpiresAt.After(now) {
 			continue
 		}
+
 		ok, err := m.Verify(source, request.SenderID, code, now)
 		if err != nil {
 			return ApprovedSender{}, false, err
@@ -272,6 +275,7 @@ func (m *Manager) Revoke(ctx context.Context, source string, senderID string) er
 	if m == nil || m.store == nil {
 		return errors.New("gateway pairing store is required")
 	}
+
 	senderIDValue3 := str.String(senderID)
 	return m.store.DeleteGatewayPairedSender(ctx, normalizeSource(source), senderIDValue3.Trim())
 }
@@ -280,6 +284,7 @@ func (m *Manager) IsApproved(ctx context.Context, source string, senderID string
 	if m == nil || m.store == nil {
 		return false, errors.New("gateway pairing store is required")
 	}
+
 	senderIDValue4 := str.String(senderID)
 	_, ok, err := m.store.GetGatewayPairedSender(ctx, normalizeSource(source), senderIDValue4.Trim())
 	return ok, err
@@ -298,6 +303,7 @@ func (m *Manager) checkReady() error {
 	if m == nil || m.store == nil {
 		return errors.New("gateway pairing store is required")
 	}
+
 	secretValue2 := str.String(m.secret)
 	if secretValue2.Trim() == "" {
 		return ErrSecretRequired

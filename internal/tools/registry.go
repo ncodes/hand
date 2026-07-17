@@ -68,6 +68,7 @@ func (e *PermissionResolutionError) Error() string {
 	if e == nil {
 		return ""
 	}
+
 	return e.Message
 }
 

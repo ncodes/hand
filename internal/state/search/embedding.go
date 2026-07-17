@@ -84,6 +84,7 @@ func ValidateEmbeddingResult(req EmbeddingRequest, result EmbeddingResult) error
 	if err := ValidateEmbeddingRequest(req); err != nil {
 		return err
 	}
+
 	modelValue2 := str.String(result.Model)
 	if modelValue2.Trim() == "" {
 		return errors.New("embedding result model is required")

@@ -31,6 +31,7 @@ func (s *stubSessionStore) Resolve(_ context.Context, id string) (session.Sessio
 	if s.resolveErr != nil {
 		return session.Session{}, s.resolveErr
 	}
+
 	if id == "" {
 		id = session.DefaultID
 	}

@@ -147,6 +147,7 @@ func (e *environment) MemoryProvider() memory.Provider {
 	if e == nil {
 		return nil
 	}
+
 	return e.memory
 }
 
@@ -396,6 +397,7 @@ func (e *environment) memorySearchDefinition() (tools.Definition, bool, error) {
 	if e == nil || e.runtime == nil {
 		return tools.Definition{}, false, nil
 	}
+
 	ok, err := e.runtime.SupportsMemorySearch(e.ctx)
 	if err != nil {
 		return tools.Definition{}, false, err
@@ -411,6 +413,7 @@ func (e *environment) memoryExtractionDefinition() (tools.Definition, bool, erro
 	if e == nil || e.runtime == nil {
 		return tools.Definition{}, false, nil
 	}
+
 	ok, err := e.runtime.SupportsMemoryExtraction(e.ctx)
 	if err != nil {
 		return tools.Definition{}, false, err
@@ -489,6 +492,7 @@ func (e *environment) Instructions() instructions.Instructions {
 	if e == nil {
 		return nil
 	}
+
 	copied := make(instructions.Instructions, len(e.instructions))
 	copy(copied, e.instructions)
 	return copied
@@ -512,6 +516,7 @@ func (e *environment) NewIterationBudget() budget.IterationBudget {
 	if e == nil || e.cfg == nil || e.cfg.Session.MaxIterations <= 0 {
 		return budget.New(constants.DefaultMaxIterations)
 	}
+
 	return budget.New(e.cfg.Session.MaxIterations)
 }
 
@@ -536,6 +541,7 @@ func (e *environment) NewTraceSessionForRun(runCtx runcontext.Context) trace.Ses
 	if e == nil || e.traces == nil {
 		return trace.NoopSession()
 	}
+
 	runCtx, err := runCtx.Normalize()
 	if err != nil {
 		return trace.NoopSession()
@@ -583,6 +589,7 @@ func (e *environment) CurrentPlan(sessionID string) planstore.Plan {
 	if e == nil || e.runtime == nil {
 		return planstore.Plan{}
 	}
+
 	return e.runtime.GetPlan(sessionID)
 }
 
@@ -590,6 +597,7 @@ func (e *environment) HydratePlan(sessionID string, plan planstore.Plan) {
 	if e == nil || e.runtime == nil {
 		return
 	}
+
 	e.runtime.HydratePlan(sessionID, plan)
 }
 
@@ -597,6 +605,7 @@ func (e *environment) SetStateManager(manager *statemanager.Manager) {
 	if e == nil {
 		return
 	}
+
 	e.stateMgr = manager
 	if e.runtime != nil {
 		e.runtime.stateMgr = manager
@@ -607,6 +616,7 @@ func (e *environment) SetApprovalService(service permissions.Approver) {
 	if e == nil {
 		return
 	}
+
 	if registry, ok := e.tools.(*tools.InMemoryRegistry); ok {
 		registry.SetApprovalService(service)
 	}
@@ -616,6 +626,7 @@ func (e *environment) SetAutomationService(service envtypes.AutomationService) {
 	if e == nil {
 		return
 	}
+
 	if e.runtime == nil {
 		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy(), e.stateMgr)
 	}
@@ -626,6 +637,7 @@ func (e *environment) SetModelClient(client models.Client) {
 	if e == nil {
 		return
 	}
+
 	e.modelClient = client
 }
 
@@ -633,6 +645,7 @@ func (e *environment) fileRoots() []string {
 	if e == nil || e.cfg == nil || len(e.cfg.FS.Roots) == 0 {
 		return guardrails.NormalizeRoots(nil)
 	}
+
 	return guardrails.NormalizeRoots(e.cfg.FS.Roots)
 }
 

@@ -315,6 +315,7 @@ func AutomationRunStatusSet(statuses []AutomationRunStatus) map[AutomationRunSta
 			values[status] = struct{}{}
 		}
 	}
+
 	return values
 }
 
@@ -326,6 +327,7 @@ func AutomationRunStatusesToStrings(statuses []AutomationRunStatus) []string {
 			values = append(values, string(status))
 		}
 	}
+
 	return values
 }
 

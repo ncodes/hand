@@ -25,6 +25,7 @@ func buildGatewayListenerCheck(cfg config.GatewayConfig) Check {
 	if !cfg.Enabled {
 		return check("listener", StatusPass, "disabled")
 	}
+
 	addressValue := str.String(cfg.Address)
 	address := addressValue.Trim()
 	authTokenValue := str.String(cfg.AuthToken)

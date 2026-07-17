@@ -21,6 +21,7 @@ func (s *Store) RepairVectorStore(
 	if s.vectors == nil {
 		return search.VectorRepairResult{}, nil
 	}
+
 	sessionIDValue := str.String(opts.SessionID)
 	sessionID := sessionIDValue.Trim()
 	if sessionID != "" {
@@ -75,6 +76,7 @@ func (s *Store) repairSessionIDs(sessionID string) ([]string, error) {
 		if _, ok := s.sessions[sessionID]; !ok {
 			return nil, errors.New("session not found")
 		}
+
 		return []string{sessionID}, nil
 	}
 

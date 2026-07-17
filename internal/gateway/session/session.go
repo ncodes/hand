@@ -38,6 +38,7 @@ func (r *Resolver) Resolve(ctx context.Context, key bindings.Key) (storage.Sessi
 	if r == nil || r.service == nil {
 		return storage.Session{}, errors.New("gateway session resolver service is required")
 	}
+
 	textValue := str.String(key.String())
 	keyString := textValue.Trim()
 	if keyString == "" {

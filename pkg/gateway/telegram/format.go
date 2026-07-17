@@ -11,8 +11,6 @@ const ParseModeMarkdownV2 = "MarkdownV2"
 
 const markdownV2EscapableCharacters = "_*[]()~`>#+-=|{}.!\\"
 
-var markdownV2EscapePattern = regexp.MustCompile(`([_*\[\]()~` + "`" + `>#\+\-=|{}.!\\])`)
-
 func FormatMarkdownV2(text string) string {
 	if text == "" {
 		return text

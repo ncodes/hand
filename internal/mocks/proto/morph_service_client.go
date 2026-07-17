@@ -231,8 +231,10 @@ func (s *respondStreamStub) Recv() (*morphpb.RespondEvent, error) {
 		if s.err != nil {
 			return nil, s.err
 		}
+
 		return nil, io.EOF
 	}
+
 	event := s.events[s.index]
 	s.index++
 	return event, nil

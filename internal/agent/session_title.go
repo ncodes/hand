@@ -20,6 +20,7 @@ func (a *Agent) maybeGenerateSessionTitle(ctx context.Context, sessionID string)
 	if a == nil || a.cfg == nil || a.stateMgr == nil || a.summaryClient == nil {
 		return
 	}
+
 	nameValue := str.String(a.cfg.Models.Summary.Name)
 	if isSameModelClient(a.summaryClient, a.modelClient) && nameValue.Trim() == "" {
 		return
@@ -186,6 +187,7 @@ func trimTitleRunes(title string, limit int) string {
 	if limit <= 0 {
 		return ""
 	}
+
 	titleValue4 := str.String(title)
 	runes := []rune(titleValue4.Trim())
 	if len(runes) <= limit {

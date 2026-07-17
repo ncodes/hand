@@ -64,7 +64,7 @@ func loadPolicyFile(path string) []string {
 	if err != nil {
 		return nil
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var values []string
 	scanner := bufio.NewScanner(file)

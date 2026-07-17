@@ -52,6 +52,7 @@ func (m *model) showPreviousPrompt() {
 	if len(m.history) == 0 {
 		return
 	}
+
 	if m.historyAt == len(m.history) {
 		m.draft = m.input.Value()
 	}

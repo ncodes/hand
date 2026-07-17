@@ -187,6 +187,7 @@ func TestNewLiveClients(t *testing.T) {
 				if req.APIKey == "openai-key" {
 					return nil, errors.New("summary client failed")
 				}
+
 				return &provider_openai.OpenAIClient{}, nil
 			},
 		}
@@ -408,6 +409,7 @@ func TestRunLiveScenario(t *testing.T) {
 				if output != "ALPHA" {
 					return errors.New("unexpected output")
 				}
+
 				return nil
 			},
 		)

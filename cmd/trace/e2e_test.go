@@ -63,7 +63,7 @@ func Test_E2E_TraceCommand_GeneratedTracesAreReadable(t *testing.T) {
 	t.Run("Session list is readable", func(t *testing.T) {
 		resp, getErr := http.Get(baseURL + "/api/sessions")
 		require.NoError(t, getErr)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
 		var listPayload struct {
@@ -79,7 +79,7 @@ func Test_E2E_TraceCommand_GeneratedTracesAreReadable(t *testing.T) {
 	t.Run("Session detail is readable", func(t *testing.T) {
 		resp, getErr := http.Get(baseURL + "/api/sessions/" + result.SessionID)
 		require.NoError(t, getErr)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
 		var detailPayload struct {
@@ -116,7 +116,7 @@ func Test_E2E_TraceCommand_GeneratedTracesAreReadable(t *testing.T) {
 		require.NoError(t, reqErr)
 		resp, getErr := http.DefaultClient.Do(req)
 		require.NoError(t, getErr)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
 		req, reqErr = http.NewRequest(http.MethodGet, authBaseURL+"/api/sessions", nil)
@@ -124,7 +124,7 @@ func Test_E2E_TraceCommand_GeneratedTracesAreReadable(t *testing.T) {
 		req.SetBasicAuth("viewer", "secret")
 		resp, getErr = http.DefaultClient.Do(req)
 		require.NoError(t, getErr)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
 		authCancel()

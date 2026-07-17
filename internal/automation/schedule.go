@@ -76,6 +76,7 @@ func ParseSchedule(value string, opts ParseScheduleOptions) (Schedule, error) {
 		if duration <= 0 {
 			return Schedule{}, errors.New("automation interval schedule must be greater than zero")
 		}
+
 		return Schedule{Kind: ScheduleEvery, Every: duration}, nil
 	}
 

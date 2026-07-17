@@ -41,6 +41,7 @@ func (s *PermissionService) ListRequests(
 	for index, request := range requests {
 		result.Requests[index] = approvalRequestToProto(request)
 	}
+
 	return result, nil
 }
 
@@ -69,6 +70,7 @@ func (s *PermissionService) ResolveRequest(
 	if err := checkInteractivePermissionOperator(ctx); err != nil {
 		return nil, err
 	}
+
 	service, err := s.getService()
 	if err != nil {
 		return nil, err
@@ -100,6 +102,7 @@ func (s *PermissionService) ListGrants(
 	for index, grant := range grants {
 		result.Grants[index] = approvalGrantToProto(grant)
 	}
+
 	return result, nil
 }
 
@@ -110,6 +113,7 @@ func (s *PermissionService) Prune(
 	if err := checkInteractivePermissionOperator(ctx); err != nil {
 		return nil, err
 	}
+
 	service, err := s.getService()
 	if err != nil {
 		return nil, err
@@ -132,6 +136,7 @@ func (s *PermissionService) RevokeGrant(
 	if err := checkInteractivePermissionOperator(ctx); err != nil {
 		return nil, err
 	}
+
 	service, err := s.getService()
 	if err != nil {
 		return nil, err
@@ -150,6 +155,7 @@ func (s *PermissionService) DeleteRecord(
 	if err := checkInteractivePermissionOperator(ctx); err != nil {
 		return nil, err
 	}
+
 	service, err := s.getService()
 	if err != nil {
 		return nil, err
@@ -177,6 +183,7 @@ func (s *PermissionService) getService() (*permissions.ApprovalService, error) {
 	if s == nil || s.service == nil || s.service.approvalService == nil {
 		return nil, status.Error(codes.Unavailable, "approval service is unavailable")
 	}
+
 	return s.service.approvalService, nil
 }
 
@@ -185,6 +192,7 @@ func approvalRequestToProto(request permissions.ApprovalRequest) *morphpb.Permis
 	for index, effect := range request.Effects {
 		effects[index] = string(effect)
 	}
+
 	return &morphpb.PermissionApprovalRequest{
 		Id: request.ID, ActorKind: string(request.Actor.Kind), SurfaceKind: string(request.SurfaceKind),
 		Surface: string(request.Surface), Profile: request.Profile, SessionId: request.SessionID,
@@ -208,5 +216,6 @@ func permissionTimestampOrNil(value time.Time) *timestamppb.Timestamp {
 	if value.IsZero() {
 		return nil
 	}
+
 	return timestamppb.New(value)
 }

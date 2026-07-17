@@ -12,14 +12,16 @@ func TestContext_RoundTripsTrustedAuthorization(t *testing.T) {
 		Actor: Actor{Kind: ActorGatewayUser, ID: "123"}, SurfaceKind: SurfaceKindGateway, Surface: SurfaceTelegram,
 	}
 
-	ctx := WithContext(nil, want)
+	var nilContext context.Context
+	ctx := WithContext(nilContext, want)
 	got, ok := FromContext(ctx)
 	require.True(t, ok)
 	require.Equal(t, want, got)
 }
 
 func TestContext_RejectsMissingOrInvalidAuthorization(t *testing.T) {
-	_, ok := FromContext(nil)
+	var nilContext context.Context
+	_, ok := FromContext(nilContext)
 	require.False(t, ok)
 	_, ok = FromContext(context.Background())
 	require.False(t, ok)
@@ -37,19 +39,21 @@ func TestContext_RejectsMissingOrInvalidAuthorization(t *testing.T) {
 }
 
 func TestContext_TracksFullAccessExecution(t *testing.T) {
-	require.False(t, HasFullAccess(nil))
+	var nilContext context.Context
+	require.False(t, HasFullAccess(nilContext))
 	require.False(t, HasFullAccess(context.Background()))
 
-	ctx := WithFullAccess(nil)
+	ctx := WithFullAccess(nilContext)
 
 	require.True(t, HasFullAccess(ctx))
 }
 
 func TestContext_TracksPresetAndAuthorizedOperations(t *testing.T) {
-	_, ok := PresetFromContext(nil)
+	var nilContext context.Context
+	_, ok := PresetFromContext(nilContext)
 	require.False(t, ok)
 
-	ctx := WithPreset(nil, PresetAskForApproval)
+	ctx := WithPreset(nilContext, PresetAskForApproval)
 	preset, ok := PresetFromContext(ctx)
 	require.True(t, ok)
 	require.Equal(t, PresetAskForApproval, preset)
@@ -72,9 +76,9 @@ func TestContext_TracksPresetAndAuthorizedOperations(t *testing.T) {
 		Target:      operation.Target,
 		TargetScope: TargetScopeExternal,
 	}))
-	require.False(t, IsOperationAuthorized(nil, operation))
+	require.False(t, IsOperationAuthorized(nilContext, operation))
 	require.False(t, IsOperationAuthorized(ctx, Operation{}))
 
-	withoutOperations := WithAuthorizedOperations(nil, []Operation{{}})
+	withoutOperations := WithAuthorizedOperations(nilContext, []Operation{{}})
 	require.False(t, IsOperationAuthorized(withoutOperations, operation))
 }

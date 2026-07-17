@@ -65,6 +65,7 @@ func (s *stateStoreStub) Save(_ context.Context, session storage.Session) error 
 	if s.saveErr != nil {
 		return s.saveErr
 	}
+
 	if s.sessions == nil {
 		s.sessions = map[string]storage.Session{}
 	}
@@ -96,6 +97,7 @@ func (s *stateStoreStub) List(_ context.Context, opts storage.SessionListOptions
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
+
 	s.listOptions = opts
 	if len(s.sessions) > 0 {
 		sessions := make([]storage.Session, 0, len(s.sessions))
@@ -103,8 +105,10 @@ func (s *stateStoreStub) List(_ context.Context, opts storage.SessionListOptions
 			if opts.Archived != nil && session.Archived != *opts.Archived {
 				continue
 			}
+
 			sessions = append(sessions, session)
 		}
+
 		return sessions, nil
 	}
 	if opts.Archived != nil && s.session.Archived != *opts.Archived {
@@ -135,6 +139,7 @@ func (s *stateStoreStub) Current(context.Context) (string, bool, error) {
 	if s.current != "" {
 		return s.current, true, nil
 	}
+
 	return s.session.ID, s.session.ID != "", nil
 }
 
@@ -151,6 +156,7 @@ func (s *stateStoreStub) CountMessages(context.Context, string, storage.MessageQ
 	if s.countErr != nil {
 		return 0, s.countErr
 	}
+
 	return len(s.messages), nil
 }
 
@@ -170,6 +176,7 @@ func (s *stateStoreStub) GetMessages(
 	if s.messagesErr != nil {
 		return nil, s.messagesErr
 	}
+
 	messages := append([]morphmsg.Message(nil), s.messages...)
 	start := opts.Offset
 	if start > len(messages) {
@@ -227,6 +234,7 @@ func (s *stateStoreStub) GetSummary(
 		summary, ok := s.summaries[sessionID]
 		return summary, ok, nil
 	}
+
 	return storage.SessionSummary{}, false, nil
 }
 
@@ -236,6 +244,7 @@ func (s *stateStoreStub) SaveGatewayBinding(_ context.Context, binding storage.G
 	if s.gatewaySaveErr != nil {
 		return s.gatewaySaveErr
 	}
+
 	s.gatewayBinding = binding
 	s.gatewayFound = true
 	return nil
@@ -248,6 +257,7 @@ func (s *stateStoreStub) GetGatewayBinding(_ context.Context, key string) (stora
 	if s.gatewayBinding.Key == key {
 		return s.gatewayBinding, s.gatewayFound, nil
 	}
+
 	return storage.GatewayBinding{}, false, nil
 }
 
@@ -289,6 +299,7 @@ func (s *stateStoreStub) ListGatewayPairingRequests(_ context.Context, source st
 			requests = append(requests, request)
 		}
 	}
+
 	return requests, nil
 }
 
@@ -302,6 +313,7 @@ func (s *stateStoreStub) DeleteGatewayPairingRequest(_ context.Context, source s
 		if request.Source == source && request.SenderID == senderID {
 			continue
 		}
+
 		kept = append(kept, request)
 	}
 	s.pairingRequests = kept
@@ -318,6 +330,7 @@ func (s *stateStoreStub) ClearGatewayPairingRequests(_ context.Context, source s
 		if source == "" || request.Source == source {
 			continue
 		}
+
 		kept = append(kept, request)
 	}
 	s.pairingRequests = kept
@@ -362,6 +375,7 @@ func (s *stateStoreStub) ListGatewayPairedSenders(_ context.Context, source stri
 			senders = append(senders, sender)
 		}
 	}
+
 	return senders, nil
 }
 
@@ -375,6 +389,7 @@ func (s *stateStoreStub) DeleteGatewayPairedSender(_ context.Context, source str
 		if sender.Source == source && sender.SenderID == senderID {
 			continue
 		}
+
 		kept = append(kept, sender)
 	}
 	s.pairedSenders = kept
@@ -416,6 +431,7 @@ func (s *stateStoreStub) AppendTraceEvent(context.Context, storage.TraceEvent) (
 	if s.traceAppendErr != nil {
 		return storage.TraceEvent{}, s.traceAppendErr
 	}
+
 	return storage.TraceEvent{}, nil
 }
 
@@ -471,6 +487,7 @@ func (s *sessionStoreStub) Resolve(context.Context, string) (agentsession.Sessio
 	if s.sessionID != "" {
 		return agentsession.Session{ID: s.sessionID}, nil
 	}
+
 	return agentsession.Session{ID: agentsession.DefaultID}, nil
 }
 
@@ -592,6 +609,7 @@ func (s *retrievalMemoryProviderStub) Capabilities(context.Context) (memory.Capa
 	if s.noSupport {
 		return memory.Capabilities{}, nil
 	}
+
 	return memory.Capabilities{SupportsPinned: true, SupportsSearch: true}, nil
 }
 
@@ -606,6 +624,7 @@ func (s *retrievalMemoryProviderStub) LoadPinned(
 	if s.pinnedErr != nil {
 		return nil, s.pinnedErr
 	}
+
 	return s.pinned, nil
 }
 
@@ -613,6 +632,7 @@ func (s *retrievalMemoryProviderStub) Search(context.Context, memory.SearchQuery
 	if s.searchErr != nil {
 		return memory.SearchResult{}, s.searchErr
 	}
+
 	return s.search, nil
 }
 
@@ -627,6 +647,7 @@ func (s *toolGroupRegistryStub) Resolve(agenttool.Policy) ([]agenttool.Definitio
 	if s.resolveErr != nil {
 		return nil, s.resolveErr
 	}
+
 	return s.definitions, nil
 }
 
@@ -634,6 +655,7 @@ func (s *toolGroupRegistryStub) Invoke(ctx context.Context, call agenttool.Call)
 	if s.invoke != nil {
 		return s.invoke(ctx, call)
 	}
+
 	return morphmsg.Message{}
 }
 
@@ -650,6 +672,7 @@ func (s *memoryFlushToolRegistryStub) Resolve(agenttool.Policy) ([]agenttool.Def
 	if s.resolveErr != nil {
 		return nil, s.resolveErr
 	}
+
 	return s.definitions, nil
 }
 

@@ -28,6 +28,7 @@ func buildWebCheck(cfg *config.Config) Check {
 	if cfg.Cap.Network != nil && !*cfg.Cap.Network {
 		return check("web tools", StatusWarn, "network capability is disabled")
 	}
+
 	providerValue := str.String(cfg.Web.Provider)
 	provider := providerValue.Normalized()
 	if provider == "" || provider == "native" {

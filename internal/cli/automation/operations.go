@@ -109,6 +109,7 @@ func newRecoverRecomputeSchedulesCommand() *cli.Command {
 				if !job.Enabled {
 					continue
 				}
+
 				state := job.State
 				if _, err := api.Update(ctx, coreautomation.JobPatch{ID: job.ID, State: &state}); err != nil {
 					return err

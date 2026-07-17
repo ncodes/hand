@@ -103,5 +103,6 @@ func NormalizeTraceTypes(types []string) []string {
 		seen[eventType] = struct{}{}
 		results = append(results, eventType)
 	}
+
 	return results
 }

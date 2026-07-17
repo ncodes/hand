@@ -364,6 +364,7 @@ func TestSearch_SkipsEmptyHitsAndMissingSessions(t *testing.T) {
 			if id == "ses_missing" || id == "ses_empty" {
 				return storage.Session{}, false, nil
 			}
+
 			return storage.Session{ID: id}, true, nil
 		},
 		GetSummaryFunc: func(_ context.Context, id string) (storage.SessionSummary, bool, error) {

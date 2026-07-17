@@ -15,6 +15,7 @@ func (r *Renderer) renderTableNode(table *extast.Table, source []byte) string {
 			if row.Kind() != extast.KindTableRow && row.Kind() != extast.KindTableHeader {
 				continue
 			}
+
 			values := make([]string, 0)
 			for cell := row.FirstChild(); cell != nil; cell = cell.NextSibling() {
 				values = append(values, r.renderInlineChildren(cell, source))
@@ -22,6 +23,7 @@ func (r *Renderer) renderTableNode(table *extast.Table, source []byte) string {
 			rows = append(rows, values)
 		}
 	}
+
 	return r.renderTableRows(rows)
 }
 
@@ -117,6 +119,7 @@ func (r *Renderer) renderTableAsLabeledRows(rows [][]string) string {
 			if index >= len(row) {
 				continue
 			}
+
 			headerValue := str.String(header)
 			header = headerValue.Trim()
 			rowValue := str.String(row[index])
@@ -130,6 +133,7 @@ func (r *Renderer) renderTableAsLabeledRows(rows [][]string) string {
 			blocks = append(blocks, strings.Join(lines, "\n"))
 		}
 	}
+
 	return strings.Join(blocks, "\n\n")
 }
 
@@ -140,6 +144,7 @@ func isMarkdownTableStart(lines []string, index int) bool {
 	if index+1 >= len(lines) {
 		return false
 	}
+
 	return isMarkdownTableRow(lines[index]) && isMarkdownTableSeparator(lines[index+1])
 }
 
@@ -170,6 +175,7 @@ func isMarkdownTableSeparator(line string) bool {
 			}
 		}
 	}
+
 	return true
 }
 
@@ -185,8 +191,10 @@ func parseMarkdownTable(lines []string) [][]string {
 		if index == 1 && isMarkdownTableSeparator(line) {
 			continue
 		}
+
 		rows = append(rows, splitMarkdownTableRow(line))
 	}
+
 	return rows
 }
 
@@ -252,5 +260,6 @@ func tableColumnWidths(rows [][]string) []int {
 			widths[index] = max(widths[index], ansi.StringWidth(cell))
 		}
 	}
+
 	return widths
 }

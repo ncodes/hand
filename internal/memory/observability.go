@@ -32,6 +32,7 @@ func logDebug(obs Observability, message string, fields map[string]any) {
 	if obs == nil || obs.Logger() == nil {
 		return
 	}
+
 	obs.Logger().Debug(message, fields)
 }
 
@@ -39,6 +40,7 @@ func traceRecord(ctx context.Context, obs Observability, event string, payload a
 	if obs == nil || obs.Tracer() == nil {
 		return
 	}
+
 	obs.Tracer().Record(ctx, event, payload)
 }
 

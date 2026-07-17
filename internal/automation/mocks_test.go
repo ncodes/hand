@@ -127,6 +127,7 @@ func (a *automationRuntimeAgentStub) CurrentSession(context.Context) (core.Sessi
 	if a.currentErr != nil {
 		return core.Session{}, a.currentErr
 	}
+
 	if a.currentSession.ID == "" {
 		a.currentSession.ID = core.DefaultSessionID
 	}
@@ -333,22 +334,9 @@ type automationGetSequenceStore struct {
 	err       error
 }
 
-type automationListHookStore struct {
-	Store
-	onList func()
-}
-
 type automationPatchHookStore struct {
 	Store
 	onPatch func()
-}
-
-func (s automationListHookStore) ListJobs(ctx context.Context, query JobQuery) (JobList, error) {
-	list, err := s.Store.ListJobs(ctx, query)
-	if s.onList != nil {
-		s.onList()
-	}
-	return list, err
 }
 
 func (s automationPatchHookStore) PatchJob(ctx context.Context, patch JobPatch) (Job, error) {

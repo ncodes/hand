@@ -300,5 +300,6 @@ func memoryHitIDs(result state.MemorySearchResult) []string {
 	for _, hit := range result.Hits {
 		ids = append(ids, hit.Item.ID)
 	}
+
 	return ids
 }

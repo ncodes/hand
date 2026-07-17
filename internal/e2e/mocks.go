@@ -33,6 +33,7 @@ func (s harnessAgentStub) Respond(_ context.Context, _ string, opts agent.Respon
 	if s.respondErr != nil {
 		return "", s.respondErr
 	}
+
 	if opts.OnEvent != nil {
 		for _, event := range s.events {
 			opts.OnEvent(event)
@@ -45,6 +46,7 @@ func (s harnessAgentStub) CurrentSession(context.Context) (storage.Session, erro
 	if s.currentErr != nil {
 		return storage.Session{}, s.currentErr
 	}
+
 	return storage.Session{ID: s.current}, nil
 }
 
@@ -56,6 +58,7 @@ func (s *harnessAgentStub) CreateSession(
 	if s.createErr != nil {
 		return storage.Session{}, s.createErr
 	}
+
 	return s.created, nil
 }
 
@@ -71,6 +74,7 @@ func (s *harnessAgentStub) UseSession(_ context.Context, id string) error {
 	if s.useErr != nil {
 		return s.useErr
 	}
+
 	s.usedID = id
 	return nil
 }
@@ -79,6 +83,7 @@ func (s *harnessAgentStub) CompactSession(context.Context, string) (agent.Compac
 	if s.compactErr != nil {
 		return agent.CompactSessionResult{}, s.compactErr
 	}
+
 	return s.compact, nil
 }
 
@@ -227,6 +232,7 @@ func (s rpcAdapterClientStub) Current(context.Context) (storage.Session, error) 
 	if s.currentErr != nil {
 		return storage.Session{}, s.currentErr
 	}
+
 	return storage.Session{ID: "default"}, nil
 }
 

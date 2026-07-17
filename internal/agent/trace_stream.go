@@ -28,8 +28,10 @@ func newFanoutTraceSession(
 		if primary == nil {
 			return trace.NoopSession()
 		}
+
 		return primary
 	}
+
 	if primary == nil {
 		primary = trace.NoopSession()
 	}

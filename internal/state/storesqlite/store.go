@@ -43,6 +43,7 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 	if db == nil {
 		return nil, errors.New("session db is required")
 	}
+
 	db = db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
 
 	if err := db.AutoMigrate(
@@ -78,6 +79,7 @@ func (s *Store) Permission() (permissions.ApprovalStore, bool) {
 	if s == nil || s.db == nil {
 		return nil, false
 	}
+
 	return s, true
 }
 

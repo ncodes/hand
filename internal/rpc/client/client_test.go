@@ -1322,7 +1322,7 @@ func TestNewClient_ValidatesOptions(t *testing.T) {
 func TestNewClient_CreatesConnection(t *testing.T) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer lis.Close()
+	defer func() { _ = lis.Close() }()
 
 	client, err := NewClient(context.Background(), Options{
 		Address: "127.0.0.1",

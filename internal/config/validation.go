@@ -65,6 +65,7 @@ func (c *Config) validate(options validationOptions) error {
 		if c.Models.Summary.Name != "" && !isValidModelID(c.Models.Summary.Name) {
 			return errors.New("summary model is invalid")
 		}
+
 		providerValue := str.String(c.Models.Main.Provider)
 		if providerValue.Trim() == "" {
 			return errors.New("model provider is required")
@@ -229,6 +230,7 @@ func validateGatewayTelegramSettings(cfg GatewayTelegramConfig) error {
 	if !cfg.Enabled {
 		return nil
 	}
+
 	botTokenValue := str.String(cfg.BotToken)
 	if botTokenValue.Trim() == "" {
 		return errors.New("gateway telegram bot token is required when telegram gateway is enabled; " +
@@ -302,6 +304,7 @@ func validateGatewaySlackSettings(cfg GatewaySlackConfig) error {
 	if !cfg.Enabled {
 		return nil
 	}
+
 	botTokenValue2 := str.String(cfg.BotToken)
 	if botTokenValue2.Trim() == "" {
 		return errors.New("gateway slack bot token is required when slack gateway is enabled; " +
@@ -455,6 +458,7 @@ func (c *Config) validateSearchVectorSettings() error {
 	if !c.Search.Vector.Enabled {
 		return nil
 	}
+
 	provider := c.ModelEmbeddingProviderEffective()
 	if !hasModelProvider(provider) {
 		return fmt.Errorf("embedding provider must be one of: %s", getModelProviderList())
@@ -501,6 +505,7 @@ func (c *Config) validateRerankerSettings() error {
 	if c.Reranker.MaxOutputTokens < 0 {
 		return errors.New("reranker max output tokens must be non-negative")
 	}
+
 	if c.RerankerEffective() == constants.RerankerLLM {
 		if err := c.validateRerankerModelRole(
 			"reranker model",

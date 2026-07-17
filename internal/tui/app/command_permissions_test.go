@@ -186,7 +186,8 @@ permissions:
 	cfg, err := config.Load("", configPath)
 	require.NoError(t, err)
 	require.Equal(t, permissions.PresetApproveForMe, cfg.Permissions.EffectivePreset())
-	restarted := newModelWithClientContextAndConfig(nil, nil, cfg)
+	var nilContext context.Context
+	restarted := newModelWithClientContextAndConfig(nilContext, nil, cfg)
 	require.Equal(t, permissions.PresetApproveForMe, restarted.permissionPreset)
 }
 

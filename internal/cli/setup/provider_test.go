@@ -1517,6 +1517,7 @@ func TestProviderRunnerUsesSharedPullProgressPrinter(t *testing.T) {
 		} {
 			onProgress(progress)
 		}
+
 		return nil
 	}
 

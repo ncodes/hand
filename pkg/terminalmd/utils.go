@@ -18,6 +18,7 @@ func getTaskPrefix(paragraph *goldast.Paragraph) (string, bool) {
 	if paragraph == nil {
 		return "", false
 	}
+
 	checkbox, ok := paragraph.FirstChild().(*extast.TaskCheckBox)
 	if !ok {
 		return "", false
@@ -33,6 +34,7 @@ func min(a int, b int) int {
 	if a < b {
 		return a
 	}
+
 	return b
 }
 
@@ -41,5 +43,6 @@ func max(a int, b int) int {
 	if a > b {
 		return a
 	}
+
 	return b
 }

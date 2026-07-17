@@ -38,6 +38,7 @@ func NewLLMReflectionGenerator(options LLMReflectionGeneratorOptions) (*LLMRefle
 	if options.Client == nil {
 		return nil, errors.New("memory reflection model client is required")
 	}
+
 	modelValue := str.String(options.Model)
 	if modelValue.Trim() == "" {
 		return nil, errors.New("memory reflection model is required")
@@ -151,6 +152,7 @@ func memoryItemsToReflectionModelMemories(items []MemoryItem) []reflectionModelM
 			Confidence: item.Confidence,
 		})
 	}
+
 	return memories
 }
 
@@ -197,6 +199,7 @@ func memoryKindFromReflectionCandidate(candidate reflectionModelCandidate) Kind 
 	if hasProceduralReflectionFields(candidate.Procedural) {
 		return KindProcedural
 	}
+
 	kindValue2 := str.String(candidate.Kind)
 	return Kind(kindValue2.Trim())
 }
@@ -325,6 +328,7 @@ func setProceduralReflectionMetadata(
 		if value == "" {
 			continue
 		}
+
 		if metadata == nil {
 			metadata = make(map[string]string)
 		}
@@ -371,6 +375,7 @@ func cloneMetadata(metadata map[string]string) map[string]string {
 	if len(metadata) == 0 {
 		return nil
 	}
+
 	cloned := make(map[string]string, len(metadata))
 	maps.Copy(cloned, metadata)
 	return cloned

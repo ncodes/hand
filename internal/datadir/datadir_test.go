@@ -47,6 +47,7 @@ func TestHomeDir_ResolvesEnvProfile(t *testing.T) {
 		if key == profile.EnvName {
 			return "Research"
 		}
+
 		return ""
 	}
 	userHomeDir = func() (string, error) {
@@ -85,6 +86,7 @@ func TestHomeDir_FallsBackWhenEnvProfileIsInvalid(t *testing.T) {
 		if key == profile.EnvName {
 			return "work/team"
 		}
+
 		return ""
 	}
 	userHomeDir = func() (string, error) {

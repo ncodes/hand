@@ -69,6 +69,7 @@ func newModuleEnsuringWriter(writer io.Writer, module string) io.Writer {
 	if writer == nil {
 		return io.Discard
 	}
+
 	moduleValue2 := str.String(module)
 	return moduleEnsuringWriter{writer: writer, module: moduleValue2.Trim()}
 }

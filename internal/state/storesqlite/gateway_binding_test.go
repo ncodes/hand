@@ -116,7 +116,7 @@ func TestGatewayBinding_SaveReturnsSessionLookupError(t *testing.T) {
 		"test:gateway-binding-session-query-error",
 		func(tx *gorm.DB) {
 			if callbackTable(tx) == "sessions" {
-				tx.AddError(expected)
+				_ = tx.AddError(expected)
 			}
 		},
 	))
@@ -141,7 +141,7 @@ func TestGatewayBinding_SaveReturnsBindingLookupError(t *testing.T) {
 		"test:gateway-binding-query-error",
 		func(tx *gorm.DB) {
 			if callbackTable(tx) == "gateway_bindings" {
-				tx.AddError(expected)
+				_ = tx.AddError(expected)
 			}
 		},
 	))
@@ -187,7 +187,7 @@ func TestGatewayBinding_GetReturnsQueryError(t *testing.T) {
 		"test:gateway-binding-get-query-error",
 		func(tx *gorm.DB) {
 			if callbackTable(tx) == "gateway_bindings" {
-				tx.AddError(expected)
+				_ = tx.AddError(expected)
 			}
 		},
 	))

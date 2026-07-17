@@ -37,9 +37,9 @@ func PrettyPrintJSON(v ...any) {
 	for _, val := range v {
 		values = append(values, PrettyJSON(val))
 	}
-	pretty.Println(values...)
+	_, _ = pretty.Println(values...)
 }
 
 func PrettyPrint(v ...any) {
-	pretty.Println(v...)
+	_, _ = pretty.Println(v...)
 }

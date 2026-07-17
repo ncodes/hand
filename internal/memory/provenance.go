@@ -85,6 +85,7 @@ func fillSourceLinkProvenance(link *SourceLink, runCtx runcontext.Context, trigg
 	if link == nil {
 		return
 	}
+
 	if link.SessionID == "" {
 		link.SessionID = runCtx.Session.PublicID
 	}

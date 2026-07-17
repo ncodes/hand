@@ -16,6 +16,7 @@ func (p *MemoryProvider) Update(ctx context.Context, req UpdateRequest) (UpdateR
 	if p == nil || p.manager == nil {
 		return UpdateResult{}, errors.New("memory provider is required")
 	}
+
 	iDValue := str.String(req.ID)
 	memoryID := iDValue.Trim()
 	if memoryID == "" {

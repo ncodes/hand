@@ -202,7 +202,8 @@ func TestManager_StopAcceptsNilContext(t *testing.T) {
 	info, err := manager.Start(context.Background(), testSessionID, testSleepRequest())
 	require.NoError(t, err)
 
-	stopped, err := manager.Stop(nil, testSessionID, info.ID)
+	var nilContext context.Context
+	stopped, err := manager.Stop(nilContext, testSessionID, info.ID)
 	require.NoError(t, err)
 	require.Equal(t, StatusStopped, stopped.Status)
 }
@@ -251,7 +252,8 @@ func TestManager_ValidatesMissingProcessAndCommand(t *testing.T) {
 func TestManager_StartHandlesNilContextAndStartFailure(t *testing.T) {
 	manager := &DefaultManager{}
 
-	info, err := manager.Start(nil, testSessionID, testPrintRequest("hello", 32))
+	var nilContext context.Context
+	info, err := manager.Start(nilContext, testSessionID, testPrintRequest("hello", 32))
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {

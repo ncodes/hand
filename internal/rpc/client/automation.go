@@ -191,24 +191,6 @@ func (s *AutomationService) getClient() (morphpb.AutomationServiceClient, error)
 	return s.client, nil
 }
 
-func automationJobToProto(job automation.Job) *morphpb.AutomationJob {
-	return &morphpb.AutomationJob{
-		Id:             job.ID,
-		Name:           job.Name,
-		Description:    job.Description,
-		Enabled:        job.Enabled,
-		CreatedAt:      timeToProto(job.CreatedAt),
-		UpdatedAt:      timeToProto(job.UpdatedAt),
-		Schedule:       automationScheduleToProto(job.Schedule),
-		Payload:        automationPayloadToProto(job.Payload),
-		Delivery:       automationDeliveryToProto(job.Delivery),
-		Profile:        job.Profile,
-		SessionTarget:  job.SessionTarget,
-		DeleteAfterRun: job.DeleteAfterRun,
-		State:          automationJobStateToProto(job.State),
-	}
-}
-
 func automationJobFromProto(job *morphpb.AutomationJob) automation.Job {
 	if job == nil {
 		return automation.Job{}

@@ -2,17 +2,22 @@ APP := morph
 BUILD_DIR := build
 GO ?= /opt/homebrew/Cellar/go/1.26.1/libexec/bin/go
 GO_SQLITE_TAGS ?= sqlite_fts5
+GOLANGCI_LINT_VERSION ?= 2.12.2
 LIVE_CONFIG ?= $(CURDIR)/config.yaml
 LIVE_ENV_FILE ?= $(CURDIR)/.env
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf dev)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf unknown)
 LD_FLAGS := -X github.com/wandxy/morph/internal/constants.AppVersion=$(VERSION) -X github.com/wandxy/morph/internal/constants.CommitHash=$(COMMIT)
 
-.PHONY: install-tools install-hooks build-proto build test test-agent-baseline test-spec test-live test-live-sqlite test-live-memory test-live-all host-deps lint install
+.PHONY: install-tools install-lint install-hooks build-proto build test test-agent-baseline test-spec test-live test-live-sqlite test-live-memory test-live-all host-deps format-go check-go-readability lint install
 
 install-tools:
 	@$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
 	@$(GO) install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.76.0
+	@$(MAKE) install-lint
+
+install-lint:
+	@$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION)
 
 install-hooks:
 	@git config core.hooksPath .githooks
@@ -69,7 +74,18 @@ host-deps:
 	@printf '\ninternal/host transitive morph imports:\n'
 	@$(GO) list -deps ./internal/host | grep '^github.com/wandxy/morph/' | sed 's/^/  /'
 
+format-go:
+	@$(GO) run ./cmd/goreadability format .
+
+check-go-readability:
+	@$(GO) run ./cmd/goreadability check .
+
 lint:
+	@version="$$(golangci-lint version 2>/dev/null)"; \
+		case "$$version" in \
+			*"version $(GOLANGCI_LINT_VERSION) "*) ;; \
+			*) printf 'golangci-lint $(GOLANGCI_LINT_VERSION) is required; run make install-lint\n' >&2; exit 2 ;; \
+		esac
 	@golangci-lint run ./...
 
 install: build-proto

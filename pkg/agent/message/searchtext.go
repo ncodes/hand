@@ -66,6 +66,7 @@ func SearchableMessageText(message Message, toolName string) (string, string) {
 			if toolName != "" {
 				return "", ""
 			}
+
 			contentValue := str.String(message.Content)
 			return contentValue.Trim(), ""
 		}

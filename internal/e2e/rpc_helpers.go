@@ -52,7 +52,7 @@ func ReserveRPCPort() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer lis.Close()
+	defer func() { _ = lis.Close() }()
 
 	tcpAddr, ok := lis.Addr().(*net.TCPAddr)
 	if !ok {
@@ -168,6 +168,7 @@ func ToolMessagePresent(expectedID, expectedName string) RequestAssert {
 			if message.Role != morphmsg.RoleTool {
 				continue
 			}
+
 			toolCallIDValue := str.String(message.ToolCallID)
 			if toolCallIDValue.Trim() != expectedID {
 				continue

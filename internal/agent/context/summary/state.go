@@ -50,6 +50,7 @@ func (s *State) RenderSummaryInstructions() (string, bool) {
 	if s == nil || s.Current == nil {
 		return "", false
 	}
+
 	sessionSummaryValue := str.String(s.Current.SessionSummary)
 	sessionSummary := sessionSummaryValue.Trim()
 	if sessionSummary == "" {

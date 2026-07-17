@@ -52,8 +52,10 @@ func (r *InMemoryRegistry) SetApprovalService(service permissions.Approver) {
 	if r == nil {
 		return
 	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.approvals = service
 }
 
@@ -61,8 +63,10 @@ func (r *InMemoryRegistry) getApprovalService() permissions.Approver {
 	if r == nil {
 		return nil
 	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
 	return r.approvals
 }
 
@@ -71,6 +75,7 @@ func (r *InMemoryRegistry) Register(def Definition) error {
 	if r == nil {
 		return errors.New("tool registry is required")
 	}
+
 	nameValue := str.String(def.Name)
 	def.Name = nameValue.Trim()
 	if def.Name == "" {
@@ -108,6 +113,7 @@ func (r *InMemoryRegistry) RegisterGroup(group Group) error {
 	if r == nil {
 		return errors.New("tool registry is required")
 	}
+
 	nameValue2 := str.String(group.Name)
 	group.Name = nameValue2.Trim()
 	if group.Name == "" {
@@ -134,6 +140,7 @@ func (r *InMemoryRegistry) Get(name string) (Definition, bool) {
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
 	nameValue3 := str.String(name)
 	def, ok := r.definitions[nameValue3.Trim()]
 	return def, ok
@@ -146,6 +153,7 @@ func (r *InMemoryRegistry) GetGroup(name string) (Group, bool) {
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
 	nameValue4 := str.String(name)
 	group, ok := r.groups[nameValue4.Trim()]
 	return group, ok
@@ -336,6 +344,7 @@ func getPermissionInputs(ctx context.Context, definition Definition, call Call) 
 		if definition.Permission.IsZero() {
 			return nil, nil
 		}
+
 		return normalizePermissionInputs(definition.Name, []permissions.EvaluationInput{{
 			Operation: definition.Permission,
 		}})
@@ -478,6 +487,7 @@ func filterDefinitions(definitions Definitions, opts Policy) Definitions {
 		if platform != "" && !matchesPlatform(def.Platforms, platform) {
 			continue
 		}
+
 		filtered = append(filtered, def)
 	}
 

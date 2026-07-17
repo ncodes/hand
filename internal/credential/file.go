@@ -106,6 +106,7 @@ func (s *FileStore) Remove(provider string) error {
 		if _, ok := data[provider]; !ok {
 			return data, false, nil
 		}
+
 		delete(data, provider)
 		return data, true, nil
 	})
@@ -195,6 +196,7 @@ func (s *FileStore) withLockedData(
 	if s == nil {
 		return errors.New("credential store is required")
 	}
+
 	pathValue2 := str.String(s.Path)
 	path := pathValue2.Trim()
 	if path == "" {
@@ -278,7 +280,7 @@ func writeData(path string, data map[string]StoredCredential) error {
 		return fmt.Errorf("create credential store temp file: %w", err)
 	}
 	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	if _, err := tmp.Write(body); err != nil {
 		_ = tmp.Close()

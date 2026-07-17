@@ -301,6 +301,7 @@ func (m model) handleResponseEvent(msg responseEventMsg) (tea.Model, tea.Cmd) {
 		if m.events != nil {
 			return m, waitForResponseEvent(msg.ResponseID, m.events)
 		}
+
 		return m, nil
 	}
 
@@ -355,11 +356,13 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 				next, cmd := m.updateCommandView(msg)
 				return next, cmd, true
 			}
+
 			return m.hideCommandView(), nil, true
 		}
 		if msg.Keystroke() == "ctrl+y" {
 			return m, m.copyCommandView(), true
 		}
+
 		next, cmd := m.updateCommandView(msg)
 		return next, cmd, true
 	}
@@ -428,6 +431,7 @@ func (m model) resolvePermissionApproval(approved bool, scope permissions.GrantS
 		if client == nil {
 			return permissionResolutionCompletedMsg{RequestID: requestID, Err: errors.New("permission service is unavailable")}
 		}
+
 		ctx = rpcmeta.WithOutgoingPermissionSurface(ctx, permissions.SurfaceTUI)
 		request, err := client.ResolveApprovalRequest(ctx, requestID, approved, scope)
 		return permissionResolutionCompletedMsg{
@@ -448,6 +452,7 @@ func effectsToStrings(effects []permissions.Effect) []string {
 	for index, effect := range effects {
 		values[index] = string(effect)
 	}
+
 	return values
 }
 

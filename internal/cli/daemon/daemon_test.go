@@ -301,6 +301,7 @@ func TestNewCommand_RestartsDaemonWhenConfigFileChanges(t *testing.T) {
 	require.Equal(t, "second", <-servedNames)
 	runnersMu.Lock()
 	defer runnersMu.Unlock()
+
 	require.Len(t, runners, 2)
 	require.True(t, runners[0].Closed)
 	require.True(t, runners[1].Closed)

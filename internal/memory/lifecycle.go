@@ -414,6 +414,7 @@ func (p *MemoryProvider) promotionPolicyOrDefault() PromotionPolicy {
 	if p != nil && p.promotionPolicy != nil {
 		return p.promotionPolicy
 	}
+
 	return defaultPromotionPolicy{}
 }
 
@@ -429,6 +430,7 @@ func enforcePromotionHardGates(
 		decision.Reason = admissionResult
 		return decision
 	}
+
 	if guardrailResult != "" {
 		decision.Approved = false
 		decision.Reason = guardrailResult
@@ -557,6 +559,7 @@ func getReflectionSourceMemoryIDs(item MemoryItem) map[string]struct{} {
 			ids[id] = struct{}{}
 		}
 	}
+
 	return ids
 }
 
@@ -565,6 +568,7 @@ func getPromotionRelatedItems(hits []SearchHit) []MemoryItem {
 	for _, hit := range hits {
 		items = append(items, hit.Item.Clone())
 	}
+
 	return items
 }
 
@@ -588,6 +592,7 @@ func hasReflectionEvidence(item MemoryItem) bool {
 	if item.Reflected {
 		return true
 	}
+
 	metadataValue := str.String(item.Metadata["reflection_source_memory_ids"])
 	metadataValue2 := str.String(item.Metadata["reflection_origin"])
 	return metadataValue.Trim() != "" || metadataValue2.

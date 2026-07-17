@@ -98,7 +98,8 @@ func TestService_ControlValidationAndNoops(t *testing.T) {
 	clock := newAutomationTestClock(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC))
 	service := newAutomationTestService(t, storememory.NewStore(), clock, &automationRunnerStub{})
 
-	require.NoError(t, service.Start(nil))
+	var nilContext context.Context
+	require.NoError(t, service.Start(nilContext))
 	require.NoError(t, service.Start(ctx))
 	require.NoError(t, service.Stop())
 	require.NoError(t, service.Stop())
@@ -1080,7 +1081,8 @@ func TestService_RunUsesBackgroundContextWhenNil(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	run, err := service.Run(nil, testServiceJobA)
+	var nilContext context.Context
+	run, err := service.Run(nilContext, testServiceJobA)
 	require.NoError(t, err)
 	require.Equal(t, RunStatusOK, run.Status)
 	require.Equal(t, 1, runner.CallCount())
@@ -1215,7 +1217,8 @@ func TestService_RunAppliesTimeoutPolicies(t *testing.T) {
 }
 
 func TestService_ContextWithRunTimeoutUsesBackgroundForNilContext(t *testing.T) {
-	runCtx, cancel := (&Service{}).contextWithRunTimeout(nil, Job{Payload: Payload{NoTimeout: true}})
+	var nilContext context.Context
+	runCtx, cancel := (&Service{}).contextWithRunTimeout(nilContext, Job{Payload: Payload{NoTimeout: true}})
 	defer cancel()
 	require.NotNil(t, runCtx)
 	require.NoError(t, runCtx.Err())
@@ -2312,6 +2315,7 @@ func TestService_ExecuteDueJobsStopsWhenCapacityRaceIsDetected(t *testing.T) {
 		onPatch: func() {
 			service.mu.Lock()
 			defer service.mu.Unlock()
+
 			service.running[testServiceJobB] = struct{}{}
 		},
 	}

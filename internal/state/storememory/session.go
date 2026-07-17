@@ -34,6 +34,7 @@ func (s *Store) Save(_ context.Context, session Session) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	iDValue := str.String(session.ID)
 	session.ID = iDValue.Trim()
 	if err := base.ValidateSessionID(session.ID); err != nil {
@@ -102,6 +103,7 @@ func (s *Store) UpdateCheckpoints(_ context.Context, id string, patch Checkpoint
 	if s == nil {
 		return errors.New("store is required")
 	}
+
 	idValue := str.String(id)
 	id = idValue.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -145,6 +147,7 @@ func (s *Store) Get(_ context.Context, id string, opts base.SessionGetOptions) (
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	idValue2 := str.String(id)
 	session, ok := s.sessions[idValue2.Trim()]
 	if !ok || !sessionMatchesGetOptions(session, opts) {
@@ -167,6 +170,7 @@ func (s *Store) List(_ context.Context, opts base.SessionListOptions) ([]Session
 		if !sessionMatchesListOptions(session, opts) {
 			continue
 		}
+
 		sessions = append(sessions, session)
 	}
 
@@ -189,6 +193,7 @@ func sessionMatchesListOptions(session Session, opts base.SessionListOptions) bo
 	if opts.Archived != nil && session.Archived != *opts.Archived {
 		return false
 	}
+
 	originSource := str.String(opts.OriginSource)
 	if source := originSource.Trim(); source != "" && session.Origin.Source != source {
 		return false
@@ -201,6 +206,7 @@ func (s *Store) Rename(_ context.Context, req base.SessionRenameRequest) (Sessio
 	if s == nil {
 		return Session{}, errors.New("store is required")
 	}
+
 	sessionIDValue := str.String(req.SessionID)
 	req.SessionID = sessionIDValue.Trim()
 	if err := base.ValidateSessionID(req.SessionID); err != nil {
@@ -237,6 +243,7 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
+
 	idValue3 := str.String(id)
 	id = idValue3.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -266,6 +273,7 @@ func (s *Store) deleteSessions(ctx context.Context, ids []string) ([]string, err
 		if _, ok := s.sessions[id]; !ok {
 			continue
 		}
+
 		deletedSessionIDs = append(deletedSessionIDs, id)
 		delete(s.sessions, id)
 		delete(s.messages, id)
@@ -289,6 +297,7 @@ func (s *Store) AppendMessages(ctx context.Context, id string, messages []morphm
 	if s == nil {
 		return errors.New("store is required")
 	}
+
 	idValue4 := str.String(id)
 	id = idValue4.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -334,6 +343,7 @@ func (s *Store) GetMessages(
 	if _, err := base.NormalizeMessageQueryOrder(opts.Order); err != nil {
 		return nil, err
 	}
+
 	idValue5 := str.String(id)
 	id = idValue5.Trim()
 	if id == "" {
@@ -358,6 +368,7 @@ func (s *Store) GetMessagesByIDs(
 	if s == nil {
 		return nil, errors.New("store is required")
 	}
+
 	idValue6 := str.String(id)
 	id = idValue6.Trim()
 	if id == "" {
@@ -375,6 +386,7 @@ func (s *Store) GetMessagesByIDs(
 		if messageID == 0 {
 			continue
 		}
+
 		selected[messageID] = struct{}{}
 	}
 	if len(selected) == 0 {
@@ -410,6 +422,7 @@ func (s *Store) GetMessageWindow(
 	if s == nil {
 		return nil, errors.New("store is required")
 	}
+
 	idValue7 := str.String(id)
 	id = idValue7.Trim()
 	if id == "" || anchorMessageID == 0 {
@@ -458,6 +471,7 @@ func (s *Store) SearchMessages(
 	if s == nil {
 		return nil, errors.New("store is required")
 	}
+
 	idValue8 := str.String(id)
 	id = idValue8.Trim()
 	if id != "" {
@@ -499,6 +513,7 @@ func (s *Store) SearchMessages(
 		if sessionID == opts.IgnoreSessionID {
 			continue
 		}
+
 		results = append(results, searchMessageResults(sessionID, messages, query, opts)...)
 	}
 
@@ -506,6 +521,7 @@ func (s *Store) SearchMessages(
 		if results[i].LastMatchedAt.Equal(results[j].LastMatchedAt) {
 			return results[i].SessionID < results[j].SessionID
 		}
+
 		return results[i].LastMatchedAt.After(results[j].LastMatchedAt)
 	})
 
@@ -536,6 +552,7 @@ func searchMessageResults(
 		if hits[i].Message.CreatedAt.Equal(hits[j].Message.CreatedAt) {
 			return hits[i].Message.ID > hits[j].Message.ID
 		}
+
 		return hits[i].Message.CreatedAt.After(hits[j].Message.CreatedAt)
 	})
 
@@ -608,6 +625,7 @@ func getMatchedMessageHit(
 				}
 				return makeHit(morphmsg.ToolCallSearchText(toolCall), toolCall.Name)
 			}
+
 			return base.SearchMessageHit{}, false
 		}
 
@@ -647,6 +665,7 @@ func (s *Store) CountMessages(_ context.Context, id string, opts MessageQueryOpt
 	if _, err := base.NormalizeMessageQueryOrder(opts.Order); err != nil {
 		return 0, err
 	}
+
 	idValue9 := str.String(id)
 	id = idValue9.Trim()
 	if id == "" {
@@ -667,6 +686,7 @@ func (s *Store) GetMessage(_ context.Context, id string, index int) (morphmsg.Me
 	if s == nil {
 		return morphmsg.Message{}, false, errors.New("store is required")
 	}
+
 	idValue10 := str.String(id)
 	id = idValue10.Trim()
 	if id == "" || index < 0 {
@@ -692,6 +712,7 @@ func (s *Store) Archive(_ context.Context, id string, req base.SessionArchiveReq
 	if s == nil {
 		return Session{}, errors.New("store is required")
 	}
+
 	idValue11 := str.String(id)
 	id = idValue11.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -747,6 +768,7 @@ func (s *Store) Unarchive(_ context.Context, id string) (Session, error) {
 	if s == nil {
 		return Session{}, errors.New("store is required")
 	}
+
 	idValue12 := str.String(id)
 	id = idValue12.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -774,6 +796,7 @@ func (s *Store) ClearMessages(ctx context.Context, id string) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
+
 	idValue13 := str.String(id)
 	id = idValue13.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -823,6 +846,7 @@ func (s *Store) GetSummary(_ context.Context, sessionID string) (SessionSummary,
 	if s == nil {
 		return SessionSummary{}, false, errors.New("store is required")
 	}
+
 	sessionIDValue2 := str.String(sessionID)
 	sessionID = sessionIDValue2.Trim()
 	if sessionID == "" {
@@ -848,6 +872,7 @@ func (s *Store) DeleteSummary(_ context.Context, sessionID string) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
+
 	sessionIDValue3 := str.String(sessionID)
 	sessionID = sessionIDValue3.Trim()
 	if err := base.ValidateSessionID(sessionID); err != nil {
@@ -865,6 +890,7 @@ func (s *Store) SetCurrent(_ context.Context, id string) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
+
 	idValue14 := str.String(id)
 	id = idValue14.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -890,6 +916,7 @@ func (s *Store) Current(_ context.Context) (string, bool, error) {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	currentSessionValue := str.String(s.currentSession)
 	if currentSessionValue.Trim() == "" {
 		return "", false, nil
@@ -987,6 +1014,7 @@ func filterMessages(messages []morphmsg.Message, opts MessageQueryOptions) []mor
 		if role != "" && message.Role != role {
 			continue
 		}
+
 		nameValue3 := str.String(message.Name)
 		if name != "" && nameValue3.Trim() != name {
 			continue

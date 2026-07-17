@@ -130,7 +130,7 @@ func newStatusCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			status, err := client.GatewayAPI().GatewayStatus(ctx)
 			if err != nil {
@@ -187,7 +187,7 @@ func runGatewayRuntimeCommand(
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	status, err := run(client.GatewayAPI())
 	if err != nil {
@@ -225,7 +225,7 @@ func newPairingListCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			firstValue2 := str.String(cmd.Args().First())
 			result, err := client.GatewayAPI().ListPairings(ctx, firstValue2.Trim())
 			if err != nil {
@@ -250,6 +250,7 @@ func writePairingList(out io.Writer, result rpcclient.GatewayPairingList) error 
 		if _, err := fmt.Fprintln(writer, "  SOURCE\tSENDER ID\tNAME\tEXPIRES"); err != nil {
 			return err
 		}
+
 		for _, request := range result.Pending {
 			if _, err := fmt.Fprintf(
 				writer,
@@ -277,6 +278,7 @@ func writePairingList(out io.Writer, result rpcclient.GatewayPairingList) error 
 		if _, err := fmt.Fprintln(writer, "  SOURCE\tSENDER ID\tNAME"); err != nil {
 			return err
 		}
+
 		for _, sender := range result.Approved {
 			if _, err := fmt.Fprintf(
 				writer,
@@ -350,7 +352,7 @@ func newPairingApproveCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			sender, ok, err := client.GatewayAPI().ApprovePairing(ctx, source, code)
 			if err != nil {
@@ -384,7 +386,7 @@ func newPairingRevokeCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			if err := client.GatewayAPI().RevokePairing(ctx, source, senderID); err != nil {
 				return err
 			}
@@ -407,7 +409,7 @@ func newPairingClearPendingCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			if err := client.GatewayAPI().ClearPendingPairings(ctx, source); err != nil {
 				return err
 			}

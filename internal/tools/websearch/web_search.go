@@ -139,6 +139,7 @@ func filterBlockedSearchResults(
 			blockedCount++
 			continue
 		}
+
 		filtered = append(filtered, result)
 	}
 

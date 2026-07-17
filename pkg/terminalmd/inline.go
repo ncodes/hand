@@ -27,7 +27,7 @@ func (r *Renderer) renderInlineChildren(node goldast.Node, source []byte) string
 func (r *Renderer) renderInline(node goldast.Node, source []byte) string {
 	switch n := node.(type) {
 	case *goldast.Text:
-		text := unescapeMarkdownText(string(n.Text(source)))
+		text := unescapeMarkdownText(string(n.Segment.Value(source)))
 		if n.HardLineBreak() {
 			return text + "\n"
 		}
@@ -36,7 +36,7 @@ func (r *Renderer) renderInline(node goldast.Node, source []byte) string {
 		}
 		return text
 	case *goldast.String:
-		return unescapeMarkdownText(string(n.Text(source)))
+		return unescapeMarkdownText(string(n.Value))
 	case *goldast.CodeSpan:
 		return r.style(r.opts.Theme.Code).Render(r.renderInlineChildren(n, source))
 	case *goldast.Emphasis:
@@ -64,12 +64,12 @@ func (r *Renderer) renderInline(node goldast.Node, source []byte) string {
 		}
 		return string(n.Destination)
 	case *goldast.AutoLink:
-		text := string(n.Text(source))
+		text := string(n.Label(source))
 		rendered := r.style(r.opts.Theme.Link).Render(text)
 		return r.renderHyperlink(rendered, text)
 	case *goldast.RawHTML:
 		// Inline HTML should not leak markup characters into assistant output.
-		return stripHTMLTags(string(n.Text(source)))
+		return stripHTMLTags(string(n.Segments.Value(source)))
 	case *extast.Strikethrough:
 		style := r.opts.Theme.Text
 		style.Strike = true

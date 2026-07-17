@@ -266,6 +266,7 @@ func (p *MemoryProvider) loadStorePinned(ctx context.Context, query SearchQuery)
 	for _, hit := range result.Hits {
 		items = append(items, hit.Item.Clone())
 	}
+
 	return items, nil
 }
 
@@ -273,6 +274,7 @@ func (p *MemoryProvider) safetyScanPinnedItem(ctx context.Context, item MemoryIt
 	if p.guardrails == nil {
 		return nil
 	}
+
 	return p.guardrails.SafetyScan(ctx, item)
 }
 
@@ -359,6 +361,7 @@ func (p *MemoryProvider) Delete(ctx context.Context, req DeleteRequest) error {
 	if err := validateDelete(ctx, p.guardrails, req); err != nil {
 		return err
 	}
+
 	iDValue := str.String(req.ID)
 	memoryID := iDValue.Trim()
 	if memoryID == "" {

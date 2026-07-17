@@ -129,6 +129,7 @@ func (c *telegramHTTPClient) call(ctx context.Context, method string, req any, o
 	if c == nil {
 		return errors.New("telegram client is required")
 	}
+
 	if c.client == nil {
 		c.client = http.DefaultClient
 	}
@@ -156,7 +157,7 @@ func (c *telegramHTTPClient) call(ctx context.Context, method string, req any, o
 	if err != nil {
 		return err
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	var apiResp struct {
 		OK          bool            `json:"ok"`
@@ -212,6 +213,7 @@ func (s *telegramSender) SendFinal(ctx context.Context, target tg.Target, text s
 	if s == nil || s.api == nil {
 		return errors.New("telegram sender is required")
 	}
+
 	for _, chunk := range tg.ChunkText(text, tg.MessageTextLimit) {
 		if _, err := s.sendMessage(ctx, target, chunk); err != nil {
 			return err
@@ -241,6 +243,7 @@ func (s *telegramSender) StreamTurn(
 		if streamFailed || delta == "" {
 			return
 		}
+
 		if err := streamer.Append(ctx, delta); err != nil {
 			streamFailed = true
 			streamer = finalOnlyTelegramStreamer{sender: s, target: target}
@@ -352,6 +355,7 @@ func (s *simulatedTelegramStreamer) Append(ctx context.Context, delta string) er
 		if strings.Contains(strings.ToLower(err.Error()), "message is not modified") {
 			return nil
 		}
+
 		return err
 	}
 	s.lastEdit = next
@@ -365,6 +369,7 @@ func (s *simulatedTelegramStreamer) Finish(ctx context.Context, reply string) er
 			if err := s.sender.editMessageText(ctx, s.target, s.messageID, chunk); err != nil {
 				return err
 			}
+
 			continue
 		}
 		if _, err := s.sender.sendMessage(ctx, s.target, chunk); err != nil {

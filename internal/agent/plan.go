@@ -63,6 +63,7 @@ func (t *Turn) renderPlanInstructions() string {
 		if step.Status == envtypes.PlanStatusCompleted || step.Status == envtypes.PlanStatusCancelled {
 			continue
 		}
+
 		activeSteps = append(activeSteps, step)
 	}
 
@@ -234,5 +235,6 @@ func getActiveHydratedPlanStepID(plan envtypes.Plan) string {
 			return step.ID
 		}
 	}
+
 	return ""
 }

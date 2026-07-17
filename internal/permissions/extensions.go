@@ -128,6 +128,7 @@ func NewConstrainedExtensionAuthorization(
 	if kind == ActorACPClient && surface != SurfaceACP || kind == ActorRPCClient && surface != SurfaceRPC {
 		return AuthorizationContext{}, errors.New("extension actor does not match its surface")
 	}
+
 	id = str.String(id).Trim()
 	if id == "" {
 		return AuthorizationContext{}, errors.New("extension actor id is required")

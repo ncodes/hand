@@ -39,7 +39,7 @@ func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	defer lis.Close()
+	defer func() { _ = lis.Close() }()
 
 	agent := newAgentRunner(ctx, runtimeCfg, modelClient, summaryClient, rerankerClient)
 	if err := agent.Start(ctx); err != nil {

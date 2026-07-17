@@ -70,7 +70,7 @@ func TestParallelProvider_SearchNormalizesResults(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		captured.Path = r.URL.Path
 		captured.APIKey = r.Header.Get("x-api-key")
@@ -182,7 +182,7 @@ func TestParallelProvider_SearchReturnsTransportErrors(t *testing.T) {
 
 func TestParallelProvider_ExtractNormalizesResults(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		var body struct {
 			URLs        []string `json:"urls"`

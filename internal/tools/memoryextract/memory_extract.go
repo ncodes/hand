@@ -154,5 +154,6 @@ func bounded(value int, fallback int, max int, name string) (int, error) {
 	if value > max {
 		return max, nil
 	}
+
 	return value, nil
 }

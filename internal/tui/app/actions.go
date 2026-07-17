@@ -143,6 +143,7 @@ func (action setSessionTitleAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
+
 	titleValue := str.String(action.Title)
 	state.sessionTitle = titleValue.Trim()
 	if state.sessionTitle == "" {
@@ -154,6 +155,7 @@ func (action setSessionAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
+
 	iDValue := str.String(action.ID)
 	state.sessionID = iDValue.Trim()
 	if state.sessionID == "" {
@@ -166,6 +168,7 @@ func (action setSessionContextAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
+
 	contextValue := str.String(action.Context)
 	state.context = contextValue.Trim()
 }
@@ -174,6 +177,7 @@ func (action showCommandViewAction) apply(state *tuiState) {
 	if state == nil {
 		return
 	}
+
 	kindValue := str.String(action.Kind)
 	titleIconValue := str.String(action.TitleIcon)
 	titleLeftValue := str.String(action.TitleLeft)

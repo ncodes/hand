@@ -25,6 +25,7 @@ func (NoopReranker) Rerank(_ context.Context, req RerankRequest) (RerankResult, 
 			rerankTraceLogEvent(req, name).Err(err).Msg("rerank candidate validation failed")
 			return RerankResult{}, err
 		}
+
 		items = append(items, RerankItem{
 			CandidateID: candidate.ID,
 			Score:       candidate.FusedScore,

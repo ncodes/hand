@@ -14,6 +14,7 @@ func (s *Store) SaveGatewayBinding(ctx context.Context, binding base.GatewayBind
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	keyValue := str.String(binding.Key)
 	key := keyValue.Trim()
 	if key == "" {
@@ -67,6 +68,7 @@ func (s *Store) GetGatewayBinding(ctx context.Context, key string) (base.Gateway
 	if s == nil || s.db == nil {
 		return base.GatewayBinding{}, false, errors.New("store is required")
 	}
+
 	keyValue2 := str.String(key)
 	key = keyValue2.Trim()
 	if key == "" {

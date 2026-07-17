@@ -1171,7 +1171,7 @@ func writeTraceFile(t *testing.T, dir, id string, events []any) {
 	path := filepath.Join(dir, id+".jsonl")
 	file, err := os.Create(path)
 	require.NoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	encoder := json.NewEncoder(file)
 	for _, event := range events {

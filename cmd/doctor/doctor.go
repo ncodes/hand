@@ -306,10 +306,12 @@ func renderReadinessReportWithDiagnostics(
 		if _, err := fmt.Fprintf(w, "\n%s:\n", group.Name); err != nil {
 			return err
 		}
+
 		for _, check := range group.Checks {
 			if err := renderCheckLine(w, formatStatus(check.Status, cfg), check.Name, check.Message, cfg); err != nil {
 				return err
 			}
+
 			if group.Name == "profile" && check.Name == "env" {
 				for _, diagnostic := range profileDiagnostics {
 					if err := renderCheckLine(

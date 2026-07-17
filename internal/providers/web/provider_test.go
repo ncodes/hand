@@ -202,7 +202,8 @@ func TestWithExtractOptions_RoundTripsNormalizedOptions(t *testing.T) {
 
 	require.Equal(t, ExtractOptions{Format: "markdown", MaxChars: 12, Query: "specs"}, ExtractOptionsFromContext(ctx))
 	require.Equal(t, ExtractOptions{}, ExtractOptionsFromContext(context.Background()))
-	require.Equal(t, ExtractOptions{}, ExtractOptionsFromContext(nil))
+	var nilContext context.Context
+	require.Equal(t, ExtractOptions{}, ExtractOptionsFromContext(nilContext))
 }
 
 func TestExtractCharLimit_UsesRequestLimitWhenPresent(t *testing.T) {

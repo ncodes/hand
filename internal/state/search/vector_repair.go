@@ -126,6 +126,7 @@ func DirtyVectorSources(
 		if _, ok := expectedByID[record.ID]; ok {
 			continue
 		}
+
 		result.StaleRows++
 		dirtySourceSet[record.SourceID] = struct{}{}
 	}

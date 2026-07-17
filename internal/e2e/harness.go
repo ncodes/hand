@@ -116,6 +116,7 @@ func (h *Harness) Close() error {
 	if h == nil {
 		return nil
 	}
+
 	var closeErr error
 	if closer, ok := h.agent.(interface{ Close() error }); ok {
 		closeErr = closer.Close()
@@ -177,6 +178,7 @@ func (h *Harness) Config() *config.Config {
 	if h == nil || h.cfg == nil {
 		return nil
 	}
+
 	cloned := *h.cfg
 	return &cloned
 }
@@ -185,6 +187,7 @@ func (h *Harness) Stdout() string {
 	if h == nil || h.stdout == nil {
 		return ""
 	}
+
 	return h.stdout.String()
 }
 
@@ -192,6 +195,7 @@ func (h *Harness) Stderr() string {
 	if h == nil || h.stderr == nil {
 		return ""
 	}
+
 	return h.stderr.String()
 }
 
@@ -243,6 +247,7 @@ func (h *Harness) Messages(ctx context.Context, sessionID string) ([]morphmsg.Me
 	if h.inspectStore == nil {
 		return nil, errors.New("e2e harness message inspection is unavailable for non-persistent storage")
 	}
+
 	sessionIDValue2 := str.String(sessionID)
 	sessionID = sessionIDValue2.Trim()
 	if sessionID == "" {
@@ -276,6 +281,7 @@ func getHarnessConfig(spec HarnessSpec, cfg *config.Config) (*config.Config, err
 		if cfg != nil {
 			return nil, errors.New("e2e harness must not use in-memory config when real config inputs are present")
 		}
+
 		return config.Load(spec.Config.EnvFilePath, spec.Config.ConfigFilePath)
 	}
 
@@ -292,6 +298,7 @@ func openInspectStore(cfg *config.Config) (storage.Store, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
+
 	backendValue := str.String(cfg.Storage.Backend)
 	if backendValue.Normalized() == "memory" {
 		return nil, nil
@@ -360,6 +367,7 @@ func captureEnv(updates map[string]string) func() {
 				_ = os.Unsetenv(key)
 				continue
 			}
+
 			_ = os.Setenv(key, *value)
 		}
 	}
@@ -369,6 +377,7 @@ func normalizeHarnessContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()
 	}
+
 	return ctx
 }
 

@@ -225,6 +225,7 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 			if callCount >= cfg.Memory.Flush.MaxCalls {
 				break
 			}
+
 			callCount++
 			nameValue := str.String(toolCall.Name)
 			if _, ok := memoryFlushToolNames[nameValue.Trim()]; !ok {
@@ -353,6 +354,7 @@ func (t *Turn) availableMemoryFlushToolDefinitions() ([]models.ToolDefinition, e
 		if _, ok := memoryFlushToolNames[definition.Name]; !ok {
 			continue
 		}
+
 		flushTools = append(flushTools, definition)
 	}
 

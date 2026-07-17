@@ -80,6 +80,7 @@ func (cell userTranscriptCell) PlainText() string {
 	if cell.IsEmpty() {
 		return ""
 	}
+
 	textValue := str.String(cell.text)
 	return "You: " + textValue.Trim()
 }
@@ -182,6 +183,7 @@ func (cell errorTranscriptCell) PlainText() string {
 	if cell.IsEmpty() {
 		return ""
 	}
+
 	messageValue := str.String(cell.message)
 	return "Error: " + messageValue.Trim()
 }
@@ -357,6 +359,7 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 	if group == nil {
 		return
 	}
+
 	idValue3 := str.String(cell.id)
 	if id := idValue3.Trim(); id != "" {
 		if group.seenIDs == nil {
@@ -411,6 +414,7 @@ func (group *toolTranscriptGroup) mergeToolTranscriptCell(id string, cell toolTr
 		if group.details[index].id != id {
 			continue
 		}
+
 		if group.details[index].startedAt.IsZero() {
 			group.details[index].startedAt = cell.startedAt
 		}
@@ -444,6 +448,7 @@ func flushToolTranscriptGroupWithContext(
 	if group == nil || *group == nil {
 		return
 	}
+
 	if cell := renderToolTranscriptGroupWithContext(**group, ctx); cell != "" {
 		*rendered = append(*rendered, cell)
 	}
@@ -559,6 +564,7 @@ func humanizeToolActionName(name string) string {
 		if part == "" {
 			continue
 		}
+
 		runes := []rune(strings.ToLower(part))
 		runes[0] = []rune(strings.ToUpper(string(runes[0])))[0]
 		parts[index] = string(runes)

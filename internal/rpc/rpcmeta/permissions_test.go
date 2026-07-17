@@ -15,7 +15,8 @@ import (
 func TestPermissionSurface_RoundTripsSupportedClientSurface(t *testing.T) {
 	for _, surface := range []permissions.Surface{permissions.SurfaceCLI, permissions.SurfaceTUI} {
 		t.Run(string(surface), func(t *testing.T) {
-			outgoing := WithOutgoingPermissionSurface(nil, surface)
+			var nilContext context.Context
+			outgoing := WithOutgoingPermissionSurface(nilContext, surface)
 			outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
 			require.True(t, ok)
 			incoming := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
@@ -26,7 +27,8 @@ func TestPermissionSurface_RoundTripsSupportedClientSurface(t *testing.T) {
 }
 
 func TestPermissionSurface_DefaultsUnsupportedOrMissingValuesToRPC(t *testing.T) {
-	require.Equal(t, permissions.SurfaceRPC, PermissionSurfaceFromIncomingContext(nil))
+	var nilContext context.Context
+	require.Equal(t, permissions.SurfaceRPC, PermissionSurfaceFromIncomingContext(nilContext))
 	require.Equal(t, permissions.SurfaceRPC, PermissionSurfaceFromIncomingContext(context.Background()))
 
 	outgoing := WithOutgoingPermissionSurface(context.Background(), permissions.SurfaceSlack)
@@ -41,7 +43,8 @@ func TestPermissionSurface_DefaultsUnsupportedOrMissingValuesToRPC(t *testing.T)
 }
 
 func TestPermissionPreset_RoundTripsSupportedValue(t *testing.T) {
-	outgoing := WithOutgoingPermissionPreset(nil, permissions.PresetApproveForMe)
+	var nilContext context.Context
+	outgoing := WithOutgoingPermissionPreset(nilContext, permissions.PresetApproveForMe)
 	outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
 	require.True(t, ok)
 	incoming := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
@@ -52,7 +55,7 @@ func TestPermissionPreset_RoundTripsSupportedValue(t *testing.T) {
 
 	_, ok = PermissionPresetFromIncomingContext(context.Background())
 	require.False(t, ok)
-	_, ok = PermissionPresetFromIncomingContext(nil)
+	_, ok = PermissionPresetFromIncomingContext(nilContext)
 	require.False(t, ok)
 	invalidIncoming := metadata.NewIncomingContext(context.Background(), metadata.Pairs(
 		permissionPresetKey, "unrestricted",
@@ -117,13 +120,14 @@ func TestPermissionActor_ClassifiesOnlyLoopbackInteractiveClientsAsLocalOwner(t 
 }
 
 func TestPermissionActor_UsesAuthenticatedPrincipalWithoutGrantingOwnerAuthority(t *testing.T) {
-	ctx := WithAuthenticatedPermissionPrincipal(nil, " client-123 ")
+	var nilContext context.Context
+	ctx := WithAuthenticatedPermissionPrincipal(nilContext, " client-123 ")
 	actor := PermissionActorFromIncomingContext(ctx)
 	require.Equal(t, permissions.Actor{Kind: permissions.ActorRPCClient, ID: "client-123"}, actor)
 
 	unchanged := WithAuthenticatedPermissionPrincipal(context.Background(), " ")
 	require.Equal(t, permissions.ActorRPCClient, PermissionActorFromIncomingContext(unchanged).Kind)
-	require.Equal(t, permissions.ActorRPCClient, PermissionActorFromIncomingContext(nil).Kind)
+	require.Equal(t, permissions.ActorRPCClient, PermissionActorFromIncomingContext(nilContext).Kind)
 }
 
 func incomingPermissionContext(surface permissions.Surface, address net.Addr) context.Context {

@@ -80,6 +80,7 @@ func (s *AutomationService) AddJob(
 	if err := s.checkRequest(req); err != nil {
 		return nil, err
 	}
+
 	ctx = s.service.getPermissionContext(ctx)
 	if err := s.service.checkPermission(ctx, automationPermissionOperation(
 		permissions.ActionCreate,
@@ -104,6 +105,7 @@ func (s *AutomationService) UpdateJob(
 	if err := s.checkRequest(req); err != nil {
 		return nil, err
 	}
+
 	ctx = s.service.getPermissionContext(ctx)
 	if err := s.service.checkPermission(ctx, automationPermissionOperation(
 		permissions.ActionUpdate,
@@ -168,6 +170,7 @@ func (s *AutomationService) RemoveJob(
 	if err := s.checkRequest(req); err != nil {
 		return nil, err
 	}
+
 	ctx = s.service.getPermissionContext(ctx)
 	if err := s.service.checkPermission(ctx, automationPermissionOperation(
 		permissions.ActionDelete,
@@ -196,6 +199,7 @@ func (s *AutomationService) RunJob(
 	if err := s.checkRequest(req); err != nil {
 		return nil, err
 	}
+
 	ctx = s.service.getPermissionContext(ctx)
 	if err := s.service.checkPermission(ctx, automationPermissionOperation(
 		permissions.ActionTrigger,
@@ -253,6 +257,7 @@ func (s *AutomationService) checkRequest(req any) error {
 	if req == nil {
 		return status.Error(codes.InvalidArgument, "automation request is required")
 	}
+
 	value := reflect.ValueOf(req)
 	switch value.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:

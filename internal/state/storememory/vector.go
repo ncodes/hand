@@ -32,6 +32,7 @@ func (s *Store) ConfigureVectorStore(opts search.VectorStoreOptions) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
+
 	embeddingModelValue := str.String(opts.EmbeddingModel)
 	model := embeddingModelValue.Trim()
 	if opts.Embedder == nil && opts.VectorStore == nil && model == "" {
@@ -163,12 +164,14 @@ func (s *Store) searchMessagesLexicalCandidates(
 			if hits[i].Message.CreatedAt.Equal(hits[j].Message.CreatedAt) {
 				return hits[i].Message.ID > hits[j].Message.ID
 			}
+
 			return hits[i].Message.CreatedAt.After(hits[j].Message.CreatedAt)
 		})
 		for _, hit := range hits {
 			if limit > 0 && len(candidates) >= limit {
 				return
 			}
+
 			candidates[search.SourceIDForMessage(sessionID, hit.Message.ID)] = &searchCandidate{
 				CandidateMatch: search.CandidateMatch{
 					SessionID:       sessionID,
@@ -779,6 +782,7 @@ func (s *Store) rerankerName() string {
 	if s == nil || s.vectors == nil || s.vectors.Reranker == nil {
 		return search.RerankerDeterministic
 	}
+
 	nameValue := str.String(s.vectors.Reranker.Name())
 	return nameValue.Normalized()
 }

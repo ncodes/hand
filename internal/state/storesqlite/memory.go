@@ -127,6 +127,7 @@ func (s *Store) ListSessionMemories(ctx context.Context, query statememory.Sessi
 	if s == nil || s.db == nil {
 		return statememory.SessionMemoriesResult{}, errors.New("store is required")
 	}
+
 	sessionIDValue := str.String(query.SessionID)
 	sessionID := sessionIDValue.Trim()
 	if err := statememory.ValidateSessionID(sessionID); err != nil {
@@ -214,6 +215,7 @@ func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (
 		if err := tx.Where("memory_id = ?", item.ID).Delete(&memoryItemTagModel{}).Error; err != nil {
 			return err
 		}
+
 		for _, tag := range statememory.NormalizeMemoryTags(item.Tags) {
 			if err := tx.Create(&memoryItemTagModel{MemoryID: item.ID, Tag: tag}).Error; err != nil {
 				return err
@@ -238,6 +240,7 @@ func (s *Store) PatchMemory(ctx context.Context, patch statememory.MemoryPatch) 
 	if s == nil || s.db == nil {
 		return statememory.MemoryItem{}, errors.New("store is required")
 	}
+
 	iDValue2 := str.String(patch.ID)
 	patch.ID = iDValue2.Trim()
 	if patch.ID == "" {
@@ -252,6 +255,7 @@ func (s *Store) PatchMemory(ctx context.Context, patch statememory.MemoryPatch) 
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("memory item not found")
 			}
+
 			return err
 		}
 
@@ -268,6 +272,7 @@ func (s *Store) PatchMemory(ctx context.Context, patch statememory.MemoryPatch) 
 			if err := tx.Where("memory_id = ?", item.ID).Delete(&memoryItemTagModel{}).Error; err != nil {
 				return err
 			}
+
 			for _, tag := range statememory.NormalizeMemoryTags(item.Tags) {
 				if err := tx.Create(&memoryItemTagModel{MemoryID: item.ID, Tag: tag}).Error; err != nil {
 					return err
@@ -303,6 +308,7 @@ func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRe
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	iDValue3 := str.String(req.ID)
 	id := iDValue3.Trim()
 	if id == "" {
@@ -327,6 +333,7 @@ func (s *Store) HardDeleteMemory(ctx context.Context, req statememory.MemoryDele
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	iDValue4 := str.String(req.ID)
 	id := iDValue4.Trim()
 	if id == "" {
@@ -341,6 +348,7 @@ func (s *Store) HardDeleteMemory(ctx context.Context, req statememory.MemoryDele
 		if err := deleteMemorySearchRow(tx, id); err != nil {
 			return err
 		}
+
 		result := tx.Where("id = ?", id).Delete(&memoryItemModel{})
 		if result.Error != nil {
 			return result.Error
@@ -429,6 +437,7 @@ func (s *Store) searchMemoryRecords(
 	for _, record := range records {
 		searchRecords = append(searchRecords, memoryModelToSearchRecord(record, 0))
 	}
+
 	return searchRecords, nil
 }
 
@@ -883,6 +892,7 @@ func getMemoryMetadataSearchText(metadata map[string]string) string {
 	for _, key := range keys {
 		values = append(values, key, metadata[key])
 	}
+
 	return strings.Join(values, " ")
 }
 

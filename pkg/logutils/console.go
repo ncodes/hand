@@ -40,6 +40,7 @@ func newConsoleWriter(out io.Writer, noColor bool) zerolog.ConsoleWriter {
 			if name != consoleModuleField {
 				return fmt.Sprintf("%s", value)
 			}
+
 			return formatConsoleModule(value, noColor)
 		},
 	}
@@ -49,6 +50,7 @@ func formatConsoleModule(value any, noColor bool) string {
 	if value == nil {
 		return ""
 	}
+
 	sprintValue := str.String(fmt.Sprint(value))
 	module := sprintValue.Trim()
 	if module == "" {

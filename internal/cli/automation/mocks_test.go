@@ -51,6 +51,7 @@ func (s *automationCommandAPIStub) List(_ context.Context, query coreautomation.
 	if s.listErr != nil {
 		return coreautomation.JobList{}, s.listErr
 	}
+
 	s.jobQuery = query
 	if s.jobs != nil {
 		return coreautomation.JobList{Jobs: s.jobs}, nil
@@ -66,6 +67,7 @@ func (s *automationCommandAPIStub) Add(
 	if s.addErr != nil {
 		return coreautomation.Job{}, s.addErr
 	}
+
 	s.added = job
 	if s.added.ID == "" {
 		s.added.ID = testAutomationCommandJobID
@@ -81,6 +83,7 @@ func (s *automationCommandAPIStub) Update(
 	if s.updateErr != nil {
 		return coreautomation.Job{}, s.updateErr
 	}
+
 	s.patch = patch
 	enabled := false
 	if patch.Enabled != nil {
@@ -94,6 +97,7 @@ func (s *automationCommandAPIStub) Remove(_ context.Context, id string) error {
 	if s.removeErr != nil {
 		return s.removeErr
 	}
+
 	s.removedID = id
 
 	return nil
@@ -103,6 +107,7 @@ func (s *automationCommandAPIStub) Run(_ context.Context, id string) (coreautoma
 	if s.runErr != nil {
 		return coreautomation.Run{}, s.runErr
 	}
+
 	if s.run.ID == "" {
 		s.run = coreautomation.Run{ID: testAutomationCommandRunID, JobID: id, Status: coreautomation.RunStatusOK}
 	}
@@ -117,6 +122,7 @@ func (s *automationCommandAPIStub) Runs(
 	if s.runsErr != nil {
 		return coreautomation.RunList{}, s.runsErr
 	}
+
 	s.runQuery = query
 
 	return coreautomation.RunList{Runs: s.runs}, nil

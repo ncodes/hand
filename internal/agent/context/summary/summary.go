@@ -330,6 +330,7 @@ func (s *Service) refreshSummaryState(
 			}, wrapped.Error(), plan.Auto))
 			return wrapped
 		}
+
 		return err
 	}
 
@@ -1870,6 +1871,7 @@ func (m *State) RecordSummaryApplied(traceSession trace.Session) {
 	if m == nil || traceSession == nil || m.Current == nil {
 		return
 	}
+
 	sessionSummaryValue := str.String(m.Current.SessionSummary)
 	if sessionSummaryValue.Trim() == "" {
 		return

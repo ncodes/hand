@@ -34,6 +34,7 @@ func trimLeadingTaskMarker(text string) string {
 			return trimPrefixValue.Trim()
 		}
 	}
+
 	return text
 }
 
@@ -63,6 +64,7 @@ func unescapeMarkdownText(text string) string {
 			escaped = true
 			continue
 		}
+
 		builder.WriteRune(char)
 	}
 	if escaped {

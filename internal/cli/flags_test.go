@@ -16,8 +16,7 @@ import (
 
 func TestApplyConfigOverrides_AppliesRulesFiles(t *testing.T) {
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -31,8 +30,7 @@ func TestApplyConfigOverrides_AppliesRulesFiles(t *testing.T) {
 
 func TestApplyConfigOverrides_AppliesInstruct(t *testing.T) {
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: []cli.Flag{RequestInstructFlag()}}
+	cmd := &cli.Command{Flags: []cli.Flag{RequestInstructFlag()}}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -46,8 +44,7 @@ func TestApplyConfigOverrides_AppliesInstruct(t *testing.T) {
 
 func TestApplyConfigOverrides_NoColorForcesLogNoColor(t *testing.T) {
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -85,8 +82,7 @@ func TestChatFlag_AcceptsLongAndShortForms(t *testing.T) {
 
 func TestApplyConfigOverrides_AppliesPlatformAndCapabilities(t *testing.T) {
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -106,8 +102,7 @@ func TestApplyConfigOverrides_AppliesPlatformAndCapabilities(t *testing.T) {
 
 func TestApplyConfigOverrides_AppliesModelMaxRetries(t *testing.T) {
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -129,8 +124,7 @@ func TestApplyConfigOverrides_ProviderSwitchResolvesProviderDefaults(t *testing.
 			},
 		},
 	}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -155,8 +149,7 @@ func TestApplyConfigOverrides_ProviderSwitchKeepsExplicitAPIAndBaseURL(t *testin
 			},
 		},
 	}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -178,8 +171,7 @@ func TestApplyConfigOverrides_ProviderSwitchKeepsExplicitAPIAndBaseURL(t *testin
 
 func TestApplyConfigOverrides_AppliesLogRotationSettings(t *testing.T) {
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -202,8 +194,7 @@ func TestApplyConfigOverrides_AppliesLogRotationSettings(t *testing.T) {
 
 func TestApplyConfigOverrides_AppliesGatewaySettings(t *testing.T) {
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -247,8 +238,7 @@ func TestApplyConfigOverrides_AppliesGatewaySettings(t *testing.T) {
 
 func TestApplyConfigOverrides_AppliesModelStream(t *testing.T) {
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -263,8 +253,7 @@ func TestApplyConfigOverrides_AppliesModelStream(t *testing.T) {
 
 func TestApplyConfigOverrides_AppliesTUIThinkingComposer(t *testing.T) {
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -281,8 +270,7 @@ func TestApplyConfigOverrides_AppliesFilesystemRootsAndExecRules(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -309,8 +297,7 @@ func TestApplyConfigOverrides_AppliesFilesystemRootsAndExecRules(t *testing.T) {
 
 func TestApplyConfigOverrides_AppliesSessionSettings(t *testing.T) {
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil
@@ -333,8 +320,7 @@ func TestApplyConfigOverrides_AppliesSessionSettings(t *testing.T) {
 
 func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
 	cfg := &config.Config{}
-	var cmd *cli.Command
-	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd := &cli.Command{Flags: RootFlags(nil, nil)}
 	cmd.Action = func(context.Context, *cli.Command) error {
 		ApplyConfigOverrides(cmd, cfg)
 		return nil

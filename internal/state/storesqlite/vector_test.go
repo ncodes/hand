@@ -1128,7 +1128,7 @@ func TestSQLiteStore_VectorStoreMutationDatabaseErrors(t *testing.T) {
 			Before("gorm:delete").
 			Register("test:delete_message_error", func(tx *gorm.DB) {
 				if tx.Statement != nil && tx.Statement.Schema != nil && tx.Statement.Schema.Table == "session_messages" {
-					tx.AddError(deleteErr)
+					_ = tx.AddError(deleteErr)
 				}
 			})
 		require.NoError(t, err)
@@ -1362,6 +1362,7 @@ func (s *sqliteTestVectorStore) Upsert(_ context.Context, records []search.Vecto
 	if s.err != nil {
 		return s.err
 	}
+
 	s.upserts = append(s.upserts, append([]search.VectorRecord(nil), records...))
 	if s.records == nil {
 		s.records = make(map[string]search.VectorRecord, len(records))
@@ -1389,6 +1390,7 @@ func (s *sqliteTestVectorStore) Delete(_ context.Context, req search.VectorDelet
 		if record.SourceKind != req.SourceKind {
 			continue
 		}
+
 		if _, ok := sourceIDs[record.SourceID]; ok {
 			delete(s.records, id)
 		}
@@ -1434,6 +1436,7 @@ func (s *sqliteTestVectorStore) List(_ context.Context, req search.VectorListReq
 		if req.Filter.SourceKind != "" && record.SourceKind != req.Filter.SourceKind {
 			continue
 		}
+
 		if len(sourceIDs) > 0 {
 			if _, ok := sourceIDs[record.SourceID]; !ok {
 				continue

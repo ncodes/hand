@@ -125,6 +125,7 @@ func (i Instructions) WithoutName(name string) Instructions {
 		if instruction.Name == name {
 			continue
 		}
+
 		filtered = append(filtered, instruction)
 	}
 

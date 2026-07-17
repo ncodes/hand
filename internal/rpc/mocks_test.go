@@ -46,6 +46,7 @@ func (s *respondStreamServerStub) Send(event *morphpb.RespondEvent) error {
 	if s.sendErrAt > 0 && len(s.events)+1 == s.sendErrAt {
 		return errors.New("send failed")
 	}
+
 	s.events = append(s.events, event)
 	return nil
 }
@@ -57,6 +58,7 @@ func (s *respondStreamServerStub) Context() context.Context {
 	if s.ctx != nil {
 		return s.ctx
 	}
+
 	return context.Background()
 }
 func (s *respondStreamServerStub) SendMsg(any) error { return nil }
@@ -211,6 +213,7 @@ func (s *automationAPIStub) Status(context.Context) (automation.Status, error) {
 	if s.err != nil {
 		return automation.Status{}, s.err
 	}
+
 	return s.status, nil
 }
 
@@ -218,6 +221,7 @@ func (s *automationAPIStub) List(_ context.Context, query automation.JobQuery) (
 	if s.err != nil {
 		return automation.JobList{}, s.err
 	}
+
 	s.listQuery = query
 	return automation.JobList{Jobs: []automation.Job{s.added}}, nil
 }
@@ -226,6 +230,7 @@ func (s *automationAPIStub) Add(_ context.Context, job automation.Job) (automati
 	if s.err != nil {
 		return automation.Job{}, s.err
 	}
+
 	s.added = job
 	if s.added.ID == "" {
 		s.added.ID = testRPCAutomationJobID
@@ -237,6 +242,7 @@ func (s *automationAPIStub) Update(_ context.Context, patch automation.JobPatch)
 	if s.err != nil {
 		return automation.Job{}, s.err
 	}
+
 	s.patch = patch
 	return automation.Job{ID: patch.ID, Name: valueOrZero(patch.Name)}, nil
 }
@@ -245,6 +251,7 @@ func (s *automationAPIStub) Remove(_ context.Context, id string) error {
 	if s.err != nil {
 		return s.err
 	}
+
 	s.removedID = id
 	return nil
 }
@@ -253,6 +260,7 @@ func (s *automationAPIStub) Run(_ context.Context, id string) (automation.Run, e
 	if s.err != nil {
 		return automation.Run{}, s.err
 	}
+
 	s.runID = id
 	if s.run.ID == "" {
 		s.run = automation.Run{ID: testRPCAutomationRunID, JobID: id, Status: automation.RunStatusOK}
@@ -264,6 +272,7 @@ func (s *automationAPIStub) Runs(_ context.Context, query automation.RunQuery) (
 	if s.err != nil {
 		return automation.RunList{}, s.err
 	}
+
 	s.runQuery = query
 	return automation.RunList{Runs: []automation.Run{s.run}}, nil
 }

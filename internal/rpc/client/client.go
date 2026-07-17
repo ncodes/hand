@@ -383,6 +383,7 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 			if recvErr == io.EOF {
 				return builder.String(), errors.New("respond stream ended before done event")
 			}
+
 			return builder.String(), recvErr
 		}
 		switch event.GetType() {
@@ -424,6 +425,7 @@ func protoRespondTraceEventToTraceEvent(event *morphpb.RespondEvent) (trace.Even
 	if event == nil {
 		return trace.Event{}, false
 	}
+
 	traceTypeValue := str.String(event.GetTraceType())
 	eventType := traceTypeValue.Trim()
 	if eventType == "" {
@@ -492,6 +494,7 @@ func (c *Client) PermissionAPI() PermissionAPI {
 	if c == nil {
 		return nil
 	}
+
 	return c.Permission
 }
 

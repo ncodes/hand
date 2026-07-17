@@ -381,7 +381,7 @@ func TestOpenAISubscriptionProvider_WithDefaultsAndCallbackRedirectURI(t *testin
 func TestOpenAISubscriptionProvider_StartCallbackServerReportsServeError(t *testing.T) {
 	errCh := make(chan error, 1)
 	server := OpenAISubscriptionProvider{}.startCallbackServer(errListener{}, "state", make(chan string, 1), errCh)
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	var err error
 	require.Eventually(t, func() bool {
@@ -538,6 +538,7 @@ func (r *limitedReader) Read(p []byte) (int, error) {
 	if r.remaining <= 0 {
 		return 0, errors.New("forced read failure")
 	}
+
 	n := len(p)
 	if n > r.remaining {
 		n = r.remaining

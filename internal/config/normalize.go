@@ -11,6 +11,7 @@ func (c *Config) normalizeFields() {
 	if c == nil {
 		return
 	}
+
 	nameValue := str.String(c.Name)
 	c.Name = nameValue.Trim()
 	if c.Name == "" {

@@ -181,6 +181,7 @@ func ResolveRPC(ctx context.Context, cmd *cli.Command, cfg *config.Config) (conf
 		if os.IsNotExist(err) {
 			return cfg.RPC, nil
 		}
+
 		return config.RPCConfig{}, err
 	}
 	if err := checkPID(metadata.PID); err != nil {
@@ -209,6 +210,7 @@ func hasExplicitRPC(cmd *cli.Command, cfg *config.Config) bool {
 	if cmd != nil && (cmd.IsSet("rpc.address") || cmd.IsSet("rpc.port")) {
 		return true
 	}
+
 	envValue := str.String(os.Getenv("MORPH_RPC_ADDRESS"))
 	envValue2 := str.String(os.Getenv("MORPH_RPC_PORT"))
 	if envValue.Trim() != "" || envValue2.Trim() != "" {

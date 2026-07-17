@@ -867,5 +867,6 @@ func getBoolValue(value *bool) bool {
 	if value == nil {
 		return false
 	}
+
 	return *value
 }

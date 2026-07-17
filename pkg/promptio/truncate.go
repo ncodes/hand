@@ -15,6 +15,7 @@ func TruncateMiddle(content string, maxLength int, marker string) string {
 		if utf8.ValidString(marker[:maxLength]) {
 			return marker[:maxLength]
 		}
+
 		truncated := marker[:maxLength]
 		for len(truncated) > 0 && !utf8.ValidString(truncated) {
 			truncated = truncated[:len(truncated)-1]

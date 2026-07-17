@@ -23,6 +23,7 @@ func recordTrace(recorder TraceRecorder, event string, payload map[string]any) {
 	if recorder == nil {
 		return
 	}
+
 	typedPayload, ok := trace.DecodePayload(event, payload)
 	if !ok {
 		typedPayload = payload
@@ -44,6 +45,7 @@ func getTracePayload(req normalizedRequest, fields map[string]any) map[string]an
 	for key, value := range fields {
 		payload[key] = value
 	}
+
 	return payload
 }
 
@@ -84,6 +86,7 @@ func recordBackgroundTrace(
 	if recorder == nil {
 		return
 	}
+
 	typedPayload, ok := trace.DecodePayload(event, payload)
 	if !ok {
 		typedPayload = payload

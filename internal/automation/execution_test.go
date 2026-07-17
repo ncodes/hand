@@ -213,7 +213,8 @@ func TestAgentRunner_Validation(t *testing.T) {
 func TestAgentRunner_PropagatesRuntimeErrors(t *testing.T) {
 	expected := errors.New("boom")
 
-	_, err := newExecutionTestRunner(t, AgentRunnerOptions{}).RunAutomation(nil, Job{Payload: Payload{Prompt: "hello"}})
+	var nilContext context.Context
+	_, err := newExecutionTestRunner(t, AgentRunnerOptions{}).RunAutomation(nilContext, Job{Payload: Payload{Prompt: "hello"}})
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())

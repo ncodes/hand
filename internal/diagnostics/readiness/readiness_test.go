@@ -1068,6 +1068,7 @@ func findReadinessCheck(t *testing.T, report Report, groupName string, checkName
 		if group.Name != groupName {
 			continue
 		}
+
 		for _, check := range group.Checks {
 			if check.Name == checkName {
 				return check

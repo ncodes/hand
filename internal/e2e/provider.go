@@ -65,6 +65,7 @@ func (d *Provider) URL() string {
 	if d == nil || d.server == nil {
 		return ""
 	}
+
 	return d.server.URL
 }
 
@@ -72,6 +73,7 @@ func (d *Provider) Close() {
 	if d == nil || d.server == nil {
 		return
 	}
+
 	d.server.Close()
 }
 

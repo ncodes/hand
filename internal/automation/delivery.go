@@ -128,6 +128,7 @@ func checkFailureNoticeDue(job Job, delivery Delivery, now time.Time) bool {
 	if delivery.FailureAfter <= 0 {
 		return false
 	}
+
 	nextErrorCount := job.State.ConsecutiveErrors + 1
 	if nextErrorCount < delivery.FailureAfter {
 		return false
@@ -183,7 +184,7 @@ func deliverWebhook(ctx context.Context, client HTTPClient, url string, req Deli
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}

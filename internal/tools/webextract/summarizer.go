@@ -86,6 +86,7 @@ func (s ExtractSummarizer) SummarizeExtract(ctx context.Context, input SummaryIn
 	if s.Client == nil {
 		return "", errors.New("web extract summarizer is not configured")
 	}
+
 	contentValue := str.String(input.Content)
 	content := contentValue.Trim()
 	if input.MaxSummaryChunkChars > 0 && getRuneLength(content) > input.MaxSummaryChunkChars {

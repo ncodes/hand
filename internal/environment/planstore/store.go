@@ -22,10 +22,14 @@ type MemoryPlanStore struct {
 }
 
 func (s *MemoryPlanStore) Get(sessionID string) Plan {
+	if s == nil {
+		return Plan{}
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s == nil || len(s.plans) == 0 {
+	if len(s.plans) == 0 {
 		return Plan{}
 	}
 
@@ -82,6 +86,7 @@ func (s *MemoryPlanStore) Merge(
 			}
 			continue
 		}
+
 		iDValue := str.String(update.ID)
 		step := PlanStep{ID: iDValue.Trim()}
 		if update.Content != nil {
@@ -103,6 +108,7 @@ func (s *MemoryPlanStore) Merge(
 			if step.Status == PlanStatusCompleted || step.Status == PlanStatusCancelled {
 				continue
 			}
+
 			filtered = append(filtered, step)
 		}
 		current.Steps = append([]PlanStep(nil), filtered...)

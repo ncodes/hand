@@ -143,6 +143,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 						if step.Status == envtypes.PlanStatusCompleted || step.Status == envtypes.PlanStatusCancelled {
 							continue
 						}
+
 						filtered = append(filtered, step)
 					}
 					plan.Steps = filtered
@@ -365,6 +366,7 @@ func getPlanChanges(before envtypes.Plan, after envtypes.Plan) []trace.PlanToolC
 		if _, ok := afterByID[step.ID]; ok {
 			continue
 		}
+
 		changes = append(changes, trace.PlanToolChange{
 			Index:  beforeIndexByID[step.ID],
 			ID:     step.ID,
@@ -454,6 +456,7 @@ func getActivePlanStepID(plan envtypes.Plan) string {
 			return step.ID
 		}
 	}
+
 	return ""
 }
 

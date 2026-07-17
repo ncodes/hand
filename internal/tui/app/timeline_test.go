@@ -149,7 +149,8 @@ func TestLoadSessionTimelineCmdHandlesNilClientAndNilContext(t *testing.T) {
 		timeline: client.SessionTimeline{SessionID: "session-a"},
 	}
 
-	cmd := loadSessionTimelineCmd(nil, client, " session-a ")
+	var nilContext context.Context
+	cmd := loadSessionTimelineCmd(nilContext, client, " session-a ")
 
 	require.NotNil(t, cmd)
 	require.Equal(t, sessionTimelineLoadedMsg{Timeline: client.timeline}, cmd())
@@ -164,7 +165,8 @@ func TestLoadStartupSessionTimelineCmdHandlesNilClientAndNilContext(t *testing.T
 		timeline: client.SessionTimeline{SessionID: "session-a"},
 	}
 
-	cmd := loadStartupSessionTimelineCmd(nil, client, "session-a")
+	var nilContext context.Context
+	cmd := loadStartupSessionTimelineCmd(nilContext, client, "session-a")
 
 	require.NotNil(t, cmd)
 	require.Equal(t, sessionTimelineLoadedMsg{Timeline: client.timeline}, cmd())

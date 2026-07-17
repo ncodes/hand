@@ -1484,5 +1484,6 @@ func memoryHitIDs(hits []SearchHit) []string {
 	for _, hit := range hits {
 		ids = append(ids, hit.Item.ID)
 	}
+
 	return ids
 }

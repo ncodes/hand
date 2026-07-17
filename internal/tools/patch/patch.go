@@ -213,6 +213,7 @@ func applyUnifiedDiff(
 			if err := mkdirAll(filepath.Dir(resolved.Absolute), 0o755); err != nil {
 				return nil, nil, err
 			}
+
 			created = append(created, filepath.ToSlash(resolved.Relative))
 		}
 

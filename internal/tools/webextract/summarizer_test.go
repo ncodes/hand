@@ -73,7 +73,8 @@ func TestWithSummarizer_ReturnsOriginalContextWhenSummarizerIsNil(t *testing.T) 
 }
 
 func TestSummarizerFromContext_ReturnsNilWithoutSummarizer(t *testing.T) {
-	require.Nil(t, getSummarizerFromContext(nil))
+	var nilContext context.Context
+	require.Nil(t, getSummarizerFromContext(nilContext))
 	require.Nil(t, getSummarizerFromContext(context.Background()))
 	require.Nil(t, getSummarizerFromContext(context.WithValue(context.Background(), summarizerContextKey{}, "not a summarizer")))
 }

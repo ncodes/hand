@@ -34,6 +34,7 @@ func FilterMemoryHitsForEvidence(
 			filtered = append(filtered, hit)
 		}
 	}
+
 	return filtered
 }
 
@@ -155,6 +156,7 @@ func dedupeMemoryHits(hits []state.MemorySearchHit) []state.MemorySearchHit {
 	for _, candidate := range candidates {
 		deduped = append(deduped, hitByCandidateID[candidate.ID])
 	}
+
 	return deduped
 }
 
@@ -165,12 +167,14 @@ func compareMemoryHits(left state.MemorySearchHit, right state.MemorySearchHit) 
 		if leftCandidate.FusedScore > rightCandidate.FusedScore {
 			return -1
 		}
+
 		return 1
 	}
 	if !left.Item.UpdatedAt.Equal(right.Item.UpdatedAt) {
 		if left.Item.UpdatedAt.After(right.Item.UpdatedAt) {
 			return -1
 		}
+
 		return 1
 	}
 	if left.Item.ID < right.Item.ID {
@@ -232,6 +236,7 @@ func memoryKindBoost(kind state.MemoryKind, queryKinds []state.MemoryKind) float
 		if slices.Contains(queryKinds, kind) {
 			return 0.20
 		}
+
 		return 0
 	}
 
@@ -268,6 +273,7 @@ func memoryConfidenceBoost(confidence float64) float64 {
 	if confidence <= 0 || !finite(confidence) {
 		return 0
 	}
+
 	if confidence > 1 {
 		confidence = 1
 	}

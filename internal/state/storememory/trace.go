@@ -15,6 +15,7 @@ func (s *Store) AppendTraceEvent(_ context.Context, event base.TraceEvent) (base
 	if s == nil {
 		return base.TraceEvent{}, errors.New("store is required")
 	}
+
 	sessionIDValue := str.String(event.SessionID)
 	event.SessionID = sessionIDValue.Trim()
 	if err := base.ValidateSessionID(event.SessionID); err != nil {
@@ -80,14 +81,17 @@ func (s *Store) ListTraceEvents(_ context.Context, query base.TraceQuery) (base.
 			if query.Desc {
 				return strings.Compare(b.SessionID, a.SessionID)
 			}
+
 			return strings.Compare(a.SessionID, b.SessionID)
 		}
 		if a.Sequence != b.Sequence {
 			if query.Desc {
 				return b.Sequence - a.Sequence
 			}
+
 			return a.Sequence - b.Sequence
 		}
+
 		return int(a.ID) - int(b.ID)
 	})
 
@@ -113,6 +117,7 @@ func (s *Store) PruneTraceEvents(_ context.Context, sessionID string, maxEvents 
 	if maxEvents < 0 {
 		return errors.New("max trace events must be greater than or equal to zero")
 	}
+
 	sessionIDValue3 := str.String(sessionID)
 	sessionID = sessionIDValue3.Trim()
 	if err := base.ValidateSessionID(sessionID); err != nil {

@@ -125,6 +125,7 @@ func TestRuntime_PlanMethodsDelegateToStore(t *testing.T) {
 		Content: ptrTo("Second"),
 		Status:  ptrTo(planstore.PlanStatusPending),
 	}}, "updated", false)
+	require.NoError(t, err)
 
 	cleared := runtime.ClearPlan("session-1")
 

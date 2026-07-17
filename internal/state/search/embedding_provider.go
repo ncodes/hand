@@ -124,6 +124,7 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 	if err := p.validateRequestLimits(req); err != nil {
 		return EmbeddingResult{}, err
 	}
+
 	modelValue := str.String(req.Model)
 	targetValue := str.String(req.Target)
 	retrievalLog.Debug().
@@ -287,7 +288,7 @@ func (p *EmbeddingProvider) embedBatchAttempt(
 	if err != nil {
 		return EmbeddingResult{}, true, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		message := getProviderErrorMessage(resp)
@@ -364,7 +365,7 @@ func (p *EmbeddingProvider) embedOllamaInput(
 	if err != nil {
 		return nil, true, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		message := getProviderErrorMessage(resp)
@@ -409,6 +410,7 @@ func openAIEmbeddingResponseToEmbeddingResult(
 		if _, ok := seen[item.Index]; ok {
 			return EmbeddingResult{}, fmt.Errorf("embedding response index %d is duplicated", item.Index)
 		}
+
 		seen[item.Index] = struct{}{}
 		if len(item.Embedding) == 0 {
 			return EmbeddingResult{}, errors.New("embedding vector is required")
@@ -488,6 +490,7 @@ func (p *EmbeddingProvider) shouldSendAuthorization() bool {
 		apiKeyValue := str.String(p.apiKey)
 		return apiKeyValue.Trim() != ""
 	}
+
 	apiKeyValue2 := str.String(p.apiKey)
 	switch apiKeyValue2.Trim() {
 	case constants.OllamaLocalAuthMarker, constants.LocalProviderAuthMarker, "":
@@ -544,6 +547,7 @@ func getEmbeddingRequestSourceKind(inputs []EmbeddingInput) string {
 	if len(inputs) == 0 {
 		return ""
 	}
+
 	sourceKindValue := str.String(string(inputs[0].SourceKind))
 	sourceKind := sourceKindValue.Trim()
 	if sourceKind == "" {
@@ -564,6 +568,7 @@ func getEmbeddingRequestSingleInputID(inputs []EmbeddingInput) string {
 	if len(inputs) != 1 {
 		return ""
 	}
+
 	iDValue := str.String(inputs[0].ID)
 	return iDValue.Trim()
 }

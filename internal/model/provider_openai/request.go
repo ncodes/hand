@@ -76,6 +76,7 @@ func normalizeStructuredOutput(value *StructuredOutput) *StructuredOutput {
 	if value == nil {
 		return nil
 	}
+
 	nameValue := str.String(value.Name)
 	name := nameValue.Trim()
 	if name == "" || len(value.Schema) == 0 {
@@ -112,7 +113,7 @@ func normalizeMessages(messages []morphmsg.Message) ([]morphmsg.Message, error) 
 			return nil, errors.New("message role must be one of user, assistant, or tool; developer messages must be provided via instructions")
 		}
 
-		if content == "" && !(role == morphmsg.RoleAssistant && len(toolCalls) > 0) {
+		if content == "" && (role != morphmsg.RoleAssistant || len(toolCalls) == 0) {
 			return nil, errors.New("message content is required")
 		}
 		if role == morphmsg.RoleTool && toolCallID == "" {
@@ -209,6 +210,7 @@ func normalizeStrictJSONSchemaValue(value any) any {
 					delete(properties, key)
 					continue
 				}
+
 				if _, required := originalRequired[key]; !required {
 					properties[key] = makeStrictJSONSchemaPropertyNullable(property)
 				}

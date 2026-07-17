@@ -69,6 +69,7 @@ func hasRunningToolTranscriptCell(cells []transcriptCell) bool {
 			if toolGroup != nil && !toolGroup.isCompleted() {
 				return true
 			}
+
 			toolGroup = nil
 			continue
 		}
@@ -76,6 +77,7 @@ func hasRunningToolTranscriptCell(cells []transcriptCell) bool {
 			if toolGroup != nil && !toolGroup.isCompleted() {
 				return true
 			}
+
 			toolGroup = &toolTranscriptGroup{action: toolCell.action}
 		}
 		toolGroup.add(toolCell)

@@ -41,6 +41,7 @@ func (o fakeObservability) Logger() Logger {
 	if o.logger == nil {
 		return nil
 	}
+
 	return o.logger
 }
 
@@ -48,6 +49,7 @@ func (o fakeObservability) Tracer() Tracer {
 	if o.tracer == nil {
 		return nil
 	}
+
 	return o.tracer
 }
 
@@ -118,6 +120,7 @@ func (s fakeMemoryManager) UpsertMemory(_ context.Context, item MemoryItem) (Mem
 	if s.upsertItem.ID != "" {
 		return s.upsertItem, nil
 	}
+
 	return item, nil
 }
 
@@ -128,6 +131,7 @@ func (s fakeMemoryManager) PatchMemory(_ context.Context, patch MemoryPatch) (Me
 	if s.patchItem.ID != "" {
 		return s.patchItem, nil
 	}
+
 	return MemoryItem{ID: patch.ID}, nil
 }
 

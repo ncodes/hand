@@ -896,7 +896,7 @@ func nextTestPort(t *testing.T) string {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer lis.Close()
+	defer func() { _ = lis.Close() }()
 	port := lis.Addr().(*net.TCPAddr).Port
 	return strconv.Itoa(port)
 }

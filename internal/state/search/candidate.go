@@ -116,6 +116,7 @@ func NormalizeScores(scores []float64, direction ScoreDirection) ([]float64, err
 		if !finite(score) {
 			return nil, errors.New("score must be finite")
 		}
+
 		if score < minScore {
 			minScore = score
 		}
@@ -129,6 +130,7 @@ func NormalizeScores(scores []float64, direction ScoreDirection) ([]float64, err
 		for idx := range normalized {
 			normalized[idx] = 1
 		}
+
 		return normalized, nil
 	}
 

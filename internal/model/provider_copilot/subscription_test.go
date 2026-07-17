@@ -223,15 +223,15 @@ func TestGitHubCopilotSubscriptionProvider_EnableKnownModelsPostsPolicyRequests(
 }
 
 func TestGitHubCopilotSubscriptionProvider_PollAccessTokenHandlesPendingUntilContextCancelled(t *testing.T) {
-	var cancel context.CancelFunc
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, `{"error":"authorization_pending"}`)
 		cancel()
 	}))
 	defer server.Close()
 
-	var ctx context.Context
-	ctx, cancel = context.WithCancel(context.Background())
 	provider := GitHubCopilotSubscriptionProvider{AccessTokenURL: server.URL}.withDefaults()
 
 	_, err := provider.pollAccessToken(ctx, deviceCodeResponse{

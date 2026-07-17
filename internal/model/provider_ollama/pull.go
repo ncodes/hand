@@ -113,7 +113,7 @@ func (p *Puller) HasModel(ctx context.Context, model string) (bool, error) {
 	if err != nil {
 		return false, enrichOllamaConnectionError(p.baseURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var tags tagsResponse
 	if err := decodeOllamaResponse(resp, &tags); err != nil {
@@ -151,7 +151,7 @@ func (p *Puller) PullModel(ctx context.Context, model string, onProgress func(Pu
 	if err != nil {
 		return enrichOllamaConnectionError(p.baseURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return ollamaStatusErrorForModel(resp, model)

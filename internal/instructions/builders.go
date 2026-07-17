@@ -652,5 +652,6 @@ func cleanList(values []string) []string {
 		}
 		cleaned = append(cleaned, valueText)
 	}
+
 	return cleaned
 }

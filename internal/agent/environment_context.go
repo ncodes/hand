@@ -123,6 +123,7 @@ func (t *Turn) getActiveToolPolicy() (agenttool.Policy, bool) {
 	if t.toolRegistry != nil {
 		return t.toolPolicy, true
 	}
+
 	return agenttool.Policy{}, false
 }
 
@@ -136,6 +137,7 @@ func (t *Turn) getActiveToolGroups() []agenttool.Group {
 	if groupLister, ok := t.toolRegistry.(toolGroupLister); ok {
 		return groupLister.ListGroups()
 	}
+
 	return nil
 }
 
@@ -166,6 +168,7 @@ func agentToolGroupsFromToolsGroups(groups []tools.Group) []agenttool.Group {
 			Includes: append([]string(nil), group.Includes...),
 		})
 	}
+
 	return result
 }
 
@@ -216,6 +219,7 @@ func getActiveToolNames(definitions []models.ToolDefinition) []string {
 	for _, definition := range definitions {
 		names = append(names, definition.Name)
 	}
+
 	return sortedUnique(names)
 }
 
@@ -225,6 +229,7 @@ func getActiveToolGroups(groups []agenttool.Group) []string {
 	for _, group := range groups {
 		names = append(names, group.Name)
 	}
+
 	return sortedUnique(names)
 }
 

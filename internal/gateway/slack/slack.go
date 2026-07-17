@@ -41,6 +41,7 @@ func (a *Adapter) DispatchInbound(ctx context.Context, inbound slack.InboundMess
 	if a == nil || a.service == nil || a.sender == nil {
 		return false, errors.New("slack adapter is required")
 	}
+
 	textValue := str.String(inbound.Text)
 	if textValue.Trim() == "" {
 		return false, nil

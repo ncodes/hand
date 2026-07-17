@@ -586,7 +586,8 @@ func TestModel_ModelSelectionEdgeCases(t *testing.T) {
 
 	require.Nil(t, selectModelCmd(context.Background(), nil, "openai", "gpt-4o"))
 	client := &fakeTUIChatClient{selectedModel: rpcclient.ModelOption{ID: "gpt-4o"}}
-	msg := selectModelCmd(nil, client, "openai", "gpt-4o")()
+	var nilContext context.Context
+	msg := selectModelCmd(nilContext, client, "openai", "gpt-4o")()
 	require.NoError(t, msg.(modelSelectedMsg).Err)
 	require.Equal(t, "gpt-4o", msg.(modelSelectedMsg).Model.ID)
 	require.Equal(t, "openai", client.selectedModelProvider)
@@ -736,7 +737,8 @@ func TestModel_ProviderAPIKeyPromptEdgeCases(t *testing.T) {
 
 	require.Nil(t, setProviderAPIKeyCmd(context.Background(), nil, "openrouter", "openai/gpt-4o", "key"))
 
-	cmd = setProviderAPIKeyCmd(nil, &fakeTUIChatClient{}, "openrouter", "openai/gpt-4o", "key")
+	var nilContext context.Context
+	cmd = setProviderAPIKeyCmd(nilContext, &fakeTUIChatClient{}, "openrouter", "openai/gpt-4o", "key")
 	require.NotNil(t, cmd)
 	require.Equal(t, "openrouter", cmd().(providerAPIKeySetMsg).Provider)
 

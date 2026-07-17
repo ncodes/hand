@@ -687,6 +687,7 @@ func matchIDs(matches []SearchMatch) []string {
 	for _, match := range matches {
 		ids = append(ids, match.Record.ID)
 	}
+
 	return ids
 }
 
@@ -695,6 +696,7 @@ func getRecordIDs(records []Record) []string {
 	for _, record := range records {
 		ids = append(ids, record.ID)
 	}
+
 	return ids
 }
 

@@ -130,6 +130,7 @@ func (a *Agent) loadTimelineTraceEvents(
 		if errors.Is(err, storage.ErrTraceStoreUnsupported) {
 			return nil, false, false, nil
 		}
+
 		return nil, false, false, err
 	}
 

@@ -71,7 +71,8 @@ func TestModel_UpdateHandlesChatsCommand(t *testing.T) {
 func TestLoadChatsCmdUsesBackgroundContextWhenNil(t *testing.T) {
 	client := &fakeTUIChatClient{sessions: []storage.Session{{ID: "ses_1"}}}
 
-	msg, ok := loadChatsCmd(nil, client)().(chatsLoadedMsg)
+	var nilContext context.Context
+	msg, ok := loadChatsCmd(nilContext, client)().(chatsLoadedMsg)
 
 	require.True(t, ok)
 	require.NoError(t, msg.Err)
@@ -139,7 +140,8 @@ func TestModel_RenderArchiveCommandViewOverflowsBottomPane(t *testing.T) {
 func TestLoadArchiveCmdUsesBackgroundContextWhenNil(t *testing.T) {
 	client := &fakeTUIChatClient{archivedSessions: []storage.Session{{ID: "ses_1", Archived: true}}}
 
-	msg, ok := loadArchiveCmd(nil, client)().(archivedChatsLoadedMsg)
+	var nilContext context.Context
+	msg, ok := loadArchiveCmd(nilContext, client)().(archivedChatsLoadedMsg)
 
 	require.True(t, ok)
 	require.NoError(t, msg.Err)
@@ -462,7 +464,7 @@ func TestModel_UpdateChatsCommandArchivesSelectedSession(t *testing.T) {
 	require.Equal(t, "ses_other", client.archivedSessionID)
 	require.Equal(t, 1, client.archiveSessionCalls)
 
-	updated, cmd = runModel.Update(msg)
+	updated, _ = runModel.Update(msg)
 	runModel = updated.(model)
 
 	require.Equal(t, "chat archived", runModel.status.Text())
@@ -501,7 +503,7 @@ func TestModel_UpdateChatsCommandKeepsSessionOnArchiveFailure(t *testing.T) {
 	require.Equal(t, "ses_other", client.archivedSessionID)
 	require.Equal(t, 1, client.archiveSessionCalls)
 
-	updated, cmd = runModel.Update(msg)
+	updated, _ = runModel.Update(msg)
 	runModel = updated.(model)
 
 	require.Equal(t, "chat archive unavailable", runModel.status.Text())
@@ -706,22 +708,21 @@ func TestModel_UpdateChatsCommandKeepsRenameOpenOnRenameFailure(t *testing.T) {
 		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
 	})
 
-	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'r'}))
+	updated, _ := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'r'}))
 	runModel = updated.(model)
 	runModel.renameInput.SetValue("Renamed")
-	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	runModel = updated.(model)
 	msg := chatRenamedMessageFromBatch(t, cmd)
 	require.ErrorIs(t, msg.Err, expected)
 
-	updated, cmd = runModel.Update(msg)
+	updated, _ = runModel.Update(msg)
 	runModel = updated.(model)
 
 	require.True(t, runModel.chatsRenaming)
 	require.Equal(t, "Renamed", runModel.renameInput.Value())
 	require.Equal(t, "chat rename unavailable", runModel.status.Text())
 	require.Equal(t, "Other", runModel.commandView.Chats[0].Title)
-	_ = cmd
 }
 
 func TestModel_UpdateChatsCommandRejectsMalformedRenameCompletion(t *testing.T) {
@@ -858,7 +859,8 @@ func TestArchiveChatSessionCmdHandlesValidationAndNilClient(t *testing.T) {
 	require.Empty(t, archived.ID)
 
 	client := &fakeTUIChatClient{}
-	msg = archiveChatSessionCmd(nil, client, " ses_other ")()
+	var nilContext context.Context
+	msg = archiveChatSessionCmd(nilContext, client, " ses_other ")()
 	archived, ok = msg.(chatArchivedMsg)
 	require.True(t, ok)
 	require.NoError(t, archived.Err)
@@ -881,7 +883,8 @@ func TestRenameChatSessionCmdHandlesValidationAndNilClient(t *testing.T) {
 	require.EqualError(t, renamed.Err, "chat title is required")
 
 	client := &fakeTUIChatClient{}
-	msg = renameChatSessionCmd(nil, client, " ses_other ", " New Title ")()
+	var nilContext context.Context
+	msg = renameChatSessionCmd(nilContext, client, " ses_other ", " New Title ")()
 	renamed, ok = msg.(chatRenamedMsg)
 	require.True(t, ok)
 	require.NoError(t, renamed.Err)
@@ -940,7 +943,8 @@ func TestModel_UpdateChatsCommandSelectingCurrentSessionClosesView(t *testing.T)
 func TestSwitchChatSessionCmdHandlesFailures(t *testing.T) {
 	require.Nil(t, switchChatSessionCmd(context.Background(), nil, "ses_1"))
 
-	msg := switchChatSessionCmd(nil, &fakeTUIChatClient{}, " ")()
+	var nilContext context.Context
+	msg := switchChatSessionCmd(nilContext, &fakeTUIChatClient{}, " ")()
 	failed, ok := msg.(sessionTimelineLoadFailedMsg)
 	require.True(t, ok)
 	require.EqualError(t, failed.Err, "chat id is required")
@@ -1338,7 +1342,8 @@ func TestUnarchiveChatSessionCmdHandlesValidationAndNilClient(t *testing.T) {
 	require.Empty(t, unarchived.Session.ID)
 
 	client := &fakeTUIChatClient{}
-	msg = unarchiveChatSessionCmd(nil, client, " ses_archived ")()
+	var nilContext context.Context
+	msg = unarchiveChatSessionCmd(nilContext, client, " ses_archived ")()
 	unarchived, ok = msg.(chatUnarchivedMsg)
 	require.True(t, ok)
 	require.NoError(t, unarchived.Err)

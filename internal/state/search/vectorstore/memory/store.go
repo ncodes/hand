@@ -86,6 +86,7 @@ func (s *Store) Upsert(_ context.Context, records []Record) error {
 		if _, err := float32Vector(record.Vector); err != nil {
 			return err
 		}
+
 		cloned = append(cloned, cloneRecord(record))
 	}
 
@@ -127,6 +128,7 @@ func (s *Store) Delete(_ context.Context, req DeleteRequest) error {
 		if record.SourceKind != req.SourceKind {
 			continue
 		}
+
 		if len(sourceIDs) > 0 {
 			if _, ok := sourceIDs[record.SourceID]; !ok {
 				continue
@@ -150,6 +152,7 @@ func (s *Store) Search(_ context.Context, req SearchRequest) (SearchResult, erro
 	if err := vectorstore.ValidateSearchRequest(req); err != nil {
 		return SearchResult{}, err
 	}
+
 	sourceKindValue := str.String(string(req.Filter.SourceKind))
 	if sourceKindValue.Trim() == "" {
 		return SearchResult{}, errors.New("vector search filter source kind is required")
@@ -164,6 +167,7 @@ func (s *Store) Search(_ context.Context, req SearchRequest) (SearchResult, erro
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	embeddingModelValue := str.String(req.EmbeddingModel)
 	sessionIDValue2 := str.String(req.Filter.SessionID)
 	ignoreSessionIDValue := str.String(req.Filter.IgnoreSessionID)
@@ -234,6 +238,7 @@ func (s *Store) List(_ context.Context, req ListRequest) (ListResult, error) {
 	if err := vectorstore.ValidateListRequest(req); err != nil {
 		return ListResult{}, err
 	}
+
 	embeddingModelValue2 := str.String(req.EmbeddingModel)
 	sessionIDValue3 := str.String(req.Filter.SessionID)
 	ignoreSessionIDValue2 := str.String(req.Filter.IgnoreSessionID)
@@ -339,6 +344,7 @@ func recordMatchesSearch(record Record, filter searchFilter) bool {
 	if record.SourceKind != filter.sourceKind {
 		return false
 	}
+
 	if len(filter.sourceIDs) > 0 {
 		if _, ok := filter.sourceIDs[record.SourceID]; !ok {
 			return false
@@ -372,6 +378,7 @@ func checkRecordMatchesList(record Record, filter searchFilter) bool {
 	if filter.sourceKind != "" && record.SourceKind != filter.sourceKind {
 		return false
 	}
+
 	if len(filter.sourceIDs) > 0 {
 		if _, ok := filter.sourceIDs[record.SourceID]; !ok {
 			return false
@@ -456,6 +463,7 @@ func sourceIDsToSet(sourceIDs []string) map[string]struct{} {
 			set[sourceID] = struct{}{}
 		}
 	}
+
 	return set
 }
 
@@ -465,6 +473,7 @@ func tagsToSet(tags []string) map[string]struct{} {
 	for _, tag := range tags {
 		set[tag] = struct{}{}
 	}
+
 	return set
 }
 
@@ -474,6 +483,7 @@ func tagGroups(groups [][]string) []map[string]struct{} {
 	for _, group := range groups {
 		normalized = append(normalized, tagsToSet(group))
 	}
+
 	return normalized
 }
 
@@ -481,6 +491,7 @@ func recordHasTags(record Record, tags map[string]struct{}) bool {
 	if len(tags) == 0 {
 		return true
 	}
+
 	recordTags := tagsToSet(record.Tags)
 	for tag := range tags {
 		if _, ok := recordTags[tag]; !ok {
@@ -495,6 +506,7 @@ func recordHasTagGroups(record Record, groups []map[string]struct{}) bool {
 	if len(groups) == 0 {
 		return true
 	}
+
 	recordTags := tagsToSet(record.Tags)
 	for _, group := range groups {
 		matched := false
@@ -553,6 +565,7 @@ func compareMatches(left SearchMatch, right SearchMatch) int {
 	if left.Score < right.Score {
 		return 1
 	}
+
 	return strings.Compare(left.Record.ID, right.Record.ID)
 }
 
@@ -566,6 +579,7 @@ func compareModelMetadata(left ModelMetadata, right ModelMetadata) int {
 	if left.Dimensions > right.Dimensions {
 		return 1
 	}
+
 	return 0
 }
 

@@ -362,6 +362,7 @@ func (r providerRunner) getSetupBaseURL(
 	if opts.BaseURL != "" {
 		return opts.BaseURL
 	}
+
 	if cfg != nil && strings.EqualFold(cfg.Models.Main.Provider, provider.ID) {
 		baseURLValue2 := str.String(cfg.Models.Main.BaseURL)
 		if value := baseURLValue2.Trim(); value != "" {
@@ -486,6 +487,7 @@ func newSetupWizardModel(
 		if err := model.setProvider(opts.Provider); err != nil {
 			return setupWizardModel{}, err
 		}
+
 		return model, nil
 	}
 
@@ -790,6 +792,7 @@ func (m setupWizardModel) chooseSelected() (tea.Model, tea.Cmd) {
 		m.err = errors.New("no setup options are available")
 		return m, tea.Quit
 	}
+
 	if m.selected < 0 || m.selected >= len(m.choices) {
 		m.selected = 0
 	}
@@ -905,6 +908,7 @@ func getSetupModelDescription(option modelcatalog.Option) string {
 		if description == "" {
 			return "not installed"
 		}
+
 		return description + " - not installed"
 	}
 
@@ -980,6 +984,7 @@ func hasExplicitProviderModels(cfg *config.Config, provider string) bool {
 	if cfg == nil || len(cfg.Models.Providers) == 0 {
 		return false
 	}
+
 	providerValue4 := str.String(provider)
 	provider = providerValue4.Normalized()
 	if providerConfig, ok := cfg.Models.Providers[provider]; ok {
@@ -1318,6 +1323,7 @@ func (m selectorModel) chooseSelected() (tea.Model, tea.Cmd) {
 		m.err = errors.New("no setup options are available")
 		return m, tea.Quit
 	}
+
 	if m.selected < 0 || m.selected >= len(m.choices) {
 		m.selected = 0
 	}

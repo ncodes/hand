@@ -347,6 +347,7 @@ func requireOutputSafetyTrace(t *testing.T, harness *e2e.Harness, findingID stri
 		if event.Type != trace.EvtOutputSafetyApplied {
 			continue
 		}
+
 		payload, ok := trace.DecodePayload(event.Type, event.Payload)
 		require.True(t, ok)
 		safetyPayload, ok := payload.(trace.SafetyEventPayload)
@@ -379,6 +380,7 @@ func requireInputSafetyTrace(t *testing.T, harness *e2e.Harness, findingID strin
 		if event.Type != trace.EvtInputSafetyBlocked {
 			continue
 		}
+
 		payload, ok := trace.DecodePayload(event.Type, event.Payload)
 		require.True(t, ok)
 		safetyPayload, ok := payload.(trace.SafetyEventPayload)

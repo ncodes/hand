@@ -108,6 +108,7 @@ func EnsureDaemonRunning(ctx context.Context, cfg *config.Config) (func() error,
 		if cleanupErr := cleanup(); cleanupErr != nil {
 			return nil, fmt.Errorf("start Morph daemon: cleanup after readiness failure: %w", cleanupErr)
 		}
+
 		addressValue := str.String(cfg.RPC.Address)
 		return nil, fmt.Errorf("start Morph daemon: RPC did not become ready at %s:%d: %w", addressValue.
 			Trim(), cfg.RPC.Port, err)
@@ -149,6 +150,7 @@ func checkDaemonRPCImpl(ctx context.Context, cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is required")
 	}
+
 	addressValue2 := str.String(cfg.RPC.Address)
 	address := addressValue2.Trim()
 	if address == "" {
@@ -179,7 +181,7 @@ func checkDaemonHealthImpl(ctx context.Context, address string, port int) (strin
 	if err != nil {
 		return "", err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	resp, err := healthpb.NewHealthClient(conn).Check(ctx, &healthpb.HealthCheckRequest{})
 	if err != nil {

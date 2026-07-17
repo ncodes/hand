@@ -34,6 +34,7 @@ func (responsesHandler) Complete(
 		if client.createResponseStream == nil {
 			return nil, errors.New("model client is required")
 		}
+
 		return client.completeResponsesStream(ctx, params, onTextDelta)
 	}
 
@@ -311,6 +312,7 @@ func extractResponsesResponseWithFallback(
 		if item.Type != "function_call" {
 			continue
 		}
+
 		functionCall := item.AsFunctionCall()
 		callIDValue2 := str.String(functionCall.CallID)
 		callID := callIDValue2.Trim()

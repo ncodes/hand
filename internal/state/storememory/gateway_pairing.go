@@ -28,6 +28,7 @@ func (s *Store) SaveGatewayPairingRequest(ctx context.Context, request pairing.P
 	request.Metadata = cloneGatewayPairingMetadata(request.Metadata)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.pairingRequests[gatewayPairingKey(request.Source, request.SenderID)] = request
 
 	return nil
@@ -55,6 +56,7 @@ func (s *Store) GetGatewayPairingRequest(
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	request, ok := s.pairingRequests[gatewayPairingKey(source, senderID)]
 	request.Metadata = cloneGatewayPairingMetadata(request.Metadata)
 
@@ -79,6 +81,7 @@ func (s *Store) ListGatewayPairingRequests(
 		if source != "" && request.Source != source {
 			continue
 		}
+
 		request.Metadata = cloneGatewayPairingMetadata(request.Metadata)
 		requests = append(requests, request)
 	}
@@ -111,6 +114,7 @@ func (s *Store) DeleteGatewayPairingRequest(ctx context.Context, source string, 
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	delete(s.pairingRequests, gatewayPairingKey(source, senderID))
 
 	return nil
@@ -125,6 +129,7 @@ func (s *Store) ClearGatewayPairingRequests(ctx context.Context, source string) 
 	source = normalizeGatewayPairingSource(source)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	for key, request := range s.pairingRequests {
 		if source == "" || request.Source == source {
 			delete(s.pairingRequests, key)
@@ -153,6 +158,7 @@ func (s *Store) SaveGatewayPairedSender(ctx context.Context, sender pairing.Appr
 	sender.Metadata = cloneGatewayPairingMetadata(sender.Metadata)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.pairedSenders[gatewayPairingKey(sender.Source, sender.SenderID)] = sender
 
 	return nil
@@ -180,6 +186,7 @@ func (s *Store) GetGatewayPairedSender(
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	sender, ok := s.pairedSenders[gatewayPairingKey(source, senderID)]
 	sender.Metadata = cloneGatewayPairingMetadata(sender.Metadata)
 
@@ -204,6 +211,7 @@ func (s *Store) ListGatewayPairedSenders(
 		if source != "" && sender.Source != source {
 			continue
 		}
+
 		sender.Metadata = cloneGatewayPairingMetadata(sender.Metadata)
 		senders = append(senders, sender)
 	}
@@ -236,6 +244,7 @@ func (s *Store) DeleteGatewayPairedSender(ctx context.Context, source string, se
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	delete(s.pairedSenders, gatewayPairingKey(source, senderID))
 
 	return nil

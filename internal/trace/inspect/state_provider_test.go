@@ -216,7 +216,7 @@ func writeTraceSession(t *testing.T, dir, id string) {
 	path := filepath.Join(dir, id+".jsonl")
 	file, err := os.Create(path)
 	require.NoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	require.NoError(t, json.NewEncoder(file).Encode(morphtrace.Event{
 		SessionID: id,
@@ -334,6 +334,7 @@ func cloneMemoryItems(items []storage.MemoryItem) []storage.MemoryItem {
 	for _, item := range items {
 		cloned = append(cloned, item.Clone())
 	}
+
 	return cloned
 }
 

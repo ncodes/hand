@@ -155,8 +155,10 @@ func filterSearchHitsForTurnMemory(hits []memory.SearchHit) []memory.SearchHit {
 		if hit.Score < searchMemoryRetrievalMinScore {
 			continue
 		}
+
 		filtered = append(filtered, hit)
 	}
+
 	return filtered
 }
 
@@ -165,6 +167,7 @@ func recordMemoryRetrievalEvent(traceSession trace.Session, event string, payloa
 	if traceSession == nil {
 		return
 	}
+
 	traceSession.Record(event, payload)
 }
 
@@ -199,6 +202,7 @@ func searchHitsToMemoryItems(hits []memory.SearchHit) []memory.MemoryItem {
 	for _, hit := range hits {
 		items = append(items, hit.Item)
 	}
+
 	return items
 }
 
@@ -212,6 +216,7 @@ func memoryRetrievalTraceHits(hits []memory.SearchHit) []trace.MemoryTraceItem {
 		item.VectorScore = hit.VectorScore
 		items = append(items, item)
 	}
+
 	return items
 }
 
@@ -221,6 +226,7 @@ func memoryRetrievalTraceItems(memoryItems []memory.MemoryItem) []trace.MemoryTr
 	for _, item := range memoryItems {
 		items = append(items, memoryRetrievalTraceItem(item))
 	}
+
 	return items
 }
 
@@ -260,6 +266,7 @@ func sanitizeMemoryItemsForPrompt(input []memory.MemoryItem, traceSession trace.
 		}
 		items = append(items, sanitized)
 	}
+
 	return items
 }
 
@@ -333,5 +340,6 @@ func memoryItemsToContextItems(items []memory.MemoryItem) []instruct.MemoryConte
 			Text:  item.Text,
 		})
 	}
+
 	return contextItems
 }

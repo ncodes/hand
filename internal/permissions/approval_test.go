@@ -761,6 +761,7 @@ func (s *failingApprovalStore) ConsumeApprovalGrant(
 	if s.consumeErr != nil {
 		return permissions.ApprovalGrant{}, s.consumeErr
 	}
+
 	return s.ApprovalStore.ConsumeApprovalGrant(ctx, id, now)
 }
 
@@ -771,6 +772,7 @@ func (s *failingApprovalStore) CreateApprovalRequest(
 	if s.createRequestErr != nil {
 		return permissions.ApprovalRequest{}, false, s.createRequestErr
 	}
+
 	return s.ApprovalStore.CreateApprovalRequest(ctx, request)
 }
 
@@ -781,6 +783,7 @@ func (s *failingApprovalStore) GetApprovalRequest(
 	if s.getErr != nil {
 		return permissions.ApprovalRequest{}, false, s.getErr
 	}
+
 	request, ok, err := s.ApprovalStore.GetApprovalRequest(ctx, id)
 	if s.getMissing {
 		return permissions.ApprovalRequest{}, false, nil
@@ -798,6 +801,7 @@ func (s *failingApprovalStore) CreateApprovalGrant(
 	if s.createGrantErr != nil {
 		return permissions.ApprovalGrant{}, s.createGrantErr
 	}
+
 	return s.ApprovalStore.CreateApprovalGrant(ctx, grant)
 }
 
@@ -812,6 +816,7 @@ type approvalAuditContextKey struct{}
 func (s *approvalAuditorStub) last() permissions.ApprovalRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if len(s.requests) == 0 {
 		return permissions.ApprovalRequest{}
 	}
@@ -821,6 +826,7 @@ func (s *approvalAuditorStub) last() permissions.ApprovalRequest {
 func (s *approvalAuditorStub) ApprovalChanged(ctx context.Context, request permissions.ApprovalRequest) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.requests = append(s.requests, request)
 	s.lastContextValue = ctx.Value(approvalAuditContextKey{})
 }

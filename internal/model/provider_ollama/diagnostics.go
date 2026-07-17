@@ -78,6 +78,7 @@ func isRawToolJSONOutput(text string, tools []chatTool) bool {
 	if len(tools) == 0 {
 		return false
 	}
+
 	textValue := str.String(text)
 	text = textValue.Trim()
 	if !strings.HasPrefix(text, "{") || !strings.HasSuffix(text, "}") {

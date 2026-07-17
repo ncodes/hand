@@ -33,9 +33,9 @@ func jobListToText(jobs []coreautomation.Job) string {
 
 	var output strings.Builder
 	table := tabwriter.NewWriter(&output, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(table, "ID\tNAME\tENABLED\tSCHEDULE\tNEXT RUN\tLAST STATUS")
+	_, _ = fmt.Fprintln(table, "ID\tNAME\tENABLED\tSCHEDULE\tNEXT RUN\tLAST STATUS")
 	for _, job := range jobs {
-		fmt.Fprintf(
+		_, _ = fmt.Fprintf(
 			table,
 			"%s\t%s\t%t\t%s\t%s\t%s\n",
 			job.ID,
@@ -61,9 +61,9 @@ func runListToText(runs []coreautomation.Run) string {
 
 	var output strings.Builder
 	table := tabwriter.NewWriter(&output, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(table, "RUN ID\tJOB ID\tSTATUS\tSTARTED\tDURATION\tDELIVERY")
+	_, _ = fmt.Fprintln(table, "RUN ID\tJOB ID\tSTATUS\tSTARTED\tDURATION\tDELIVERY")
 	for _, run := range runs {
-		fmt.Fprintf(
+		_, _ = fmt.Fprintf(
 			table,
 			"%s\t%s\t%s\t%s\t%s\t%s\n",
 			run.ID,
@@ -111,6 +111,7 @@ func diagnosticFindingsToText(findings []coreautomation.DiagnosticFinding) strin
 		appendOutputField(&output, "Message", finding.Message)
 		appendOutputField(&output, "Action", finding.Action)
 	}
+
 	return output.String()
 }
 

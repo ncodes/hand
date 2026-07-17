@@ -185,6 +185,7 @@ func (m *model) markResponseTranscriptScrolled(previousOffset int, scrollInput b
 		m.responseTranscriptScrolled = false
 		return
 	}
+
 	if scrollInput || m.transcript.YOffset() != previousOffset {
 		m.stopFollowingResponseTranscript()
 	}
@@ -292,6 +293,7 @@ func removeApprovalRequestID(values []string, id string) []string {
 			return append(values[:index], values[index+1:]...)
 		}
 	}
+
 	return values
 }
 
@@ -303,6 +305,7 @@ func permissionApprovalText(message permissionApprovalMsg) string {
 		}
 		return text + " — " + message.Summary
 	}
+
 	parts := []string{"Permission approval required", message.Summary}
 	if len(message.Effects) > 0 {
 		parts = append(parts, "Effects: "+strings.Join(message.Effects, ", "))
@@ -329,6 +332,7 @@ func isAlwaysApprovalAvailable(effects []string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -599,6 +603,7 @@ func (m model) getActiveReasoningTranscriptIndices() []int {
 		if m.messages[index] == nil || m.messages[index].Kind() != transcriptCellReasoning {
 			continue
 		}
+
 		seen[index] = true
 		indices = append(indices, index)
 	}
@@ -626,6 +631,7 @@ func (m model) getReasoningTranscriptDuration(index int, endedAt time.Time) time
 		if m.reasoningStartedAt.IsZero() {
 			return time.Second
 		}
+
 		return normalizeThoughtDuration(endedAt.Sub(m.reasoningStartedAt).Round(time.Second))
 	}
 

@@ -20,6 +20,7 @@ func NewLLMExtractor(options LLMExtractorOptions) (*LLMExtractor, error) {
 	if options.Client == nil {
 		return nil, errors.New("memory episode extractor model client is required")
 	}
+
 	modelValue := str.String(options.Model)
 	if modelValue.Trim() == "" {
 		return nil, errors.New("memory episode extractor model is required")

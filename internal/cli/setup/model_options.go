@@ -91,6 +91,7 @@ func getProviderModelConfig(cfg *config.Config, provider string) (config.Provide
 	if cfg == nil || len(cfg.Models.Providers) == 0 {
 		return config.ProviderModelConfig{}, false
 	}
+
 	providerValue3 := str.String(provider)
 	provider = providerValue3.Normalized()
 	if providerConfig, ok := cfg.Models.Providers[provider]; ok {

@@ -14,7 +14,6 @@ import (
 
 	morphcli "github.com/wandxy/morph/internal/cli"
 	"github.com/wandxy/morph/internal/config"
-	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	storage "github.com/wandxy/morph/internal/state/core"
 	tui "github.com/wandxy/morph/internal/tui/app"
@@ -344,10 +343,6 @@ func newTUITestRootCommand(action func(context.Context, *cli.Command) error) *cl
 			return action(ctx, cmd)
 		},
 	}
-}
-
-func testProfile(name string) profile.Profile {
-	return profile.Profile{Name: name}
 }
 
 type fakeTUIChatClient struct {

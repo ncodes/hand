@@ -56,6 +56,7 @@ func (s *Store) Permission() (permissions.ApprovalStore, bool) {
 	if s == nil {
 		return nil, false
 	}
+
 	return s, true
 }
 

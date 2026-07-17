@@ -59,6 +59,7 @@ func (c *Config) getProviderConfig(provider string) ProviderModelConfig {
 	if c == nil {
 		return ProviderModelConfig{}
 	}
+
 	providerValue := str.String(provider)
 	provider = providerValue.Normalized()
 	if provider == "" || len(c.Models.Providers) == 0 {
@@ -212,6 +213,7 @@ func (c *Config) SummaryModelAPIEffective() string {
 		if api := c.getProviderAPIConfig(provider); api != "" {
 			return getModelAPIID(api)
 		}
+
 		return getModelAPIID(getDefaultAPIForProvider(provider))
 	}
 
@@ -919,6 +921,7 @@ func (auth *ModelAuth) applySubscriptionDefaults() {
 		auth.CredentialSource.Type != appcredential.TypeOAuth {
 		return
 	}
+
 	providerValue7 := str.String(auth.Provider)
 	providerValue8 := str.String(auth.Provider)
 	if providerValue7.Normalized() != constants.ModelProviderOpenAI && providerValue8.
@@ -939,6 +942,7 @@ func (auth ModelAuth) SupportsMaxOutputTokens() bool {
 		auth.CredentialSource.Type != appcredential.TypeOAuth {
 		return true
 	}
+
 	providerValue9 := str.String(auth.Provider)
 	provider := providerValue9.Normalized()
 	return provider != constants.ModelProviderOpenAI &&
@@ -1030,6 +1034,7 @@ func refreshStoredModelCredential(provider string) (StoredModelCredential, bool,
 	if refreshStoredProviderToken == nil {
 		return StoredModelCredential{}, false, nil
 	}
+
 	providerValue10 := str.String(provider)
 	provider = providerValue10.Normalized()
 	return refreshStoredProviderToken(context.Background(), provider)
@@ -1039,6 +1044,7 @@ func loadStoredModelCredential(provider string) (StoredModelCredential, error) {
 	if loadStoredProviderToken == nil {
 		return StoredModelCredential{}, nil
 	}
+
 	providerValue11 := str.String(provider)
 	provider = providerValue11.Normalized()
 	credential, err := loadStoredProviderToken(provider)

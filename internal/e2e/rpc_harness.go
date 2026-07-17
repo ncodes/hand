@@ -84,6 +84,7 @@ func (h *RPCHarness) Address() string {
 	if h == nil {
 		return ""
 	}
+
 	return h.address
 }
 
@@ -91,6 +92,7 @@ func (h *RPCHarness) Port() int {
 	if h == nil {
 		return 0
 	}
+
 	return h.port
 }
 
@@ -98,6 +100,7 @@ func (h *RPCHarness) Client(ctx context.Context) (*rpcclient.Client, error) {
 	if h == nil {
 		return nil, errors.New("e2e rpc harness is required")
 	}
+
 	return rpcclient.NewClient(normalizeHarnessContext(ctx), rpcclient.Options{
 		Address: h.address,
 		Port:    h.port,
@@ -108,6 +111,7 @@ func (h *RPCHarness) Close() error {
 	if h == nil {
 		return nil
 	}
+
 	if h.server != nil {
 		h.server.Stop()
 	}
@@ -117,6 +121,7 @@ func (h *RPCHarness) Close() error {
 
 	h.errMu.Lock()
 	defer h.errMu.Unlock()
+
 	return h.err
 }
 
@@ -124,6 +129,7 @@ func (h *RPCHarness) ConfigFileContents() string {
 	if h == nil {
 		return ""
 	}
+
 	addressValue := str.String(h.address)
 	return "rpc:\n" +
 		"  address: " + addressValue.Trim() + "\n" +

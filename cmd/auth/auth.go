@@ -382,5 +382,6 @@ func getFirstEnvValue(keys []string) (string, string) {
 			return value, key
 		}
 	}
+
 	return "", ""
 }

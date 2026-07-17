@@ -51,7 +51,7 @@ func TestFirecrawlProvider_SearchNormalizesResults(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		captured.Path = r.URL.Path
 		captured.Authorization = r.Header.Get("Authorization")
@@ -153,7 +153,7 @@ func TestFirecrawlProvider_SearchReturnsClientErrors(t *testing.T) {
 
 func TestFirecrawlProvider_ExtractNormalizesResults(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		var body struct {
 			URL             string   `json:"url"`
@@ -204,7 +204,7 @@ func TestFirecrawlProvider_ExtractUsesContextOptions(t *testing.T) {
 		Formats []string `json:"formats"`
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
 
 		w.Header().Set("Content-Type", "application/json")

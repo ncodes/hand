@@ -217,7 +217,7 @@ func TestSQLiteStore_TraceAppendDatabaseErrors(t *testing.T) {
 	queryErr := errors.New("trace sequence lookup failed")
 	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:trace-append-query-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "trace_events" {
-			tx.AddError(queryErr)
+			_ = tx.AddError(queryErr)
 		}
 	}))
 	_, err = store.AppendTraceEvent(ctx, base.TraceEvent{SessionID: base.DefaultSessionID, Type: "model.request"})
@@ -227,7 +227,7 @@ func TestSQLiteStore_TraceAppendDatabaseErrors(t *testing.T) {
 	createErr := errors.New("trace create failed")
 	require.NoError(t, store.db.Callback().Create().Before("gorm:create").Register("test:trace-create-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "trace_events" {
-			tx.AddError(createErr)
+			_ = tx.AddError(createErr)
 		}
 	}))
 	_, err = store.AppendTraceEvent(ctx, base.TraceEvent{SessionID: base.DefaultSessionID, Type: "model.request"})
@@ -243,7 +243,7 @@ func TestSQLiteStore_TraceListDatabaseErrors(t *testing.T) {
 	queryErr := errors.New("trace list failed")
 	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:trace-list-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "trace_events" {
-			tx.AddError(queryErr)
+			_ = tx.AddError(queryErr)
 		}
 	}))
 	_, err = store.ListTraceEvents(ctx, base.TraceQuery{})
@@ -273,7 +273,7 @@ func TestSQLiteStore_TracePruneDatabaseErrorsAndNoop(t *testing.T) {
 	queryErr := errors.New("trace count failed")
 	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:trace-prune-count-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "trace_events" {
-			tx.AddError(queryErr)
+			_ = tx.AddError(queryErr)
 		}
 	}))
 	err = store.PruneTraceEvents(ctx, base.DefaultSessionID, 1)
@@ -285,7 +285,7 @@ func TestSQLiteStore_TracePruneDatabaseErrorsAndNoop(t *testing.T) {
 	deleteErr := errors.New("trace delete failed")
 	require.NoError(t, store.db.Callback().Delete().Before("gorm:delete").Register("test:trace-prune-delete-error", func(tx *gorm.DB) {
 		if callbackTable(tx) == "trace_events" {
-			tx.AddError(deleteErr)
+			_ = tx.AddError(deleteErr)
 		}
 	}))
 	err = store.PruneTraceEvents(ctx, base.DefaultSessionID, 1)
@@ -299,5 +299,6 @@ func sqliteTraceEventTypes(events []base.TraceEvent) []string {
 	for _, event := range events {
 		values = append(values, event.Type)
 	}
+
 	return values
 }

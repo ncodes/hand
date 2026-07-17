@@ -14,6 +14,7 @@ func (b *IterationBudget) Consume() bool {
 	if b == nil || b.remaining <= 0 {
 		return false
 	}
+
 	b.remaining--
 	return true
 }

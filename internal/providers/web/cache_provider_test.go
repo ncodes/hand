@@ -159,6 +159,7 @@ func TestCachedProvider_ExtractCachesSuccessfulResultsAndPreservesOrder(t *testi
 					ContentFormat: "text",
 				})
 			}
+
 			return results, nil
 		},
 	}
@@ -282,6 +283,7 @@ func TestCachedProvider_ExtractCachesSuccessfulSiblingsOnly(t *testing.T) {
 				}
 				results = append(results, result)
 			}
+
 			return results, nil
 		},
 	}

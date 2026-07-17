@@ -48,108 +48,126 @@ func (r *Runtime) StartProcess(ctx context.Context, sessionID string, req proces
 	if r != nil && r.StartProcessFunc != nil {
 		return r.StartProcessFunc(ctx, sessionID, req)
 	}
+
 	return processenv.Info{}, nil
 }
 func (r *Runtime) GetProcess(sessionID string, processID string) (processenv.Info, error) {
 	if r != nil && r.GetProcessFunc != nil {
 		return r.GetProcessFunc(sessionID, processID)
 	}
+
 	return processenv.Info{}, nil
 }
 func (r *Runtime) ReadProcess(sessionID string, req processenv.ReadRequest) (processenv.Output, error) {
 	if r != nil && r.ReadProcessFunc != nil {
 		return r.ReadProcessFunc(sessionID, req)
 	}
+
 	return processenv.Output{}, nil
 }
 func (r *Runtime) StopProcess(ctx context.Context, sessionID string, processID string) (processenv.Info, error) {
 	if r != nil && r.StopProcessFunc != nil {
 		return r.StopProcessFunc(ctx, sessionID, processID)
 	}
+
 	return processenv.Info{}, nil
 }
 func (r *Runtime) ListProcesses(sessionID string) []processenv.Info {
 	if r != nil && r.ListProcessesFunc != nil {
 		return r.ListProcessesFunc(sessionID)
 	}
+
 	return nil
 }
 func (r *Runtime) SearchSession(ctx context.Context, req envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error) {
 	if r != nil && r.SearchSessionFunc != nil {
 		return r.SearchSessionFunc(ctx, req)
 	}
+
 	return nil, nil
 }
 func (r *Runtime) GetSessionMessages(ctx context.Context, req envsessionmessages.SessionMessagesRequest) (envsessionmessages.SessionMessagesResponse, error) {
 	if r != nil && r.GetSessionMessagesFunc != nil {
 		return r.GetSessionMessagesFunc(ctx, req)
 	}
+
 	return envsessionmessages.SessionMessagesResponse{}, nil
 }
 func (r *Runtime) SupportsMemorySearch(ctx context.Context) (bool, error) {
 	if r != nil && r.SupportsMemorySearchFunc != nil {
 		return r.SupportsMemorySearchFunc(ctx)
 	}
+
 	return false, nil
 }
 func (r *Runtime) SearchMemory(ctx context.Context, query memory.SearchQuery) (memory.SearchResult, error) {
 	if r != nil && r.SearchMemoryFunc != nil {
 		return r.SearchMemoryFunc(ctx, query)
 	}
+
 	return memory.SearchResult{}, nil
 }
 func (r *Runtime) SupportsMemoryExtraction(ctx context.Context) (bool, error) {
 	if r != nil && r.SupportsMemoryExtractionFunc != nil {
 		return r.SupportsMemoryExtractionFunc(ctx)
 	}
+
 	return false, nil
 }
 func (r *Runtime) ExtractEpisodes(ctx context.Context, req episodic.Request) (episodic.Result, error) {
 	if r != nil && r.ExtractEpisodesFunc != nil {
 		return r.ExtractEpisodesFunc(ctx, req)
 	}
+
 	return episodic.Result{}, nil
 }
 func (r *Runtime) SupportsMemoryWrite(ctx context.Context) (bool, error) {
 	if r != nil && r.SupportsMemoryWriteFunc != nil {
 		return r.SupportsMemoryWriteFunc(ctx)
 	}
+
 	return false, nil
 }
 func (r *Runtime) RecordSemanticMemory(ctx context.Context, record memory.SemanticRecord) (memory.MemoryItem, error) {
 	if r != nil && r.RecordSemanticMemoryFunc != nil {
 		return r.RecordSemanticMemoryFunc(ctx, record)
 	}
+
 	return memory.MemoryItem{}, nil
 }
 func (r *Runtime) RecordProceduralMemory(ctx context.Context, record memory.ProceduralRecord) (memory.MemoryItem, error) {
 	if r != nil && r.RecordProceduralMemoryFunc != nil {
 		return r.RecordProceduralMemoryFunc(ctx, record)
 	}
+
 	return memory.MemoryItem{}, nil
 }
 func (r *Runtime) PromoteMemoryCandidate(ctx context.Context, req memory.PromotionRequest) (memory.LifecycleResult, error) {
 	if r != nil && r.PromoteMemoryCandidateFunc != nil {
 		return r.PromoteMemoryCandidateFunc(ctx, req)
 	}
+
 	return memory.LifecycleResult{}, nil
 }
 func (r *Runtime) UpdateMemory(ctx context.Context, req memory.UpdateRequest) (memory.UpdateResult, error) {
 	if r != nil && r.UpdateMemoryFunc != nil {
 		return r.UpdateMemoryFunc(ctx, req)
 	}
+
 	return memory.UpdateResult{}, nil
 }
 func (r *Runtime) DeleteMemory(ctx context.Context, req memory.DeleteRequest) error {
 	if r != nil && r.DeleteMemoryFunc != nil {
 		return r.DeleteMemoryFunc(ctx, req)
 	}
+
 	return nil
 }
 func (r *Runtime) AutomationService(context.Context) (envtypes.AutomationService, bool, error) {
 	if r == nil {
 		return nil, false, nil
 	}
+
 	return r.AutomationServiceValue, r.AutomationServiceOK, r.AutomationServiceErr
 }
 func (r *Runtime) GetPlan(string) envtypes.Plan { return envtypes.Plan{} }
@@ -281,12 +299,14 @@ func (d *FailingPlanRuntime) ReplacePlan(sessionID string, plan envtypes.Plan) (
 	if d.ReplaceErr != nil {
 		return envtypes.Plan{}, d.ReplaceErr
 	}
+
 	return d.Runtime.ReplacePlan(sessionID, plan)
 }
 func (d *FailingPlanRuntime) MergePlan(sessionID string, updates []envtypes.PartialPlanStep, explanation string, clearCompleted bool) (envtypes.Plan, error) {
 	if d.MergeErr != nil {
 		return envtypes.Plan{}, d.MergeErr
 	}
+
 	return d.Runtime.MergePlan(sessionID, updates, explanation, clearCompleted)
 }
 func (d *FailingPlanRuntime) ClearPlan(sessionID string) envtypes.Plan {

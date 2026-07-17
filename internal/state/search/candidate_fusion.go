@@ -151,12 +151,14 @@ func CompareCandidateOrder(
 		if leftScore > rightScore {
 			return -1
 		}
+
 		return 1
 	}
 	if !leftCreatedAt.Equal(rightCreatedAt) {
 		if leftCreatedAt.After(rightCreatedAt) {
 			return -1
 		}
+
 		return 1
 	}
 	if leftSessionID != rightSessionID {

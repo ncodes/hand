@@ -395,6 +395,7 @@ func fetchAutomationJobForUpdate(
 	if !hasPayloadFlag(cmd) && !hasDeliveryFlag(cmd) {
 		return coreautomation.Job{}, nil
 	}
+
 	id, err := getRequiredArg(cmd, "automation job id is required")
 	if err != nil {
 		return coreautomation.Job{}, err

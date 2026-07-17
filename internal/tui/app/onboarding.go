@@ -246,6 +246,7 @@ func (m model) shouldShowNamePrompt() bool {
 	if m.setupNamePromptActive {
 		return true
 	}
+
 	userNameValue := str.String(m.userName)
 	return userNameValue.Trim() == "" &&
 		len(m.messages) == 0 &&
@@ -928,6 +929,7 @@ func sameSetupPullProgressLines(a []string, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
+
 	for index := range a {
 		if a[index] != b[index] {
 			return false
@@ -1063,6 +1065,7 @@ func getSetupModelPullFailureMessage(baseURL string, err error) string {
 	if err == nil {
 		return ""
 	}
+
 	errorValue := str.String(err.Error())
 	message := errorValue.Trim()
 	baseURLValue7 := str.String(baseURL)
@@ -1238,6 +1241,7 @@ func (m model) updateSetupOAuthOutput(msg setupOAuthOutputMsg) (tea.Model, tea.C
 		next, cmd := m.showSetupNotice("Authentication unavailable", msg.err.Error(), "enter to continue")
 		return next, cmd
 	}
+
 	output := shortenSetupOAuthOutput(msg.line)
 	if output == "" {
 		return m, nil
@@ -1597,6 +1601,7 @@ func (m *model) completeSetupModelRuntimeSelection(msg setupModelRuntimeSelected
 	if msg.Err != nil {
 		return *m, m.setStatus("model setup saved; daemon refresh unavailable")
 	}
+
 	m.applySetupModelSelectionToRuntime(msg.Model)
 
 	return *m, m.setStatus("model setup saved; daemon restarting")
@@ -1968,9 +1973,7 @@ func (m *model) handleProfileModelSetupClick(msg tea.MouseClickMsg) (tea.Model, 
 	}
 
 	count := 0
-	submit := func() (tea.Model, tea.Cmd) {
-		return *m, nil
-	}
+	var submit func() (tea.Model, tea.Cmd)
 	switch m.setupModelStep {
 	case setupModelStepAuthMethod:
 		count = len(setupAuthMethodOptions)
@@ -2118,6 +2121,7 @@ func (m model) renderProfileModelSetupModelDetail(width int) string {
 	if !isLocalSetupProvider(m.setupModelProvider) {
 		return ""
 	}
+
 	setupModelBaseURLValue2 := str.String(m.setupModelBaseURL)
 	baseURL := setupModelBaseURLValue2.Trim()
 	if baseURL == "" {

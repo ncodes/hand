@@ -104,6 +104,7 @@ func (c *AnthropicClient) complete(
 			logModelClientRequestFailed(normalizedReq, stream, err)
 			return
 		}
+
 		logModelClientRequestCompleted(normalizedReq, stream, resp)
 	}()
 
@@ -119,6 +120,7 @@ func (c *AnthropicClient) complete(
 		if c.createMessageStream == nil {
 			return nil, errors.New("model client is required")
 		}
+
 		return c.completeMessageStream(ctx, params, onTextDelta)
 	}
 

@@ -38,7 +38,7 @@ func TestJSONLFactory_OpenSessionCreatesSessionAndWritesEvents(t *testing.T) {
 
 	file, err := os.Open(matches[0])
 	require.NoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	var events []Event
@@ -399,8 +399,9 @@ func TestStateFactory_OpenSessionContinuesWhenInspectFails(t *testing.T) {
 
 func TestStateFactory_OpenSessionUsesBackgroundContextWhenNil(t *testing.T) {
 	store := &traceStateStoreStub{}
+	var nilContext context.Context
 	session := NewStateFactory(store, guardrails.NewRedactor(), 10).
-		OpenSession(nil, testTraceSessionID, Metadata{})
+		OpenSession(nilContext, testTraceSessionID, Metadata{})
 
 	session.Record(EvtModelRequest, map[string]any{"message": "hello"})
 	require.Equal(t, []string{EvtChatStarted, EvtModelRequest}, traceStoreEventTypes(store.events))
@@ -520,6 +521,7 @@ func (s *traceStateStoreStub) AppendTraceEvent(_ context.Context, event storage.
 	if s.appendErr != nil {
 		return storage.TraceEvent{}, s.appendErr
 	}
+
 	event.ID = uint(len(s.events) + 1)
 	event.Sequence = len(s.events) + 1
 	s.events = append(s.events, event)
@@ -530,6 +532,7 @@ func (s *traceStateStoreStub) ListTraceEvents(_ context.Context, query storage.T
 	if s.listErr != nil {
 		return storage.TraceResult{}, s.listErr
 	}
+
 	events := make([]storage.TraceEvent, 0, len(s.events))
 	for _, event := range s.events {
 		if storage.TraceEventMatchesQuery(event, query) {
@@ -552,5 +555,6 @@ func traceStoreEventTypes(events []storage.TraceEvent) []string {
 	for _, event := range events {
 		types = append(types, event.Type)
 	}
+
 	return types
 }

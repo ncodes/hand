@@ -220,6 +220,7 @@ func ValidateDeleteRequest(req DeleteRequest) error {
 	if err := ValidateRequiredSourceKind(req.SourceKind, "source kind"); err != nil {
 		return err
 	}
+
 	sessionIDValue := str.String(req.SessionID)
 	sessionID := sessionIDValue.Trim()
 	for _, sourceID := range req.SourceIDs {

@@ -60,6 +60,7 @@ func (s *Store) ConfigureVectorStore(opts VectorStoreOptions) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	embeddingModelValue := str.String(opts.EmbeddingModel)
 	model := embeddingModelValue.Trim()
 	if opts.Embedder == nil && opts.VectorStore == nil && model == "" {
@@ -129,6 +130,7 @@ func (s *Store) rerankerName() string {
 	if s == nil || s.vectors == nil || s.vectors.Reranker == nil {
 		return search.RerankerDeterministic
 	}
+
 	nameValue := str.String(s.vectors.Reranker.Name())
 	return nameValue.Normalized()
 }
@@ -321,12 +323,14 @@ func compareCandidatesWithinSession(left *searchCandidate, right *searchCandidat
 		if leftScore > rightScore {
 			return -1
 		}
+
 		return 1
 	}
 	if !left.CreatedAt.Equal(right.CreatedAt) {
 		if left.CreatedAt.After(right.CreatedAt) {
 			return -1
 		}
+
 		return 1
 	}
 	if left.ID > right.ID {
@@ -349,12 +353,14 @@ func compareRankedSessions(
 		if bestScoreBySession[left] > bestScoreBySession[right] {
 			return -1
 		}
+
 		return 1
 	}
 	if !lastMatchedBySession[left].Equal(lastMatchedBySession[right]) {
 		if lastMatchedBySession[left].After(lastMatchedBySession[right]) {
 			return -1
 		}
+
 		return 1
 	}
 	if left < right {
@@ -363,6 +369,7 @@ func compareRankedSessions(
 	if left > right {
 		return 1
 	}
+
 	return 0
 }
 
@@ -723,6 +730,7 @@ func (s *Store) messagesByRef(ctx context.Context, refs messageRefs) (messageLoo
 	for _, row := range rows {
 		records.set(messageRef{SessionID: row.SessionID, MessageID: row.ID}, row)
 	}
+
 	return records, nil
 }
 
@@ -803,6 +811,7 @@ func checkVectorRecordMatchesOptions(record messageModel, id string, opts base.S
 	if opts.IgnoreSessionID != "" && record.SessionID == opts.IgnoreSessionID {
 		return false
 	}
+
 	roleValue2 := str.String(string(opts.Role))
 	if role := roleValue2.Trim(); role != "" && record.Role != role {
 		return false

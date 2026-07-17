@@ -148,6 +148,7 @@ func (r Report) HasFailures() bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -172,6 +173,7 @@ func (r Report) FirstFailure() string {
 			return check.Message
 		}
 	}
+
 	return ""
 }
 

@@ -119,6 +119,7 @@ func Test_E2E_MorphRootChat_RequestInstruct(t *testing.T) {
 			if !strings.Contains(req.Instructions, "be brief") {
 				return errors.New("request instruct missing from model instructions")
 			}
+
 			return nil
 		},
 		Response: &models.Response{OutputText: "brief"},
@@ -149,6 +150,7 @@ func Test_E2E_MorphRootChat_MultiTurnContinuity(t *testing.T) {
 				if req.Messages[2].Role != morphmsg.RoleUser || req.Messages[2].Content != "second turn" {
 					return errors.New("missing second user message in follow-up request")
 				}
+
 				return nil
 			},
 			Response: &models.Response{OutputText: "second reply"},
@@ -486,6 +488,7 @@ func Test_E2E_MorphRootChat_RunCommandToolSynthesizesFinalAnswer(t *testing.T) {
 					if fmt.Sprint(payload["exit_code"]) != "0" {
 						return fmt.Errorf("expected exit_code=0, got %v", payload["exit_code"])
 					}
+
 					expected := filepath.Join(home, "workspace")
 					if !strings.Contains(fmt.Sprint(payload["stdout"]), expected) {
 						return fmt.Errorf("expected stdout to contain %q, got %v", expected, payload["stdout"])
@@ -546,6 +549,7 @@ func Test_E2E_MorphRootChat_PlanToolPersistsAcrossLaterTurn(t *testing.T) {
 				if !strings.Contains(req.Instructions, "track the current work") {
 					return errors.New("expected plan explanation in later turn instructions")
 				}
+
 				return nil
 			},
 			Response: &models.Response{OutputText: "I still have the saved plan in context."},
@@ -957,6 +961,7 @@ func Test_E2E_MorphRootChat_LargeWebExtractSummarizationPathRemainsCorrect(t *te
 				if len(req.Messages) != 1 {
 					return fmt.Errorf("expected synthesis summary request, got %d messages", len(req.Messages))
 				}
+
 				content := req.Messages[0].Content
 				if !strings.Contains(content, "Chunk 1 Summary:\nchunk one summary") {
 					return errors.New("expected first chunk summary in synthesis request")
@@ -1006,6 +1011,7 @@ func Test_E2E_MorphRootChat_IterationBudgetExhaustionFallsBackCoherently(t *test
 				if !strings.Contains(req.Instructions, "Remaining iteration budget: 0.") {
 					return errors.New("expected summary fallback instructions")
 				}
+
 				return e2e.ToolMessagePresent("call-1", "time")(req)
 			},
 			Response: &models.Response{
@@ -1035,6 +1041,7 @@ func Test_E2E_MorphLiveHarness_OneTurnDirectAnswer(t *testing.T) {
 			if !strings.Contains(strings.ToUpper(output), "ALPHA-42") {
 				return fmt.Errorf("expected ALPHA-42 in live output, got %q", output)
 			}
+
 			return nil
 		},
 	)
@@ -1067,6 +1074,7 @@ func Test_E2E_MorphLiveHarness_ToolUsing(t *testing.T) {
 				if message.Role != morphmsg.RoleTool {
 					continue
 				}
+
 				nameValue := str.String(message.Name)
 				switch nameValue.Trim() {
 				case "list_files", "read_file", "search_files":
@@ -1115,6 +1123,7 @@ func Test_E2E_MorphLiveHarness_MultiTurnContinuity(t *testing.T) {
 			if !strings.Contains(strings.ToUpper(output), "BRAVO-77") {
 				return fmt.Errorf("expected BRAVO-77 in live output, got %q", output)
 			}
+
 			return nil
 		},
 	)
@@ -1409,7 +1418,7 @@ func nextTestPort(t *testing.T) string {
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer lis.Close()
+	defer func() { _ = lis.Close() }()
 
 	port := lis.Addr().(*net.TCPAddr).Port
 	return strconv.Itoa(port)

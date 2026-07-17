@@ -517,6 +517,7 @@ func HasAllMemoryTags(itemTags []string, queryTags []string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -530,6 +531,7 @@ func MemoryKindsToStrings(kinds []MemoryKind) []string {
 			values = append(values, value)
 		}
 	}
+
 	return values
 }
 
@@ -543,6 +545,7 @@ func MemoryStatusesToStrings(statuses []MemoryStatus) []string {
 			values = append(values, value)
 		}
 	}
+
 	return values
 }
 

@@ -112,7 +112,7 @@ func serve(ctx context.Context, app *inspect.App, traceDir string, listenAddr st
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	server := &http.Server{
 		Handler: app.Handler(),

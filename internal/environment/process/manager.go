@@ -61,6 +61,7 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 	if s == nil {
 		return Info{}, errors.New("process manager is required")
 	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -221,6 +222,7 @@ func (s *DefaultManager) List(sessionID string) []Info {
 	if s == nil {
 		return nil
 	}
+
 	sessionID = normalizeProcessSessionID(sessionID)
 
 	s.mu.Lock()
@@ -293,6 +295,7 @@ func (s *DefaultManager) lookup(sessionID string, processID string) (*trackedPro
 	if s == nil {
 		return nil, errors.New("process manager is required")
 	}
+
 	sessionID = normalizeProcessSessionID(sessionID)
 	processIDValue := str.String(processID)
 	processID = processIDValue.Trim()
@@ -315,6 +318,7 @@ func (s *DefaultManager) lookup(sessionID string, processID string) (*trackedPro
 		if stale {
 			return nil, errors.New("process is no longer retained")
 		}
+
 		return nil, errors.New("process not found")
 	}
 
@@ -336,6 +340,7 @@ func (s *DefaultManager) lookupByLabelLocked(sessionID string, label string) *tr
 		if process == nil {
 			continue
 		}
+
 		process.mu.Lock()
 		matches := process.info.Label == label
 		process.mu.Unlock()
@@ -388,6 +393,7 @@ func (s *DefaultManager) maxTracked() int {
 	if s == nil || s.MaxTracked <= 0 {
 		return DefaultMaxTracked
 	}
+
 	return s.MaxTracked
 }
 
@@ -395,6 +401,7 @@ func (s *DefaultManager) stopGracePeriod() time.Duration {
 	if s == nil || s.StopGracePeriod <= 0 {
 		return DefaultStopGracePeriod
 	}
+
 	return s.StopGracePeriod
 }
 

@@ -71,6 +71,7 @@ func NewAgent(opts Options) (*Agent, error) {
 	if opts.SessionStore == nil {
 		return nil, errors.New("session store is required")
 	}
+
 	if opts.MaxIterations <= 0 {
 		opts.MaxIterations = defaultMaxIterations
 	}
@@ -174,6 +175,7 @@ func (a *Agent) Respond(ctx context.Context, input string, opts RespondOptions) 
 			if remainingIterations <= 0 {
 				return false
 			}
+
 			remainingIterations--
 			return true
 		},
@@ -217,6 +219,7 @@ func (a *Agent) complete(ctx context.Context, request model.Request, opts Respon
 			if opts.OnEvent == nil || delta.Text == "" {
 				return
 			}
+
 			opts.OnEvent(Event{
 				Kind:    EventKindTextDelta,
 				Channel: string(delta.Channel),

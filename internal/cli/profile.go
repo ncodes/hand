@@ -98,6 +98,7 @@ func removeFilesystemRoot(roots []string, target string) []string {
 		if normalizeFilesystemRootTarget(root) == normalizedTarget {
 			continue
 		}
+
 		filtered = append(filtered, root)
 	}
 

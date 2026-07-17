@@ -17,7 +17,7 @@ func TestGatewayHTTPServerHealth(t *testing.T) {
 	server := newHTTPServer(testGatewayConfig(), nil)
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer lis.Close()
+	defer func() { _ = lis.Close() }()
 
 	done := make(chan error, 1)
 	go func() {
@@ -26,7 +26,7 @@ func TestGatewayHTTPServerHealth(t *testing.T) {
 
 	resp, err := http.Get("http://" + lis.Addr().String() + "/health")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -39,7 +39,7 @@ func TestGatewayHTTPServerCloseStopsServing(t *testing.T) {
 	server := newHTTPServer(testGatewayConfig(), nil)
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer lis.Close()
+	defer func() { _ = lis.Close() }()
 	done := make(chan error, 1)
 	go func() {
 		done <- server.Serve(lis)

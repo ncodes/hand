@@ -91,9 +91,11 @@ func sanitizeStrings(redactor coreguardrails.Redactor, values []string) []string
 	if len(values) == 0 {
 		return nil
 	}
+
 	sanitized := make([]string, 0, len(values))
 	for _, value := range values {
 		sanitized = append(sanitized, sanitizeString(redactor, value))
 	}
+
 	return sanitized
 }

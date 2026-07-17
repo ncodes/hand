@@ -32,7 +32,7 @@ func buildAutomationGroup(ctx context.Context, cfg *config.Config, activeProfile
 		}}
 	}
 	if closer, ok := store.(interface{ Close() error }); ok {
-		defer closer.Close()
+		defer func() { _ = closer.Close() }()
 	}
 	automationStore, ok := store.Automation()
 	if !ok || automationStore == nil {
@@ -61,6 +61,7 @@ func openProfileReadinessStore(
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
+
 	backend := str.String(cfg.Storage.Backend).Normalized()
 	switch backend {
 	case "", "sqlite":

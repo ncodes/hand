@@ -76,12 +76,12 @@ func (p OpenAISubscriptionProvider) Login(
 	if err != nil {
 		return appcredential.StoredCredential{}, err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	codeCh := make(chan string, 1)
 	errCh := make(chan error, 1)
 	server := p.startCallbackServer(listener, state, codeCh, errCh)
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	authURL := p.getAuthorizeURL(redirectURI, state, challenge)
 	if options.Output != nil {
@@ -297,7 +297,7 @@ func (p OpenAISubscriptionProvider) postToken(
 	if err != nil {
 		return appcredential.StoredCredential{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

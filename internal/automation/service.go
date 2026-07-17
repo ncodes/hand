@@ -225,6 +225,7 @@ func (s *Service) Start(ctx context.Context) error {
 	if s == nil {
 		return errors.New("automation service is required")
 	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -337,6 +338,7 @@ func (s *Service) RunMaintenance(ctx context.Context) (MaintenanceResult, error)
 	if s == nil {
 		return MaintenanceResult{}, errors.New("automation service is required")
 	}
+
 	now := s.getNow()
 	result := MaintenanceResult{}
 	list, err := s.store.ListJobs(ctx, JobQuery{IncludeDisabled: true})
@@ -417,6 +419,7 @@ func (s *Service) Update(ctx context.Context, patch JobPatch) (Job, error) {
 	if err := ValidateJobID(patch.ID); err != nil {
 		return Job{}, err
 	}
+
 	current, ok, err := s.store.GetJob(ctx, patch.ID)
 	if err != nil {
 		return Job{}, err
@@ -471,6 +474,7 @@ func (s *Service) Remove(ctx context.Context, id string) error {
 	if err := s.store.DeleteJob(ctx, id); err != nil {
 		return err
 	}
+
 	s.notifyWake()
 
 	return nil
@@ -480,6 +484,7 @@ func (s *Service) Run(ctx context.Context, id string) (Run, error) {
 	if s == nil {
 		return Run{}, errors.New("automation service is required")
 	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -628,6 +633,7 @@ func (s *Service) executeDueJobs(ctx context.Context) {
 		if !s.hasRunCapacity() {
 			return
 		}
+
 		if job.State.RunningAt.IsZero() && job.State.NextRunAt.IsZero() {
 			repaired, err := s.repairJobSchedule(ctx, job, now, false, false)
 			if err != nil {
@@ -649,6 +655,7 @@ func (s *Service) executeDueJobs(ctx context.Context) {
 				}
 				continue
 			}
+
 			go func(job Job) {
 				_, _ = s.executeJob(ctx, job)
 			}(job)
@@ -1253,6 +1260,7 @@ func (s *Service) nextSleep(ctx context.Context) time.Duration {
 			if !job.State.RunningAt.IsZero() || job.State.NextRunAt.IsZero() {
 				continue
 			}
+
 			until := job.State.NextRunAt.Sub(now)
 			if until <= 0 {
 				sleep = 0
@@ -1285,6 +1293,7 @@ func (s *Service) notifyWake() {
 	if s == nil {
 		return
 	}
+
 	select {
 	case s.wake <- struct{}{}:
 	default:
@@ -1309,6 +1318,7 @@ func (s *Service) waitRunSlot(ctx context.Context, jobID string) error {
 		if s.checkJobRunSlotAvailable(ctx, jobID) {
 			return nil
 		}
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -1353,6 +1363,7 @@ func (s *Service) getRetryAttempts(job Job) int {
 	if s.defaultRetryAttempts > 0 {
 		return s.defaultRetryAttempts
 	}
+
 	return 1
 }
 
@@ -1390,6 +1401,7 @@ func (s *Service) sleep(ctx context.Context, delay time.Duration) error {
 	if delay <= 0 {
 		return nil
 	}
+
 	timer := time.NewTimer(delay)
 	defer stopTimer(timer)
 	select {
@@ -1441,6 +1453,7 @@ func checkRecentOneShotCatchUp(job Job, now time.Time, grace time.Duration) bool
 	if grace <= 0 {
 		return false
 	}
+
 	return !job.State.NextRunAt.Add(grace).Before(now)
 }
 
@@ -1454,6 +1467,7 @@ func stopTimer(timer *time.Timer) {
 	if timer == nil {
 		return
 	}
+
 	if !timer.Stop() {
 		select {
 		case <-timer.C:

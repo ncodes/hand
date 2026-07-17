@@ -230,6 +230,7 @@ func Test_E2E_SessionCommand_PersistenceCompactionStatusAndSummaryReuse(t *testi
 			if req.Messages[8].Role != morphmsg.RoleUser || req.Messages[8].Content != "after restart" {
 				return errors.New("expected follow-up user message after restart")
 			}
+
 			return nil
 		},
 		Response: &models.Response{OutputText: "reply after restart"},

@@ -123,6 +123,7 @@ func (s *genericResponderStub) SaveGatewayPairingRequest(
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.pending == nil {
 		s.pending = make(map[string]pairing.PendingRequest)
 	}
@@ -137,6 +138,7 @@ func (s *genericResponderStub) GetGatewayPairingRequest(
 ) (pairing.PendingRequest, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.pairingErr != nil {
 		return pairing.PendingRequest{}, false, s.pairingErr
 	}
@@ -151,6 +153,7 @@ func (s *genericResponderStub) ListGatewayPairingRequests(
 ) ([]pairing.PendingRequest, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.pairingErr != nil {
 		return nil, s.pairingErr
 	}
@@ -161,6 +164,7 @@ func (s *genericResponderStub) ListGatewayPairingRequests(
 			requests = append(requests, request)
 		}
 	}
+
 	return requests, nil
 }
 
@@ -171,6 +175,7 @@ func (s *genericResponderStub) DeleteGatewayPairingRequest(
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	delete(s.pending, pairingStubKey(source, senderID))
 	return nil
 }
@@ -178,11 +183,13 @@ func (s *genericResponderStub) DeleteGatewayPairingRequest(
 func (s *genericResponderStub) ClearGatewayPairingRequests(_ context.Context, source string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	for key, request := range s.pending {
 		if source == "" || request.Source == source {
 			delete(s.pending, key)
 		}
 	}
+
 	return nil
 }
 
@@ -192,6 +199,7 @@ func (s *genericResponderStub) SaveGatewayPairedSender(
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.approved == nil {
 		s.approved = make(map[string]pairing.ApprovedSender)
 	}
@@ -206,6 +214,7 @@ func (s *genericResponderStub) GetGatewayPairedSender(
 ) (pairing.ApprovedSender, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.pairingErr != nil {
 		return pairing.ApprovedSender{}, false, s.pairingErr
 	}
@@ -220,6 +229,7 @@ func (s *genericResponderStub) ListGatewayPairedSenders(
 ) ([]pairing.ApprovedSender, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.pairingErr != nil {
 		return nil, s.pairingErr
 	}
@@ -230,6 +240,7 @@ func (s *genericResponderStub) ListGatewayPairedSenders(
 			senders = append(senders, sender)
 		}
 	}
+
 	return senders, nil
 }
 
@@ -240,6 +251,7 @@ func (s *genericResponderStub) DeleteGatewayPairedSender(
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	delete(s.approved, pairingStubKey(source, senderID))
 	return nil
 }
@@ -251,18 +263,21 @@ func pairingStubKey(source string, senderID string) string {
 func (s *genericResponderStub) wasCalled() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	return s.called
 }
 
 func (s *genericResponderStub) callCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	return s.calls
 }
 
 func (s *genericResponderStub) receivedMessage() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	return s.message
 }
 
@@ -325,6 +340,7 @@ func (a *fakeTelegramAPI) GetUpdates(
 func (a *fakeTelegramAPI) SetWebhook(_ context.Context, url string, secret string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
 	call := telegramAPICall{method: "setWebhook", url: url, secret: secret}
 	a.calls = append(a.calls, call)
 	if a.onCall != nil {
@@ -337,6 +353,7 @@ func (a *fakeTelegramAPI) SetWebhook(_ context.Context, url string, secret strin
 func (a *fakeTelegramAPI) DeleteWebhook(_ context.Context) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
 	call := telegramAPICall{method: "deleteWebhook"}
 	a.calls = append(a.calls, call)
 	if a.onCall != nil {
@@ -418,6 +435,7 @@ func (a *fakeTelegramAPI) SendChatAction(
 func (a *fakeTelegramAPI) nextError(method string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
 	return a.nextErrorLocked(method)
 }
 
@@ -474,6 +492,7 @@ func (a *fakeTelegramAPI) recordMessageCall(
 ) (int64, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
 	call := telegramAPICall{
 		method:    method,
 		target:    target,
@@ -497,6 +516,7 @@ func (a *fakeTelegramAPI) recordMessageCall(
 func (a *fakeTelegramAPI) callsOfMethod(method string) []telegramAPICall {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
 	return withoutTelegramParseMode(a.callsOfMethodLocked(method))
 }
 
@@ -514,12 +534,14 @@ func (a *fakeTelegramAPI) callsOfMethodLocked(method string) []telegramAPICall {
 func (a *fakeTelegramAPI) allCalls() []telegramAPICall {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
 	return withoutTelegramParseMode(a.calls)
 }
 
 func (a *fakeTelegramAPI) allCallsWithParseMode() []telegramAPICall {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
 	return append([]telegramAPICall(nil), a.calls...)
 }
 

@@ -160,6 +160,7 @@ func gatewayStatusFromProto(status *morphpb.GatewayStatus) GatewayStatus {
 	if status == nil {
 		return GatewayStatus{}
 	}
+
 	state := str.String(status.GetState())
 	address := str.String(status.GetAddress())
 	slackMode := str.String(status.GetSlackMode())
@@ -181,6 +182,7 @@ func protoGatewayPairingRequestToGatewayPairingRequest(
 	if request == nil {
 		return GatewayPairingRequest{}
 	}
+
 	source := str.String(request.GetSource())
 	senderID := str.String(request.GetSenderId())
 	displayName := str.String(request.GetDisplayName())
@@ -198,6 +200,7 @@ func protoGatewayPairedSenderToGatewayPairedSender(sender *morphpb.GatewayPaired
 	if sender == nil {
 		return GatewayPairedSender{}
 	}
+
 	source := str.String(sender.GetSource())
 	senderID := str.String(sender.GetSenderId())
 	displayName := str.String(sender.GetDisplayName())

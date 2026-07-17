@@ -81,7 +81,7 @@ func SignRequest(secret string, timestamp string, body []byte) string {
 	secretValue2 := str.String(secret)
 	mac := hmac.New(sha256.New, []byte(secretValue2.Trim()))
 	timestampValue2 := str.String(timestamp)
-	mac.Write([]byte(fmt.Sprintf("%s:%s:", signatureVersion, timestampValue2.Trim())))
-	mac.Write(body)
+	_, _ = fmt.Fprintf(mac, "%s:%s:", signatureVersion, timestampValue2.Trim())
+	_, _ = mac.Write(body)
 	return signatureVersion + "=" + hex.EncodeToString(mac.Sum(nil))
 }

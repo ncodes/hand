@@ -88,6 +88,7 @@ func (s *Store) GetJob(ctx context.Context, id string) (state.AutomationJob, boo
 	if s == nil || s.db == nil {
 		return state.AutomationJob{}, false, errors.New("store is required")
 	}
+
 	jobID := str.String(id)
 	id = jobID.Trim()
 	if err := state.ValidateAutomationJobID(id); err != nil {
@@ -111,6 +112,7 @@ func (s *Store) ListJobs(ctx context.Context, query state.AutomationJobQuery) (s
 	if s == nil || s.db == nil {
 		return state.AutomationJobResult{}, errors.New("store is required")
 	}
+
 	ids, err := automationValidatedIDs(query.IDs, state.ValidateAutomationJobID)
 	if err != nil {
 		return state.AutomationJobResult{}, err
@@ -164,6 +166,7 @@ func (s *Store) PatchJob(ctx context.Context, patch state.AutomationJobPatch) (s
 	if s == nil || s.db == nil {
 		return state.AutomationJob{}, errors.New("store is required")
 	}
+
 	patchID := str.String(patch.ID)
 	patch.ID = patchID.Trim()
 	if err := state.ValidateAutomationJobID(patch.ID); err != nil {
@@ -177,6 +180,7 @@ func (s *Store) PatchJob(ctx context.Context, patch state.AutomationJobPatch) (s
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("automation job not found")
 			}
+
 			return err
 		}
 		current, err := automationModelToJob(record)
@@ -196,6 +200,7 @@ func (s *Store) DeleteJob(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	jobID := str.String(id)
 	id = jobID.Trim()
 	if err := state.ValidateAutomationJobID(id); err != nil {
@@ -274,6 +279,7 @@ func (s *Store) FinishRun(ctx context.Context, patch state.AutomationRunPatch) (
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("automation run not found")
 			}
+
 			return err
 		}
 		current, err := automationModelToRun(record)
@@ -293,6 +299,7 @@ func (s *Store) ListRuns(ctx context.Context, query state.AutomationRunQuery) (s
 	if s == nil || s.db == nil {
 		return state.AutomationRunResult{}, errors.New("store is required")
 	}
+
 	ids, err := automationValidatedIDs(query.IDs, state.ValidateAutomationRunID)
 	if err != nil {
 		return state.AutomationRunResult{}, err
@@ -304,6 +311,7 @@ func (s *Store) ListRuns(ctx context.Context, query state.AutomationRunQuery) (s
 		if err := state.ValidateAutomationJobID(jobID); err != nil {
 			return state.AutomationRunResult{}, err
 		}
+
 		db = db.Where("job_id = ?", jobID)
 	}
 	if len(ids) > 0 {
@@ -357,6 +365,7 @@ func (s *Store) DeleteRuns(ctx context.Context, query state.AutomationRunDeleteQ
 		if err := state.ValidateAutomationJobID(queryJobID); err != nil {
 			return 0, err
 		}
+
 		db = db.Where("job_id = ?", queryJobID)
 	}
 
@@ -500,6 +509,7 @@ func automationValidatedIDs(ids []string, validate func(string) error) ([]string
 	if len(ids) == 0 {
 		return nil, nil
 	}
+
 	values := make([]string, 0, len(ids))
 	for _, rawID := range ids {
 		id := str.String(rawID)
@@ -512,5 +522,6 @@ func automationValidatedIDs(ids []string, validate func(string) error) ([]string
 		}
 		values = append(values, trimmedID)
 	}
+
 	return values, nil
 }

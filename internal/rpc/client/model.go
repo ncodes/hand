@@ -141,6 +141,7 @@ func protoProviderOptionToProviderOption(option *morphpb.ProviderOption) Provide
 	if option == nil {
 		return ProviderOption{}
 	}
+
 	id := str.String(option.GetId())
 	name := str.String(option.GetName())
 	optionType := str.String(option.GetType())
@@ -161,6 +162,7 @@ func protoModelOptionToModelOption(option *morphpb.ModelOption) ModelOption {
 	if option == nil {
 		return ModelOption{}
 	}
+
 	id := str.String(option.GetId())
 	name := str.String(option.GetName())
 	provider := str.String(option.GetProvider())
@@ -183,6 +185,7 @@ func protoRuntimeModelToModelRuntime(runtime *morphpb.RuntimeModelResponse) Mode
 	if runtime == nil {
 		return ModelRuntime{}
 	}
+
 	provider := str.String(runtime.GetProvider())
 	api := str.String(runtime.GetApi())
 	model := str.String(runtime.GetModel())

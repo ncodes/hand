@@ -471,6 +471,7 @@ func automationJobIDs(jobs []state.AutomationJob) []string {
 	for _, job := range jobs {
 		ids = append(ids, job.ID)
 	}
+
 	return ids
 }
 
@@ -479,5 +480,6 @@ func automationRunIDs(runs []state.AutomationRun) []string {
 	for _, run := range runs {
 		ids = append(ids, run.ID)
 	}
+
 	return ids
 }

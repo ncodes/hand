@@ -1354,6 +1354,7 @@ func TestAgent_ListModelsPropagatesModelCatalogErrors(t *testing.T) {
 		if query.OAuthOnly {
 			return nil, expected
 		}
+
 		return originalListModelOptions(query)
 	}
 	_, err = NewAgent(context.Background(), cfg, nil).ListModels(context.Background())

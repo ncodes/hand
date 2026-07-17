@@ -58,7 +58,7 @@ func NewCommand() *cli.Command {
 					if err != nil {
 						return err
 					}
-					defer client.Close()
+					defer func() { _ = client.Close() }()
 					sessions := client.SessionAPI()
 
 					autoSwitch := false
@@ -85,7 +85,7 @@ func NewCommand() *cli.Command {
 					if err != nil {
 						return err
 					}
-					defer client.Close()
+					defer func() { _ = client.Close() }()
 					sessionClient := client.SessionAPI()
 
 					active := false
@@ -109,7 +109,7 @@ func NewCommand() *cli.Command {
 					if err != nil {
 						return err
 					}
-					defer client.Close()
+					defer func() { _ = client.Close() }()
 					sessions := client.SessionAPI()
 					firstValue2 := str.String(cmd.Args().First())
 					id := firstValue2.Trim()
@@ -129,7 +129,7 @@ func NewCommand() *cli.Command {
 					if err != nil {
 						return err
 					}
-					defer client.Close()
+					defer func() { _ = client.Close() }()
 					sessions := client.SessionAPI()
 					firstValue3 := str.String(cmd.Args().First())
 					session, err := sessions.Unarchive(ctx, firstValue3.Trim())
@@ -148,7 +148,7 @@ func NewCommand() *cli.Command {
 					if err != nil {
 						return err
 					}
-					defer client.Close()
+					defer func() { _ = client.Close() }()
 					sessions := client.SessionAPI()
 
 					session, err := sessions.Current(ctx)
@@ -167,7 +167,7 @@ func NewCommand() *cli.Command {
 					if err != nil {
 						return err
 					}
-					defer client.Close()
+					defer func() { _ = client.Close() }()
 					sessions := client.SessionAPI()
 					firstValue4 := str.String(cmd.Args().First())
 					result, err := sessions.Compact(ctx, firstValue4.Trim())
@@ -193,7 +193,7 @@ func NewCommand() *cli.Command {
 					if err != nil {
 						return err
 					}
-					defer client.Close()
+					defer func() { _ = client.Close() }()
 					sessions := client.SessionAPI()
 					firstValue5 := str.String(cmd.Args().First())
 					result, err := sessions.Repair(
@@ -219,7 +219,7 @@ func NewCommand() *cli.Command {
 					if err != nil {
 						return err
 					}
-					defer client.Close()
+					defer func() { _ = client.Close() }()
 					sessions := client.SessionAPI()
 					firstValue6 := str.String(cmd.Args().First())
 					result, err := sessions.Status(ctx, firstValue6.Trim())

@@ -21,6 +21,7 @@ func (s *PermissionService) ListApprovalRequests(
 	for index, request := range response.GetRequests() {
 		result[index] = approvalRequestFromProto(request)
 	}
+
 	return result, nil
 }
 
@@ -67,6 +68,7 @@ func (s *PermissionService) ListApprovalGrants(
 	for index, grant := range response.GetGrants() {
 		result[index] = approvalGrantFromProto(grant)
 	}
+
 	return result, nil
 }
 
@@ -114,10 +116,12 @@ func approvalRequestFromProto(value *morphpb.PermissionApprovalRequest) permissi
 	if value == nil {
 		return permissions.ApprovalRequest{}
 	}
+
 	effects := make([]permissions.Effect, len(value.GetEffects()))
 	for index, effect := range value.GetEffects() {
 		effects[index] = permissions.Effect(effect)
 	}
+
 	return permissions.ApprovalRequest{
 		ID: value.GetId(), Actor: permissions.Actor{Kind: permissions.ActorKind(value.GetActorKind())},
 		SurfaceKind: permissions.SurfaceKind(value.GetSurfaceKind()), Surface: permissions.Surface(value.GetSurface()),
@@ -134,6 +138,7 @@ func approvalGrantFromProto(value *morphpb.PermissionGrant) permissions.Approval
 	if value == nil {
 		return permissions.ApprovalGrant{}
 	}
+
 	return permissions.ApprovalGrant{
 		ID: value.GetId(), RequestID: value.GetRequestId(), Actor: permissions.Actor{Kind: permissions.ActorKind(value.GetActorKind())},
 		Profile: value.GetProfile(), SessionID: value.GetSessionId(), Scope: permissions.GrantScope(value.GetScope()),

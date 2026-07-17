@@ -109,6 +109,7 @@ func (s *Service) checkPermission(ctx context.Context, operation permissions.Ope
 	if s == nil {
 		return status.Error(codes.Internal, "service is required")
 	}
+
 	ctx = s.getPermissionContext(ctx)
 
 	_, err := s.permissions.Check(ctx, permissions.EvaluationInput{Operation: operation})
@@ -202,6 +203,7 @@ func (s *Service) Respond(req *morphpb.RespondRequest, stream morphpb.MorphServi
 			if sendErr != nil {
 				return
 			}
+
 			protoEvent, ok := eventToProtoRespondEvent(event)
 			if !ok {
 				return
@@ -1280,6 +1282,7 @@ func (s *Service) SetProviderAPIKey(
 	if err := s.api.SetProviderAPIKey(ctx, req.GetProvider(), req.GetApiKey()); err != nil {
 		return nil, getGRPCError(err)
 	}
+
 	providerValue3 := str.String(req.GetProvider())
 	return &morphpb.SetProviderAPIKeyResponse{Provider: providerValue3.Trim()}, nil
 }
@@ -1537,6 +1540,7 @@ func (s *Service) ListPairings(
 	if s.api == nil {
 		return nil, status.Error(codes.Internal, "agent handler is required")
 	}
+
 	store, ok := s.api.(pairing.Store)
 	if !ok {
 		return nil, status.Error(codes.Internal, "gateway pairing store is required")
@@ -1608,6 +1612,7 @@ func (s *Service) Start(
 	}); err != nil {
 		return nil, err
 	}
+
 	cfg, err := normalizeGatewayRuntimeConfig(s.gatewayConfig)
 	if err != nil {
 		return nil, err
@@ -1658,6 +1663,7 @@ func (s *Service) Restart(
 	}); err != nil {
 		return nil, err
 	}
+
 	cfg, err := normalizeGatewayRuntimeConfig(s.gatewayConfig)
 	if err != nil {
 		return nil, err
@@ -1713,6 +1719,7 @@ func (s *Service) ApprovePairing(
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "approve pairing request is required")
 	}
+
 	store, ok := s.api.(pairing.Store)
 	if !ok {
 		return nil, status.Error(codes.Internal, "gateway pairing store is required")
@@ -1757,6 +1764,7 @@ func (s *Service) RevokePairing(
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "revoke pairing request is required")
 	}
+
 	store, ok := s.api.(pairing.Store)
 	if !ok {
 		return nil, status.Error(codes.Internal, "gateway pairing store is required")
@@ -1791,6 +1799,7 @@ func (s *Service) ClearPendingPairings(
 	if s.api == nil {
 		return nil, status.Error(codes.Internal, "agent handler is required")
 	}
+
 	store, ok := s.api.(pairing.Store)
 	if !ok {
 		return nil, status.Error(codes.Internal, "gateway pairing store is required")

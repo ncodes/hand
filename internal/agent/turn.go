@@ -235,6 +235,7 @@ func (t *Turn) load(ctx context.Context, opts agentcore.RespondOptions) error {
 		if t.summaryStore == nil {
 			return errors.New("summary store is required")
 		}
+
 		t.summaryService = summarizer.NewService(t.cfg, t.modelClient, t.summaryClient, t.summaryStore)
 	}
 
@@ -603,6 +604,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 					if delta.Text == "" {
 						return
 					}
+
 					if delta.Channel == models.StreamChannelReasoning {
 						now := time.Now().UTC()
 						if reasoningStartedAt.IsZero() {
@@ -858,6 +860,7 @@ func (t *Turn) canCompactPersistedHistory() bool {
 	if t == nil {
 		return false
 	}
+
 	return len(t.sessionHistory) > t.cfg.CompactionRecentSessionTailEffective()
 }
 
@@ -889,6 +892,7 @@ func (t *Turn) recordModelReasoningCompleted(startedAt time.Time, endedAt time.T
 	if t == nil || t.traceRecorder == nil || t.sessionID == "" || startedAt.IsZero() {
 		return
 	}
+
 	if endedAt.IsZero() || endedAt.Before(startedAt) {
 		endedAt = startedAt
 	}
@@ -922,6 +926,7 @@ func (t *Turn) getOutputRedactor() guardrails.Redactor {
 	if t == nil || t.cfg == nil {
 		return guardrails.NewRedactorWithOptions(guardrails.RedactorOptions{DisablePII: true})
 	}
+
 	return guardrails.NewRedactorWithOptions(guardrails.RedactorOptions{
 		DisablePII: !t.cfg.OutputPIIRedactionEnabled(),
 	})
@@ -1036,6 +1041,7 @@ func (t *Turn) getStateSessionID() string {
 	if t == nil {
 		return storage.DefaultSessionID
 	}
+
 	effectiveIDValue := str.String(t.runCtx.Session.EffectiveID)
 	publicIDValue := str.String(t.runCtx.Session.PublicID)
 	if effectiveIDValue.Trim() != "" || publicIDValue.
@@ -1054,6 +1060,7 @@ func (t *Turn) getToolContext(ctx context.Context) context.Context {
 	if t == nil {
 		return tools.WithSessionID(ctx, "")
 	}
+
 	publicIDValue2 := str.String(t.runCtx.Session.PublicID)
 	if publicIDValue2.Trim() != "" {
 		return tools.WithRunContext(ctx, t.runCtx)
@@ -1077,6 +1084,7 @@ func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
 		for _, definition := range definitions {
 			toolsList = append(toolsList, modelToolDefinitionFromToolDefinition(definition))
 		}
+
 		return toolsList, nil
 	}
 

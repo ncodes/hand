@@ -332,6 +332,7 @@ func indexLineContaining(lines []string, value string) int {
 			return index
 		}
 	}
+
 	return -1
 }
 

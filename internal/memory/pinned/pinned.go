@@ -124,6 +124,7 @@ func PrepareItems(
 		if item.Status != state.MemoryStatusActive {
 			continue
 		}
+
 		if scan != nil {
 			if err := scan(ctx, item); err != nil {
 				return nil, err
@@ -179,6 +180,7 @@ func getAutoFileFromRoot(root string) (string, bool, error) {
 		if os.IsNotExist(err) {
 			return "", false, nil
 		}
+
 		return "", false, fmt.Errorf("stat profile home %q: %w", root, err)
 	}
 	if !info.IsDir() {
@@ -237,6 +239,7 @@ func truncateRunes(value string, maxChars int) string {
 	if maxChars <= 0 {
 		return ""
 	}
+
 	runes := []rune(value)
 	if len(runes) <= maxChars {
 		return value

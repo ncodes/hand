@@ -196,6 +196,7 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	iDValue := str.String(session.ID)
 	session.ID = iDValue.Trim()
 	if err := base.ValidateSessionID(session.ID); err != nil {
@@ -306,6 +307,7 @@ func (s *Store) UpdateCheckpoints(ctx context.Context, id string, patch Checkpoi
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	idValue := str.String(id)
 	id = idValue.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -361,6 +363,7 @@ func (s *Store) Get(ctx context.Context, id string, opts base.SessionGetOptions)
 	if s == nil || s.db == nil {
 		return Session{}, false, errors.New("store is required")
 	}
+
 	idValue2 := str.String(id)
 	id = idValue2.Trim()
 	if id == "" {
@@ -381,6 +384,7 @@ func (s *Store) Get(ctx context.Context, id string, opts base.SessionGetOptions)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Session{}, false, nil
 		}
+
 		return Session{}, false, err
 	}
 
@@ -424,6 +428,7 @@ func (s *Store) List(ctx context.Context, opts base.SessionListOptions) ([]Sessi
 		if sessions[i].UpdatedAt.Equal(sessions[j].UpdatedAt) {
 			return sessions[i].ID < sessions[j].ID
 		}
+
 		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
 	})
 
@@ -435,6 +440,7 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	idValue3 := str.String(id)
 	id = idValue3.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -466,6 +472,7 @@ func (s *Store) deleteSessions(ctx context.Context, ids []string) ([]string, err
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					continue
 				}
+
 				return err
 			}
 
@@ -510,6 +517,7 @@ func (s *Store) AppendMessages(ctx context.Context, id string, messages []morphm
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	idValue4 := str.String(id)
 	id = idValue4.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -529,6 +537,7 @@ func (s *Store) AppendMessages(ctx context.Context, id string, messages []morphm
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return errors.New("session not found")
 				}
+
 				return err
 			}
 
@@ -577,6 +586,7 @@ func (s *Store) GetMessages(
 	if _, err := base.NormalizeMessageQueryOrder(opts.Order); err != nil {
 		return nil, err
 	}
+
 	idValue5 := str.String(id)
 	id = idValue5.Trim()
 	if id == "" {
@@ -612,6 +622,7 @@ func (s *Store) GetMessagesByIDs(
 	if s == nil || s.db == nil {
 		return nil, errors.New("store is required")
 	}
+
 	idValue6 := str.String(id)
 	id = idValue6.Trim()
 	if id == "" || len(messageIDs) == 0 {
@@ -643,6 +654,7 @@ func (s *Store) GetMessageWindow(
 	if s == nil || s.db == nil {
 		return nil, errors.New("store is required")
 	}
+
 	idValue7 := str.String(id)
 	id = idValue7.Trim()
 	if id == "" || anchorMessageID == 0 {
@@ -662,6 +674,7 @@ func (s *Store) GetMessageWindow(
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
+
 		return nil, err
 	}
 
@@ -692,6 +705,7 @@ func (s *Store) CountMessages(
 	if _, err := base.NormalizeMessageQueryOrder(opts.Order); err != nil {
 		return 0, err
 	}
+
 	idValue8 := str.String(id)
 	id = idValue8.Trim()
 	if id == "" {
@@ -720,6 +734,7 @@ func (s *Store) SearchMessages(
 	if s == nil || s.db == nil {
 		return nil, errors.New("store is required")
 	}
+
 	idValue9 := str.String(id)
 	id = idValue9.Trim()
 	if id != "" {
@@ -970,6 +985,7 @@ func (s *Store) GetMessage(
 	if s == nil || s.db == nil {
 		return morphmsg.Message{}, false, errors.New("store is required")
 	}
+
 	idValue10 := str.String(id)
 	id = idValue10.Trim()
 	if id == "" || index < 0 {
@@ -986,6 +1002,7 @@ func (s *Store) GetMessage(
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return morphmsg.Message{}, false, nil
 		}
+
 		return morphmsg.Message{}, false, err
 	}
 
@@ -1010,6 +1027,7 @@ func (s *Store) SaveSummary(ctx context.Context, summary SessionSummary) error {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
 			}
+
 			return err
 		}
 
@@ -1034,6 +1052,7 @@ func (s *Store) GetSummary(ctx context.Context, sessionID string) (SessionSummar
 	if s == nil || s.db == nil {
 		return SessionSummary{}, false, errors.New("store is required")
 	}
+
 	sessionIDValue := str.String(sessionID)
 	sessionID = sessionIDValue.Trim()
 	if sessionID == "" {
@@ -1049,6 +1068,7 @@ func (s *Store) GetSummary(ctx context.Context, sessionID string) (SessionSummar
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return SessionSummary{}, false, nil
 		}
+
 		return SessionSummary{}, false, err
 	}
 
@@ -1065,6 +1085,7 @@ func (s *Store) DeleteSummary(ctx context.Context, sessionID string) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	sessionIDValue2 := str.String(sessionID)
 	sessionID = sessionIDValue2.Trim()
 	if err := base.ValidateSessionID(sessionID); err != nil {
@@ -1078,6 +1099,7 @@ func (s *Store) Archive(ctx context.Context, id string, req base.SessionArchiveR
 	if s == nil || s.db == nil {
 		return Session{}, errors.New("store is required")
 	}
+
 	idValue11 := str.String(id)
 	id = idValue11.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -1091,6 +1113,7 @@ func (s *Store) Archive(ctx context.Context, id string, req base.SessionArchiveR
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
 			}
+
 			return err
 		}
 
@@ -1132,6 +1155,7 @@ func (s *Store) Rename(ctx context.Context, req base.SessionRenameRequest) (Sess
 	if s == nil || s.db == nil {
 		return Session{}, errors.New("store is required")
 	}
+
 	sessionIDValue3 := str.String(req.SessionID)
 	req.SessionID = sessionIDValue3.Trim()
 	if err := base.ValidateSessionID(req.SessionID); err != nil {
@@ -1190,6 +1214,7 @@ func (s *Store) ClearMessages(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	idValue12 := str.String(id)
 	id = idValue12.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -1202,6 +1227,7 @@ func (s *Store) ClearMessages(ctx context.Context, id string) error {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
 			}
+
 			return err
 		}
 
@@ -1252,6 +1278,7 @@ func (s *Store) DeleteExpiredArchives(ctx context.Context, now time.Time) error 
 			Pluck("id", &expiredSessionIDs).Error; err != nil {
 			return err
 		}
+
 		return nil
 	}); err != nil {
 		return err
@@ -1265,6 +1292,7 @@ func (s *Store) Unarchive(ctx context.Context, id string) (Session, error) {
 	if s == nil || s.db == nil {
 		return Session{}, errors.New("store is required")
 	}
+
 	idValue13 := str.String(id)
 	id = idValue13.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -1278,6 +1306,7 @@ func (s *Store) Unarchive(ctx context.Context, id string) (Session, error) {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
 			}
+
 			return err
 		}
 
@@ -1308,6 +1337,7 @@ func (s *Store) SetCurrent(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
+
 	idValue14 := str.String(id)
 	id = idValue14.Trim()
 	if err := base.ValidateSessionID(id); err != nil {
@@ -1344,6 +1374,7 @@ func (s *Store) Current(ctx context.Context) (string, bool, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", false, nil
 		}
+
 		return "", false, err
 	}
 	value := str.String(record.Value).Trim()

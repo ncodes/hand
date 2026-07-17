@@ -40,7 +40,8 @@ func TestSessionIDFromContextFallsBackToLegacySessionID(t *testing.T) {
 }
 
 func TestWithSessionID_HandlesNilContext(t *testing.T) {
-	ctx := WithSessionID(nil, "session-1")
+	var nilContext context.Context
+	ctx := WithSessionID(nilContext, "session-1")
 
 	require.Equal(t, "session-1", SessionIDFromContext(ctx))
 }
@@ -49,7 +50,8 @@ func TestWithRunContext_HandlesNilContext(t *testing.T) {
 	runCtx, err := runcontext.NewParent(storage.DefaultSessionID)
 	require.NoError(t, err)
 
-	ctx := WithRunContext(nil, runCtx)
+	var nilContext context.Context
+	ctx := WithRunContext(nilContext, runCtx)
 
 	require.Equal(t, storage.DefaultSessionID, SessionIDFromContext(ctx))
 }
@@ -65,7 +67,8 @@ func TestWithRunContext_IgnoresInvalidRunContext(t *testing.T) {
 }
 
 func TestSessionIDFromContext_ReturnsEmptyForNilContext(t *testing.T) {
-	require.Empty(t, SessionIDFromContext(nil))
+	var nilContext context.Context
+	require.Empty(t, SessionIDFromContext(nilContext))
 }
 
 func TestTraceRecorderFromContext_ReturnsRecorder(t *testing.T) {
@@ -79,13 +82,15 @@ func TestTraceRecorderFromContext_ReturnsRecorder(t *testing.T) {
 func TestWithTraceRecorder_HandlesNilContext(t *testing.T) {
 	recorder := &traceRecorderStub{}
 
-	ctx := WithTraceRecorder(nil, recorder)
+	var nilContext context.Context
+	ctx := WithTraceRecorder(nilContext, recorder)
 
 	require.Same(t, recorder, TraceRecorderFromContext(ctx))
 }
 
 func TestTraceRecorderFromContext_ReturnsNilForNilOrMissingRecorder(t *testing.T) {
-	require.Nil(t, TraceRecorderFromContext(nil))
+	var nilContext context.Context
+	require.Nil(t, TraceRecorderFromContext(nilContext))
 	require.Nil(t, TraceRecorderFromContext(context.Background()))
 }
 

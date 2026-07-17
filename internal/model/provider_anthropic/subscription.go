@@ -72,12 +72,12 @@ func (p AnthropicSubscriptionProvider) Login(
 	if err != nil {
 		return appcredential.StoredCredential{}, err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	codeCh := make(chan string, 1)
 	errCh := make(chan error, 1)
 	server := p.startCallbackServer(listener, state, codeCh, errCh)
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	authURL := p.getAuthorizeURL(redirectURI, state, challenge)
 	if options.Output != nil {
@@ -106,7 +106,7 @@ func (p AnthropicSubscriptionProvider) Refresh(
 	refreshValue := str.String(credential.Refresh)
 	refreshToken := refreshValue.Trim()
 	if refreshToken == "" {
-		return appcredential.StoredCredential{}, errors.New("Anthropic subscription refresh token is required")
+		return appcredential.StoredCredential{}, errors.New("anthropic subscription refresh token is required")
 	}
 
 	body := map[string]string{
@@ -134,7 +134,7 @@ func (p AnthropicSubscriptionProvider) AuthHeaders(
 	tokenValue := str.String(credential.Token)
 	token := tokenValue.Trim()
 	if token == "" {
-		return nil, errors.New("Anthropic subscription access token is required")
+		return nil, errors.New("anthropic subscription access token is required")
 	}
 
 	return map[string]string{
@@ -185,7 +185,7 @@ func (p AnthropicSubscriptionProvider) listenForCallback() (net.Listener, string
 	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
 	if !ok {
 		_ = listener.Close()
-		return nil, "", errors.New("Anthropic OAuth listener must be TCP")
+		return nil, "", errors.New("anthropic OAuth listener must be TCP")
 	}
 
 	return listener, fmt.Sprintf("http://localhost:%d%s", tcpAddr.Port, anthropicSubscriptionCallbackPath), nil
@@ -202,20 +202,20 @@ func (p AnthropicSubscriptionProvider) startCallbackServer(
 		getValue := str.String(r.URL.Query().Get("state"))
 		if got := getValue.Trim(); got != state {
 			http.Error(w, "invalid OAuth state", http.StatusBadRequest)
-			errCh <- errors.New("Anthropic OAuth state mismatch")
+			errCh <- errors.New("anthropic OAuth state mismatch")
 			return
 		}
 		getValue2 := str.String(r.URL.Query().Get("error"))
 		if reason := getValue2.Trim(); reason != "" {
 			http.Error(w, "OAuth error", http.StatusBadRequest)
-			errCh <- fmt.Errorf("Anthropic OAuth failed: %s", reason)
+			errCh <- fmt.Errorf("anthropic OAuth failed: %s", reason)
 			return
 		}
 		getValue3 := str.String(r.URL.Query().Get("code"))
 		code := getValue3.Trim()
 		if code == "" {
 			http.Error(w, "missing OAuth code", http.StatusBadRequest)
-			errCh <- errors.New("Anthropic OAuth code is required")
+			errCh <- errors.New("anthropic OAuth code is required")
 			return
 		}
 
@@ -292,14 +292,14 @@ func (p AnthropicSubscriptionProvider) postToken(
 	if err != nil {
 		return appcredential.StoredCredential{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return appcredential.StoredCredential{}, err
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return appcredential.StoredCredential{}, fmt.Errorf("Anthropic token request failed: %s", resp.Status)
+		return appcredential.StoredCredential{}, fmt.Errorf("anthropic token request failed: %s", resp.Status)
 	}
 
 	var token anthropicTokenResponse
@@ -308,7 +308,7 @@ func (p AnthropicSubscriptionProvider) postToken(
 	}
 	accessTokenValue := str.String(token.AccessToken)
 	if accessTokenValue.Trim() == "" {
-		return appcredential.StoredCredential{}, errors.New("Anthropic token response did not include an access token")
+		return appcredential.StoredCredential{}, errors.New("anthropic token response did not include an access token")
 	}
 	accessTokenValue2 := str.String(token.AccessToken)
 	refreshTokenValue := str.String(token.RefreshToken)

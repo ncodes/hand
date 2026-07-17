@@ -66,7 +66,7 @@ func NewListCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			ctx = permissionContext(ctx)
 			requests, err := client.PermissionAPI().ListApprovalRequests(ctx, query)
 			if err != nil {
@@ -90,7 +90,7 @@ func NewPendingCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			ctx = permissionContext(ctx)
 			requests, err := client.PermissionAPI().ListApprovalRequests(ctx, query)
 			if err != nil {
@@ -114,7 +114,7 @@ func NewGrantsCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			ctx = permissionContext(ctx)
 			grants, err := client.PermissionAPI().ListApprovalGrants(ctx, query)
 			if err != nil {
@@ -133,7 +133,7 @@ func NewPruneCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			result, err := client.PermissionAPI().PruneApprovals(permissionContext(ctx), cmd.Bool("dry-run"))
 			if err != nil {
 				return err
@@ -273,7 +273,7 @@ func NewApproveCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			ctx = permissionContext(ctx)
 			request, err := client.PermissionAPI().ResolveApprovalRequest(
 				ctx, id, true, scope,
@@ -301,7 +301,7 @@ func NewDenyCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			ctx = permissionContext(ctx)
 			request, err := client.PermissionAPI().ResolveApprovalRequest(ctx, id, false, "")
 			if err != nil {
@@ -325,7 +325,7 @@ func NewRevokeCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			ctx = permissionContext(ctx)
 			grant, err := client.PermissionAPI().RevokeApprovalGrant(ctx, id)
 			if err != nil {
@@ -350,7 +350,7 @@ func NewDeleteCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			result, err := client.PermissionAPI().DeleteApprovalRecord(permissionContext(ctx), id)
 			if err != nil {
 				return err
@@ -382,7 +382,7 @@ func NewExplainCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			ctx = permissionContext(ctx)
 			request, ok, err := client.PermissionAPI().GetApprovalRequest(ctx, id)
 			if err != nil {
@@ -434,12 +434,14 @@ func writeRequests(requests []permissions.ApprovalRequest) error {
 		_, err := fmt.Fprintln(permissionOutput, "No approval requests.")
 		return err
 	}
+
 	w := tabwriter.NewWriter(permissionOutput, 0, 4, 2, ' ', 0)
 	_, _ = fmt.Fprintln(w, "REQUEST\tSTATUS\tOPERATION\tEFFECTS\tEXPIRES")
 	for _, request := range requests {
 		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", request.ID, request.Status, request.Summary,
 			effectsText(request.Effects), formatPermissionTime(request.ExpiresAt, "2006-01-02 15:04 MST"))
 	}
+
 	return w.Flush()
 }
 
@@ -448,12 +450,14 @@ func writeGrants(grants []permissions.ApprovalGrant) error {
 		_, err := fmt.Fprintln(permissionOutput, "No approval grants.")
 		return err
 	}
+
 	w := tabwriter.NewWriter(permissionOutput, 0, 4, 2, ' ', 0)
 	_, _ = fmt.Fprintln(w, "GRANT\tSTATUS\tSCOPE\tSESSION\tEXPIRES")
 	for _, grant := range grants {
 		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", grant.ID, grant.Status, grant.Scope,
 			grant.SessionID, getGrantExpiryText(grant))
 	}
+
 	return w.Flush()
 }
 
@@ -461,6 +465,7 @@ func getGrantExpiryText(grant permissions.ApprovalGrant) string {
 	if grant.Scope == permissions.GrantAlways {
 		return "never"
 	}
+
 	return formatPermissionTime(grant.ExpiresAt, "2006-01-02 15:04 MST")
 }
 
@@ -473,5 +478,6 @@ func effectsText(effects []permissions.Effect) string {
 	for index, effect := range effects {
 		values[index] = string(effect)
 	}
+
 	return strings.Join(values, ",")
 }

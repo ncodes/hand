@@ -35,6 +35,7 @@ func (s *Sender) SendFinal(ctx context.Context, target slack.Target, text string
 	if s == nil || s.api == nil {
 		return errors.New("slack sender is required")
 	}
+
 	for _, chunk := range slack.ChunkMarkdown(slack.FormatMrkdwn(text), slack.MarkdownTextLimit) {
 		if _, err := s.api.PostMessage(ctx, target, chunk); err != nil {
 			return err
@@ -66,7 +67,7 @@ func (s *Sender) StreamTurn(
 	appender := newSlackStreamAppender(ctx, s.api, stream, defaultSlackStreamFlushInterval)
 	appender.Start()
 	reply, err := run(appender.Append)
-	appendErr, state := appender.Stop()
+	state, appendErr := appender.Stop()
 	if err != nil {
 		return err
 	}
@@ -74,6 +75,7 @@ func (s *Sender) StreamTurn(
 		if isSlackStreamTerminalError(appendErr) {
 			return nil
 		}
+
 		return s.SendFinal(ctx, target, reply)
 	}
 	stopText := reply
@@ -85,11 +87,13 @@ func (s *Sender) StreamTurn(
 			if isSlackStreamNonRetryableAfterVisible(stopErr) {
 				return nil
 			}
+
 			return stopErr
 		}
 		if isSlackStreamTerminalError(stopErr) {
 			return nil
 		}
+
 		return s.SendFinal(ctx, target, reply)
 	}
 
@@ -176,7 +180,7 @@ func (a *slackStreamAppender) Append(delta string) {
 	a.pending = append(a.pending, chunks...)
 }
 
-func (a *slackStreamAppender) Stop() (error, slackStreamState) {
+func (a *slackStreamAppender) Stop() (slackStreamState, error) {
 	a.appendChunks(a.format.Flush())
 	close(a.done)
 	<-a.stopped
@@ -184,7 +188,7 @@ func (a *slackStreamAppender) Stop() (error, slackStreamState) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	return a.err, slackStreamState{visible: a.visible}
+	return slackStreamState{visible: a.visible}, a.err
 }
 
 func (a *slackStreamAppender) appendChunks(chunks []slack.Chunk) {
@@ -282,6 +286,7 @@ func getSlackAPIErrorCode(err error) string {
 		codeValue := str.String(apiErr.Code)
 		return codeValue.Trim()
 	}
+
 	errorValue := str.String(err.Error())
 	return errorValue.Trim()
 }

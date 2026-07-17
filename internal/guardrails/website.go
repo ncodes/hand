@@ -84,6 +84,7 @@ func normalizeWebsiteRule(value string) string {
 		if strings.Contains(valueText, "://") {
 			return ""
 		}
+
 		host = normalizeWebsiteHost(valueText)
 	}
 	if host == "" {

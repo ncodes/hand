@@ -174,6 +174,7 @@ func isToolSignedNumberToken(value string, sign byte) bool {
 	if len(value) < 2 || value[0] != sign {
 		return false
 	}
+
 	for _, r := range value[1:] {
 		if r < '0' || r > '9' {
 			return false
@@ -251,6 +252,7 @@ func getToolTranscriptDuration(detail toolTranscriptDetail, now time.Time) time.
 	if detail.startedAt.IsZero() {
 		return 0
 	}
+
 	end := detail.completedAt
 	if end.IsZero() {
 		end = now
@@ -402,6 +404,7 @@ func getAutomationToolTranscriptTitle(details []toolTranscriptDetail, completed 
 			if completed {
 				return "Managed Automations"
 			}
+
 			return "Managing Automations"
 		}
 		action = candidate
@@ -515,6 +518,7 @@ func hasOnlyProcessToolTranscriptErrors(details []toolTranscriptDetail) bool {
 		if detail.processState == nil {
 			continue
 		}
+
 		foundProcess = true
 		if !hasProcessToolError(detail.processState) {
 			return false
@@ -608,6 +612,7 @@ func processToolFailedAttemptDetail(count int, detail *toolTranscriptDetail) too
 	if detail == nil || count <= 0 {
 		return toolTranscriptDetail{}
 	}
+
 	errorValue := str.String(detail.processState.Error)
 	message := errorValue.Trim()
 	if message == "" {
@@ -639,6 +644,7 @@ func getProcessToolTranscriptStatus(details []toolTranscriptDetail) string {
 		if details[index].processState == nil {
 			continue
 		}
+
 		statusValue := str.String(details[index].processState.Status)
 		if status := statusValue.Trim(); status != "" {
 			return status
@@ -676,6 +682,7 @@ func getPlanToolTranscriptOperation(details []toolTranscriptDetail) string {
 		if detail.planState == nil {
 			continue
 		}
+
 		switch detail.planState.Operation {
 		case trace.PlanToolOperationRead:
 			return "read"

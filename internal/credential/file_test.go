@@ -507,6 +507,7 @@ func (p *refreshProvider) Refresh(_ context.Context, _ StoredCredential) (Stored
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
 	p.calls++
 	if p.onRefresh != nil {
 		p.onRefresh()

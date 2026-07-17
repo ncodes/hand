@@ -210,6 +210,7 @@ func TestToolOutputString(t *testing.T) {
 		if output != "2026-01-01T00:00:00Z" {
 			return errors.New("unexpected output")
 		}
+
 		return nil
 	})(models.Request{
 		Messages: []morphmsg.Message{{
@@ -237,6 +238,7 @@ func TestToolOutputJSON(t *testing.T) {
 		if fmt.Sprint(payload["path"]) != "drafts/out.txt" {
 			return errors.New("unexpected path")
 		}
+
 		return nil
 	})(models.Request{
 		Messages: []morphmsg.Message{{

@@ -206,5 +206,6 @@ func traceEventTypes(events []base.TraceEvent) []string {
 	for _, event := range events {
 		values = append(values, event.Type)
 	}
+
 	return values
 }

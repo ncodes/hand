@@ -15,6 +15,7 @@ func (s *Store) CreateApprovalRequest(
 ) (permissions.ApprovalRequest, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	for _, existing := range s.approvalRequests {
 		if existing.Status == permissions.ApprovalPending && existing.Fingerprint == request.Fingerprint &&
 			existing.Actor == request.Actor && existing.SessionID == request.SessionID {
@@ -34,6 +35,7 @@ func (s *Store) GetApprovalRequest(
 ) (permissions.ApprovalRequest, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	request, ok := s.approvalRequests[id]
 	return cloneApprovalRequest(request), ok, nil
 }
@@ -44,11 +46,13 @@ func (s *Store) ListApprovalRequests(
 ) ([]permissions.ApprovalRequest, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	result := make([]permissions.ApprovalRequest, 0, len(s.approvalRequests))
 	for _, request := range s.approvalRequests {
 		if query.Status != "" && request.Status != query.Status {
 			continue
 		}
+
 		result = append(result, cloneApprovalRequest(request))
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].CreatedAt.After(result[j].CreatedAt) })
@@ -56,6 +60,7 @@ func (s *Store) ListApprovalRequests(
 		if query.Offset >= len(result) {
 			return nil, nil
 		}
+
 		result = result[query.Offset:]
 	}
 	if query.Limit > 0 && len(result) > query.Limit {
@@ -73,6 +78,7 @@ func (s *Store) ResolveApprovalRequest(
 ) (permissions.ApprovalRequest, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	request, ok := s.approvalRequests[id]
 	if !ok {
 		return permissions.ApprovalRequest{}, errors.New("approval request not found")
@@ -87,6 +93,7 @@ func (s *Store) ResolveApprovalRequest(
 		if request.Status == status && request.Scope == scope {
 			return cloneApprovalRequest(request), nil
 		}
+
 		return permissions.ApprovalRequest{}, errors.New("approval request is already resolved")
 	}
 	request.Status = status
@@ -99,16 +106,19 @@ func (s *Store) ResolveApprovalRequest(
 func (s *Store) CancelPendingApprovals(_ context.Context, now time.Time) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	var count int64
 	for id, request := range s.approvalRequests {
 		if request.Status != permissions.ApprovalPending {
 			continue
 		}
+
 		request.Status = permissions.ApprovalCancelled
 		request.ResolvedAt = now
 		s.approvalRequests[id] = request
 		count++
 	}
+
 	return count, nil
 }
 
@@ -118,6 +128,7 @@ func (s *Store) CreateApprovalGrant(
 ) (permissions.ApprovalGrant, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if _, exists := s.approvalGrants[grant.ID]; exists {
 		return permissions.ApprovalGrant{}, errors.New("approval grant already exists")
 	}
@@ -141,6 +152,7 @@ func (s *Store) FindApprovalGrant(
 ) (permissions.ApprovalGrant, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	for id, grant := range s.approvalGrants {
 		if grant.Status == permissions.GrantActive && grant.IsExpiredAt(now) {
 			grant.Status = permissions.GrantExpired
@@ -152,8 +164,10 @@ func (s *Store) FindApprovalGrant(
 			(grant.Scope != permissions.GrantAlways && grant.Scope != permissions.GrantDurable && grant.SessionID != sessionID) {
 			continue
 		}
+
 		return grant, true, nil
 	}
+
 	return permissions.ApprovalGrant{}, false, nil
 }
 
@@ -164,6 +178,7 @@ func (s *Store) ConsumeApprovalGrant(
 ) (permissions.ApprovalGrant, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	grant, ok := s.approvalGrants[id]
 	if !ok {
 		return permissions.ApprovalGrant{}, errors.New("approval grant not found")
@@ -183,11 +198,13 @@ func (s *Store) ListApprovalGrants(
 ) ([]permissions.ApprovalGrant, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	result := make([]permissions.ApprovalGrant, 0, len(s.approvalGrants))
 	for _, grant := range s.approvalGrants {
 		if query.Status != "" && grant.Status != query.Status {
 			continue
 		}
+
 		result = append(result, grant)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].CreatedAt.After(result[j].CreatedAt) })
@@ -195,6 +212,7 @@ func (s *Store) ListApprovalGrants(
 		if query.Offset >= len(result) {
 			return nil, nil
 		}
+
 		result = result[query.Offset:]
 	}
 	if query.Limit > 0 && len(result) > query.Limit {
@@ -209,6 +227,7 @@ func (s *Store) PruneApprovals(
 ) (permissions.ApprovalPruneResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	result := permissions.ApprovalPruneResult{
 		RequestCutoff: opts.Now.Add(-opts.RequestRetention),
 		GrantCutoff:   opts.Now.Add(-opts.GrantRetention),
@@ -222,6 +241,7 @@ func (s *Store) PruneApprovals(
 		if len(grantIDs) >= opts.BatchSize || !isPrunableGrant(grant, result.GrantCutoff) {
 			continue
 		}
+
 		grantIDs[id] = struct{}{}
 	}
 	result.Grants = int64(len(grantIDs))
@@ -231,6 +251,7 @@ func (s *Store) PruneApprovals(
 			request.ResolvedAt.IsZero() || request.ResolvedAt.After(result.RequestCutoff) {
 			continue
 		}
+
 		if request.GrantID != "" {
 			if _, pruning := grantIDs[request.GrantID]; !pruning {
 				if _, retained := s.approvalGrants[request.GrantID]; retained {
@@ -250,6 +271,7 @@ func (s *Store) PruneApprovals(
 	for _, id := range requestIDs {
 		delete(s.approvalRequests, id)
 	}
+
 	return result, nil
 }
 
@@ -273,6 +295,7 @@ func (s *Store) RevokeApprovalGrant(
 ) (permissions.ApprovalGrant, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	grant, ok := s.approvalGrants[id]
 	if !ok {
 		return permissions.ApprovalGrant{}, errors.New("approval grant not found")
@@ -292,6 +315,7 @@ func (s *Store) RevokeApprovalGrant(
 func (s *Store) DeleteApprovalRequest(_ context.Context, id string, now time.Time) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	request, ok := s.approvalRequests[id]
 	if !ok {
 		return "", errors.New("approval request not found")
@@ -324,6 +348,7 @@ func (s *Store) DeleteApprovalRequest(_ context.Context, id string, now time.Tim
 func (s *Store) DeleteApprovalGrant(_ context.Context, id string, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	grant, ok := s.approvalGrants[id]
 	if !ok {
 		return errors.New("approval grant not found")

@@ -71,7 +71,7 @@ func Normalize(message Message) (Message, error) {
 	contentValue2 := str.String(message.Content)
 	content := contentValue2.Trim()
 
-	if content == "" && !(role == RoleAssistant && len(toolCalls) > 0) {
+	if content == "" && (role != RoleAssistant || len(toolCalls) == 0) {
 		return Message{}, errors.New("message content is required")
 	}
 

@@ -785,8 +785,10 @@ func (m *model) completeSelectModel(msg modelSelectedMsg) (tea.Model, tea.Cmd) {
 			m.addTranscriptMessage(sessionErrorMsg{Message: getModelSelectionLoginCommand(msg.Err)})
 			return *m, m.setStatus("model authentication required")
 		}
+
 		return *m, m.setStatus("model selection unavailable")
 	}
+
 	iDValue4 := str.String(msg.Model.ID)
 	modelID := iDValue4.Trim()
 	if modelID == "" {
@@ -828,6 +830,7 @@ func (m model) shouldPromptForProviderAPIKey(option rpcclient.ModelOption) bool 
 	if m.hasModelAuth(option) {
 		return false
 	}
+
 	modelProviderValue := str.String(m.commandView.ModelProvider)
 	return modelProviderValue.Trim() != ""
 }

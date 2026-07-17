@@ -57,5 +57,6 @@ func effectsToStrings(effects []Effect) []string {
 	for index, effect := range effects {
 		values[index] = string(effect)
 	}
+
 	return values
 }

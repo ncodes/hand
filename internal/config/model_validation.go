@@ -99,6 +99,7 @@ func validateRegistryModel(
 		if provider.RequiresKnownModel || !provider.SupportsModels {
 			return fmt.Errorf("%s %q is not registered for provider %q", field, modelID, provider.ID)
 		}
+
 		return nil
 	}
 

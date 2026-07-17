@@ -114,6 +114,7 @@ func (a *Agent) SetTurnCoordinator(coordinator TurnCoordinator, scope string) {
 	if a == nil {
 		return
 	}
+
 	if coordinator == nil {
 		coordinator = defaultTurnCoordinator
 	}
@@ -215,6 +216,7 @@ func (a *Agent) ApprovalService() *permissions.ApprovalService {
 	if a == nil {
 		return nil
 	}
+
 	return a.approvalService
 }
 
@@ -244,6 +246,7 @@ func (a *Agent) ListProviders(context.Context) (ProviderList, error) {
 		if _, ok := auth[provider.ID]; ok {
 			continue
 		}
+
 		providerModels, err := listModelOptions(models.OptionQuery{Provider: provider.ID})
 		if err != nil {
 			return ProviderList{}, err
@@ -266,6 +269,7 @@ func (a *Agent) ListModels(_ context.Context, opts ...ModelListOptions) (ModelLi
 	if a.cfg == nil {
 		return ModelList{}, errors.New("config is required")
 	}
+
 	providerValue := str.String(getModelListOptions(opts...).Provider)
 	provider := providerValue.Normalized()
 	if provider == "" {
@@ -360,6 +364,7 @@ func (a *Agent) getCurrentModelForProvider(provider string) string {
 	if a == nil || a.cfg == nil {
 		return ""
 	}
+
 	providerValue5 := str.String(provider)
 	providerValue6 := str.String(a.cfg.Models.Main.Provider)
 	if providerValue5.Normalized() != providerValue6.Normalized() {
@@ -387,6 +392,7 @@ func (a *Agent) SelectModel(ctx context.Context, id string, opts ...ModelSelectO
 	if a == nil {
 		return models.Option{}, errors.New("agent is required")
 	}
+
 	idValue := str.String(id)
 	id = idValue.Trim()
 	if id == "" {
@@ -453,6 +459,7 @@ func (a *Agent) SetProviderAPIKey(_ context.Context, provider string, apiKey str
 	if a.cfg == nil {
 		return errors.New("config is required")
 	}
+
 	providerValue10 := str.String(provider)
 	provider = providerValue10.Normalized()
 	if provider == "" {
@@ -590,6 +597,7 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts agentcore.RespondO
 	if a.modelClient == nil {
 		return "", errors.New("model client is required")
 	}
+
 	msgValue := str.String(msg)
 	if msgValue.Trim() == "" {
 		return "", errors.New("message is required")
@@ -1321,6 +1329,7 @@ func (a *Agent) sessionOriginSource() string {
 	if a == nil || a.cfg == nil {
 		return ""
 	}
+
 	platform := str.String(a.cfg.Platform)
 	switch platform.Normalized() {
 	case "", constants.DefaultPlatform:
@@ -1369,6 +1378,7 @@ func getDurationOrDefault(value, fallback time.Duration) time.Duration {
 	if value > 0 {
 		return value
 	}
+
 	return fallback
 }
 
@@ -1391,6 +1401,7 @@ func normalizeContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()
 	}
+
 	return ctx
 }
 
