@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	nativemocks "github.com/wandxy/morph/internal/tools/mocks"
 )
@@ -80,6 +81,18 @@ func TestSearchFiles_ToolRequiresPattern(t *testing.T) {
 	require.Equal(t, "pattern is required", toolErr.Message)
 }
 
+func TestSearchFiles_HandlerReturnsDecodeAndValidationErrors(t *testing.T) {
+	handler := Definition(nativemocks.NewRuntime(t.TempDir(), guardrails.CommandPolicy{})).Handler
+
+	result, err := handler.Invoke(context.Background(), tools.Call{Input: `{"pattern":`})
+	require.NoError(t, err)
+	require.Contains(t, result.Error, `"code":"invalid_input"`)
+
+	result, err = handler.Invoke(context.Background(), tools.Call{Input: `{"pattern":" "}`})
+	require.NoError(t, err)
+	require.Contains(t, result.Error, "pattern is required")
+}
+
 func TestSearchFiles_ToolRejectsOutsideRoot(t *testing.T) {
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "file.txt")
@@ -92,6 +105,44 @@ func TestSearchFiles_ToolRejectsOutsideRoot(t *testing.T) {
 	var toolErr tools.Error
 	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
 	require.Equal(t, "path_outside_roots", toolErr.Code)
+}
+
+func TestSearchFiles_AskPresetSearchesOutsideWorkspace(t *testing.T) {
+	originalLookPath := lookPath
+	t.Cleanup(func() { lookPath = originalLookPath })
+	lookPath = func(string) (string, error) {
+		return "", errors.New("missing")
+	}
+
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "file.txt")
+	require.NoError(t, os.WriteFile(outside, []byte("needle\n"), 0o644))
+	registry := nativemocks.RegisterRuntimeWithPermissionPolicy(
+		t,
+		root,
+		guardrails.CommandPolicy{},
+		permissions.Policy{Preset: permissions.PresetAskForApproval},
+		Definition,
+	)
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name: "search_files", Input: `{"pattern":"needle","path":` + nativemocks.QuoteJSON(outside) + `}`,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	var payload struct {
+		Matches []struct {
+			Text string `json:"text"`
+		} `json:"matches"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Equal(t, []struct {
+		Text string `json:"text"`
+	}{{Text: "needle"}}, payload.Matches)
 }
 
 func TestSearchFiles_ToolReturnsWalkerErrors(t *testing.T) {
@@ -306,4 +357,10 @@ func TestSearchWithGo_PropagatesWalkerCallbackErrors(t *testing.T) {
 
 	require.Nil(t, matches)
 	require.ErrorIs(t, err, os.ErrPermission)
+}
+
+func TestGetSearchDisplayRoot_ReturnsAbsoluteDirectory(t *testing.T) {
+	root := t.TempDir()
+
+	require.Equal(t, root, getSearchDisplayRoot(guardrails.ResolvedPath{Absolute: root}))
 }

@@ -69,13 +69,14 @@ trigger a [daemon restart](./daemon-and-rpc)) changes the tool set the model see
 Capabilities decide *whether* a tool is offered; guardrails decide *what a call may do*. Morph applies them on both the
 input and output sides:
 
-- **Filesystem roots.** File tools resolve every path against the profile's allowed workspace roots (`fs.roots`). Paths
-  that escape those roots are rejected unless permission mode is `full_access`. Reads remain capped in size in every
-  permission mode.
+- **Filesystem roots.** File tools classify paths against the profile's workspace roots (`fs.roots`). The **Ask for
+  approval** and **Approve for me** presets permit external reads but require approval before an external write may
+  bypass the root boundary. Custom policies remain root-bound. The intentionally unsafe **Full access** preset bypasses
+  the boundary without per-operation approval. Reads remain capped in size for every preset.
 - **Command policy.** `run_command` evaluates each command against the profile's `exec.allow` / `exec.ask` / `exec.deny`
   rules plus built-in dangerous-pattern checks. A denied command returns a `command_denied` error; a command that needs
-  approval returns an `approval_required` error. Permission mode `full_access` bypasses these command checks. In other
-  modes, these are structured tool errors the model receives.
+  approval returns an `approval_required` error. The `full_access` permission preset bypasses these command checks. In
+  other presets, these are structured tool errors the model receives.
 - **Web blocking.** Web tools honor blocked-domain rules before fetching.
 - **Output safety.** When output safety is enabled, a tool's output is scanned before it is returned to the model, and
   unsafe content is blocked or redacted with a trace recorded; PII is also redacted from that output when PII redaction

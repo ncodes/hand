@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	nativemocks "github.com/wandxy/morph/internal/tools/mocks"
 )
@@ -60,6 +61,34 @@ func TestReadFile_ToolRejectsOutsideRoot(t *testing.T) {
 	require.Equal(t, "path_outside_roots", toolErr.Code)
 }
 
+func TestReadFile_AskPresetAllowsExternalReadWithoutPrompt(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "file.txt")
+	require.NoError(t, os.WriteFile(outside, []byte("external"), 0o644))
+	registry := nativemocks.RegisterRuntimeWithPermissionPolicy(
+		t,
+		root,
+		guardrails.CommandPolicy{},
+		permissions.Policy{Preset: permissions.PresetAskForApproval},
+		Definition,
+	)
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name: "read_file", Input: `{"path":` + nativemocks.QuoteJSON(outside) + `}`,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	var payload struct {
+		Content string `json:"content"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Equal(t, "external", payload.Content)
+}
+
 func TestReadFile_ToolRejectsDirectories(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(root, "nested"), 0o755))
@@ -71,4 +100,27 @@ func TestReadFile_ToolRejectsDirectories(t *testing.T) {
 	var toolErr tools.Error
 	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
 	require.Equal(t, "invalid_input", toolErr.Code)
+}
+
+func TestReadFile_ResolvePermissionRequiresPath(t *testing.T) {
+	inputs, err := Definition(nil).ResolvePermission(context.Background(), tools.Call{Input: `{}`})
+
+	require.Nil(t, inputs)
+	require.EqualError(t, err, "path is required")
+}
+
+func TestReadFile_HandlerReturnsDecodeAndPathErrors(t *testing.T) {
+	root := t.TempDir()
+	handler := Definition(nativemocks.NewRuntime(root, guardrails.CommandPolicy{})).Handler
+
+	result, err := handler.Invoke(context.Background(), tools.Call{Input: `{"path":`})
+	require.NoError(t, err)
+	require.Contains(t, result.Error, `"code":"invalid_input"`)
+
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	result, err = handler.Invoke(context.Background(), tools.Call{
+		Input: `{"path":` + nativemocks.QuoteJSON(outside) + `}`,
+	})
+	require.NoError(t, err)
+	require.Contains(t, result.Error, `"code":"path_outside_roots"`)
 }

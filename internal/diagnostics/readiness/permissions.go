@@ -27,7 +27,7 @@ func buildPermissionPolicyCheck(policy permissions.Policy) Check {
 	if err := policy.Validate(); err != nil {
 		return check("policy", StatusFail, err.Error())
 	}
-	if policy.Mode == permissions.ModeFullAccess {
+	if policy.EffectivePreset() == permissions.PresetFullAccess {
 		return check(
 			"policy",
 			StatusWarn,
@@ -39,7 +39,7 @@ func buildPermissionPolicyCheck(policy permissions.Policy) Check {
 }
 
 func buildPermissionSurfaceCheck(policy permissions.Policy) Check {
-	policy.Normalize()
+	policy = policy.Effective()
 	for kind, decision := range policy.SurfaceKindDefaults {
 		if decision == permissions.DecisionAsk && kind != permissions.SurfaceKindLocal {
 			return check(

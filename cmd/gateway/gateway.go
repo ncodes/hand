@@ -16,6 +16,7 @@ import (
 	morphcli "github.com/wandxy/morph/internal/cli"
 	"github.com/wandxy/morph/internal/config"
 	telegramgateway "github.com/wandxy/morph/internal/gateway/telegram"
+	"github.com/wandxy/morph/internal/permissions"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	"github.com/wandxy/morph/internal/runtime"
 	"github.com/wandxy/morph/pkg/logutils"
@@ -28,8 +29,10 @@ var (
 	gatewayOutput io.Writer = os.Stdout
 	newClient               = func(ctx context.Context, cfg *config.Config) (gatewayClient, error) {
 		return rpcclient.NewClient(ctx, rpcclient.Options{
-			Address: cfg.RPC.Address,
-			Port:    cfg.RPC.Port,
+			Address:           cfg.RPC.Address,
+			Port:              cfg.RPC.Port,
+			PermissionSurface: permissions.SurfaceCLI,
+			PermissionPreset:  cfg.Permissions.EffectivePreset(),
 		})
 	}
 	setTelegramWebhook = telegramgateway.SetWebhook

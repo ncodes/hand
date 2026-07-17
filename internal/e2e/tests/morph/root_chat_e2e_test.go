@@ -313,7 +313,7 @@ func Test_E2E_MorphRootChat_CommandDeniedReturnsCoherentAnswer(t *testing.T) {
 			Input: `{"command":"git","args":["push","origin","main"]}`,
 		}),
 		e2e.Step{
-			Check: e2e.ToolError("call-1", "run_command", "command_denied", "matched deny rule"),
+			Check: e2e.ToolError("call-1", "run_command", "permission_denied", "matched deny rule"),
 			Response: &models.Response{
 				OutputText: "I can't run that command because command execution policy denies it.",
 			},
@@ -328,7 +328,7 @@ func Test_E2E_MorphRootChat_CommandDeniedReturnsCoherentAnswer(t *testing.T) {
 	assert.Equal(t, "I can't run that command because command execution policy denies it.\n", output)
 }
 
-func Test_E2E_MorphRootChat_CommandApprovalRequiredReturnsCoherentAnswer(t *testing.T) {
+func Test_E2E_MorphRootChat_CommandApprovalRequiresInteractiveTerminal(t *testing.T) {
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
@@ -340,20 +340,15 @@ func Test_E2E_MorphRootChat_CommandApprovalRequiredReturnsCoherentAnswer(t *test
 			Name:  "run_command",
 			Input: `{"command":"git","args":["push","origin","main"]}`,
 		}),
-		e2e.Step{
-			Check: e2e.ToolError("call-1", "run_command", "approval_required", "command requires approval: git push"),
-			Response: &models.Response{
-				OutputText: "That command requires approval before I can run it.",
-			},
-		},
 	)
 
 	h := newRPCHarness(t, filepath.Join(t.TempDir(), "morph-home"), client, cfg)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	output, err := runRootChatCommand(t, "morph", "--config", configPath, "push the current branch")
-	require.NoError(t, err)
-	assert.Equal(t, "That command requires approval before I can run it.\n", output)
+	require.ErrorContains(t, err, "approval required for run_command · execute process")
+	require.ErrorContains(t, err, "root chat input and output must be an interactive terminal")
+	assert.Empty(t, output)
 }
 
 func Test_E2E_MorphRootChat_TimeToolSynthesizesFinalAnswer(t *testing.T) {

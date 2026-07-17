@@ -52,12 +52,12 @@ func requireRespondEvent(
 }
 
 func TestNewService_ReturnsService(t *testing.T) {
-	require.NotNil(t, NewService(nil))
+	require.NotNil(t, newAllowedService(nil))
 }
 
 func TestService_RespondReturnsMessage(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello", Instruct: "be terse"}, stream)
@@ -77,7 +77,7 @@ func TestService_RespondReturnsMessage(t *testing.T) {
 
 func TestService_RespondClassifiesLoopbackTUIClientAsLocalOwner(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	outgoing := rpcmeta.WithOutgoingPermissionSurface(context.Background(), permissions.SurfaceTUI)
 	outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
 	require.True(t, ok)
@@ -97,7 +97,7 @@ func TestService_RespondClassifiesLoopbackTUIClientAsLocalOwner(t *testing.T) {
 
 func TestService_RespondDoesNotElevateRemoteTUIClient(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	outgoing := rpcmeta.WithOutgoingPermissionSurface(context.Background(), permissions.SurfaceTUI)
 	outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
 	require.True(t, ok)
@@ -115,9 +115,107 @@ func TestService_RespondDoesNotElevateRemoteTUIClient(t *testing.T) {
 	require.Equal(t, permissions.SurfaceTUI, authorization.Surface)
 }
 
+func TestService_RespondAcceptsPermissionPresetOnlyFromLoopbackOwnerClient(t *testing.T) {
+	tests := []struct {
+		name       string
+		address    net.IP
+		wantPreset bool
+	}{
+		{name: "loopback owner", address: net.ParseIP("127.0.0.1"), wantPreset: true},
+		{name: "remote client", address: net.ParseIP("192.0.2.1"), wantPreset: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+			svc := newAllowedService(stub)
+			outgoing := rpcmeta.WithOutgoingPermissionSurface(context.Background(), permissions.SurfaceTUI)
+			outgoing = rpcmeta.WithOutgoingPermissionPreset(outgoing, permissions.PresetFullAccess)
+			outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
+			require.True(t, ok)
+			ctx := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+			ctx = peer.NewContext(ctx, &peer.Peer{
+				Addr: &net.TCPAddr{IP: test.address, Port: 50051},
+			})
+
+			err := svc.Respond(
+				&morphpb.RespondRequest{Message: "hello"},
+				&respondStreamServerStub{ctx: ctx},
+			)
+
+			require.NoError(t, err)
+			preset, ok := permissions.PresetFromContext(stub.RespondContext)
+			require.Equal(t, test.wantPreset, ok)
+			if test.wantPreset {
+				require.Equal(t, permissions.PresetFullAccess, preset)
+			}
+		})
+	}
+}
+
+func TestService_CheckPermissionAppliesPresetOnlyToVerifiedLocalOwner(t *testing.T) {
+	svc := NewServiceWithOptions(nil, ServiceOptions{
+		PermissionPolicy: permissions.Policy{Preset: permissions.PresetApproveForMe},
+	})
+	operation := permissions.Operation{
+		Resource: permissions.ResourceSession,
+		Action:   permissions.ActionUpdate,
+		Effects:  []permissions.Effect{permissions.EffectWrite},
+	}
+
+	require.NoError(t, svc.checkPermission(
+		incomingPermissionContext(t, permissions.SurfaceTUI, net.ParseIP("127.0.0.1")),
+		operation,
+	))
+
+	err := svc.checkPermission(
+		incomingPermissionContext(t, permissions.SurfaceTUI, net.ParseIP("192.0.2.1")),
+		operation,
+	)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestService_CheckPermissionDoesNotTreatExplicitRPCActionAsAgentTool(t *testing.T) {
+	svc := NewServiceWithOptions(nil, ServiceOptions{
+		PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval},
+	})
+	operation := permissions.Operation{
+		Resource: permissions.ResourceConfiguration,
+		Action:   permissions.ActionUpdate,
+		Effects: []permissions.Effect{
+			permissions.EffectWrite,
+			permissions.EffectCredentialBearing,
+		},
+	}
+
+	err := svc.checkPermission(
+		incomingPermissionContext(t, permissions.SurfaceCLI, net.ParseIP("127.0.0.1")),
+		operation,
+	)
+
+	require.NoError(t, err)
+}
+
+func incomingPermissionContext(
+	t *testing.T,
+	surface permissions.Surface,
+	address net.IP,
+) context.Context {
+	t.Helper()
+
+	outgoing := rpcmeta.WithOutgoingPermissionSurface(context.Background(), surface)
+	outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
+	require.True(t, ok)
+	ctx := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+
+	return peer.NewContext(ctx, &peer.Peer{
+		Addr: &net.TCPAddr{IP: address, Port: 50051},
+	})
+}
+
 func TestService_RespondSendsBufferedReplyWhenNotStreamed(t *testing.T) {
 	stub := &bufferedReplyStub{reply: "full reply"}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello", Id: "ses_1"}, stream)
@@ -130,7 +228,7 @@ func TestService_RespondSendsBufferedReplyWhenNotStreamed(t *testing.T) {
 
 func TestService_RespondReturnsHandlerError(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{RespondErr: errors.New("boom")}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -143,7 +241,7 @@ func TestService_RespondReturnsHandlerError(t *testing.T) {
 }
 
 func TestService_RespondRejectsNilRequest(t *testing.T) {
-	svc := NewService(&agentstub.AgentServiceStub{})
+	svc := newAllowedService(&agentstub.AgentServiceStub{})
 	stream := &respondStreamServerStub{}
 
 	err := svc.Respond(nil, stream)
@@ -153,7 +251,7 @@ func TestService_RespondRejectsNilRequest(t *testing.T) {
 }
 
 func TestService_RespondRejectsMissingHand(t *testing.T) {
-	svc := NewService(nil)
+	svc := newAllowedService(nil)
 	stream := &respondStreamServerStub{}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -174,7 +272,7 @@ func TestService_RespondRejectsNilReceiver(t *testing.T) {
 
 func TestService_RespondStreamsDeltas(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Reply: "hello back", Deltas: []string{"hello ", "back"}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -187,7 +285,7 @@ func TestService_RespondStreamsDeltas(t *testing.T) {
 
 func TestService_RespondForwardsStreamOverride(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{}
 	streaming := false
 
@@ -200,7 +298,7 @@ func TestService_RespondForwardsStreamOverride(t *testing.T) {
 
 func TestService_RespondReturnsStreamSendErrorForDelta(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Reply: "hello back", Deltas: []string{"hello "}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -210,7 +308,7 @@ func TestService_RespondReturnsStreamSendErrorForDelta(t *testing.T) {
 
 func TestService_RespondReturnsStreamSendErrorForErrorEvent(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{RespondErr: errors.New("boom")}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -225,7 +323,7 @@ func TestService_RespondReturnsStreamSendErrorForTraceEvent(t *testing.T) {
 			Payload: map[string]any{"error": "boom"},
 		},
 	}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -246,7 +344,7 @@ func TestService_RespondSkipsTraceEventsAfterSendFailure(t *testing.T) {
 			Payload: map[string]any{"error": "boom"},
 		}},
 	}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -263,7 +361,7 @@ func TestService_RespondSkipsUnsupportedTraceEvents(t *testing.T) {
 			Payload: map[string]any{"model": "test"},
 		}},
 	}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -276,7 +374,7 @@ func TestService_RespondSkipsUnsupportedTraceEvents(t *testing.T) {
 
 func TestService_RespondSkipsStreamEventsAfterSendFailure(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Reply: "ignored", Deltas: []string{"first", "second"}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -287,7 +385,7 @@ func TestService_RespondSkipsStreamEventsAfterSendFailure(t *testing.T) {
 
 func TestService_RespondReturnsStreamSendErrorOnSecondDelta(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Reply: "back", Deltas: []string{"a", "b"}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 2}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -298,7 +396,7 @@ func TestService_RespondReturnsStreamSendErrorOnSecondDelta(t *testing.T) {
 
 func TestService_RespondReturnsStreamSendErrorForBufferedReply(t *testing.T) {
 	stub := &bufferedReplyStub{reply: "only reply"}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 1}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -309,7 +407,7 @@ func TestService_RespondReturnsStreamSendErrorForBufferedReply(t *testing.T) {
 
 func TestService_RespondReturnsStreamSendErrorForDone(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Reply: "done", Deltas: []string{"a", "b"}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{sendErrAt: 3}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -322,7 +420,7 @@ func TestService_RespondReturnsStreamSendErrorForDone(t *testing.T) {
 func TestService_RespondMapsStreamChannelFromAgent(t *testing.T) {
 	t.Run("reasoning", func(t *testing.T) {
 		stub := &channelRespondStub{channel: "reasoning", text: "think"}
-		svc := NewService(stub)
+		svc := newAllowedService(stub)
 		stream := &respondStreamServerStub{}
 
 		err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -333,7 +431,7 @@ func TestService_RespondMapsStreamChannelFromAgent(t *testing.T) {
 
 	t.Run("assistant default", func(t *testing.T) {
 		stub := &channelRespondStub{channel: "assistant", text: "hi"}
-		svc := NewService(stub)
+		svc := newAllowedService(stub)
 		stream := &respondStreamServerStub{}
 
 		err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -344,7 +442,7 @@ func TestService_RespondMapsStreamChannelFromAgent(t *testing.T) {
 
 	t.Run("unknown maps to assistant", func(t *testing.T) {
 		stub := &channelRespondStub{channel: "other", text: "x"}
-		svc := NewService(stub)
+		svc := newAllowedService(stub)
 		stream := &respondStreamServerStub{}
 
 		err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -404,7 +502,7 @@ func TestTraceEventFromAgentEvent_HandlesSupportedAndUnsupportedShapes(t *testin
 func TestService_RespondMapsGRPCHandlerErrorToErrorEvent(t *testing.T) {
 	grpcErr := status.Error(codes.InvalidArgument, "bad request")
 	stub := &agentstub.AgentServiceStub{RespondErr: grpcErr}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -433,7 +531,7 @@ func TestService_RespondStreamsTraceEvents(t *testing.T) {
 			},
 		},
 	}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -472,7 +570,7 @@ func TestService_RespondStreamsPermissionApprovalTraceEvents(t *testing.T) {
 			},
 		},
 	}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "write a file"}, stream)
@@ -508,7 +606,7 @@ func TestService_RespondCompactsToolTracePayloads(t *testing.T) {
 			},
 		},
 	}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	stream := &respondStreamServerStub{}
 
 	err := svc.Respond(&morphpb.RespondRequest{Message: "hello"}, stream)
@@ -1191,7 +1289,7 @@ func TestService_CreateSessionReturnsSummary(t *testing.T) {
 		Title:       "Project Planning",
 		TitleSource: storage.SessionTitleSourceGenerated,
 	}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{Id: "project-a"})
 
@@ -1206,7 +1304,7 @@ func TestService_CreateSessionReturnsSummary(t *testing.T) {
 
 func TestService_CreateSessionPassesOriginSource(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{ID: "project-a"}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{
 		Id:           "project-a",
@@ -1221,7 +1319,7 @@ func TestService_CreateSessionPassesOriginSource(t *testing.T) {
 func TestService_CreateSessionCanSkipAutoSwitch(t *testing.T) {
 	autoSwitch := false
 	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{ID: "project-a"}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{
 		Id:         "project-a",
@@ -1255,7 +1353,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing handler", func(t *testing.T) {
-		svc := NewService(nil)
+		svc := newAllowedService(nil)
 
 		resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{})
 
@@ -1264,7 +1362,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Create(context.Background(), nil)
 
@@ -1273,7 +1371,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session already exists")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{Err: errors.New("session already exists")})
 
 		resp, err := svc.Create(context.Background(), &morphpb.CreateSessionRequest{Id: "project-a"})
 
@@ -1282,7 +1380,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("use session error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{
+		svc := newAllowedService(&agentstub.AgentServiceStub{
 			CreatedSession: storage.Session{ID: "project-a"},
 			UseSessionErr:  errors.New("session not found"),
 		})
@@ -1304,7 +1402,7 @@ func TestService_ListSessionsReturnsItems(t *testing.T) {
 		},
 		{ID: "project-a"},
 	}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{})
 
@@ -1319,7 +1417,7 @@ func TestService_ListSessionsReturnsItems(t *testing.T) {
 
 func TestService_ListSessionsPassesOriginSourceFilter(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Sessions: []storage.Session{{ID: "project-a"}}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{
 		OriginSource: storage.SessionOriginSourceAutomation,
@@ -1334,7 +1432,7 @@ func TestService_ListSessionsReturnsArchivedItems(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{ArchivedSessions: []storage.Session{
 		{ID: "project-a", Title: "Archived Planning", Archived: true},
 	}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	archived := true
 
 	resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{Archived: &archived})
@@ -1350,7 +1448,7 @@ func TestService_ListSessionsWithArchivedFalseReturnsActiveItems(t *testing.T) {
 		Sessions:         []storage.Session{{ID: "active-session"}},
 		ArchivedSessions: []storage.Session{{ID: "archived-session", Archived: true}},
 	}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 	archived := false
 
 	resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{Archived: &archived})
@@ -1371,7 +1469,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing handler", func(t *testing.T) {
-		svc := NewService(nil)
+		svc := newAllowedService(nil)
 
 		resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{})
 
@@ -1380,7 +1478,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.List(context.Background(), nil)
 
@@ -1389,7 +1487,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("boom")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{Err: errors.New("boom")})
 
 		resp, err := svc.List(context.Background(), &morphpb.ListSessionsRequest{})
 
@@ -1399,7 +1497,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 }
 
 func TestService_UseSessionReturnsSessionID(t *testing.T) {
-	svc := NewService(&agentstub.AgentServiceStub{})
+	svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 	resp, err := svc.Use(context.Background(), &morphpb.UseSessionRequest{Id: "project-a"})
 
@@ -1418,7 +1516,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing handler", func(t *testing.T) {
-		svc := NewService(nil)
+		svc := newAllowedService(nil)
 
 		resp, err := svc.Use(context.Background(), &morphpb.UseSessionRequest{})
 
@@ -1427,7 +1525,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Use(context.Background(), nil)
 
@@ -1436,7 +1534,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
 		resp, err := svc.Use(context.Background(), &morphpb.UseSessionRequest{Id: "project-a"})
 
@@ -1447,7 +1545,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 
 func TestService_ArchiveSessionReturnsSessionID(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.Archive(context.Background(), &morphpb.ArchiveSessionRequest{Id: "project-a"})
 
@@ -1467,7 +1565,7 @@ func TestService_ArchiveSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing handler", func(t *testing.T) {
-		svc := NewService(nil)
+		svc := newAllowedService(nil)
 
 		resp, err := svc.Archive(context.Background(), &morphpb.ArchiveSessionRequest{})
 
@@ -1476,7 +1574,7 @@ func TestService_ArchiveSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Archive(context.Background(), nil)
 
@@ -1485,7 +1583,7 @@ func TestService_ArchiveSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{ArchiveSessionErr: errors.New("session not found")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{ArchiveSessionErr: errors.New("session not found")})
 
 		resp, err := svc.Archive(context.Background(), &morphpb.ArchiveSessionRequest{Id: "project-a"})
 
@@ -1500,7 +1598,7 @@ func TestService_UnarchiveSessionReturnsSummary(t *testing.T) {
 		Title:       "Project Planning",
 		TitleSource: storage.SessionTitleSourceManual,
 	}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.Unarchive(context.Background(), &morphpb.UnarchiveSessionRequest{Id: "project-a"})
 
@@ -1522,7 +1620,7 @@ func TestService_UnarchiveSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing handler", func(t *testing.T) {
-		svc := NewService(nil)
+		svc := newAllowedService(nil)
 
 		resp, err := svc.Unarchive(context.Background(), &morphpb.UnarchiveSessionRequest{})
 
@@ -1531,7 +1629,7 @@ func TestService_UnarchiveSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Unarchive(context.Background(), nil)
 
@@ -1540,7 +1638,7 @@ func TestService_UnarchiveSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing session", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{UnarchiveSessionErr: errors.New("session not found")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{UnarchiveSessionErr: errors.New("session not found")})
 
 		resp, err := svc.Unarchive(context.Background(), &morphpb.UnarchiveSessionRequest{Id: "project-a"})
 
@@ -1549,7 +1647,7 @@ func TestService_UnarchiveSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("non archived session", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{UnarchiveSessionErr: errors.New("session is not archived")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{UnarchiveSessionErr: errors.New("session is not archived")})
 
 		resp, err := svc.Unarchive(context.Background(), &morphpb.UnarchiveSessionRequest{Id: "project-a"})
 
@@ -1564,7 +1662,7 @@ func TestService_RenameSessionReturnsSummary(t *testing.T) {
 		Title:       "Project Planning",
 		TitleSource: storage.SessionTitleSourceManual,
 	}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.Rename(context.Background(), &morphpb.RenameSessionRequest{
 		Id:    "project-a",
@@ -1590,7 +1688,7 @@ func TestService_RenameSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing handler", func(t *testing.T) {
-		svc := NewService(nil)
+		svc := newAllowedService(nil)
 
 		resp, err := svc.Rename(context.Background(), &morphpb.RenameSessionRequest{})
 
@@ -1599,7 +1697,7 @@ func TestService_RenameSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Rename(context.Background(), nil)
 
@@ -1608,7 +1706,7 @@ func TestService_RenameSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{RenameSessionErr: errors.New("session title is required")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{RenameSessionErr: errors.New("session title is required")})
 
 		resp, err := svc.Rename(context.Background(), &morphpb.RenameSessionRequest{
 			Id:    "project-a",
@@ -1622,7 +1720,7 @@ func TestService_RenameSessionRejectsInvalidState(t *testing.T) {
 
 func TestService_CompactSessionReturnsResult(t *testing.T) {
 	now := time.Unix(123, 0).UTC()
-	svc := NewService(&agentstub.AgentServiceStub{CompactResult: agent.CompactSessionResult{
+	svc := newAllowedService(&agentstub.AgentServiceStub{CompactResult: agent.CompactSessionResult{
 		SessionID:            "project-a",
 		SourceEndOffset:      12,
 		SourceMessageCount:   20,
@@ -1653,7 +1751,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing handler", func(t *testing.T) {
-		svc := NewService(nil)
+		svc := newAllowedService(nil)
 
 		resp, err := svc.Compact(context.Background(), &morphpb.CompactSessionRequest{})
 
@@ -1662,7 +1760,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Compact(context.Background(), nil)
 
@@ -1671,7 +1769,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
 		resp, err := svc.Compact(context.Background(), &morphpb.CompactSessionRequest{Id: "project-a"})
 
@@ -1692,7 +1790,7 @@ func TestService_RepairSessionReturnsResult(t *testing.T) {
 		DeletedSources:  9,
 		Batches:         10,
 	}}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.Repair(context.Background(), &morphpb.RepairSessionRequest{
 		Type: morphpb.RepairSessionRequest_VECTOR,
@@ -1728,7 +1826,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing handler", func(t *testing.T) {
-		svc := NewService(nil)
+		svc := newAllowedService(nil)
 
 		resp, err := svc.Repair(context.Background(), &morphpb.RepairSessionRequest{})
 
@@ -1737,7 +1835,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Repair(context.Background(), nil)
 
@@ -1746,7 +1844,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("unsupported type", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Repair(context.Background(), &morphpb.RepairSessionRequest{})
 
@@ -1755,7 +1853,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing vector options", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Repair(context.Background(), &morphpb.RepairSessionRequest{
 			Type: morphpb.RepairSessionRequest_VECTOR,
@@ -1766,7 +1864,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
 		resp, err := svc.Repair(context.Background(), &morphpb.RepairSessionRequest{
 			Type: morphpb.RepairSessionRequest_VECTOR,
@@ -1783,7 +1881,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 func TestService_GetSessionStatusReturnsResult(t *testing.T) {
 	created := time.Date(2024, 3, 1, 12, 0, 0, 0, time.UTC)
 	updated := time.Date(2024, 3, 2, 15, 30, 0, 0, time.UTC)
-	svc := NewService(&agentstub.AgentServiceStub{StatusResult: agent.ContextStatus{
+	svc := newAllowedService(&agentstub.AgentServiceStub{StatusResult: agent.ContextStatus{
 		SessionID:        "project-a",
 		Offset:           12,
 		Size:             20,
@@ -1827,7 +1925,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing handler", func(t *testing.T) {
-		svc := NewService(nil)
+		svc := newAllowedService(nil)
 
 		resp, err := svc.Status(context.Background(), &morphpb.GetSessionStatusRequest{})
 
@@ -1836,7 +1934,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Status(context.Background(), nil)
 
@@ -1845,7 +1943,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil context", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Status(context.Background(), &morphpb.GetSessionStatusRequest{})
 
@@ -1854,7 +1952,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
 		resp, err := svc.Status(context.Background(), &morphpb.GetSessionStatusRequest{
 			Context: &morphpb.GetSessionStatusRequestContext{Id: "project-a"},
@@ -1870,7 +1968,7 @@ func TestService_GatewayStatusUsesConfigWhenRuntimeMissing(t *testing.T) {
 	cfg.Address = "127.0.0.1"
 	cfg.Port = 50052
 
-	svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{GatewayConfig: cfg})
+	svc := newAllowedServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{GatewayConfig: cfg})
 	gatewayService := NewGatewayService(svc)
 	resp, err := gatewayService.Status(context.Background(), nil)
 
@@ -1880,7 +1978,7 @@ func TestService_GatewayStatusUsesConfigWhenRuntimeMissing(t *testing.T) {
 	require.Equal(t, int32(50052), resp.GetStatus().GetPort())
 
 	cfg.Enabled = true
-	svc = NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{GatewayConfig: cfg})
+	svc = newAllowedServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{GatewayConfig: cfg})
 	gatewayService = NewGatewayService(svc)
 	resp, err = gatewayService.Status(context.Background(), nil)
 
@@ -1894,7 +1992,7 @@ func TestService_GatewayRuntimeRejectsInvalidState(t *testing.T) {
 	cfg.Telegram.Enabled = true
 	cfg.Telegram.BotToken = ""
 	runtime := &gatewayRuntimeStub{}
-	svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
+	svc := newAllowedServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
 		GatewayConfig:  cfg,
 		GatewayRuntime: runtime,
 	})
@@ -1912,7 +2010,7 @@ func TestService_GatewayRuntimeRejectsInvalidState(t *testing.T) {
 
 	cfg.Telegram.Enabled = false
 	cfg.Enabled = false
-	svc = NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
+	svc = newAllowedServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
 		GatewayConfig:  cfg,
 		GatewayRuntime: runtime,
 	})
@@ -1927,20 +2025,20 @@ func TestService_GatewayRuntimeRejectsInvalidState(t *testing.T) {
 }
 
 func TestService_GatewayRuntimeRejectsMissingRuntime(t *testing.T) {
-	resp, err := NewService(&agentstub.AgentServiceStub{}).Start(context.Background(), &morphpb.StartGatewayRequest{})
+	resp, err := newAllowedService(&agentstub.AgentServiceStub{}).Start(context.Background(), &morphpb.StartGatewayRequest{})
 
 	requireStatusError(t, err, codes.Internal, "gateway runtime is required")
 	require.Nil(t, resp)
 
-	stopResp, err := NewService(&agentstub.AgentServiceStub{}).Stop(context.Background(), &morphpb.StopGatewayRequest{})
+	stopResp, err := newAllowedService(&agentstub.AgentServiceStub{}).Stop(context.Background(), &morphpb.StopGatewayRequest{})
 	requireStatusError(t, err, codes.Internal, "gateway runtime is required")
 	require.Nil(t, stopResp)
 
-	restartResp, err := NewService(&agentstub.AgentServiceStub{}).Restart(context.Background(), &morphpb.RestartGatewayRequest{})
+	restartResp, err := newAllowedService(&agentstub.AgentServiceStub{}).Restart(context.Background(), &morphpb.RestartGatewayRequest{})
 	requireStatusError(t, err, codes.Internal, "gateway runtime is required")
 	require.Nil(t, restartResp)
 
-	svc := NewServiceWithOptions(nil, ServiceOptions{GatewayRuntime: &gatewayRuntimeStub{}})
+	svc := newAllowedServiceWithOptions(nil, ServiceOptions{GatewayRuntime: &gatewayRuntimeStub{}})
 	resp, err = svc.Start(context.Background(), &morphpb.StartGatewayRequest{})
 	requireStatusError(t, err, codes.Internal, "agent handler is required")
 	require.Nil(t, resp)
@@ -2003,7 +2101,7 @@ func TestService_GatewayRuntimePropagatesRuntimeErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
+			svc := newAllowedServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
 				GatewayConfig:  cfg,
 				GatewayRuntime: tt.runtime,
 			})
@@ -2017,7 +2115,7 @@ func TestService_GatewayRuntimePropagatesRuntimeErrors(t *testing.T) {
 }
 
 func TestService_GatewayPairingRejectsMissingStore(t *testing.T) {
-	svc := NewServiceWithOptions(
+	svc := newAllowedServiceWithOptions(
 		serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}},
 		ServiceOptions{GatewayPairingSecret: "secret"},
 	)
@@ -2046,7 +2144,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("list approved store error", func(t *testing.T) {
-		svc := NewService(&gatewayPairingStoreStub{
+		svc := newAllowedService(&gatewayPairingStoreStub{
 			AgentServiceStub: &agentstub.AgentServiceStub{},
 			listPairedErr:    expected,
 		})
@@ -2058,7 +2156,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("list pending store error", func(t *testing.T) {
-		svc := NewService(&gatewayPairingStoreStub{
+		svc := newAllowedService(&gatewayPairingStoreStub{
 			AgentServiceStub: &agentstub.AgentServiceStub{},
 			listPendingErr:   expected,
 		})
@@ -2084,14 +2182,14 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("approve nil request", func(t *testing.T) {
-		resp, err := NewService(&agentstub.AgentServiceStub{}).ApprovePairing(context.Background(), nil)
+		resp, err := newAllowedService(&agentstub.AgentServiceStub{}).ApprovePairing(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "approve pairing request is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("approve missing store", func(t *testing.T) {
-		svc := NewService(serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}})
+		svc := newAllowedService(serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}})
 
 		resp, err := svc.ApprovePairing(context.Background(), &morphpb.ApproveGatewayPairingRequest{})
 
@@ -2100,7 +2198,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("approve missing pairing secret", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.ApprovePairing(context.Background(), &morphpb.ApproveGatewayPairingRequest{
 			Source: "telegram",
@@ -2126,14 +2224,14 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("revoke nil request", func(t *testing.T) {
-		resp, err := NewService(&agentstub.AgentServiceStub{}).RevokePairing(context.Background(), nil)
+		resp, err := newAllowedService(&agentstub.AgentServiceStub{}).RevokePairing(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "revoke pairing request is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("revoke missing store", func(t *testing.T) {
-		svc := NewService(serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}})
+		svc := newAllowedService(serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}})
 
 		resp, err := svc.RevokePairing(context.Background(), &morphpb.RevokeGatewayPairingRequest{})
 
@@ -2142,7 +2240,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("revoke store error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{Err: expected})
+		svc := newAllowedService(&agentstub.AgentServiceStub{Err: expected})
 
 		resp, err := svc.RevokePairing(context.Background(), &morphpb.RevokeGatewayPairingRequest{
 			Source:   "telegram",
@@ -2168,7 +2266,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("clear missing store", func(t *testing.T) {
-		svc := NewService(serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}})
+		svc := newAllowedService(serviceAPIWithoutPairingStore{ServiceAPI: &agentstub.AgentServiceStub{}})
 
 		resp, err := svc.ClearPendingPairings(context.Background(), nil)
 
@@ -2177,7 +2275,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("clear store error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{Err: expected})
+		svc := newAllowedService(&agentstub.AgentServiceStub{Err: expected})
 
 		resp, err := svc.ClearPendingPairings(
 			context.Background(),
@@ -2190,7 +2288,7 @@ func TestService_GatewayPairingRejectsInvalidState(t *testing.T) {
 }
 
 func TestService_CurrentSessionReturnsValue(t *testing.T) {
-	svc := NewService(&agentstub.AgentServiceStub{
+	svc := newAllowedService(&agentstub.AgentServiceStub{
 		CurrentSessionResult: storage.Session{
 			ID:          storage.DefaultSessionID,
 			Title:       "Daily Planning",
@@ -2217,7 +2315,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing handler", func(t *testing.T) {
-		svc := NewService(nil)
+		svc := newAllowedService(nil)
 
 		resp, err := svc.Current(context.Background(), &morphpb.CurrentSessionRequest{})
 
@@ -2226,7 +2324,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Current(context.Background(), nil)
 
@@ -2235,7 +2333,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("boom")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{Err: errors.New("boom")})
 
 		resp, err := svc.Current(context.Background(), &morphpb.CurrentSessionRequest{})
 
@@ -2287,7 +2385,7 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 			LastTraceSequence:     3,
 		},
 	}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.Timeline(context.Background(), &morphpb.GetSessionTimelineRequest{
 		Id:            "default",
@@ -2336,7 +2434,7 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 }
 
 func TestService_GetSessionTimelineSkipsNonDisplayTraceEvents(t *testing.T) {
-	svc := NewService(&agentstub.AgentServiceStub{
+	svc := newAllowedService(&agentstub.AgentServiceStub{
 		TimelineResult: agentapi.SessionTimeline{
 			SessionID: "default",
 			TraceEvents: []agentapi.SessionTimelineTraceEvent{{
@@ -2378,7 +2476,7 @@ func TestService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
 			}},
 		},
 	}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.ListModels(context.Background(), &morphpb.ListModelsRequest{Provider: "openai"})
 
@@ -2400,7 +2498,7 @@ func TestService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
 }
 
 func TestService_ListProvidersReturnsOptions(t *testing.T) {
-	svc := NewService(&agentstub.AgentServiceStub{
+	svc := newAllowedService(&agentstub.AgentServiceStub{
 		ProviderList: agentapi.ProviderList{
 			Providers: []models.ProviderOption{{
 				ID:             "openrouter",
@@ -2432,7 +2530,7 @@ func TestService_SelectModelReturnsSelectedOption(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{
 		SelectedModel: models.Option{ID: "gpt-4o", Current: true},
 	}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.SelectModel(context.Background(), &morphpb.SelectModelRequest{Id: "gpt-4o", Provider: "openai"})
 
@@ -2445,7 +2543,7 @@ func TestService_SelectModelReturnsSelectedOption(t *testing.T) {
 
 func TestService_SetProviderAPIKeySendsProviderAndKey(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{}
-	svc := NewService(stub)
+	svc := newAllowedService(stub)
 
 	resp, err := svc.SetProviderAPIKey(context.Background(), &morphpb.SetProviderAPIKeyRequest{
 		Provider: "openrouter",
@@ -2459,7 +2557,7 @@ func TestService_SetProviderAPIKeySendsProviderAndKey(t *testing.T) {
 }
 
 func TestService_RuntimeModelReturnsConfiguredIdentity(t *testing.T) {
-	svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
+	svc := newAllowedServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
 		RuntimeModel: ModelRuntime{
 			Provider:      " Ollama ",
 			API:           " OLLAMA-NATIVE ",
@@ -2530,42 +2628,42 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 	})
 
 	t.Run("list missing handler", func(t *testing.T) {
-		resp, err := NewService(nil).ListModels(context.Background(), &morphpb.ListModelsRequest{})
+		resp, err := newAllowedService(nil).ListModels(context.Background(), &morphpb.ListModelsRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("list providers missing handler", func(t *testing.T) {
-		resp, err := NewService(nil).ListProviders(context.Background(), &morphpb.ListProvidersRequest{})
+		resp, err := newAllowedService(nil).ListProviders(context.Background(), &morphpb.ListProvidersRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("list nil request", func(t *testing.T) {
-		resp, err := NewService(&agentstub.AgentServiceStub{}).ListModels(context.Background(), nil)
+		resp, err := newAllowedService(&agentstub.AgentServiceStub{}).ListModels(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "list models request is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("list providers nil request", func(t *testing.T) {
-		resp, err := NewService(&agentstub.AgentServiceStub{}).ListProviders(context.Background(), nil)
+		resp, err := newAllowedService(&agentstub.AgentServiceStub{}).ListProviders(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "list providers request is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("select nil request", func(t *testing.T) {
-		resp, err := NewService(&agentstub.AgentServiceStub{}).SelectModel(context.Background(), nil)
+		resp, err := newAllowedService(&agentstub.AgentServiceStub{}).SelectModel(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "select model request is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("set provider api key nil request", func(t *testing.T) {
-		resp, err := NewService(&agentstub.AgentServiceStub{}).SetProviderAPIKey(context.Background(), nil)
+		resp, err := newAllowedService(&agentstub.AgentServiceStub{}).SetProviderAPIKey(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "set provider API key request is required")
 		require.Nil(t, resp)
@@ -2581,14 +2679,14 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 	})
 
 	t.Run("select missing handler", func(t *testing.T) {
-		resp, err := NewService(nil).SelectModel(context.Background(), &morphpb.SelectModelRequest{})
+		resp, err := newAllowedService(nil).SelectModel(context.Background(), &morphpb.SelectModelRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
 	})
 
 	t.Run("set provider api key missing handler", func(t *testing.T) {
-		resp, err := NewService(nil).SetProviderAPIKey(context.Background(), &morphpb.SetProviderAPIKeyRequest{})
+		resp, err := newAllowedService(nil).SetProviderAPIKey(context.Background(), &morphpb.SetProviderAPIKeyRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -2604,7 +2702,7 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 	})
 
 	t.Run("list handler error", func(t *testing.T) {
-		resp, err := NewService(&agentstub.AgentServiceStub{Err: errors.New("config is required")}).
+		resp, err := newAllowedService(&agentstub.AgentServiceStub{Err: errors.New("config is required")}).
 			ListModels(context.Background(), &morphpb.ListModelsRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "config is required")
@@ -2612,7 +2710,7 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 	})
 
 	t.Run("list providers handler error", func(t *testing.T) {
-		resp, err := NewService(&agentstub.AgentServiceStub{Err: errors.New("config is required")}).
+		resp, err := newAllowedService(&agentstub.AgentServiceStub{Err: errors.New("config is required")}).
 			ListProviders(context.Background(), &morphpb.ListProvidersRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "config is required")
@@ -2620,7 +2718,7 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 	})
 
 	t.Run("select error", func(t *testing.T) {
-		resp, err := NewService(&agentstub.AgentServiceStub{SelectModelErr: errors.New("model id is required")}).
+		resp, err := newAllowedService(&agentstub.AgentServiceStub{SelectModelErr: errors.New("model id is required")}).
 			SelectModel(context.Background(), &morphpb.SelectModelRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "model id is required")
@@ -2628,7 +2726,7 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 	})
 
 	t.Run("set provider api key error", func(t *testing.T) {
-		resp, err := NewService(&agentstub.AgentServiceStub{SetProviderAPIKeyErr: errors.New("provider API key is required")}).
+		resp, err := newAllowedService(&agentstub.AgentServiceStub{SetProviderAPIKeyErr: errors.New("provider API key is required")}).
 			SetProviderAPIKey(context.Background(), &morphpb.SetProviderAPIKeyRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "provider API key is required")
@@ -2657,7 +2755,7 @@ func TestService_GetSessionTimelineRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("missing handler", func(t *testing.T) {
-		svc := NewService(nil)
+		svc := newAllowedService(nil)
 
 		resp, err := svc.Timeline(context.Background(), &morphpb.GetSessionTimelineRequest{})
 
@@ -2666,7 +2764,7 @@ func TestService_GetSessionTimelineRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{})
+		svc := newAllowedService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.Timeline(context.Background(), nil)
 
@@ -2675,7 +2773,7 @@ func TestService_GetSessionTimelineRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler validation error", func(t *testing.T) {
-		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("message offset must be greater than or equal to zero")})
+		svc := newAllowedService(&agentstub.AgentServiceStub{Err: errors.New("message offset must be greater than or equal to zero")})
 
 		resp, err := svc.Timeline(context.Background(), &morphpb.GetSessionTimelineRequest{})
 

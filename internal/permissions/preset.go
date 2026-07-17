@@ -1,0 +1,176 @@
+package permissions
+
+import (
+	"errors"
+	"strings"
+
+	"github.com/wandxy/morph/pkg/str"
+)
+
+type Preset string
+
+const (
+	PresetAskForApproval Preset = "ask"
+	PresetApproveForMe   Preset = "approve"
+	PresetFullAccess     Preset = "full_access"
+	PresetCustom         Preset = "custom"
+)
+
+func ParsePreset(value string) (Preset, error) {
+	value = strings.ReplaceAll(str.String(value).Normalized(), "-", "_")
+	preset := Preset(value)
+	if !isValidPreset(preset) {
+		return "", errors.New("permission preset must be one of: ask, approve, full_access, custom")
+	}
+
+	return preset, nil
+}
+
+func (p Preset) Label() string {
+	switch p {
+	case PresetAskForApproval:
+		return "Ask for approval"
+	case PresetApproveForMe:
+		return "Approve for me"
+	case PresetFullAccess:
+		return "Full access"
+	case PresetCustom:
+		return "Custom"
+	default:
+		return ""
+	}
+}
+
+func (p Preset) Description() string {
+	switch p {
+	case PresetAskForApproval:
+		return "Ask before commands, external edits, and internet access"
+	case PresetApproveForMe:
+		return "Ask only for potentially unsafe actions"
+	case PresetFullAccess:
+		return "Unrestricted files, commands, and internet"
+	case PresetCustom:
+		return "Use the detailed profile permission policy"
+	default:
+		return ""
+	}
+}
+
+func isValidPreset(preset Preset) bool {
+	return preset == PresetAskForApproval ||
+		preset == PresetApproveForMe ||
+		preset == PresetFullAccess ||
+		preset == PresetCustom
+}
+
+func (p Policy) EffectivePreset() Preset {
+	p.Normalize()
+	return p.Preset
+}
+
+func (p Policy) Effective() Policy {
+	p.Normalize()
+	return p.ForPreset(p.Preset)
+}
+
+func (p Policy) ForPreset(preset Preset) Policy {
+	p.Normalize()
+	if !isValidPreset(preset) {
+		preset = PresetCustom
+	}
+	if preset == PresetCustom {
+		p.Preset = PresetCustom
+		return p
+	}
+
+	effective := p
+	effective.Preset = preset
+	effective.Default = DecisionDeny
+	effective.SurfaceDefaults = nil
+	effective.SurfaceKindDefaults = map[SurfaceKind]Decision{
+		SurfaceKindLocal:      DecisionDeny,
+		SurfaceKindGateway:    DecisionDeny,
+		SurfaceKindAutomation: DecisionDeny,
+		SurfaceKindRPC:        DecisionDeny,
+		SurfaceKindACP:        DecisionDeny,
+	}
+
+	switch preset {
+	case PresetAskForApproval:
+		effective.Rules = askForApprovalPresetRules()
+	case PresetApproveForMe:
+		effective.Rules = approveForMePresetRules()
+	case PresetFullAccess:
+		effective.Rules = nil
+	}
+
+	return effective
+}
+
+func askForApprovalPresetRules() []Rule {
+	rules := approveForMePresetRules()
+	rules = append(rules,
+		Rule{
+			Name:         "preset.ask.execution",
+			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
+			Effects:      []Effect{EffectExecution},
+			Decision:     DecisionAsk,
+			Reason:       "command execution requires approval without an operating-system sandbox",
+			toolRequired: true,
+		},
+		Rule{
+			Name:         "preset.ask.network",
+			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
+			Effects:      []Effect{EffectNetwork},
+			Decision:     DecisionAsk,
+			Reason:       "internet access requires approval",
+			toolRequired: true,
+		},
+	)
+	return rules
+}
+
+func approveForMePresetRules() []Rule {
+	return []Rule{
+		{
+			Name:         "preset.local_owner",
+			ActorKinds:   []ActorKind{ActorLocalOwner},
+			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
+			Decision:     DecisionAllow,
+			Reason:       "interactive local owner",
+		},
+		{
+			Name:         "preset.safety.destructive",
+			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
+			Effects:      []Effect{EffectDestructive},
+			Decision:     DecisionAsk,
+			Reason:       "destructive action requires approval",
+			toolRequired: true,
+		},
+		{
+			Name:         "preset.safety.credentials",
+			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
+			Effects:      []Effect{EffectCredentialBearing},
+			Decision:     DecisionAsk,
+			Reason:       "credential-bearing action requires approval",
+			toolRequired: true,
+		},
+		{
+			Name:         "preset.safety.privileges",
+			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
+			Effects:      []Effect{EffectPrivilegeChanging},
+			Decision:     DecisionAsk,
+			Reason:       "privilege-changing action requires approval",
+			toolRequired: true,
+		},
+		{
+			Name:         "preset.safety.external_write",
+			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
+			Effects:      []Effect{EffectWrite},
+			TargetScopes: []TargetScope{TargetScopeExternal},
+			Decision:     DecisionAsk,
+			Reason:       "external file changes require approval",
+			toolRequired: true,
+		},
+	}
+}

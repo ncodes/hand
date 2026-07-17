@@ -10,12 +10,31 @@ import (
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/gateway"
 	agentstub "github.com/wandxy/morph/internal/mocks/agentstub"
+	"github.com/wandxy/morph/internal/permissions"
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
 	"github.com/wandxy/morph/internal/trace"
 	agent "github.com/wandxy/morph/pkg/agent"
 	"github.com/wandxy/morph/pkg/gateway/pairing"
 	"google.golang.org/grpc/metadata"
 )
+
+func allowedRPCPolicy() permissions.Policy {
+	return permissions.Policy{
+		Rules: []permissions.Rule{{
+			Name:     "allow test RPC operations",
+			Decision: permissions.DecisionAllow,
+		}},
+	}
+}
+
+func newAllowedService(api agentapi.ServiceAPI) *Service {
+	return NewServiceWithOptions(api, ServiceOptions{PermissionPolicy: allowedRPCPolicy()})
+}
+
+func newAllowedServiceWithOptions(api agentapi.ServiceAPI, opts ServiceOptions) *Service {
+	opts.PermissionPolicy = allowedRPCPolicy()
+	return NewServiceWithOptions(api, opts)
+}
 
 type respondStreamServerStub struct {
 	ctx       context.Context

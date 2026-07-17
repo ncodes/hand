@@ -15,25 +15,19 @@ import (
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
 )
 
-func TestService_CheckPermissionHonorsModesAndOwnerRules(t *testing.T) {
+func TestService_CheckPermissionHonorsDecisionsPresetsAndOwnerRules(t *testing.T) {
 	operation := permissions.Operation{
 		Resource: permissions.ResourceSession,
 		Action:   permissions.ActionUpdate,
 		Effects:  []permissions.Effect{permissions.EffectWrite},
 	}
 
-	observe := NewServiceWithOptions(nil, ServiceOptions{PermissionPolicy: permissions.Policy{
-		Default: permissions.DecisionDeny,
-	}})
-	require.NoError(t, observe.checkPermission(context.Background(), operation))
-
 	deny := NewServiceWithOptions(nil, ServiceOptions{PermissionPolicy: permissions.Policy{
-		Mode: permissions.ModeEnforce, Default: permissions.DecisionDeny,
+		Default: permissions.DecisionDeny,
 	}})
 	require.Equal(t, codes.PermissionDenied, status.Code(deny.checkPermission(context.Background(), operation)))
 
 	ask := NewServiceWithOptions(nil, ServiceOptions{PermissionPolicy: permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		SurfaceKindDefaults: map[permissions.SurfaceKind]permissions.Decision{
 			permissions.SurfaceKindRPC: permissions.DecisionAsk,
 		},
@@ -41,7 +35,6 @@ func TestService_CheckPermissionHonorsModesAndOwnerRules(t *testing.T) {
 	require.Equal(t, codes.FailedPrecondition, status.Code(ask.checkPermission(context.Background(), operation)))
 
 	allowOwnerOperation := NewServiceWithOptions(nil, ServiceOptions{PermissionPolicy: permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		Rules: []permissions.Rule{{
 			Name:       "allow RPC configuration",
 			ActorKinds: []permissions.ActorKind{permissions.ActorRPCClient},
@@ -53,7 +46,7 @@ func TestService_CheckPermissionHonorsModesAndOwnerRules(t *testing.T) {
 		Resource: permissions.ResourceConfiguration, Action: permissions.ActionUpdate, OwnerRequired: true,
 	}))
 	fullAccess := NewServiceWithOptions(nil, ServiceOptions{PermissionPolicy: permissions.Policy{
-		Mode: permissions.ModeFullAccess, Default: permissions.DecisionDeny,
+		Preset: permissions.PresetFullAccess, Default: permissions.DecisionDeny,
 	}})
 	require.NoError(t, fullAccess.checkPermission(context.Background(), permissions.Operation{
 		Resource: permissions.ResourceConfiguration, Action: permissions.ActionUpdate, OwnerRequired: true,
@@ -64,7 +57,6 @@ func TestService_CheckPermissionHonorsModesAndOwnerRules(t *testing.T) {
 		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceCLI,
 	})
 	local := NewServiceWithOptions(nil, ServiceOptions{PermissionPolicy: permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		Rules: []permissions.Rule{{
 			Name: "allow local", ActorKinds: []permissions.ActorKind{permissions.ActorLocalOwner}, Decision: permissions.DecisionAllow,
 		}},
@@ -176,7 +168,7 @@ func TestAutomationService_EnforcementPreventsMutations(t *testing.T) {
 
 func deniedRPCPolicy() permissions.Policy {
 	return permissions.Policy{
-		Mode: permissions.ModeEnforce, Default: permissions.DecisionDeny,
+		Default:             permissions.DecisionDeny,
 		SurfaceKindDefaults: map[permissions.SurfaceKind]permissions.Decision{},
 	}
 }

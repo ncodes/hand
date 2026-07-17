@@ -40,7 +40,7 @@ type patchTarget struct {
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:        "patch",
-		Description: "Apply a unified diff patch to absolute or workspace-relative paths, subject to the current permission mode.",
+		Description: "Apply a unified diff patch to absolute or workspace-relative paths, subject to the current permission policy.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
 		Permission: permissions.Operation{
@@ -48,7 +48,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			Action:   permissions.ActionUpdate,
 			Effects:  []permissions.Effect{permissions.EffectWrite},
 		},
-		ResolvePermission: resolvePermission,
+		ResolvePermission: resolvePermissionForRuntime(runtime),
 		InputSchema: common.ObjectSchema(map[string]any{
 			"patch": common.StringSchema("Unified diff patch content to apply."),
 			"strip": common.IntegerSchema("Number of leading path components to strip from file paths, similar to git apply -p."),
@@ -110,45 +110,56 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 	}
 }
 
-func resolvePermission(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
-	var req input
-	if err := json.Unmarshal([]byte(call.Input), &req); err != nil {
-		return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
-	}
-	if str.String(req.Patch).Trim() == "" {
-		return nil, tools.NewPermissionResolutionError("invalid_input", "patch is required")
-	}
+func resolvePermission(ctx context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+	return resolvePermissionForRuntime(nil)(ctx, call)
+}
 
-	files, _, err := gitdiff.Parse(strings.NewReader(req.Patch))
-	if err != nil {
-		return nil, tools.NewPermissionResolutionError("internal_error", err.Error())
-	}
-	if len(files) == 0 {
-		return nil, tools.NewPermissionResolutionError("invalid_input", "invalid patch")
-	}
+func resolvePermissionForRuntime(runtime envtypes.Runtime) tools.PermissionResolver {
+	return func(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+		var req input
+		if err := json.Unmarshal([]byte(call.Input), &req); err != nil {
+			return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+		}
+		if str.String(req.Patch).Trim() == "" {
+			return nil, tools.NewPermissionResolutionError("invalid_input", "patch is required")
+		}
 
-	inputs := make([]permissions.EvaluationInput, 0, len(files))
-	for _, file := range files {
-		target, err := getPatchTarget(file, req.Strip)
+		files, _, err := gitdiff.Parse(strings.NewReader(req.Patch))
 		if err != nil {
-			return nil, tools.NewPermissionResolutionError("invalid_input", err.Error())
+			return nil, tools.NewPermissionResolutionError("internal_error", err.Error())
 		}
-		action := permissions.ActionUpdate
-		if target.isNew {
-			action = permissions.ActionCreate
+		if len(files) == 0 {
+			return nil, tools.NewPermissionResolutionError("invalid_input", "invalid patch")
 		}
-		inputs = append(inputs, permissions.EvaluationInput{Operation: permissions.Operation{
-			Resource: permissions.ResourceFile,
-			Action:   action,
-			Effects:  []permissions.Effect{permissions.EffectWrite},
-			Target:   filepath.ToSlash(filepath.Clean(target.newPath)),
-		}})
-	}
-	sort.Slice(inputs, func(i, j int) bool {
-		return inputs[i].Operation.Target < inputs[j].Operation.Target
-	})
 
-	return inputs, nil
+		inputs := make([]permissions.EvaluationInput, 0, len(files))
+		for _, file := range files {
+			target, err := getPatchTarget(file, req.Strip)
+			if err != nil {
+				return nil, tools.NewPermissionResolutionError("invalid_input", err.Error())
+			}
+			action := permissions.ActionUpdate
+			if target.isNew {
+				action = permissions.ActionCreate
+			}
+			permissionTarget, targetScope := common.ResolveFilesystemPermissionTarget(
+				common.FilesystemPolicyFromRuntime(runtime),
+				target.newPath,
+			)
+			inputs = append(inputs, permissions.EvaluationInput{Operation: permissions.Operation{
+				Resource:    permissions.ResourceFile,
+				Action:      action,
+				Effects:     []permissions.Effect{permissions.EffectWrite},
+				Target:      permissionTarget,
+				TargetScope: targetScope,
+			}})
+		}
+		sort.Slice(inputs, func(i, j int) bool {
+			return inputs[i].Operation.Target < inputs[j].Operation.Target
+		})
+
+		return inputs, nil
+	}
 }
 
 func applyUnifiedDiff(
@@ -175,7 +186,11 @@ func applyUnifiedDiff(
 			return nil, nil, err
 		}
 
-		resolved, err := common.ResolveFilesystemPath(ctx, policy, target.newPath)
+		action := permissions.ActionUpdate
+		if target.isNew {
+			action = permissions.ActionCreate
+		}
+		resolved, err := common.ResolveFilesystemPathForOperation(ctx, policy, target.newPath, action)
 		if err != nil {
 			return nil, nil, err
 		}

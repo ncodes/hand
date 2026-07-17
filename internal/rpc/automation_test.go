@@ -27,7 +27,7 @@ func TestAutomationService_StatusUsesAutomationService(t *testing.T) {
 		StartedAt:  time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC),
 		NextWakeAt: time.Date(2026, 7, 5, 9, 0, 0, 0, time.UTC),
 	}}
-	svc := NewServiceWithOptions(nil, ServiceOptions{Automation: api})
+	svc := newAllowedServiceWithOptions(nil, ServiceOptions{Automation: api})
 	automationService := NewAutomationService(svc)
 
 	resp, err := automationService.Status(context.Background(), &morphpb.GetAutomationStatusRequest{})
@@ -40,7 +40,7 @@ func TestAutomationService_StatusUsesAutomationService(t *testing.T) {
 
 func TestAutomationService_JobAndRunMethodsTranslateRequests(t *testing.T) {
 	api := &automationAPIStub{}
-	svc := NewServiceWithOptions(nil, ServiceOptions{Automation: api})
+	svc := newAllowedServiceWithOptions(nil, ServiceOptions{Automation: api})
 	automationService := NewAutomationService(svc)
 	enabled := true
 	at := time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC)
@@ -147,7 +147,7 @@ func TestAutomationService_JobAndRunMethodsTranslateRequests(t *testing.T) {
 }
 
 func TestAutomationService_RejectsMissingServiceAndNilRequest(t *testing.T) {
-	svc := NewServiceWithOptions(nil, ServiceOptions{})
+	svc := newAllowedServiceWithOptions(nil, ServiceOptions{})
 	automationService := NewAutomationService(svc)
 
 	_, err := (*AutomationService)(nil).Status(context.Background(), &morphpb.GetAutomationStatusRequest{})
@@ -159,7 +159,7 @@ func TestAutomationService_RejectsMissingServiceAndNilRequest(t *testing.T) {
 	_, err = automationService.Status(context.Background(), &morphpb.GetAutomationStatusRequest{})
 	require.Equal(t, codes.Internal, status.Code(err))
 
-	svc = NewServiceWithOptions(nil, ServiceOptions{Automation: &automationAPIStub{}})
+	svc = newAllowedServiceWithOptions(nil, ServiceOptions{Automation: &automationAPIStub{}})
 	automationService = NewAutomationService(svc)
 	require.Equal(t, codes.InvalidArgument, status.Code(automationService.checkRequest(nil)))
 
@@ -169,7 +169,7 @@ func TestAutomationService_RejectsMissingServiceAndNilRequest(t *testing.T) {
 
 func TestAutomationService_MethodsPropagateAutomationErrors(t *testing.T) {
 	expected := errors.New("automation failed")
-	automationService := NewAutomationService(NewServiceWithOptions(nil, ServiceOptions{
+	automationService := NewAutomationService(newAllowedServiceWithOptions(nil, ServiceOptions{
 		Automation: &automationAPIStub{err: expected},
 	}))
 	ctx := context.Background()
@@ -197,7 +197,7 @@ func TestAutomationService_MethodsPropagateAutomationErrors(t *testing.T) {
 }
 
 func TestAutomationService_MethodsRejectNilRequests(t *testing.T) {
-	automationService := NewAutomationService(NewServiceWithOptions(nil, ServiceOptions{
+	automationService := NewAutomationService(newAllowedServiceWithOptions(nil, ServiceOptions{
 		Automation: &automationAPIStub{},
 	}))
 	ctx := context.Background()

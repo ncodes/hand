@@ -1,5 +1,7 @@
 package tui
 
+import "github.com/wandxy/morph/internal/permissions"
+
 // renderBottomStatusPanel renders the compact bottom status panel below the composer.
 func (m model) renderBottomStatusPanel() string {
 	availableWidth := getInputBoxWidth(m.getMainPaneWidth())
@@ -12,12 +14,12 @@ type bottomStatusPanel struct {
 	ContentWidth      int
 	ModelName         string
 	Status            string
-	SessionTitle      string
 	Context           string
 	Thinking          bool
 	ThinkingFrame     int
 	ExitConfirmation  bool
 	FullAccess        bool
+	PermissionPreset  permissions.Preset
 }
 
 func getBottomStatusPanel(width int, m model) bottomStatusPanel {
@@ -27,11 +29,11 @@ func getBottomStatusPanel(width int, m model) bottomStatusPanel {
 		ContentWidth:      getPanelContentWidth(width),
 		ModelName:         m.modelName,
 		Status:            m.bottomStatusText(),
-		SessionTitle:      m.sessionTitle,
 		Context:           m.context,
 		Thinking:          m.isModelThinking(),
 		ThinkingFrame:     m.thinkingComposerFrame,
 		ExitConfirmation:  m.hasPendingExitConfirmation(),
 		FullAccess:        m.fullAccess,
+		PermissionPreset:  m.permissionPreset,
 	}
 }

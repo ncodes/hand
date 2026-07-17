@@ -1561,7 +1561,8 @@ func TestEnvironment_PrepareWrapsWebProviderWithCacheWhenConfigured(t *testing.T
 	defer server.Close()
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name: "Test Agent",
+		Name:        "Test Agent",
+		Permissions: allowTestPermissions(),
 		Web: config.WebConfig{
 			Provider: "exa",
 			APIKey:   "exa-key",
@@ -1609,7 +1610,8 @@ func TestEnvironment_PrepareLeavesWebProviderUncachedWhenDisabled(t *testing.T) 
 	defer server.Close()
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name: "Test Agent",
+		Name:        "Test Agent",
+		Permissions: allowTestPermissions(),
 		Web: config.WebConfig{
 			Provider: "exa",
 			APIKey:   "exa-key",
@@ -1654,7 +1656,8 @@ func TestEnvironment_PrepareAppliesWebsitePolicyToWebTools(t *testing.T) {
 	defer server.Close()
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name: "Test Agent",
+		Name:        "Test Agent",
+		Permissions: allowTestPermissions(),
 		Web: config.WebConfig{
 			Provider:                "exa",
 			APIKey:                  "exa-key",
@@ -1673,6 +1676,13 @@ func TestEnvironment_PrepareAppliesWebsitePolicyToWebTools(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, result.Error)
 	require.Contains(t, result.Output, `"results":[]`)
+}
+
+func allowTestPermissions() permissions.Policy {
+	return permissions.Policy{Rules: []permissions.Rule{{
+		Name:     "allow test operations",
+		Decision: permissions.DecisionAllow,
+	}}}
 }
 
 func TestEnvironment_PrepareRegistersOnlyWebExtractForNativeProvider(t *testing.T) {

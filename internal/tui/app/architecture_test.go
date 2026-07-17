@@ -278,7 +278,6 @@ func TestBottomStatusPanelData_SeparatesModelStateFromRendering(t *testing.T) {
 	require.Equal(t, getPanelContentWidth(panel.Width), panel.ContentWidth)
 	require.Empty(t, panel.ModelName)
 	require.Equal(t, statusCancelSuffix, panel.Status)
-	require.Equal(t, "Project Planning", panel.SessionTitle)
 	require.True(t, panel.Thinking)
 	require.Equal(t, 2, panel.ThinkingFrame)
 	require.True(t, panel.ExitConfirmation)
@@ -292,7 +291,6 @@ func TestBottomStatusPanelRenderer_RendersFromPanelData(t *testing.T) {
 		ContentWidth:      78,
 		ModelName:         "GPT 5.5",
 		Status:            statusReadySuffix,
-		SessionTitle:      "Project Planning",
 		Context:           "60,000 used",
 		Thinking:          true,
 		ThinkingFrame:     1,
@@ -303,7 +301,6 @@ func TestBottomStatusPanelRenderer_RendersFromPanelData(t *testing.T) {
 	require.Equal(t, 80, lipgloss.Width(content))
 	require.Contains(t, content, "Thinking")
 	require.Contains(t, content, "GPT 5.5")
-	require.Contains(t, content, "Project Planning")
 	require.Contains(t, content, "60,000 used")
 	require.Less(t, strings.Index(content, "Thinking"), strings.Index(content, "GPT 5.5"))
 }

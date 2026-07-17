@@ -45,6 +45,21 @@ func TestModel_PermissionApprovalPromptResolvesFromKeyboard(t *testing.T) {
 	require.Contains(t, next.messages[0].PlainText(), "approved")
 }
 
+func TestPermissionApprovalText_DisplaysExpiryInLocalTimezone(t *testing.T) {
+	originalLocal := time.Local
+	time.Local = time.FixedZone("WAT", int(time.Hour/time.Second))
+	t.Cleanup(func() { time.Local = originalLocal })
+
+	text := permissionApprovalText(permissionApprovalMsg{
+		Status:    string(permissions.ApprovalPending),
+		Summary:   "web_extract · read network",
+		ExpiresAt: time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC),
+	})
+
+	require.Contains(t, text, "Expires: 13:00:00 WAT")
+	require.NotContains(t, text, "12:00:00 UTC")
+}
+
 func TestModel_PermissionApprovalSupportsSessionAlwaysDenyAndFailure(t *testing.T) {
 	for _, test := range []struct {
 		name     string

@@ -125,13 +125,14 @@ func (s *Service) checkPermission(ctx context.Context, operation permissions.Ope
 
 func (s *Service) getPermissionContext(ctx context.Context) context.Context {
 	if _, ok := permissions.FromContext(ctx); ok {
-		return ctx
+		return withIncomingPermissionPreset(ctx)
 	}
 
-	return permissions.WithContext(ctx, permissions.AuthorizationContext{
+	ctx = permissions.WithContext(ctx, permissions.AuthorizationContext{
 		Actor:   rpcmeta.PermissionActorFromIncomingContext(ctx),
 		Surface: rpcmeta.PermissionSurfaceFromIncomingContext(ctx),
 	})
+	return withIncomingPermissionPreset(ctx)
 }
 
 func ModelRuntimeFromConfig(cfg *config.Config) ModelRuntime {
@@ -189,6 +190,7 @@ func (s *Service) Respond(req *morphpb.RespondRequest, stream morphpb.MorphServi
 		Surface:   rpcmeta.PermissionSurfaceFromIncomingContext(ctx),
 		SessionID: req.GetId(),
 	})
+	ctx = withIncomingPermissionPreset(ctx)
 	streamed := false
 	var sendErr error
 	opts := agent.RespondOptions{
@@ -241,6 +243,21 @@ func (s *Service) Respond(req *morphpb.RespondRequest, stream morphpb.MorphServi
 		Type:      morphpb.RespondEvent_DONE,
 		Timestamp: timestamppb.New(time.Now().UTC()),
 	})
+}
+
+func withIncomingPermissionPreset(ctx context.Context) context.Context {
+	authorization, ok := permissions.FromContext(ctx)
+	if !ok || authorization.Actor.Kind != permissions.ActorLocalOwner ||
+		(authorization.Surface != permissions.SurfaceCLI &&
+			authorization.Surface != permissions.SurfaceTUI) {
+		return ctx
+	}
+
+	if preset, ok := rpcmeta.PermissionPresetFromIncomingContext(ctx); ok {
+		return permissions.WithPreset(ctx, preset)
+	}
+
+	return ctx
 }
 
 func eventToProtoRespondEvent(event agent.Event) (*morphpb.RespondEvent, bool) {

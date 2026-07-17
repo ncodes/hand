@@ -183,6 +183,12 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			Reason: msg.Reason, Effects: msg.Effects, ExpiresAt: msg.ExpiresAt,
 		}})
 		return next, cmd, true
+	case permissionPresetPersistedMsg:
+		if msg.Err != nil {
+			cmd := m.setStatus("permission preset not saved: " + msg.Err.Error())
+			return m, cmd, true
+		}
+		return m, nil, true
 	default:
 		return m, nil, false
 	}

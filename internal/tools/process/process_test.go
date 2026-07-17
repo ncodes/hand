@@ -53,7 +53,6 @@ func TestProcess_EnforcementDeniesStartBeforeRuntimeMutation(t *testing.T) {
 		return processenv.Info{}, nil
 	}}
 	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		Rules: []permissions.Rule{{
 			Name: "deny process start", Actions: []permissions.Action{permissions.ActionStart}, Decision: permissions.DecisionDeny,
 		}},
@@ -818,6 +817,14 @@ func TestProcess_EncodeProcessOutputReturnsInternalErrorOnMarshalFailure(t *test
 	})
 
 	requireToolError(t, result.Error, "internal_error", "failed to encode tool output")
+}
+
+func TestLimitOutput_ReturnsUnchangedOutputWithinLimit(t *testing.T) {
+	output, size, truncated := limitOutput("hello", 5)
+
+	require.Equal(t, "hello", output)
+	require.Equal(t, 5, size)
+	require.False(t, truncated)
 }
 
 func requireToolError(t *testing.T, raw, code, message string) {

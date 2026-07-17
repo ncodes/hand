@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/permissions"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	storage "github.com/wandxy/morph/internal/state/core"
 )
@@ -32,6 +33,8 @@ type tuiState struct {
 	runtimeInfo                runtimeInfo
 	context                    string
 	fullAccess                 bool
+	permissionPreset           permissions.Preset
+	permissionPresetConfirm    bool
 	messages                   []transcriptCell
 	live                       transcriptCell
 	showIntro                  bool

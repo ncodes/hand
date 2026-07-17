@@ -34,7 +34,7 @@ func TestGatewayService_PairingListApproveRevokeAndClear(t *testing.T) {
 			UpdatedAt:   now,
 		}},
 	}
-	svc := NewServiceWithOptions(stub, ServiceOptions{GatewayPairingSecret: "secret"})
+	svc := newAllowedServiceWithOptions(stub, ServiceOptions{GatewayPairingSecret: "secret"})
 	gatewayService := NewGatewayService(svc)
 
 	list, err := gatewayService.ListPairings(context.Background(), &morphpb.ListGatewayPairingsRequest{Source: "telegram"})
@@ -95,7 +95,7 @@ func TestGatewayService_RuntimeStatusStartStopAndRestart(t *testing.T) {
 			TelegramMode: cfg.Telegram.Mode,
 		},
 	}
-	svc := NewServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
+	svc := newAllowedServiceWithOptions(&agentstub.AgentServiceStub{}, ServiceOptions{
 		GatewayConfig:  cfg,
 		GatewayRuntime: runtime,
 	})

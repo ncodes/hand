@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/pkg/str"
 )
 
@@ -53,5 +54,9 @@ func DefaultConfig(opts ConfigOptions) *config.Config {
 		Models:  config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", Stream: &stream}},
 		Storage: config.StorageConfig{Backend: storageBackend},
 		Session: config.SessionConfig{DefaultIdleExpiry: time.Hour, ArchiveRetention: 24 * time.Hour},
+		Permissions: permissions.Policy{Rules: []permissions.Rule{{
+			Name:     "allow e2e harness operations",
+			Decision: permissions.DecisionAllow,
+		}}},
 	}
 }

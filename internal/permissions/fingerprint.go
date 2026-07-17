@@ -21,6 +21,7 @@ func Fingerprint(authorization AuthorizationContext, operation Operation) string
 		string(operation.Action),
 		strings.Join(effectsToStrings(operation.Effects), ","),
 		operation.Target,
+		string(operation.TargetScope),
 		operation.OwnerID,
 		scopeFingerprint(authorization.Scope),
 	}

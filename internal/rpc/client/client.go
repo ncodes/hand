@@ -18,6 +18,7 @@ import (
 	models "github.com/wandxy/morph/internal/model"
 	"github.com/wandxy/morph/internal/permissions"
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
+	"github.com/wandxy/morph/internal/rpc/rpcmeta"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
 	"github.com/wandxy/morph/internal/trace"
@@ -235,8 +236,10 @@ type ClientAPI interface {
 
 // Options configures this package operation.
 type Options struct {
-	Address string
-	Port    int
+	Address           string
+	Port              int
+	PermissionSurface permissions.Surface
+	PermissionPreset  permissions.Preset
 }
 
 // NewClient returns a client configured with the supplied dependencies.
@@ -252,7 +255,12 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 	}
 
 	target := fmt.Sprintf("%s:%d", address, opts.Port)
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(
+		target,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithChainUnaryInterceptor(permissionUnaryClientInterceptor(opts)),
+		grpc.WithChainStreamInterceptor(permissionStreamClientInterceptor(opts)),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -267,6 +275,38 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 		Automation:  newAutomationService(morphpb.NewAutomationServiceClient(conn), conn),
 		Permission:  newPermissionService(morphpb.NewPermissionServiceClient(conn), conn),
 	}, nil
+}
+
+func permissionUnaryClientInterceptor(opts Options) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req any,
+		reply any,
+		conn *grpc.ClientConn,
+		invoke grpc.UnaryInvoker,
+		callOptions ...grpc.CallOption,
+	) error {
+		return invoke(withPermissionMetadata(ctx, opts), method, req, reply, conn, callOptions...)
+	}
+}
+
+func permissionStreamClientInterceptor(opts Options) grpc.StreamClientInterceptor {
+	return func(
+		ctx context.Context,
+		desc *grpc.StreamDesc,
+		conn *grpc.ClientConn,
+		method string,
+		stream grpc.Streamer,
+		callOptions ...grpc.CallOption,
+	) (grpc.ClientStream, error) {
+		return stream(withPermissionMetadata(ctx, opts), desc, conn, method, callOptions...)
+	}
+}
+
+func withPermissionMetadata(ctx context.Context, opts Options) context.Context {
+	ctx = rpcmeta.WithOutgoingPermissionSurface(ctx, opts.PermissionSurface)
+	return rpcmeta.WithOutgoingPermissionPreset(ctx, opts.PermissionPreset)
 }
 
 func NewSessionService(client morphpb.SessionServiceClient) *SessionService {

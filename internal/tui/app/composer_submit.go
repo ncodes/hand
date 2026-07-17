@@ -53,11 +53,12 @@ func (m *model) submitPrompt() tea.Cmd {
 		return m.setStatus("response already in progress")
 	}
 
-	cmd := m.addPromptHistory(input.Text)
+	var cmd tea.Cmd
 	promptSubmitted := false
 
 	switch input.Kind {
 	case composerInputPrompt:
+		cmd = m.addPromptHistory(input.Text)
 		followTranscript := m.transcript.AtBottom()
 
 		m.applyAction(appendTranscriptCellAction{Cell: userTranscriptCell{text: input.Text}})
@@ -83,6 +84,7 @@ func (m *model) submitPrompt() tea.Cmd {
 		cmd = tea.Batch(cmd, m.handleSlashCommand(input))
 
 	case composerInputLocalCommand:
+		cmd = m.addPromptHistory(input.Text)
 		cmd = tea.Batch(cmd, m.handleLocalCommand(input))
 	}
 

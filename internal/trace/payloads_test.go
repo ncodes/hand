@@ -80,7 +80,7 @@ func TestDecodePayload_DecodesPermissionDecision(t *testing.T) {
 		"decision":       "ask",
 		"reason_code":    "surface_default",
 		"rule":           "owner writes",
-		"mode":           "observe",
+		"preset":         "ask",
 		"owner_required": true,
 	})
 
@@ -96,7 +96,7 @@ func TestDecodePayload_DecodesPermissionDecision(t *testing.T) {
 		Decision:      "ask",
 		ReasonCode:    "surface_default",
 		Rule:          "owner writes",
-		Mode:          "observe",
+		Preset:        "ask",
 		OwnerRequired: true,
 	}, payload)
 }

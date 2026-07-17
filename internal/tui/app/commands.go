@@ -15,6 +15,7 @@ var slashCommandDefinitions = []slashCommandDefinition{
 	{Name: "copy", Description: "Copy the transcript"},
 	{Name: "models", Description: "Show supported models"},
 	{Name: "new-chat", Description: "Start a new chat session"},
+	{Name: "permissions", Description: "Choose a permission preset for this TUI session"},
 	{Name: "archive", Description: "Show archived chat sessions"},
 	{Name: "providers", Description: "Show supported model providers"},
 	{Name: "setup", Description: "Open setup"},
@@ -38,6 +39,8 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 		cmd = m.startModelsCommand()
 	case "providers":
 		cmd = m.startProvidersCommand()
+	case "permissions":
+		cmd = m.startPermissionsCommand()
 	case "setup":
 		cmd = m.startProfileSetup(true)
 	case "copy":

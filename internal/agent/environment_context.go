@@ -52,7 +52,12 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 		ctx.FilesystemRoots = getFilesystemRoots(t.cfg.FS.Roots, workingDirectory)
 		permissionPolicy := t.cfg.Permissions
 		permissionPolicy.Normalize()
-		ctx.FullAccess = permissionPolicy.Mode == permissions.ModeFullAccess
+		if preset, ok := permissions.PresetFromContext(t.ctx); ok {
+			permissionPolicy = permissionPolicy.ForPreset(preset)
+		} else {
+			permissionPolicy = permissionPolicy.Effective()
+		}
+		ctx.FullAccess = permissionPolicy.EffectivePreset() == permissions.PresetFullAccess
 		ctx.Model = t.cfg.Models.Main.Name
 		if summaryModel := t.cfg.SummaryModelEffective(); summaryModel != "" && summaryModel != t.cfg.Models.Main.Name {
 			ctx.SummaryModel = summaryModel

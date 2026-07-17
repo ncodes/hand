@@ -111,6 +111,7 @@ func TestMemoryExtract_DefinitionUsesCurrentSessionWhenSessionIDIsOmitted(t *tes
 		{name: "current alias", input: `{"session_id":"current"}`},
 		{name: "current session alias", input: `{"session_id":"current_session"}`},
 		{name: "default session alias", input: `{"session_id":"default_session"}`},
+		{name: "explicit session", input: `{"session_id":"session-42"}`},
 	}
 
 	for _, tt := range tests {
@@ -131,9 +132,12 @@ func TestMemoryExtract_DefinitionUsesCurrentSessionWhenSessionIDIsOmitted(t *tes
 
 			require.NoError(t, err)
 			require.Empty(t, result.Error)
-			if tt.name == "default session alias" {
+			switch tt.name {
+			case "default session alias":
 				require.Equal(t, "default", captured.SessionID)
-			} else {
+			case "explicit session":
+				require.Equal(t, "session-42", captured.SessionID)
+			default:
 				require.Equal(t, "ses_current", captured.SessionID)
 			}
 		})

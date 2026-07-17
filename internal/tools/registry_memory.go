@@ -32,6 +32,11 @@ func NewInMemoryRegistry(options ...RegistryOptions) *InMemoryRegistry {
 	var opts RegistryOptions
 	if len(options) > 0 {
 		opts = options[0]
+	} else {
+		opts.PermissionPolicy = permissions.Policy{
+			Default:             permissions.DecisionAllow,
+			SurfaceKindDefaults: map[permissions.SurfaceKind]permissions.Decision{},
+		}
 	}
 	opts.PermissionPolicy.Normalize()
 
@@ -222,10 +227,14 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 	if !ok {
 		return Result{Error: Error{Code: "tool_not_registered", Message: "tool is not registered"}.String()}, nil
 	}
-	if result, blocked := r.checkPermissions(ctx, def, call); blocked {
+	var result Result
+	var blocked bool
+	ctx, result, blocked = r.checkPermissions(ctx, def, call)
+	if blocked {
 		return result, nil
 	}
-	if r.permissions.Mode() == permissions.ModeFullAccess {
+	ctx = permissions.WithPreset(ctx, r.permissions.Preset(ctx))
+	if r.permissions.Preset(ctx) == permissions.PresetFullAccess {
 		ctx = permissions.WithFullAccess(ctx)
 	}
 
@@ -243,7 +252,11 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 	return result, nil
 }
 
-func (r *InMemoryRegistry) checkPermissions(ctx context.Context, definition Definition, call Call) (Result, bool) {
+func (r *InMemoryRegistry) checkPermissions(
+	ctx context.Context,
+	definition Definition,
+	call Call,
+) (context.Context, Result, bool) {
 	inputs, err := getPermissionInputs(ctx, definition, call)
 	if err != nil {
 		code := "invalid_input"
@@ -254,19 +267,25 @@ func (r *InMemoryRegistry) checkPermissions(ctx context.Context, definition Defi
 			}
 			message = resolutionErr.Message
 		}
-		return Result{Error: Error{Code: code, Message: message}.String()}, true
+		return ctx, Result{Error: Error{Code: code, Message: message}.String()}, true
 	}
 	if len(inputs) == 0 {
-		return Result{}, false
+		return ctx, Result{}, false
 	}
 
 	approvals := r.getApprovalService()
 	var selected *permissions.DecisionError
+	authorized := make([]permissions.Operation, 0, len(inputs))
+	propagateAuthorization := r.permissions.Preset(ctx) == permissions.PresetAskForApproval ||
+		r.permissions.Preset(ctx) == permissions.PresetApproveForMe
 	for _, input := range inputs {
 		evaluation, checkErr := r.permissions.Check(ctx, input)
 		r.recordPermissionDecision(ctx, input.Operation, evaluation)
 		decisionErr, ok := permissions.GetDecisionError(checkErr)
 		if !ok {
+			if propagateAuthorization {
+				authorized = append(authorized, input.Operation)
+			}
 			continue
 		}
 		if decisionErr.Code == permissions.ErrorCodeApprovalRequired && approvals != nil {
@@ -276,6 +295,9 @@ func (r *InMemoryRegistry) checkPermissions(ctx context.Context, definition Defi
 			}
 			input.ApprovalReason = approvalReason
 			if err := approvals.Authorize(ctx, input); err == nil {
+				if propagateAuthorization {
+					authorized = append(authorized, input.Operation)
+				}
 				recheck := r.permissions.Evaluate(ctx, input)
 				r.recordPermissionDecision(ctx, input.Operation, recheck)
 				if recheck.Decision != permissions.DecisionDeny {
@@ -303,10 +325,10 @@ func (r *InMemoryRegistry) checkPermissions(ctx context.Context, definition Defi
 		}
 	}
 	if selected == nil {
-		return Result{}, false
+		return permissions.WithAuthorizedOperations(ctx, authorized), Result{}, false
 	}
 
-	return Result{Error: Error{Code: selected.Code, Message: selected.Error()}.String()}, true
+	return ctx, Result{Error: Error{Code: selected.Code, Message: selected.Error()}.String()}, true
 }
 
 func getPermissionInputs(ctx context.Context, definition Definition, call Call) ([]permissions.EvaluationInput, error) {
@@ -373,7 +395,7 @@ func (r *InMemoryRegistry) recordPermissionDecision(
 		Decision:      string(evaluation.Decision),
 		ReasonCode:    evaluation.ReasonCode,
 		Rule:          evaluation.Rule,
-		Mode:          string(evaluation.Mode),
+		Preset:        string(evaluation.Preset),
 		OwnerRequired: operation.OwnerRequired,
 	})
 }

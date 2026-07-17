@@ -2,6 +2,7 @@ package listfiles
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,11 +11,13 @@ import (
 	"github.com/wandxy/morph/pkg/logutils"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 )
 
 var log = logutils.Module("tool.listfiles")
+var getRelativePath = filepath.Rel
 
 // Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
@@ -33,10 +36,32 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 
 	return tools.Definition{
 		Name:         "list_files",
-		Description:  "List files and directories at an absolute or workspace-relative path, subject to the current permission mode.",
+		Description:  "List files and directories at an absolute or workspace-relative path, subject to the current permission policy.",
 		ParallelSafe: true,
 		Groups:       []string{"core"},
 		Requires:     tools.Capabilities{Filesystem: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionList,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
+		ResolvePermission: func(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+			var req input
+			if err := json.Unmarshal([]byte(call.Input), &req); err != nil {
+				return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+			}
+			target, targetScope := common.ResolveFilesystemPermissionTarget(
+				common.FilesystemPolicyFromRuntime(runtime),
+				req.Path,
+			)
+			return []permissions.EvaluationInput{{Operation: permissions.Operation{
+				Resource:    permissions.ResourceFile,
+				Action:      permissions.ActionList,
+				Effects:     []permissions.Effect{permissions.EffectRead},
+				Target:      target,
+				TargetScope: targetScope,
+			}}}, nil
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"path":           common.StringSchema("Absolute path or path relative to the configured workspace root. Defaults to the workspace root when omitted."),
 			"recursive":      common.BooleanSchema("When true, list directory contents recursively. Defaults to false."),
@@ -49,7 +74,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return result, nil
 			}
 
-			resolved, err := common.ResolveFilesystemPath(ctx, runtime.FilePolicy(), req.Path)
+			resolved, err := common.ResolveFilesystemPathForOperation(
+				ctx,
+				common.FilesystemPolicyFromRuntime(runtime),
+				req.Path,
+				permissions.ActionList,
+			)
 			if err != nil {
 				return common.FileError(err), nil
 			}
@@ -85,7 +115,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				displayRoot = resolved.Absolute
 			}
 			appendEntry := func(path string, isDir bool, size int64) bool {
-				rel, relErr := filepath.Rel(displayRoot, path)
+				rel, relErr := getRelativePath(displayRoot, path)
 				if relErr != nil {
 					return false
 				}

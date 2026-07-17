@@ -29,7 +29,7 @@ type input struct {
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:        "write_file",
-		Description: "Create or overwrite a text file at an absolute or workspace-relative path, subject to the current permission mode.",
+		Description: "Create or overwrite a text file at an absolute or workspace-relative path, subject to the current permission policy.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
 		Permission: permissions.Operation{
@@ -46,14 +46,19 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if path == "" {
 				return nil, tools.NewPermissionResolutionError("invalid_input", "path is required")
 			}
+			target, targetScope := common.ResolveFilesystemPermissionTarget(
+				common.FilesystemPolicyFromRuntime(runtime),
+				path,
+			)
 
 			return []permissions.EvaluationInput{
 				{
 					Operation: permissions.Operation{
-						Resource: permissions.ResourceFile,
-						Action:   permissions.ActionUpdate,
-						Effects:  []permissions.Effect{permissions.EffectWrite},
-						Target:   filepath.ToSlash(filepath.Clean(path)),
+						Resource:    permissions.ResourceFile,
+						Action:      permissions.ActionUpdate,
+						Effects:     []permissions.Effect{permissions.EffectWrite},
+						Target:      target,
+						TargetScope: targetScope,
 					},
 				}}, nil
 		},
@@ -76,7 +81,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("not_text", "content must be text"), nil
 			}
 
-			resolved, err := common.ResolveFilesystemPath(ctx, runtime.FilePolicy(), req.Path)
+			resolved, err := common.ResolveFilesystemPathForOperation(
+				ctx,
+				common.FilesystemPolicyFromRuntime(runtime),
+				req.Path,
+				permissions.ActionUpdate,
+			)
 			if err != nil {
 				return common.FileError(err), nil
 			}

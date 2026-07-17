@@ -204,7 +204,6 @@ func TestService_MutationPermissionRecheckBlocksSideEffects(t *testing.T) {
 	require.NoError(t, err)
 
 	engine := permissions.NewEngine(permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		SurfaceDefaults: map[permissions.Surface]permissions.Decision{
 			permissions.SurfaceCLI: permissions.DecisionDeny,
 		},
@@ -272,7 +271,6 @@ func TestService_AutomationRunReevaluatesRevokedGrantAndPreservesCreatorProvenan
 	}, job.Authorization)
 
 	policy := permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		SurfaceDefaults: map[permissions.Surface]permissions.Decision{
 			permissions.SurfaceTUI:        permissions.DecisionAllow,
 			permissions.SurfaceAutomation: permissions.DecisionAsk,
@@ -344,7 +342,6 @@ func TestService_CheckExecutionPermissionHandlesPolicyOutcomes(t *testing.T) {
 	job := Job{ID: testServiceJobA}
 
 	service := &Service{permissionChecker: permissions.NewEngine(permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		SurfaceDefaults: map[permissions.Surface]permissions.Decision{
 			permissions.SurfaceAutomation: permissions.DecisionAllow,
 		},
@@ -352,7 +349,6 @@ func TestService_CheckExecutionPermissionHandlesPolicyOutcomes(t *testing.T) {
 	require.NoError(t, service.checkExecutionPermission(ctx, job))
 
 	service.permissionChecker = permissions.NewEngine(permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		SurfaceDefaults: map[permissions.Surface]permissions.Decision{
 			permissions.SurfaceAutomation: permissions.DecisionDeny,
 		},
@@ -363,7 +359,6 @@ func TestService_CheckExecutionPermissionHandlesPolicyOutcomes(t *testing.T) {
 	require.Equal(t, permissions.ErrorCodeDenied, decisionErr.Code)
 
 	service.permissionChecker = permissions.NewEngine(permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		SurfaceDefaults: map[permissions.Surface]permissions.Decision{
 			permissions.SurfaceAutomation: permissions.DecisionAsk,
 		},

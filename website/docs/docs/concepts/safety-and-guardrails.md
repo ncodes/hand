@@ -69,9 +69,10 @@ When the agent acts rather than reads, a different set of guardrails applies (th
   shell, and the like). A command can be **denied** or marked **approval-required**; both come back to the model as a
   structured error, since there is no interactive approval prompt in the tool path. Commands that match nothing are
   allowed by default.
-- **Filesystem roots.** File tools resolve every path against the profile's allowed workspace roots (`fs.roots`) and
-  reject anything that escapes them. Reads are capped in size, and non-text files are refused. The intentionally unsafe
-  `permissions.mode: full_access` setting bypasses the root boundary while retaining size and text validation.
+- **Filesystem roots.** File tools classify paths against the profile's workspace roots (`fs.roots`). **Ask for
+  approval** and **Approve for me** permit external reads and require approval for external writes; custom policies
+  remain root-bound. The intentionally unsafe `permissions.preset: full_access` setting bypasses the boundary without
+  per-operation approval. Size and text validation still apply.
 - **Time and size caps.** Commands have a default and maximum timeout, and tool reads and outputs are bounded, so a
   single tool call cannot hang the turn or flood the context window.
 

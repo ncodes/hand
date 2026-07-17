@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	cli "github.com/urfave/cli/v3"
 
@@ -23,7 +24,12 @@ import (
 var (
 	permissionOutput io.Writer = os.Stdout
 	newClient                  = func(ctx context.Context, cfg *config.Config) (permissionClient, error) {
-		return rpcclient.NewClient(ctx, rpcclient.Options{Address: cfg.RPC.Address, Port: cfg.RPC.Port})
+		return rpcclient.NewClient(ctx, rpcclient.Options{
+			Address:           cfg.RPC.Address,
+			Port:              cfg.RPC.Port,
+			PermissionSurface: permissions.SurfaceCLI,
+			PermissionPreset:  cfg.Permissions.EffectivePreset(),
+		})
 	}
 	getPermissionClient = getClient
 	resolveRPC          = runtime.ResolveRPC
@@ -139,9 +145,51 @@ func NewPruneCommand() *cli.Command {
 			_, err = fmt.Fprintf(permissionOutput,
 				"%d requests and %d grants %s (request cutoff: %s; grant cutoff: %s)\n",
 				result.Requests, result.Grants, mode,
-				result.RequestCutoff.Format("2006-01-02 15:04 MST"),
-				result.GrantCutoff.Format("2006-01-02 15:04 MST"),
+				formatPermissionTime(result.RequestCutoff, "2006-01-02 15:04 MST"),
+				formatPermissionTime(result.GrantCutoff, "2006-01-02 15:04 MST"),
 			)
+			return err
+		},
+	}
+}
+
+func NewPresetCommand() *cli.Command {
+	return &cli.Command{
+		Name:      "preset",
+		Usage:     "Show or set the profile permission preset",
+		ArgsUsage: "[ask|approve|full-access|custom]",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "yes", Usage: "Confirm enabling unrestricted full access"},
+		},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			cfg, inputs, err := morphcli.LoadConfig(cmd)
+			if err != nil {
+				return err
+			}
+			rawPreset := str.String(cmd.Args().First()).Trim()
+			if rawPreset == "" {
+				preset := cfg.Permissions.EffectivePreset()
+				_, err = fmt.Fprintf(permissionOutput, "%s (%s)\n", preset.Label(), preset)
+				return err
+			}
+
+			preset, err := permissions.ParsePreset(rawPreset)
+			if err != nil {
+				return err
+			}
+			if preset == permissions.PresetFullAccess && !cmd.Bool("yes") {
+				return errors.New("full access is unsafe; rerun with --yes to confirm")
+			}
+
+			updates := []morphcli.ConfigUpdate{{
+				Path:  "permissions.preset",
+				Value: string(preset),
+			}}
+			if _, err := morphcli.SetConfigValues(inputs.EnvPath, inputs.ConfigPath, updates); err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintf(permissionOutput, "permission preset set to %s\n", preset.Label())
 			return err
 		},
 	}
@@ -348,7 +396,7 @@ func NewExplainCommand() *cli.Command {
 				request.Status,
 				effectsText(request.Effects),
 				request.Reason,
-				request.ExpiresAt.Format("2006-01-02 15:04:05 MST"))
+				formatPermissionTime(request.ExpiresAt, "2006-01-02 15:04:05 MST"))
 			return err
 		}}
 }
@@ -390,7 +438,7 @@ func writeRequests(requests []permissions.ApprovalRequest) error {
 	_, _ = fmt.Fprintln(w, "REQUEST\tSTATUS\tOPERATION\tEFFECTS\tEXPIRES")
 	for _, request := range requests {
 		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", request.ID, request.Status, request.Summary,
-			effectsText(request.Effects), request.ExpiresAt.Format("2006-01-02 15:04 MST"))
+			effectsText(request.Effects), formatPermissionTime(request.ExpiresAt, "2006-01-02 15:04 MST"))
 	}
 	return w.Flush()
 }
@@ -413,7 +461,11 @@ func getGrantExpiryText(grant permissions.ApprovalGrant) string {
 	if grant.Scope == permissions.GrantAlways {
 		return "never"
 	}
-	return grant.ExpiresAt.Format("2006-01-02 15:04 MST")
+	return formatPermissionTime(grant.ExpiresAt, "2006-01-02 15:04 MST")
+}
+
+func formatPermissionTime(value time.Time, layout string) string {
+	return value.In(time.Local).Format(layout)
 }
 
 func effectsText(effects []permissions.Effect) string {

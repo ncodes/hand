@@ -135,7 +135,7 @@ func TestDelegateAuthorization_BindsLineageAndScope(t *testing.T) {
 }
 
 func TestPolicy_RestrictedScopeCannotBeBypassedByFullAccess(t *testing.T) {
-	policy := Policy{Mode: ModeFullAccess}
+	policy := Policy{Preset: PresetFullAccess}
 	authorization := AuthorizationContext{
 		Actor: Actor{Kind: ActorSubagent, ID: "child"}, Surface: SurfaceTUI,
 		Scope: PermissionScope{

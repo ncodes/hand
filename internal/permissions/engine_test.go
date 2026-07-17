@@ -8,16 +8,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEngine_CheckObservesWithoutBlocking(t *testing.T) {
+func TestEngine_CheckEnforcesDefaultDenial(t *testing.T) {
 	engine := NewEngine(Policy{Default: DecisionDeny})
 
 	evaluation, err := engine.Check(context.Background(), EvaluationInput{
 		Operation: Operation{Resource: ResourceFile, Action: ActionUpdate},
 	})
 
-	require.NoError(t, err)
+	require.Error(t, err)
 	require.Equal(t, DecisionDeny, evaluation.Decision)
-	require.Equal(t, ModeObserve, evaluation.Mode)
+	require.Equal(t, PresetCustom, evaluation.Preset)
 }
 
 func TestEngine_CheckEnforcesDecisions(t *testing.T) {
@@ -37,7 +37,7 @@ func TestEngine_CheckEnforcesDecisions(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			engine := NewEngine(Policy{Mode: ModeEnforce, Rules: []Rule{{
+			engine := NewEngine(Policy{Rules: []Rule{{
 				Name: "decision", ActorKinds: []ActorKind{ActorLocalOwner}, Decision: test.decision, Reason: test.message,
 			}}})
 
@@ -61,17 +61,17 @@ func TestEngine_CheckEnforcesDecisions(t *testing.T) {
 
 func TestEngine_CheckFullAccessBypassesPolicyAndHardDenials(t *testing.T) {
 	engine := NewEngine(Policy{
-		Mode:  ModeFullAccess,
-		Rules: []Rule{{Name: "deny everything", Decision: DecisionDeny}},
+		Preset: PresetFullAccess,
+		Rules:  []Rule{{Name: "deny everything", Decision: DecisionDeny}},
 	})
-	require.Equal(t, ModeFullAccess, engine.Mode())
+	require.Equal(t, PresetFullAccess, engine.Preset(context.Background()))
 	input := EvaluationInput{Operation: Operation{Resource: ResourceFile, Action: ActionUpdate}}
 
 	evaluation, err := engine.Check(context.Background(), input)
 	require.NoError(t, err)
 	require.Equal(t, DecisionAllow, evaluation.Decision)
 	require.Equal(t, ReasonFullAccess, evaluation.ReasonCode)
-	require.Equal(t, ModeFullAccess, evaluation.Mode)
+	require.Equal(t, PresetFullAccess, evaluation.Preset)
 
 	input.HardDenyReason = "hard safety policy"
 	evaluation, err = engine.Check(context.Background(), input)

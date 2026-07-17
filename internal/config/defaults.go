@@ -237,6 +237,7 @@ func cloneConfig(cfg Config) Config {
 		cfg.Permissions.Rules[index].Resources = slices.Clone(cfg.Permissions.Rules[index].Resources)
 		cfg.Permissions.Rules[index].Actions = slices.Clone(cfg.Permissions.Rules[index].Actions)
 		cfg.Permissions.Rules[index].Effects = slices.Clone(cfg.Permissions.Rules[index].Effects)
+		cfg.Permissions.Rules[index].TargetScopes = slices.Clone(cfg.Permissions.Rules[index].TargetScopes)
 		cfg.Permissions.Rules[index].TargetPrefixes = slices.Clone(cfg.Permissions.Rules[index].TargetPrefixes)
 	}
 	cfg.Web.BlockedDomains = slices.Clone(cfg.Web.BlockedDomains)

@@ -44,7 +44,7 @@ func TestReport_HasFailuresAndSummary(t *testing.T) {
 
 func TestBuildPermissionGroup_ReportsUnsafeAndImpossiblePolicies(t *testing.T) {
 	fullAccess := readyConfig()
-	fullAccess.Permissions.Mode = permissions.ModeFullAccess
+	fullAccess.Permissions.Preset = permissions.PresetFullAccess
 	group := buildPermissionGroup(context.Background(), fullAccess, profile.Profile{})
 	require.Equal(t, StatusWarn, getReadinessGroupCheck(t, group, "policy").Status)
 
@@ -63,7 +63,7 @@ func TestBuildPermissionGroup_ReportsUnsafeAndImpossiblePolicies(t *testing.T) {
 	require.Equal(t, StatusFail, getReadinessGroupCheck(t, group, "unattended approvals").Status)
 
 	invalid := readyConfig()
-	invalid.Permissions.Mode = "invalid"
+	invalid.Permissions.Preset = "invalid"
 	group = buildPermissionGroup(context.Background(), invalid, profile.Profile{})
 	require.Equal(t, StatusFail, getReadinessGroupCheck(t, group, "policy").Status)
 

@@ -124,7 +124,7 @@ func (h *rootChatApprovalHandler) prompt(
 		}
 	}
 	if !payload.ExpiresAt.IsZero() {
-		if _, err := fmt.Fprintf(h.output, "Expires: %s\n", payload.ExpiresAt.Format("15:04:05 MST")); err != nil {
+		if _, err := fmt.Fprintf(h.output, "Expires: %s\n", payload.ExpiresAt.In(time.Local).Format("15:04:05 MST")); err != nil {
 			return false, "", err
 		}
 	}

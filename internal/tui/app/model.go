@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/internal/rpc/rpcmeta"
 )
 
 const (
@@ -63,6 +64,11 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	if cfg == nil {
 		cfg = config.NewDefaultConfig()
 	}
+	permissionPolicy := cfg.Permissions
+	permissionPolicy.Normalize()
+	permissionPreset := permissionPolicy.EffectivePreset()
+	ctx = rpcmeta.WithOutgoingPermissionSurface(ctx, permissions.SurfaceTUI)
+	ctx = rpcmeta.WithOutgoingPermissionPreset(ctx, permissionPreset)
 
 	history, err := loadPromptHistory()
 	userName, userNameSet, namePromptEnabled, userNameErr := loadProfileUserName()
@@ -91,9 +97,8 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	}
 	appModel.runtimeInfo = runtimeInfo
 	appModel.modelName = getModelDisplayName(runtimeInfo.Model)
-	permissionPolicy := cfg.Permissions
-	permissionPolicy.Normalize()
-	appModel.fullAccess = permissionPolicy.Mode == permissions.ModeFullAccess
+	appModel.permissionPreset = permissionPreset
+	appModel.fullAccess = permissionPreset == permissions.PresetFullAccess
 	if sessions, ok := client.(rpcclient.SessionAPI); ok {
 		appModel.sessionClient = sessions
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	webprovider "github.com/wandxy/morph/internal/providers/web"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
@@ -56,6 +57,15 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 		ParallelSafe: true,
 		Groups:       []string{"core"},
 		Requires:     tools.Capabilities{Network: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceNetwork,
+			Action:   permissions.ActionRead,
+			Effects: []permissions.Effect{
+				permissions.EffectRead,
+				permissions.EffectNetwork,
+				permissions.EffectExternalSystem,
+			},
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"urls": map[string]any{
 				"type":        "array",

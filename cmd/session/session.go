@@ -10,6 +10,7 @@ import (
 
 	morphcli "github.com/wandxy/morph/internal/cli"
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/permissions"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
 	"github.com/wandxy/morph/internal/runtime"
 	"github.com/wandxy/morph/pkg/logutils"
@@ -20,8 +21,10 @@ var (
 	sessionOutput io.Writer = os.Stdout
 	newClient               = func(ctx context.Context, cfg *config.Config) (sessionClient, error) {
 		return rpcclient.NewClient(ctx, rpcclient.Options{
-			Address: cfg.RPC.Address,
-			Port:    cfg.RPC.Port,
+			Address:           cfg.RPC.Address,
+			Port:              cfg.RPC.Port,
+			PermissionSurface: permissions.SurfaceCLI,
+			PermissionPreset:  cfg.Permissions.EffectivePreset(),
 		})
 	}
 )

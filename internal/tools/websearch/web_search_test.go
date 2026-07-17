@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	webintegration "github.com/wandxy/morph/internal/providers/web"
 	"github.com/wandxy/morph/internal/tools"
 )
@@ -115,6 +116,58 @@ func TestWebSearch_ReturnsProviderErrorsAsToolErrors(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
 	require.Equal(t, "tool_error", toolErr.Code)
 	require.Equal(t, "provider failed", toolErr.Message)
+}
+
+func TestWebSearch_AskPresetRequiresApprovalBeforeProviderCall(t *testing.T) {
+	called := false
+	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{
+		PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval},
+	})
+	require.NoError(t, registry.Register(Definition(stubProvider{
+		search: func(context.Context, string, int) ([]webintegration.SearchResult, error) {
+			called = true
+			return nil, nil
+		},
+	})))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner},
+		Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name: "web_search", Input: `{"query":"golang"}`,
+	})
+
+	require.NoError(t, err)
+	require.False(t, called)
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, permissions.ErrorCodeApprovalRequired, toolErr.Code)
+}
+
+func TestWebSearch_ApprovePresetCallsProvider(t *testing.T) {
+	called := false
+	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{
+		PermissionPolicy: permissions.Policy{Preset: permissions.PresetApproveForMe},
+	})
+	require.NoError(t, registry.Register(Definition(stubProvider{
+		search: func(context.Context, string, int) ([]webintegration.SearchResult, error) {
+			called = true
+			return nil, nil
+		},
+	})))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner},
+		Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name: "web_search", Input: `{"query":"golang"}`,
+	})
+
+	require.NoError(t, err)
+	require.True(t, called)
+	require.Empty(t, result.Error)
 }
 
 func TestWebSearch_FiltersBlockedResults(t *testing.T) {

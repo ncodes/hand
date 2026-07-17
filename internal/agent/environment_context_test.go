@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"testing"
@@ -120,7 +121,7 @@ func TestTurn_BuildEnvironmentContextInstructionExposesFullFilesystemAccess(t *t
 	turn := &Turn{
 		cfg: &config.Config{
 			FS:          config.FSConfig{Roots: []string{"/workspace/morph"}},
-			Permissions: permissions.Policy{Mode: permissions.ModeFullAccess},
+			Permissions: permissions.Policy{Preset: permissions.PresetFullAccess},
 		},
 	}
 
@@ -128,6 +129,25 @@ func TestTurn_BuildEnvironmentContextInstructionExposesFullFilesystemAccess(t *t
 
 	require.Contains(t, instruction.Value, "Filesystem access: unrestricted (full_access)")
 	require.Contains(t, instruction.Value, "absolute paths anywhere on this computer are allowed")
+	require.NotContains(t, instruction.Value, "Filesystem roots:")
+}
+
+func TestTurn_BuildEnvironmentContextInstructionUsesSessionPermissionPreset(t *testing.T) {
+	originalGetwd := environmentContextGetwd
+	environmentContextGetwd = func() (string, error) { return "/workspace/morph", nil }
+	t.Cleanup(func() { environmentContextGetwd = originalGetwd })
+
+	turn := &Turn{
+		ctx: permissions.WithPreset(context.Background(), permissions.PresetFullAccess),
+		cfg: &config.Config{
+			FS:          config.FSConfig{Roots: []string{"/workspace/morph"}},
+			Permissions: permissions.Policy{Preset: permissions.PresetAskForApproval},
+		},
+	}
+
+	instruction := turn.buildEnvironmentContextInstruction(nil)
+
+	require.Contains(t, instruction.Value, "Filesystem access: unrestricted (full_access)")
 	require.NotContains(t, instruction.Value, "Filesystem roots:")
 }
 

@@ -21,6 +21,7 @@ const (
 	commandViewKindArchive        = "archive"
 	commandViewKindChats          = "chats"
 	commandViewKindModels         = "models"
+	commandViewKindPermissions    = "permissions"
 	commandViewKindProviderAPIKey = "provider-api-key"
 	commandViewKindProviders      = "providers"
 )
@@ -93,6 +94,7 @@ func (m model) renderCommandView() string {
 	height := frame.Height
 	if m.isSessionListCommandView() ||
 		m.isModelsCommandView() ||
+		m.isPermissionsCommandView() ||
 		m.isProvidersCommandView() ||
 		m.isProviderAPIKeyCommandView() {
 		height++
@@ -150,6 +152,13 @@ func (m model) getCommandViewFrame() commandViewFrame {
 	}
 	if m.isProvidersCommandView() {
 		content = m.renderProvidersCommandViewContent(commandViewContent{
+			Width:  contentWidth,
+			Height: contentHeight,
+			Offset: m.commandViewOffset,
+		})
+	}
+	if m.isPermissionsCommandView() {
+		content = m.renderPermissionsCommandViewContent(commandViewContent{
 			Width:  contentWidth,
 			Height: contentHeight,
 			Offset: m.commandViewOffset,
@@ -336,6 +345,9 @@ func (m *model) updateCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if m.isProvidersCommandView() {
 		return m.updateProvidersCommandView(msg)
+	}
+	if m.isPermissionsCommandView() {
+		return m.updatePermissionsCommandView(msg)
 	}
 	if m.isProviderAPIKeyCommandView() {
 		return m.updateProviderAPIKeyCommandView(msg)

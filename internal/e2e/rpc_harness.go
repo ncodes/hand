@@ -57,7 +57,10 @@ func NewRPCHarness(ctx context.Context, opts HarnessOptions) (*RPCHarness, error
 		_ = base.Close()
 		return nil, errors.New("e2e rpc harness requires a full agent service")
 	}
-	grpcServer := server.New(serviceAPI, server.Options{Health: true})
+	grpcServer := server.New(serviceAPI, server.Options{
+		Health:           true,
+		PermissionPolicy: base.cfg.Permissions,
+	})
 
 	h := &RPCHarness{
 		Harness: base,

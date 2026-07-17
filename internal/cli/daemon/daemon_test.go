@@ -448,10 +448,26 @@ func TestRenderStartupPanel_WarnsWhenFullAccessIsEnabled(t *testing.T) {
 		Name:        "daemon",
 		Models:      config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"}},
 		Log:         config.LogConfig{NoColor: true},
-		Permissions: permissions.Policy{Mode: permissions.ModeFullAccess},
+		Permissions: permissions.Policy{Preset: permissions.PresetFullAccess},
 	})
 
 	require.Contains(t, output, "Permissions: full_access (UNSAFE: command and filesystem guardrails bypassed)")
+}
+
+func TestRenderStartupPanel_DescribesPermissionPresets(t *testing.T) {
+	cfg := &config.Config{
+		Name: "daemon",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{
+			Name: "gpt-4o-mini", Provider: "openrouter",
+		}},
+		Log: config.LogConfig{NoColor: true},
+	}
+
+	cfg.Permissions = permissions.Policy{Preset: permissions.PresetApproveForMe}
+	require.Contains(t, renderStartupPanel(cfg), "Permissions: Approve for me")
+
+	cfg.Permissions = permissions.Policy{Preset: permissions.PresetCustom}
+	require.Contains(t, renderStartupPanel(cfg), "Permissions: Custom")
 }
 
 func TestGetStartupProfileName_DefaultsWhenActiveProfileIsEmpty(t *testing.T) {

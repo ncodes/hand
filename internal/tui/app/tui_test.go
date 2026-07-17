@@ -2974,7 +2974,7 @@ func TestModel_ViewRendersBottomStatusPanelBelowComposer(t *testing.T) {
 	runModel := newModel()
 	content := stripANSI(runModel.View().Content)
 	inputIndex := strings.Index(content, inputPrompt+"Ask Morph...")
-	infoIndex := strings.LastIndex(content, defaultSessionTitle)
+	infoIndex := strings.LastIndex(content, statusReadySuffix)
 
 	require.NotEqual(t, -1, inputIndex)
 	require.NotEqual(t, -1, infoIndex)
@@ -3014,24 +3014,37 @@ func TestModel_RenderBottomStatusPanelMovesContextToRight(t *testing.T) {
 	require.True(t, strings.HasPrefix(content, " "))
 	require.Equal(t, runModel.width, lipgloss.Width(content))
 	require.Contains(t, content, "gpt-4o-mini")
-	require.Contains(t, content, "default session")
+	require.NotContains(t, content, "default session")
 	require.Contains(t, content, "64,000")
 	require.Contains(t, content, "used · 50%")
 	require.GreaterOrEqual(t, strings.Count(content, "  "), 1)
-	require.Greater(t, strings.Index(content, "64,000"), strings.Index(content, "default session"))
+	require.Greater(t, strings.Index(content, "64,000"), strings.Index(content, "gpt-4o-mini"))
 }
 
 func TestModel_RenderBottomStatusPanelWarnsWhenFullAccessIsEnabled(t *testing.T) {
 	runModel := newModelWithClientContextAndConfig(
 		context.Background(),
 		nil,
-		&config.Config{Permissions: permissions.Policy{Mode: permissions.ModeFullAccess}},
+		&config.Config{Permissions: permissions.Policy{Preset: permissions.PresetFullAccess}},
 	)
 
 	content := stripANSI(runModel.renderBottomStatusPanel())
 
 	require.True(t, runModel.fullAccess)
-	require.Contains(t, content, "Full access (unsafe)")
+	require.Contains(t, content, permissionStatusIcon+" Full access (unsafe)")
+}
+
+func TestModel_RenderBottomStatusPanelShowsCustomPermissionPreset(t *testing.T) {
+	runModel := newModelWithClientContextAndConfig(
+		context.Background(),
+		nil,
+		&config.Config{Permissions: permissions.Policy{Preset: permissions.PresetCustom}},
+	)
+
+	content := stripANSI(runModel.renderBottomStatusPanel())
+
+	require.Equal(t, permissions.PresetCustom, runModel.permissionPreset)
+	require.Contains(t, content, permissionStatusIcon+" Custom")
 }
 
 func TestModel_RenderBottomStatusPanelShowsThinkingBeforeModel(t *testing.T) {
@@ -3105,16 +3118,7 @@ func TestModel_RenderBottomStatusPanelKeepsMutedCellsWhenThinking(t *testing.T) 
 
 	require.Contains(t, content, renderBottomStatusMutedCell("openai/gpt-4o-mini"))
 	require.Contains(t, content, renderBottomStatusMutedCell(statusCancelSuffix))
-	require.Contains(t, stripANSI(content), "default")
-	require.Contains(t, stripANSI(content), "session")
-}
-
-func TestSpaceAroundBottomStatusPanel_CentersTitle(t *testing.T) {
-	content := stripANSI(spaceAroundBottomStatusPanel("model", "Project Planning", "context", 60))
-
-	require.Equal(t, 22, strings.Index(content, "Project Planning"))
-	require.True(t, strings.HasPrefix(content, "model"))
-	require.True(t, strings.HasSuffix(content, "context"))
+	require.NotContains(t, stripANSI(content), defaultSessionTitle)
 }
 
 func TestGetPanelHorizontalPadding_DisablesPaddingWhenNarrow(t *testing.T) {
@@ -5041,7 +5045,15 @@ func TestRespondToPromptCmd_StreamsDeltasTraceEventsAndCompletion(t *testing.T) 
 	}
 	events := make(chan tea.Msg, 8)
 
-	msg := respondToPromptCmd(client, 7, context.Background(), "project-a", "hello", events)()
+	msg := respondToPromptCmd(
+		client,
+		7,
+		context.Background(),
+		"project-a",
+		"hello",
+		permissions.PresetAskForApproval,
+		events,
+	)()
 
 	require.Equal(t, responseCompletedMsg{ResponseID: 7, Text: "hello world"}, msg)
 	require.Equal(t, "hello", client.message)
@@ -5050,6 +5062,9 @@ func TestRespondToPromptCmd_StreamsDeltasTraceEventsAndCompletion(t *testing.T) 
 	require.True(t, ok)
 	incoming := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
 	require.Equal(t, permissions.SurfaceTUI, rpcmeta.PermissionSurfaceFromIncomingContext(incoming))
+	preset, ok := rpcmeta.PermissionPresetFromIncomingContext(incoming)
+	require.True(t, ok)
+	require.Equal(t, permissions.PresetAskForApproval, preset)
 	require.False(t, client.streamSet)
 	require.Equal(t, assistantTextDeltaMsg{Channel: "assistant", Text: "hello "}, <-events)
 	require.Equal(t, toolInvocationStartedMsg{ID: "call_1", Name: "read_file"}, <-events)
@@ -5062,7 +5077,15 @@ func TestRespondToPromptCmd_ReturnsErrorCompletion(t *testing.T) {
 	client := &fakeTUIChatClient{err: expectedErr}
 	events := make(chan tea.Msg, 1)
 
-	msg := respondToPromptCmd(client, 3, nil, "project-a", "hello", events)()
+	msg := respondToPromptCmd(
+		client,
+		3,
+		nil,
+		"project-a",
+		"hello",
+		permissions.PresetCustom,
+		events,
+	)()
 
 	require.Equal(t, responseCompletedMsg{ResponseID: 3, Err: expectedErr}, msg)
 	require.Equal(t, "hello", client.message)

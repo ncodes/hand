@@ -145,6 +145,7 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 		}
 		literalValue := str.String(cmd.String("session"))
 		ctx = rpcmeta.WithOutgoingPermissionSurface(ctx, permissions.SurfaceCLI)
+		ctx = rpcmeta.WithOutgoingPermissionPreset(ctx, cfg.Permissions.EffectivePreset())
 		respondCtx, cancelRespond := context.WithCancel(ctx)
 		defer cancelRespond()
 
@@ -489,8 +490,10 @@ func isTerminalWriter(output io.Writer) bool {
 
 func newDefaultChatClient(ctx context.Context, cfg *config.Config) (rpcclient.ChatClient, error) {
 	return rpcclient.NewClient(ctx, rpcclient.Options{
-		Address: cfg.RPC.Address,
-		Port:    cfg.RPC.Port,
+		Address:           cfg.RPC.Address,
+		Port:              cfg.RPC.Port,
+		PermissionSurface: permissions.SurfaceCLI,
+		PermissionPreset:  cfg.Permissions.EffectivePreset(),
 	})
 }
 

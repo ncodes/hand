@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wandxy/morph/internal/permissions"
 )
 
 func TestDefaultSpec_DefaultPaths(t *testing.T) {
@@ -30,6 +32,8 @@ func TestDefaultConfig_DefaultsAndOverrides(t *testing.T) {
 		assert.Equal(t, "test-model", cfg.Models.Main.Name)
 		assert.Equal(t, "sqlite", cfg.Storage.Backend)
 		assert.False(t, *cfg.Models.Main.Stream)
+		require.Len(t, cfg.Permissions.Rules, 1)
+		assert.Equal(t, permissions.DecisionAllow, cfg.Permissions.Rules[0].Decision)
 	})
 
 	t.Run("overrides", func(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/pkg/str"
 )
 
@@ -15,10 +16,22 @@ type lipglossBottomStatusPanelRenderer struct{}
 
 var defaultBottomStatusPanelRenderer bottomStatusPanelRenderer = lipglossBottomStatusPanelRenderer{}
 
+const permissionStatusIcon = "⛨"
+
 func (lipglossBottomStatusPanelRenderer) Render(panel bottomStatusPanel) string {
 	segments := make([]string, 0, 3)
-	if panel.FullAccess {
-		segments = append(segments, renderBottomStatusDangerCell("Full access (unsafe)"))
+	preset := panel.PermissionPreset
+	if preset == "" && panel.FullAccess {
+		preset = permissions.PresetFullAccess
+	}
+	if preset == permissions.PresetFullAccess {
+		segments = append(segments, renderBottomStatusDangerCell(permissionStatusIcon+" Full access (unsafe)"))
+	} else {
+		label := preset.Label()
+		if label != "" {
+			label = permissionStatusIcon + " " + label
+		}
+		segments = append(segments, renderBottomStatusMutedCell(label))
 	}
 	segments = append(
 		segments,
@@ -30,18 +43,18 @@ func (lipglossBottomStatusPanelRenderer) Render(panel bottomStatusPanel) string 
 	}
 
 	left := joinBottomStatusPanelRenderedSegments(segments, panel.ContentWidth)
-	center := renderBottomStatusMutedCell(panel.SessionTitle)
 	right := renderBottomStatusMutedCell(panel.Context)
 	if panel.ExitConfirmation {
 		left = renderBottomStatusMutedCell(panel.Status)
-		center = ""
 		right = ""
+	} else if right != "" && lipgloss.Width(left)+lipgloss.Width(right)+3 > panel.ContentWidth {
+		left = joinBottomStatusPanelRenderedSegments(segments[:len(segments)-1], panel.ContentWidth)
 	}
 
 	return lipgloss.NewStyle().
 		Padding(0, panel.HorizontalPadding).
 		Width(panel.Width).
-		Render(spaceAroundBottomStatusPanel(left, center, right, panel.ContentWidth))
+		Render(spaceBetweenBottomStatusPanel(left, right, panel.ContentWidth))
 }
 
 func renderBottomStatusDangerCell(text string) string {
@@ -146,44 +159,4 @@ func spaceBetweenBottomStatusPanel(left, right string, width int) string {
 	}
 
 	return left + strings.Repeat(" ", gap) + right
-}
-
-// spaceAroundBottomStatusPanel centers the session title while keeping metadata at the edges.
-func spaceAroundBottomStatusPanel(left, center, right string, width int) string {
-	leftValue2 := str.String(left)
-	left = leftValue2.Trim()
-	centerValue := str.String(center)
-	center = centerValue.Trim()
-	rightValue2 := str.String(right)
-	right = rightValue2.Trim()
-	if center == "" {
-		return spaceBetweenBottomStatusPanel(left, right, width)
-	}
-
-	leftWidth := lipgloss.Width(left)
-	centerWidth := lipgloss.Width(center)
-	rightWidth := lipgloss.Width(right)
-	centerStart := max((width-centerWidth)/2, leftWidth+1)
-	rightStart := width - rightWidth
-	if right == "" {
-		rightStart = width
-	}
-	if centerStart+centerWidth >= rightStart {
-		return spaceBetweenBottomStatusPanel(
-			joinBottomStatusPanelRenderedSegments([]string{left, center}, width),
-			right,
-			width,
-		)
-	}
-
-	var out strings.Builder
-	out.WriteString(left)
-	out.WriteString(strings.Repeat(" ", max(centerStart-lipgloss.Width(out.String()), 1)))
-	out.WriteString(center)
-	if right != "" {
-		out.WriteString(strings.Repeat(" ", max(rightStart-lipgloss.Width(out.String()), 1)))
-		out.WriteString(right)
-	}
-
-	return out.String()
 }

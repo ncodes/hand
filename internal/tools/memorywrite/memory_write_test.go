@@ -40,7 +40,6 @@ func TestMemoryDelete_EnforcementDeniesBeforeRuntimeMutation(t *testing.T) {
 		return nil
 	}}
 	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		Rules: []permissions.Rule{{
 			Name: "deny memory deletes", Actions: []permissions.Action{permissions.ActionDelete}, Decision: permissions.DecisionDeny,
 		}},
@@ -707,6 +706,21 @@ func TestMemoryItemFromAddInput_NormalizesOptionalFields(t *testing.T) {
 	require.Equal(t, []int{2}, item.SourceLinks[0].Offsets)
 	require.Equal(t, "tool", item.SourceLinks[0].CreatedBy)
 	require.Equal(t, "user request", item.SourceLinks[0].CreatedReason)
+}
+
+func TestCheckMemoryWriteSafety_AllowsEmptyContent(t *testing.T) {
+	result, err := checkMemoryWriteSafety(memory.MemoryItem{})
+
+	require.NoError(t, err)
+	require.False(t, result.Blocked)
+	require.False(t, result.Redacted)
+	require.Zero(t, result.ContentLength)
+}
+
+func TestRecordMemoryWriteSafetyBlocked_IgnoresMissingRecorder(t *testing.T) {
+	require.NotPanics(t, func() {
+		recordMemoryWriteSafetyBlocked(nil, memoryWriteSafetyResult{Blocked: true})
+	})
 }
 
 func requireToolError(t *testing.T, raw string, code string, message string) {

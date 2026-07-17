@@ -10,7 +10,10 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
-const permissionSurfaceKey = "x-morph-permission-surface"
+const (
+	permissionSurfaceKey = "x-morph-permission-surface"
+	permissionPresetKey  = "x-morph-permission-preset"
+)
 
 type authenticatedPermissionPrincipalKey struct{}
 
@@ -52,6 +55,34 @@ func PermissionSurfaceFromIncomingContext(ctx context.Context) permissions.Surfa
 	}
 
 	return surface
+}
+
+func WithOutgoingPermissionPreset(ctx context.Context, preset permissions.Preset) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, err := permissions.ParsePreset(string(preset)); err != nil {
+		return ctx
+	}
+
+	return metadata.AppendToOutgoingContext(ctx, permissionPresetKey, string(preset))
+}
+
+func PermissionPresetFromIncomingContext(ctx context.Context) (permissions.Preset, bool) {
+	if ctx == nil {
+		return "", false
+	}
+
+	values := metadata.ValueFromIncomingContext(ctx, permissionPresetKey)
+	if len(values) == 0 {
+		return "", false
+	}
+	preset, err := permissions.ParsePreset(values[len(values)-1])
+	if err != nil {
+		return "", false
+	}
+
+	return preset, true
 }
 
 func PermissionActorFromIncomingContext(ctx context.Context) permissions.Actor {

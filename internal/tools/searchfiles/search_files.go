@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -16,6 +17,7 @@ import (
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 )
@@ -54,10 +56,35 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 
 	return tools.Definition{
 		Name:         "search_files",
-		Description:  "Search file contents at an absolute or workspace-relative path, subject to the current permission mode.",
+		Description:  "Search file contents at an absolute or workspace-relative path, subject to the current permission policy.",
 		ParallelSafe: true,
 		Groups:       []string{"core"},
 		Requires:     tools.Capabilities{Filesystem: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionSearch,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
+		ResolvePermission: func(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+			var req input
+			if err := json.Unmarshal([]byte(call.Input), &req); err != nil {
+				return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+			}
+			if str.String(req.Pattern).Trim() == "" {
+				return nil, tools.NewPermissionResolutionError("invalid_input", "pattern is required")
+			}
+			target, targetScope := common.ResolveFilesystemPermissionTarget(
+				common.FilesystemPolicyFromRuntime(runtime),
+				req.Path,
+			)
+			return []permissions.EvaluationInput{{Operation: permissions.Operation{
+				Resource:    permissions.ResourceFile,
+				Action:      permissions.ActionSearch,
+				Effects:     []permissions.Effect{permissions.EffectRead},
+				Target:      target,
+				TargetScope: targetScope,
+			}}}, nil
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"pattern":        common.StringSchema("Text or pattern to search for within files."),
 			"path":           common.StringSchema("Absolute path or path relative to the configured workspace root to search within. Defaults to the workspace root when omitted."),
@@ -75,7 +102,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("invalid_input", "pattern is required"), nil
 			}
 
-			resolved, err := common.ResolveFilesystemPath(ctx, runtime.FilePolicy(), req.Path)
+			resolved, err := common.ResolveFilesystemPathForOperation(
+				ctx,
+				common.FilesystemPolicyFromRuntime(runtime),
+				req.Path,
+				permissions.ActionSearch,
+			)
 			if err != nil {
 				return common.FileError(err), nil
 			}

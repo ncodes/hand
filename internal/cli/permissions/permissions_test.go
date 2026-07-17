@@ -23,6 +23,9 @@ func TestWriteRequestsAndGrants_RendersSafeStructuredFields(t *testing.T) {
 	var buffer bytes.Buffer
 	previous := SetOutput(&buffer)
 	t.Cleanup(func() { SetOutput(previous) })
+	originalLocal := time.Local
+	time.Local = time.FixedZone("WAT", int(time.Hour/time.Second))
+	t.Cleanup(func() { time.Local = originalLocal })
 	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, writeRequests([]permissiondomain.ApprovalRequest{
 		{
@@ -44,6 +47,8 @@ func TestWriteRequestsAndGrants_RendersSafeStructuredFields(t *testing.T) {
 	require.Contains(t, buffer.String(), "grant_1")
 	require.Contains(t, buffer.String(), "grant_always")
 	require.Contains(t, buffer.String(), "never")
+	require.Contains(t, buffer.String(), "2026-07-14 13:00 WAT")
+	require.NotContains(t, buffer.String(), "2026-07-14 12:00 UTC")
 	require.NotContains(t, buffer.String(), "fingerprint")
 }
 
@@ -330,6 +335,127 @@ func TestSetOutput_HandlesNilWriter(t *testing.T) {
 	t.Cleanup(func() { SetOutput(previous) })
 }
 
+func TestPresetCommand_ShowsAndUpdatesProfilePreset(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+models:
+  main:
+    provider: ollama
+    name: test
+    api: ollama-native
+search:
+  vector:
+    enabled: false
+storage:
+  backend: memory
+permissions:
+  preset: ask
+`), 0o600))
+	var buffer bytes.Buffer
+	previousOutput := SetOutput(&buffer)
+	t.Cleanup(func() { SetOutput(previousOutput) })
+
+	command := newPresetTestCommand(configPath)
+	require.NoError(t, command.Run(context.Background(), []string{
+		"morph", "--config", configPath, "preset",
+	}))
+	require.Contains(t, buffer.String(), "Ask for approval (ask)")
+
+	buffer.Reset()
+	command = newPresetTestCommand(configPath)
+	require.NoError(t, command.Run(context.Background(), []string{
+		"morph", "--config", configPath, "preset", "approve",
+	}))
+	require.Contains(t, buffer.String(), "permission preset set to Approve for me")
+	cfg, err := config.Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, permissiondomain.PresetApproveForMe, cfg.Permissions.EffectivePreset())
+}
+
+func TestPresetCommand_RequiresConfirmationForFullAccess(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+models:
+  main:
+    provider: ollama
+    name: test
+    api: ollama-native
+search:
+  vector:
+    enabled: false
+storage:
+  backend: memory
+`), 0o600))
+	previousOutput := SetOutput(io.Discard)
+	t.Cleanup(func() { SetOutput(previousOutput) })
+
+	err := newPresetTestCommand(configPath).Run(context.Background(), []string{
+		"morph", "--config", configPath, "preset", "full-access",
+	})
+	require.EqualError(t, err, "full access is unsafe; rerun with --yes to confirm")
+
+	require.NoError(t, newPresetTestCommand(configPath).Run(context.Background(), []string{
+		"morph", "--config", configPath, "preset", "--yes", "full-access",
+	}))
+	cfg, err := config.Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, permissiondomain.PresetFullAccess, cfg.Permissions.EffectivePreset())
+	require.Equal(t, permissiondomain.PresetFullAccess, cfg.Permissions.EffectivePreset())
+}
+
+func TestPresetCommand_ReportsInvalidInputAndConfigurationFailures(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("{}\n"), 0o600))
+
+	err := newPresetTestCommand(configPath).Run(context.Background(), []string{
+		"morph", "--config", configPath, "preset", "automatic",
+	})
+	require.EqualError(t, err, "permission preset must be one of: ask, approve, full_access, custom")
+
+	err = newPresetTestCommand(configPath).Run(context.Background(), []string{
+		"morph", "--config", configPath, "preset", "ask",
+	})
+	require.EqualError(t, err, "model is required")
+
+	malformedPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(malformedPath, []byte("permissions: ["), 0o600))
+	err = newPresetTestCommand(malformedPath).Run(context.Background(), []string{
+		"morph", "--config", malformedPath, "preset",
+	})
+	require.Error(t, err)
+}
+
+func TestPresetCommand_PropagatesOutputFailures(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+models:
+  main:
+    provider: ollama
+    name: test
+    api: ollama-native
+search:
+  vector:
+    enabled: false
+storage:
+  backend: memory
+permissions:
+  preset: ask
+`), 0o600))
+	expected := errors.New("write failed")
+	previousOutput := SetOutput(errorWriter{err: expected})
+	t.Cleanup(func() { SetOutput(previousOutput) })
+
+	err := newPresetTestCommand(configPath).Run(context.Background(), []string{
+		"morph", "--config", configPath, "preset",
+	})
+	require.ErrorIs(t, err, expected)
+
+	err = newPresetTestCommand(configPath).Run(context.Background(), []string{
+		"morph", "--config", configPath, "preset", "approve",
+	})
+	require.ErrorIs(t, err, expected)
+}
+
 type permissionCommandClientStub struct {
 	api    rpcclient.PermissionAPI
 	closed bool
@@ -460,6 +586,16 @@ func newPermissionTestCommand() *cli.Command {
 	return &cli.Command{Name: "permissions", Commands: []*cli.Command{
 		NewListCommand(), NewPendingCommand(), NewGrantsCommand(), NewPruneCommand(), NewApproveCommand(), NewDenyCommand(), NewRevokeCommand(), NewDeleteCommand(), NewExplainCommand(),
 	}}
+}
+
+func newPresetTestCommand(configPath string) *cli.Command {
+	var envPath string
+	rootConfigPath := configPath
+	return &cli.Command{
+		Name:     "morph",
+		Flags:    morphcli.RootFlags(&envPath, &rootConfigPath),
+		Commands: []*cli.Command{NewPresetCommand()},
+	}
 }
 
 func boolPointer(value bool) *bool {

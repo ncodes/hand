@@ -15,7 +15,7 @@ func TestLoad_ParsesPermissionPolicy(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 permissions:
-  mode: observe
+  preset: custom
   default: deny
   requestRetention: 720h
   grantRetention: 1440h
@@ -37,6 +37,7 @@ permissions:
       resources: [file]
       actions: [update]
       effects: [write]
+      targetScopes: [workspace]
       targetPrefixes: [workspace/]
       decision: allow
       reason: trusted workspace write
@@ -45,6 +46,7 @@ permissions:
 	cfg, err := Load("", configPath)
 
 	require.NoError(t, err)
+	require.Equal(t, permissions.PresetCustom, cfg.Permissions.Preset)
 	require.Equal(t, permissions.DecisionDeny, cfg.Permissions.SurfaceKindDefaults[permissions.SurfaceKindGateway])
 	require.Equal(t, permissions.DecisionAsk, cfg.Permissions.SurfaceDefaults[permissions.SurfaceCLI])
 	require.Equal(t, 30*24*time.Hour, cfg.Permissions.RequestRetention)
@@ -63,6 +65,7 @@ permissions:
 		Resources:      []permissions.Resource{permissions.ResourceFile},
 		Actions:        []permissions.Action{permissions.ActionUpdate},
 		Effects:        []permissions.Effect{permissions.EffectWrite},
+		TargetScopes:   []permissions.TargetScope{permissions.TargetScopeWorkspace},
 		TargetPrefixes: []string{"workspace/"},
 		Decision:       permissions.DecisionAllow,
 		Reason:         "trusted workspace write",
@@ -77,19 +80,28 @@ func TestConfig_NormalizePermissions(t *testing.T) {
 	}
 
 	cfg.Normalize()
-	require.Equal(t, permissions.ModeObserve, cfg.Permissions.Mode)
 	require.Equal(t, permissions.DecisionDeny, cfg.Permissions.Default)
 	require.Equal(t, permissions.DecisionAsk, cfg.Permissions.SurfaceDefaults[permissions.SurfaceCLI])
 	require.Equal(t, "owner", cfg.Permissions.Rules[0].Name)
 	require.NoError(t, cfg.Permissions.Validate())
 }
 
-func TestConfig_ValidateRejectsInvalidPermissions(t *testing.T) {
+func TestConfig_ValidateRejectsInvalidPermissionPresetAndTargetScope(t *testing.T) {
 	cfg := NewDefaultConfig()
-	cfg.Permissions.Mode = "audit"
+	cfg.Permissions.Preset = "automatic"
+	require.EqualError(
+		t,
+		cfg.ValidateRelaxed(),
+		"permission preset must be one of: ask, approve, full_access, custom",
+	)
 
-	err := cfg.ValidateRelaxed()
-	require.EqualError(t, err, "permission mode must be one of: observe, enforce, full_access")
+	cfg = NewDefaultConfig()
+	cfg.Permissions.Rules = []permissions.Rule{{
+		Name:         "invalid target scope",
+		TargetScopes: []permissions.TargetScope{"computer"},
+		Decision:     permissions.DecisionAllow,
+	}}
+	require.EqualError(t, cfg.ValidateRelaxed(), "permission rule contains an invalid target scope")
 }
 
 func TestConfig_ValidateRejectsInvalidPermissionRetention(t *testing.T) {
@@ -114,18 +126,24 @@ func TestConfig_ValidateRejectsInvalidPermissionRetention(t *testing.T) {
 	}
 }
 
-func TestConfig_ValidateAcceptsPermissionEnforcement(t *testing.T) {
+func TestConfig_ValidateAcceptsFullAccessPreset(t *testing.T) {
 	cfg := NewDefaultConfig()
-	cfg.Permissions.Mode = permissions.ModeEnforce
+	cfg.Permissions.Preset = permissions.PresetFullAccess
 
 	require.NoError(t, cfg.ValidateRelaxed())
 }
 
-func TestConfig_ValidateAcceptsFullAccessPermissions(t *testing.T) {
-	cfg := NewDefaultConfig()
-	cfg.Permissions.Mode = permissions.ModeFullAccess
+func TestLoad_IgnoresUnknownPermissionMode(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+permissions:
+  mode: full_access
+  preset: ask
+`), 0o600))
 
-	require.NoError(t, cfg.ValidateRelaxed())
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, permissions.PresetAskForApproval, cfg.Permissions.Preset)
 }
 
 func TestNewDefaultConfig_ClonesPermissions(t *testing.T) {
@@ -149,6 +167,7 @@ func TestNewDefaultConfig_ClonesPermissions(t *testing.T) {
 			Resources:        []permissions.Resource{permissions.ResourceFile},
 			Actions:          []permissions.Action{permissions.ActionRead},
 			Effects:          []permissions.Effect{permissions.EffectRead},
+			TargetScopes:     []permissions.TargetScope{permissions.TargetScopeWorkspace},
 			TargetPrefixes:   []string{"workspace/"},
 			Decision:         permissions.DecisionAllow,
 		}},
@@ -167,6 +186,7 @@ func TestNewDefaultConfig_ClonesPermissions(t *testing.T) {
 	first.Permissions.Rules[0].Resources[0] = permissions.ResourceMemory
 	first.Permissions.Rules[0].Actions[0] = permissions.ActionDelete
 	first.Permissions.Rules[0].Effects[0] = permissions.EffectDestructive
+	first.Permissions.Rules[0].TargetScopes[0] = permissions.TargetScopeExternal
 	first.Permissions.Rules[0].TargetPrefixes[0] = "outside/"
 
 	require.Equal(t, permissions.DecisionAsk, second.Permissions.SurfaceDefaults[permissions.SurfaceCLI])
@@ -180,5 +200,6 @@ func TestNewDefaultConfig_ClonesPermissions(t *testing.T) {
 	require.Equal(t, permissions.ResourceFile, second.Permissions.Rules[0].Resources[0])
 	require.Equal(t, permissions.ActionRead, second.Permissions.Rules[0].Actions[0])
 	require.Equal(t, permissions.EffectRead, second.Permissions.Rules[0].Effects[0])
+	require.Equal(t, permissions.TargetScopeWorkspace, second.Permissions.Rules[0].TargetScopes[0])
 	require.Equal(t, "workspace/", second.Permissions.Rules[0].TargetPrefixes[0])
 }

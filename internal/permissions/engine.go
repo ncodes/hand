@@ -42,8 +42,12 @@ func NewEngine(policy Policy) Engine {
 	return Engine{policy: policy}
 }
 
-func (e Engine) Mode() Mode {
-	return e.policy.Mode
+func (e Engine) Preset(ctx context.Context) Preset {
+	if preset, ok := PresetFromContext(ctx); ok {
+		return preset
+	}
+
+	return e.policy.EffectivePreset()
 }
 
 func (e Engine) Evaluate(ctx context.Context, input EvaluationInput) Evaluation {
@@ -57,12 +61,12 @@ func (e Engine) Evaluate(ctx context.Context, input EvaluationInput) Evaluation 
 		}
 	}
 
-	return e.policy.Evaluate(input)
+	return e.policyFor(ctx).Evaluate(input)
 }
 
 func (e Engine) Check(ctx context.Context, input EvaluationInput) (Evaluation, error) {
 	evaluation := e.Evaluate(ctx, input)
-	if evaluation.Mode == ModeObserve || evaluation.Decision == DecisionAllow {
+	if evaluation.Decision == DecisionAllow {
 		return evaluation, nil
 	}
 
@@ -72,6 +76,12 @@ func (e Engine) Check(ctx context.Context, input EvaluationInput) (Evaluation, e
 	}
 
 	return evaluation, &DecisionError{Code: code, Evaluation: evaluation}
+}
+
+func (e Engine) policyFor(ctx context.Context) Policy {
+	policy := e.policy
+	policy.Preset = e.Preset(ctx)
+	return policy
 }
 
 func GetDecisionError(err error) (*DecisionError, bool) {

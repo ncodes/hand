@@ -39,7 +39,7 @@ type PermissionDecisionPayload struct {
 	Decision      string   `json:"decision,omitempty"`
 	ReasonCode    string   `json:"reason_code,omitempty"`
 	Rule          string   `json:"rule,omitempty"`
-	Mode          string   `json:"mode,omitempty"`
+	Preset        string   `json:"preset,omitempty"`
 	OwnerRequired bool     `json:"owner_required,omitempty"`
 }
 

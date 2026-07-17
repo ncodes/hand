@@ -102,11 +102,12 @@ func getPermissionStartupSummary(cfg *config.Config) string {
 	}
 	policy := cfg.Permissions
 	policy.Normalize()
-	if policy.Mode == permissions.ModeFullAccess {
+	if policy.EffectivePreset() == permissions.PresetFullAccess {
 		return "full_access (UNSAFE: command and filesystem guardrails bypassed)"
 	}
 
-	return string(policy.Mode)
+	preset := policy.EffectivePreset()
+	return preset.Label()
 }
 
 func getStartupProfileName() string {

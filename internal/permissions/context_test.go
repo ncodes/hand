@@ -44,3 +44,37 @@ func TestContext_TracksFullAccessExecution(t *testing.T) {
 
 	require.True(t, HasFullAccess(ctx))
 }
+
+func TestContext_TracksPresetAndAuthorizedOperations(t *testing.T) {
+	_, ok := PresetFromContext(nil)
+	require.False(t, ok)
+
+	ctx := WithPreset(nil, PresetAskForApproval)
+	preset, ok := PresetFromContext(ctx)
+	require.True(t, ok)
+	require.Equal(t, PresetAskForApproval, preset)
+	unchanged := WithPreset(ctx, "invalid")
+	preset, ok = PresetFromContext(unchanged)
+	require.True(t, ok)
+	require.Equal(t, PresetAskForApproval, preset)
+
+	operation := Operation{
+		Resource:    ResourceFile,
+		Action:      ActionUpdate,
+		Target:      "../outside.txt",
+		TargetScope: TargetScopeExternal,
+	}
+	ctx = WithAuthorizedOperations(ctx, []Operation{operation})
+	require.True(t, IsOperationAuthorized(ctx, operation))
+	require.False(t, IsOperationAuthorized(ctx, Operation{
+		Resource:    ResourceFile,
+		Action:      ActionRead,
+		Target:      operation.Target,
+		TargetScope: TargetScopeExternal,
+	}))
+	require.False(t, IsOperationAuthorized(nil, operation))
+	require.False(t, IsOperationAuthorized(ctx, Operation{}))
+
+	withoutOperations := WithAuthorizedOperations(nil, []Operation{{}})
+	require.False(t, IsOperationAuthorized(withoutOperations, operation))
+}

@@ -26,7 +26,6 @@ func TestPolicy_NormalizeAppliesConservativeDefaults(t *testing.T) {
 	}
 
 	policy.Normalize()
-	require.Equal(t, ModeObserve, policy.Mode)
 	require.Equal(t, DecisionDeny, policy.Default)
 	require.Equal(t, map[Surface]Decision{SurfaceCLI: DecisionAsk}, policy.SurfaceDefaults)
 	require.Equal(t, Rule{
@@ -76,7 +75,6 @@ func TestPolicy_ValidateRejectsInvalidConfiguration(t *testing.T) {
 		policy       Policy
 		errorMessage string
 	}{
-		{name: "mode", policy: Policy{Mode: "audit"}, errorMessage: "permission mode must be one of: observe, enforce, full_access"},
 		{name: "default", policy: Policy{Default: "prompt"}, errorMessage: "permission default must be one of: allow, ask, deny"},
 		{name: "surface kind", policy: Policy{SurfaceKindDefaults: map[SurfaceKind]Decision{"remote": DecisionAsk}}, errorMessage: "permission surface kind default contains an invalid kind"},
 		{name: "surface kind decision", policy: Policy{SurfaceKindDefaults: map[SurfaceKind]Decision{SurfaceKindLocal: "prompt"}}, errorMessage: "permission surface kind default must be one of: allow, ask, deny"},
@@ -102,8 +100,8 @@ func TestPolicy_ValidateRejectsInvalidConfiguration(t *testing.T) {
 
 func TestPolicy_EvaluateFullAccessBypassesPolicyApprovalAndOwnership(t *testing.T) {
 	policy := Policy{
-		Mode:  ModeFullAccess,
-		Rules: []Rule{{Name: "deny everything", Decision: DecisionDeny}},
+		Preset: PresetFullAccess,
+		Rules:  []Rule{{Name: "deny everything", Decision: DecisionDeny}},
 	}
 	input := EvaluationInput{
 		Authorization: AuthorizationContext{Actor: Actor{Kind: ActorGatewayUser}, Surface: SurfaceSlack},
@@ -117,7 +115,7 @@ func TestPolicy_EvaluateFullAccessBypassesPolicyApprovalAndOwnership(t *testing.
 	evaluation := policy.Evaluate(input)
 	require.Equal(t, DecisionAllow, evaluation.Decision)
 	require.Equal(t, ReasonFullAccess, evaluation.ReasonCode)
-	require.Equal(t, ModeFullAccess, evaluation.Mode)
+	require.Equal(t, PresetFullAccess, evaluation.Preset)
 	require.Empty(t, evaluation.Rule)
 	require.Empty(t, evaluation.Reason)
 
@@ -144,7 +142,7 @@ func TestPolicy_EvaluateUsesHardDenyThenRulePrecedence(t *testing.T) {
 	require.Equal(t, ReasonRuleMatched, evaluation.ReasonCode)
 	require.Equal(t, "deny config", evaluation.Rule)
 	require.Equal(t, "config blocked", evaluation.Reason)
-	require.Equal(t, ModeObserve, evaluation.Mode)
+	require.Equal(t, PresetCustom, evaluation.Preset)
 
 	input.HardDenyReason = "hard safety policy"
 	evaluation = policy.Evaluate(input)
@@ -155,7 +153,7 @@ func TestPolicy_EvaluateUsesHardDenyThenRulePrecedence(t *testing.T) {
 }
 
 func TestPolicy_EvaluateRequiresApprovalAfterAllowButPreservesDeny(t *testing.T) {
-	policy := Policy{Mode: ModeEnforce, Rules: []Rule{
+	policy := Policy{Rules: []Rule{
 		{Name: "allow commands", Resources: []Resource{ResourceProcess}, Decision: DecisionAllow},
 		{Name: "deny destructive", Effects: []Effect{EffectDestructive}, Decision: DecisionDeny},
 	}}
@@ -169,7 +167,7 @@ func TestPolicy_EvaluateRequiresApprovalAfterAllowButPreservesDeny(t *testing.T)
 	require.Equal(t, DecisionAsk, evaluation.Decision)
 	require.Equal(t, ReasonApprovalRequired, evaluation.ReasonCode)
 	require.Equal(t, "command policy requires approval", evaluation.Reason)
-	require.Equal(t, ModeEnforce, evaluation.Mode)
+	require.Equal(t, PresetCustom, evaluation.Preset)
 
 	input.Operation.Effects = append(input.Operation.Effects, EffectDestructive)
 	evaluation = policy.Evaluate(input)
@@ -179,7 +177,7 @@ func TestPolicy_EvaluateRequiresApprovalAfterAllowButPreservesDeny(t *testing.T)
 
 func TestPolicy_EvaluateEnforcesOwnerRequirement(t *testing.T) {
 	policy := Policy{
-		Mode: ModeEnforce, Default: DecisionAllow, SurfaceKindDefaults: map[SurfaceKind]Decision{},
+		Default: DecisionAllow, SurfaceKindDefaults: map[SurfaceKind]Decision{},
 	}
 	operation := Operation{
 		Resource: ResourceAutomation, Action: ActionUpdate, OwnerRequired: true, OwnerID: "owner-1",
@@ -299,7 +297,6 @@ func TestPolicy_EvaluateInvalidInputUsesUnknownDefaults(t *testing.T) {
 
 func TestPolicy_EvaluateInvalidPolicyFailsSafe(t *testing.T) {
 	policy := Policy{
-		Mode:            "invalid",
 		Default:         "permit",
 		SurfaceDefaults: map[Surface]Decision{SurfaceCLI: "permit"},
 		Rules: []Rule{{
@@ -314,7 +311,7 @@ func TestPolicy_EvaluateInvalidPolicyFailsSafe(t *testing.T) {
 	})
 	require.Equal(t, DecisionDeny, evaluation.Decision)
 	require.Equal(t, ReasonPolicyDefault, evaluation.ReasonCode)
-	require.Equal(t, ModeObserve, evaluation.Mode)
+	require.Equal(t, PresetCustom, evaluation.Preset)
 }
 
 func TestPolicy_EvaluateDoesNotMutateConfiguredRules(t *testing.T) {

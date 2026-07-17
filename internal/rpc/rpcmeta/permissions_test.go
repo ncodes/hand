@@ -40,6 +40,30 @@ func TestPermissionSurface_DefaultsUnsupportedOrMissingValuesToRPC(t *testing.T)
 	require.Equal(t, permissions.SurfaceRPC, PermissionSurfaceFromIncomingContext(incoming))
 }
 
+func TestPermissionPreset_RoundTripsSupportedValue(t *testing.T) {
+	outgoing := WithOutgoingPermissionPreset(nil, permissions.PresetApproveForMe)
+	outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
+	require.True(t, ok)
+	incoming := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+
+	preset, ok := PermissionPresetFromIncomingContext(incoming)
+	require.True(t, ok)
+	require.Equal(t, permissions.PresetApproveForMe, preset)
+
+	_, ok = PermissionPresetFromIncomingContext(context.Background())
+	require.False(t, ok)
+	_, ok = PermissionPresetFromIncomingContext(nil)
+	require.False(t, ok)
+	invalidIncoming := metadata.NewIncomingContext(context.Background(), metadata.Pairs(
+		permissionPresetKey, "unrestricted",
+	))
+	_, ok = PermissionPresetFromIncomingContext(invalidIncoming)
+	require.False(t, ok)
+	unchanged := WithOutgoingPermissionPreset(context.Background(), "invalid")
+	_, ok = metadata.FromOutgoingContext(unchanged)
+	require.False(t, ok)
+}
+
 func TestPermissionActor_ClassifiesOnlyLoopbackInteractiveClientsAsLocalOwner(t *testing.T) {
 	tests := []struct {
 		name    string

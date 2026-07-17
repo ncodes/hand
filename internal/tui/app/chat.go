@@ -22,6 +22,7 @@ func respondToPromptCmd(
 	ctx context.Context,
 	sessionID string,
 	prompt string,
+	preset permissions.Preset,
 	events chan<- tea.Msg,
 ) tea.Cmd {
 	return func() tea.Msg {
@@ -31,6 +32,7 @@ func respondToPromptCmd(
 			ctx = context.Background()
 		}
 		ctx = rpcmeta.WithOutgoingPermissionSurface(ctx, permissions.SurfaceTUI)
+		ctx = rpcmeta.WithOutgoingPermissionPreset(ctx, preset)
 
 		reply, err := client.Respond(ctx, prompt, rpcclient.RespondOptions{
 			SessionID: sessionID,
@@ -95,7 +97,15 @@ func (m *model) startResponse(prompt string, followTranscript bool) tea.Cmd {
 
 	return tea.Batch(
 		m.startThinkingComposer(),
-		respondToPromptCmd(m.chatClient, m.responseID, responseCtx, m.getCurrentSessionID(), prompt, events),
+		respondToPromptCmd(
+			m.chatClient,
+			m.responseID,
+			responseCtx,
+			m.getCurrentSessionID(),
+			prompt,
+			m.permissionPreset,
+			events,
+		),
 		waitForResponseEvent(m.responseID, events),
 	)
 }

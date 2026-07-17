@@ -8,6 +8,7 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	webintegration "github.com/wandxy/morph/internal/providers/web"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
@@ -40,6 +41,15 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 		ParallelSafe: true,
 		Groups:       []string{"core"},
 		Requires:     tools.Capabilities{Network: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceNetwork,
+			Action:   permissions.ActionSearch,
+			Effects: []permissions.Effect{
+				permissions.EffectRead,
+				permissions.EffectNetwork,
+				permissions.EffectExternalSystem,
+			},
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"query": common.StringSchema("Search query to run."),
 			"count": common.IntegerSchema("Maximum number of results to return. Defaults to 5 and is capped at 10."),

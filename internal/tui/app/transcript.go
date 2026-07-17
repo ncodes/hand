@@ -311,7 +311,7 @@ func permissionApprovalText(message permissionApprovalMsg) string {
 		parts = append(parts, "Reason: "+message.Reason)
 	}
 	if !message.ExpiresAt.IsZero() {
-		parts = append(parts, "Expires: "+message.ExpiresAt.Format("15:04:05 MST"))
+		parts = append(parts, "Expires: "+message.ExpiresAt.In(time.Local).Format("15:04:05 MST"))
 	}
 	choices := "[y] allow once  [s] session  [n] deny"
 	if isAlwaysApprovalAvailable(message.Effects) {

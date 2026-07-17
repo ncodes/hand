@@ -177,7 +177,10 @@ func RegisterRuntime(
 	policy guardrails.CommandPolicy,
 	definitions ...func(envtypes.Runtime) tools.Definition,
 ) tools.Registry {
-	return RegisterRuntimeWithPermissionPolicy(t, root, policy, permissions.Policy{}, definitions...)
+	return RegisterRuntimeWithPermissionPolicy(t, root, policy, permissions.Policy{
+		Default:             permissions.DecisionAllow,
+		SurfaceKindDefaults: map[permissions.SurfaceKind]permissions.Decision{},
+	}, definitions...)
 }
 
 func RegisterRuntimeWithPermissionPolicy(

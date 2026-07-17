@@ -2,11 +2,14 @@ package readfile
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/wandxy/morph/pkg/logutils"
+	"github.com/wandxy/morph/pkg/str"
 
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	"github.com/wandxy/morph/internal/tools/common"
 )
@@ -21,10 +24,36 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 
 	return tools.Definition{
 		Name:         "read_file",
-		Description:  "Read a text file at an absolute or workspace-relative path, subject to the current permission mode.",
+		Description:  "Read a text file at an absolute or workspace-relative path, subject to the current permission policy.",
 		ParallelSafe: true,
 		Groups:       []string{"core"},
 		Requires:     tools.Capabilities{Filesystem: true},
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceFile,
+			Action:   permissions.ActionRead,
+			Effects:  []permissions.Effect{permissions.EffectRead},
+		},
+		ResolvePermission: func(_ context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
+			var req input
+			if err := json.Unmarshal([]byte(call.Input), &req); err != nil {
+				return nil, tools.NewPermissionResolutionError("invalid_input", "invalid tool input")
+			}
+			path := str.String(req.Path).Trim()
+			if path == "" {
+				return nil, tools.NewPermissionResolutionError("invalid_input", "path is required")
+			}
+			target, targetScope := common.ResolveFilesystemPermissionTarget(
+				common.FilesystemPolicyFromRuntime(runtime),
+				path,
+			)
+			return []permissions.EvaluationInput{{Operation: permissions.Operation{
+				Resource:    permissions.ResourceFile,
+				Action:      permissions.ActionRead,
+				Effects:     []permissions.Effect{permissions.EffectRead},
+				Target:      target,
+				TargetScope: targetScope,
+			}}}, nil
+		},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"path": common.StringSchema("Absolute path to the text file or path relative to the configured workspace root."),
 		}, "path"),
@@ -40,7 +69,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("path", common.NormalizedDisplayPath(req.Path)).
 				Msg("read file tool started")
 
-			resolved, err := common.ResolveFilesystemPath(ctx, runtime.FilePolicy(), req.Path)
+			resolved, err := common.ResolveFilesystemPathForOperation(
+				ctx,
+				common.FilesystemPolicyFromRuntime(runtime),
+				req.Path,
+				permissions.ActionRead,
+			)
 			if err != nil {
 				log.Warn().
 					Err(err).

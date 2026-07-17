@@ -383,7 +383,7 @@ func TestInMemoryRegistry_RegisterRejectsInvalidPermissionMetadata(t *testing.T)
 	require.EqualError(t, err, "permission resource is invalid")
 }
 
-func TestInMemoryRegistry_InvokeObservesPermissionWithoutEnforcingDecision(t *testing.T) {
+func TestInMemoryRegistry_InvokeEnforcesPermissionDecision(t *testing.T) {
 	called := false
 	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
 		Default: permissions.DecisionDeny,
@@ -419,8 +419,10 @@ func TestInMemoryRegistry_InvokeObservesPermissionWithoutEnforcingDecision(t *te
 	})
 
 	require.NoError(t, err)
-	require.True(t, called)
-	require.Equal(t, "written", result.Output)
+	require.False(t, called)
+	var toolErr Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, permissions.ErrorCodeApprovalRequired, toolErr.Code)
 	require.Equal(t, []permissionTraceEvent{{
 		eventType: trace.EvtPermissionDecisionObserved,
 		payload: trace.PermissionDecisionPayload{
@@ -434,14 +436,16 @@ func TestInMemoryRegistry_InvokeObservesPermissionWithoutEnforcingDecision(t *te
 			Decision:      string(permissions.DecisionAsk),
 			ReasonCode:    permissions.ReasonRuleMatched,
 			Rule:          "ask owner writes",
-			Mode:          string(permissions.ModeObserve),
+			Preset:        string(permissions.PresetCustom),
 			OwnerRequired: false,
 		},
 	}}, recorder.events)
 }
 
-func TestInMemoryRegistry_InvokeObservesUnknownActorAndSkipsUnclassifiedTools(t *testing.T) {
-	registry := NewInMemoryRegistry()
+func TestInMemoryRegistry_InvokeRecordsUnknownActorAndSkipsUnclassifiedTools(t *testing.T) {
+	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+		Default: permissions.DecisionDeny,
+	}})
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{Output: "ok"}, nil })
 	require.NoError(t, registry.Register(Definition{
 		Name:       "write",
@@ -496,7 +500,6 @@ func TestInMemoryRegistry_InvokeEnforcesDenyAndAskBeforeHandler(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			called := false
 			registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
-				Mode:  permissions.ModeEnforce,
 				Rules: []permissions.Rule{{Name: test.name, Decision: test.decision, Reason: test.name + " reason"}},
 			}})
 			require.NoError(t, registry.Register(Definition{
@@ -526,7 +529,6 @@ func TestInMemoryRegistry_InvokeEnforcesDenyAndAskBeforeHandler(t *testing.T) {
 func TestInMemoryRegistry_InvokeEnforceAllowsHandlerAndRecordsResolvedOperation(t *testing.T) {
 	called := false
 	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		Rules: []permissions.Rule{{
 			Name: "allow target", Actions: []permissions.Action{permissions.ActionDelete},
 			TargetPrefixes: []string{"memory-"}, Decision: permissions.DecisionAllow,
@@ -562,14 +564,14 @@ func TestInMemoryRegistry_InvokeEnforceAllowsHandlerAndRecordsResolvedOperation(
 	require.Len(t, recorder.events, 1)
 	require.Equal(t, string(permissions.ActionDelete), recorder.events[0].payload.Action)
 	require.Equal(t, []string{string(permissions.EffectDestructive)}, recorder.events[0].payload.Effects)
-	require.Equal(t, string(permissions.ModeEnforce), recorder.events[0].payload.Mode)
+	require.Equal(t, string(permissions.PresetCustom), recorder.events[0].payload.Preset)
 }
 
 func TestInMemoryRegistry_InvokeFullAccessBypassesPolicyAndApproval(t *testing.T) {
 	called := false
 	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
-		Mode:  permissions.ModeFullAccess,
-		Rules: []permissions.Rule{{Name: "deny writes", Decision: permissions.DecisionDeny}},
+		Preset: permissions.PresetFullAccess,
+		Rules:  []permissions.Rule{{Name: "deny writes", Decision: permissions.DecisionDeny}},
 	}})
 	require.NoError(t, registry.Register(Definition{
 		Name:       "write",
@@ -597,12 +599,14 @@ func TestInMemoryRegistry_InvokeFullAccessBypassesPolicyAndApproval(t *testing.T
 	require.Len(t, recorder.events, 1)
 	require.Equal(t, string(permissions.DecisionAllow), recorder.events[0].payload.Decision)
 	require.Equal(t, permissions.ReasonFullAccess, recorder.events[0].payload.ReasonCode)
-	require.Equal(t, string(permissions.ModeFullAccess), recorder.events[0].payload.Mode)
+	require.Equal(t, string(permissions.PresetFullAccess), recorder.events[0].payload.Preset)
 }
 
 func TestInMemoryRegistry_InvokeFullAccessBypassesHardDenial(t *testing.T) {
 	called := false
-	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{Mode: permissions.ModeFullAccess}})
+	registry := NewInMemoryRegistry(RegistryOptions{
+		PermissionPolicy: permissions.Policy{Preset: permissions.PresetFullAccess},
+	})
 	require.NoError(t, registry.Register(Definition{
 		Name:       "write",
 		Permission: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate},
@@ -628,7 +632,6 @@ func TestInMemoryRegistry_InvokeFullAccessBypassesHardDenial(t *testing.T) {
 func TestInMemoryRegistry_InvokeDenyOverridesAskAcrossResolvedOperations(t *testing.T) {
 	called := false
 	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		Rules: []permissions.Rule{
 			{Name: "ask writes", Actions: []permissions.Action{permissions.ActionUpdate}, Decision: permissions.DecisionAsk},
 			{Name: "deny deletes", Actions: []permissions.Action{permissions.ActionDelete}, Decision: permissions.DecisionDeny},
@@ -729,7 +732,6 @@ func TestInMemoryRegistry_InvokeWaitsForAllowOnceAndRunsHandlerExactlyOnce(t *te
 	require.NoError(t, err)
 	registry := NewInMemoryRegistry(RegistryOptions{
 		PermissionPolicy: permissions.Policy{
-			Mode: permissions.ModeEnforce,
 			SurfaceDefaults: map[permissions.Surface]permissions.Decision{
 				permissions.SurfaceTUI: permissions.DecisionAsk,
 			},
@@ -800,7 +802,6 @@ func TestInMemoryRegistry_InvokePropagatesApprovalReason(t *testing.T) {
 			approver := &approvalRecorder{}
 			registry := NewInMemoryRegistry(RegistryOptions{
 				PermissionPolicy: permissions.Policy{
-					Mode: permissions.ModeEnforce,
 					Rules: []permissions.Rule{{
 						Name: "ask for confirmation", Decision: permissions.DecisionAsk,
 						Reason: "policy requires confirmation",
@@ -837,6 +838,134 @@ func TestInMemoryRegistry_InvokePropagatesApprovalReason(t *testing.T) {
 	}
 }
 
+func TestInMemoryRegistry_InvokePropagatesPresetAuthorization(t *testing.T) {
+	operation := permissions.Operation{
+		Tool: "read_file", Resource: permissions.ResourceFile, Action: permissions.ActionRead,
+		Effects: []permissions.Effect{permissions.EffectRead},
+	}
+	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval}})
+	require.NoError(t, registry.Register(Definition{
+		Name: "read_file",
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return []permissions.EvaluationInput{{Operation: operation}}, nil
+		},
+		Handler: HandlerFunc(func(ctx context.Context, _ Call) (Result, error) {
+			require.True(t, permissions.IsOperationAuthorized(ctx, operation))
+			return Result{Output: "read"}, nil
+		}),
+	}))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, Call{Name: "read_file"})
+
+	require.NoError(t, err)
+	require.Equal(t, "read", result.Output)
+}
+
+func TestInMemoryRegistry_InvokePropagatesApprovedPresetOperation(t *testing.T) {
+	operation := permissions.Operation{
+		Tool: "web_extract", Resource: permissions.ResourceNetwork, Action: permissions.ActionRead,
+		Effects: []permissions.Effect{permissions.EffectRead, permissions.EffectNetwork},
+	}
+	approver := &approvalRecorder{}
+	registry := NewInMemoryRegistry(RegistryOptions{
+		PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval},
+		ApprovalService:  approver,
+	})
+	require.NoError(t, registry.Register(Definition{
+		Name: "web_extract",
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return []permissions.EvaluationInput{{Operation: operation}}, nil
+		},
+		Handler: HandlerFunc(func(ctx context.Context, _ Call) (Result, error) {
+			require.True(t, permissions.IsOperationAuthorized(ctx, operation))
+			return Result{Output: "extracted"}, nil
+		}),
+	}))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, Call{Name: "web_extract"})
+
+	require.NoError(t, err)
+	require.Equal(t, "extracted", result.Output)
+	require.ElementsMatch(t, operation.Effects, approver.input.Operation.Effects)
+	require.Equal(t, operation.Tool, approver.input.Operation.Tool)
+	require.Equal(t, operation.Resource, approver.input.Operation.Resource)
+	require.Equal(t, operation.Action, approver.input.Operation.Action)
+}
+
+func TestInMemoryRegistry_InvokeRechecksPolicyAfterApproval(t *testing.T) {
+	operation := permissions.Operation{
+		Tool: "run_command", Resource: permissions.ResourceProcess, Action: permissions.ActionExecute,
+		Effects: []permissions.Effect{permissions.EffectExecution},
+	}
+	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+		Rules: []permissions.Rule{{Name: "ask", Decision: permissions.DecisionAsk}},
+	}})
+	registry.SetApprovalService(&approvalRecorder{authorize: func(permissions.EvaluationInput) error {
+		registry.permissions = permissions.NewEngine(permissions.Policy{
+			Rules: []permissions.Rule{{Name: "deny", Decision: permissions.DecisionDeny}},
+		})
+		return nil
+	}})
+	require.NoError(t, registry.Register(Definition{
+		Name: "run_command",
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return []permissions.EvaluationInput{{Operation: operation}}, nil
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			t.Fatal("handler must not run after the policy changes to deny")
+			return Result{}, nil
+		}),
+	}))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, Call{Name: "run_command"})
+
+	require.NoError(t, err)
+	require.Contains(t, result.Error, permissions.ErrorCodeDenied)
+}
+
+func TestInMemoryRegistry_InvokeUsesApprovalDecisionError(t *testing.T) {
+	approver := &approvalRecorder{err: &permissions.DecisionError{
+		Code: permissions.ErrorCodeDenied,
+		Evaluation: permissions.Evaluation{
+			Decision: permissions.DecisionDeny,
+			Reason:   "approval denied",
+		},
+	}}
+	registry := NewInMemoryRegistry(RegistryOptions{
+		PermissionPolicy: permissions.Policy{Rules: []permissions.Rule{{Name: "ask", Decision: permissions.DecisionAsk}}},
+		ApprovalService:  approver,
+	})
+	require.NoError(t, registry.Register(Definition{
+		Name: "write_file",
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return []permissions.EvaluationInput{{Operation: permissions.Operation{
+				Resource: permissions.ResourceFile, Action: permissions.ActionUpdate,
+			}}}, nil
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			t.Fatal("handler must not run when approval is denied")
+			return Result{}, nil
+		}),
+	}))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, Call{Name: "write_file"})
+
+	require.NoError(t, err)
+	require.Contains(t, result.Error, "approval denied")
+}
+
 func TestInMemoryRegistry_SetApprovalServiceHandlesNilRegistry(t *testing.T) {
 	var registry *InMemoryRegistry
 	registry.SetApprovalService(nil)
@@ -860,10 +989,15 @@ func (r *permissionTraceRecorder) Record(eventType string, payload any) {
 }
 
 type approvalRecorder struct {
-	input permissions.EvaluationInput
+	input     permissions.EvaluationInput
+	err       error
+	authorize func(permissions.EvaluationInput) error
 }
 
 func (r *approvalRecorder) Authorize(_ context.Context, input permissions.EvaluationInput) error {
 	r.input = input
-	return nil
+	if r.authorize != nil {
+		return r.authorize(input)
+	}
+	return r.err
 }

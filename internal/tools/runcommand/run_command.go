@@ -33,6 +33,7 @@ var (
 	log            = logutils.Module("tool.runcommand")
 	currentGOOS    = goruntime.GOOS
 	commandContext = common.CommandContext
+	waitCommand    = (*exec.Cmd).Wait
 )
 
 // Definition returns the model-visible tool definition.
@@ -90,7 +91,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				cwd = runtime.FilePolicy().Roots[0]
 			}
 
-			resolved, err := common.ResolveFilesystemPath(ctx, runtime.FilePolicy(), cwd)
+			resolved, err := common.ResolveFilesystemPathForOperation(
+				ctx,
+				common.FilesystemPolicyFromRuntime(runtime),
+				cwd,
+				permissions.ActionRead,
+			)
 			if err != nil {
 				return common.FileError(err), nil
 			}
@@ -167,7 +173,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 
 			done := make(chan error, 1)
 			go func() {
-				done <- cmd.Wait()
+				done <- waitCommand(cmd)
 			}()
 
 			select {

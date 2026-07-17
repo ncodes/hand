@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/guardrails"
+	"github.com/wandxy/morph/internal/permissions"
 	webprovider "github.com/wandxy/morph/internal/providers/web"
 	"github.com/wandxy/morph/internal/tools"
 )
@@ -140,6 +141,58 @@ func TestWebExtract_ReturnsProviderResults(t *testing.T) {
 	require.True(t, payload.Results[0].Truncated)
 	require.True(t, payload.Results[0].DownloadTruncated)
 	require.Contains(t, result.Output, `"download_truncated":true`)
+}
+
+func TestWebExtract_AskPresetRequiresApprovalBeforeProviderCall(t *testing.T) {
+	called := false
+	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{
+		PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval},
+	})
+	require.NoError(t, registry.Register(Definition(stubProvider{
+		extract: func(context.Context, []string) ([]webprovider.ExtractResult, error) {
+			called = true
+			return nil, nil
+		},
+	})))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner},
+		Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name: "web_extract", Input: `{"urls":["https://example.com"]}`,
+	})
+
+	require.NoError(t, err)
+	require.False(t, called)
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, permissions.ErrorCodeApprovalRequired, toolErr.Code)
+}
+
+func TestWebExtract_ApprovePresetCallsProvider(t *testing.T) {
+	called := false
+	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{
+		PermissionPolicy: permissions.Policy{Preset: permissions.PresetApproveForMe},
+	})
+	require.NoError(t, registry.Register(Definition(stubProvider{
+		extract: func(context.Context, []string) ([]webprovider.ExtractResult, error) {
+			called = true
+			return nil, nil
+		},
+	})))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner},
+		Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name: "web_extract", Input: `{"urls":["https://example.com"]}`,
+	})
+
+	require.NoError(t, err)
+	require.True(t, called)
+	require.Empty(t, result.Error)
 }
 
 func TestWebExtract_BlocksConfiguredURLsBeforeProviderCall(t *testing.T) {

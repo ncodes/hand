@@ -54,7 +54,6 @@ func TestDefinition_EnforcementDeniesBeforeAutomationMutation(t *testing.T) {
 	require.NoError(t, err)
 	service := &automationToolServiceStub{store: store}
 	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
-		Mode: permissions.ModeEnforce,
 		Rules: []permissions.Rule{{
 			Name: "deny automation deletes", Actions: []permissions.Action{permissions.ActionDelete}, Decision: permissions.DecisionDeny,
 		}},
@@ -702,4 +701,144 @@ func TestPatchFromInput_CoversOptionalBranches(t *testing.T) {
 	require.Equal(t, at, patch.Schedule.At)
 	require.Equal(t, "wake", patch.Payload.SystemEvent)
 	require.Equal(t, storage.AutomationDeliveryLocal, patch.Delivery.Mode)
+}
+
+func TestInputUnmarshal_RejectsInvalidTypedFields(t *testing.T) {
+	tests := []struct {
+		name  string
+		raw   string
+		field string
+	}{
+		{name: "top-level field", raw: `{"action":1}`, field: "action"},
+		{name: "partial update field", raw: `{"job":{"payload":{"max_runtime":"later"}}}`, field: "max_runtime"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var req input
+			err := json.Unmarshal([]byte(test.raw), &req)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), test.field)
+		})
+	}
+}
+
+func TestNormalizeToolInputJSON_ValidatesScheduleAt(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr string
+	}{
+		{name: "malformed JSON", input: `{`, wantErr: "unexpected end of JSON input"},
+		{name: "non-string timestamp", input: `{"job":{"schedule":{"at":1}}}`, wantErr: "job.schedule.at must be an RFC3339 string or null"},
+		{name: "valid timestamp", input: `{"job":{"schedule":{"at":"2026-07-17T12:00:00Z"}}}`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := normalizeToolInputJSON([]byte(test.input))
+			if test.wantErr != "" {
+				require.EqualError(t, err, test.wantErr)
+				require.Nil(t, result)
+				return
+			}
+			require.NoError(t, err)
+			require.JSONEq(t, test.input, string(result))
+		})
+	}
+}
+
+func TestDecodeInput_DefaultsEmptyInputAndReportsInvalidJSON(t *testing.T) {
+	var req input
+	require.Empty(t, decodeInput(tools.Call{}, &req).Error)
+	require.Equal(t, "", req.Action)
+
+	result := decodeInput(tools.Call{Input: `{`}, &req)
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, "invalid_input", toolErr.Code)
+	require.Equal(t, "unexpected end of JSON input", toolErr.Message)
+}
+
+func TestPatchFromInputWithCurrent_RejectsInvalidPartialPayload(t *testing.T) {
+	kind := storage.AutomationPayloadPrompt
+	prompt := ""
+	_, err := patchFromInputWithCurrent(input{
+		ID: testAutomationToolJobID,
+		payloadUpdate: &payloadUpdateInput{
+			Kind:   &kind,
+			Prompt: &prompt,
+		},
+	}, storage.AutomationJob{Payload: storage.AutomationPayload{
+		Kind:   storage.AutomationPayloadPrompt,
+		Prompt: "existing",
+	}})
+	require.EqualError(t, err, "automation prompt payload is required")
+}
+
+func TestLoadAutomationJobForUpdate_ReturnsNotFound(t *testing.T) {
+	_, err := loadAutomationJobForUpdate(
+		context.Background(),
+		&automationToolServiceStub{store: storememory.NewStore()},
+		input{ID: testAutomationToolJobID, payloadUpdate: &payloadUpdateInput{}},
+	)
+	require.EqualError(t, err, "automation job not found")
+}
+
+func TestApplyPayloadUpdate_UpdatesSystemEventAndMetadata(t *testing.T) {
+	systemEvent := "wake"
+	metadata := map[string]string{"source": "test"}
+	payload := applyPayloadUpdate(storage.AutomationPayload{
+		Kind:   storage.AutomationPayloadPrompt,
+		Prompt: "summarize",
+	}, payloadUpdateInput{
+		SystemEvent: &systemEvent,
+		Metadata:    &metadata,
+	})
+
+	require.Equal(t, storage.AutomationPayloadSystemEvent, payload.Kind)
+	require.Empty(t, payload.Prompt)
+	require.Equal(t, "wake", payload.SystemEvent)
+	require.Equal(t, metadata, payload.Metadata)
+	metadata["source"] = "changed"
+	require.Equal(t, "test", payload.Metadata["source"])
+}
+
+func TestApplyDeliveryUpdate_ClearsFieldsForNewMode(t *testing.T) {
+	base := storage.AutomationDelivery{
+		Channel: "telegram", Target: "chat", ThreadID: "thread", WebhookURL: "https://example.com/hook",
+	}
+	tests := []struct {
+		name string
+		mode storage.AutomationDeliveryMode
+		want storage.AutomationDelivery
+	}{
+		{
+			name: "gateway",
+			mode: storage.AutomationDeliveryGateway,
+			want: storage.AutomationDelivery{Mode: storage.AutomationDeliveryGateway, Channel: "telegram", Target: "chat", ThreadID: "thread"},
+		},
+		{
+			name: "webhook",
+			mode: storage.AutomationDeliveryWebhook,
+			want: storage.AutomationDelivery{Mode: storage.AutomationDeliveryWebhook, WebhookURL: "https://example.com/hook"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := applyDeliveryUpdate(base, deliveryUpdateInput{Mode: &test.mode})
+			require.Equal(t, test.want, actual)
+		})
+	}
+}
+
+func TestCloneStringMap_HandlesEmptyAndPopulatedMaps(t *testing.T) {
+	require.Nil(t, cloneStringMap(nil))
+
+	source := map[string]string{"key": "value"}
+	cloned := cloneStringMap(source)
+	require.Equal(t, source, cloned)
+	source["key"] = "changed"
+	require.Equal(t, "value", cloned["key"])
 }

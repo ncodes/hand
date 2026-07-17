@@ -9,10 +9,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	protomock "github.com/wandxy/morph/internal/mocks/proto"
+	"github.com/wandxy/morph/internal/permissions"
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
+	"github.com/wandxy/morph/internal/rpc/rpcmeta"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/trace"
 	agent "github.com/wandxy/morph/pkg/agent"
@@ -1327,6 +1330,75 @@ func TestNewClient_CreatesConnection(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, client.Close())
+}
+
+func TestPermissionUnaryClientInterceptor_PropagatesPermissionMetadata(t *testing.T) {
+	opts := Options{
+		PermissionSurface: permissions.SurfaceCLI,
+		PermissionPreset:  permissions.PresetApproveForMe,
+	}
+	called := false
+
+	err := permissionUnaryClientInterceptor(opts)(
+		context.Background(),
+		"/morph.SessionService/CreateSession",
+		nil,
+		nil,
+		nil,
+		func(ctx context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+			called = true
+			requirePermissionClientMetadata(t, ctx, permissions.SurfaceCLI, permissions.PresetApproveForMe)
+			return nil
+		},
+	)
+
+	require.NoError(t, err)
+	require.True(t, called)
+}
+
+func TestPermissionStreamClientInterceptor_PropagatesPermissionMetadata(t *testing.T) {
+	opts := Options{
+		PermissionSurface: permissions.SurfaceTUI,
+		PermissionPreset:  permissions.PresetAskForApproval,
+	}
+	called := false
+
+	_, err := permissionStreamClientInterceptor(opts)(
+		context.Background(),
+		nil,
+		nil,
+		"/morph.MorphService/Respond",
+		func(
+			ctx context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
+		) (grpc.ClientStream, error) {
+			called = true
+			requirePermissionClientMetadata(t, ctx, permissions.SurfaceTUI, permissions.PresetAskForApproval)
+			return nil, nil
+		},
+	)
+
+	require.NoError(t, err)
+	require.True(t, called)
+}
+
+func requirePermissionClientMetadata(
+	t *testing.T,
+	ctx context.Context,
+	surface permissions.Surface,
+	preset permissions.Preset,
+) {
+	t.Helper()
+	md, ok := metadata.FromOutgoingContext(ctx)
+	require.True(t, ok)
+	incoming := metadata.NewIncomingContext(context.Background(), md)
+	require.Equal(t, surface, rpcmeta.PermissionSurfaceFromIncomingContext(incoming))
+	actualPreset, ok := rpcmeta.PermissionPresetFromIncomingContext(incoming)
+	require.True(t, ok)
+	require.Equal(t, preset, actualPreset)
 }
 
 func TestClient_ServiceAPIsAndCloseHandleNilValues(t *testing.T) {

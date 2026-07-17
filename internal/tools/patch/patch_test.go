@@ -46,7 +46,7 @@ func TestPatch_EnforcementChecksEveryTargetBeforeMutation(t *testing.T) {
 		t,
 		root,
 		guardrails.CommandPolicy{},
-		permissions.Policy{Mode: permissions.ModeEnforce, Rules: []permissions.Rule{
+		permissions.Policy{Rules: []permissions.Rule{
 			{Name: "allow patches", Tools: []string{"patch"}, Decision: permissions.DecisionAllow},
 			{Name: "deny blocked path", TargetPrefixes: []string{"blocked.txt"}, Decision: permissions.DecisionDeny},
 		}},
@@ -89,7 +89,7 @@ func TestPatch_EnforcementNormalizesTargetBeforeRuleMatching(t *testing.T) {
 		t,
 		root,
 		guardrails.CommandPolicy{},
-		permissions.Policy{Mode: permissions.ModeEnforce, Rules: []permissions.Rule{
+		permissions.Policy{Rules: []permissions.Rule{
 			{Name: "allow patches", Tools: []string{"patch"}, Decision: permissions.DecisionAllow},
 			{Name: "deny blocked file", TargetPrefixes: []string{"blocked.txt"}, Decision: permissions.DecisionDeny},
 		}},
@@ -246,12 +246,50 @@ func TestPatch_ToolMapsMalformedPatchToInternalError(t *testing.T) {
 	require.NotEmpty(t, toolErr.Message)
 }
 
+func TestPatch_HandlerMapsErrorsAfterPermissionResolution(t *testing.T) {
+	root := t.TempDir()
+	handler := Definition(nativemocks.NewRuntime(root, guardrails.CommandPolicy{})).Handler
+	tests := []struct {
+		name  string
+		input string
+		code  string
+	}{
+		{name: "invalid JSON", input: `{"patch":`, code: "invalid_input"},
+		{name: "blank patch", input: `{"patch":" "}`, code: "invalid_input"},
+		{
+			name:  "delete patch",
+			input: `{"patch":"--- a/file.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n"}`,
+			code:  "invalid_input",
+		},
+		{
+			name:  "outside roots",
+			input: `{"patch":"--- /dev/null\n+++ ../../outside.txt\n@@ -0,0 +1 @@\n+hello\n"}`,
+			code:  "path_outside_roots",
+		},
+		{name: "malformed patch", input: `{"patch":"@@ -1 +1 @@\n-old\n+new\n"}`, code: "internal_error"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := handler.Invoke(context.Background(), tools.Call{Input: test.input})
+
+			require.NoError(t, err)
+			var toolErr tools.Error
+			require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+			require.Equal(t, test.code, toolErr.Code)
+		})
+	}
+}
+
 func TestApplyUnifiedDiff_RejectsInvalidAndBinaryPatchKinds(t *testing.T) {
 	root := t.TempDir()
 	policy := guardrails.FilesystemPolicy{Roots: []string{root}}
 
 	_, _, err := applyUnifiedDiff(context.Background(), policy, "not a patch", 0)
 	require.EqualError(t, err, "invalid patch")
+
+	_, _, err = applyUnifiedDiff(context.Background(), policy, "@@ -1 +1 @@\n-old\n+new\n", 0)
+	require.Error(t, err)
 
 	binaryPatch := "diff --git a/file.bin b/file.bin\nindex 0000000..1111111\nBinary files a/file.bin and b/file.bin differ\n"
 	_, _, err = applyUnifiedDiff(context.Background(), policy, binaryPatch, 0)

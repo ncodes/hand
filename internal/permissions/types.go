@@ -106,12 +106,12 @@ const (
 	DecisionDeny  Decision = "deny"
 )
 
-type Mode string
+type TargetScope string
 
 const (
-	ModeObserve    Mode = "observe"
-	ModeEnforce    Mode = "enforce"
-	ModeFullAccess Mode = "full_access"
+	TargetScopeUnknown   TargetScope = "unknown"
+	TargetScopeWorkspace TargetScope = "workspace"
+	TargetScopeExternal  TargetScope = "external"
 )
 
 type Actor struct {
@@ -181,6 +181,7 @@ type Operation struct {
 	Action        Action
 	Effects       []Effect
 	Target        string
+	TargetScope   TargetScope
 	OwnerID       string
 	OwnerRequired bool
 }
@@ -190,6 +191,7 @@ func (o Operation) Normalize() (Operation, error) {
 	o.Resource = Resource(str.String(o.Resource).Normalized())
 	o.Action = Action(str.String(o.Action).Normalized())
 	o.Target = str.String(o.Target).Trim()
+	o.TargetScope = TargetScope(str.String(o.TargetScope).Normalized())
 	o.OwnerID = str.String(o.OwnerID).Trim()
 	o.Effects = normalizeEffects(o.Effects)
 
@@ -204,13 +206,17 @@ func (o Operation) Normalize() (Operation, error) {
 			return Operation{}, errors.New("permission effect is invalid")
 		}
 	}
+	if !isValidTargetScope(o.TargetScope, true) {
+		return Operation{}, errors.New("permission target scope is invalid")
+	}
 
 	return o, nil
 }
 
 func (o Operation) IsZero() bool {
 	return str.String(o.Tool).Trim() == "" && o.Resource == "" && o.Action == "" && len(o.Effects) == 0 &&
-		str.String(o.Target).Trim() == "" && str.String(o.OwnerID).Trim() == "" && !o.OwnerRequired
+		str.String(o.Target).Trim() == "" && (o.TargetScope == "" || o.TargetScope == TargetScopeUnknown) &&
+		str.String(o.OwnerID).Trim() == "" && !o.OwnerRequired
 }
 
 func normalizeEffects(values []Effect) []Effect {
@@ -250,6 +256,11 @@ func isValidSurfaceKind(value SurfaceKind, allowUnknown bool) bool {
 		SurfaceKindRPC,
 		SurfaceKindACP}
 	return slices.Contains(valid, value) || allowUnknown && value == SurfaceKindUnknown
+}
+
+func isValidTargetScope(value TargetScope, allowUnknown bool) bool {
+	valid := []TargetScope{TargetScopeWorkspace, TargetScopeExternal}
+	return slices.Contains(valid, value) || allowUnknown && (value == "" || value == TargetScopeUnknown)
 }
 
 func getSurfaceKind(surface Surface) SurfaceKind {

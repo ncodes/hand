@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/morph/internal/constants"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
@@ -27,6 +28,60 @@ func ResolveFilesystemPath(
 	}
 
 	return policy.Resolve(path)
+}
+
+func ResolveFilesystemPathForOperation(
+	ctx context.Context,
+	policy guardrails.FilesystemPolicy,
+	path string,
+	action permissions.Action,
+) (guardrails.ResolvedPath, error) {
+	target, targetScope := ResolveFilesystemPermissionTarget(policy, path)
+	operation := permissions.Operation{
+		Resource:    permissions.ResourceFile,
+		Action:      action,
+		Target:      target,
+		TargetScope: targetScope,
+	}
+
+	preset, _ := permissions.PresetFromContext(ctx)
+	isReadAction := action == permissions.ActionRead ||
+		action == permissions.ActionList ||
+		action == permissions.ActionSearch
+	allowsExternalRead := preset == permissions.PresetAskForApproval && isReadAction
+	allowsUnrestrictedPath := permissions.HasFullAccess(ctx) ||
+		allowsExternalRead ||
+		permissions.IsOperationAuthorized(ctx, operation)
+
+	if allowsUnrestrictedPath {
+		return policy.ResolveUnrestricted(path)
+	}
+
+	return policy.Resolve(path)
+}
+
+func ResolveFilesystemPermissionTarget(
+	policy guardrails.FilesystemPolicy,
+	path string,
+) (string, permissions.TargetScope) {
+	path = str.String(path).Trim()
+	if path == "" {
+		path = "."
+	}
+	target := filepath.ToSlash(filepath.Clean(path))
+	if _, err := policy.Resolve(path); err == nil {
+		return target, permissions.TargetScopeWorkspace
+	}
+
+	return target, permissions.TargetScopeExternal
+}
+
+func FilesystemPolicyFromRuntime(runtime envtypes.Runtime) guardrails.FilesystemPolicy {
+	if runtime == nil {
+		return guardrails.FilesystemPolicy{}
+	}
+
+	return runtime.FilePolicy()
 }
 
 var (

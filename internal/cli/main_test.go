@@ -58,6 +58,9 @@ func TestNewMainAction_TreatsUnknownArgsAsChat(t *testing.T) {
 	require.True(t, ok)
 	incoming := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
 	require.Equal(t, permissions.SurfaceCLI, rpcmeta.PermissionSurfaceFromIncomingContext(incoming))
+	preset, ok := rpcmeta.PermissionPresetFromIncomingContext(incoming)
+	require.True(t, ok)
+	require.Equal(t, permissions.PresetCustom, preset)
 	require.Empty(t, stub.RespondOptions.Instruct)
 	require.Empty(t, stub.RespondOptions.SessionID)
 	require.True(t, stub.Closed)
@@ -561,6 +564,40 @@ func TestRootChatApprovalHandler_DeniesAndHidesUnsafeAlwaysApproval(t *testing.T
 	require.NotContains(t, output.String(), "[a] always")
 	require.Contains(t, output.String(), "Choose y, s, n")
 	require.Contains(t, output.String(), "Permission denied")
+}
+
+func TestRootChatApprovalHandler_DisplaysExpiryInLocalTimezone(t *testing.T) {
+	local := time.FixedZone("WAT", 60*60)
+	previous := time.Local
+	time.Local = local
+	t.Cleanup(func() { time.Local = previous })
+
+	expiresAt := time.Now().UTC().Add(time.Minute)
+	var output bytes.Buffer
+	handler := newRootChatApprovalHandler(
+		strings.NewReader("n\n"),
+		&output,
+		&mainActionPermissionAPIStub{},
+		true,
+	)
+	traceEvent := trace.Event{
+		Type: trace.EvtPermissionApprovalChanged,
+		Payload: trace.PermissionApprovalPayload{
+			RequestID: "approval_1",
+			Status:    string(permissions.ApprovalPending),
+			Summary:   "write_file · update file",
+			ExpiresAt: expiresAt,
+		},
+	}
+
+	handled, err := handler.Handle(context.Background(), rpcclient.Event{
+		Kind:       agent.EventKindTrace,
+		TraceEvent: &traceEvent,
+	})
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.Contains(t, output.String(), "Expires: "+expiresAt.In(local).Format("15:04:05 MST"))
 }
 
 func TestRootChatApprovalHandler_ReturnsResolutionFailure(t *testing.T) {

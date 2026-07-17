@@ -267,6 +267,11 @@ rpc:
   port: %d
 gateway:
   enabled: false
+permissions:
+  preset: custom
+  rules:
+    - name: allow automation e2e operations
+      decision: allow
 log:
   noColor: true
 `, port)

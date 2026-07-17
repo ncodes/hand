@@ -137,6 +137,19 @@ func TestModel_SubmitPromptPersistsHistoryForRestart(t *testing.T) {
 	require.Equal(t, 1, restarted.historyAt)
 }
 
+func TestModel_SubmitSlashCommandDoesNotPersistPromptHistory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tui-history.json")
+	withPromptHistoryPath(t, path)
+
+	runModel := newModel()
+	runModel.input.SetValue("/clear")
+	require.NotNil(t, runModel.submitPrompt())
+
+	require.Empty(t, runModel.history)
+	restarted := newModel()
+	require.Empty(t, restarted.history)
+}
+
 func TestModel_AddPromptHistoryReportsSaveFailure(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "history-dir")
 	require.NoError(t, os.MkdirAll(path, 0o700))

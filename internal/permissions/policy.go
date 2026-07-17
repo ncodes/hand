@@ -22,7 +22,7 @@ const (
 )
 
 type Policy struct {
-	Mode                Mode                     `yaml:"mode"`
+	Preset              Preset                   `yaml:"preset"`
 	Default             Decision                 `yaml:"default"`
 	RequestRetention    time.Duration            `yaml:"requestRetention"`
 	GrantRetention      time.Duration            `yaml:"grantRetention"`
@@ -46,9 +46,11 @@ type Rule struct {
 	Resources        []Resource    `yaml:"resources"`
 	Actions          []Action      `yaml:"actions"`
 	Effects          []Effect      `yaml:"effects"`
+	TargetScopes     []TargetScope `yaml:"targetScopes"`
 	TargetPrefixes   []string      `yaml:"targetPrefixes"`
 	Decision         Decision      `yaml:"decision"`
 	Reason           string        `yaml:"reason"`
+	toolRequired     bool
 }
 
 type EvaluationInput struct {
@@ -63,7 +65,7 @@ type Evaluation struct {
 	ReasonCode string
 	Reason     string
 	Rule       string
-	Mode       Mode
+	Preset     Preset
 }
 
 func (p *Policy) Normalize() {
@@ -71,9 +73,9 @@ func (p *Policy) Normalize() {
 		return
 	}
 
-	p.Mode = Mode(str.String(p.Mode).Normalized())
-	if p.Mode == "" {
-		p.Mode = ModeObserve
+	p.Preset = Preset(str.String(p.Preset).Normalized())
+	if p.Preset == "" {
+		p.Preset = PresetCustom
 	}
 	p.Default = Decision(str.String(p.Default).Normalized())
 	if p.Default == "" {
@@ -127,8 +129,8 @@ func (p *Policy) Normalize() {
 
 func (p Policy) Validate() error {
 	p.Normalize()
-	if !isValidMode(p.Mode) {
-		return errors.New("permission mode must be one of: observe, enforce, full_access")
+	if !isValidPreset(p.Preset) {
+		return errors.New("permission preset must be one of: ask, approve, full_access, custom")
 	}
 	if !isValidDecision(p.Default) {
 		return errors.New("permission default must be one of: allow, ask, deny")
@@ -185,15 +187,14 @@ func (p Policy) Validate() error {
 func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 	p.Normalize()
 	policyErr := p.Validate()
-	if !isValidMode(p.Mode) {
-		p.Mode = ModeObserve
-	}
+	p = p.Effective()
+	preset := p.EffectivePreset()
 	if !isValidDecision(p.Default) {
 		p.Default = DecisionDeny
 	}
 
 	if policyErr != nil {
-		return Evaluation{Decision: DecisionDeny, ReasonCode: ReasonPolicyDefault, Mode: p.Mode}
+		return Evaluation{Decision: DecisionDeny, ReasonCode: ReasonPolicyDefault, Preset: preset}
 	}
 	authorization, authorizationErr := input.Authorization.Normalize()
 	operation, operationErr := input.Operation.Normalize()
@@ -210,14 +211,14 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 			Decision:   DecisionDeny,
 			ReasonCode: ReasonScopeExceeded,
 			Reason:     "operation exceeds the actor's delegated scope",
-			Mode:       p.Mode,
+			Preset:     preset,
 		}
 	}
-	if p.Mode == ModeFullAccess {
-		return Evaluation{Decision: DecisionAllow, ReasonCode: ReasonFullAccess, Mode: p.Mode}
+	if preset == PresetFullAccess {
+		return Evaluation{Decision: DecisionAllow, ReasonCode: ReasonFullAccess, Preset: preset}
 	}
 	if reason := str.String(input.HardDenyReason).Trim(); reason != "" {
-		return Evaluation{Decision: DecisionDeny, ReasonCode: ReasonHardDeny, Reason: reason, Mode: p.Mode}
+		return Evaluation{Decision: DecisionDeny, ReasonCode: ReasonHardDeny, Reason: reason, Preset: preset}
 	}
 
 	var evaluation Evaluation
@@ -227,14 +228,14 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 			ReasonCode: ReasonRuleMatched,
 			Reason:     rule.Reason,
 			Rule:       rule.Name,
-			Mode:       p.Mode,
+			Preset:     preset,
 		}
 	} else if decision, ok := p.SurfaceDefaults[authorization.Surface]; ok && isValidDecision(decision) {
-		evaluation = Evaluation{Decision: decision, ReasonCode: ReasonSurfaceDefault, Mode: p.Mode}
+		evaluation = Evaluation{Decision: decision, ReasonCode: ReasonSurfaceDefault, Preset: preset}
 	} else if decision, ok := p.SurfaceKindDefaults[authorization.SurfaceKind]; ok && isValidDecision(decision) {
-		evaluation = Evaluation{Decision: decision, ReasonCode: ReasonSurfaceKindDefault, Mode: p.Mode}
+		evaluation = Evaluation{Decision: decision, ReasonCode: ReasonSurfaceKindDefault, Preset: preset}
 	} else {
-		evaluation = Evaluation{Decision: p.Default, ReasonCode: ReasonPolicyDefault, Mode: p.Mode}
+		evaluation = Evaluation{Decision: p.Default, ReasonCode: ReasonPolicyDefault, Preset: preset}
 	}
 	if operation.OwnerRequired && authorization.Actor.Kind != ActorLocalOwner &&
 		(operation.OwnerID == "" || authorization.Actor.ID != operation.OwnerID) &&
@@ -243,7 +244,7 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 			Decision:   DecisionDeny,
 			ReasonCode: ReasonOwnerRequired,
 			Reason:     "operation requires its owner",
-			Mode:       p.Mode,
+			Preset:     preset,
 		}
 	}
 
@@ -253,7 +254,7 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 				Decision:   DecisionAsk,
 				ReasonCode: ReasonApprovalRequired,
 				Reason:     reason,
-				Mode:       p.Mode,
+				Preset:     preset,
 			}
 		}
 	}
@@ -318,6 +319,11 @@ func (r *Rule) normalize() {
 		return Action(str.String(value).Normalized())
 	})
 	r.Effects = normalizeEffects(r.Effects)
+	if len(r.TargetScopes) > 0 {
+		r.TargetScopes = normalizeValues(r.TargetScopes, func(value TargetScope) TargetScope {
+			return TargetScope(str.String(value).Normalized())
+		})
+	}
 	r.TargetPrefixes = normalizeStrings(r.TargetPrefixes)
 	r.Decision = Decision(str.String(r.Decision).Normalized())
 	r.Reason = str.String(r.Reason).Trim()
@@ -360,6 +366,11 @@ func (r Rule) validate() error {
 			return errors.New("permission rule contains an invalid effect")
 		}
 	}
+	for _, value := range r.TargetScopes {
+		if !isValidTargetScope(value, false) {
+			return errors.New("permission rule contains an invalid target scope")
+		}
+	}
 
 	return nil
 }
@@ -374,12 +385,20 @@ func (r Rule) matches(authorization AuthorizationContext, operation Operation) b
 		matchesValue(r.Resources, operation.Resource) &&
 		matchesValue(r.Actions, operation.Action) &&
 		containsAllEffects(operation.Effects, r.Effects) &&
+		matchesValue(r.TargetScopes, operation.TargetScope) &&
+		(!r.toolRequired || operation.Tool != "") &&
 		matchesTargetPrefix(r.TargetPrefixes, operation.Target)
 }
 
 func (r Rule) specificity() int {
-	return len(r.Profiles) + len(r.ActorKinds) + len(r.ParentActorKinds) + len(r.SurfaceKinds) + len(r.Surfaces) + len(r.Tools) + len(r.Resources) +
-		len(r.Actions) + len(r.Effects) + len(r.TargetPrefixes)
+	toolRequired := 0
+	if r.toolRequired {
+		toolRequired = 1
+	}
+
+	return len(r.Profiles) + len(r.ActorKinds) + len(r.ParentActorKinds) + len(r.SurfaceKinds) + len(r.Surfaces) +
+		len(r.Tools) + len(r.Resources) + len(r.Actions) + len(r.Effects) + len(r.TargetScopes) +
+		len(r.TargetPrefixes) + toolRequired
 }
 
 func getDecisionPriority(decision Decision) int {
@@ -393,10 +412,6 @@ func getDecisionPriority(decision Decision) int {
 	default:
 		return 0
 	}
-}
-
-func isValidMode(mode Mode) bool {
-	return mode == ModeObserve || mode == ModeEnforce || mode == ModeFullAccess
 }
 
 func normalizeValues[T ~string](values []T, normalize func(T) T) []T {

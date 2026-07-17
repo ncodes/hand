@@ -56,6 +56,74 @@ func TestResolveFilesystemPath_AllowsOutsideRootsWithFullAccess(t *testing.T) {
 	require.Empty(t, resolved.Root)
 }
 
+func TestResolveFilesystemPathForOperation_AppliesPresetBoundaries(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	policy := guardrails.FilesystemPolicy{Roots: []string{root}}
+
+	ask := permissions.WithPreset(context.Background(), permissions.PresetAskForApproval)
+	_, err := common.ResolveFilesystemPathForOperation(
+		ask,
+		policy,
+		outside,
+		permissions.ActionUpdate,
+	)
+	require.EqualError(t, err, "path is outside allowed roots")
+
+	resolved, err := common.ResolveFilesystemPathForOperation(
+		ask,
+		policy,
+		outside,
+		permissions.ActionRead,
+	)
+	require.NoError(t, err)
+	require.Equal(t, outside, resolved.Absolute)
+
+	approve := permissions.WithPreset(context.Background(), permissions.PresetApproveForMe)
+	_, err = common.ResolveFilesystemPathForOperation(
+		approve,
+		policy,
+		outside,
+		permissions.ActionUpdate,
+	)
+	require.EqualError(t, err, "path is outside allowed roots")
+
+	target, targetScope := common.ResolveFilesystemPermissionTarget(policy, outside)
+	approve = permissions.WithAuthorizedOperations(approve, []permissions.Operation{{
+		Resource:    permissions.ResourceFile,
+		Action:      permissions.ActionUpdate,
+		Target:      target,
+		TargetScope: targetScope,
+	}})
+	resolved, err = common.ResolveFilesystemPathForOperation(
+		approve,
+		policy,
+		outside,
+		permissions.ActionUpdate,
+	)
+	require.NoError(t, err)
+	require.Equal(t, outside, resolved.Absolute)
+
+	inside := filepath.Join(root, "inside.txt")
+	target, targetScope = common.ResolveFilesystemPermissionTarget(policy, inside)
+	require.Equal(t, filepath.ToSlash(inside), target)
+	require.Equal(t, permissions.TargetScopeWorkspace, targetScope)
+
+	workingDirectory, err := os.Getwd()
+	require.NoError(t, err)
+	target, targetScope = common.ResolveFilesystemPermissionTarget(
+		guardrails.FilesystemPolicy{Roots: []string{workingDirectory}},
+		"",
+	)
+	require.Equal(t, ".", target)
+	require.Equal(t, permissions.TargetScopeWorkspace, targetScope)
+
+	require.Equal(t, guardrails.FilesystemPolicy{}, common.FilesystemPolicyFromRuntime(nil))
+	require.Equal(t, policy, common.FilesystemPolicyFromRuntime(&nativemocks.Runtime{
+		FilePolicyValue: policy,
+	}))
+}
+
 func TestFileError_MapsKnownErrors(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -104,6 +172,11 @@ func TestHiddenPath_DetectsHiddenSegments(t *testing.T) {
 func TestTrimOutput_ClampsToLimit(t *testing.T) {
 	require.Equal(t, "abc", common.TrimOutput("abcdef", 3))
 	require.Equal(t, "abc", common.TrimOutput("abc", 3))
+}
+
+func TestNormalizedDisplayPath_NormalizesEmptyAndNonEmptyPaths(t *testing.T) {
+	require.Equal(t, ".", common.NormalizedDisplayPath(""))
+	require.Equal(t, "nested/file.txt", common.NormalizedDisplayPath(filepath.Join("nested", "file.txt")))
 }
 
 func TestWithTimeoutSeconds_ClampsToSupportedRange(t *testing.T) {

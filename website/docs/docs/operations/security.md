@@ -302,7 +302,7 @@ or add explicit rules for the exact actors, actions, effects, and targets they r
 
 ```yaml
 permissions:
-  mode: enforce
+  preset: custom
   default: deny
   approvalRateLimit: 10
   approvalRateWindow: 1m
@@ -338,9 +338,9 @@ Delegated and extension runtimes are narrower still:
 - ACP and execute-code callers require a non-empty authenticated actor ID and a constrained scope.
 
 `morph doctor` reports invalid permission rules, `full_access`, impossible unattended `ask` defaults, and stale active
-grants. `full_access` is deliberately unsafe: it bypasses permission denials, command guardrails, and filesystem-root
-boundaries so Morph can act across the computer. The daemon startup panel, TUI, and readiness diagnostics identify this
-mode prominently.
+grants. The `full_access` preset is deliberately unsafe: it bypasses permission denials, command guardrails, and
+filesystem-root boundaries so Morph can act across the computer. The daemon startup panel, TUI, and readiness
+diagnostics identify this preset prominently.
 A configured remote approval notifier may report an unattended `ask` to a trusted operator channel, but it does not
 turn the unattended call into a waiting or self-approving request.
 

@@ -85,6 +85,7 @@ func TestOperation_Normalize(t *testing.T) {
 		Action:        " UPDATE ",
 		Effects:       []Effect{" WRITE ", EffectRead, EffectWrite, ""},
 		Target:        " workspace/file.txt ",
+		TargetScope:   " WORKSPACE ",
 		OwnerID:       " owner ",
 		OwnerRequired: true,
 	}).Normalize()
@@ -95,6 +96,7 @@ func TestOperation_Normalize(t *testing.T) {
 		Action:        ActionUpdate,
 		Effects:       []Effect{EffectRead, EffectWrite},
 		Target:        "workspace/file.txt",
+		TargetScope:   TargetScopeWorkspace,
 		OwnerID:       "owner",
 		OwnerRequired: true,
 	}, operation)
@@ -111,6 +113,7 @@ func TestOperation_NormalizeRejectsInvalidValues(t *testing.T) {
 		{name: "resource", operation: Operation{Resource: "database", Action: ActionRead}, errorMessage: "permission resource is invalid"},
 		{name: "action", operation: Operation{Resource: ResourceFile, Action: "download"}, errorMessage: "permission action is invalid"},
 		{name: "effect", operation: Operation{Resource: ResourceFile, Action: ActionRead, Effects: []Effect{"unknown"}}, errorMessage: "permission effect is invalid"},
+		{name: "target scope", operation: Operation{Resource: ResourceFile, Action: ActionRead, TargetScope: "remote"}, errorMessage: "permission target scope is invalid"},
 	}
 
 	for _, test := range tests {
