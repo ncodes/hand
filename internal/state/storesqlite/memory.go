@@ -651,20 +651,32 @@ func appendPromotionEvaluationSQL(
 	if query.PromotionEvaluated != nil {
 		if *query.PromotionEvaluated {
 			sql.WriteString(`
-	AND ` + column + ` IS NOT NULL`)
+	AND `)
+			sql.WriteString(column)
+			sql.WriteString(` IS NOT NULL`)
 		} else {
 			sql.WriteString(`
-	AND ` + column + ` IS NULL`)
+	AND `)
+			sql.WriteString(column)
+			sql.WriteString(` IS NULL`)
 		}
 	}
 	if !query.PromotionEvaluatedBefore.IsZero() {
 		sql.WriteString(`
-	AND ` + column + ` IS NOT NULL AND ` + column + ` < ?`)
+	AND `)
+		sql.WriteString(column)
+		sql.WriteString(` IS NOT NULL AND `)
+		sql.WriteString(column)
+		sql.WriteString(` < ?`)
 		*args = append(*args, query.PromotionEvaluatedBefore.UTC())
 	}
 	if !query.PromotionEvaluatedAfter.IsZero() {
 		sql.WriteString(`
-	AND ` + column + ` IS NOT NULL AND ` + column + ` > ?`)
+	AND `)
+		sql.WriteString(column)
+		sql.WriteString(` IS NOT NULL AND `)
+		sql.WriteString(column)
+		sql.WriteString(` > ?`)
 		*args = append(*args, query.PromotionEvaluatedAfter.UTC())
 	}
 }

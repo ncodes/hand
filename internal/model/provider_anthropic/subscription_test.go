@@ -100,7 +100,7 @@ func TestAnthropicSubscriptionProvider_RefreshValidatesAndPropagatesTokenErrors(
 		"non_success": {
 			body:   `{"error":"bad"}`,
 			status: http.StatusInternalServerError,
-			want:   "Anthropic token request failed: 500 Internal Server Error",
+			want:   "anthropic token request failed: 500 Internal Server Error",
 		},
 		"invalid_json": {
 			body:   `{`,
