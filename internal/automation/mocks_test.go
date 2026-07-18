@@ -33,6 +33,7 @@ var testAutomationExecutionSessionID = nanoid.MustFromSeed(
 type automationModelClientFactoryStub struct {
 	err      error
 	errAt    int
+	client   model.Client
 	requests []modelclient.ClientRequest
 }
 
@@ -40,6 +41,9 @@ func (f *automationModelClientFactoryStub) NewClient(req modelclient.ClientReque
 	f.requests = append(f.requests, req)
 	if f.err != nil && (f.errAt <= 0 || len(f.requests) == f.errAt) {
 		return nil, f.err
+	}
+	if f.client != nil {
+		return f.client, nil
 	}
 
 	return automationModelClientStub{}, nil

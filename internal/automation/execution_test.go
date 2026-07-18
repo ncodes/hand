@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/mocks"
 	models "github.com/wandxy/morph/internal/model"
 	modelclient "github.com/wandxy/morph/internal/model/client"
 	"github.com/wandxy/morph/internal/permissions"
@@ -75,6 +76,56 @@ func TestAgentRunner_RunPromptThroughRuntime(t *testing.T) {
 	require.Equal(t, modelclient.ModelRoleMain, factory.requests[0].Role)
 	require.Equal(t, "override-model", factory.requests[0].Model)
 	require.Equal(t, "https://override.example/v1", factory.requests[0].BaseURL)
+}
+
+func TestAgentRunner_DeniesToolWhenAutomationActorIDDoesNotMatchRule(t *testing.T) {
+	jobID := testServiceJobA
+	client := &mocks.ModelClientStub{Responses: []*models.Response{
+		{
+			RequiresToolCalls: true,
+			ToolCalls: []models.ToolCall{{
+				ID: "call-1", Name: "web_extract", Input: `{"urls":["https://example.com"]}`,
+			}},
+		},
+		{OutputText: "done"},
+	}}
+	cfg := automationRunnerTestConfig()
+	cfg.Storage.Backend = "memory"
+	cfg.Search.Vector.Enabled = false
+	cfg.Trace.Enabled = false
+	cfg.Permissions = permissions.Policy{
+		Preset:  permissions.PresetCustom,
+		Default: permissions.DecisionDeny,
+		Rules: []permissions.Rule{{
+			Name:       "allow another automation",
+			ActorKinds: []permissions.ActorKind{permissions.ActorAutomation},
+			ActorIDs:   []string{jobID[:len(jobID)-1]},
+			Surfaces:   []permissions.Surface{permissions.SurfaceAutomation},
+			Tools:      []string{"web_extract"},
+			Resources:  []permissions.Resource{permissions.ResourceNetwork},
+			Actions:    []permissions.Action{permissions.ActionRead},
+			Effects: []permissions.Effect{
+				permissions.EffectRead,
+				permissions.EffectNetwork,
+				permissions.EffectExternalSystem,
+			},
+			Decision: permissions.DecisionAllow,
+		}},
+	}
+	cfg.Normalize()
+	runner := newExecutionTestRunner(t, AgentRunnerOptions{
+		ConfigLoader:       func(string, string) (*config.Config, error) { return cfg, nil },
+		ModelClientFactory: &automationModelClientFactoryStub{client: client},
+		AgentFactory:       newRuntimeAgent,
+	})
+
+	result, err := runner.RunAutomation(context.Background(), Job{
+		ID: jobID, SessionTarget: SessionTargetMain, Payload: Payload{Prompt: "extract the page"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "done", result.Output)
+	require.GreaterOrEqual(t, len(client.Requests), 2)
+	require.Contains(t, client.Requests[1].Messages[len(client.Requests[1].Messages)-1].Content, "permission_denied")
 }
 
 func TestAgentRunner_RunPromptSessionTargets(t *testing.T) {
