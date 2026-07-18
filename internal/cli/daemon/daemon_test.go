@@ -464,8 +464,11 @@ func TestRenderStartupPanel_DescribesPermissionPresets(t *testing.T) {
 		Log: config.LogConfig{NoColor: true},
 	}
 
-	cfg.Permissions = permissions.Policy{Preset: permissions.PresetApproveForMe}
-	require.Contains(t, renderStartupPanel(cfg), "Permissions: Approve for me")
+	cfg.Permissions = permissions.Policy{
+		Preset: permissions.PresetApproveForMe,
+		Rules:  []permissions.Rule{{Name: "allow clock", Decision: permissions.DecisionAllow}},
+	}
+	require.Contains(t, renderStartupPanel(cfg), "Permissions: Approve for me (customized)")
 
 	cfg.Permissions = permissions.Policy{Preset: permissions.PresetCustom}
 	require.Contains(t, renderStartupPanel(cfg), "Permissions: Custom")

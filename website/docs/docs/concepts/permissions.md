@@ -69,17 +69,19 @@ For each request, the policy engine evaluates in this order:
    (`full_access`). See [Full Access Is Different](#full-access-is-different).
 2. **Hard deny.** A structural guardrail (a dangerous shell pattern, for example) denies unconditionally
    (`hard_deny`), ahead of any rule.
-3. **Rule match.** Among the rules in `permissions.rules` that match, decision strength wins first: `deny` beats
+3. **Configured rule match.** Among the rules in `permissions.rules` that match, decision strength wins first: `deny` beats
    `ask` beats `allow`, regardless of which rule is more specific. Ties are broken by specificity, then by rule name.
-4. **Defaults.** Absent a matching rule: the per-surface default (`permissions.surfaces`), then the per-surface-kind
-   default (`permissions.surfaceKinds`), then `permissions.default`.
-5. **Owner requirement.** Some operations are marked owner-required (for example, mutating automation jobs). The local
+4. **Preset rule match.** If no configured rule matches, the selected preset's built-in rules are evaluated.
+5. **Defaults.** Absent a matching rule, the preset's defaults apply. For `custom`, this means the per-surface default,
+   then the per-surface-kind default, then `permissions.default`.
+6. **Owner requirement.** Some operations are marked owner-required (for example, mutating automation jobs). The local
    owner passes automatically. An explicit matching `allow` rule is a deliberate ownership override. Otherwise the
    request is denied with `owner_required`.
-6. **Approval escalation.** A guardrail can still upgrade an `allow` to `ask` by attaching an approval reason (for
+7. **Approval escalation.** A guardrail can still upgrade an `allow` to `ask` by attaching an approval reason (for
    example, a destructive command that also matched an allow rule).
 
-A broad `deny` rule beats a narrower `allow` rule. Keep deny rules as narrow as the allow rules around them.
+Within the configured-rule layer, a broad `deny` rule beats a narrower `allow` rule. Keep deny rules as narrow as the
+allow rules around them.
 
 ### Decision details
 
@@ -91,21 +93,23 @@ Every decision includes a reason code. A matching rule also contributes its name
 
 ## Presets
 
-`permissions.preset` picks one of four postures. `custom` is the only one that reads `permissions.rules` and
-`permissions.default` from your config; the other three replace them with a fixed rule set:
+`permissions.preset` picks one of four baseline postures. Configured rules enhance the `ask` and `approve` baselines
+without requiring you to reproduce their built-in behavior:
 
 | Preset | Label | What it does |
 | --- | --- | --- |
-| `ask` | Ask for approval | Local owner allowed by default, but execution and network effects require approval |
-| `approve` | Approve for me | Local owner allowed by default; only destructive, credential-bearing, privilege-changing, and external-write effects require approval |
-| `full_access` | Full access | Bypasses permission rules entirely; see below |
-| `custom` | Custom | Uses your profile's `permissions.rules` and defaults verbatim |
+| `ask` | Ask for approval | Local owner allowed by default, but execution and network effects require approval; configured rules apply first |
+| `approve` | Approve for me | Local owner allowed by default; only destructive, credential-bearing, privilege-changing, and external-write effects require approval; configured rules apply first |
+| `full_access` | Full access | Bypasses permission rules entirely, including configured rules; see below |
+| `custom` | Custom | Uses only your profile's configured rules and defaults |
 
 `ask` and `approve` default every surface kind to `deny`. They add `allow` and `ask` behavior only for the local owner.
 
 New profiles start with `approve`, the **Approve for me** preset.
 
-Gateway, automation, and RPC surfaces remain denied unless `custom` policy explicitly allows them.
+Gateway, automation, and RPC surfaces remain denied under `ask` and `approve` unless a configured rule explicitly
+allows them. A preset with rules is displayed as **Ask for approval (customized)** or
+**Approve for me (customized)**.
 
 Set the preset with `morph permissions preset [ask|approve|full-access|custom]` (CLI) or `/permissions` in the TUI.
 Both require re-confirming before switching to `full_access`.
@@ -145,7 +149,7 @@ Gateway, automation, and RPC calls cannot display an approval prompt. They fail 
 `approval_required` instead of waiting indefinitely.
 
 These calls do not create a persisted `ApprovalRequest`, so there is no request ID to approve later. To allow the
-operation, add a narrow `allow` rule under the `custom` preset before it runs.
+operation, add a narrow configured `allow` rule before it runs.
 
 ### Grant scopes
 
@@ -172,9 +176,10 @@ Terminal records age out according to `permissions.requestRetention` and `grantR
 See the [CLI reference](../reference/cli#permissions-approvals-and-grants) or
 [PermissionService RPC reference](../reference/rpc#permissionservice).
 
-## Custom Policy Rules
+## Policy Rules
 
-With `permissions.preset: custom`, you define `permissions.rules` directly.
+`permissions.rules` is an explicit layer above the selected preset. Use it to add narrow exceptions or restrictions
+to `ask` and `approve`. Use `custom` when you want configured rules and defaults without a built-in baseline.
 
 A rule can match:
 
@@ -191,13 +196,7 @@ Remember that a broad deny rule still beats a narrower allow rule.
 
 ```yaml
 permissions:
-  preset: custom
-  default: deny
-  surfaceKinds:
-    local: ask
-    gateway: deny
-    automation: deny
-    rpc: deny
+  preset: approve
   rules:
     - name: trusted telegram sender reads files
       actors: [gateway_user]
@@ -221,6 +220,9 @@ permissions:
 
 Automation jobs retain creator provenance but run as the separate `automation` actor. Policy and grants are checked
 again on every run, so revoking a rule or grant blocks the next run without changing the job.
+
+Within the configured-rule layer, `deny` still beats `ask`, and `ask` still beats `allow`. Configured rules as a layer
+are evaluated before built-in preset rules, so a narrow configured `allow` can override a built-in `ask`.
 
 See [Config Reference: permissions](../reference/config#permissions) for every field.
 

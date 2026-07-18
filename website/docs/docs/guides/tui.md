@@ -112,7 +112,7 @@ are:
 | `/copy` | Copy the transcript |
 | `/models` | Show supported models |
 | `/providers` | Show supported model providers |
-| `/permissions` | Choose a permission preset (persists to this profile's config) |
+| `/permissions` | Choose a permission preset while preserving configured permission rules |
 | `/setup` | Open setup |
 | `/changelog` | Show the latest changelog entry |
 

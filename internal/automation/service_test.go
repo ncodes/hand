@@ -335,6 +335,45 @@ func TestService_AutomationRunReevaluatesRevokedGrantAndPreservesCreatorProvenan
 	require.Contains(t, failedRun.Error, "interactive local owner surface")
 }
 
+func TestService_AutomationExecutionUsesPresetRuleOverlay(t *testing.T) {
+	clock := newAutomationTestClock(time.Date(2026, 7, 18, 10, 0, 0, 0, time.UTC))
+	store := storememory.NewStore()
+	runner := &automationRunnerStub{}
+	setup := newAutomationTestService(t, store, clock, runner)
+	job, err := setup.Add(context.Background(), Job{
+		ID: testServiceJobA, Enabled: true, Profile: "default", SessionTarget: SessionTargetMain,
+		Payload: automationTestPromptPayload(), Schedule: Schedule{Kind: ScheduleEvery, Every: time.Hour},
+	})
+	require.NoError(t, err)
+
+	policy := permissions.Policy{
+		Preset: permissions.PresetApproveForMe,
+		Rules: []permissions.Rule{{
+			Name:       "allow scheduled job execution",
+			ActorKinds: []permissions.ActorKind{permissions.ActorAutomation},
+			ActorIDs:   []string{job.ID},
+			Surfaces:   []permissions.Surface{permissions.SurfaceAutomation},
+			Resources:  []permissions.Resource{permissions.ResourceAutomation},
+			Actions:    []permissions.Action{permissions.ActionExecute},
+			Effects: []permissions.Effect{
+				permissions.EffectExecution,
+				permissions.EffectExternalSystem,
+			},
+			Decision: permissions.DecisionAllow,
+		}},
+	}
+	service, err := NewService(ServiceOptions{
+		Store: store, Runner: runner, Now: clock.Now, PermissionChecker: permissions.NewEngine(policy),
+	})
+	require.NoError(t, err)
+
+	run, err := service.executeJob(context.Background(), job)
+
+	require.NoError(t, err)
+	require.Equal(t, RunStatusOK, run.Status)
+	require.Equal(t, 1, runner.CallCount())
+}
+
 func TestService_CheckExecutionPermissionHandlesPolicyOutcomes(t *testing.T) {
 	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
 		Actor:   permissions.Actor{Kind: permissions.ActorAutomation, ID: testServiceJobA},

@@ -33,6 +33,7 @@ type Policy struct {
 	SurfaceKindDefaults map[SurfaceKind]Decision `yaml:"surfaceKinds"`
 	SurfaceDefaults     map[Surface]Decision     `yaml:"surfaces"`
 	Rules               []Rule                   `yaml:"rules"`
+	presetRules         []Rule
 }
 
 type Rule struct {
@@ -224,7 +225,15 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 	}
 
 	var evaluation Evaluation
-	if rule, ok := p.getMatchingRule(authorization, operation); ok {
+	if rule, ok := getMatchingRule(p.Rules, authorization, operation); ok {
+		evaluation = Evaluation{
+			Decision:   rule.Decision,
+			ReasonCode: ReasonRuleMatched,
+			Reason:     rule.Reason,
+			Rule:       rule.Name,
+			Preset:     preset,
+		}
+	} else if rule, ok := getMatchingRule(p.presetRules, authorization, operation); ok {
 		evaluation = Evaluation{
 			Decision:   rule.Decision,
 			ReasonCode: ReasonRuleMatched,
@@ -264,11 +273,11 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 	return evaluation
 }
 
-func (p Policy) getMatchingRule(authorization AuthorizationContext, operation Operation) (Rule, bool) {
+func getMatchingRule(rules []Rule, authorization AuthorizationContext, operation Operation) (Rule, bool) {
 	var selected Rule
 	selectedPriority := -1
 	selectedSpecificity := -1
-	for _, rule := range p.Rules {
+	for _, rule := range rules {
 		if !rule.matches(authorization, operation) {
 			continue
 		}

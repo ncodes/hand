@@ -107,8 +107,7 @@ func getPermissionStartupSummary(cfg *config.Config) string {
 		return "full_access (UNSAFE: command and filesystem guardrails bypassed)"
 	}
 
-	preset := policy.EffectivePreset()
-	return preset.Label()
+	return policy.Label()
 }
 
 func getStartupProfileName() string {

@@ -3047,6 +3047,21 @@ func TestModel_RenderBottomStatusPanelShowsCustomPermissionPreset(t *testing.T) 
 	require.Contains(t, content, permissionStatusIcon+" Custom")
 }
 
+func TestModel_RenderBottomStatusPanelShowsCustomizedPreset(t *testing.T) {
+	runModel := newModelWithClientContextAndConfig(
+		context.Background(),
+		nil,
+		&config.Config{Permissions: permissions.Policy{
+			Preset: permissions.PresetApproveForMe,
+			Rules:  []permissions.Rule{{Name: "allow clock", Decision: permissions.DecisionAllow}},
+		}},
+	)
+
+	content := stripANSI(runModel.renderBottomStatusPanel())
+
+	require.Contains(t, content, permissionStatusIcon+" Approve for me (customized)")
+}
+
 func TestModel_RenderBottomStatusPanelShowsThinkingBeforeModel(t *testing.T) {
 	runModel := newModel()
 	runModel.modelName = "openai/gpt-4o-mini"

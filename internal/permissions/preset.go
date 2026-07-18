@@ -56,6 +56,16 @@ func (p Preset) Description() string {
 	}
 }
 
+func (p Policy) Label() string {
+	p.Normalize()
+	label := p.Preset.Label()
+	if len(p.Rules) > 0 && (p.Preset == PresetAskForApproval || p.Preset == PresetApproveForMe) {
+		return label + " (customized)"
+	}
+
+	return label
+}
+
 func isValidPreset(preset Preset) bool {
 	return preset == PresetAskForApproval ||
 		preset == PresetApproveForMe ||
@@ -80,11 +90,13 @@ func (p Policy) ForPreset(preset Preset) Policy {
 	}
 	if preset == PresetCustom {
 		p.Preset = PresetCustom
+		p.presetRules = nil
 		return p
 	}
 
 	effective := p
 	effective.Preset = preset
+	effective.presetRules = nil
 	effective.Default = DecisionDeny
 	effective.SurfaceDefaults = nil
 	effective.SurfaceKindDefaults = map[SurfaceKind]Decision{
@@ -97,11 +109,11 @@ func (p Policy) ForPreset(preset Preset) Policy {
 
 	switch preset {
 	case PresetAskForApproval:
-		effective.Rules = askForApprovalPresetRules()
+		effective.presetRules = askForApprovalPresetRules()
 	case PresetApproveForMe:
-		effective.Rules = approveForMePresetRules()
+		effective.presetRules = approveForMePresetRules()
 	case PresetFullAccess:
-		effective.Rules = nil
+		effective.presetRules = nil
 	}
 
 	return effective

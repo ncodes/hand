@@ -35,14 +35,13 @@ next wakes up.
 ### Permission Policy Must Allow Execution
 
 The `ask` and `approve` permission presets deny scheduled runs before their agent turn starts, as does the default
-`custom` policy: the `automation` surface kind is `deny`, and there's no interactive owner to answer an `ask` on an
-unattended run. Jobs you create will fail on every scheduled attempt until you use `permissions.preset: custom`
-(`morph permissions preset custom`) with an explicit allow rule directly in `config.yaml`. `permissions.rules` is a
-list of objects, which `morph config set` cannot write, so this one needs a direct edit:
+`custom` policy: the `automation` surface kind is `deny`, and there is no interactive owner to answer an `ask` on an
+unattended run. Add an explicit allow rule directly in `config.yaml` before the first scheduled attempt.
+`permissions.rules` is a list of objects, which `morph config set` cannot write, so this one needs a direct edit:
 
 ```yaml
 permissions:
-  preset: custom
+  preset: approve
   rules:
     - name: allow scheduled job execution
       actors: [automation]

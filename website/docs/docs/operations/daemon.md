@@ -175,7 +175,8 @@ settings, including:
 - **Gateway** bind and enabled platforms (or `disabled`)
 - **Logs** level and color mode
 - **Debug requests**, **Traces**, **Safety** summary
-- **Permissions** effective preset, with `full_access` called out as unsafe
+- **Permissions** effective preset, with rule-enhanced `ask` and `approve` labeled `(customized)` and `full_access`
+  called out as unsafe
 - **Embedding** / **Reranker** when vector search is enabled
 
 Use this panel to confirm the daemon picked up the profile and config you expect before attaching clients.

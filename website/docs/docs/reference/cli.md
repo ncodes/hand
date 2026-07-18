@@ -207,8 +207,9 @@ and [Gateway Routes](./gateway-routes).
 `status` filters accept `pending`, `approved`, `denied`, `expired`, `cancelled`, or `failed` for requests, and
 `active`, `consumed`, `expired`, or `revoked` for grants. `list`, `pending`, `grants`, `approve`, `deny`, `revoke`,
 `delete`, `explain`, and `prune` talk to the daemon over RPC, like `session`, so they need a reachable daemon.
-`preset` does not: it reads and writes `permissions.preset` directly in the profile's `config.yaml`, so it works even
-when no daemon is running. Concept and rule schema: [Permissions](../concepts/permissions). Config keys:
+`preset` does not: it reads and writes only `permissions.preset` in the profile's `config.yaml`, preserving configured
+rules, so it works even when no daemon is running. The command labels `ask` and `approve` as `(customized)` when rules
+are present. Concept and rule schema: [Permissions](../concepts/permissions). Config keys:
 [Config Reference: permissions](./config#permissions).
 
 ### `profile`: profile selection

@@ -20,6 +20,7 @@ type bottomStatusPanel struct {
 	ExitConfirmation  bool
 	FullAccess        bool
 	PermissionPreset  permissions.Preset
+	PermissionLabel   string
 }
 
 func getBottomStatusPanel(width int, m model) bottomStatusPanel {
@@ -35,5 +36,6 @@ func getBottomStatusPanel(width int, m model) bottomStatusPanel {
 		ExitConfirmation:  m.hasPendingExitConfirmation(),
 		FullAccess:        m.fullAccess,
 		PermissionPreset:  m.permissionPreset,
+		PermissionLabel:   m.permissionPolicy.Label(),
 	}
 }

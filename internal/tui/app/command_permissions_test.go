@@ -57,6 +57,32 @@ func TestPermissionsCommand_SelectsPresetForCurrentTUISession(t *testing.T) {
 	)
 }
 
+func TestPermissionsCommand_PreservesConfiguredRuleCustomizationAcrossPresetSelection(t *testing.T) {
+	runModel := newModelWithClientContextAndConfig(context.Background(), nil, &config.Config{
+		Permissions: permissions.Policy{
+			Preset: permissions.PresetApproveForMe,
+			Rules:  []permissions.Rule{{Name: "allow clock", Decision: permissions.DecisionAllow}},
+		},
+	})
+	runModel.width = 160
+	runModel.startPermissionsCommand()
+	content := stripANSI(runModel.renderCommandView())
+	require.Contains(t, content, "Ask for approval (customized)")
+	require.Contains(t, content, "Approve for me (customized)")
+	require.NotContains(t, content, "Full access (customized)")
+
+	runModel.commandViewItemSelected = getPermissionPresetIndex(permissions.PresetAskForApproval)
+	updated, cmd := runModel.updatePermissionsCommandView(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Contains(
+		t,
+		stripANSI(runModel.renderBottomStatusPanel()),
+		permissionStatusIcon+" Ask for approval (customized)",
+	)
+}
+
 func TestPermissionsCommand_RequiresSecondConfirmationForFullAccess(t *testing.T) {
 	runModel := newModel()
 	runModel.startPermissionsCommand()
@@ -171,6 +197,12 @@ storage:
   backend: memory
 permissions:
   preset: ask
+  rules:
+    - name: allow automation clock
+      actors: [automation]
+      resources: [clock]
+      actions: [read]
+      decision: allow
 `), 0o600))
 	originalConfig := config.Get()
 	t.Cleanup(func() { config.Set(originalConfig) })
@@ -186,9 +218,12 @@ permissions:
 	cfg, err := config.Load("", configPath)
 	require.NoError(t, err)
 	require.Equal(t, permissions.PresetApproveForMe, cfg.Permissions.EffectivePreset())
+	require.Len(t, cfg.Permissions.Rules, 1)
+	require.Equal(t, "allow automation clock", cfg.Permissions.Rules[0].Name)
 	var nilContext context.Context
 	restarted := newModelWithClientContextAndConfig(nilContext, nil, cfg)
 	require.Equal(t, permissions.PresetApproveForMe, restarted.permissionPreset)
+	require.Equal(t, "Approve for me (customized)", restarted.permissionPolicy.Label())
 }
 
 func TestPermissionsCommand_ReportsPresetPersistenceFailure(t *testing.T) {

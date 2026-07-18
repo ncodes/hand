@@ -27,7 +27,10 @@ func (lipglossBottomStatusPanelRenderer) Render(panel bottomStatusPanel) string 
 	if preset == permissions.PresetFullAccess {
 		segments = append(segments, renderBottomStatusDangerCell(permissionStatusIcon+" Full access (unsafe)"))
 	} else {
-		label := preset.Label()
+		label := panel.PermissionLabel
+		if label == "" {
+			label = preset.Label()
+		}
 		if label != "" {
 			label = permissionStatusIcon + " " + label
 		}

@@ -74,7 +74,7 @@ Start here if you want Morph to run on a schedule instead of only when you ask.
 4. [Automation Operations](../operations/automation): diagnose a job that did not run and recover it.
 
 Jobs run as a distinct `automation` actor under permission policy; see
-[Permissions](../concepts/permissions#custom-policy-rules) if a run is unexpectedly denied.
+[Permissions](../concepts/permissions#policy-rules) if a run is unexpectedly denied.
 
 ## Contributor
 

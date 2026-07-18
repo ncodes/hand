@@ -61,9 +61,8 @@ execution loop, not a separate lightweight executor. What differs is how that tu
 
 Before a due job's agent turn starts, the scheduler checks permission policy for an `automation` actor executing
 `resources: [automation]`, `actions: [execute]` on the job's ID. The `ask` and `approve` presets deny the `automation`
-surface kind, as does the default `custom` policy, so **every scheduled run is denied outright** because there's no
-interactive owner around to answer an `ask`, and `deny` doesn't wait for one. A job you create will sit there failing
-on schedule until you use `permissions.preset: custom` with an explicit rule.
+surface kind, as does the default `custom` policy. A scheduled run therefore needs an explicit configured rule because
+there is no interactive owner around to answer an `ask`, and `deny` does not wait for one.
 
 That rule only authorizes the run to *start*. Once inside, the job's prompt drives the same tool registry as any
 other turn and is still authorized as the `automation` actor. Each tool call needs an applicable rule for its
@@ -72,13 +71,7 @@ narrower rules for those actions:
 
 ```yaml
 permissions:
-  preset: custom
-  default: deny
-  surfaceKinds:
-    local: ask
-    gateway: deny
-    automation: deny
-    rpc: deny
+  preset: approve
   rules:
     - name: allow scheduled job execution
       actors: [automation]
@@ -98,7 +91,7 @@ permissions:
       reason: scheduled report job writes its output file
 ```
 
-See [Permissions: Custom Policy Rules](./permissions#custom-policy-rules) for the full rule schema, and
+See [Permissions: Policy Rules](./permissions#policy-rules) for the full rule schema, and
 [Troubleshooting: Permissions and Approvals](../guides/troubleshooting#permissions-and-approvals) if a previously
 working job starts failing after a policy change.
 
@@ -116,10 +109,9 @@ Both resolve to "whatever the active session is right now." There is no separate
 Treat them as the same target when reading job configuration.
 :::
 
-:::warning[`system_event` payloads don't do anything yet]
-Jobs support a `prompt` payload (a normal agent turn) and a `system_event` payload. `system_event` is reserved for a
-future "wake the thread with a reminder" flow. Today it just produces a `skipped` run with no agent turn. Don't
-build an automation around it expecting output.
+:::warning[`system_event` payloads are non-executing]
+Jobs support a `prompt` payload (a normal agent turn) and a `system_event` payload. A `system_event` job produces a
+`skipped` run with no agent turn or output. Use a `prompt` payload when the job should execute agent work.
 :::
 
 ## Delivery Is a Separate Outcome From Execution

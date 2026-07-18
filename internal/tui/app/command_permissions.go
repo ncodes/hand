@@ -49,12 +49,14 @@ func (m model) renderPermissionsCommandViewContent(content commandViewContent) s
 	rows := make([]string, 0, height)
 	for index := offset; index < end; index++ {
 		preset := permissionPresetOptions[index]
+		policy := m.permissionPolicy
+		policy.Preset = preset
 		detail := preset.Description()
 		if preset == m.permissionPreset {
 			detail = "current · " + detail
 		}
 		rows = append(rows, renderCommandListEntryRow(
-			preset.Label(),
+			policy.Label(),
 			detail,
 			content.Width,
 			max(content.Width-2, 1),
@@ -123,13 +125,14 @@ func (m *model) selectPermissionPreset() (tea.Model, tea.Cmd) {
 	}
 
 	m.permissionPreset = preset
+	m.permissionPolicy.Preset = preset
 	m.fullAccess = preset == permissions.PresetFullAccess
 	m.chatCtx = rpcmeta.WithOutgoingPermissionPreset(m.chatCtx, preset)
 	m.permissionPresetConfirm = false
 	next := m.hideCommandView()
 
 	return next, tea.Batch(
-		next.setStatus("permission preset: "+preset.Label()),
+		next.setStatus("permission preset: "+next.permissionPolicy.Label()),
 		persistPermissionPresetCmd(next.configEnvPath, next.configPath, preset),
 	)
 }

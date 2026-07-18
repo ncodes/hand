@@ -62,10 +62,12 @@ to be pulled. Use refresh in setup/model surfaces after changing local models ou
 ### `/permissions`
 
 Opens a picker for the four presets (`ask`, `approve`, `full-access`, `custom`); selecting persists
-`permissions.preset` to the profile config. Selecting **Full access** requires pressing enter a second time to
-confirm because it's flagged as unsafe rather than applied silently. This picker changes the standing preset; it is
-separate from the inline approval prompt (`y`/`s`/`a`/`n`) that appears in the transcript when a specific operation
-needs a decision. See [TUI Guide: Permission approval](../guides/tui#permission-approval) and
+`permissions.preset` to the profile config without removing configured rules. When rules exist, the `ask` and `approve`
+options are labeled **Ask for approval (customized)** and **Approve for me (customized)** because those rules are
+evaluated before the selected baseline. Selecting **Full access** requires pressing enter a second time to confirm
+because it is flagged as unsafe rather than applied silently. This picker changes the standing preset; it is separate
+from the inline approval prompt (`y`/`s`/`a`/`n`) that appears in the transcript when a specific operation needs a
+decision. See [TUI Guide: Permission approval](../guides/tui#permission-approval) and
 [Permissions](../concepts/permissions).
 
 ### `/setup`

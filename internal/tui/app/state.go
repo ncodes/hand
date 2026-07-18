@@ -33,6 +33,7 @@ type tuiState struct {
 	runtimeInfo                runtimeInfo
 	context                    string
 	fullAccess                 bool
+	permissionPolicy           permissions.Policy
 	permissionPreset           permissions.Preset
 	permissionPresetConfirm    bool
 	messages                   []transcriptCell

@@ -169,7 +169,7 @@ func NewPresetCommand() *cli.Command {
 			rawPreset := str.String(cmd.Args().First()).Trim()
 			if rawPreset == "" {
 				preset := cfg.Permissions.EffectivePreset()
-				_, err = fmt.Fprintf(permissionOutput, "%s (%s)\n", preset.Label(), preset)
+				_, err = fmt.Fprintf(permissionOutput, "%s (%s)\n", cfg.Permissions.Label(), preset)
 				return err
 			}
 
@@ -189,7 +189,9 @@ func NewPresetCommand() *cli.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintf(permissionOutput, "permission preset set to %s\n", preset.Label())
+			policy := cfg.Permissions
+			policy.Preset = preset
+			_, err = fmt.Fprintf(permissionOutput, "permission preset set to %s\n", policy.Label())
 			return err
 		},
 	}

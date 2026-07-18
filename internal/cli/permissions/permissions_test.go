@@ -350,6 +350,12 @@ storage:
   backend: memory
 permissions:
   preset: ask
+  rules:
+    - name: allow automation clock
+      actors: [automation]
+      resources: [clock]
+      actions: [read]
+      decision: allow
 `), 0o600))
 	var buffer bytes.Buffer
 	previousOutput := SetOutput(&buffer)
@@ -359,17 +365,19 @@ permissions:
 	require.NoError(t, command.Run(context.Background(), []string{
 		"morph", "--config", configPath, "preset",
 	}))
-	require.Contains(t, buffer.String(), "Ask for approval (ask)")
+	require.Contains(t, buffer.String(), "Ask for approval (customized) (ask)")
 
 	buffer.Reset()
 	command = newPresetTestCommand(configPath)
 	require.NoError(t, command.Run(context.Background(), []string{
 		"morph", "--config", configPath, "preset", "approve",
 	}))
-	require.Contains(t, buffer.String(), "permission preset set to Approve for me")
+	require.Contains(t, buffer.String(), "permission preset set to Approve for me (customized)")
 	cfg, err := config.Load("", configPath)
 	require.NoError(t, err)
 	require.Equal(t, permissiondomain.PresetApproveForMe, cfg.Permissions.EffectivePreset())
+	require.Len(t, cfg.Permissions.Rules, 1)
+	require.Equal(t, "allow automation clock", cfg.Permissions.Rules[0].Name)
 }
 
 func TestPresetCommand_RequiresConfirmationForFullAccess(t *testing.T) {

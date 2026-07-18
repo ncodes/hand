@@ -166,11 +166,11 @@ Concept and decision model: [Permissions](../concepts/permissions). Operator gui
 
 | Key | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `permissions.preset` | string | `"custom"` when omitted | One of `ask`, `approve`, `full_access`, `custom`. New profiles explicitly set `approve`. Non-`custom` presets replace `default`, `surfaceKinds`, `surfaces`, and `rules` with a fixed set (`surfaces` is cleared to empty). |
+| `permissions.preset` | string | `"custom"` when omitted | One of `ask`, `approve`, `full_access`, `custom`. New profiles explicitly set `approve`. `ask` and `approve` provide built-in baselines that configured rules can enhance. |
 | `permissions.default` | string | `"deny"` | Fallback decision (`allow`, `ask`, `deny`) when nothing else matches. Only used by `custom`. |
 | `permissions.surfaceKinds` | `map[string]string` | `local: ask`, `gateway: deny`, `automation: deny`, `rpc: deny` | Default decision per surface kind. Only used by `custom`. |
 | `permissions.surfaces` | `map[string]string` | `{}` | Default decision per concrete surface (`cli`, `tui`, `telegram`, `slack`, `http`, `automation`, `rpc`); takes precedence over `surfaceKinds`. Only used by `custom`. |
-| `permissions.rules` | `[]Rule` | `[]` | Matching is not array order. See [Rule fields](#rule-fields) for how the winning rule is picked. Only used by `custom`. |
+| `permissions.rules` | `[]Rule` | `[]` | Explicit rules evaluated before the `ask` or `approve` preset rules. Also used directly by `custom`. Ignored by `full_access`. Matching is not array order. |
 | `permissions.approvalRateLimit` | int | `10` | Max approval prompts per actor+surface within `approvalRateWindow` before further requests are rate-limited. |
 | `permissions.approvalRateWindow` | duration | `1m` | Window for `approvalRateLimit`. |
 | `permissions.requestRetention` | duration | `720h` (30d) | How long resolved approval requests are kept before `prune` deletes them. |
@@ -202,10 +202,10 @@ Each entry in `permissions.rules` matches on the fields below (omitted fields ma
 | `decision` | string | `allow`, `ask`, or `deny` (required) |
 | `reason` | string | Free text; a matching rule's `reason` becomes the approval request's stored reason, surfaced by `morph permissions explain` |
 
-Among matching rules, decision strength wins first (`deny` beats `ask` beats `allow`); only rules tied on decision
-are then broken by specificity (how many fields the rule constrains), then by rule name. A broad `deny` rule beats a
-narrow `allow` rule. See [Permissions: Custom Policy Rules](../concepts/permissions#custom-policy-rules) for a worked
-example.
+Configured rules are evaluated as a layer before built-in preset rules. Among matching configured rules, decision
+strength wins first (`deny` beats `ask` beats `allow`); rules tied on decision are broken by specificity, then by rule
+name. A broad configured `deny` beats a narrower configured `allow`. See
+[Permissions: Policy Rules](../concepts/permissions#policy-rules) for a worked example.
 
 ## `storage`
 

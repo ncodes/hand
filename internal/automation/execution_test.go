@@ -89,12 +89,8 @@ func TestAgentRunner_DeniesToolWhenAutomationActorIDDoesNotMatchRule(t *testing.
 		},
 		{OutputText: "done"},
 	}}
-	cfg := automationRunnerTestConfig()
-	cfg.Storage.Backend = "memory"
-	cfg.Search.Vector.Enabled = false
-	cfg.Trace.Enabled = false
-	cfg.Permissions = permissions.Policy{
-		Preset:  permissions.PresetCustom,
+	policy := permissions.Policy{
+		Preset:  permissions.PresetApproveForMe,
 		Default: permissions.DecisionDeny,
 		Rules: []permissions.Rule{{
 			Name:       "allow another automation",
@@ -112,12 +108,7 @@ func TestAgentRunner_DeniesToolWhenAutomationActorIDDoesNotMatchRule(t *testing.
 			Decision: permissions.DecisionAllow,
 		}},
 	}
-	cfg.Normalize()
-	runner := newExecutionTestRunner(t, AgentRunnerOptions{
-		ConfigLoader:       func(string, string) (*config.Config, error) { return cfg, nil },
-		ModelClientFactory: &automationModelClientFactoryStub{client: client},
-		AgentFactory:       newRuntimeAgent,
-	})
+	runner := newPermissionAutomationTestRunner(t, client, policy)
 
 	result, err := runner.RunAutomation(context.Background(), Job{
 		ID: jobID, SessionTarget: SessionTargetMain, Payload: Payload{Prompt: "extract the page"},
@@ -126,6 +117,47 @@ func TestAgentRunner_DeniesToolWhenAutomationActorIDDoesNotMatchRule(t *testing.
 	require.Equal(t, "done", result.Output)
 	require.GreaterOrEqual(t, len(client.Requests), 2)
 	require.Contains(t, client.Requests[1].Messages[len(client.Requests[1].Messages)-1].Content, "permission_denied")
+}
+
+func TestAgentRunner_AllowsToolFromRuleOverlayOnPreset(t *testing.T) {
+	jobID := testServiceJobA
+	client := &mocks.ModelClientStub{Responses: []*models.Response{
+		{
+			RequiresToolCalls: true,
+			ToolCalls: []models.ToolCall{{
+				ID: "call-1", Name: "time", Input: `{}`,
+			}},
+		},
+		{OutputText: "done"},
+	}}
+	policy := permissions.Policy{
+		Preset:  permissions.PresetApproveForMe,
+		Default: permissions.DecisionDeny,
+		Rules: []permissions.Rule{{
+			Name:       "allow automation clock",
+			ActorKinds: []permissions.ActorKind{permissions.ActorAutomation},
+			ActorIDs:   []string{jobID},
+			Surfaces:   []permissions.Surface{permissions.SurfaceAutomation},
+			Tools:      []string{"time"},
+			Resources:  []permissions.Resource{permissions.ResourceClock},
+			Actions:    []permissions.Action{permissions.ActionRead},
+			Effects:    []permissions.Effect{permissions.EffectRead},
+			Decision:   permissions.DecisionAllow,
+		}},
+	}
+	runner := newPermissionAutomationTestRunner(t, client, policy)
+
+	result, err := runner.RunAutomation(context.Background(), Job{
+		ID: jobID, SessionTarget: SessionTargetMain, Payload: Payload{Prompt: "get the time"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "done", result.Output)
+	require.GreaterOrEqual(t, len(client.Requests), 2)
+	toolMessage := client.Requests[1].Messages[len(client.Requests[1].Messages)-1]
+	require.Equal(t, "time", toolMessage.Name)
+	require.Equal(t, "call-1", toolMessage.ToolCallID)
+	require.Contains(t, toolMessage.Content, `"output"`)
+	require.NotContains(t, toolMessage.Content, "permission_denied")
 }
 
 func TestAgentRunner_RunPromptSessionTargets(t *testing.T) {
@@ -539,6 +571,27 @@ func newExecutionTestRunner(t *testing.T, opts AgentRunnerOptions) *AgentRunner 
 	}
 
 	return NewAgentRunner(opts)
+}
+
+func newPermissionAutomationTestRunner(
+	t *testing.T,
+	client models.Client,
+	policy permissions.Policy,
+) *AgentRunner {
+	t.Helper()
+
+	cfg := automationRunnerTestConfig()
+	cfg.Storage.Backend = "memory"
+	cfg.Search.Vector.Enabled = false
+	cfg.Trace.Enabled = false
+	cfg.Permissions = policy
+	cfg.Normalize()
+
+	return newExecutionTestRunner(t, AgentRunnerOptions{
+		ConfigLoader:       func(string, string) (*config.Config, error) { return cfg, nil },
+		ModelClientFactory: &automationModelClientFactoryStub{client: client},
+		AgentFactory:       newRuntimeAgent,
+	})
 }
 
 func automationRunnerTestConfig() *config.Config {

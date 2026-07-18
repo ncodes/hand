@@ -97,6 +97,7 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	}
 	appModel.runtimeInfo = runtimeInfo
 	appModel.modelName = getModelDisplayName(runtimeInfo.Model)
+	appModel.permissionPolicy = permissionPolicy
 	appModel.permissionPreset = permissionPreset
 	appModel.fullAccess = permissionPreset == permissions.PresetFullAccess
 	if sessions, ok := client.(rpcclient.SessionAPI); ok {

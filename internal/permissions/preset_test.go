@@ -158,6 +158,99 @@ func TestPolicy_ApproveForMePresetAsksForExternalWrites(t *testing.T) {
 	require.Equal(t, DecisionAsk, evaluation.Decision)
 }
 
+func TestPolicy_PresetUsesConfiguredRulesAsHigherPriorityOverlay(t *testing.T) {
+	automation := AuthorizationContext{
+		Actor: Actor{Kind: ActorAutomation, ID: "auto_news"}, Surface: SurfaceAutomation,
+	}
+	localOwner := AuthorizationContext{
+		Actor: Actor{Kind: ActorLocalOwner}, Surface: SurfaceTUI,
+	}
+	networkRead := Operation{
+		Tool: "web_extract", Resource: ResourceNetwork, Action: ActionRead,
+		Effects: []Effect{EffectRead, EffectNetwork, EffectExternalSystem},
+	}
+
+	tests := []struct {
+		name          string
+		policy        Policy
+		authorization AuthorizationContext
+		want          Decision
+		rule          string
+	}{
+		{
+			name: "allow rule opens automation denied by preset default",
+			policy: Policy{Preset: PresetApproveForMe, Rules: []Rule{{
+				Name: "allow news automation", ActorKinds: []ActorKind{ActorAutomation},
+				ActorIDs: []string{"auto_news"}, Tools: []string{"web_extract"}, Decision: DecisionAllow,
+			}}},
+			authorization: automation,
+			want:          DecisionAllow,
+			rule:          "allow news automation",
+		},
+		{
+			name: "allow rule overrides built in ask",
+			policy: Policy{Preset: PresetAskForApproval, Rules: []Rule{{
+				Name: "allow local news", ActorKinds: []ActorKind{ActorLocalOwner},
+				Tools: []string{"web_extract"}, Effects: []Effect{EffectNetwork}, Decision: DecisionAllow,
+			}}},
+			authorization: localOwner,
+			want:          DecisionAllow,
+			rule:          "allow local news",
+		},
+		{
+			name: "deny rule overrides preset behavior",
+			policy: Policy{Preset: PresetApproveForMe, Rules: []Rule{{
+				Name: "deny automation network", ActorKinds: []ActorKind{ActorAutomation},
+				Effects: []Effect{EffectNetwork}, Decision: DecisionDeny,
+			}}},
+			authorization: automation,
+			want:          DecisionDeny,
+			rule:          "deny automation network",
+		},
+		{
+			name: "nonmatching rule falls through to preset default",
+			policy: Policy{Preset: PresetApproveForMe, Rules: []Rule{{
+				Name: "allow another automation", ActorIDs: []string{"auto_other"}, Decision: DecisionAllow,
+			}}},
+			authorization: automation,
+			want:          DecisionDeny,
+		},
+		{
+			name: "nonmatching rule falls through to built in preset rule",
+			policy: Policy{Preset: PresetAskForApproval, Rules: []Rule{{
+				Name: "allow commands", Tools: []string{"run_command"}, Decision: DecisionAllow,
+			}}},
+			authorization: localOwner,
+			want:          DecisionAsk,
+			rule:          "preset.ask.network",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			evaluation := test.policy.Evaluate(EvaluationInput{
+				Authorization: test.authorization,
+				Operation:     networkRead,
+			})
+
+			require.Equal(t, test.want, evaluation.Decision)
+			require.Equal(t, test.rule, evaluation.Rule)
+		})
+	}
+}
+
+func TestPolicy_LabelMarksRuleEnhancedPresetsAsCustomized(t *testing.T) {
+	rules := []Rule{{Name: "rule", Decision: DecisionAllow}}
+
+	require.Equal(t, "Ask for approval (customized)", (Policy{Preset: PresetAskForApproval, Rules: rules}).Label())
+	require.Equal(t, "Approve for me (customized)", (Policy{Preset: PresetApproveForMe, Rules: rules}).Label())
+	require.Equal(t, "Full access", (Policy{Preset: PresetFullAccess, Rules: rules}).Label())
+	require.Equal(t, "Custom", (Policy{Preset: PresetCustom, Rules: rules}).Label())
+	require.Equal(t, "Ask for approval", (Policy{Preset: PresetAskForApproval}).Label())
+	require.Equal(t, "Approve for me", (Policy{Preset: PresetApproveForMe}).Label())
+	require.Empty(t, (Policy{Preset: "invalid"}).Label())
+}
+
 func TestPolicy_EffectivePreservesCustomPolicy(t *testing.T) {
 	custom := Policy{
 		Preset: PresetCustom,
@@ -185,7 +278,9 @@ func TestPolicy_EffectivePreservesCustomPolicy(t *testing.T) {
 }
 
 func TestEngine_ContextPresetOverridesProfilePreset(t *testing.T) {
-	engine := NewEngine(Policy{Preset: PresetCustom, Default: DecisionDeny})
+	engine := NewEngine(Policy{Preset: PresetCustom, Default: DecisionDeny, Rules: []Rule{{
+		Name: "allow reads", Resources: []Resource{ResourceFile}, Actions: []Action{ActionRead}, Decision: DecisionAllow,
+	}}})
 	ctx := WithContext(context.Background(), AuthorizationContext{
 		Actor: Actor{Kind: ActorLocalOwner}, Surface: SurfaceCLI,
 	})
@@ -199,4 +294,5 @@ func TestEngine_ContextPresetOverridesProfilePreset(t *testing.T) {
 	require.Equal(t, PresetApproveForMe, engine.Preset(ctx))
 	require.Equal(t, PresetApproveForMe, evaluation.Preset)
 	require.Equal(t, DecisionAllow, evaluation.Decision)
+	require.Equal(t, "allow reads", evaluation.Rule)
 }
