@@ -159,7 +159,7 @@ func TestWriteFile_AskPresetApprovesExternalWriteBeforeBypassingRoots(t *testing
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.txt")
 	approver := &approverStub{}
-	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{
+	registry := tools.NewDefaultRegistry(tools.RegistryOptions{
 		PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval},
 		ApprovalService:  approver,
 	})
@@ -184,7 +184,7 @@ func TestWriteFile_AskPresetApprovesExternalWriteBeforeBypassingRoots(t *testing
 func TestWriteFile_AskPresetBlocksExternalWriteWithoutApprovalService(t *testing.T) {
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.txt")
-	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{
+	registry := tools.NewDefaultRegistry(tools.RegistryOptions{
 		PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval},
 	})
 	require.NoError(t, registry.Register(Definition(nativemocks.NewRuntime(root, guardrails.CommandPolicy{}))))
@@ -208,7 +208,7 @@ func TestWriteFile_ApprovePresetApprovesExternalWriteBeforeBypassingRoots(t *tes
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.txt")
 	approver := &approverStub{}
-	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{
+	registry := tools.NewDefaultRegistry(tools.RegistryOptions{
 		PermissionPolicy: permissions.Policy{Preset: permissions.PresetApproveForMe},
 		ApprovalService:  approver,
 	})

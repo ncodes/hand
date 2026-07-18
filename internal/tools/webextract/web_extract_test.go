@@ -40,7 +40,7 @@ func (s *stubSummarizer) SummarizeExtract(_ context.Context, input SummaryInput)
 func registerTool(t *testing.T, provider webprovider.Provider, options ...Options) tools.Registry {
 	t.Helper()
 
-	registry := tools.NewInMemoryRegistry()
+	registry := tools.NewDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
 	require.NoError(t, registry.Register(Definition(provider, options...)))
 
@@ -145,7 +145,7 @@ func TestWebExtract_ReturnsProviderResults(t *testing.T) {
 
 func TestWebExtract_AskPresetRequiresApprovalBeforeProviderCall(t *testing.T) {
 	called := false
-	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{
+	registry := tools.NewDefaultRegistry(tools.RegistryOptions{
 		PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval},
 	})
 	require.NoError(t, registry.Register(Definition(stubProvider{
@@ -172,7 +172,7 @@ func TestWebExtract_AskPresetRequiresApprovalBeforeProviderCall(t *testing.T) {
 
 func TestWebExtract_ApprovePresetCallsProvider(t *testing.T) {
 	called := false
-	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{
+	registry := tools.NewDefaultRegistry(tools.RegistryOptions{
 		PermissionPolicy: permissions.Policy{Preset: permissions.PresetApproveForMe},
 	})
 	require.NoError(t, registry.Register(Definition(stubProvider{

@@ -52,7 +52,7 @@ func TestProcess_EnforcementDeniesStartBeforeRuntimeMutation(t *testing.T) {
 		called = true
 		return processenv.Info{}, nil
 	}}
-	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
+	registry := tools.NewDefaultRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
 		Rules: []permissions.Rule{{
 			Name: "deny process start", Actions: []permissions.Action{permissions.ActionStart}, Decision: permissions.DecisionDeny,
 		}},

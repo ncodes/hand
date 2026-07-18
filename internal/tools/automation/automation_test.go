@@ -53,7 +53,7 @@ func TestDefinition_EnforcementDeniesBeforeAutomationMutation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	service := &automationToolServiceStub{store: store}
-	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
+	registry := tools.NewDefaultRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
 		Rules: []permissions.Rule{{
 			Name: "deny automation deletes", Actions: []permissions.Action{permissions.ActionDelete}, Decision: permissions.DecisionDeny,
 		}},

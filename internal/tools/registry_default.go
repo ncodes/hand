@@ -18,8 +18,8 @@ type RegistryOptions struct {
 	ApprovalService  permissions.Approver
 }
 
-// InMemoryRegistry is a registry that stores tools in memory.
-type InMemoryRegistry struct {
+// DefaultRegistry is the standard runtime tool registry.
+type DefaultRegistry struct {
 	mu          sync.RWMutex
 	definitions map[string]Definition
 	groups      map[string]Group
@@ -27,8 +27,8 @@ type InMemoryRegistry struct {
 	approvals   permissions.Approver
 }
 
-// NewInMemoryRegistry creates a new InMemoryRegistry.
-func NewInMemoryRegistry(options ...RegistryOptions) *InMemoryRegistry {
+// NewDefaultRegistry creates the standard runtime tool registry.
+func NewDefaultRegistry(options ...RegistryOptions) *DefaultRegistry {
 	var opts RegistryOptions
 	if len(options) > 0 {
 		opts = options[0]
@@ -40,7 +40,7 @@ func NewInMemoryRegistry(options ...RegistryOptions) *InMemoryRegistry {
 	}
 	opts.PermissionPolicy.Normalize()
 
-	return &InMemoryRegistry{
+	return &DefaultRegistry{
 		definitions: make(map[string]Definition),
 		groups:      make(map[string]Group),
 		permissions: permissions.NewEngine(opts.PermissionPolicy),
@@ -48,7 +48,7 @@ func NewInMemoryRegistry(options ...RegistryOptions) *InMemoryRegistry {
 	}
 }
 
-func (r *InMemoryRegistry) SetApprovalService(service permissions.Approver) {
+func (r *DefaultRegistry) SetApprovalService(service permissions.Approver) {
 	if r == nil {
 		return
 	}
@@ -59,7 +59,7 @@ func (r *InMemoryRegistry) SetApprovalService(service permissions.Approver) {
 	r.approvals = service
 }
 
-func (r *InMemoryRegistry) getApprovalService() permissions.Approver {
+func (r *DefaultRegistry) getApprovalService() permissions.Approver {
 	if r == nil {
 		return nil
 	}
@@ -71,7 +71,7 @@ func (r *InMemoryRegistry) getApprovalService() permissions.Approver {
 }
 
 // Register registers a new tool in the registry.
-func (r *InMemoryRegistry) Register(def Definition) error {
+func (r *DefaultRegistry) Register(def Definition) error {
 	if r == nil {
 		return errors.New("tool registry is required")
 	}
@@ -112,7 +112,7 @@ func (r *InMemoryRegistry) Register(def Definition) error {
 	return nil
 }
 
-func (r *InMemoryRegistry) RegisterGroup(group Group) error {
+func (r *DefaultRegistry) RegisterGroup(group Group) error {
 	if r == nil {
 		return errors.New("tool registry is required")
 	}
@@ -136,7 +136,7 @@ func (r *InMemoryRegistry) RegisterGroup(group Group) error {
 	return nil
 }
 
-func (r *InMemoryRegistry) Get(name string) (Definition, bool) {
+func (r *DefaultRegistry) Get(name string) (Definition, bool) {
 	if r == nil {
 		return Definition{}, false
 	}
@@ -149,7 +149,7 @@ func (r *InMemoryRegistry) Get(name string) (Definition, bool) {
 	return def, ok
 }
 
-func (r *InMemoryRegistry) GetGroup(name string) (Group, bool) {
+func (r *DefaultRegistry) GetGroup(name string) (Group, bool) {
 	if r == nil {
 		return Group{}, false
 	}
@@ -162,7 +162,7 @@ func (r *InMemoryRegistry) GetGroup(name string) (Group, bool) {
 	return group, ok
 }
 
-func (r *InMemoryRegistry) List() Definitions {
+func (r *DefaultRegistry) List() Definitions {
 	if r == nil {
 		return nil
 	}
@@ -182,7 +182,7 @@ func (r *InMemoryRegistry) List() Definitions {
 	return definitions
 }
 
-func (r *InMemoryRegistry) ListGroups() []Group {
+func (r *DefaultRegistry) ListGroups() []Group {
 	if r == nil {
 		return nil
 	}
@@ -202,7 +202,7 @@ func (r *InMemoryRegistry) ListGroups() []Group {
 	return groups
 }
 
-func (r *InMemoryRegistry) Resolve(opts Policy) (Definitions, error) {
+func (r *DefaultRegistry) Resolve(opts Policy) (Definitions, error) {
 	if r == nil {
 		return nil, errors.New("tool registry is required")
 	}
@@ -233,7 +233,7 @@ func (r *InMemoryRegistry) Resolve(opts Policy) (Definitions, error) {
 	return filterDefinitions(definitions, opts), nil
 }
 
-func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error) {
+func (r *DefaultRegistry) Invoke(ctx context.Context, call Call) (Result, error) {
 	def, ok := r.Get(call.Name)
 	if !ok {
 		return Result{Error: Error{Code: "tool_not_registered", Message: "tool is not registered"}.String()}, nil
@@ -263,7 +263,7 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 	return result, nil
 }
 
-func (r *InMemoryRegistry) checkPermissions(
+func (r *DefaultRegistry) checkPermissions(
 	ctx context.Context,
 	definition Definition,
 	call Call,
@@ -381,7 +381,7 @@ func normalizePermissionInputs(toolName string, inputs []permissions.EvaluationI
 	return normalized, nil
 }
 
-func (r *InMemoryRegistry) recordPermissionDecision(
+func (r *DefaultRegistry) recordPermissionDecision(
 	ctx context.Context,
 	operation permissions.Operation,
 	evaluation permissions.Evaluation,
@@ -424,7 +424,7 @@ func getAuthorizationContext(ctx context.Context) permissions.AuthorizationConte
 	}
 }
 
-func (r *InMemoryRegistry) resolveGroup(
+func (r *DefaultRegistry) resolveGroup(
 	name string,
 	stack []string,
 	resolved map[string]bool,

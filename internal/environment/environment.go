@@ -157,7 +157,7 @@ func NewEnvironment(ctx context.Context, cfg *config.Config) Environment {
 	if cfg != nil {
 		registryOptions.PermissionPolicy = cfg.Permissions
 	}
-	registry := tools.NewInMemoryRegistry(registryOptions)
+	registry := tools.NewDefaultRegistry(registryOptions)
 
 	return &environment{
 		ctx:          ctx,
@@ -617,7 +617,7 @@ func (e *environment) SetApprovalService(service permissions.Approver) {
 		return
 	}
 
-	if registry, ok := e.tools.(*tools.InMemoryRegistry); ok {
+	if registry, ok := e.tools.(*tools.DefaultRegistry); ok {
 		registry.SetApprovalService(service)
 	}
 }

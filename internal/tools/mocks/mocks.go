@@ -210,7 +210,7 @@ func RegisterRuntimeWithPermissionPolicy(
 ) tools.Registry {
 	t.Helper()
 
-	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{PermissionPolicy: permissionPolicy})
+	registry := tools.NewDefaultRegistry(tools.RegistryOptions{PermissionPolicy: permissionPolicy})
 	runtime := NewRuntime(root, commandPolicy)
 
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))

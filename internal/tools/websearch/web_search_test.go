@@ -27,7 +27,7 @@ func (stubProvider) Extract(context.Context, []string) ([]webintegration.Extract
 }
 
 func TestWebSearch_RejectsEmptyQuery(t *testing.T) {
-	registry := tools.NewInMemoryRegistry()
+	registry := tools.NewDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
 	require.NoError(t, registry.Register(Definition(stubProvider{
 		search: func(context.Context, string, int) ([]webintegration.SearchResult, error) {
@@ -46,7 +46,7 @@ func TestWebSearch_RejectsEmptyQuery(t *testing.T) {
 }
 
 func TestWebSearch_RejectsMalformedInput(t *testing.T) {
-	registry := tools.NewInMemoryRegistry()
+	registry := tools.NewDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
 	require.NoError(t, registry.Register(Definition(stubProvider{
 		search: func(context.Context, string, int) ([]webintegration.SearchResult, error) {
@@ -65,7 +65,7 @@ func TestWebSearch_RejectsMalformedInput(t *testing.T) {
 }
 
 func TestWebSearch_AppliesDefaultCount(t *testing.T) {
-	registry := tools.NewInMemoryRegistry()
+	registry := tools.NewDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
 	require.NoError(t, registry.Register(Definition(stubProvider{
 		search: func(_ context.Context, query string, count int) ([]webintegration.SearchResult, error) {
@@ -87,7 +87,7 @@ func TestWebSearch_AppliesDefaultCount(t *testing.T) {
 }
 
 func TestWebSearch_ClampsCount(t *testing.T) {
-	registry := tools.NewInMemoryRegistry()
+	registry := tools.NewDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
 	require.NoError(t, registry.Register(Definition(stubProvider{
 		search: func(_ context.Context, _ string, count int) ([]webintegration.SearchResult, error) {
@@ -101,7 +101,7 @@ func TestWebSearch_ClampsCount(t *testing.T) {
 }
 
 func TestWebSearch_ReturnsProviderErrorsAsToolErrors(t *testing.T) {
-	registry := tools.NewInMemoryRegistry()
+	registry := tools.NewDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
 	require.NoError(t, registry.Register(Definition(stubProvider{
 		search: func(context.Context, string, int) ([]webintegration.SearchResult, error) {
@@ -120,7 +120,7 @@ func TestWebSearch_ReturnsProviderErrorsAsToolErrors(t *testing.T) {
 
 func TestWebSearch_AskPresetRequiresApprovalBeforeProviderCall(t *testing.T) {
 	called := false
-	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{
+	registry := tools.NewDefaultRegistry(tools.RegistryOptions{
 		PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval},
 	})
 	require.NoError(t, registry.Register(Definition(stubProvider{
@@ -147,7 +147,7 @@ func TestWebSearch_AskPresetRequiresApprovalBeforeProviderCall(t *testing.T) {
 
 func TestWebSearch_ApprovePresetCallsProvider(t *testing.T) {
 	called := false
-	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{
+	registry := tools.NewDefaultRegistry(tools.RegistryOptions{
 		PermissionPolicy: permissions.Policy{Preset: permissions.PresetApproveForMe},
 	})
 	require.NoError(t, registry.Register(Definition(stubProvider{
@@ -171,7 +171,7 @@ func TestWebSearch_ApprovePresetCallsProvider(t *testing.T) {
 }
 
 func TestWebSearch_FiltersBlockedResults(t *testing.T) {
-	registry := tools.NewInMemoryRegistry()
+	registry := tools.NewDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
 	require.NoError(t, registry.Register(Definition(stubProvider{
 		search: func(context.Context, string, int) ([]webintegration.SearchResult, error) {
@@ -196,7 +196,7 @@ func TestWebSearch_FiltersBlockedResults(t *testing.T) {
 }
 
 func TestWebSearch_ReturnsErrorWhenProviderIsNil(t *testing.T) {
-	registry := tools.NewInMemoryRegistry()
+	registry := tools.NewDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
 	require.NoError(t, registry.Register(Definition(nil)))
 
@@ -210,7 +210,7 @@ func TestWebSearch_ReturnsErrorWhenProviderIsNil(t *testing.T) {
 }
 
 func TestWebSearch_RequiresNetworkCapability(t *testing.T) {
-	registry := tools.NewInMemoryRegistry()
+	registry := tools.NewDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
 	require.NoError(t, registry.Register(Definition(stubProvider{
 		search: func(context.Context, string, int) ([]webintegration.SearchResult, error) {

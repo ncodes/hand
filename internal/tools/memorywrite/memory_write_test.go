@@ -39,7 +39,7 @@ func TestMemoryDelete_EnforcementDeniesBeforeRuntimeMutation(t *testing.T) {
 		called = true
 		return nil
 	}}
-	registry := tools.NewInMemoryRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
+	registry := tools.NewDefaultRegistry(tools.RegistryOptions{PermissionPolicy: permissions.Policy{
 		Rules: []permissions.Rule{{
 			Name: "deny memory deletes", Actions: []permissions.Action{permissions.ActionDelete}, Decision: permissions.DecisionDeny,
 		}},

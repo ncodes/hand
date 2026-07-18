@@ -14,15 +14,15 @@ import (
 	"github.com/wandxy/morph/internal/trace"
 )
 
-type testInMemoryRegistry struct {
-	*InMemoryRegistry
+type testDefaultRegistry struct {
+	*DefaultRegistry
 }
 
-func newTestInMemoryRegistry(options ...RegistryOptions) *testInMemoryRegistry {
-	return &testInMemoryRegistry{InMemoryRegistry: NewInMemoryRegistry(options...)}
+func newTestDefaultRegistry(options ...RegistryOptions) *testDefaultRegistry {
+	return &testDefaultRegistry{DefaultRegistry: NewDefaultRegistry(options...)}
 }
 
-func (r *testInMemoryRegistry) Register(definition Definition) error {
+func (r *testDefaultRegistry) Register(definition Definition) error {
 	if definition.Permission.IsZero() && definition.ResolvePermission == nil {
 		definition.Permission = permissions.Operation{
 			Resource: permissions.ResourceClock,
@@ -30,11 +30,11 @@ func (r *testInMemoryRegistry) Register(definition Definition) error {
 		}
 	}
 
-	return r.InMemoryRegistry.Register(definition)
+	return r.DefaultRegistry.Register(definition)
 }
 
-func TestInMemoryRegistry_RegisterAndGet(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_RegisterAndGet(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	definition := Definition{
 		Name: "echo",
 		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
@@ -50,8 +50,8 @@ func TestInMemoryRegistry_RegisterAndGet(t *testing.T) {
 	require.Nil(t, loaded.Groups)
 }
 
-func TestInMemoryRegistry_InvokeCallsHand(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_InvokeCallsHand(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.Register(Definition{
 		Name: "echo",
 		Handler: HandlerFunc(func(_ context.Context, call Call) (Result, error) {
@@ -65,8 +65,8 @@ func TestInMemoryRegistry_InvokeCallsHand(t *testing.T) {
 	require.Equal(t, "hello", result.Output)
 }
 
-func TestInMemoryRegistry_ListReturnsSortedDefinitions(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ListReturnsSortedDefinitions(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) {
 		return Result{}, nil
 	})
@@ -80,16 +80,16 @@ func TestInMemoryRegistry_ListReturnsSortedDefinitions(t *testing.T) {
 	require.Equal(t, []string{"alpha", "zeta"}, definitions.Names())
 }
 
-func TestInMemoryRegistry_RejectsInvalidDefinitions(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_RejectsInvalidDefinitions(t *testing.T) {
+	registry := newTestDefaultRegistry()
 
 	require.EqualError(t, registry.Register(Definition{}), "tool name is required")
 	require.EqualError(t, registry.Register(Definition{Name: "echo"}), "tool handler is required")
 	require.EqualError(t, registry.RegisterGroup(Group{}), "tool group name is required")
 }
 
-func TestInMemoryRegistry_RegisterRequiresPermissionDeclaration(t *testing.T) {
-	registry := NewInMemoryRegistry()
+func TestDefaultRegistry_RegisterRequiresPermissionDeclaration(t *testing.T) {
+	registry := NewDefaultRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil })
 
 	require.EqualError(
@@ -117,8 +117,8 @@ func TestInMemoryRegistry_RegisterRequiresPermissionDeclaration(t *testing.T) {
 	}))
 }
 
-func TestInMemoryRegistry_RejectsDuplicateTools(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_RejectsDuplicateTools(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) {
 		return Result{}, nil
 	})
@@ -127,14 +127,14 @@ func TestInMemoryRegistry_RejectsDuplicateTools(t *testing.T) {
 	require.EqualError(t, registry.Register(Definition{Name: "echo", Handler: handler}), "tool is already registered")
 }
 
-func TestInMemoryRegistry_RejectsDuplicateToolGroups(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_RejectsDuplicateToolGroups(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(Group{Name: "core"}))
 	require.EqualError(t, registry.RegisterGroup(Group{Name: "core"}), "tool group is already registered")
 }
 
-func TestInMemoryRegistry_InvokeReturnsNormalizedUnknownToolError(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_InvokeReturnsNormalizedUnknownToolError(t *testing.T) {
+	registry := newTestDefaultRegistry()
 
 	result, err := registry.Invoke(context.Background(), Call{Name: "missing"})
 
@@ -142,8 +142,8 @@ func TestInMemoryRegistry_InvokeReturnsNormalizedUnknownToolError(t *testing.T) 
 	require.Equal(t, Error{Code: "tool_not_registered", Message: "tool is not registered"}.String(), result.Error)
 }
 
-func TestInMemoryRegistry_MutationsRejectNilRegistry(t *testing.T) {
-	var registry *InMemoryRegistry
+func TestDefaultRegistry_MutationsRejectNilRegistry(t *testing.T) {
+	var registry *DefaultRegistry
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) {
 		return Result{}, nil
 	})
@@ -152,8 +152,8 @@ func TestInMemoryRegistry_MutationsRejectNilRegistry(t *testing.T) {
 	require.EqualError(t, registry.RegisterGroup(Group{Name: "core"}), "tool registry is required")
 }
 
-func TestInMemoryRegistry_GetHandlesNilRegistry(t *testing.T) {
-	var registry *InMemoryRegistry
+func TestDefaultRegistry_GetHandlesNilRegistry(t *testing.T) {
+	var registry *DefaultRegistry
 
 	definition, ok := registry.Get("echo")
 	require.False(t, ok)
@@ -164,15 +164,15 @@ func TestInMemoryRegistry_GetHandlesNilRegistry(t *testing.T) {
 	require.Equal(t, Group{}, group)
 }
 
-func TestInMemoryRegistry_ListHandlesNilRegistry(t *testing.T) {
-	var registry *InMemoryRegistry
+func TestDefaultRegistry_ListHandlesNilRegistry(t *testing.T) {
+	var registry *DefaultRegistry
 
 	require.Nil(t, registry.List())
 	require.Nil(t, registry.ListGroups())
 }
 
-func TestInMemoryRegistry_GetTrimsName(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_GetTrimsName(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.Register(Definition{
 		Name: "echo",
 		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
@@ -186,8 +186,8 @@ func TestInMemoryRegistry_GetTrimsName(t *testing.T) {
 	require.Equal(t, "echo", definition.Name)
 }
 
-func TestInMemoryRegistry_RegisterAndGetGroup(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_RegisterAndGetGroup(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(Group{
 		Name:     " core ",
 		Tools:    []string{" echo ", "", "echo"},
@@ -202,8 +202,8 @@ func TestInMemoryRegistry_RegisterAndGetGroup(t *testing.T) {
 	require.Equal(t, []string{"shared"}, group.Includes)
 }
 
-func TestInMemoryRegistry_ListGroupsReturnsSortedGroups(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ListGroupsReturnsSortedGroups(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(Group{Name: "zeta"}))
 	require.NoError(t, registry.RegisterGroup(Group{Name: "alpha"}))
 
@@ -212,8 +212,8 @@ func TestInMemoryRegistry_ListGroupsReturnsSortedGroups(t *testing.T) {
 	require.Equal(t, []Group{{Name: "alpha"}, {Name: "zeta"}}, groups)
 }
 
-func TestInMemoryRegistry_ResolveReturnsAllToolsWhenNoGroupsRequested(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ResolveReturnsAllToolsWhenNoGroupsRequested(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil })
 	require.NoError(t, registry.Register(Definition{Name: "beta", Handler: handler}))
 	require.NoError(t, registry.Register(Definition{Name: "alpha", Handler: handler}))
@@ -224,8 +224,8 @@ func TestInMemoryRegistry_ResolveReturnsAllToolsWhenNoGroupsRequested(t *testing
 	require.Equal(t, []string{"alpha", "beta"}, definitions.Names())
 }
 
-func TestInMemoryRegistry_ResolveByGroupMembership(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ResolveByGroupMembership(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil })
 	require.NoError(t, registry.Register(Definition{Name: "echo", Groups: []string{"core"}, Handler: handler}))
 	require.NoError(t, registry.Register(Definition{Name: "search", Handler: handler}))
@@ -238,8 +238,8 @@ func TestInMemoryRegistry_ResolveByGroupMembership(t *testing.T) {
 	require.Equal(t, "echo", definitions[0].Name)
 }
 
-func TestInMemoryRegistry_ResolveThroughIncludedGroups(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ResolveThroughIncludedGroups(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil })
 	require.NoError(t, registry.Register(Definition{Name: "echo", Groups: []string{"core"}, Handler: handler}))
 	require.NoError(t, registry.RegisterGroup(Group{Name: "core"}))
@@ -252,8 +252,8 @@ func TestInMemoryRegistry_ResolveThroughIncludedGroups(t *testing.T) {
 	require.Equal(t, "echo", definitions[0].Name)
 }
 
-func TestInMemoryRegistry_ResolveDeduplicatesTools(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ResolveDeduplicatesTools(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil })
 	require.NoError(t, registry.Register(Definition{Name: "echo", Groups: []string{"core"}, Handler: handler}))
 	require.NoError(t, registry.RegisterGroup(Group{Name: "core"}))
@@ -266,8 +266,8 @@ func TestInMemoryRegistry_ResolveDeduplicatesTools(t *testing.T) {
 	require.Equal(t, "echo", definitions[0].Name)
 }
 
-func TestInMemoryRegistry_ResolveSharedIncludedGroupOnceAndSortsTools(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ResolveSharedIncludedGroupOnceAndSortsTools(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil })
 	require.NoError(t, registry.Register(Definition{Name: "zeta", Handler: handler}))
 	require.NoError(t, registry.Register(Definition{Name: "alpha", Handler: handler}))
@@ -281,8 +281,8 @@ func TestInMemoryRegistry_ResolveSharedIncludedGroupOnceAndSortsTools(t *testing
 	require.Equal(t, []string{"alpha", "zeta"}, definitions.Names())
 }
 
-func TestInMemoryRegistry_ResolveRejectsNilRegistry(t *testing.T) {
-	var registry *InMemoryRegistry
+func TestDefaultRegistry_ResolveRejectsNilRegistry(t *testing.T) {
+	var registry *DefaultRegistry
 
 	definitions, err := registry.Resolve(Policy{})
 
@@ -290,8 +290,8 @@ func TestInMemoryRegistry_ResolveRejectsNilRegistry(t *testing.T) {
 	require.Nil(t, definitions)
 }
 
-func TestInMemoryRegistry_ResolveRejectsMissingReferencedTool(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ResolveRejectsMissingReferencedTool(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(Group{Name: "core", Tools: []string{"missing"}}))
 
 	_, err := registry.Resolve(Policy{GroupNames: []string{"core"}})
@@ -299,8 +299,8 @@ func TestInMemoryRegistry_ResolveRejectsMissingReferencedTool(t *testing.T) {
 	require.EqualError(t, err, "tool ('missing') referenced by group is not registered")
 }
 
-func TestInMemoryRegistry_ResolveRejectsMissingIncludedGroup(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ResolveRejectsMissingIncludedGroup(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(Group{Name: "core", Includes: []string{"missing"}}))
 
 	_, err := registry.Resolve(Policy{GroupNames: []string{"core"}})
@@ -308,8 +308,8 @@ func TestInMemoryRegistry_ResolveRejectsMissingIncludedGroup(t *testing.T) {
 	require.EqualError(t, err, "tool group ('missing') is not registered")
 }
 
-func TestInMemoryRegistry_ResolveRejectsGroupCycles(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ResolveRejectsGroupCycles(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.RegisterGroup(Group{Name: "core", Includes: []string{"coding"}}))
 	require.NoError(t, registry.RegisterGroup(Group{Name: "coding", Includes: []string{"core"}}))
 
@@ -318,8 +318,8 @@ func TestInMemoryRegistry_ResolveRejectsGroupCycles(t *testing.T) {
 	require.EqualError(t, err, "tool group ('core') cycle detected")
 }
 
-func TestInMemoryRegistry_ResolveFiltersByCapabilities(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ResolveFiltersByCapabilities(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil })
 	require.NoError(t, registry.Register(Definition{Name: "read_file", Requires: Capabilities{Filesystem: true}, Handler: handler}))
 
@@ -333,8 +333,8 @@ func TestInMemoryRegistry_ResolveFiltersByCapabilities(t *testing.T) {
 	require.Equal(t, "read_file", definitions[0].Name)
 }
 
-func TestInMemoryRegistry_ResolveFiltersByPlatform(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_ResolveFiltersByPlatform(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil })
 	require.NoError(t, registry.Register(Definition{Name: "browser", Platforms: []string{"desktop"}, Handler: handler}))
 	require.NoError(t, registry.Register(Definition{Name: "time", Handler: handler}))
@@ -349,8 +349,8 @@ func TestInMemoryRegistry_ResolveFiltersByPlatform(t *testing.T) {
 	require.Equal(t, "time", definitions[0].Name)
 }
 
-func TestInMemoryRegistry_InvokeNormalizesHandlerErrors(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_InvokeNormalizesHandlerErrors(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.Register(Definition{
 		Name: "echo",
 		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
@@ -364,8 +364,8 @@ func TestInMemoryRegistry_InvokeNormalizesHandlerErrors(t *testing.T) {
 	require.Equal(t, Error{Code: "tool_invocation_failed", Message: context.DeadlineExceeded.Error()}.String(), result.Error)
 }
 
-func TestInMemoryRegistry_InvokeNormalizesResultErrors(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_InvokeNormalizesResultErrors(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.Register(Definition{
 		Name: "echo",
 		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
@@ -379,8 +379,8 @@ func TestInMemoryRegistry_InvokeNormalizesResultErrors(t *testing.T) {
 	require.Equal(t, Error{Code: "tool_failed", Message: "failed"}.String(), result.Error)
 }
 
-func TestInMemoryRegistry_InvokePreservesStructuredResultErrors(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_InvokePreservesStructuredResultErrors(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	expected := Error{Code: "rate_limited", Message: "retry later", Retryable: true}
 	raw, err := json.Marshal(expected)
 	require.NoError(t, err)
@@ -398,8 +398,8 @@ func TestInMemoryRegistry_InvokePreservesStructuredResultErrors(t *testing.T) {
 	require.Equal(t, string(raw), result.Error)
 }
 
-func TestInMemoryRegistry_RegisterNormalizesPermissionMetadata(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_RegisterNormalizesPermissionMetadata(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.Register(Definition{
 		Name: "write",
 		Permission: permissions.Operation{
@@ -420,8 +420,8 @@ func TestInMemoryRegistry_RegisterNormalizesPermissionMetadata(t *testing.T) {
 	}, definition.Permission)
 }
 
-func TestInMemoryRegistry_RegisterRejectsInvalidPermissionMetadata(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_RegisterRejectsInvalidPermissionMetadata(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	err := registry.Register(Definition{
 		Name:       "write",
 		Permission: permissions.Operation{Resource: "database", Action: permissions.ActionUpdate},
@@ -431,9 +431,9 @@ func TestInMemoryRegistry_RegisterRejectsInvalidPermissionMetadata(t *testing.T)
 	require.EqualError(t, err, "permission resource is invalid")
 }
 
-func TestInMemoryRegistry_InvokeEnforcesPermissionDecision(t *testing.T) {
+func TestDefaultRegistry_InvokeEnforcesPermissionDecision(t *testing.T) {
 	called := false
-	registry := newTestInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+	registry := newTestDefaultRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
 		Default: permissions.DecisionDeny,
 		Rules: []permissions.Rule{{
 			Name:       "ask owner writes",
@@ -490,8 +490,8 @@ func TestInMemoryRegistry_InvokeEnforcesPermissionDecision(t *testing.T) {
 	}}, recorder.events)
 }
 
-func TestInMemoryRegistry_InvokeRecordsUnknownActor(t *testing.T) {
-	registry := NewInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+func TestDefaultRegistry_InvokeRecordsUnknownActor(t *testing.T) {
+	registry := NewDefaultRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
 		Default: permissions.DecisionDeny,
 	}})
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{Output: "ok"}, nil })
@@ -515,8 +515,8 @@ func TestInMemoryRegistry_InvokeRecordsUnknownActor(t *testing.T) {
 	require.Equal(t, permissions.ReasonPolicyDefault, payload.ReasonCode)
 }
 
-func TestInMemoryRegistry_InvokeClassifiedToolWithoutRecorder(t *testing.T) {
-	registry := newTestInMemoryRegistry()
+func TestDefaultRegistry_InvokeClassifiedToolWithoutRecorder(t *testing.T) {
+	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.Register(Definition{
 		Name:       "read",
 		Permission: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionRead},
@@ -531,7 +531,7 @@ func TestInMemoryRegistry_InvokeClassifiedToolWithoutRecorder(t *testing.T) {
 	require.Equal(t, "contents", result.Output)
 }
 
-func TestInMemoryRegistry_InvokeEnforcesDenyAndAskBeforeHandler(t *testing.T) {
+func TestDefaultRegistry_InvokeEnforcesDenyAndAskBeforeHandler(t *testing.T) {
 	tests := []struct {
 		name     string
 		decision permissions.Decision
@@ -544,7 +544,7 @@ func TestInMemoryRegistry_InvokeEnforcesDenyAndAskBeforeHandler(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			called := false
-			registry := newTestInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+			registry := newTestDefaultRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
 				Rules: []permissions.Rule{{Name: test.name, Decision: test.decision, Reason: test.name + " reason"}},
 			}})
 			require.NoError(t, registry.Register(Definition{
@@ -571,9 +571,9 @@ func TestInMemoryRegistry_InvokeEnforcesDenyAndAskBeforeHandler(t *testing.T) {
 	}
 }
 
-func TestInMemoryRegistry_InvokeEnforceAllowsHandlerAndRecordsResolvedOperation(t *testing.T) {
+func TestDefaultRegistry_InvokeEnforceAllowsHandlerAndRecordsResolvedOperation(t *testing.T) {
 	called := false
-	registry := newTestInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+	registry := newTestDefaultRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
 		Rules: []permissions.Rule{{
 			Name: "allow target", Actions: []permissions.Action{permissions.ActionDelete},
 			TargetPrefixes: []string{"memory-"}, Decision: permissions.DecisionAllow,
@@ -612,9 +612,9 @@ func TestInMemoryRegistry_InvokeEnforceAllowsHandlerAndRecordsResolvedOperation(
 	require.Equal(t, string(permissions.PresetCustom), recorder.events[0].payload.Preset)
 }
 
-func TestInMemoryRegistry_InvokeFullAccessBypassesPolicyAndApproval(t *testing.T) {
+func TestDefaultRegistry_InvokeFullAccessBypassesPolicyAndApproval(t *testing.T) {
 	called := false
-	registry := newTestInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+	registry := newTestDefaultRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
 		Preset: permissions.PresetFullAccess,
 		Rules:  []permissions.Rule{{Name: "deny writes", Decision: permissions.DecisionDeny}},
 	}})
@@ -647,9 +647,9 @@ func TestInMemoryRegistry_InvokeFullAccessBypassesPolicyAndApproval(t *testing.T
 	require.Equal(t, string(permissions.PresetFullAccess), recorder.events[0].payload.Preset)
 }
 
-func TestInMemoryRegistry_InvokeFullAccessBypassesHardDenial(t *testing.T) {
+func TestDefaultRegistry_InvokeFullAccessBypassesHardDenial(t *testing.T) {
 	called := false
-	registry := newTestInMemoryRegistry(RegistryOptions{
+	registry := newTestDefaultRegistry(RegistryOptions{
 		PermissionPolicy: permissions.Policy{Preset: permissions.PresetFullAccess},
 	})
 	require.NoError(t, registry.Register(Definition{
@@ -674,9 +674,9 @@ func TestInMemoryRegistry_InvokeFullAccessBypassesHardDenial(t *testing.T) {
 	require.Empty(t, result.Error)
 }
 
-func TestInMemoryRegistry_InvokeDenyOverridesAskAcrossResolvedOperations(t *testing.T) {
+func TestDefaultRegistry_InvokeDenyOverridesAskAcrossResolvedOperations(t *testing.T) {
 	called := false
-	registry := newTestInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+	registry := newTestDefaultRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
 		Rules: []permissions.Rule{
 			{Name: "ask writes", Actions: []permissions.Action{permissions.ActionUpdate}, Decision: permissions.DecisionAsk},
 			{Name: "deny deletes", Actions: []permissions.Action{permissions.ActionDelete}, Decision: permissions.DecisionDeny},
@@ -709,7 +709,7 @@ func TestInMemoryRegistry_InvokeDenyOverridesAskAcrossResolvedOperations(t *test
 	require.Equal(t, permissions.ErrorCodeDenied, toolErr.Code)
 }
 
-func TestInMemoryRegistry_InvokeRejectsInvalidPermissionResolution(t *testing.T) {
+func TestDefaultRegistry_InvokeRejectsInvalidPermissionResolution(t *testing.T) {
 	tests := []struct {
 		name     string
 		resolver PermissionResolver
@@ -749,7 +749,7 @@ func TestInMemoryRegistry_InvokeRejectsInvalidPermissionResolution(t *testing.T)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			called := false
-			registry := newTestInMemoryRegistry()
+			registry := newTestDefaultRegistry()
 			require.NoError(t, registry.Register(Definition{
 				Name: "target", Permission: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate},
 				ResolvePermission: test.resolver,
@@ -771,11 +771,11 @@ func TestInMemoryRegistry_InvokeRejectsInvalidPermissionResolution(t *testing.T)
 	}
 }
 
-func TestInMemoryRegistry_InvokeWaitsForAllowOnceAndRunsHandlerExactlyOnce(t *testing.T) {
+func TestDefaultRegistry_InvokeWaitsForAllowOnceAndRunsHandlerExactlyOnce(t *testing.T) {
 	store := storememory.NewStore()
 	approvals, err := permissions.NewApprovalService(store, permissions.ApprovalOptions{RequestTTL: time.Second})
 	require.NoError(t, err)
-	registry := newTestInMemoryRegistry(RegistryOptions{
+	registry := newTestDefaultRegistry(RegistryOptions{
 		PermissionPolicy: permissions.Policy{
 			SurfaceDefaults: map[permissions.Surface]permissions.Decision{
 				permissions.SurfaceTUI: permissions.DecisionAsk,
@@ -832,7 +832,7 @@ func TestInMemoryRegistry_InvokeWaitsForAllowOnceAndRunsHandlerExactlyOnce(t *te
 	require.Equal(t, 1, invocations)
 }
 
-func TestInMemoryRegistry_InvokePropagatesApprovalReason(t *testing.T) {
+func TestDefaultRegistry_InvokePropagatesApprovalReason(t *testing.T) {
 	tests := []struct {
 		name           string
 		approvalReason string
@@ -845,7 +845,7 @@ func TestInMemoryRegistry_InvokePropagatesApprovalReason(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			approver := &approvalRecorder{}
-			registry := newTestInMemoryRegistry(RegistryOptions{
+			registry := newTestDefaultRegistry(RegistryOptions{
 				PermissionPolicy: permissions.Policy{
 					Rules: []permissions.Rule{{
 						Name: "ask for confirmation", Decision: permissions.DecisionAsk,
@@ -883,12 +883,12 @@ func TestInMemoryRegistry_InvokePropagatesApprovalReason(t *testing.T) {
 	}
 }
 
-func TestInMemoryRegistry_InvokePropagatesPresetAuthorization(t *testing.T) {
+func TestDefaultRegistry_InvokePropagatesPresetAuthorization(t *testing.T) {
 	operation := permissions.Operation{
 		Tool: "read_file", Resource: permissions.ResourceFile, Action: permissions.ActionRead,
 		Effects: []permissions.Effect{permissions.EffectRead},
 	}
-	registry := newTestInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval}})
+	registry := newTestDefaultRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval}})
 	require.NoError(t, registry.Register(Definition{
 		Name: "read_file",
 		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
@@ -909,13 +909,13 @@ func TestInMemoryRegistry_InvokePropagatesPresetAuthorization(t *testing.T) {
 	require.Equal(t, "read", result.Output)
 }
 
-func TestInMemoryRegistry_InvokePropagatesApprovedPresetOperation(t *testing.T) {
+func TestDefaultRegistry_InvokePropagatesApprovedPresetOperation(t *testing.T) {
 	operation := permissions.Operation{
 		Tool: "web_extract", Resource: permissions.ResourceNetwork, Action: permissions.ActionRead,
 		Effects: []permissions.Effect{permissions.EffectRead, permissions.EffectNetwork},
 	}
 	approver := &approvalRecorder{}
-	registry := newTestInMemoryRegistry(RegistryOptions{
+	registry := newTestDefaultRegistry(RegistryOptions{
 		PermissionPolicy: permissions.Policy{Preset: permissions.PresetAskForApproval},
 		ApprovalService:  approver,
 	})
@@ -943,12 +943,12 @@ func TestInMemoryRegistry_InvokePropagatesApprovedPresetOperation(t *testing.T) 
 	require.Equal(t, operation.Action, approver.input.Operation.Action)
 }
 
-func TestInMemoryRegistry_InvokeRechecksPolicyAfterApproval(t *testing.T) {
+func TestDefaultRegistry_InvokeRechecksPolicyAfterApproval(t *testing.T) {
 	operation := permissions.Operation{
 		Tool: "run_command", Resource: permissions.ResourceProcess, Action: permissions.ActionExecute,
 		Effects: []permissions.Effect{permissions.EffectExecution},
 	}
-	registry := newTestInMemoryRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+	registry := newTestDefaultRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
 		Rules: []permissions.Rule{{Name: "ask", Decision: permissions.DecisionAsk}},
 	}})
 	registry.SetApprovalService(&approvalRecorder{authorize: func(permissions.EvaluationInput) error {
@@ -977,7 +977,7 @@ func TestInMemoryRegistry_InvokeRechecksPolicyAfterApproval(t *testing.T) {
 	require.Contains(t, result.Error, permissions.ErrorCodeDenied)
 }
 
-func TestInMemoryRegistry_InvokeUsesApprovalDecisionError(t *testing.T) {
+func TestDefaultRegistry_InvokeUsesApprovalDecisionError(t *testing.T) {
 	approver := &approvalRecorder{err: &permissions.DecisionError{
 		Code: permissions.ErrorCodeDenied,
 		Evaluation: permissions.Evaluation{
@@ -985,7 +985,7 @@ func TestInMemoryRegistry_InvokeUsesApprovalDecisionError(t *testing.T) {
 			Reason:   "approval denied",
 		},
 	}}
-	registry := newTestInMemoryRegistry(RegistryOptions{
+	registry := newTestDefaultRegistry(RegistryOptions{
 		PermissionPolicy: permissions.Policy{Rules: []permissions.Rule{{Name: "ask", Decision: permissions.DecisionAsk}}},
 		ApprovalService:  approver,
 	})
@@ -1011,8 +1011,8 @@ func TestInMemoryRegistry_InvokeUsesApprovalDecisionError(t *testing.T) {
 	require.Contains(t, result.Error, "approval denied")
 }
 
-func TestInMemoryRegistry_SetApprovalServiceHandlesNilRegistry(t *testing.T) {
-	var registry *InMemoryRegistry
+func TestDefaultRegistry_SetApprovalServiceHandlesNilRegistry(t *testing.T) {
+	var registry *DefaultRegistry
 	registry.SetApprovalService(nil)
 	require.Nil(t, registry.getApprovalService())
 }
