@@ -1,0 +1,591 @@
+package browser
+
+import (
+	"context"
+	"errors"
+	"os"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/permissions"
+	"github.com/wandxy/morph/pkg/nanoid"
+)
+
+const browserSessionIDPrefix = "browser_"
+
+type Service struct {
+	cfg      config.BrowserConfig
+	checker  permissions.Checker
+	backend  Backend
+	policy   NetworkPolicy
+	now      func() time.Time
+	lifetime context.Context
+	mu       sync.RWMutex
+	sessions map[string]*managedSession
+	cancel   context.CancelFunc
+	closed   bool
+}
+
+type managedSession struct {
+	Session
+	backend     BackendSession
+	proxy       *egressProxy
+	remoteRelay *remoteCDPRelay
+	lease       *profileLease
+	dataDir     string
+	ephemeral   bool
+	resourceMu  sync.Mutex
+	cleanupOnce sync.Once
+	cleanupErr  error
+	cleaned     bool
+}
+
+type ServiceOption func(*Service)
+
+func WithNow(now func() time.Time) ServiceOption {
+	return func(service *Service) {
+		service.now = now
+	}
+}
+
+func NewService(
+	ctx context.Context,
+	cfg config.BrowserConfig,
+	checker permissions.Checker,
+	backend Backend,
+	options ...ServiceOption,
+) (*Service, error) {
+	if checker == nil {
+		return nil, errors.New("browser permission checker is required")
+	}
+	if backend == nil {
+		return nil, errors.New("browser backend is required")
+	}
+	policy, err := NewNetworkPolicy(cfg.Network)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.StartTimeout <= 0 || cfg.InactivityTimeout <= 0 || cfg.CleanupInterval <= 0 || cfg.TerminalRetention <= 0 {
+		return nil, errors.New("browser lifecycle durations must be greater than zero")
+	}
+	if len(cfg.Profiles) == 0 {
+		return nil, errors.New("browser profiles are required")
+	}
+	if _, ok := cfg.Profile(cfg.DefaultProfile); !ok {
+		return nil, errors.New("browser default profile is not configured")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cleanupCtx, cancel := context.WithCancel(ctx)
+	service := &Service{
+		cfg: cfg, checker: checker, backend: backend, policy: policy,
+		now:      func() time.Time { return time.Now().UTC() },
+		sessions: make(map[string]*managedSession), lifetime: cleanupCtx, cancel: cancel,
+	}
+	for _, option := range options {
+		option(service)
+	}
+	if service.now == nil {
+		cancel()
+		return nil, errors.New("browser clock is required")
+	}
+	go service.cleanupInactive(cleanupCtx)
+
+	return service, nil
+}
+
+func (s *Service) Start(ctx context.Context, request StartRequest) (Session, error) {
+	if s == nil {
+		return Session{}, errors.New("browser service is required")
+	}
+	s.mu.RLock()
+	closed := s.closed
+	s.mu.RUnlock()
+	if closed {
+		return Session{}, &Error{Code: ErrorClosed, Operation: ActionStart, Err: errors.New("browser service is closed")}
+	}
+	owner, err := ownerFromContext(ctx)
+	if err != nil {
+		return Session{}, err
+	}
+	profileName := strings.TrimSpace(request.Profile)
+	if profileName == "" {
+		profileName = s.cfg.DefaultProfile
+	}
+	profile, ok := s.cfg.Profile(profileName)
+	if !ok {
+		return Session{}, errors.New("browser profile is not configured")
+	}
+	if !s.cfg.Enabled {
+		return Session{}, errors.New("browser service is disabled")
+	}
+	if profile.Mode == config.BrowserProfileExistingSession {
+		return Session{}, errors.New("existing browser session profiles require explicit attachment support")
+	}
+	if err := s.authorizeStart(ctx, profile); err != nil {
+		return Session{}, err
+	}
+
+	now := s.now()
+	runtime := &managedSession{Session: Session{
+		ID: nanoid.MustGenerate(browserSessionIDPrefix), Profile: profile.Name, ProfileMode: profile.Mode,
+		State: SessionStarting, Owner: owner, CreatedAt: now, LastActive: now,
+	}}
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return Session{}, errors.New("browser service is closed")
+	}
+	s.sessions[runtime.ID] = runtime
+	s.mu.Unlock()
+
+	launch, err := s.prepareLaunch(ctx, profile, runtime, isFullAccess(ctx))
+	if err != nil {
+		wrapped := &Error{Code: ErrorStartFailed, Operation: ActionStart, Err: err}
+		s.failStart(runtime, wrapped)
+		return runtime.Session, wrapped
+	}
+	startCtx, cancel := context.WithTimeout(ctx, s.cfg.StartTimeout)
+	stopLifetimeWait := context.AfterFunc(s.lifetime, cancel)
+	defer stopLifetimeWait()
+	defer cancel()
+	backendSession, err := s.backend.Start(startCtx, launch)
+	if err != nil {
+		wrapped := &Error{Code: ErrorStartFailed, Operation: ActionStart, Retryable: true, Err: err}
+		s.failStart(runtime, wrapped)
+		return runtime.Session, wrapped
+	}
+	runtime.resourceMu.Lock()
+	if runtime.cleaned {
+		runtime.resourceMu.Unlock()
+		_ = backendSession.Close(context.Background())
+		cause := &Error{
+			Code: ErrorClosed, Operation: ActionStart, Err: errors.New("browser service closed during startup"),
+		}
+		s.failStart(runtime, cause)
+		return runtime.Session, cause
+	}
+	runtime.backend = backendSession
+	runtime.resourceMu.Unlock()
+	if err := backendSession.Health(startCtx); err != nil {
+		wrapped := &Error{Code: ErrorHealthFailed, Operation: ActionStart, Retryable: true, Err: err}
+		s.failStart(runtime, wrapped)
+		return runtime.Session, wrapped
+	}
+
+	s.mu.Lock()
+	if s.closed || runtime.State == SessionStopping || runtime.State == SessionStopped {
+		s.mu.Unlock()
+		_ = s.cleanupRuntime(context.Background(), runtime)
+		return runtime.Session, errors.New("browser service closed during startup")
+	}
+	runtime.State = SessionReady
+	runtime.LastActive = s.now()
+	result := runtime.Session
+	s.mu.Unlock()
+
+	return result, nil
+}
+
+func (s *Service) Stop(ctx context.Context, id string) (Session, error) {
+	if s == nil {
+		return Session{}, errors.New("browser service is required")
+	}
+	owner, err := ownerFromContext(ctx)
+	if err != nil {
+		return Session{}, err
+	}
+	runtime, err := s.getOwnedSession(id, owner)
+	if err != nil {
+		return Session{}, err
+	}
+	s.setRuntimePolicy(ctx, runtime)
+	s.mu.RLock()
+	if runtime.State == SessionStopped {
+		result := runtime.Session
+		s.mu.RUnlock()
+		return result, nil
+	}
+	s.mu.RUnlock()
+	operations, err := (permissions.BrowserRequest{
+		Profile: runtime.Profile, Action: string(ActionStop), OwnerID: runtime.Owner.Actor.ID,
+	}).Operations()
+	if err != nil {
+		return Session{}, err
+	}
+	if err := s.checkOperations(ctx, operations); err != nil {
+		return Session{}, err
+	}
+
+	return s.stopRuntime(ctx, runtime)
+}
+
+func (s *Service) Status() Status {
+	if s == nil {
+		return Status{}
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sessions := make([]Session, 0, len(s.sessions))
+	for _, runtime := range s.sessions {
+		sessions = append(sessions, runtime.Session)
+	}
+	slices.SortFunc(sessions, func(left, right Session) int {
+		return strings.Compare(left.ID, right.ID)
+	})
+	profiles := make([]Profile, 0, len(s.cfg.Profiles))
+	for _, profile := range s.cfg.Profiles {
+		profiles = append(profiles, Profile{
+			Name: profile.Name, Mode: profile.Mode, Default: profile.Name == s.cfg.DefaultProfile,
+			Available: s.cfg.Enabled && profile.Mode != config.BrowserProfileExistingSession,
+		})
+	}
+	slices.SortFunc(profiles, func(left, right Profile) int {
+		return strings.Compare(left.Name, right.Name)
+	})
+
+	return Status{Enabled: s.cfg.Enabled, Profiles: profiles, Sessions: sessions}
+}
+
+func (s *Service) Touch(ctx context.Context, id string) error {
+	owner, err := ownerFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	runtime, err := s.getOwnedSession(id, owner)
+	if err != nil {
+		return err
+	}
+	s.setRuntimePolicy(ctx, runtime)
+	s.mu.Lock()
+	if runtime.State != SessionReady {
+		s.mu.Unlock()
+		return errors.New("browser session is not ready")
+	}
+	runtime.LastActive = s.now()
+	s.mu.Unlock()
+
+	return nil
+}
+
+func (s *Service) Authorize(ctx context.Context, request permissions.BrowserRequest) error {
+	operations, err := request.Operations()
+	if err != nil {
+		return err
+	}
+
+	return s.checkOperations(ctx, operations)
+}
+
+func (s *Service) Close(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return nil
+	}
+	s.closed = true
+	s.cancel()
+	runtimes := make([]*managedSession, 0, len(s.sessions))
+	for _, runtime := range s.sessions {
+		if runtime.State != SessionStopped {
+			runtimes = append(runtimes, runtime)
+		}
+	}
+	s.mu.Unlock()
+	var closeErrors []error
+	for _, runtime := range runtimes {
+		if _, err := s.stopRuntime(ctx, runtime); err != nil {
+			closeErrors = append(closeErrors, err)
+		}
+	}
+
+	return errors.Join(closeErrors...)
+}
+
+func (s *Service) authorizeStart(ctx context.Context, profile config.BrowserProfileConfig) error {
+	operations, err := (permissions.BrowserRequest{
+		Profile: profile.Name, Action: string(ActionStart),
+	}).Operations()
+	if err != nil {
+		return err
+	}
+	if err := s.checkOperations(ctx, operations); err != nil {
+		return err
+	}
+	if profile.Mode != config.BrowserProfileRemoteCDP {
+		return nil
+	}
+	target, err := permissions.NetworkTargetFromURL(
+		profile.CDPEndpoint, "CONNECT", permissions.NetworkRequestCDP,
+	)
+	if err != nil {
+		return err
+	}
+
+	return s.Authorize(ctx, permissions.BrowserRequest{
+		Profile: profile.Name, Action: string(ActionConnect), Network: &target,
+	})
+}
+
+func (s *Service) prepareLaunch(
+	ctx context.Context,
+	profile config.BrowserProfileConfig,
+	runtime *managedSession,
+	fullAccess bool,
+) (LaunchOptions, error) {
+	runtime.resourceMu.Lock()
+	defer runtime.resourceMu.Unlock()
+	launch := LaunchOptions{
+		Mode: profile.Mode, CDPEndpoint: profile.CDPEndpoint, Timeout: s.cfg.StartTimeout,
+	}
+	if profile.Mode == config.BrowserProfileRemoteCDP {
+		proxyPolicy := s.getNetworkPolicy(fullAccess)
+		var err error
+		runtime.remoteRelay, err = startRemoteCDPRelay(ctx, profile.CDPEndpoint, proxyPolicy)
+		if err != nil {
+			return LaunchOptions{}, err
+		}
+		launch.CDPEndpoint = runtime.remoteRelay.URL()
+		return launch, nil
+	}
+	executable, err := discoverChromiumExecutable(s.cfg.Executable)
+	if err != nil {
+		return LaunchOptions{}, err
+	}
+	launch.Executable = executable
+	if profile.Mode == config.BrowserProfileManagedPersistent {
+		if err := os.MkdirAll(profile.Directory, 0o700); err != nil {
+			return LaunchOptions{}, err
+		}
+		if err := os.Chmod(profile.Directory, 0o700); err != nil {
+			return LaunchOptions{}, err
+		}
+		runtime.lease, err = acquireProfileLease(profile.Directory)
+		if err != nil {
+			return LaunchOptions{}, err
+		}
+		runtime.dataDir = profile.Directory
+	} else {
+		if err := os.MkdirAll(s.cfg.TemporaryRoot, 0o700); err != nil {
+			return LaunchOptions{}, err
+		}
+		if err := os.Chmod(s.cfg.TemporaryRoot, 0o700); err != nil {
+			return LaunchOptions{}, err
+		}
+		runtime.dataDir, err = os.MkdirTemp(s.cfg.TemporaryRoot, "browser-profile-")
+		if err != nil {
+			return LaunchOptions{}, err
+		}
+		runtime.ephemeral = true
+		if err := os.Chmod(runtime.dataDir, 0o700); err != nil {
+			return LaunchOptions{}, err
+		}
+	}
+	launch.DataDir = runtime.dataDir
+	proxyPolicy := s.getNetworkPolicy(fullAccess)
+	runtime.proxy, err = startEgressProxy(proxyPolicy)
+	if err != nil {
+		return LaunchOptions{}, err
+	}
+	launch.ProxyURL = runtime.proxy.chromiumURL()
+	launch.ProxyUser, launch.ProxySecret = runtime.proxy.authorization.credentials()
+
+	return launch, nil
+}
+
+func (s *Service) failStart(runtime *managedSession, cause error) {
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), s.cfg.StartTimeout)
+	defer cancel()
+	_ = s.cleanupRuntime(cleanupCtx, runtime)
+	s.mu.Lock()
+	if s.closed || runtime.State == SessionStopping || runtime.State == SessionStopped {
+		runtime.State = SessionStopped
+	} else {
+		runtime.State = SessionFailed
+	}
+	runtime.Error = cause.Error()
+	runtime.LastActive = s.now()
+	s.mu.Unlock()
+}
+
+func (s *Service) stopRuntime(ctx context.Context, runtime *managedSession) (Session, error) {
+	s.mu.Lock()
+	if runtime.State == SessionStopped {
+		result := runtime.Session
+		s.mu.Unlock()
+		return result, nil
+	}
+	runtime.State = SessionStopping
+	s.mu.Unlock()
+	cleanupCtx, cancel := getCleanupContext(ctx, s.cfg.StartTimeout)
+	defer cancel()
+	err := s.cleanupRuntime(cleanupCtx, runtime)
+	s.mu.Lock()
+	runtime.State = SessionStopped
+	runtime.LastActive = s.now()
+	if err != nil {
+		runtime.Error = err.Error()
+	}
+	result := runtime.Session
+	s.mu.Unlock()
+
+	return result, err
+}
+
+func (s *Service) cleanupRuntime(ctx context.Context, runtime *managedSession) error {
+	runtime.cleanupOnce.Do(func() {
+		runtime.resourceMu.Lock()
+		defer runtime.resourceMu.Unlock()
+		runtime.cleaned = true
+		var cleanupErrors []error
+		if runtime.backend != nil {
+			cleanupErrors = append(cleanupErrors, runtime.backend.Close(ctx))
+		}
+		if runtime.proxy != nil {
+			cleanupErrors = append(cleanupErrors, runtime.proxy.Close(ctx))
+		}
+		if runtime.remoteRelay != nil {
+			cleanupErrors = append(cleanupErrors, runtime.remoteRelay.Close(ctx))
+		}
+		if runtime.lease != nil {
+			cleanupErrors = append(cleanupErrors, runtime.lease.Close())
+		}
+		if runtime.ephemeral && runtime.dataDir != "" {
+			cleanupErrors = append(cleanupErrors, os.RemoveAll(runtime.dataDir))
+		}
+		runtime.cleanupErr = errors.Join(cleanupErrors...)
+	})
+
+	return runtime.cleanupErr
+}
+
+func (s *Service) getOwnedSession(id string, owner Owner) (*managedSession, error) {
+	id = strings.TrimSpace(id)
+	s.mu.RLock()
+	runtime, ok := s.sessions[id]
+	s.mu.RUnlock()
+	if !ok {
+		return nil, errors.New("browser session not found")
+	}
+	if runtime.Owner.Actor != owner.Actor || runtime.Owner.Profile != owner.Profile ||
+		runtime.Owner.SessionID != owner.SessionID {
+		return nil, errors.New("browser session belongs to another owner")
+	}
+
+	return runtime, nil
+}
+
+func (s *Service) checkOperations(ctx context.Context, operations []permissions.Operation) error {
+	for _, operation := range operations {
+		operation, err := operation.Normalize()
+		if err != nil {
+			return err
+		}
+		hardDeny := ""
+		if operation.Network != nil {
+			if _, resolveErr := s.policy.Resolve(ctx, *operation.Network); resolveErr != nil {
+				hardDeny = resolveErr.Error()
+			}
+		}
+		if _, err := s.checker.Check(ctx, permissions.EvaluationInput{
+			Operation: operation, HardDenyReason: hardDeny,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) cleanupInactive(ctx context.Context) {
+	ticker := time.NewTicker(s.cfg.CleanupInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			_ = s.Close(context.Background())
+			return
+		case <-ticker.C:
+			now := s.now()
+			cutoff := now.Add(-s.cfg.InactivityTimeout)
+			terminalCutoff := now.Add(-s.cfg.TerminalRetention)
+			s.mu.Lock()
+			stale := make([]*managedSession, 0)
+			for id, runtime := range s.sessions {
+				if runtime.State == SessionReady && runtime.LastActive.Before(cutoff) {
+					stale = append(stale, runtime)
+				}
+				if isTerminalSessionState(runtime.State) && !runtime.LastActive.After(terminalCutoff) {
+					delete(s.sessions, id)
+				}
+			}
+			s.mu.Unlock()
+			for _, runtime := range stale {
+				_, _ = s.stopRuntime(context.WithoutCancel(ctx), runtime)
+			}
+		}
+	}
+}
+
+func (s *Service) getNetworkPolicy(fullAccess bool) NetworkPolicy {
+	policy := s.policy
+	if fullAccess {
+		policy.Strict = false
+	}
+
+	return policy
+}
+
+func (s *Service) setRuntimePolicy(ctx context.Context, runtime *managedSession) {
+	policy := s.getNetworkPolicy(isFullAccess(ctx))
+	runtime.resourceMu.Lock()
+	defer runtime.resourceMu.Unlock()
+	if runtime.proxy != nil {
+		runtime.proxy.setPolicy(policy)
+	}
+	if runtime.remoteRelay != nil {
+		runtime.remoteRelay.setPolicy(policy)
+	}
+}
+
+func isTerminalSessionState(state SessionState) bool {
+	return state == SessionStopped || state == SessionFailed
+}
+
+func ownerFromContext(ctx context.Context) (Owner, error) {
+	authorization, ok := permissions.FromContext(ctx)
+	if !ok || authorization.Actor.ID == "" || authorization.Profile == "" || authorization.SessionID == "" {
+		return Owner{}, errors.New("browser authorization owner is required")
+	}
+
+	return Owner{
+		Actor: authorization.Actor, Profile: authorization.Profile,
+		SessionID: authorization.SessionID, RunID: authorization.RunID,
+	}, nil
+}
+
+func isFullAccess(ctx context.Context) bool {
+	if permissions.HasFullAccess(ctx) {
+		return true
+	}
+	preset, ok := permissions.PresetFromContext(ctx)
+	return ok && preset == permissions.PresetFullAccess
+}
+
+func getCleanupContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	deadline := time.Now().Add(timeout)
+	if ctx != nil {
+		if existing, ok := ctx.Deadline(); ok && existing.After(time.Now()) && existing.Before(deadline) {
+			deadline = existing
+		}
+	}
+
+	return context.WithDeadline(context.Background(), deadline)
+}

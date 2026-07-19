@@ -111,7 +111,8 @@ func IsOperationAuthorized(ctx context.Context, operation Operation) bool {
 		if candidate.Resource == operation.Resource &&
 			candidate.Action == operation.Action &&
 			candidate.Target == operation.Target &&
-			candidate.TargetScope == operation.TargetScope {
+			candidate.TargetScope == operation.TargetScope &&
+			isSameNetworkTarget(candidate.Network, operation.Network) {
 			return true
 		}
 	}

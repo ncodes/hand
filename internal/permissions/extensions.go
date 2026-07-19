@@ -42,9 +42,12 @@ func (r MCPRequest) Operation() (Operation, error) {
 
 type BrowserRequest struct {
 	Profile     string
-	CDPEndpoint string
 	TabTarget   string
 	Action      string
+	Network     *NetworkTarget
+	FileTarget  string
+	TargetScope TargetScope
+	OwnerID     string
 	Personal    bool
 }
 
@@ -87,30 +90,135 @@ func (r ExtensionRequest) Operation(authorization AuthorizationContext) (Operati
 	return operation, nil
 }
 
-func (r BrowserRequest) Operation() (Operation, error) {
+func (r BrowserRequest) Operations() ([]Operation, error) {
 	r.Profile = str.String(r.Profile).Trim()
-	r.CDPEndpoint = normalizeExtensionTarget(r.CDPEndpoint)
-	r.TabTarget = normalizeExtensionTarget(r.TabTarget)
+	r.TabTarget = str.String(r.TabTarget).Trim()
+	if r.TabTarget != "" {
+		r.TabTarget = normalizeExtensionTarget(r.TabTarget)
+	}
 	r.Action = str.String(r.Action).Normalized()
-	if r.Profile == "" || r.CDPEndpoint == "" || r.Action == "" {
-		return Operation{}, errors.New("browser profile, CDP endpoint, and action are required")
+	r.FileTarget = str.String(r.FileTarget).Trim()
+	if r.FileTarget != "" {
+		r.FileTarget = normalizeExtensionTarget(r.FileTarget)
+	}
+	r.OwnerID = str.String(r.OwnerID).Trim()
+	if r.Profile == "" || r.Action == "" {
+		return nil, errors.New("browser profile and action are required")
 	}
 	target := getStructuredTarget(url.Values{
-		"profile": {r.Profile}, "cdp": {r.CDPEndpoint}, "tab": {r.TabTarget},
+		"profile": {r.Profile}, "tab": {r.TabTarget},
 		"action": {r.Action}, "mode": {getBrowserMode(r.Personal)},
 	})
-	effects := []Effect{EffectExternalSystem, EffectNetwork}
+	action, effects, ownerRequired, err := getBrowserPermission(r.Action)
+	if err != nil {
+		return nil, err
+	}
 	if r.Personal {
 		effects = append(effects, EffectCredentialBearing)
 	}
+	operation, err := (Operation{
+		Tool:          "browser",
+		Resource:      ResourceBrowser,
+		Action:        action,
+		Effects:       effects,
+		Target:        target,
+		OwnerID:       r.OwnerID,
+		OwnerRequired: ownerRequired,
+	}).Normalize()
+	if err != nil {
+		return nil, err
+	}
+	operations := []Operation{operation}
+	if r.Network != nil {
+		if !isBrowserNetworkClass(r.Action, r.Network.RequestClass) {
+			return nil, errors.New("browser network target request class does not match the action")
+		}
+		networkAction := ActionRead
+		if r.Action == "download" {
+			networkAction = ActionCreate
+		} else if r.Action == "connect" {
+			networkAction = ActionConnect
+		}
+		networkOperation, normalizeErr := (Operation{
+			Tool: "browser", Resource: ResourceNetwork, Action: networkAction,
+			Effects: []Effect{EffectRead, EffectNetwork, EffectExternalSystem}, Network: r.Network,
+			OwnerID: r.OwnerID, OwnerRequired: ownerRequired,
+		}).Normalize()
+		if normalizeErr != nil {
+			return nil, normalizeErr
+		}
+		operations = append(operations, networkOperation)
+	}
+	if requiresBrowserNetwork(r.Action) && r.Network == nil {
+		return nil, errors.New("browser action requires a structured network target")
+	}
+	if r.Action == "upload" && r.FileTarget == "" {
+		return nil, errors.New("browser upload requires a file target")
+	}
+	if r.FileTarget != "" {
+		fileAction := ActionRead
+		fileEffects := []Effect{EffectRead}
+		if r.Action == "download" || r.Action == "screenshot" || r.Action == "pdf" {
+			fileAction = ActionCreate
+			fileEffects = []Effect{EffectWrite}
+		}
+		fileOperation, normalizeErr := (Operation{
+			Tool: "browser", Resource: ResourceFile, Action: fileAction, Effects: fileEffects,
+			Target: r.FileTarget, TargetScope: r.TargetScope,
+		}).Normalize()
+		if normalizeErr != nil {
+			return nil, normalizeErr
+		}
+		operations = append(operations, fileOperation)
+	}
 
-	return Operation{
-		Tool:     "browser:" + r.Action,
-		Resource: ResourceBrowser,
-		Action:   ActionExecute,
-		Effects:  effects,
-		Target:   target,
-	}.Normalize()
+	return operations, nil
+}
+
+func getBrowserPermission(action string) (Action, []Effect, bool, error) {
+	switch action {
+	case "status", "snapshot", "console", "wait":
+		return ActionRead, []Effect{EffectRead}, false, nil
+	case "profiles", "tabs":
+		return ActionList, []Effect{EffectRead}, false, nil
+	case "focus", "scroll":
+		return ActionUpdate, []Effect{EffectWrite}, false, nil
+	case "start":
+		return ActionStart, []Effect{EffectExecution}, true, nil
+	case "stop":
+		return ActionStop, []Effect{EffectWrite, EffectExecution, EffectDestructive}, true, nil
+	case "open", "navigate", "back", "forward", "reload":
+		return ActionUpdate, []Effect{EffectRead, EffectWrite, EffectNetwork, EffectExternalSystem}, false, nil
+	case "click", "type", "press", "select", "accept_dialog", "dismiss_dialog":
+		return ActionUpdate, []Effect{EffectWrite, EffectNetwork, EffectExternalSystem}, false, nil
+	case "close":
+		return ActionDelete, []Effect{EffectWrite, EffectDestructive}, true, nil
+	case "screenshot", "pdf", "download":
+		return ActionCreate, []Effect{EffectRead, EffectWrite}, false, nil
+	case "upload":
+		return ActionUpdate, []Effect{EffectRead, EffectWrite, EffectExternalSystem}, false, nil
+	case "connect":
+		return ActionConnect, []Effect{EffectNetwork, EffectExternalSystem}, true, nil
+	default:
+		return ActionUnknown, nil, false, errors.New("browser action is invalid")
+	}
+}
+
+func requiresBrowserNetwork(action string) bool {
+	return action == "open" || action == "navigate" || action == "download" || action == "connect"
+}
+
+func isBrowserNetworkClass(action string, requestClass NetworkRequestClass) bool {
+	switch action {
+	case "open", "navigate":
+		return requestClass == NetworkRequestNavigation || requestClass == NetworkRequestRedirect
+	case "download":
+		return requestClass == NetworkRequestDownload || requestClass == NetworkRequestRedirect
+	case "connect":
+		return requestClass == NetworkRequestCDP
+	default:
+		return true
+	}
 }
 
 func NewConstrainedExtensionAuthorization(

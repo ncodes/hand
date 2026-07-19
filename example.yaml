@@ -145,6 +145,32 @@
 #   mem: true
 #   browser: false
 
+# browser:
+#   enabled: false
+#   executable: ""
+#   defaultProfile: "default"
+#   profileRoot: ""
+#   temporaryRoot: ""
+#   startTimeout: "15s"
+#   inactivityTimeout: "10m"
+#   cleanupInterval: "1m"
+#   terminalRetention: "15m"
+#   profiles:
+#     - name: "default"
+#       mode: "managed_ephemeral"
+#       directory: ""
+#       cdpEndpoint: ""
+#       credentialRef: ""
+#   network:
+#     strict: true
+#     developmentAllowedHosts: []
+#     developmentAllowedCIDRs: []
+#   artifacts:
+#     root: ""
+#     maxBytes: 26214400
+#     maxTotalBytes: 262144000
+#     retention: "24h"
+
 # log:
 #   level: "info"
 #   noColor: false

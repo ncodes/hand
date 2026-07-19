@@ -37,21 +37,22 @@ type Policy struct {
 }
 
 type Rule struct {
-	Name             string        `yaml:"name"`
-	Profiles         []string      `yaml:"profiles"`
-	ActorKinds       []ActorKind   `yaml:"actors"`
-	ActorIDs         []string      `yaml:"actorIds"`
-	ParentActorKinds []ActorKind   `yaml:"parentActors"`
-	SurfaceKinds     []SurfaceKind `yaml:"surfaceKinds"`
-	Surfaces         []Surface     `yaml:"surfaces"`
-	Tools            []string      `yaml:"tools"`
-	Resources        []Resource    `yaml:"resources"`
-	Actions          []Action      `yaml:"actions"`
-	Effects          []Effect      `yaml:"effects"`
-	TargetScopes     []TargetScope `yaml:"targetScopes"`
-	TargetPrefixes   []string      `yaml:"targetPrefixes"`
-	Decision         Decision      `yaml:"decision"`
-	Reason           string        `yaml:"reason"`
+	Name             string            `yaml:"name"`
+	Profiles         []string          `yaml:"profiles"`
+	ActorKinds       []ActorKind       `yaml:"actors"`
+	ActorIDs         []string          `yaml:"actorIds"`
+	ParentActorKinds []ActorKind       `yaml:"parentActors"`
+	SurfaceKinds     []SurfaceKind     `yaml:"surfaceKinds"`
+	Surfaces         []Surface         `yaml:"surfaces"`
+	Tools            []string          `yaml:"tools"`
+	Resources        []Resource        `yaml:"resources"`
+	Actions          []Action          `yaml:"actions"`
+	Effects          []Effect          `yaml:"effects"`
+	TargetScopes     []TargetScope     `yaml:"targetScopes"`
+	TargetPrefixes   []string          `yaml:"targetPrefixes"`
+	Network          []NetworkSelector `yaml:"network"`
+	Decision         Decision          `yaml:"decision"`
+	Reason           string            `yaml:"reason"`
 	toolRequired     bool
 }
 
@@ -337,6 +338,11 @@ func (r *Rule) normalize() {
 		})
 	}
 	r.TargetPrefixes = normalizeStrings(r.TargetPrefixes)
+	if len(r.Network) > 0 {
+		if normalized, err := normalizeNetworkSelectors(r.Network); err == nil {
+			r.Network = normalized
+		}
+	}
 	r.Decision = Decision(str.String(r.Decision).Normalized())
 	r.Reason = str.String(r.Reason).Trim()
 }
@@ -347,6 +353,9 @@ func (r Rule) validate() error {
 	}
 	if !isValidDecision(r.Decision) {
 		return errors.New("permission rule decision must be one of: allow, ask, deny")
+	}
+	if len(r.Network) > 0 && len(r.TargetPrefixes) > 0 {
+		return errors.New("permission rule cannot combine network selectors and target prefixes")
 	}
 
 	for _, value := range r.ActorKinds {
@@ -384,6 +393,9 @@ func (r Rule) validate() error {
 			return errors.New("permission rule contains an invalid target scope")
 		}
 	}
+	if _, err := normalizeNetworkSelectors(r.Network); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -401,7 +413,7 @@ func (r Rule) matches(authorization AuthorizationContext, operation Operation) b
 		containsAllEffects(operation.Effects, r.Effects) &&
 		matchesValue(r.TargetScopes, operation.TargetScope) &&
 		(!r.toolRequired || operation.Tool != "") &&
-		matchesTargetPrefix(r.TargetPrefixes, operation.Target)
+		matchesOperationTarget(r, operation)
 }
 
 func (r Rule) specificity() int {
@@ -412,7 +424,7 @@ func (r Rule) specificity() int {
 
 	return len(r.Profiles) + len(r.ActorKinds) + len(r.ActorIDs) + len(r.ParentActorKinds) + len(r.SurfaceKinds) + len(r.Surfaces) +
 		len(r.Tools) + len(r.Resources) + len(r.Actions) + len(r.Effects) + len(r.TargetScopes) +
-		len(r.TargetPrefixes) + toolRequired
+		len(r.TargetPrefixes) + getNetworkSelectorSpecificity(r.Network) + toolRequired
 }
 
 func getDecisionPriority(decision Decision) int {
@@ -483,4 +495,12 @@ func matchesTargetPrefix(prefixes []string, target string) bool {
 	}
 
 	return false
+}
+
+func matchesOperationTarget(rule Rule, operation Operation) bool {
+	if operation.Network != nil {
+		return len(rule.TargetPrefixes) == 0 && matchesNetworkSelectors(rule.Network, operation.Network)
+	}
+
+	return len(rule.Network) == 0 && matchesTargetPrefix(rule.TargetPrefixes, operation.Target)
 }

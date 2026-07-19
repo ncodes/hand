@@ -1,6 +1,9 @@
 package config
 
 import (
+	"path/filepath"
+	"slices"
+
 	"github.com/wandxy/morph/internal/constants"
 	"github.com/wandxy/morph/internal/datadir"
 	"github.com/wandxy/morph/pkg/str"
@@ -62,6 +65,7 @@ func (c *Config) normalizeFields() {
 	c.Web.NativeBlockedHosts = dedupeAndTrim(c.Web.NativeBlockedHosts)
 	c.Web.NativeAllowedHostFiles = dedupeAndTrim(c.Web.NativeAllowedHostFiles)
 	c.Web.NativeBlockedHostFiles = dedupeAndTrim(c.Web.NativeBlockedHostFiles)
+	c.normalizeBrowser()
 	addressValue := str.String(c.Gateway.Address)
 	c.Gateway.Address = addressValue.Trim()
 	authTokenValue := str.String(c.Gateway.AuthToken)
@@ -298,6 +302,83 @@ func (c *Config) normalizeFields() {
 		c.Memory.Write.Enabled = new(constants.DefaultProfileMemoryWriteEnabled)
 	}
 
+}
+
+func (c *Config) normalizeBrowser() {
+	c.Browser.Executable = cleanOptionalPath(c.Browser.Executable)
+	c.Browser.DefaultProfile = str.String(c.Browser.DefaultProfile).Normalized()
+	if c.Browser.DefaultProfile == "" {
+		c.Browser.DefaultProfile = DefaultBrowserProfileName
+	}
+	c.Browser.ProfileRoot = cleanOptionalPath(c.Browser.ProfileRoot)
+	c.Browser.TemporaryRoot = cleanOptionalPath(c.Browser.TemporaryRoot)
+	c.Browser.Artifacts.Root = cleanOptionalPath(c.Browser.Artifacts.Root)
+	if c.Browser.ProfileRoot == "" {
+		c.Browser.ProfileRoot = filepath.Join(datadir.HomeDir(), "browser", "profiles")
+	}
+	if c.Browser.TemporaryRoot == "" {
+		c.Browser.TemporaryRoot = filepath.Join(datadir.HomeDir(), "browser", "tmp")
+	}
+	if c.Browser.Artifacts.Root == "" {
+		c.Browser.Artifacts.Root = filepath.Join(datadir.HomeDir(), "browser", "artifacts")
+	}
+	if c.Browser.StartTimeout == 0 {
+		c.Browser.StartTimeout = defaultBrowserStartTimeout
+	}
+	if c.Browser.InactivityTimeout == 0 {
+		c.Browser.InactivityTimeout = defaultBrowserInactivityTimeout
+	}
+	if c.Browser.CleanupInterval == 0 {
+		c.Browser.CleanupInterval = defaultBrowserCleanupInterval
+	}
+	if c.Browser.TerminalRetention == 0 {
+		c.Browser.TerminalRetention = defaultBrowserTerminalRetention
+	}
+	if c.Browser.Artifacts.MaxBytes == 0 {
+		c.Browser.Artifacts.MaxBytes = defaultBrowserArtifactMaxBytes
+	}
+	if c.Browser.Artifacts.MaxTotalBytes == 0 {
+		c.Browser.Artifacts.MaxTotalBytes = defaultBrowserArtifactTotalBytes
+	}
+	if c.Browser.Artifacts.Retention == 0 {
+		c.Browser.Artifacts.Retention = defaultBrowserArtifactRetention
+	}
+	if c.Browser.Network.Strict == nil {
+		c.Browser.Network.Strict = new(true)
+	}
+	hosts := make([]string, 0, len(c.Browser.Network.DevelopmentAllowedHosts))
+	for _, host := range c.Browser.Network.DevelopmentAllowedHosts {
+		host = str.String(host).Normalized()
+		if host != "" && !slices.Contains(hosts, host) {
+			hosts = append(hosts, host)
+		}
+	}
+	slices.Sort(hosts)
+	c.Browser.Network.DevelopmentAllowedHosts = hosts
+	c.Browser.Network.DevelopmentAllowedCIDRs = dedupeAndTrim(c.Browser.Network.DevelopmentAllowedCIDRs)
+
+	profiles := make([]BrowserProfileConfig, 0, len(c.Browser.Profiles))
+	for _, profile := range c.Browser.Profiles {
+		profile.Name = str.String(profile.Name).Normalized()
+		profile.Mode = str.String(profile.Mode).Normalized()
+		profile.Directory = cleanOptionalPath(profile.Directory)
+		profile.CDPEndpoint = str.String(profile.CDPEndpoint).Trim()
+		profile.CredentialRef = str.String(profile.CredentialRef).Trim()
+		profiles = append(profiles, profile)
+	}
+	if len(profiles) == 0 {
+		profiles = []BrowserProfileConfig{{Name: DefaultBrowserProfileName, Mode: BrowserProfileManagedEphemeral}}
+	}
+	c.Browser.Profiles = profiles
+}
+
+func cleanOptionalPath(value string) string {
+	value = str.String(value).Trim()
+	if value == "" {
+		return ""
+	}
+
+	return filepath.Clean(value)
 }
 
 func normalizeProviderModelConfigs(values map[string]ProviderModelConfig) map[string]ProviderModelConfig {

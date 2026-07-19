@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/wandxy/morph/internal/automation"
+	"github.com/wandxy/morph/internal/browser"
 	"github.com/wandxy/morph/internal/config"
 	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/gateway"
@@ -65,6 +66,20 @@ var newGatewayAutomationDeliverySink = func(cfg config.GatewayConfig) automation
 }
 
 var stopGatewayTimeout = 5 * time.Second
+var stopBrowserTimeout = 5 * time.Second
+
+type browserService interface {
+	Close(context.Context) error
+}
+
+var newBrowserService = func(
+	ctx context.Context,
+	cfg config.BrowserConfig,
+	checker permissions.Checker,
+	backend browser.Backend,
+) (browserService, error) {
+	return browser.NewService(ctx, cfg, checker, backend)
+}
 
 var newAutomationService = func(
 	store automation.Store,
@@ -149,6 +164,24 @@ func buildAutomationService(
 		serviceOptions)
 }
 
+func buildBrowserService(ctx context.Context, cfg *config.Config) (browserService, error) {
+	if cfg == nil || !cfg.Browser.Enabled {
+		return nil, nil
+	}
+
+	return newBrowserService(ctx, cfg.Browser, permissions.NewEngine(cfg.Permissions), browser.ChromiumBackend{})
+}
+
+func closeBrowserService(service browserService) error {
+	if service == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), stopBrowserTimeout)
+	defer cancel()
+
+	return service.Close(ctx)
+}
+
 func logGatewayStarted(cfg config.GatewayConfig) {
 	event := daemonLog.Info().Str("gatewayAddress", cfg.Address).Int("gatewayPort", cfg.Port)
 	if cfg.Telegram.Enabled {
@@ -205,8 +238,19 @@ var serveRPC = func(
 	agent agentRunner,
 	lis net.Listener,
 	manager gatewayManager,
-) error {
+) (serveErr error) {
 	defer func() { _ = lis.Close() }()
+	browserRuntime, err := buildBrowserService(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	if browserRuntime != nil {
+		defer func() {
+			if closeErr := closeBrowserService(browserRuntime); serveErr == nil {
+				serveErr = closeErr
+			}
+		}()
+	}
 
 	automationService, err := buildAutomationService(ctx, cfg, agent)
 	if err != nil {

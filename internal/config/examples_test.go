@@ -66,7 +66,7 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 			}
 			require.True(t, ok)
 
-			rootKeys := []string{"name", "platform", "search", "reranker", "trace"}
+			rootKeys := []string{"name", "platform", "search", "reranker", "trace", "browser"}
 			if !file.optional {
 				rootKeys = append(rootKeys, "memory")
 			}
@@ -118,6 +118,18 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 			})
 			requireYAMLKeys(t, content, "compaction", []string{"enabled", "triggerPercent", "warnPercent"})
 			requireYAMLKeys(t, content, "cap", []string{"fs", "net", "exec", "mem", "browser"})
+			if !file.optional {
+				requireYAMLKeys(t, content, "browser", []string{
+					"enabled", "executable", "defaultProfile", "profileRoot", "temporaryRoot", "startTimeout",
+					"inactivityTimeout", "cleanupInterval", "terminalRetention", "profiles", "network", "artifacts",
+				})
+				requireYAMLKeys(t, content, "network", []string{
+					"strict", "developmentAllowedHosts", "developmentAllowedCIDRs",
+				})
+				requireYAMLKeys(t, content, "artifacts", []string{
+					"root", "maxBytes", "maxTotalBytes", "retention",
+				})
+			}
 			requireYAMLKeys(t, content, "log", []string{"level", "noColor"})
 			requireYAMLKeys(t, content, "debug", []string{"requests"})
 			requireYAMLKeys(t, content, "trace", []string{"enabled", "disk", "database"})

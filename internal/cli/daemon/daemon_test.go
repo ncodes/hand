@@ -21,6 +21,7 @@ import (
 	urfavecli "github.com/urfave/cli/v3"
 	"github.com/wandxy/morph/internal/automation"
 	"github.com/wandxy/morph/internal/brand"
+	"github.com/wandxy/morph/internal/browser"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/constants"
 	morphgateway "github.com/wandxy/morph/internal/gateway"
@@ -45,6 +46,18 @@ type modelClientFactoryStub struct {
 type approvalAgentRunnerStub struct {
 	*agentstub.AgentRunnerStub
 	approvalService *permissions.ApprovalService
+}
+
+type browserServiceStub struct {
+	close func(context.Context) error
+}
+
+func (s browserServiceStub) Close(ctx context.Context) error {
+	if s.close != nil {
+		return s.close(ctx)
+	}
+
+	return nil
 }
 
 func (s approvalAgentRunnerStub) ApprovalService() *permissions.ApprovalService {
@@ -1437,6 +1450,79 @@ func TestBuildAutomationService_HandlesUnavailableDependencies(t *testing.T) {
 	service, err = buildAutomationService(context.Background(), &config.Config{}, agent)
 	require.NoError(t, err)
 	require.Nil(t, service)
+}
+
+func TestBuildBrowserService_WiresEnabledDaemonRuntime(t *testing.T) {
+	original := newBrowserService
+	t.Cleanup(func() { newBrowserService = original })
+	cfg := config.NewDefaultConfig()
+	cfg.Browser.Enabled = true
+	var receivedConfig config.BrowserConfig
+	var receivedChecker permissions.Checker
+	var receivedBackend browser.Backend
+	expected := browserServiceStub{}
+	newBrowserService = func(
+		_ context.Context,
+		browserConfig config.BrowserConfig,
+		checker permissions.Checker,
+		backend browser.Backend,
+	) (browserService, error) {
+		receivedConfig = browserConfig
+		receivedChecker = checker
+		receivedBackend = backend
+		return expected, nil
+	}
+
+	service, err := buildBrowserService(context.Background(), cfg)
+	require.NoError(t, err)
+	require.Equal(t, expected, service)
+	require.Equal(t, cfg.Browser, receivedConfig)
+	require.NotNil(t, receivedChecker)
+	require.IsType(t, browser.ChromiumBackend{}, receivedBackend)
+}
+
+func TestBuildBrowserService_SkipsDisabledRuntimeAndPropagatesConstructionFailure(t *testing.T) {
+	original := newBrowserService
+	t.Cleanup(func() { newBrowserService = original })
+	called := false
+	expected := errors.New("browser construction failed")
+	newBrowserService = func(
+		context.Context,
+		config.BrowserConfig,
+		permissions.Checker,
+		browser.Backend,
+	) (browserService, error) {
+		called = true
+		return nil, expected
+	}
+
+	service, err := buildBrowserService(context.Background(), nil)
+	require.NoError(t, err)
+	require.Nil(t, service)
+	service, err = buildBrowserService(context.Background(), &config.Config{})
+	require.NoError(t, err)
+	require.Nil(t, service)
+	require.False(t, called)
+	cfg := config.NewDefaultConfig()
+	cfg.Browser.Enabled = true
+	service, err = buildBrowserService(context.Background(), cfg)
+	require.ErrorIs(t, err, expected)
+	require.Nil(t, service)
+}
+
+func TestCloseBrowserService_UsesBoundedContextAndReturnsFailure(t *testing.T) {
+	original := stopBrowserTimeout
+	stopBrowserTimeout = time.Second
+	t.Cleanup(func() { stopBrowserTimeout = original })
+	require.NoError(t, closeBrowserService(nil))
+	expected := errors.New("close failed")
+	service := browserServiceStub{close: func(ctx context.Context) error {
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		require.WithinDuration(t, time.Now().Add(time.Second), deadline, 100*time.Millisecond)
+		return expected
+	}}
+	require.ErrorIs(t, closeBrowserService(service), expected)
 }
 
 func TestServeRPC_ReturnsNilWhenGRPCServeReturnsServerStopped(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -222,7 +223,32 @@ func (c *Config) resolvePaths(baseDir string) {
 	c.Web.BlockedDomainFiles = getPathsFromBase(c.Web.BlockedDomainFiles, baseDir)
 	c.Web.NativeAllowedHostFiles = getPathsFromBase(c.Web.NativeAllowedHostFiles, baseDir)
 	c.Web.NativeBlockedHostFiles = getPathsFromBase(c.Web.NativeBlockedHostFiles, baseDir)
+	c.Browser.Executable = getExecutableFromBase(c.Browser.Executable, baseDir)
+	c.Browser.ProfileRoot = getPathFromBase(c.Browser.ProfileRoot, baseDir)
+	c.Browser.TemporaryRoot = getPathFromBase(c.Browser.TemporaryRoot, baseDir)
+	c.Browser.Artifacts.Root = getPathFromBase(c.Browser.Artifacts.Root, baseDir)
+	for index := range c.Browser.Profiles {
+		c.Browser.Profiles[index].Directory = getPathFromBase(c.Browser.Profiles[index].Directory, baseDir)
+	}
 	c.resolvePersonalitySoulPaths(baseDir)
+}
+
+func getExecutableFromBase(value string, baseDir string) string {
+	value = str.String(value).Trim()
+	if value == "" || filepath.IsAbs(value) || !strings.ContainsAny(value, `/\\`) {
+		return value
+	}
+
+	return filepath.Clean(filepath.Join(baseDir, value))
+}
+
+func getPathFromBase(value string, baseDir string) string {
+	value = str.String(value).Trim()
+	if value == "" || filepath.IsAbs(value) {
+		return value
+	}
+
+	return filepath.Clean(filepath.Join(baseDir, value))
 }
 
 // AddFilesystemRoots appends filesystem roots to cfg after normalizing them.

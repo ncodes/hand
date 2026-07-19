@@ -132,6 +132,9 @@ func (c *Config) validate(options validationOptions) error {
 	if err := c.Permissions.Validate(); err != nil {
 		return err
 	}
+	if err := c.validateBrowserSettings(); err != nil {
+		return err
+	}
 	if c.Compaction.TriggerPercent >= 1 {
 		return errors.New("compaction trigger percent must be greater than zero and less than one")
 	}

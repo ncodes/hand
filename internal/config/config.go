@@ -33,6 +33,7 @@ type Config struct {
 	Trace         TraceConfig                  `yaml:"trace"`
 	TUI           TUIConfig                    `yaml:"tui"`
 	Web           WebConfig                    `yaml:"web"`
+	Browser       BrowserConfig                `yaml:"browser"`
 	Safety        SafetyConfig                 `yaml:"safety"`
 	Permissions   permissions.Policy           `yaml:"permissions"`
 	Rules         RulesConfig                  `yaml:"rules"`

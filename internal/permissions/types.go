@@ -182,6 +182,7 @@ type Operation struct {
 	Effects       []Effect
 	Target        string
 	TargetScope   TargetScope
+	Network       *NetworkTarget
 	OwnerID       string
 	OwnerRequired bool
 }
@@ -192,6 +193,19 @@ func (o Operation) Normalize() (Operation, error) {
 	o.Action = Action(str.String(o.Action).Normalized())
 	o.Target = str.String(o.Target).Trim()
 	o.TargetScope = TargetScope(str.String(o.TargetScope).Normalized())
+	if o.Network != nil {
+		if o.Target != "" {
+			return Operation{}, errors.New("permission operation cannot combine a network target and raw target")
+		}
+		if o.Resource != ResourceNetwork {
+			return Operation{}, errors.New("permission network target requires the network resource")
+		}
+		network, err := o.Network.Normalize()
+		if err != nil {
+			return Operation{}, err
+		}
+		o.Network = &network
+	}
 	o.OwnerID = str.String(o.OwnerID).Trim()
 	o.Effects = normalizeEffects(o.Effects)
 
@@ -216,6 +230,7 @@ func (o Operation) Normalize() (Operation, error) {
 func (o Operation) IsZero() bool {
 	return str.String(o.Tool).Trim() == "" && o.Resource == "" && o.Action == "" && len(o.Effects) == 0 &&
 		str.String(o.Target).Trim() == "" && (o.TargetScope == "" || o.TargetScope == TargetScopeUnknown) &&
+		o.Network == nil &&
 		str.String(o.OwnerID).Trim() == "" && !o.OwnerRequired
 }
 

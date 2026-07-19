@@ -22,6 +22,7 @@ func Fingerprint(authorization AuthorizationContext, operation Operation) string
 		strings.Join(effectsToStrings(operation.Effects), ","),
 		operation.Target,
 		string(operation.TargetScope),
+		getNetworkTargetFingerprint(operation.Network),
 		operation.OwnerID,
 		scopeFingerprint(authorization.Scope),
 	}
@@ -40,7 +41,17 @@ func scopeFingerprint(scope PermissionScope) string {
 		strings.Join(valuesToStrings(scope.Actions), ","),
 		strings.Join(valuesToStrings(scope.Effects), ","),
 		strings.Join(scope.TargetPrefixes, ","),
+		getNetworkSelectorsFingerprint(scope.Network),
 	}, "|")
+}
+
+func getNetworkSelectorsFingerprint(selectors []NetworkSelector) string {
+	values := make([]string, len(selectors))
+	for index, selector := range selectors {
+		values[index] = getNetworkSelectorFingerprint(selector)
+	}
+
+	return strings.Join(values, ",")
 }
 
 func valuesToStrings[T ~string](values []T) []string {

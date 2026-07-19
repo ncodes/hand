@@ -84,6 +84,23 @@ var DefaultConfig = Config{
 		ExtractMaxSummaryChunkChars:  constants.DefaultWebExtractMaxSummaryChunkChars,
 		ExtractRefusalThresholdChars: constants.DefaultWebExtractRefusalThresholdChars,
 	},
+	Browser: BrowserConfig{
+		DefaultProfile:    DefaultBrowserProfileName,
+		StartTimeout:      defaultBrowserStartTimeout,
+		InactivityTimeout: defaultBrowserInactivityTimeout,
+		CleanupInterval:   defaultBrowserCleanupInterval,
+		TerminalRetention: defaultBrowserTerminalRetention,
+		Profiles: []BrowserProfileConfig{{
+			Name: DefaultBrowserProfileName,
+			Mode: BrowserProfileManagedEphemeral,
+		}},
+		Network: BrowserNetworkConfig{Strict: new(true)},
+		Artifacts: BrowserArtifactConfig{
+			MaxBytes:      defaultBrowserArtifactMaxBytes,
+			MaxTotalBytes: defaultBrowserArtifactTotalBytes,
+			Retention:     defaultBrowserArtifactRetention,
+		},
+	},
 	Platform: constants.DefaultPlatform,
 	Cap: CapConfig{
 		Filesystem: new(constants.DefaultProfileCapabilityFilesystem),
@@ -216,6 +233,10 @@ func cloneConfig(cfg Config) Config {
 	cfg.Cap.Exec = cloneBoolPtr(cfg.Cap.Exec)
 	cfg.Cap.Memory = cloneBoolPtr(cfg.Cap.Memory)
 	cfg.Cap.Browser = cloneBoolPtr(cfg.Cap.Browser)
+	cfg.Browser.Network.Strict = cloneBoolPtr(cfg.Browser.Network.Strict)
+	cfg.Browser.Network.DevelopmentAllowedHosts = slices.Clone(cfg.Browser.Network.DevelopmentAllowedHosts)
+	cfg.Browser.Network.DevelopmentAllowedCIDRs = slices.Clone(cfg.Browser.Network.DevelopmentAllowedCIDRs)
+	cfg.Browser.Profiles = slices.Clone(cfg.Browser.Profiles)
 	cfg.Trace.Disk.Enabled = cloneBoolPtr(cfg.Trace.Disk.Enabled)
 	cfg.Trace.Database.Enabled = cloneBoolPtr(cfg.Trace.Database.Enabled)
 	cfg.TUI.ThinkingComposer = cloneBoolPtr(cfg.TUI.ThinkingComposer)
@@ -242,6 +263,7 @@ func cloneConfig(cfg Config) Config {
 		cfg.Permissions.Rules[index].Effects = slices.Clone(cfg.Permissions.Rules[index].Effects)
 		cfg.Permissions.Rules[index].TargetScopes = slices.Clone(cfg.Permissions.Rules[index].TargetScopes)
 		cfg.Permissions.Rules[index].TargetPrefixes = slices.Clone(cfg.Permissions.Rules[index].TargetPrefixes)
+		cfg.Permissions.Rules[index].Network = slices.Clone(cfg.Permissions.Rules[index].Network)
 	}
 	cfg.Web.BlockedDomains = slices.Clone(cfg.Web.BlockedDomains)
 	cfg.Web.BlockedDomainFiles = slices.Clone(cfg.Web.BlockedDomainFiles)

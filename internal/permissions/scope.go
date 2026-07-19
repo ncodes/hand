@@ -14,6 +14,7 @@ type PermissionScope struct {
 	Actions        []Action
 	Effects        []Effect
 	TargetPrefixes []string
+	Network        []NetworkSelector
 }
 
 func (s PermissionScope) Normalize() (PermissionScope, error) {
@@ -33,6 +34,16 @@ func (s PermissionScope) Normalize() (PermissionScope, error) {
 	if len(s.TargetPrefixes) > 0 {
 		s.TargetPrefixes = normalizeStrings(s.TargetPrefixes)
 	}
+	if len(s.Network) > 0 {
+		var err error
+		s.Network, err = normalizeNetworkSelectors(s.Network)
+		if err != nil {
+			return PermissionScope{}, err
+		}
+	}
+	if len(s.Network) > 0 && len(s.TargetPrefixes) > 0 {
+		return PermissionScope{}, errors.New("permission scope cannot combine network selectors and target prefixes")
+	}
 
 	for _, resource := range s.Resources {
 		if !isValidResource(resource, false) {
@@ -49,7 +60,8 @@ func (s PermissionScope) Normalize() (PermissionScope, error) {
 			return PermissionScope{}, errors.New("permission scope contains an invalid effect")
 		}
 	}
-	if !s.Restricted && (len(s.Resources) > 0 || len(s.Actions) > 0 || len(s.Effects) > 0 || len(s.TargetPrefixes) > 0) {
+	if !s.Restricted && (len(s.Resources) > 0 || len(s.Actions) > 0 || len(s.Effects) > 0 || len(s.TargetPrefixes) > 0 ||
+		len(s.Network) > 0) {
 		return PermissionScope{}, errors.New("permission scope constraints require restricted mode")
 	}
 
@@ -80,7 +92,11 @@ func (s PermissionScope) Allows(operation Operation) bool {
 		}
 	}
 
-	return matchesTargetPrefix(s.TargetPrefixes, operation.Target)
+	if operation.Network != nil {
+		return len(s.TargetPrefixes) == 0 && len(s.Network) > 0 && matchesNetworkSelectors(s.Network, operation.Network)
+	}
+
+	return len(s.Network) == 0 && matchesTargetPrefix(s.TargetPrefixes, operation.Target)
 }
 
 func IntersectScopes(parent PermissionScope, delegated PermissionScope) (PermissionScope, error) {
@@ -105,7 +121,90 @@ func IntersectScopes(parent PermissionScope, delegated PermissionScope) (Permiss
 		Actions:        intersectValues(parent.Actions, delegated.Actions),
 		Effects:        intersectValues(parent.Effects, delegated.Effects),
 		TargetPrefixes: intersectTargetPrefixes(parent.TargetPrefixes, delegated.TargetPrefixes),
+		Network:        intersectNetworkSelectors(parent.Network, delegated.Network),
 	}, nil
+}
+
+func intersectNetworkSelectors(left []NetworkSelector, right []NetworkSelector) []NetworkSelector {
+	if len(left) == 0 || len(right) == 0 {
+		return nil
+	}
+
+	result := make([]NetworkSelector, 0)
+	for _, leftSelector := range left {
+		for _, rightSelector := range right {
+			selector, ok := intersectNetworkSelector(leftSelector, rightSelector)
+			if ok && !slices.Contains(result, selector) {
+				result = append(result, selector)
+			}
+		}
+	}
+	slices.SortFunc(result, func(leftValue, rightValue NetworkSelector) int {
+		return strings.Compare(getNetworkSelectorFingerprint(leftValue), getNetworkSelectorFingerprint(rightValue))
+	})
+
+	return result
+}
+
+func intersectNetworkSelector(left NetworkSelector, right NetworkSelector) (NetworkSelector, bool) {
+	var result NetworkSelector
+	var ok bool
+	result.Scheme, ok = intersectOptionalValue(left.Scheme, right.Scheme)
+	if !ok {
+		return NetworkSelector{}, false
+	}
+	result.Host, ok = intersectOptionalValue(left.Host, right.Host)
+	if !ok {
+		return NetworkSelector{}, false
+	}
+	result.Port, ok = intersectOptionalValue(left.Port, right.Port)
+	if !ok {
+		return NetworkSelector{}, false
+	}
+	result.Method, ok = intersectOptionalValue(left.Method, right.Method)
+	if !ok {
+		return NetworkSelector{}, false
+	}
+	result.RequestClass, ok = intersectOptionalValue(left.RequestClass, right.RequestClass)
+	if !ok {
+		return NetworkSelector{}, false
+	}
+	result.PathPrefix, ok = intersectNetworkPathPrefix(left.PathPrefix, right.PathPrefix)
+	if !ok {
+		return NetworkSelector{}, false
+	}
+
+	normalized, err := result.Normalize()
+	return normalized, err == nil
+}
+
+func intersectOptionalValue[T comparable](left T, right T) (T, bool) {
+	var zero T
+	switch {
+	case left == zero:
+		return right, true
+	case right == zero:
+		return left, true
+	case left == right:
+		return left, true
+	default:
+		return zero, false
+	}
+}
+
+func intersectNetworkPathPrefix(left string, right string) (string, bool) {
+	switch {
+	case left == "":
+		return right, true
+	case right == "":
+		return left, true
+	case matchesNetworkPathPrefix(left, right):
+		return right, true
+	case matchesNetworkPathPrefix(right, left):
+		return left, true
+	default:
+		return "", false
+	}
 }
 
 func DelegateAuthorization(
