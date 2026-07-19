@@ -66,14 +66,23 @@ type BrowserService interface {
 	Navigate(context.Context, browser.ActionRequest) (browser.Tab, error)
 	Reload(context.Context, browser.ActionRequest) (browser.Tab, error)
 	Snapshot(context.Context, browser.ActionRequest) (browser.Snapshot, error)
+	Screenshot(context.Context, browser.ActionRequest) (browser.Artifact, error)
+	PDF(context.Context, browser.ActionRequest) (browser.Artifact, error)
+	Console(context.Context, browser.ActionRequest) ([]browser.ConsoleMessage, error)
 	Click(context.Context, browser.ActionRequest) (browser.Tab, error)
 	Type(context.Context, browser.ActionRequest) (browser.Tab, error)
 	Press(context.Context, browser.ActionRequest) (browser.Tab, error)
 	Scroll(context.Context, browser.ActionRequest) (browser.Tab, error)
 	Select(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Upload(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Download(context.Context, browser.ActionRequest) (browser.Artifact, error)
+	AcceptDialog(context.Context, browser.ActionRequest) (browser.Tab, error)
+	DismissDialog(context.Context, browser.ActionRequest) (browser.Tab, error)
 	Wait(context.Context, browser.ActionRequest) (browser.Tab, error)
 	Back(context.Context, browser.ActionRequest) (browser.Tab, error)
 	Forward(context.Context, browser.ActionRequest) (browser.Tab, error)
+	ReadArtifact(context.Context, string) (browser.ArtifactContent, error)
+	ExportArtifact(context.Context, browser.ArtifactExportRequest) (browser.Artifact, error)
 }
 
 type AutomationService interface {

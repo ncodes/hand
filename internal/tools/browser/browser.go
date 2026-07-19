@@ -17,13 +17,17 @@ const toolName = "browser"
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:         toolName,
-		Description:  "Operate an isolated, permission-aware browser using typed lifecycle, tab, navigation, observation, and interaction actions.",
+		Description:  "Operate an isolated, permission-aware browser using typed lifecycle, navigation, interaction, artifact, file-transfer, and dialog actions.",
 		InputSchema:  inputSchema(),
 		Groups:       []string{"core"},
 		Requires:     tools.Capabilities{Browser: true},
 		ParallelSafe: false,
 		ResolvePermission: func(ctx context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
 			request, err := decodeRequest(call.Input)
+			if err != nil {
+				return nil, err
+			}
+			request, err = prepareRequest(runtime, request)
 			if err != nil {
 				return nil, err
 			}
@@ -43,6 +47,10 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		},
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			request, err := decodeRequest(call.Input)
+			if err != nil {
+				return tools.Result{}, err
+			}
+			request, err = prepareRequest(runtime, request)
 			if err != nil {
 				return tools.Result{}, err
 			}
@@ -83,9 +91,39 @@ func getToolError(err error) tools.Error {
 	}
 	var browserErr *browserdomain.Error
 	if errors.As(err, &browserErr) {
-		return tools.Error{Code: string(browserErr.Code), Message: browserErr.Error(), Retryable: browserErr.Retryable}
+		return tools.Error{
+			Code: string(browserErr.Code), Message: getSafeBrowserErrorMessage(browserErr.Code),
+			Retryable: browserErr.Retryable,
+		}
 	}
-	return tools.Error{Code: "browser_failed", Message: err.Error()}
+	return tools.Error{Code: "browser_failed", Message: "browser operation failed"}
+}
+
+func getSafeBrowserErrorMessage(code browserdomain.ErrorCode) string {
+	switch code {
+	case browserdomain.ErrorInvalidRequest:
+		return "browser request is invalid"
+	case browserdomain.ErrorUnavailable:
+		return "browser is unavailable"
+	case browserdomain.ErrorStartFailed:
+		return "browser failed to start"
+	case browserdomain.ErrorHealthFailed:
+		return "browser health check failed"
+	case browserdomain.ErrorNotFound:
+		return "browser resource was not found"
+	case browserdomain.ErrorOwnership:
+		return "browser resource belongs to another owner"
+	case browserdomain.ErrorClosed:
+		return "browser session is closed"
+	case browserdomain.ErrorNotReady:
+		return "browser session is not ready"
+	case browserdomain.ErrorStaleReference:
+		return "browser element reference is stale"
+	case browserdomain.ErrorTimeout:
+		return "browser operation timed out"
+	default:
+		return "browser operation failed"
+	}
 }
 
 func dispatch(ctx context.Context, service envtypes.BrowserService, request request) (any, error) {
@@ -126,14 +164,29 @@ var actionDispatchers = map[browserdomain.Action]actionDispatcher{
 		snapshot, err := service.Snapshot(ctx, actionRequestFromRequest(value))
 		return getSafeSnapshot(snapshot), err
 	},
-	browserdomain.ActionClick:   getActionRequestDispatcher(envtypes.BrowserService.Click),
-	browserdomain.ActionType:    getActionRequestDispatcher(envtypes.BrowserService.Type),
-	browserdomain.ActionPress:   getActionRequestDispatcher(envtypes.BrowserService.Press),
-	browserdomain.ActionScroll:  getActionRequestDispatcher(envtypes.BrowserService.Scroll),
-	browserdomain.ActionSelect:  getActionRequestDispatcher(envtypes.BrowserService.Select),
-	browserdomain.ActionWait:    getActionRequestDispatcher(envtypes.BrowserService.Wait),
-	browserdomain.ActionBack:    getActionRequestDispatcher(envtypes.BrowserService.Back),
-	browserdomain.ActionForward: getActionRequestDispatcher(envtypes.BrowserService.Forward),
+	browserdomain.ActionScreenshot: func(ctx context.Context, service envtypes.BrowserService, value request) (any, error) {
+		return service.Screenshot(ctx, actionRequestFromRequest(value))
+	},
+	browserdomain.ActionPDF: func(ctx context.Context, service envtypes.BrowserService, value request) (any, error) {
+		return service.PDF(ctx, actionRequestFromRequest(value))
+	},
+	browserdomain.ActionConsole: func(ctx context.Context, service envtypes.BrowserService, value request) (any, error) {
+		return service.Console(ctx, actionRequestFromRequest(value))
+	},
+	browserdomain.ActionClick:  getActionRequestDispatcher(envtypes.BrowserService.Click),
+	browserdomain.ActionType:   getActionRequestDispatcher(envtypes.BrowserService.Type),
+	browserdomain.ActionPress:  getActionRequestDispatcher(envtypes.BrowserService.Press),
+	browserdomain.ActionScroll: getActionRequestDispatcher(envtypes.BrowserService.Scroll),
+	browserdomain.ActionSelect: getActionRequestDispatcher(envtypes.BrowserService.Select),
+	browserdomain.ActionUpload: getActionRequestDispatcher(envtypes.BrowserService.Upload),
+	browserdomain.ActionDownload: func(ctx context.Context, service envtypes.BrowserService, value request) (any, error) {
+		return service.Download(ctx, actionRequestFromRequest(value))
+	},
+	browserdomain.ActionAcceptDialog:  getActionRequestDispatcher(envtypes.BrowserService.AcceptDialog),
+	browserdomain.ActionDismissDialog: getActionRequestDispatcher(envtypes.BrowserService.DismissDialog),
+	browserdomain.ActionWait:          getActionRequestDispatcher(envtypes.BrowserService.Wait),
+	browserdomain.ActionBack:          getActionRequestDispatcher(envtypes.BrowserService.Back),
+	browserdomain.ActionForward:       getActionRequestDispatcher(envtypes.BrowserService.Forward),
 }
 
 func getActionRequestDispatcher(

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -17,17 +18,18 @@ import (
 const browserSessionIDPrefix = "browser_"
 
 type Service struct {
-	cfg      config.BrowserConfig
-	checker  permissions.Checker
-	approver permissions.Approver
-	backend  Backend
-	policy   NetworkPolicy
-	now      func() time.Time
-	lifetime context.Context
-	mu       sync.RWMutex
-	sessions map[string]*managedSession
-	cancel   context.CancelFunc
-	closed   bool
+	cfg       config.BrowserConfig
+	checker   permissions.Checker
+	approver  permissions.Approver
+	backend   Backend
+	policy    NetworkPolicy
+	artifacts *artifactStore
+	now       func() time.Time
+	lifetime  context.Context
+	mu        sync.RWMutex
+	sessions  map[string]*managedSession
+	cancel    context.CancelFunc
+	closed    bool
 }
 
 func (s *Service) SetApprover(approver permissions.Approver) {
@@ -41,30 +43,33 @@ func (s *Service) SetApprover(approver permissions.Approver) {
 
 type managedSession struct {
 	Session
-	backend     BackendSession
-	proxy       *egressProxy
-	remoteRelay *remoteCDPRelay
-	lease       *profileLease
-	dataDir     string
-	ephemeral   bool
-	resourceMu  sync.Mutex
-	cleanupOnce sync.Once
-	cleanupErr  error
-	cleaned     bool
-	tabMu       sync.RWMutex
-	tabs        map[string]*managedTab
-	activeTabID string
-	actionMu    sync.Mutex
+	backend      BackendSession
+	proxy        *egressProxy
+	remoteRelay  *remoteCDPRelay
+	lease        *profileLease
+	dataDir      string
+	downloadRoot string
+	ephemeral    bool
+	resourceMu   sync.Mutex
+	cleanupOnce  sync.Once
+	cleanupErr   error
+	cleaned      bool
+	tabMu        sync.RWMutex
+	tabs         map[string]*managedTab
+	activeTabID  string
+	actionMu     sync.Mutex
 }
 
 type managedTab struct {
 	Tab
-	refs map[string]managedReference
+	refs      map[string]managedReference
+	sensitive bool
 }
 
 type managedReference struct {
 	NodeID    int64
 	Sensitive bool
+	TargetURL string
 }
 
 type ServiceOption func(*Service)
@@ -116,6 +121,15 @@ func NewService(
 	if service.now == nil {
 		cancel()
 		return nil, errors.New("browser clock is required")
+	}
+	service.artifacts, err = newArtifactStore(cfg.Artifacts, service.now)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	if err := service.artifacts.cleanup(nil); err != nil {
+		cancel()
+		return nil, err
 	}
 	go service.cleanupInactive(cleanupCtx)
 
@@ -329,6 +343,7 @@ func (s *Service) Close(ctx context.Context) error {
 			closeErrors = append(closeErrors, err)
 		}
 	}
+	closeErrors = append(closeErrors, s.artifacts.cleanup(s.isArtifactOwnerActive))
 
 	return errors.Join(closeErrors...)
 }
@@ -369,6 +384,18 @@ func (s *Service) prepareLaunch(
 	launch := LaunchOptions{
 		Mode: profile.Mode, CDPEndpoint: profile.CDPEndpoint, Timeout: s.cfg.StartTimeout,
 	}
+	downloadBase := filepath.Join(s.cfg.Artifacts.Root, ".downloads")
+	if err := os.MkdirAll(downloadBase, 0o700); err != nil {
+		return LaunchOptions{}, err
+	}
+	if err := os.Chmod(downloadBase, 0o700); err != nil {
+		return LaunchOptions{}, err
+	}
+	runtime.downloadRoot = filepath.Join(downloadBase, runtime.ID)
+	if err := os.Mkdir(runtime.downloadRoot, 0o700); err != nil {
+		return LaunchOptions{}, err
+	}
+	launch.DownloadRoot = runtime.downloadRoot
 	if profile.Mode == config.BrowserProfileRemoteCDP {
 		proxyPolicy := s.getNetworkPolicy(fullAccess)
 		var err error
@@ -484,6 +511,9 @@ func (s *Service) cleanupRuntime(ctx context.Context, runtime *managedSession) e
 		if runtime.ephemeral && runtime.dataDir != "" {
 			cleanupErrors = append(cleanupErrors, os.RemoveAll(runtime.dataDir))
 		}
+		if runtime.downloadRoot != "" {
+			cleanupErrors = append(cleanupErrors, os.RemoveAll(runtime.downloadRoot))
+		}
 		runtime.cleanupErr = errors.Join(cleanupErrors...)
 	})
 
@@ -582,8 +612,61 @@ func (s *Service) cleanupInactive(ctx context.Context) {
 			for _, runtime := range stale {
 				_, _ = s.stopRuntime(context.WithoutCancel(ctx), runtime)
 			}
+			_ = s.artifacts.cleanup(s.isArtifactOwnerActive)
+			_ = s.cleanupAbandonedRuntimeDirectories(filepath.Join(s.cfg.TemporaryRoot, "uploads"), now)
+			_ = s.cleanupAbandonedRuntimeDirectories(filepath.Join(s.cfg.Artifacts.Root, ".downloads"), now)
 		}
 	}
+}
+
+func (s *Service) cleanupAbandonedRuntimeDirectories(root string, now time.Time) error {
+	entries, err := os.ReadDir(root)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	cutoff := now.Add(-s.cfg.Artifacts.Retention)
+	s.mu.RLock()
+	active := make(map[string]struct{}, len(s.sessions))
+	for id, runtime := range s.sessions {
+		if !isTerminalSessionState(runtime.State) {
+			active[id] = struct{}{}
+		}
+	}
+	s.mu.RUnlock()
+	var cleanupErrors []error
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), browserSessionIDPrefix) {
+			continue
+		}
+		if _, ok := active[entry.Name()]; ok {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			cleanupErrors = append(cleanupErrors, err)
+			continue
+		}
+		if info.ModTime().After(cutoff) {
+			continue
+		}
+		cleanupErrors = append(cleanupErrors, os.RemoveAll(filepath.Join(root, entry.Name())))
+	}
+	return errors.Join(cleanupErrors...)
+}
+
+func (s *Service) isArtifactOwnerActive(owner Owner) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, runtime := range s.sessions {
+		if sameArtifactOwner(runtime.Owner, owner) &&
+			(runtime.State == SessionStarting || runtime.State == SessionReady || runtime.State == SessionStopping) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) getNetworkPolicy(fullAccess bool) NetworkPolicy {

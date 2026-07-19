@@ -157,19 +157,24 @@ const (
 )
 
 type ActionRequest struct {
-	Profile   string
-	SessionID string
-	TabID     string
-	URL       string
-	Ref       string
-	Text      string
-	Value     string
-	Key       string
-	X         int64
-	Y         int64
-	Condition WaitCondition
-	Timeout   time.Duration
-	Replace   bool
+	Profile     string
+	SessionID   string
+	TabID       string
+	URL         string
+	Path        string
+	FileTarget  string
+	Ref         string
+	Text        string
+	Value       string
+	Key         string
+	X           int64
+	Y           int64
+	Limit       int
+	Condition   WaitCondition
+	Timeout     time.Duration
+	Replace     bool
+	FullPage    bool
+	TargetScope permissions.TargetScope
 }
 
 type BackendTab struct {
@@ -205,12 +210,54 @@ const (
 )
 
 type Artifact struct {
-	Handle    string
+	Handle    string               `json:"handle"`
+	Kind      ArtifactKind         `json:"kind"`
+	Name      string               `json:"name"`
+	MIMEType  string               `json:"mime_type"`
+	Size      int64                `json:"size"`
+	Profile   string               `json:"profile"`
+	SessionID string               `json:"session_id"`
+	RunID     string               `json:"run_id,omitempty"`
+	Source    string               `json:"source"`
+	Effects   []permissions.Effect `json:"effects"`
+	Sensitive bool                 `json:"sensitive"`
+	CreatedAt time.Time            `json:"created_at"`
+	ExpiresAt time.Time            `json:"expires_at"`
+}
+
+type ArtifactContent struct {
+	Artifact Artifact `json:"artifact"`
+	Data     []byte   `json:"-"`
+}
+
+type ArtifactExportRequest struct {
+	Handle      string
+	Path        string
+	FileTarget  string
+	TargetScope permissions.TargetScope
+}
+
+type BackendArtifact struct {
 	Kind      ArtifactKind
+	Name      string
 	MIMEType  string
-	Size      int64
-	CreatedAt time.Time
-	ExpiresAt time.Time
+	SourceURL string
+	Data      []byte `json:"-"`
+}
+
+type ConsoleLevel string
+
+const (
+	ConsoleDebug ConsoleLevel = "debug"
+	ConsoleInfo  ConsoleLevel = "info"
+	ConsoleWarn  ConsoleLevel = "warn"
+	ConsoleError ConsoleLevel = "error"
+)
+
+type ConsoleMessage struct {
+	Level     ConsoleLevel `json:"level"`
+	Text      string       `json:"text"`
+	Timestamp time.Time    `json:"timestamp"`
 }
 
 type StartRequest struct {
@@ -224,14 +271,15 @@ type Status struct {
 }
 
 type LaunchOptions struct {
-	Executable  string
-	Mode        string
-	DataDir     string
-	CDPEndpoint string
-	ProxyURL    string
-	ProxyUser   string
-	ProxySecret string
-	Timeout     time.Duration
+	Executable   string
+	Mode         string
+	DataDir      string
+	DownloadRoot string
+	CDPEndpoint  string
+	ProxyURL     string
+	ProxyUser    string
+	ProxySecret  string
+	Timeout      time.Duration
 }
 
 type Backend interface {
@@ -259,6 +307,15 @@ type InteractiveBackendSession interface {
 	Scroll(context.Context, string, int64, int64) error
 	Select(context.Context, string, int64, string) error
 	Wait(context.Context, string, WaitCondition, string, int64) error
+}
+
+type RichBackendSession interface {
+	Screenshot(context.Context, string, bool) (BackendArtifact, error)
+	PDF(context.Context, string) (BackendArtifact, error)
+	Console(context.Context, string, int) ([]ConsoleMessage, error)
+	Upload(context.Context, string, int64, string) error
+	Download(context.Context, string, int64, int64) (BackendArtifact, error)
+	RespondToDialog(context.Context, string, int64, bool, string) error
 }
 
 type NetworkRequestAuthorizer func(context.Context, permissions.NetworkTarget) error

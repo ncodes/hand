@@ -3,12 +3,15 @@ package browser
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/permissions"
 )
 
@@ -26,6 +29,17 @@ type interactiveBackend struct {
 
 func (b *interactiveBackend) Start(context.Context, LaunchOptions) (BackendSession, error) {
 	return b.session, nil
+}
+
+type backendFunc func(context.Context, LaunchOptions) (BackendSession, error)
+
+func (f backendFunc) Start(ctx context.Context, options LaunchOptions) (BackendSession, error) {
+	return f(ctx, options)
+}
+
+type interactiveOnlySession struct {
+	BackendSession
+	InteractiveBackendSession
 }
 
 type interactiveBackendSession struct {
@@ -46,6 +60,14 @@ type interactiveBackendSession struct {
 	authorizedTabs []string
 	requestTarget  string
 	failAction     Action
+	screenshot     BackendArtifact
+	pdf            BackendArtifact
+	console        []ConsoleMessage
+	uploaded       []byte
+	uploadPath     string
+	download       BackendArtifact
+	dialogAccepted []bool
+	dialogPrompts  []string
 }
 
 func (s *interactiveBackendSession) getFailure(action Action) error {
@@ -74,9 +96,18 @@ func newInteractiveBackendSession() *interactiveBackendSession {
 						BackendNodeID: 43, Role: "textbox", Name: "Password", Value: "secret", Sensitive: true,
 						Properties: map[string]string{"value": "secret"},
 					},
+					{BackendNodeID: 44, Role: "link", Name: "Download", Properties: map[string]string{"url": testPageURL + "/file"}},
+					{BackendNodeID: 45, Role: "button", Name: "Upload"},
 				},
 			},
 		},
+		screenshot: BackendArtifact{Kind: ArtifactScreenshot, MIMEType: "image/png", Data: []byte("png")},
+		pdf:        BackendArtifact{Kind: ArtifactPDF, MIMEType: "application/pdf", Data: []byte("pdf")},
+		download: BackendArtifact{
+			Kind: ArtifactDownload, Name: "report.txt", MIMEType: "text/plain",
+			SourceURL: testPageURL + "/file", Data: []byte("download"),
+		},
+		console: []ConsoleMessage{{Level: ConsoleInfo, Text: "ready", Timestamp: time.Now().UTC()}},
 	}
 }
 
@@ -285,6 +316,89 @@ func (s *interactiveBackendSession) Wait(
 	return nil
 }
 
+func (s *interactiveBackendSession) Screenshot(context.Context, string, bool) (BackendArtifact, error) {
+	if err := s.getFailure(ActionScreenshot); err != nil {
+		return BackendArtifact{}, err
+	}
+	return s.screenshot, nil
+}
+
+func (s *interactiveBackendSession) PDF(context.Context, string) (BackendArtifact, error) {
+	if err := s.getFailure(ActionPDF); err != nil {
+		return BackendArtifact{}, err
+	}
+	return s.pdf, nil
+}
+
+func (s *interactiveBackendSession) Console(context.Context, string, int) ([]ConsoleMessage, error) {
+	if err := s.getFailure(ActionConsole); err != nil {
+		return nil, err
+	}
+	return append([]ConsoleMessage(nil), s.console...), nil
+}
+
+func (s *interactiveBackendSession) Upload(_ context.Context, _ string, _ int64, stagedPath string) error {
+	if err := s.getFailure(ActionUpload); err != nil {
+		return err
+	}
+	content, err := os.ReadFile(stagedPath)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.uploadPath = stagedPath
+	s.uploaded = content
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *interactiveBackendSession) Download(
+	_ context.Context,
+	_ string,
+	_ int64,
+	_ int64,
+) (BackendArtifact, error) {
+	if err := s.getFailure(ActionDownload); err != nil {
+		return BackendArtifact{}, err
+	}
+	s.mu.Lock()
+	authorize := s.authorize
+	s.mu.Unlock()
+	if authorize != nil {
+		target, err := permissions.NetworkTargetFromURL(
+			s.download.SourceURL, "GET", permissions.NetworkRequestNavigation,
+		)
+		if err != nil {
+			return BackendArtifact{}, err
+		}
+		if err := authorize(context.Background(), target); err != nil {
+			return BackendArtifact{}, err
+		}
+	}
+	return s.download, nil
+}
+
+func (s *interactiveBackendSession) RespondToDialog(
+	_ context.Context,
+	_ string,
+	_ int64,
+	accept bool,
+	promptText string,
+) error {
+	action := ActionDismissDialog
+	if accept {
+		action = ActionAcceptDialog
+	}
+	if err := s.getFailure(action); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.dialogAccepted = append(s.dialogAccepted, accept)
+	s.dialogPrompts = append(s.dialogPrompts, promptText)
+	s.mu.Unlock()
+	return nil
+}
+
 func TestService_ActionsMaintainOwnedTabsAndRejectStaleReferences(t *testing.T) {
 	backendSession := newInteractiveBackendSession()
 	service, err := NewService(
@@ -402,7 +516,7 @@ func TestService_ResolveOperationsUsesAuthoritativeTabAndNavigationTargets(t *te
 	require.EqualError(t, err, "browser navigation URL is required")
 }
 
-func TestService_ResolveOperationsClassifiesEveryPhaseTwoAction(t *testing.T) {
+func TestService_ResolveOperationsClassifiesEverySupportedAction(t *testing.T) {
 	backendSession := newInteractiveBackendSession()
 	service, err := NewService(
 		context.Background(), testBrowserConfig(t), allowChecker(),
@@ -415,16 +529,33 @@ func TestService_ResolveOperationsClassifiesEveryPhaseTwoAction(t *testing.T) {
 	require.NoError(t, err)
 	snapshot, err := service.Snapshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
 	require.NoError(t, err)
+	refs := make(map[string]string)
+	for _, node := range snapshot.Nodes {
+		refs[node.Name] = node.Ref
+	}
 
 	for _, action := range []Action{
 		ActionStatus, ActionProfiles, ActionStart, ActionStop, ActionTabs, ActionOpen, ActionFocus, ActionClose,
-		ActionNavigate, ActionReload, ActionSnapshot, ActionClick, ActionType, ActionPress, ActionScroll,
-		ActionSelect, ActionWait, ActionBack, ActionForward,
+		ActionNavigate, ActionReload, ActionSnapshot, ActionScreenshot, ActionPDF, ActionConsole, ActionClick,
+		ActionType, ActionPress, ActionScroll, ActionSelect, ActionUpload, ActionDownload, ActionAcceptDialog,
+		ActionDismissDialog, ActionWait, ActionBack, ActionForward,
 	} {
 		t.Run(string(action), func(t *testing.T) {
 			request := ActionRequest{
 				SessionID: session.ID, TabID: "tab-1",
 				Ref: snapshot.Nodes[0].Ref, Condition: WaitLoad,
+			}
+			if action == ActionUpload {
+				request.Ref = refs["Upload"]
+				request.Path = "/tmp/upload.txt"
+				request.FileTarget = "/tmp/upload.txt"
+				request.TargetScope = permissions.TargetScopeExternal
+			}
+			if action == ActionDownload {
+				request.Ref = refs["Download"]
+			}
+			if action == ActionAcceptDialog || action == ActionDismissDialog {
+				request.Ref = refs["Submit"]
 			}
 			if action == ActionOpen || action == ActionNavigate {
 				request.URL = testPageURL + "/target"
@@ -440,6 +571,136 @@ func TestService_ResolveOperationsClassifiesEveryPhaseTwoAction(t *testing.T) {
 				require.Equal(t, "browser", operation.Tool)
 				require.NotEqual(t, permissions.ActionUnknown, operation.Action)
 			}
+		})
+	}
+}
+
+func TestService_RichBackendFailuresReturnStableErrors(t *testing.T) {
+	tests := []struct {
+		action Action
+		run    func(context.Context, *Service, string, map[string]string, string) error
+	}{
+		{action: ActionScreenshot, run: func(ctx context.Context, service *Service, sessionID string, _ map[string]string, _ string) error {
+			_, err := service.Screenshot(ctx, ActionRequest{SessionID: sessionID, TabID: "tab-1"})
+			return err
+		}},
+		{action: ActionPDF, run: func(ctx context.Context, service *Service, sessionID string, _ map[string]string, _ string) error {
+			_, err := service.PDF(ctx, ActionRequest{SessionID: sessionID, TabID: "tab-1"})
+			return err
+		}},
+		{action: ActionConsole, run: func(ctx context.Context, service *Service, sessionID string, _ map[string]string, _ string) error {
+			_, err := service.Console(ctx, ActionRequest{SessionID: sessionID, TabID: "tab-1"})
+			return err
+		}},
+		{action: ActionUpload, run: func(ctx context.Context, service *Service, sessionID string, refs map[string]string, source string) error {
+			_, err := service.Upload(ctx, ActionRequest{
+				SessionID: sessionID, TabID: "tab-1", Ref: refs["Upload"], Path: source,
+				FileTarget: filepath.ToSlash(source), TargetScope: permissions.TargetScopeExternal,
+			})
+			return err
+		}},
+		{action: ActionDownload, run: func(ctx context.Context, service *Service, sessionID string, refs map[string]string, _ string) error {
+			_, err := service.Download(ctx, ActionRequest{SessionID: sessionID, TabID: "tab-1", Ref: refs["Download"]})
+			return err
+		}},
+		{action: ActionAcceptDialog, run: func(ctx context.Context, service *Service, sessionID string, refs map[string]string, _ string) error {
+			_, err := service.AcceptDialog(ctx, ActionRequest{SessionID: sessionID, TabID: "tab-1", Ref: refs["Submit"]})
+			return err
+		}},
+		{action: ActionDismissDialog, run: func(ctx context.Context, service *Service, sessionID string, refs map[string]string, _ string) error {
+			_, err := service.DismissDialog(ctx, ActionRequest{SessionID: sessionID, TabID: "tab-1", Ref: refs["Submit"]})
+			return err
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(string(test.action), func(t *testing.T) {
+			backend := newInteractiveBackendSession()
+			service, err := NewService(
+				context.Background(), testBrowserConfig(t), allowChecker(), &interactiveBackend{session: backend},
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+			ctx := testBrowserContext("owner", "session")
+			session, err := service.Start(ctx, StartRequest{})
+			require.NoError(t, err)
+			snapshot, err := service.Snapshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+			require.NoError(t, err)
+			refs := make(map[string]string)
+			for _, node := range snapshot.Nodes {
+				refs[node.Name] = node.Ref
+			}
+			source := filepath.Join(t.TempDir(), "upload.txt")
+			require.NoError(t, os.WriteFile(source, []byte("approved"), 0o600))
+			backend.failAction = test.action
+
+			err = test.run(ctx, service, session.ID, refs, source)
+			browserErr, ok := GetError(err)
+			require.True(t, ok)
+			require.Equal(t, ErrorUnavailable, browserErr.Code)
+			require.Equal(t, test.action, browserErr.Operation)
+			require.True(t, browserErr.Retryable)
+			if test.action == ActionUpload {
+				require.NoDirExists(t, filepath.Join(service.cfg.TemporaryRoot, "uploads", session.ID))
+			}
+		})
+	}
+}
+
+func TestService_RejectsArtifactKindMismatchBeforePersistence(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*interactiveBackendSession)
+		run    func(context.Context, *Service, string, map[string]string) error
+	}{
+		{
+			name: "screenshot", mutate: func(backend *interactiveBackendSession) { backend.screenshot.Kind = ArtifactPDF },
+			run: func(ctx context.Context, service *Service, sessionID string, _ map[string]string) error {
+				_, err := service.Screenshot(ctx, ActionRequest{SessionID: sessionID, TabID: "tab-1"})
+				return err
+			},
+		},
+		{
+			name: "pdf", mutate: func(backend *interactiveBackendSession) { backend.pdf.Kind = ArtifactScreenshot },
+			run: func(ctx context.Context, service *Service, sessionID string, _ map[string]string) error {
+				_, err := service.PDF(ctx, ActionRequest{SessionID: sessionID, TabID: "tab-1"})
+				return err
+			},
+		},
+		{
+			name: "download", mutate: func(backend *interactiveBackendSession) { backend.download.Kind = ArtifactScreenshot },
+			run: func(ctx context.Context, service *Service, sessionID string, refs map[string]string) error {
+				_, err := service.Download(ctx, ActionRequest{SessionID: sessionID, TabID: "tab-1", Ref: refs["Download"]})
+				return err
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			backend := newInteractiveBackendSession()
+			test.mutate(backend)
+			service, err := NewService(
+				context.Background(), testBrowserConfig(t), allowChecker(), &interactiveBackend{session: backend},
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+			ctx := testBrowserContext("owner", "session")
+			session, err := service.Start(ctx, StartRequest{})
+			require.NoError(t, err)
+			snapshot, err := service.Snapshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+			require.NoError(t, err)
+			refs := make(map[string]string)
+			for _, node := range snapshot.Nodes {
+				refs[node.Name] = node.Ref
+			}
+
+			require.EqualError(t, test.run(ctx, service, session.ID, refs), "browser backend returned the wrong artifact kind")
+			entries, err := os.ReadDir(service.cfg.Artifacts.Root)
+			require.NoError(t, err)
+			require.Len(t, entries, 1)
+			require.True(t, entries[0].IsDir())
+			require.Equal(t, ".downloads", entries[0].Name())
 		})
 	}
 }
@@ -826,6 +1087,349 @@ func TestService_InteractiveBackendFailuresReturnStableErrors(t *testing.T) {
 			require.True(t, browserErr.Retryable)
 		})
 	}
+}
+
+func TestService_RichActionsPersistArtifactsStageUploadsAndHandleDialogs(t *testing.T) {
+	backend := newInteractiveBackendSession()
+	backendSnapshot := backend.snapshots["tab-1"]
+	backendSnapshot.Nodes[3].Value = ""
+	backendSnapshot.Nodes[3].Properties = nil
+	backend.snapshots["tab-1"] = backendSnapshot
+	service, err := NewService(
+		context.Background(), testBrowserConfig(t), allowChecker(), &interactiveBackend{session: backend},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	ctx := testBrowserContext("owner", "session")
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+	_, err = service.Tabs(ctx, session.ID)
+	require.NoError(t, err)
+	snapshot, err := service.Snapshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	refs := make(map[string]string)
+	for _, node := range snapshot.Nodes {
+		refs[node.Name] = node.Ref
+	}
+
+	screenshot, err := service.Screenshot(ctx, ActionRequest{
+		SessionID: session.ID, TabID: "tab-1", FullPage: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, ArtifactScreenshot, screenshot.Kind)
+	require.NotEmpty(t, screenshot.Handle)
+	require.Equal(t, testPageURL, screenshot.Source)
+	require.True(t, screenshot.Sensitive)
+	require.Contains(t, screenshot.Effects, permissions.EffectCredentialBearing)
+	content, err := service.ReadArtifact(ctx, screenshot.Handle)
+	require.NoError(t, err)
+	require.Equal(t, []byte("png"), content.Data)
+	exportRoot, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	exportPath := filepath.Join(exportRoot, "screenshot.png")
+	exported, err := service.ExportArtifact(ctx, ArtifactExportRequest{
+		Handle: screenshot.Handle, Path: exportPath, FileTarget: filepath.ToSlash(exportPath),
+		TargetScope: permissions.TargetScopeExternal,
+	})
+	require.NoError(t, err)
+	require.Equal(t, screenshot.Handle, exported.Handle)
+	exportedData, err := os.ReadFile(exportPath)
+	require.NoError(t, err)
+	require.Equal(t, []byte("png"), exportedData)
+	_, err = service.ExportArtifact(ctx, ArtifactExportRequest{
+		Handle: screenshot.Handle, Path: exportPath, FileTarget: filepath.ToSlash(exportPath),
+		TargetScope: permissions.TargetScopeExternal,
+	})
+	require.ErrorIs(t, err, os.ErrExist)
+	_, err = service.ReadArtifact(testBrowserContext("other", "session"), screenshot.Handle)
+	require.EqualError(t, err, "browser artifact belongs to another owner")
+
+	pdf, err := service.PDF(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	require.Equal(t, ArtifactPDF, pdf.Kind)
+	messages, err := service.Console(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1", Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, backend.console, messages)
+
+	source := filepath.Join(t.TempDir(), "upload.txt")
+	require.NoError(t, os.WriteFile(source, []byte("approved bytes"), 0o600))
+	uploadedTab, err := service.Upload(ctx, ActionRequest{
+		SessionID: session.ID, TabID: "tab-1", Ref: refs["Upload"], Path: source,
+		FileTarget: filepath.ToSlash(source), TargetScope: permissions.TargetScopeExternal,
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), uploadedTab.Generation)
+	require.Equal(t, []byte("approved bytes"), backend.uploaded)
+	_, err = os.Stat(backend.uploadPath)
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	snapshot, err = service.Snapshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	refs = make(map[string]string)
+	for _, node := range snapshot.Nodes {
+		refs[node.Name] = node.Ref
+	}
+	download, err := service.Download(ctx, ActionRequest{
+		SessionID: session.ID, TabID: "tab-1", Ref: refs["Download"],
+	})
+	require.NoError(t, err)
+	require.Equal(t, ArtifactDownload, download.Kind)
+	downloadContent, err := service.ReadArtifact(ctx, download.Handle)
+	require.NoError(t, err)
+	require.Equal(t, []byte("download"), downloadContent.Data)
+
+	accepted, err := service.AcceptDialog(ctx, ActionRequest{
+		SessionID: session.ID, TabID: "tab-1", Ref: refs["Submit"], Text: "confirmed",
+	})
+	require.NoError(t, err)
+	require.Greater(t, accepted.Generation, snapshot.Generation)
+	snapshot, err = service.Snapshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	for _, node := range snapshot.Nodes {
+		refs[node.Name] = node.Ref
+	}
+	_, err = service.DismissDialog(ctx, ActionRequest{
+		SessionID: session.ID, TabID: "tab-1", Ref: refs["Submit"],
+	})
+	require.NoError(t, err)
+	require.Equal(t, []bool{true, false}, backend.dialogAccepted)
+	require.Equal(t, []string{"confirmed", ""}, backend.dialogPrompts)
+
+	downloadRoot := service.sessions[session.ID].downloadRoot
+	require.True(t, strings.HasPrefix(downloadRoot, filepath.Join(service.cfg.Artifacts.Root, ".downloads")))
+	require.DirExists(t, downloadRoot)
+	_, err = service.Stop(ctx, session.ID)
+	require.NoError(t, err)
+	require.NoDirExists(t, downloadRoot)
+}
+
+func TestService_UploadDenialPreventsStagingAndBackendAccess(t *testing.T) {
+	backend := newInteractiveBackendSession()
+	checker := checkerFunc(func(_ context.Context, input permissions.EvaluationInput) (permissions.Evaluation, error) {
+		if input.Operation.Resource == permissions.ResourceFile {
+			return permissions.Evaluation{Decision: permissions.DecisionDeny}, &permissions.DecisionError{
+				Code:       permissions.ErrorCodeDenied,
+				Evaluation: permissions.Evaluation{Decision: permissions.DecisionDeny, Reason: "file denied"},
+			}
+		}
+		return permissions.Evaluation{Decision: permissions.DecisionAllow}, nil
+	})
+	service, err := NewService(
+		context.Background(), testBrowserConfig(t), checker, &interactiveBackend{session: backend},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	ctx := testBrowserContext("owner", "session")
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+	_, err = service.Tabs(ctx, session.ID)
+	require.NoError(t, err)
+	snapshot, err := service.Snapshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	var uploadRef string
+	for _, node := range snapshot.Nodes {
+		if node.Name == "Upload" {
+			uploadRef = node.Ref
+		}
+	}
+	source := filepath.Join(t.TempDir(), "upload.txt")
+	require.NoError(t, os.WriteFile(source, []byte("never read"), 0o600))
+	_, err = service.Upload(ctx, ActionRequest{
+		SessionID: session.ID, TabID: "tab-1", Ref: uploadRef, Path: source,
+		FileTarget: filepath.ToSlash(source), TargetScope: permissions.TargetScopeExternal,
+	})
+	require.Error(t, err)
+	require.Empty(t, backend.uploaded)
+	require.NoDirExists(t, filepath.Join(service.cfg.TemporaryRoot, "uploads", session.ID))
+
+	artifact, err := service.Screenshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	exportRoot, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	exportPath := filepath.Join(exportRoot, "denied.png")
+	_, err = service.ExportArtifact(ctx, ArtifactExportRequest{
+		Handle: artifact.Handle, Path: exportPath, FileTarget: filepath.ToSlash(exportPath),
+		TargetScope: permissions.TargetScopeExternal,
+	})
+	require.Error(t, err)
+	require.NoFileExists(t, exportPath)
+}
+
+func TestService_FileTargetMismatchPreventsFilesystemSideEffects(t *testing.T) {
+	backend := newInteractiveBackendSession()
+	service, err := NewService(
+		context.Background(), testBrowserConfig(t), allowChecker(), &interactiveBackend{session: backend},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	ctx := testBrowserContext("owner", "session")
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+	snapshot, err := service.Snapshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	refs := make(map[string]string)
+	for _, node := range snapshot.Nodes {
+		refs[node.Name] = node.Ref
+	}
+	source := filepath.Join(t.TempDir(), "source.txt")
+	require.NoError(t, os.WriteFile(source, []byte("private"), 0o600))
+	_, err = service.Upload(ctx, ActionRequest{
+		SessionID: session.ID, TabID: "tab-1", Ref: refs["Upload"], Path: source,
+		FileTarget: "/different/file.txt", TargetScope: permissions.TargetScopeExternal,
+	})
+	require.EqualError(t, err, "browser file target does not match the filesystem path")
+	require.Empty(t, backend.uploaded)
+
+	artifact, err := service.Screenshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	exportPath := filepath.Join(t.TempDir(), "export.png")
+	_, err = service.ExportArtifact(ctx, ArtifactExportRequest{
+		Handle: artifact.Handle, Path: exportPath, FileTarget: "/different/export.png",
+		TargetScope: permissions.TargetScopeExternal,
+	})
+	require.EqualError(t, err, "browser artifact export target is invalid")
+	require.NoFileExists(t, exportPath)
+}
+
+func TestService_FileTransfersRejectRemoteBrowserProfiles(t *testing.T) {
+	backend := newInteractiveBackendSession()
+	service, err := NewService(
+		context.Background(), testBrowserConfig(t), allowChecker(), &interactiveBackend{session: backend},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	ctx := testBrowserContext("owner", "session")
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+	snapshot, err := service.Snapshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	refs := make(map[string]string)
+	for _, node := range snapshot.Nodes {
+		refs[node.Name] = node.Ref
+	}
+	service.sessions[session.ID].ProfileMode = config.BrowserProfileRemoteCDP
+
+	source := filepath.Join(t.TempDir(), "upload.txt")
+	require.NoError(t, os.WriteFile(source, []byte("not transferred"), 0o600))
+	_, err = service.Upload(ctx, ActionRequest{
+		SessionID: session.ID, TabID: "tab-1", Ref: refs["Upload"], Path: source,
+		FileTarget: filepath.ToSlash(source), TargetScope: permissions.TargetScopeExternal,
+	})
+	browserErr, ok := GetError(err)
+	require.True(t, ok)
+	require.Equal(t, ErrorUnavailable, browserErr.Code)
+	require.Empty(t, backend.uploaded)
+
+	_, err = service.Download(ctx, ActionRequest{
+		SessionID: session.ID, TabID: "tab-1", Ref: refs["Download"],
+	})
+	browserErr, ok = GetError(err)
+	require.True(t, ok)
+	require.Equal(t, ErrorUnavailable, browserErr.Code)
+}
+
+func TestService_RichActionsRejectBackendsWithoutRichCapabilities(t *testing.T) {
+	backend := newInteractiveBackendSession()
+	service, err := NewService(
+		context.Background(), testBrowserConfig(t), allowChecker(),
+		backendFunc(func(context.Context, LaunchOptions) (BackendSession, error) {
+			return &interactiveOnlySession{BackendSession: backend, InteractiveBackendSession: backend}, nil
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	ctx := testBrowserContext("owner", "session")
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+
+	_, err = service.Screenshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	browserErr, ok := GetError(err)
+	require.True(t, ok)
+	require.Equal(t, ErrorUnavailable, browserErr.Code)
+	require.Equal(t, ActionScreenshot, browserErr.Operation)
+}
+
+func TestService_ArtifactReadAndDownloadDenialsHaveNoDataSideEffects(t *testing.T) {
+	denyArtifactRead := false
+	denyDownload := false
+	checker := checkerFunc(func(_ context.Context, input permissions.EvaluationInput) (permissions.Evaluation, error) {
+		isArtifactRead := input.Operation.Resource == permissions.ResourceBrowser &&
+			input.Operation.Action == permissions.ActionRead && strings.HasPrefix(input.Operation.Target, "artifact:")
+		isDownload := input.Operation.Network != nil &&
+			input.Operation.Network.RequestClass == permissions.NetworkRequestDownload
+		if (denyArtifactRead && isArtifactRead) || (denyDownload && isDownload) {
+			evaluation := permissions.Evaluation{Decision: permissions.DecisionDeny, Reason: "denied"}
+			return evaluation, &permissions.DecisionError{Code: permissions.ErrorCodeDenied, Evaluation: evaluation}
+		}
+		return permissions.Evaluation{Decision: permissions.DecisionAllow}, nil
+	})
+	backend := newInteractiveBackendSession()
+	service, err := NewService(
+		context.Background(), testBrowserConfig(t), checker, &interactiveBackend{session: backend},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	ctx := testBrowserContext("owner", "session")
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+	snapshot, err := service.Snapshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	refs := make(map[string]string)
+	for _, node := range snapshot.Nodes {
+		refs[node.Name] = node.Ref
+	}
+	artifact, err := service.Screenshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+
+	denyArtifactRead = true
+	_, err = service.ReadArtifact(ctx, artifact.Handle)
+	decisionErr, ok := permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeDenied, decisionErr.Code)
+	require.FileExists(t, service.artifacts.dataPath(artifact.Handle))
+
+	denyArtifactRead = false
+	denyDownload = true
+	_, err = service.Download(ctx, ActionRequest{
+		SessionID: session.ID, TabID: "tab-1", Ref: refs["Download"],
+	})
+	decisionErr, ok = permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeDenied, decisionErr.Code)
+	entries, err := os.ReadDir(service.cfg.Artifacts.Root)
+	require.NoError(t, err)
+	binaryArtifacts := 0
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".bin") {
+			binaryArtifacts++
+		}
+	}
+	require.Equal(t, 1, binaryArtifacts)
+}
+
+func TestService_ActiveArtifactSurvivesRetentionCleanupUntilSessionStops(t *testing.T) {
+	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	cfg := testBrowserConfig(t)
+	cfg.Artifacts.Retention = time.Minute
+	service, err := NewService(
+		context.Background(), cfg, allowChecker(), &interactiveBackend{session: newInteractiveBackendSession()},
+		WithNow(func() time.Time { return now }),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	ctx := testBrowserContext("owner", "session")
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+	artifact, err := service.Screenshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	now = now.Add(2 * time.Minute)
+
+	require.NoError(t, service.artifacts.cleanup(service.isArtifactOwnerActive))
+	require.FileExists(t, service.artifacts.dataPath(artifact.Handle))
+	_, err = service.Stop(ctx, session.ID)
+	require.NoError(t, err)
+	require.NoError(t, service.artifacts.cleanup(service.isArtifactOwnerActive))
+	require.NoFileExists(t, service.artifacts.dataPath(artifact.Handle))
 }
 
 func runFailedTabAction(

@@ -6,6 +6,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -106,13 +110,14 @@ func startChromiumSession(t *testing.T, executable string, proxy *egressProxy) B
 	t.Helper()
 	username, password := proxy.authorization.credentials()
 	session, err := (ChromiumBackend{}).Start(context.Background(), LaunchOptions{
-		Executable:  executable,
-		Mode:        config.BrowserProfileManagedEphemeral,
-		DataDir:     t.TempDir(),
-		ProxyURL:    proxy.chromiumURL(),
-		ProxyUser:   username,
-		ProxySecret: password,
-		Timeout:     15 * time.Second,
+		Executable:   executable,
+		Mode:         config.BrowserProfileManagedEphemeral,
+		DataDir:      t.TempDir(),
+		DownloadRoot: t.TempDir(),
+		ProxyURL:     proxy.chromiumURL(),
+		ProxyUser:    username,
+		ProxySecret:  password,
+		Timeout:      15 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -238,6 +243,12 @@ func TestChromiumBackend_InteractiveActionsCompleteLocalFixtureWorkflow(t *testi
 	defer cancel()
 	require.NoError(t, interactive.Wait(waitCtx, tab.ID, WaitText, "Submitted", 0))
 	require.NoError(t, interactive.Click(context.Background(), tab.ID, dialogID))
+	require.Eventually(t, func() bool {
+		messages, consoleErr := session.(RichBackendSession).Console(context.Background(), tab.ID, 10)
+		return consoleErr == nil && slices.ContainsFunc(messages, func(message ConsoleMessage) bool {
+			return strings.Contains(message.Text, "automatically dismissed alert dialog: blocked")
+		})
+	}, 3*time.Second, 20*time.Millisecond)
 	require.NoError(t, interactive.Click(context.Background(), tab.ID, uploadID))
 	require.NoError(t, interactive.Click(context.Background(), tab.ID, popupID))
 	require.Eventually(t, func() bool {
@@ -263,7 +274,12 @@ func TestChromiumBackend_InteractiveActionsCompleteLocalFixtureWorkflow(t *testi
 
 	temporary, err := interactive.OpenTab(context.Background(), fixture.URL+"/temporary")
 	require.NoError(t, err)
+	session.(*chromiumSession).recordConsoleMessage(temporary.ID, ConsoleMessage{Text: "temporary"})
 	require.NoError(t, interactive.CloseTab(context.Background(), temporary.ID))
+	session.(*chromiumSession).mu.Lock()
+	_, retainedConsole := session.(*chromiumSession).consoleMessages[temporary.ID]
+	session.(*chromiumSession).mu.Unlock()
+	require.False(t, retainedConsole)
 	require.NoError(t, interactive.FocusTab(context.Background(), tab.ID))
 }
 
@@ -326,6 +342,75 @@ func TestService_ChromiumNavigationAuthorizesSubresources(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, permissions.ErrorCodeDenied, decisionErr.Code)
 	require.Zero(t, blockedSubresources.Load())
+}
+
+func TestChromiumBackend_RichArtifactUploadDialogAndDownloadWorkflow(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/download" {
+			writer.Header().Set("Content-Type", "text/plain")
+			writer.Header().Set("Content-Disposition", `attachment; filename="report.txt"`)
+			_, _ = io.WriteString(writer, "downloaded")
+			return
+		}
+		_, _ = io.WriteString(writer, `<html><body>
+			<input type="file" aria-label="Upload">
+			<button aria-label="Prompt" onclick="window.prompt('Name?')">Prompt</button>
+			<a aria-label="Download" href="/download" download>Download</a>
+			<script>console.warn('token=private-value')</script>
+		</body></html>`)
+	}))
+	defer fixture.Close()
+	strict := false
+	proxy, err := startEgressProxy(NetworkPolicy{Strict: strict})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
+	session := startChromiumSession(t, executable, proxy)
+	t.Cleanup(func() { require.NoError(t, session.Close(context.Background())) })
+	restore := allowBackendNetworkRequests(session)
+	defer restore()
+	interactive := session.(InteractiveBackendSession)
+	rich := session.(RichBackendSession)
+	tab, err := interactive.OpenTab(context.Background(), fixture.URL)
+	require.NoError(t, err)
+	snapshot, err := interactive.Snapshot(context.Background(), tab.ID)
+	require.NoError(t, err)
+	upload := getBackendSnapshotNode(snapshot, "button", "Upload")
+	prompt := getBackendSnapshotNode(snapshot, "button", "Prompt")
+	download := getBackendSnapshotNode(snapshot, "link", "Download")
+	require.NotZero(t, upload.BackendNodeID)
+	require.NotZero(t, prompt.BackendNodeID)
+	require.NotZero(t, download.BackendNodeID)
+
+	screenshot, err := rich.Screenshot(context.Background(), tab.ID, true)
+	require.NoError(t, err)
+	require.Equal(t, ArtifactScreenshot, screenshot.Kind)
+	require.True(t, len(screenshot.Data) > 8)
+	require.Equal(t, []byte("\x89PNG\r\n\x1a\n"), screenshot.Data[:8])
+	pdf, err := rich.PDF(context.Background(), tab.ID)
+	require.NoError(t, err)
+	require.Equal(t, ArtifactPDF, pdf.Kind)
+	require.True(t, strings.HasPrefix(string(pdf.Data), "%PDF"))
+	require.Eventually(t, func() bool {
+		messages, consoleErr := rich.Console(context.Background(), tab.ID, 10)
+		return consoleErr == nil && len(messages) > 0 && !strings.Contains(messages[0].Text, "private-value")
+	}, 3*time.Second, 20*time.Millisecond)
+
+	staged := filepath.Join(t.TempDir(), "upload.txt")
+	require.NoError(t, os.WriteFile(staged, []byte("upload"), 0o600))
+	require.NoError(t, rich.Upload(context.Background(), tab.ID, upload.BackendNodeID, staged))
+	require.NoError(t, rich.RespondToDialog(context.Background(), tab.ID, prompt.BackendNodeID, true, "Morph"))
+	messages, err := rich.Console(context.Background(), tab.ID, 10)
+	require.NoError(t, err)
+	require.Contains(t, messages[len(messages)-1].Text, "accepted prompt dialog: Name?")
+	artifact, err := rich.Download(context.Background(), tab.ID, download.BackendNodeID, 1024)
+	require.NoError(t, err)
+	require.Equal(t, ArtifactDownload, artifact.Kind)
+	require.Equal(t, "report.txt", artifact.Name)
+	require.Equal(t, []byte("downloaded"), artifact.Data)
 }
 
 func getBackendTabByID(tabs []BackendTab, id string) BackendTab {

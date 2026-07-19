@@ -59,12 +59,32 @@ func (s *Service) resolveOperations(
 				return nil, err
 			}
 			browserRequest.TabTarget = tab.URL
-			if action == ActionType {
+			if action == ActionType || action == ActionUpload || action == ActionAcceptDialog || action == ActionDismissDialog {
 				if reference, ok := tab.refs[strings.TrimSpace(request.Ref)]; ok {
 					browserRequest.CredentialBearing = reference.Sensitive
 				}
 			}
+			if action == ActionDownload {
+				reference, ok := tab.refs[strings.TrimSpace(request.Ref)]
+				if !ok || strings.TrimSpace(reference.TargetURL) == "" {
+					return nil, errors.New("browser download reference does not have a target URL")
+				}
+				target, err := permissions.NetworkTargetFromURL(
+					reference.TargetURL, "GET", permissions.NetworkRequestDownload,
+				)
+				if err != nil {
+					return nil, err
+				}
+				browserRequest.Network = &target
+			}
 		}
+	}
+	if action == ActionUpload {
+		if err := checkCanonicalFileTarget(request.Path, request.FileTarget); err != nil {
+			return nil, err
+		}
+		browserRequest.FileTarget = request.FileTarget
+		browserRequest.TargetScope = request.TargetScope
 	}
 
 	if hasNavigationTarget(action) {
@@ -444,6 +464,9 @@ func (s *Service) setNetworkAuthorizer(
 		stop := context.AfterFunc(networkCtx, cancel)
 		defer stop()
 		defer cancel()
+		if action == ActionDownload {
+			target.RequestClass = permissions.NetworkRequestDownload
+		}
 		operations, err := (permissions.BrowserRequest{
 			Profile: runtime.Profile, Action: string(action), OwnerID: runtime.Owner.Actor.ID,
 			Personal: runtime.ProfileMode == "existing_session", Network: &target,
@@ -581,6 +604,7 @@ func (s *Service) setSnapshot(runtime *managedSession, tabID string, value Backe
 			Properties: valueNode.Properties,
 		}
 		if valueNode.Sensitive {
+			tab.sensitive = true
 			node.Value = ""
 			node.Properties = nil
 		}
@@ -595,6 +619,7 @@ func (s *Service) setSnapshot(runtime *managedSession, tabID string, value Backe
 			)
 			tab.refs[node.Ref] = managedReference{
 				NodeID: valueNode.BackendNodeID, Sensitive: valueNode.Sensitive,
+				TargetURL: valueNode.Properties["url"],
 			}
 		}
 		charCount += nodeSize
@@ -620,7 +645,9 @@ func cloneManagedTab(tab *managedTab) *managedTab {
 	if tab == nil {
 		return nil
 	}
-	clone := &managedTab{Tab: tab.Tab, refs: make(map[string]managedReference, len(tab.refs))}
+	clone := &managedTab{
+		Tab: tab.Tab, refs: make(map[string]managedReference, len(tab.refs)), sensitive: tab.sensitive,
+	}
 	for ref, reference := range tab.refs {
 		clone.refs[ref] = reference
 	}
@@ -688,7 +715,8 @@ func requiresSession(action Action) bool {
 func requiresTab(action Action) bool {
 	switch action {
 	case ActionFocus, ActionClose, ActionNavigate, ActionReload, ActionSnapshot, ActionClick, ActionType,
-		ActionPress, ActionScroll, ActionSelect, ActionWait, ActionBack, ActionForward:
+		ActionScreenshot, ActionPDF, ActionConsole, ActionPress, ActionScroll, ActionSelect, ActionUpload,
+		ActionDownload, ActionAcceptDialog, ActionDismissDialog, ActionWait, ActionBack, ActionForward:
 		return true
 	default:
 		return false
@@ -703,7 +731,8 @@ func hasNavigationTarget(action Action) bool {
 func actionMayUseNetwork(action Action) bool {
 	switch action {
 	case ActionOpen, ActionNavigate, ActionReload, ActionBack, ActionForward,
-		ActionClick, ActionType, ActionPress, ActionSelect:
+		ActionClick, ActionType, ActionPress, ActionSelect, ActionUpload, ActionDownload,
+		ActionAcceptDialog, ActionDismissDialog:
 		return true
 	default:
 		return false

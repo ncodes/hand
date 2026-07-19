@@ -653,6 +653,60 @@ func TestProfileLease_RejectsLiveOwnerAndIgnoresUnlockedFile(t *testing.T) {
 	require.NoError(t, lease.Close())
 }
 
+func TestService_CleanupAbandonedRuntimeDirectoriesPreservesActiveRecentAndUnrelatedDirectories(t *testing.T) {
+	cfg := testBrowserConfig(t)
+	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	service, err := NewService(context.Background(), cfg, allowChecker(), &fakeBackend{}, WithNow(func() time.Time {
+		return now
+	}))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	root := filepath.Join(cfg.TemporaryRoot, "uploads")
+	old := filepath.Join(root, "browser_old")
+	recent := filepath.Join(root, "browser_recent")
+	active := filepath.Join(root, "browser_active")
+	unrelated := filepath.Join(root, "other")
+	for _, directory := range []string{old, recent, active, unrelated} {
+		require.NoError(t, os.MkdirAll(directory, 0o700))
+	}
+	require.NoError(t, os.Chtimes(old, now.Add(-2*time.Hour), now.Add(-2*time.Hour)))
+	require.NoError(t, os.Chtimes(active, now.Add(-2*time.Hour), now.Add(-2*time.Hour)))
+	require.NoError(t, os.Chtimes(unrelated, now.Add(-2*time.Hour), now.Add(-2*time.Hour)))
+	service.mu.Lock()
+	service.sessions["browser_active"] = &managedSession{Session: Session{ID: "browser_active", State: SessionReady}}
+	service.mu.Unlock()
+
+	require.NoError(t, service.cleanupAbandonedRuntimeDirectories(root, now))
+	require.NoDirExists(t, old)
+	require.DirExists(t, recent)
+	require.DirExists(t, active)
+	require.DirExists(t, unrelated)
+}
+
+func TestNewService_RemovesExpiredPersistentArtifactsBeforeServing(t *testing.T) {
+	cfg := testBrowserConfig(t)
+	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	store, err := newArtifactStore(cfg.Artifacts, func() time.Time { return now })
+	require.NoError(t, err)
+	owner := Owner{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner, ID: "owner"},
+		Profile: "default", SessionID: "session",
+	}
+	artifact, err := store.create(owner, "isolated", "https://example.com", nil, BackendArtifact{
+		Kind: ArtifactPDF, Data: []byte("expired"),
+	})
+	require.NoError(t, err)
+
+	service, err := NewService(
+		context.Background(), cfg, allowChecker(), &interactiveBackend{session: newInteractiveBackendSession()},
+		WithNow(func() time.Time { return now.Add(cfg.Artifacts.Retention + time.Second) }),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	require.NoFileExists(t, store.dataPath(artifact.Handle))
+	require.NoFileExists(t, store.metadataPath(artifact.Handle))
+}
+
 func testBrowserConfig(t *testing.T) config.BrowserConfig {
 	t.Helper()
 	root := t.TempDir()
@@ -666,6 +720,10 @@ func testBrowserConfig(t *testing.T) config.BrowserConfig {
 		TerminalRetention: time.Minute,
 		Profiles:          []config.BrowserProfileConfig{{Name: "default", Mode: config.BrowserProfileManagedEphemeral}},
 		Network:           config.BrowserNetworkConfig{Strict: &strict},
+		Artifacts: config.BrowserArtifactConfig{
+			Root: filepath.Join(root, "artifacts"), MaxBytes: 1 << 20, MaxTotalBytes: 10 << 20,
+			Retention: time.Hour,
+		},
 	}
 }
 

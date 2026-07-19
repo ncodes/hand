@@ -24,8 +24,10 @@ func inputSchema() map[string]any {
 
 func schemaForField(name string) map[string]any {
 	switch name {
-	case "replace":
+	case "replace", "full_page":
 		return map[string]any{"type": "boolean"}
+	case "limit":
+		return map[string]any{"type": "integer", "minimum": 0, "maximum": 200}
 	case "x", "y":
 		return map[string]any{"type": "integer", "minimum": -100000, "maximum": 100000}
 	case "timeout_ms":
@@ -39,7 +41,7 @@ func schemaForField(name string) map[string]any {
 
 func maxLengthForField(name string) int {
 	switch name {
-	case "url":
+	case "url", "path":
 		return maxBrowserURLLength
 	case "text":
 		return maxBrowserTextLength
@@ -59,7 +61,9 @@ func supportedActions() []browserdomain.Action {
 		browserdomain.ActionStatus, browserdomain.ActionProfiles, browserdomain.ActionStart, browserdomain.ActionStop,
 		browserdomain.ActionTabs, browserdomain.ActionOpen, browserdomain.ActionFocus, browserdomain.ActionClose,
 		browserdomain.ActionNavigate, browserdomain.ActionReload, browserdomain.ActionSnapshot, browserdomain.ActionClick,
+		browserdomain.ActionScreenshot, browserdomain.ActionPDF, browserdomain.ActionConsole,
 		browserdomain.ActionType, browserdomain.ActionPress, browserdomain.ActionScroll, browserdomain.ActionSelect,
-		browserdomain.ActionWait, browserdomain.ActionBack, browserdomain.ActionForward,
+		browserdomain.ActionUpload, browserdomain.ActionDownload, browserdomain.ActionAcceptDialog,
+		browserdomain.ActionDismissDialog, browserdomain.ActionWait, browserdomain.ActionBack, browserdomain.ActionForward,
 	}
 }

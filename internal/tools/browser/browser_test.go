@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	browserdomain "github.com/wandxy/morph/internal/browser"
 	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/tools"
 	toolmocks "github.com/wandxy/morph/internal/tools/mocks"
@@ -110,6 +113,33 @@ func (s *browserServiceStub) Snapshot(
 	return browserdomain.Snapshot{TabID: request.TabID}, s.dispatchErr
 }
 
+func (s *browserServiceStub) Screenshot(
+	_ context.Context,
+	request browserdomain.ActionRequest,
+) (browserdomain.Artifact, error) {
+	s.dispatchedAction = browserdomain.ActionScreenshot
+	s.dispatchedRequest = request
+	return browserdomain.Artifact{Handle: "artifact_screen", Kind: browserdomain.ArtifactScreenshot, Size: 3}, s.dispatchErr
+}
+
+func (s *browserServiceStub) PDF(
+	_ context.Context,
+	request browserdomain.ActionRequest,
+) (browserdomain.Artifact, error) {
+	s.dispatchedAction = browserdomain.ActionPDF
+	s.dispatchedRequest = request
+	return browserdomain.Artifact{Handle: "artifact_pdf", Kind: browserdomain.ArtifactPDF, Size: 3}, s.dispatchErr
+}
+
+func (s *browserServiceStub) Console(
+	_ context.Context,
+	request browserdomain.ActionRequest,
+) ([]browserdomain.ConsoleMessage, error) {
+	s.dispatchedAction = browserdomain.ActionConsole
+	s.dispatchedRequest = request
+	return []browserdomain.ConsoleMessage{{Level: browserdomain.ConsoleInfo, Text: "ready"}}, s.dispatchErr
+}
+
 func (s *browserServiceStub) Click(
 	_ context.Context,
 	request browserdomain.ActionRequest,
@@ -143,6 +173,36 @@ func (s *browserServiceStub) Select(
 	request browserdomain.ActionRequest,
 ) (browserdomain.Tab, error) {
 	return s.dispatchTab(browserdomain.ActionSelect, request)
+}
+
+func (s *browserServiceStub) Upload(
+	_ context.Context,
+	request browserdomain.ActionRequest,
+) (browserdomain.Tab, error) {
+	return s.dispatchTab(browserdomain.ActionUpload, request)
+}
+
+func (s *browserServiceStub) Download(
+	_ context.Context,
+	request browserdomain.ActionRequest,
+) (browserdomain.Artifact, error) {
+	s.dispatchedAction = browserdomain.ActionDownload
+	s.dispatchedRequest = request
+	return browserdomain.Artifact{Handle: "artifact_download", Kind: browserdomain.ArtifactDownload, Size: 8}, s.dispatchErr
+}
+
+func (s *browserServiceStub) AcceptDialog(
+	_ context.Context,
+	request browserdomain.ActionRequest,
+) (browserdomain.Tab, error) {
+	return s.dispatchTab(browserdomain.ActionAcceptDialog, request)
+}
+
+func (s *browserServiceStub) DismissDialog(
+	_ context.Context,
+	request browserdomain.ActionRequest,
+) (browserdomain.Tab, error) {
+	return s.dispatchTab(browserdomain.ActionDismissDialog, request)
 }
 
 func (s *browserServiceStub) Wait(
@@ -227,12 +287,79 @@ func TestDecodeRequest_RejectsMalformedAmbiguousAndOutOfRangeInputs(t *testing.T
 			strings.Repeat("x", maxBrowserURLLength+1) + `"}`},
 		{name: "oversized text", input: `{"action":"type","session_id":"session","tab_id":"tab","ref":"g1e1","text":"` +
 			strings.Repeat("x", maxBrowserTextLength+1) + `"}`},
+		{name: "large console limit", input: `{"action":"console","session_id":"session","tab_id":"tab","limit":201}`},
+		{name: "wrong rich field", input: `{"action":"pdf","session_id":"session","tab_id":"tab","full_page":true}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := decodeRequest(test.input)
 			require.Error(t, err)
 		})
+	}
+}
+
+func TestDefinition_RichActionsUseCanonicalFileTargetsAndReturnOnlyArtifactMetadata(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "upload.txt")
+	require.NoError(t, os.WriteFile(source, []byte("approved"), 0o600))
+	service := &browserServiceStub{operations: []permissions.Operation{{
+		Tool: "browser", Resource: permissions.ResourceFile, Action: permissions.ActionRead,
+	}}}
+	runtime := &toolmocks.Runtime{
+		BrowserServiceValue: service, BrowserServiceOK: true,
+		FilePolicyValue: guardrails.FilesystemPolicy{Roots: []string{root}},
+	}
+	definition := Definition(runtime)
+	call := tools.Call{Name: toolName, Input: `{
+		"action":"upload","session_id":"session","tab_id":"tab","ref":"r1","path":"upload.txt"
+	}`}
+	inputs, err := definition.ResolvePermission(context.Background(), call)
+	require.NoError(t, err)
+	require.Len(t, inputs, 1)
+	canonicalSource, err := filepath.EvalSymlinks(source)
+	require.NoError(t, err)
+	require.Equal(t, filepath.ToSlash(canonicalSource), service.resolvedRequest.FileTarget)
+	require.Equal(t, permissions.TargetScopeWorkspace, service.resolvedRequest.TargetScope)
+	require.Equal(t, canonicalSource, service.resolvedRequest.Path)
+	result, err := definition.Handler.Invoke(context.Background(), call)
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	require.Equal(t, browserdomain.ActionUpload, service.dispatchedAction)
+	require.Equal(t, canonicalSource, service.dispatchedRequest.Path)
+
+	result, err = definition.Handler.Invoke(context.Background(), tools.Call{
+		Name: toolName, Input: `{"action":"screenshot","session_id":"session","tab_id":"tab","full_page":true}`,
+	})
+	require.NoError(t, err)
+	require.NotContains(t, result.Output, "png")
+	require.JSONEq(t, `{
+		"handle":"artifact_screen","kind":"screenshot","name":"","mime_type":"","size":3,
+		"profile":"","session_id":"","source":"","effects":null,"sensitive":false,
+		"created_at":"0001-01-01T00:00:00Z","expires_at":"0001-01-01T00:00:00Z"
+	}`, result.Output)
+	require.True(t, service.dispatchedRequest.FullPage)
+}
+
+func TestPrepareRequest_ReturnsStableUploadErrorsWithoutExposingPaths(t *testing.T) {
+	runtime := &toolmocks.Runtime{FilePolicyValue: guardrails.FilesystemPolicy{Roots: []string{t.TempDir()}}}
+	secretPath := filepath.Join(t.TempDir(), "private-token.txt")
+	_, err := prepareRequest(runtime, request{Action: browserdomain.ActionUpload, Path: secretPath})
+	resolutionErr, ok := tools.GetPermissionResolutionError(err)
+	require.True(t, ok)
+	require.Equal(t, "browser_upload_not_found", resolutionErr.Code)
+	require.NotContains(t, resolutionErr.Message, secretPath)
+
+	for _, test := range []struct {
+		err  error
+		code string
+	}{
+		{err: os.ErrPermission, code: "browser_upload_unavailable"},
+		{err: errors.New("invalid /private/path"), code: "browser_upload_invalid"},
+	} {
+		resolutionErr, ok = tools.GetPermissionResolutionError(getUploadPreparationError(test.err))
+		require.True(t, ok)
+		require.Equal(t, test.code, resolutionErr.Code)
+		require.NotContains(t, resolutionErr.Message, "/private/path")
 	}
 }
 
@@ -383,7 +510,7 @@ func TestDefinition_ReportsRuntimeAndBrowserFailures(t *testing.T) {
 	require.EqualError(t, err, "resolution failed")
 
 	service = &browserServiceStub{dispatchErr: &browserdomain.Error{
-		Code: browserdomain.ErrorTimeout, Err: context.DeadlineExceeded, Retryable: true,
+		Code: browserdomain.ErrorTimeout, Err: errors.New("timeout at /private/secret?token=value"), Retryable: true,
 	}}
 	definition = Definition(&toolmocks.Runtime{BrowserServiceValue: service, BrowserServiceOK: true})
 	result, err := definition.Handler.Invoke(context.Background(), tools.Call{
@@ -392,6 +519,8 @@ func TestDefinition_ReportsRuntimeAndBrowserFailures(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, result.Error, `"code":"browser_timeout"`)
 	require.Contains(t, result.Error, `"retryable":true`)
+	require.NotContains(t, result.Error, "/private/secret")
+	require.NotContains(t, result.Error, "token=value")
 
 	service.dispatchErr = &permissions.DecisionError{
 		Code:       permissions.ErrorCodeDenied,
@@ -403,12 +532,23 @@ func TestDefinition_ReportsRuntimeAndBrowserFailures(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, result.Error, `"code":"permission_denied"`)
 
-	service.dispatchErr = errors.New("backend broke")
+	service.dispatchErr = errors.New("backend broke at /private/secret?token=value")
 	result, err = definition.Handler.Invoke(context.Background(), tools.Call{
 		Input: `{"action":"stop","session_id":"session"}`,
 	})
 	require.NoError(t, err)
 	require.Contains(t, result.Error, `"code":"browser_failed"`)
+	require.NotContains(t, result.Error, "/private/secret")
+	require.NotContains(t, result.Error, "token=value")
+
+	for _, code := range []browserdomain.ErrorCode{
+		browserdomain.ErrorInvalidRequest, browserdomain.ErrorUnavailable, browserdomain.ErrorStartFailed,
+		browserdomain.ErrorHealthFailed, browserdomain.ErrorNotFound, browserdomain.ErrorOwnership,
+		browserdomain.ErrorClosed, browserdomain.ErrorNotReady, browserdomain.ErrorStaleReference,
+		browserdomain.ErrorTimeout, "unknown",
+	} {
+		require.NotEmpty(t, getSafeBrowserErrorMessage(code))
+	}
 
 	_, err = dispatch(context.Background(), service, request{Action: "unsupported"})
 	require.EqualError(t, err, "browser action is not supported")

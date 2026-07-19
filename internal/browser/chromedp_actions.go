@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -140,6 +141,8 @@ func (s *chromiumSession) CloseTab(ctx context.Context, tabID string) error {
 	cancel := s.tabCancels[tabID]
 	delete(s.tabCancels, tabID)
 	delete(s.tabContexts, tabID)
+	delete(s.consoleMessages, tabID)
+	delete(s.dialogResponses, tabID)
 	s.mu.Unlock()
 	if cancel != nil {
 		cancel()
@@ -183,15 +186,19 @@ func (s *chromiumSession) navigateHistory(ctx context.Context, tabID string, off
 		return page.NavigateToHistoryEntry(entries[index].ID).Do(tabCtx)
 	}))
 	if err != nil {
-		return BackendTab{}, err
+		return BackendTab{}, fmt.Errorf("navigate browser history: %w", err)
 	}
 	if err := s.waitForValue(actionCtx, tabID, WaitURL, expectedURL); err != nil {
-		return BackendTab{}, err
+		return BackendTab{}, fmt.Errorf("wait for browser history URL: %w", err)
 	}
 	if err := s.runInTab(actionCtx, tabID, chromedp.WaitReady("body", chromedp.ByQuery)); err != nil {
-		return BackendTab{}, err
+		return BackendTab{}, fmt.Errorf("wait for browser history document: %w", err)
 	}
-	return s.getBackendTab(actionCtx, tabID)
+	tab, err := s.getBackendTab(actionCtx, tabID)
+	if err != nil {
+		return BackendTab{}, fmt.Errorf("read browser history result: %w", err)
+	}
+	return tab, nil
 }
 
 func (s *chromiumSession) Reload(ctx context.Context, tabID string) (BackendTab, error) {
@@ -479,6 +486,7 @@ func (s *chromiumSession) runInTab(ctx context.Context, tabID string, actions ..
 		actions = append([]chromedp.Action{
 			fetch.Enable().WithHandleAuthRequests(s.proxyUser != ""),
 			page.SetInterceptFileChooserDialog(true).WithCancel(true),
+			cdpruntime.Enable(),
 		}, actions...)
 	}
 	actionCtx, done := newBoundedActionContext(tabCtx, ctx)
@@ -498,21 +506,52 @@ func (s *chromiumSession) getTabContext(tabID string) (context.Context, bool) {
 	}
 	tabCtx, cancel := chromedp.NewContext(s.ctx, chromedp.WithTargetID(target.ID(tabID)))
 	chromedp.ListenTarget(tabCtx, s.getRequestListener(tabCtx, tabID))
-	chromedp.ListenTarget(tabCtx, getUnexpectedPageEffectListener(tabCtx))
+	chromedp.ListenTarget(tabCtx, s.getPageEffectListener(tabCtx, tabID))
+	chromedp.ListenTarget(tabCtx, s.getConsoleListener(tabID))
 	s.tabContexts[tabID] = tabCtx
 	s.tabCancels[tabID] = cancel
 	return tabCtx, true
 }
 
-func getUnexpectedPageEffectListener(ctx context.Context) func(any) {
+func (s *chromiumSession) getPageEffectListener(ctx context.Context, tabID string) func(any) {
 	return func(event any) {
-		if _, ok := event.(*page.EventJavascriptDialogOpening); !ok {
+		opening, ok := event.(*page.EventJavascriptDialogOpening)
+		if !ok {
 			return
 		}
+		s.mu.Lock()
+		response, armed := s.dialogResponses[tabID]
+		if armed {
+			delete(s.dialogResponses, tabID)
+		}
+		s.mu.Unlock()
+		s.recordConsoleMessage(tabID, getDialogConsoleMessage(opening, armed, response.accept))
 		go func() {
-			_ = chromedp.Run(ctx, page.HandleJavaScriptDialog(false))
+			if !armed {
+				_ = chromedp.Run(ctx, page.HandleJavaScriptDialog(false))
+				return
+			}
+			err := chromedp.Run(ctx, page.HandleJavaScriptDialog(response.accept).WithPromptText(response.promptText))
+			select {
+			case response.result <- err:
+			default:
+			}
 		}()
 	}
+}
+
+func getDialogConsoleMessage(event *page.EventJavascriptDialogOpening, armed, accepted bool) ConsoleMessage {
+	resolution := "automatically dismissed"
+	if armed && accepted {
+		resolution = "accepted"
+	} else if armed {
+		resolution = "dismissed"
+	}
+	message := "Browser " + resolution + " " + string(event.Type) + " dialog: " + event.Message
+	if event.DefaultPrompt != "" {
+		message += " (default: " + event.DefaultPrompt + ")"
+	}
+	return ConsoleMessage{Level: ConsoleWarn, Text: sanitizeConsoleText(message), Timestamp: time.Now().UTC()}
 }
 
 func (s *chromiumSession) getBackendTab(ctx context.Context, tabID string) (BackendTab, error) {

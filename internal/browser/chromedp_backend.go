@@ -43,7 +43,22 @@ type chromiumSession struct {
 	nextAuthorization  uint64
 	openingTabIDs      map[string]struct{}
 	networkErrors      map[string]error
+	consoleMessages    map[string][]ConsoleMessage
+	dialogResponses    map[string]dialogResponse
+	downloadEvents     chan any
+	downloadArmed      bool
+	downloadFrameIDs   map[cdp.FrameID]struct{}
+	downloadGUID       string
+	downloadMaxBytes   int64
+	downloadLimitSent  bool
+	downloadRoot       string
 	closeErr           error
+}
+
+type dialogResponse struct {
+	accept     bool
+	promptText string
+	result     chan error
 }
 
 func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSession, error) {
@@ -109,8 +124,10 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 		ctx: browserCtx, cancelContext: cancelContext, cancelAllocator: cancelAllocator, process: process,
 		tabContexts: make(map[string]context.Context), tabCancels: make(map[string]context.CancelFunc),
 		networkAuthorizers: make(map[string]networkAuthorization), openingTabIDs: make(map[string]struct{}),
-		networkErrors: make(map[string]error),
-		proxyUser:     opts.ProxyUser, proxySecret: opts.ProxySecret,
+		networkErrors: make(map[string]error), consoleMessages: make(map[string][]ConsoleMessage),
+		dialogResponses: make(map[string]dialogResponse), downloadEvents: make(chan any, 4),
+		proxyUser: opts.ProxyUser, proxySecret: opts.ProxySecret,
+		downloadRoot: opts.DownloadRoot,
 	}
 	actions := []chromedp.Action{
 		browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorDeny),
@@ -141,10 +158,46 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 			}
 		}
 		chromedp.ListenBrowser(browserCtx, session.getUnexpectedTargetListener(browserCtx))
+		chromedp.ListenBrowser(browserCtx, session.getDownloadListener())
 		return session, nil
 	case <-startCtx.Done():
 		_ = session.Close(context.Background())
 		return nil, startCtx.Err()
+	}
+}
+
+func (s *chromiumSession) getDownloadListener() func(any) {
+	return func(event any) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if !s.downloadArmed {
+			return
+		}
+		switch value := event.(type) {
+		case *browser.EventDownloadWillBegin:
+			if _, owned := s.downloadFrameIDs[value.FrameID]; !owned || s.downloadGUID != "" {
+				return
+			}
+			s.downloadGUID = value.GUID
+		case *browser.EventDownloadProgress:
+			if value.GUID != s.downloadGUID {
+				return
+			}
+			if value.State == browser.DownloadProgressStateInProgress {
+				overLimit := value.ReceivedBytes > float64(s.downloadMaxBytes) ||
+					value.TotalBytes > float64(s.downloadMaxBytes)
+				if !overLimit || s.downloadLimitSent {
+					return
+				}
+				s.downloadLimitSent = true
+			}
+		default:
+			return
+		}
+		select {
+		case s.downloadEvents <- event:
+		default:
+		}
 	}
 }
 
@@ -244,12 +297,17 @@ func (s *chromiumSession) continueAuthorizedRequest(
 	requestID fetch.RequestID,
 ) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	authorization, ok := s.getNetworkAuthorizationLocked(tabID)
 	if !ok || authorization.id != authorizationID || authorization.ctx.Err() != nil {
+		s.mu.Unlock()
 		return context.Canceled
 	}
-	return chromedp.Run(ctx, fetch.ContinueRequest(requestID))
+	authorizationCtx := authorization.ctx
+	s.mu.Unlock()
+
+	requestCtx, done := newBoundedActionContext(ctx, authorizationCtx)
+	defer done()
+	return chromedp.Run(requestCtx, fetch.ContinueRequest(requestID))
 }
 
 func (s *chromiumSession) SetNetworkAuthorizer(tabID string, authorize NetworkRequestAuthorizer) func() {

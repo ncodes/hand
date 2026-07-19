@@ -216,11 +216,29 @@ func getToolDisplaySpecForAction(action string) toolDisplaySpec {
 	case "Browser":
 		return toolDisplaySpec{
 			inputDetail:  getBrowserToolDisplayDetail,
+			outputDetail: getBrowserToolOutputDisplayDetail,
 			branchDetail: getBrowserToolBranchDetail,
 		}
 	default:
 		return toolDisplaySpec{}
 	}
+}
+
+func getBrowserToolOutputDisplayDetail(fields map[string]any) string {
+	kind := str.String(getMapString(fields, "kind")).Normalized()
+	handle := strings.TrimSpace(getMapString(fields, "handle"))
+	if kind == "" || handle == "" {
+		return ""
+	}
+	name := strings.TrimSpace(getMapString(fields, "name"))
+	if name == "" {
+		name = kind
+	}
+	detail := name + " · " + handle
+	if size := formatOptionalToolNumber(fields["size"]); size != "" {
+		detail += " · " + size + " bytes"
+	}
+	return kind + ":" + detail
 }
 
 func getBrowserToolDisplayDetail(fields map[string]any) string {

@@ -5,10 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	browserdomain "github.com/wandxy/morph/internal/browser"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
+	"github.com/wandxy/morph/internal/permissions"
+	"github.com/wandxy/morph/internal/tools"
+	"github.com/wandxy/morph/internal/tools/common"
 )
 
 const (
@@ -22,20 +28,25 @@ const (
 )
 
 type request struct {
-	Action    browserdomain.Action        `json:"action"`
-	Profile   string                      `json:"profile,omitempty"`
-	SessionID string                      `json:"session_id,omitempty"`
-	TabID     string                      `json:"tab_id,omitempty"`
-	URL       string                      `json:"url,omitempty"`
-	Ref       string                      `json:"ref,omitempty"`
-	Text      string                      `json:"text,omitempty"`
-	Value     string                      `json:"value,omitempty"`
-	Key       string                      `json:"key,omitempty"`
-	X         int64                       `json:"x,omitempty"`
-	Y         int64                       `json:"y,omitempty"`
-	Condition browserdomain.WaitCondition `json:"condition,omitempty"`
-	TimeoutMS int64                       `json:"timeout_ms,omitempty"`
-	Replace   bool                        `json:"replace,omitempty"`
+	Action      browserdomain.Action        `json:"action"`
+	Profile     string                      `json:"profile,omitempty"`
+	SessionID   string                      `json:"session_id,omitempty"`
+	TabID       string                      `json:"tab_id,omitempty"`
+	URL         string                      `json:"url,omitempty"`
+	Path        string                      `json:"path,omitempty"`
+	Ref         string                      `json:"ref,omitempty"`
+	Text        string                      `json:"text,omitempty"`
+	Value       string                      `json:"value,omitempty"`
+	Key         string                      `json:"key,omitempty"`
+	X           int64                       `json:"x,omitempty"`
+	Y           int64                       `json:"y,omitempty"`
+	Limit       int                         `json:"limit,omitempty"`
+	Condition   browserdomain.WaitCondition `json:"condition,omitempty"`
+	TimeoutMS   int64                       `json:"timeout_ms,omitempty"`
+	Replace     bool                        `json:"replace,omitempty"`
+	FullPage    bool                        `json:"full_page,omitempty"`
+	fileTarget  string
+	targetScope permissions.TargetScope
 }
 
 type requestSpec struct {
@@ -57,7 +68,16 @@ var requestSpecs = map[browserdomain.Action]requestSpec{
 	browserdomain.ActionNavigate: tabValueRequestSpec("url"),
 	browserdomain.ActionReload:   tabRequestSpec(),
 	browserdomain.ActionSnapshot: tabRequestSpec(),
-	browserdomain.ActionClick:    tabValueRequestSpec("ref"),
+	browserdomain.ActionScreenshot: {
+		allowed:  []string{"action", "session_id", "tab_id", "full_page"},
+		required: []string{"action", "session_id", "tab_id"},
+	},
+	browserdomain.ActionPDF: tabRequestSpec(),
+	browserdomain.ActionConsole: {
+		allowed:  []string{"action", "session_id", "tab_id", "limit"},
+		required: []string{"action", "session_id", "tab_id"},
+	},
+	browserdomain.ActionClick: tabValueRequestSpec("ref"),
 	browserdomain.ActionType: {
 		allowed:  []string{"action", "session_id", "tab_id", "ref", "text", "replace"},
 		required: []string{"action", "session_id", "tab_id", "ref", "text"},
@@ -67,7 +87,14 @@ var requestSpecs = map[browserdomain.Action]requestSpec{
 		allowed:  []string{"action", "session_id", "tab_id", "x", "y"},
 		required: []string{"action", "session_id", "tab_id", "y"},
 	},
-	browserdomain.ActionSelect: tabValueRequestSpec("ref", "value"),
+	browserdomain.ActionSelect:   tabValueRequestSpec("ref", "value"),
+	browserdomain.ActionUpload:   tabValueRequestSpec("ref", "path"),
+	browserdomain.ActionDownload: tabValueRequestSpec("ref"),
+	browserdomain.ActionAcceptDialog: {
+		allowed:  []string{"action", "session_id", "tab_id", "ref", "text"},
+		required: []string{"action", "session_id", "tab_id", "ref"},
+	},
+	browserdomain.ActionDismissDialog: tabValueRequestSpec("ref"),
 	browserdomain.ActionWait: {
 		allowed:  []string{"action", "session_id", "tab_id", "condition", "value", "ref", "timeout_ms"},
 		required: []string{"action", "session_id", "tab_id", "condition"},
@@ -139,6 +166,9 @@ func decodeRequest(raw string) (request, error) {
 	if decoded.X < -100000 || decoded.X > 100000 || decoded.Y < -100000 || decoded.Y > 100000 {
 		return request{}, errors.New("browser scroll offsets must be between -100000 and 100000")
 	}
+	if decoded.Limit < 0 || decoded.Limit > 200 {
+		return request{}, errors.New("browser limit must be between zero and 200")
+	}
 	if err := checkStringLengths(decoded); err != nil {
 		return request{}, err
 	}
@@ -175,6 +205,7 @@ func checkStringLengths(value request) error {
 		{name: "session_id", value: value.SessionID, limit: maxBrowserIDLength},
 		{name: "tab_id", value: value.TabID, limit: maxBrowserIDLength},
 		{name: "url", value: value.URL, limit: maxBrowserURLLength},
+		{name: "path", value: value.Path, limit: maxBrowserURLLength},
 		{name: "ref", value: value.Ref, limit: maxBrowserRefLength},
 		{name: "text", value: value.Text, limit: maxBrowserTextLength},
 		{name: "value", value: value.Value, limit: maxBrowserValueLength},
@@ -195,13 +226,18 @@ func getNonEmptyFields(action browserdomain.Action) []string {
 	case browserdomain.ActionOpen:
 		return []string{"session_id", "url"}
 	case browserdomain.ActionFocus, browserdomain.ActionClose, browserdomain.ActionReload,
-		browserdomain.ActionSnapshot, browserdomain.ActionBack, browserdomain.ActionForward:
+		browserdomain.ActionSnapshot, browserdomain.ActionScreenshot, browserdomain.ActionPDF,
+		browserdomain.ActionConsole, browserdomain.ActionBack, browserdomain.ActionForward:
 		return []string{"session_id", "tab_id"}
 	case browserdomain.ActionNavigate:
 		return []string{"session_id", "tab_id", "url"}
 	case browserdomain.ActionClick:
 		return []string{"session_id", "tab_id", "ref"}
 	case browserdomain.ActionType, browserdomain.ActionSelect:
+		return []string{"session_id", "tab_id", "ref"}
+	case browserdomain.ActionUpload:
+		return []string{"session_id", "tab_id", "ref", "path"}
+	case browserdomain.ActionDownload, browserdomain.ActionAcceptDialog, browserdomain.ActionDismissDialog:
 		return []string{"session_id", "tab_id", "ref"}
 	case browserdomain.ActionPress:
 		return []string{"session_id", "tab_id", "key"}
@@ -222,6 +258,8 @@ func getStringField(value request, name string) string {
 		return value.URL
 	case "ref":
 		return value.Ref
+	case "path":
+		return value.Path
 	case "key":
 		return value.Key
 	default:
@@ -232,7 +270,48 @@ func getStringField(value request, name string) string {
 func actionRequestFromRequest(r request) browserdomain.ActionRequest {
 	return browserdomain.ActionRequest{
 		Profile: r.Profile, SessionID: r.SessionID, TabID: r.TabID, URL: r.URL, Ref: r.Ref,
-		Text: r.Text, Value: r.Value, Key: r.Key, X: r.X, Y: r.Y, Condition: r.Condition,
-		Timeout: time.Duration(r.TimeoutMS) * time.Millisecond, Replace: r.Replace,
+		Path: r.Path, FileTarget: r.fileTarget, TargetScope: r.targetScope,
+		Text: r.Text, Value: r.Value, Key: r.Key, X: r.X, Y: r.Y, Limit: r.Limit,
+		Condition: r.Condition, Timeout: time.Duration(r.TimeoutMS) * time.Millisecond,
+		Replace: r.Replace, FullPage: r.FullPage,
 	}
+}
+
+func prepareRequest(runtime envtypes.Runtime, value request) (request, error) {
+	if value.Action != browserdomain.ActionUpload {
+		return value, nil
+	}
+	policy := common.FilesystemPolicyFromRuntime(runtime)
+	resolved, err := policy.ResolveUnrestricted(value.Path)
+	if err != nil {
+		return request{}, getUploadPreparationError(err)
+	}
+	info, err := os.Lstat(resolved.Absolute)
+	if err != nil {
+		return request{}, getUploadPreparationError(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return request{}, errors.New("browser upload source must not be a symbolic link or junction")
+	}
+	canonical, err := filepath.EvalSymlinks(resolved.Absolute)
+	if err != nil {
+		return request{}, getUploadPreparationError(err)
+	}
+	value.Path = canonical
+	value.fileTarget = filepath.ToSlash(canonical)
+	value.targetScope = permissions.TargetScopeExternal
+	if _, err := policy.Resolve(resolved.Absolute); err == nil {
+		value.targetScope = permissions.TargetScopeWorkspace
+	}
+	return value, nil
+}
+
+func getUploadPreparationError(err error) error {
+	if os.IsNotExist(err) {
+		return tools.NewPermissionResolutionError("browser_upload_not_found", "browser upload source was not found")
+	}
+	if os.IsPermission(err) {
+		return tools.NewPermissionResolutionError("browser_upload_unavailable", "browser upload source is not accessible")
+	}
+	return tools.NewPermissionResolutionError("browser_upload_invalid", "browser upload source is invalid")
 }

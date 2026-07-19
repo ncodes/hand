@@ -952,6 +952,20 @@ func TestBrowserToolDisplayDetail_PreservesNonDefaultPort(t *testing.T) {
 	require.Equal(t, "navigate:http://127.0.0.1:8080", detail)
 }
 
+func TestBrowserToolDisplayDetail_PresentsSafeArtifactMetadata(t *testing.T) {
+	detail := getToolOutputDisplayDetail("browser", `{
+		"handle":"artifact_123","kind":"screenshot","name":"screenshot.png","size":2048,
+		"source":"https://example.com/private?token=secret"
+	}`)
+	require.Equal(t, "screenshot:screenshot.png · artifact_123 · 2048 bytes", detail)
+	require.Equal(
+		t,
+		"Browser screenshot completed: screenshot.png · artifact_123 · 2048 bytes",
+		getToolBranchDisplayDetail("Browser", detail, true),
+	)
+	require.NotContains(t, detail, "token")
+}
+
 func TestRenderTranscriptCells_CompactsConsecutiveManualCompactionEvents(t *testing.T) {
 	rendered := stripANSI(renderTranscriptCells([]transcriptCell{
 		manualCompactionTranscriptCell{state: manualCompactionState{Status: "running", Label: autoCompactionLabel}},
