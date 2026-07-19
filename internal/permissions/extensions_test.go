@@ -39,6 +39,11 @@ func TestBrowserRequest_PersonalProfileAddsCredentialEffectAndFingerprintIdentit
 	require.NotContains(t, isolated[0].Effects, EffectCredentialBearing)
 	require.Contains(t, personal[0].Effects, EffectCredentialBearing)
 	require.NotEqual(t, isolated[0].Target, personal[0].Target)
+	credential, err := (BrowserRequest{
+		Profile: "isolated", TabTarget: "tab/1", Action: "type", CredentialBearing: true,
+	}).Operations()
+	require.NoError(t, err)
+	require.Contains(t, credential[0].Effects, EffectCredentialBearing)
 
 	_, err = (BrowserRequest{}).Operations()
 	require.EqualError(t, err, "browser profile and action are required")
@@ -117,6 +122,26 @@ func TestBrowserRequest_MapsActionsToConcreteOperations(t *testing.T) {
 	click, err := (BrowserRequest{Profile: "default", Action: "click"}).Operations()
 	require.NoError(t, err)
 	require.ElementsMatch(t, []Effect{EffectWrite, EffectNetwork, EffectExternalSystem}, click[0].Effects)
+	unsafeRequest, err := NetworkTargetFromURL(
+		"https://example.com/form", "POST", NetworkRequestSubresource,
+	)
+	require.NoError(t, err)
+	click, err = (BrowserRequest{
+		Profile: "default", Action: "click", Network: &unsafeRequest,
+	}).Operations()
+	require.NoError(t, err)
+	require.Equal(t, ActionUpdate, click[1].Action)
+	require.ElementsMatch(t, []Effect{EffectWrite, EffectNetwork, EffectExternalSystem}, click[1].Effects)
+	subresource, err := NetworkTargetFromURL(
+		"https://example.com/app.css", "GET", NetworkRequestSubresource,
+	)
+	require.NoError(t, err)
+	navigationSubresource, err := (BrowserRequest{
+		Profile: "default", Action: "navigate", Network: &subresource,
+	}).Operations()
+	require.NoError(t, err)
+	require.Equal(t, ActionRead, navigationSubresource[1].Action)
+	require.Equal(t, NetworkRequestSubresource, navigationSubresource[1].Network.RequestClass)
 
 	_, err = (BrowserRequest{Profile: "default", Action: "navigate"}).Operations()
 	require.EqualError(t, err, "browser action requires a structured network target")

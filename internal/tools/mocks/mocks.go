@@ -40,6 +40,9 @@ type Runtime struct {
 	AutomationServiceValue       envtypes.AutomationService
 	AutomationServiceOK          bool
 	AutomationServiceErr         error
+	BrowserServiceValue          envtypes.BrowserService
+	BrowserServiceOK             bool
+	BrowserServiceErr            error
 }
 
 func (r *Runtime) FilePolicy() guardrails.FilesystemPolicy { return r.FilePolicyValue }
@@ -170,6 +173,13 @@ func (r *Runtime) AutomationService(context.Context) (envtypes.AutomationService
 
 	return r.AutomationServiceValue, r.AutomationServiceOK, r.AutomationServiceErr
 }
+func (r *Runtime) BrowserService(context.Context) (envtypes.BrowserService, bool, error) {
+	if r == nil {
+		return nil, false, nil
+	}
+
+	return r.BrowserServiceValue, r.BrowserServiceOK, r.BrowserServiceErr
+}
 func (r *Runtime) GetPlan(string) envtypes.Plan { return envtypes.Plan{} }
 func (r *Runtime) ReplacePlan(string, envtypes.Plan) (envtypes.Plan, error) {
 	return envtypes.Plan{}, nil
@@ -258,6 +268,9 @@ func (d *FailingPlanRuntime) SearchSession(ctx context.Context, req envtypes.Ses
 }
 func (d *FailingPlanRuntime) AutomationService(ctx context.Context) (envtypes.AutomationService, bool, error) {
 	return d.Runtime.AutomationService(ctx)
+}
+func (d *FailingPlanRuntime) BrowserService(ctx context.Context) (envtypes.BrowserService, bool, error) {
+	return d.Runtime.BrowserService(ctx)
 }
 func (d *FailingPlanRuntime) GetSessionMessages(ctx context.Context, req envsessionmessages.SessionMessagesRequest) (envsessionmessages.SessionMessagesResponse, error) {
 	return d.Runtime.GetSessionMessages(ctx, req)

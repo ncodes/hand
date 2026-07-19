@@ -2,8 +2,13 @@ package permissions
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -188,6 +193,14 @@ type Approver interface {
 	Authorize(context.Context, EvaluationInput) error
 }
 
+type BatchApproval interface {
+	Commit(context.Context) error
+}
+
+type BatchApprover interface {
+	PrepareBatch(context.Context, []EvaluationInput) (BatchApproval, error)
+}
+
 type ApprovalOptions struct {
 	RequestTTL       time.Duration
 	OnceTTL          time.Duration
@@ -318,15 +331,28 @@ func (s *ApprovalService) Prune(ctx context.Context, dryRun bool) (ApprovalPrune
 }
 
 func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) error {
+	_, err := s.authorize(ctx, input, true)
+	return err
+}
+
+func (s *ApprovalService) authorize(
+	ctx context.Context,
+	input EvaluationInput,
+	consumeOnce bool,
+) (ApprovalGrant, error) {
 	if s == nil || s.store == nil {
-		return errors.New("approval service is unavailable")
+		return ApprovalGrant{}, errors.New("approval service is unavailable")
 	}
 
 	authorization, operation, fingerprint, err := normalizeApprovalInput(ctx, input)
 	if err != nil {
-		return err
+		return ApprovalGrant{}, err
 	}
 	now := s.opts.Now()
+	summary := strings.TrimSpace(input.ApprovalSummary)
+	if summary == "" {
+		summary = getApprovalSummary(operation)
+	}
 	grant, ok, err := s.store.FindApprovalGrant(
 		ctx,
 		fingerprint,
@@ -336,16 +362,16 @@ func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) 
 		now,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to read approval grant: %w", err)
+		return ApprovalGrant{}, fmt.Errorf("failed to read approval grant: %w", err)
 	}
 	if ok {
-		if grant.Scope == GrantOnce {
+		if consumeOnce && grant.Scope == GrantOnce {
 			if _, err := s.store.ConsumeApprovalGrant(ctx, grant.ID, now); err != nil {
-				return fmt.Errorf("failed to consume approval grant: %w", err)
+				return ApprovalGrant{}, fmt.Errorf("failed to consume approval grant: %w", err)
 			}
 		}
 		s.incrementMetric(func(metrics *ApprovalMetrics) { metrics.GrantsReused++ })
-		return nil
+		return grant, nil
 	}
 	if !isInteractiveApprovalActor(authorization) {
 		if s.opts.Notifier != nil {
@@ -356,12 +382,12 @@ func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) 
 				Resource: operation.Resource,
 				Action:   operation.Action,
 				Effects:  append([]Effect(nil), operation.Effects...),
-				Summary:  getApprovalSummary(operation),
+				Summary:  summary,
 				Reason:   input.ApprovalReason,
 			})
 			s.incrementMetric(func(metrics *ApprovalMetrics) { metrics.RemoteNotices++ })
 		}
-		return &DecisionError{
+		return ApprovalGrant{}, &DecisionError{
 			Code: ErrorCodeApprovalRequired,
 			Evaluation: Evaluation{
 				Decision: DecisionAsk,
@@ -370,7 +396,7 @@ func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) 
 	}
 	if !s.reserveApprovalPrompt(authorization, fingerprint, now) {
 		s.incrementMetric(func(metrics *ApprovalMetrics) { metrics.RequestsRateLimited++ })
-		return &DecisionError{
+		return ApprovalGrant{}, &DecisionError{
 			Code: ErrorCodeApprovalRateLimited,
 			Evaluation: Evaluation{
 				Decision: DecisionDeny,
@@ -391,7 +417,7 @@ func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) 
 		Resource:    operation.Resource,
 		Action:      operation.Action,
 		Effects:     append([]Effect(nil), operation.Effects...),
-		Summary:     getApprovalSummary(operation),
+		Summary:     summary,
 		Reason:      input.ApprovalReason,
 		Status:      ApprovalPending,
 		CreatedAt:   now,
@@ -400,7 +426,7 @@ func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) 
 	request, inserted, err := s.store.CreateApprovalRequest(ctx, request)
 	if err != nil {
 		s.releaseApprovalPrompt(fingerprint)
-		return fmt.Errorf("failed to create approval request: %w", err)
+		return ApprovalGrant{}, fmt.Errorf("failed to create approval request: %w", err)
 	}
 	if inserted {
 		s.incrementMetric(func(metrics *ApprovalMetrics) { metrics.RequestsCreated++ })
@@ -411,11 +437,11 @@ func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) 
 
 	resolved, err := s.wait(ctx, request)
 	if err != nil {
-		return err
+		return ApprovalGrant{}, err
 	}
 	s.audit(ctx, resolved)
 	if resolved.Status != ApprovalApproved {
-		return &DecisionError{
+		return ApprovalGrant{}, &DecisionError{
 			Code: ErrorCodeDenied,
 			Evaluation: Evaluation{
 				Decision: DecisionDeny,
@@ -431,17 +457,102 @@ func (s *ApprovalService) Authorize(ctx context.Context, input EvaluationInput) 
 		s.opts.Now(),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to verify approval grant: %w", err)
+		return ApprovalGrant{}, fmt.Errorf("failed to verify approval grant: %w", err)
 	}
 	if !ok {
-		return errors.New("approved request has no matching grant")
+		return ApprovalGrant{}, errors.New("approved request has no matching grant")
 	}
-	if grant.Scope == GrantOnce {
+	if consumeOnce && grant.Scope == GrantOnce {
 		if _, err := s.store.ConsumeApprovalGrant(ctx, grant.ID, s.opts.Now()); err != nil {
-			return fmt.Errorf("failed to consume approval grant: %w", err)
+			return ApprovalGrant{}, fmt.Errorf("failed to consume approval grant: %w", err)
 		}
 	}
-	return nil
+	return grant, nil
+}
+
+func (s *ApprovalService) AuthorizeBatch(ctx context.Context, inputs []EvaluationInput) error {
+	prepared, err := s.PrepareBatch(ctx, inputs)
+	if err != nil {
+		return err
+	}
+	return prepared.Commit(ctx)
+}
+
+func (s *ApprovalService) PrepareBatch(ctx context.Context, inputs []EvaluationInput) (BatchApproval, error) {
+	if len(inputs) == 0 {
+		return nil, errors.New("approval batch requires at least one operation")
+	}
+	if len(inputs) == 1 {
+		grant, err := s.authorize(ctx, inputs[0], false)
+		if err != nil {
+			return nil, err
+		}
+		return &preparedBatchApproval{service: s, grant: grant}, nil
+	}
+	authorization, ok := FromContext(ctx)
+	if !ok {
+		return nil, errors.New("authorization context is required")
+	}
+	fingerprints := make([]string, 0, len(inputs))
+	operations := make([]Operation, 0, len(inputs))
+	effects := make([]Effect, 0)
+	ownerRequired := false
+	for _, input := range inputs {
+		operation, err := input.Operation.Normalize()
+		if err != nil {
+			return nil, err
+		}
+		operations = append(operations, operation)
+		fingerprints = append(fingerprints, Fingerprint(authorization, operation))
+		for _, effect := range operation.Effects {
+			if !slices.Contains(effects, effect) {
+				effects = append(effects, effect)
+			}
+		}
+		ownerRequired = ownerRequired || operation.OwnerRequired
+	}
+	slices.SortFunc(operations, func(left, right Operation) int {
+		return strings.Compare(
+			left.Tool+"\x00"+string(left.Resource)+"\x00"+string(left.Action),
+			right.Tool+"\x00"+string(right.Resource)+"\x00"+string(right.Action),
+		)
+	})
+	slices.Sort(fingerprints)
+	slices.Sort(effects)
+	digest := sha256.Sum256([]byte(strings.Join(fingerprints, "\x00")))
+	tool := getBatchTool(operations)
+	grant, err := s.authorize(ctx, EvaluationInput{
+		Operation: Operation{
+			Tool: tool, Resource: operations[0].Resource, Action: ActionExecute,
+			Effects: effects, Target: "batch:" + hex.EncodeToString(digest[:]), OwnerRequired: ownerRequired,
+		},
+		ApprovalSummary: fmt.Sprintf("%s · approve %d operations", tool, len(inputs)),
+		ApprovalReason:  getBatchApprovalReason(operations),
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return &preparedBatchApproval{service: s, grant: grant}, nil
+}
+
+type preparedBatchApproval struct {
+	service *ApprovalService
+	grant   ApprovalGrant
+	once    sync.Once
+	err     error
+}
+
+func (p *preparedBatchApproval) Commit(ctx context.Context) error {
+	if p == nil || p.service == nil || p.grant.Scope != GrantOnce {
+		return nil
+	}
+	p.once.Do(func() {
+		_, p.err = p.service.store.ConsumeApprovalGrant(ctx, p.grant.ID, p.service.opts.Now())
+		if p.err != nil {
+			p.err = fmt.Errorf("failed to consume approval grant: %w", p.err)
+		}
+	})
+	return p.err
 }
 
 func (s *ApprovalService) Resolve(ctx context.Context, id string, approved bool, scope GrantScope) (ApprovalRequest, error) {
@@ -756,6 +867,38 @@ func (s *ApprovalService) incrementMetric(update func(*ApprovalMetrics)) {
 
 func getApprovalSummary(operation Operation) string {
 	return fmt.Sprintf("%s · %s %s", operation.Tool, operation.Action, operation.Resource)
+}
+
+func getBatchTool(operations []Operation) string {
+	tool := operations[0].Tool
+	for _, operation := range operations[1:] {
+		if operation.Tool != tool {
+			return "multiple_tools"
+		}
+	}
+	return tool
+}
+
+func getBatchApprovalReason(operations []Operation) string {
+	const maxPresentedOperations = 8
+	limit := min(len(operations), maxPresentedOperations)
+	descriptions := make([]string, 0, limit+1)
+	for _, operation := range operations[:limit] {
+		description := getApprovalSummary(operation)
+		if operation.Network != nil {
+			description += " " + getSafeNetworkApprovalTarget(*operation.Network)
+		}
+		descriptions = append(descriptions, description)
+	}
+	if remaining := len(operations) - limit; remaining > 0 {
+		descriptions = append(descriptions, fmt.Sprintf("%d more operations", remaining))
+	}
+	return fmt.Sprintf("Approve all %d operations: %s", len(operations), strings.Join(descriptions, "; "))
+}
+
+func getSafeNetworkApprovalTarget(target NetworkTarget) string {
+	host := net.JoinHostPort(target.Host, strconv.FormatUint(uint64(target.Port), 10))
+	return target.Method + " " + target.Scheme + "://" + host + target.Path
 }
 
 func isAlwaysApprovalAvailable(effects []Effect) bool {

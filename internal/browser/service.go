@@ -19,6 +19,7 @@ const browserSessionIDPrefix = "browser_"
 type Service struct {
 	cfg      config.BrowserConfig
 	checker  permissions.Checker
+	approver permissions.Approver
 	backend  Backend
 	policy   NetworkPolicy
 	now      func() time.Time
@@ -27,6 +28,15 @@ type Service struct {
 	sessions map[string]*managedSession
 	cancel   context.CancelFunc
 	closed   bool
+}
+
+func (s *Service) SetApprover(approver permissions.Approver) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.approver = approver
+	s.mu.Unlock()
 }
 
 type managedSession struct {
@@ -41,6 +51,20 @@ type managedSession struct {
 	cleanupOnce sync.Once
 	cleanupErr  error
 	cleaned     bool
+	tabMu       sync.RWMutex
+	tabs        map[string]*managedTab
+	activeTabID string
+	actionMu    sync.Mutex
+}
+
+type managedTab struct {
+	Tab
+	refs map[string]managedReference
+}
+
+type managedReference struct {
+	NodeID    int64
+	Sensitive bool
 }
 
 type ServiceOption func(*Service)
@@ -134,7 +158,7 @@ func (s *Service) Start(ctx context.Context, request StartRequest) (Session, err
 	runtime := &managedSession{Session: Session{
 		ID: nanoid.MustGenerate(browserSessionIDPrefix), Profile: profile.Name, ProfileMode: profile.Mode,
 		State: SessionStarting, Owner: owner, CreatedAt: now, LastActive: now,
-	}}
+	}, tabs: make(map[string]*managedTab)}
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -470,16 +494,25 @@ func (s *Service) getOwnedSession(id string, owner Owner) (*managedSession, erro
 	id = strings.TrimSpace(id)
 	s.mu.RLock()
 	runtime, ok := s.sessions[id]
-	s.mu.RUnlock()
 	if !ok {
+		s.mu.RUnlock()
 		return nil, errors.New("browser session not found")
 	}
 	if runtime.Owner.Actor != owner.Actor || runtime.Owner.Profile != owner.Profile ||
 		runtime.Owner.SessionID != owner.SessionID {
+		s.mu.RUnlock()
 		return nil, errors.New("browser session belongs to another owner")
 	}
+	s.mu.RUnlock()
 
 	return runtime, nil
+}
+
+func (s *Service) getRuntimeState(runtime *managedSession) SessionState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return runtime.State
 }
 
 func (s *Service) checkOperations(ctx context.Context, operations []permissions.Operation) error {
@@ -488,15 +521,34 @@ func (s *Service) checkOperations(ctx context.Context, operations []permissions.
 		if err != nil {
 			return err
 		}
+		if permissions.HasFullAccess(ctx) || permissions.IsExactOperationAuthorized(ctx, operation) {
+			continue
+		}
 		hardDeny := ""
 		if operation.Network != nil {
 			if _, resolveErr := s.policy.Resolve(ctx, *operation.Network); resolveErr != nil {
 				hardDeny = resolveErr.Error()
 			}
 		}
-		if _, err := s.checker.Check(ctx, permissions.EvaluationInput{
+		input := permissions.EvaluationInput{
 			Operation: operation, HardDenyReason: hardDeny,
-		}); err != nil {
+		}
+		evaluation, err := s.checker.Check(ctx, input)
+		if err == nil {
+			continue
+		}
+		decisionErr, isDecisionError := permissions.GetDecisionError(err)
+		if !isDecisionError || decisionErr.Code != permissions.ErrorCodeApprovalRequired {
+			return err
+		}
+		s.mu.RLock()
+		approver := s.approver
+		s.mu.RUnlock()
+		if approver == nil {
+			return err
+		}
+		input.ApprovalReason = evaluation.Reason
+		if err := approver.Authorize(ctx, input); err != nil {
 			return err
 		}
 	}

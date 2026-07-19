@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"github.com/chromedp/chromedp"
 	"github.com/stretchr/testify/require"
 	"github.com/wandxy/morph/internal/config"
+	"github.com/wandxy/morph/internal/permissions"
 )
 
 func TestChromiumBackend_RejectsInvalidLaunchConfiguration(t *testing.T) {
@@ -72,11 +74,13 @@ func TestChromiumBackend_UsesAuthenticatedProxyAndCannotBypassStrictPolicy(t *te
 	permissive, err := startEgressProxy(NetworkPolicy{Strict: false})
 	require.NoError(t, err)
 	session := startChromiumSession(t, executable, permissive)
+	restoreAuthorization := allowBackendNetworkRequests(session)
 	chromium := session.(*chromiumSession)
 	require.NoError(t, chromedp.Run(chromium.ctx, chromedp.Navigate(fixture.URL)))
 	require.Positive(t, permissiveRequests.Load())
 	_ = chromedp.Run(chromium.ctx, chromedp.Navigate(fixture.URL+"/auth"))
 	require.False(t, originReceivedAuthorization.Load())
+	restoreAuthorization()
 	require.NoError(t, session.Close(context.Background()))
 	require.NoError(t, permissive.Close(context.Background()))
 
@@ -89,9 +93,11 @@ func TestChromiumBackend_UsesAuthenticatedProxyAndCannotBypassStrictPolicy(t *te
 	strict, err := startEgressProxy(NetworkPolicy{Strict: true})
 	require.NoError(t, err)
 	session = startChromiumSession(t, executable, strict)
+	restoreAuthorization = allowBackendNetworkRequests(session)
 	chromium = session.(*chromiumSession)
 	_ = chromedp.Run(chromium.ctx, chromedp.Navigate(strictFixture.URL))
 	require.Zero(t, strictRequests.Load())
+	restoreAuthorization()
 	require.NoError(t, session.Close(context.Background()))
 	require.NoError(t, strict.Close(context.Background()))
 }
@@ -129,4 +135,305 @@ func TestChromiumBackend_StartsAvailableChromium(t *testing.T) {
 	require.NoError(t, session.Health(context.Background()))
 	require.NoError(t, session.Close(context.Background()))
 	require.NoError(t, session.Close(context.Background()))
+}
+
+func TestChromiumBackend_InteractiveActionsCompleteLocalFixtureWorkflow(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(writer, `<!doctype html>
+<html>
+  <head><title>Browser fixture</title></head>
+  <body>
+	<label>Name <input aria-label="Name" value="Old text" onkeydown="document.getElementById('result').textContent = event.key" /></label>
+	<label>Password <input type="password" aria-label="Password" /></label>
+	<label>Choice <select aria-label="Choice" onchange="document.getElementById('choice-result').textContent = 'Choice ' + this.value"><option value="choice-one">One</option><option value="choice-two">Two</option></select></label>
+	<label>Upload <input type="file" aria-label="Upload" /></label>
+    <button onclick="document.getElementById('result').textContent = 'Submitted'">Submit</button>
+    <button onclick="alert('blocked')">Dialog</button>
+    <button onclick="window.open('/popup')">Popup</button>
+	<p id="result">Waiting</p>
+	<p id="choice-result">Choice choice-one</p>
+	<div style="height: 2000px"></div>
+  </body>
+</html>`)
+	}))
+	defer fixture.Close()
+	proxy, err := startEgressProxy(NetworkPolicy{Strict: false})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
+	session := startChromiumSession(t, executable, proxy)
+	t.Cleanup(func() { require.NoError(t, session.Close(context.Background())) })
+	interactive := session.(InteractiveBackendSession)
+	restoreAuthorization := allowBackendNetworkRequests(session)
+	defer restoreAuthorization()
+
+	tabs, err := interactive.ListTabs(context.Background())
+	require.NoError(t, err)
+	require.NotEmpty(t, tabs)
+	tab, err := interactive.OpenTab(context.Background(), fixture.URL)
+	require.NoError(t, err)
+	require.NoError(t, interactive.FocusTab(context.Background(), tab.ID))
+	focusedTabs, err := interactive.ListTabs(context.Background())
+	require.NoError(t, err)
+	require.True(t, getBackendTabByID(focusedTabs, tab.ID).Active)
+	tab, err = interactive.Navigate(context.Background(), tab.ID, fixture.URL)
+	require.NoError(t, err)
+	require.Equal(t, "Browser fixture", tab.Title)
+
+	snapshot, err := interactive.Snapshot(context.Background(), tab.ID)
+	require.NoError(t, err)
+	var textboxID, passwordID, buttonID, dialogID, popupID, selectID, uploadID int64
+	for _, node := range snapshot.Nodes {
+		switch {
+		case node.Role == "textbox" && node.Name == "Name":
+			textboxID = node.BackendNodeID
+		case node.Role == "textbox" && node.Name == "Password":
+			passwordID = node.BackendNodeID
+			require.True(t, node.Sensitive)
+		case node.Role == "button" && node.Name == "Submit":
+			buttonID = node.BackendNodeID
+		case node.Role == "button" && node.Name == "Dialog":
+			dialogID = node.BackendNodeID
+		case node.Role == "button" && node.Name == "Popup":
+			popupID = node.BackendNodeID
+		case node.Role == "combobox" && node.Name == "Choice":
+			selectID = node.BackendNodeID
+		case node.Name == "Upload":
+			uploadID = node.BackendNodeID
+		}
+	}
+	require.Positive(t, textboxID)
+	require.Positive(t, passwordID)
+	require.Positive(t, buttonID)
+	require.Positive(t, dialogID)
+	require.Positive(t, popupID)
+	require.Positive(t, selectID)
+	require.Positive(t, uploadID)
+	require.NoError(t, interactive.Type(context.Background(), tab.ID, textboxID, "Morph", true))
+	require.NoError(t, interactive.Type(context.Background(), tab.ID, textboxID, " browser", false))
+	typedSnapshot, err := interactive.Snapshot(context.Background(), tab.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Morph browser", getBackendSnapshotNode(typedSnapshot, "textbox", "Name").Value)
+	require.NoError(t, interactive.Press(context.Background(), tab.ID, "Enter"))
+	require.NoError(t, interactive.Wait(context.Background(), tab.ID, WaitText, "Enter", 0))
+	require.NoError(t, interactive.Select(context.Background(), tab.ID, selectID, "choice-two"))
+	require.NoError(t, interactive.Wait(context.Background(), tab.ID, WaitText, "Choice choice-two", 0))
+	require.Error(t, interactive.Select(context.Background(), tab.ID, selectID, "missing"))
+	require.NoError(t, interactive.Scroll(context.Background(), tab.ID, 0, 500))
+	require.Eventually(t, func() bool {
+		var scrollY float64
+		evaluateErr := session.(*chromiumSession).runInTab(
+			context.Background(), tab.ID, chromedp.Evaluate(`window.scrollY`, &scrollY),
+		)
+		return evaluateErr == nil && scrollY >= 500
+	}, 3*time.Second, 20*time.Millisecond)
+	require.NoError(t, interactive.Wait(context.Background(), tab.ID, WaitVisible, "", buttonID))
+	require.NoError(t, interactive.Wait(context.Background(), tab.ID, WaitURL, fixture.URL, 0))
+	require.NoError(t, interactive.Wait(context.Background(), tab.ID, WaitLoad, "", 0))
+	require.NoError(t, interactive.Click(context.Background(), tab.ID, buttonID))
+	waitCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, interactive.Wait(waitCtx, tab.ID, WaitText, "Submitted", 0))
+	require.NoError(t, interactive.Click(context.Background(), tab.ID, dialogID))
+	require.NoError(t, interactive.Click(context.Background(), tab.ID, uploadID))
+	require.NoError(t, interactive.Click(context.Background(), tab.ID, popupID))
+	require.Eventually(t, func() bool {
+		current, listErr := interactive.ListTabs(context.Background())
+		return listErr == nil && len(current) == len(tabs)+1
+	}, 3*time.Second, 20*time.Millisecond)
+
+	firstURL := fixture.URL + "/first"
+	secondURL := fixture.URL + "/second"
+	_, err = interactive.Navigate(context.Background(), tab.ID, firstURL)
+	require.NoError(t, err)
+	_, err = interactive.Navigate(context.Background(), tab.ID, secondURL)
+	require.NoError(t, err)
+	back, err := interactive.Back(context.Background(), tab.ID)
+	require.NoError(t, err)
+	require.Equal(t, firstURL, back.URL)
+	forward, err := interactive.Forward(context.Background(), tab.ID)
+	require.NoError(t, err)
+	require.Equal(t, secondURL, forward.URL)
+	reloaded, err := interactive.Reload(context.Background(), tab.ID)
+	require.NoError(t, err)
+	require.Equal(t, secondURL, reloaded.URL)
+
+	temporary, err := interactive.OpenTab(context.Background(), fixture.URL+"/temporary")
+	require.NoError(t, err)
+	require.NoError(t, interactive.CloseTab(context.Background(), temporary.ID))
+	require.NoError(t, interactive.FocusTab(context.Background(), tab.ID))
+}
+
+func TestService_ChromiumNavigationAuthorizesSubresources(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	var allowedSubresources atomic.Int64
+	var blockedSubresources atomic.Int64
+	blocked := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		blockedSubresources.Add(1)
+		_, _ = io.WriteString(writer, `window.blocked = true`)
+	}))
+	defer blocked.Close()
+	blockedTarget, err := permissions.NetworkTargetFromURL(
+		blocked.URL, http.MethodGet, permissions.NetworkRequestSubresource,
+	)
+	require.NoError(t, err)
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/style.css":
+			allowedSubresources.Add(1)
+			writer.Header().Set("Content-Type", "text/css")
+			_, _ = io.WriteString(writer, `body { color: rgb(1, 2, 3); }`)
+		case "/blocked":
+			_, _ = io.WriteString(writer, `<html><head><script src="`+blocked.URL+`/blocked.js"></script></head><body>blocked</body></html>`)
+		default:
+			_, _ = io.WriteString(writer, `<html><head><link rel="stylesheet" href="/style.css"></head><body>allowed</body></html>`)
+		}
+	}))
+	defer fixture.Close()
+
+	cfg := testBrowserConfig(t)
+	cfg.Executable = executable
+	cfg.StartTimeout = 15 * time.Second
+	strict := false
+	cfg.Network.Strict = &strict
+	checker := checkerFunc(func(_ context.Context, input permissions.EvaluationInput) (permissions.Evaluation, error) {
+		if input.Operation.Network != nil && input.Operation.Network.Port == blockedTarget.Port {
+			evaluation := permissions.Evaluation{Decision: permissions.DecisionDeny, Reason: "cross-origin blocked"}
+			return evaluation, &permissions.DecisionError{
+				Code: permissions.ErrorCodeDenied, Evaluation: evaluation,
+			}
+		}
+		return permissions.Evaluation{Decision: permissions.DecisionAllow}, nil
+	})
+	service, err := NewService(context.Background(), cfg, checker, ChromiumBackend{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	ctx := testBrowserContext("owner", "session")
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+
+	_, err = service.Open(ctx, ActionRequest{SessionID: session.ID, URL: fixture.URL})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return allowedSubresources.Load() > 0 }, 3*time.Second, 20*time.Millisecond)
+	_, err = service.Open(ctx, ActionRequest{SessionID: session.ID, URL: fixture.URL + "/blocked"})
+	decisionErr, ok := permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeDenied, decisionErr.Code)
+	require.Zero(t, blockedSubresources.Load())
+}
+
+func getBackendTabByID(tabs []BackendTab, id string) BackendTab {
+	for _, tab := range tabs {
+		if tab.ID == id {
+			return tab
+		}
+	}
+	return BackendTab{}
+}
+
+func getBackendSnapshotNode(snapshot BackendSnapshot, role, name string) BackendSnapshotNode {
+	for _, node := range snapshot.Nodes {
+		if node.Role == role && node.Name == name {
+			return node
+		}
+	}
+	return BackendSnapshotNode{}
+}
+
+func allowBackendNetworkRequests(session BackendSession) func() {
+	authorizing, ok := session.(NetworkAuthorizingBackendSession)
+	if !ok {
+		return func() {}
+	}
+	return authorizing.SetNetworkAuthorizer("*", func(context.Context, permissions.NetworkTarget) error {
+		return nil
+	})
+}
+
+func TestGetKeyInput_NormalizesNamedKeys(t *testing.T) {
+	tests := map[string]string{
+		"Enter": "\r", "Tab": "\t", "Escape": "\u001b", "Esc": "\u001b",
+		"Backspace": "\b", "Delete": "\u007f", "ArrowUp": "\u0304",
+		"ArrowDown": "\u0301", "ArrowLeft": "\u0302", "ArrowRight": "\u0303",
+		"Home": "\u0306", "End": "\u0305", "PageUp": "\u0308", "PageDown": "\u0307",
+		"Space": " ", " x ": "x",
+	}
+	for input, want := range tests {
+		require.Equal(t, want, getKeyInput(input), input)
+	}
+}
+
+func TestChromiumSession_NetworkAuthorizersAreScopedToTabs(t *testing.T) {
+	session := &chromiumSession{
+		networkAuthorizers: make(map[string]networkAuthorization),
+		openingTabIDs:      make(map[string]struct{}),
+		networkErrors:      make(map[string]error),
+	}
+	exact := func(context.Context, permissions.NetworkTarget) error { return errors.New("exact") }
+	pending := func(context.Context, permissions.NetworkTarget) error { return errors.New("pending") }
+	wildcard := func(context.Context, permissions.NetworkTarget) error { return errors.New("wildcard") }
+	restoreExact := session.SetNetworkAuthorizer("tab-1", exact)
+	restorePending := session.SetNetworkAuthorizer("", pending)
+	restoreWildcard := session.SetNetworkAuthorizer("*", wildcard)
+	session.openingTabIDs["tab-2"] = struct{}{}
+
+	require.EqualError(t, authorizeNetworkRequest(session, "tab-1"), "exact")
+	require.EqualError(t, authorizeNetworkRequest(session, "tab-2"), "pending")
+	require.EqualError(t, authorizeNetworkRequest(session, "tab-3"), "wildcard")
+	restoreReplacement := session.SetNetworkAuthorizer("tab-1", wildcard)
+	replacement, ok := session.getNetworkAuthorization("tab-1")
+	require.True(t, ok)
+	require.EqualError(t, replacement.authorize(replacement.ctx, permissions.NetworkTarget{}), "wildcard")
+	restoreReplacement()
+	require.ErrorIs(t, replacement.ctx.Err(), context.Canceled)
+	require.EqualError(t, authorizeNetworkRequest(session, "tab-1"), "exact")
+
+	restoreExact()
+	restorePending()
+	restoreWildcard()
+	_, ok = session.getNetworkAuthorization("tab-1")
+	require.False(t, ok)
+	session.networkErrors["tab-1"] = errors.New("first tab failed")
+	session.networkErrors["tab-2"] = errors.New("second tab failed")
+	require.EqualError(t, session.consumeNetworkError("tab-1"), "first tab failed")
+	require.Nil(t, session.consumeNetworkError("tab-1"))
+	require.EqualError(t, session.consumeNetworkError("tab-2"), "second tab failed")
+}
+
+func authorizeNetworkRequest(session *chromiumSession, tabID string) error {
+	authorization, ok := session.getNetworkAuthorization(tabID)
+	if !ok {
+		return errors.New("network authorizer not found")
+	}
+	return authorization.authorize(authorization.ctx, permissions.NetworkTarget{})
+}
+
+func TestChromiumActionContextsRespectCallerCancellation(t *testing.T) {
+	actionCtx, done := newBoundedActionContext(context.Background(), nil)
+	done()
+	require.ErrorIs(t, actionCtx.Err(), context.Canceled)
+
+	caller, cancelCaller := context.WithCancel(context.Background())
+	actionCtx, done = newBoundedActionContext(context.Background(), caller)
+	cancelCaller()
+	require.Eventually(t, func() bool { return errors.Is(actionCtx.Err(), context.Canceled) }, time.Second, time.Millisecond)
+	done()
+
+	caller, cancelCaller = context.WithTimeout(context.Background(), time.Second)
+	actionCtx, done = newBoundedActionContext(context.Background(), caller)
+	done()
+	cancelCaller()
+	require.ErrorIs(t, actionCtx.Err(), context.Canceled)
+
+	var session *chromiumSession
+	actionCtx, done = session.newActionContext(context.Background())
+	defer done()
+	require.ErrorIs(t, actionCtx.Err(), context.Canceled)
+	require.EqualError(t, session.runInTab(context.Background(), "tab"), "browser session is unavailable")
 }

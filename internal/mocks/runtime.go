@@ -89,6 +89,8 @@ type EnvironmentStub struct {
 	Memory           memory.Provider
 	Automation       envtypes.AutomationService
 	AutomationSets   int
+	Browser          envtypes.BrowserService
+	BrowserSets      int
 	Plan             envtypes.Plan
 	PlanSessionIDs   []string
 }
@@ -148,6 +150,11 @@ func (s *EnvironmentStub) SetModelClient(models.Client) {}
 func (s *EnvironmentStub) SetAutomationService(service envtypes.AutomationService) {
 	s.Automation = service
 	s.AutomationSets++
+}
+
+func (s *EnvironmentStub) SetBrowserService(service envtypes.BrowserService) {
+	s.Browser = service
+	s.BrowserSets++
 }
 
 func (s *EnvironmentStub) CurrentPlan(string) envtypes.Plan {

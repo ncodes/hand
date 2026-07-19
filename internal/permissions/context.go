@@ -2,6 +2,7 @@ package permissions
 
 import (
 	"context"
+	"slices"
 )
 
 type authorizationContextKey struct{}
@@ -113,6 +114,34 @@ func IsOperationAuthorized(ctx context.Context, operation Operation) bool {
 			candidate.Target == operation.Target &&
 			candidate.TargetScope == operation.TargetScope &&
 			isSameNetworkTarget(candidate.Network, operation.Network) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func IsExactOperationAuthorized(ctx context.Context, operation Operation) bool {
+	if ctx == nil {
+		return false
+	}
+
+	operation, err := operation.Normalize()
+	if err != nil {
+		return false
+	}
+
+	authorized, _ := ctx.Value(authorizedOperationsContextKey{}).([]Operation)
+	for _, candidate := range authorized {
+		if candidate.Tool == operation.Tool &&
+			candidate.Resource == operation.Resource &&
+			candidate.Action == operation.Action &&
+			slices.Equal(candidate.Effects, operation.Effects) &&
+			candidate.Target == operation.Target &&
+			candidate.TargetScope == operation.TargetScope &&
+			isSameNetworkTarget(candidate.Network, operation.Network) &&
+			candidate.OwnerID == operation.OwnerID &&
+			candidate.OwnerRequired == operation.OwnerRequired {
 			return true
 		}
 	}

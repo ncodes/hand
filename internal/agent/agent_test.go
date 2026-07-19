@@ -255,6 +255,15 @@ func TestAgent_SetAutomationServiceDelegatesToEnvironment(t *testing.T) {
 	require.Equal(t, 1, env.AutomationSets)
 }
 
+func TestAgent_SetBrowserServiceDelegatesToEnvironment(t *testing.T) {
+	(*Agent)(nil).SetBrowserService(nil)
+	(&Agent{}).SetBrowserService(nil)
+
+	env := &mocks.EnvironmentStub{}
+	(&Agent{env: env}).SetBrowserService(nil)
+	require.Equal(t, 1, env.BrowserSets)
+}
+
 func TestAgent_StartPropagatesStateAndEnvironmentErrors(t *testing.T) {
 	originalOpen := OpenStateStore
 	originalNewEnvironment := NewEnvironment

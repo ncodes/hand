@@ -82,3 +82,25 @@ func TestContext_TracksPresetAndAuthorizedOperations(t *testing.T) {
 	withoutOperations := WithAuthorizedOperations(nilContext, []Operation{{}})
 	require.False(t, IsOperationAuthorized(withoutOperations, operation))
 }
+
+func TestIsExactOperationAuthorized_RequiresCompleteOperationMatch(t *testing.T) {
+	operation := Operation{
+		Tool: "browser", Resource: ResourceBrowser, Action: ActionUpdate,
+		Effects: []Effect{EffectWrite, EffectExternalSystem}, Target: "profile/default/tab/one",
+		OwnerID: "owner", OwnerRequired: true,
+	}
+	ctx := WithAuthorizedOperations(context.Background(), []Operation{operation})
+
+	require.True(t, IsExactOperationAuthorized(ctx, operation))
+	changed := operation
+	changed.Effects = []Effect{EffectWrite}
+	require.False(t, IsExactOperationAuthorized(ctx, changed))
+	changed = operation
+	changed.Tool = "another_tool"
+	require.False(t, IsExactOperationAuthorized(ctx, changed))
+	changed = operation
+	changed.OwnerRequired = false
+	require.False(t, IsExactOperationAuthorized(ctx, changed))
+	require.False(t, IsExactOperationAuthorized(nil, operation))
+	require.False(t, IsExactOperationAuthorized(ctx, Operation{}))
+}

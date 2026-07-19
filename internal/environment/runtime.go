@@ -28,6 +28,7 @@ type Runtime struct {
 	plans         planstore.Store
 	stateMgr      *statemanager.Manager
 	automation    envtypes.AutomationService
+	browser       envtypes.BrowserService
 	memory        memory.Provider
 }
 
@@ -130,6 +131,17 @@ func (r *Runtime) AutomationService(context.Context) (envtypes.AutomationService
 	}
 
 	return r.automation, true, nil
+}
+
+func (r *Runtime) BrowserService(context.Context) (envtypes.BrowserService, bool, error) {
+	if r == nil {
+		return nil, false, errors.New("runtime is required")
+	}
+	if r.browser == nil {
+		return nil, false, nil
+	}
+
+	return r.browser, true, nil
 }
 
 func (r *Runtime) GetSessionMessages(

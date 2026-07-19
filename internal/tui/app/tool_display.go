@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -212,9 +213,44 @@ func getToolDisplaySpecForAction(action string) toolDisplaySpec {
 			inputDetail:  getAutomationToolDisplayDetail,
 			branchDetail: getAutomationToolBranchDetail,
 		}
+	case "Browser":
+		return toolDisplaySpec{
+			inputDetail:  getBrowserToolDisplayDetail,
+			branchDetail: getBrowserToolBranchDetail,
+		}
 	default:
 		return toolDisplaySpec{}
 	}
+}
+
+func getBrowserToolDisplayDetail(fields map[string]any) string {
+	action := str.String(getMapString(fields, "action")).Normalized()
+	if action == "" {
+		return "browser"
+	}
+	target := firstNonEmptyToolDisplay(
+		getMapString(fields, "url"), getMapString(fields, "ref"),
+		getMapString(fields, "tab_id"), getMapString(fields, "session_id"),
+	)
+	if target == "" {
+		return action
+	}
+	if parsed, err := url.Parse(target); err == nil && parsed.Hostname() != "" {
+		target = parsed.Scheme + "://" + parsed.Host
+	}
+	return action + ":" + target
+}
+
+func getBrowserToolBranchDetail(detail string, completed bool) string {
+	action, target, _ := strings.Cut(detail, ":")
+	verb := "Running browser " + strings.ReplaceAll(action, "_", " ")
+	if completed {
+		verb = "Browser " + strings.ReplaceAll(action, "_", " ") + " completed"
+	}
+	if target != "" {
+		return verb + ": " + target
+	}
+	return verb
 }
 
 func getAutomationToolDisplayDetail(fields map[string]any) string {

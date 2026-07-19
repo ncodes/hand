@@ -41,14 +41,15 @@ func (r MCPRequest) Operation() (Operation, error) {
 }
 
 type BrowserRequest struct {
-	Profile     string
-	TabTarget   string
-	Action      string
-	Network     *NetworkTarget
-	FileTarget  string
-	TargetScope TargetScope
-	OwnerID     string
-	Personal    bool
+	Profile           string
+	TabTarget         string
+	Action            string
+	Network           *NetworkTarget
+	FileTarget        string
+	TargetScope       TargetScope
+	OwnerID           string
+	Personal          bool
+	CredentialBearing bool
 }
 
 type ExtensionRequest struct {
@@ -113,7 +114,7 @@ func (r BrowserRequest) Operations() ([]Operation, error) {
 	if err != nil {
 		return nil, err
 	}
-	if r.Personal {
+	if r.Personal || r.CredentialBearing {
 		effects = append(effects, EffectCredentialBearing)
 	}
 	operation, err := (Operation{
@@ -134,14 +135,18 @@ func (r BrowserRequest) Operations() ([]Operation, error) {
 			return nil, errors.New("browser network target request class does not match the action")
 		}
 		networkAction := ActionRead
+		networkEffects := []Effect{EffectRead, EffectNetwork, EffectExternalSystem}
 		if r.Action == "download" {
 			networkAction = ActionCreate
 		} else if r.Action == "connect" {
 			networkAction = ActionConnect
+		} else if r.Network.Method != "GET" && r.Network.Method != "HEAD" && r.Network.Method != "OPTIONS" {
+			networkAction = ActionUpdate
+			networkEffects = []Effect{EffectWrite, EffectNetwork, EffectExternalSystem}
 		}
 		networkOperation, normalizeErr := (Operation{
 			Tool: "browser", Resource: ResourceNetwork, Action: networkAction,
-			Effects: []Effect{EffectRead, EffectNetwork, EffectExternalSystem}, Network: r.Network,
+			Effects: networkEffects, Network: r.Network,
 			OwnerID: r.OwnerID, OwnerRequired: ownerRequired,
 		}).Normalize()
 		if normalizeErr != nil {
@@ -210,8 +215,9 @@ func requiresBrowserNetwork(action string) bool {
 
 func isBrowserNetworkClass(action string, requestClass NetworkRequestClass) bool {
 	switch action {
-	case "open", "navigate":
-		return requestClass == NetworkRequestNavigation || requestClass == NetworkRequestRedirect
+	case "open", "navigate", "reload", "back", "forward":
+		return requestClass == NetworkRequestNavigation || requestClass == NetworkRequestRedirect ||
+			requestClass == NetworkRequestSubresource
 	case "download":
 		return requestClass == NetworkRequestDownload || requestClass == NetworkRequestRedirect
 	case "connect":

@@ -52,6 +52,15 @@ type browserServiceStub struct {
 	close func(context.Context) error
 }
 
+type browserApprovalServiceStub struct {
+	browserServiceStub
+	approver permissions.Approver
+}
+
+func (s *browserApprovalServiceStub) SetApprover(approver permissions.Approver) {
+	s.approver = approver
+}
+
 func (s browserServiceStub) Close(ctx context.Context) error {
 	if s.close != nil {
 		return s.close(ctx)
@@ -1542,6 +1551,39 @@ func TestServeRPC_ReturnsNilWhenGRPCServeReturnsServerStopped(t *testing.T) {
 	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
 
 	require.NoError(t, err)
+}
+
+func TestServeRPC_WiresApprovalServiceIntoBrowserRuntime(t *testing.T) {
+	originalService := newBrowserService
+	originalServe := grpcServerServe
+	t.Cleanup(func() {
+		newBrowserService = originalService
+		grpcServerServe = originalServe
+	})
+
+	browserRuntime := &browserApprovalServiceStub{}
+	newBrowserService = func(
+		context.Context,
+		config.BrowserConfig,
+		permissions.Checker,
+		browser.Backend,
+	) (browserService, error) {
+		return browserRuntime, nil
+	}
+	grpcServerServe = func(*grpc.Server, net.Listener) error {
+		return grpc.ErrServerStopped
+	}
+	approvalService := &permissions.ApprovalService{}
+	agent := approvalAgentRunnerStub{
+		AgentRunnerStub: &agentstub.AgentRunnerStub{}, approvalService: approvalService,
+	}
+	cfg := config.NewDefaultConfig()
+	cfg.Browser.Enabled = true
+	cfg.RPC.Port = 0
+
+	err := serveRPC(context.Background(), cfg, agent, openTestRPCListener(t, cfg), nil)
+	require.NoError(t, err)
+	require.Same(t, approvalService, browserRuntime.approver)
 }
 
 func TestServeRPC_WritesRuntimeMetadataWithActualPort(t *testing.T) {

@@ -286,7 +286,10 @@ func (r *DefaultRegistry) checkPermissions(
 
 	approvals := r.getApprovalService()
 	var selected *permissions.DecisionError
+	var firstAsk *permissions.DecisionError
+	var preparedBatch permissions.BatchApproval
 	authorized := make([]permissions.Operation, 0, len(inputs))
+	askInputs := make([]permissions.EvaluationInput, 0, len(inputs))
 	propagateAuthorization := r.permissions.Preset(ctx) == permissions.PresetAskForApproval ||
 		r.permissions.Preset(ctx) == permissions.PresetApproveForMe
 	for _, input := range inputs {
@@ -299,40 +302,73 @@ func (r *DefaultRegistry) checkPermissions(
 			}
 			continue
 		}
-		if decisionErr.Code == permissions.ErrorCodeApprovalRequired && approvals != nil {
+		if decisionErr.Code == permissions.ErrorCodeApprovalRequired {
+			if firstAsk == nil {
+				firstAsk = decisionErr
+			}
 			approvalReason := str.String(input.ApprovalReason).Trim()
 			if approvalReason == "" {
 				approvalReason = evaluation.Reason
 			}
 			input.ApprovalReason = approvalReason
-			if err := approvals.Authorize(ctx, input); err == nil {
-				if propagateAuthorization {
-					authorized = append(authorized, input.Operation)
-				}
-				recheck := r.permissions.Evaluate(ctx, input)
-				r.recordPermissionDecision(ctx, input.Operation, recheck)
-				if recheck.Decision != permissions.DecisionDeny {
-					continue
-				}
-				decisionErr = &permissions.DecisionError{
-					Code:       permissions.ErrorCodeDenied,
-					Evaluation: recheck,
-				}
-			} else if approvalErr, approvalOK := permissions.GetDecisionError(err); approvalOK {
-				decisionErr = approvalErr
+			askInputs = append(askInputs, input)
+			continue
+		}
+		if selected == nil {
+			selected = decisionErr
+		}
+	}
+	if selected != nil {
+		return ctx, Result{Error: Error{Code: selected.Code, Message: selected.Error()}.String()}, true
+	}
+	if len(askInputs) > 0 {
+		if approvals == nil {
+			selected = firstAsk
+		} else {
+			var approvalErr error
+			if len(askInputs) == 1 {
+				approvalErr = approvals.Authorize(ctx, askInputs[0])
 			} else {
-				decisionErr = &permissions.DecisionError{
-					Code: permissions.ErrorCodeDenied,
-					Evaluation: permissions.Evaluation{
-						Decision: permissions.DecisionDeny,
-						Reason:   err.Error(),
-					},
+				batchApprovals, ok := approvals.(permissions.BatchApprover)
+				if !ok {
+					approvalErr = errors.New("approval service does not support atomic operation batches")
+				} else {
+					preparedBatch, approvalErr = batchApprovals.PrepareBatch(ctx, askInputs)
+				}
+			}
+			if approvalErr != nil {
+				if decisionErr, ok := permissions.GetDecisionError(approvalErr); ok {
+					selected = decisionErr
+				} else {
+					selected = &permissions.DecisionError{
+						Code: permissions.ErrorCodeDenied,
+						Evaluation: permissions.Evaluation{
+							Decision: permissions.DecisionDeny, Reason: approvalErr.Error(),
+						},
+					}
 				}
 			}
 		}
-		if selected == nil || selected.Code == permissions.ErrorCodeApprovalRequired &&
-			decisionErr.Code == permissions.ErrorCodeDenied {
-			selected = decisionErr
+	}
+	if selected == nil {
+		for _, input := range askInputs {
+			recheck := r.permissions.Evaluate(ctx, input)
+			r.recordPermissionDecision(ctx, input.Operation, recheck)
+			if recheck.Decision == permissions.DecisionDeny {
+				selected = &permissions.DecisionError{Code: permissions.ErrorCodeDenied, Evaluation: recheck}
+				break
+			}
+			authorized = append(authorized, input.Operation)
+		}
+	}
+	if selected == nil && preparedBatch != nil {
+		if err := preparedBatch.Commit(ctx); err != nil {
+			selected = &permissions.DecisionError{
+				Code: permissions.ErrorCodeDenied,
+				Evaluation: permissions.Evaluation{
+					Decision: permissions.DecisionDeny, Reason: err.Error(),
+				},
+			}
 		}
 	}
 	if selected == nil {

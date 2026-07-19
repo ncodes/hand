@@ -922,6 +922,36 @@ func TestRenderTranscriptCells_RendersSessionMessagesWithFriendlyText(t *testing
 	require.NotContains(t, withDetail, "session_messages")
 }
 
+func TestBrowserToolDisplayDetail_RedactsURLPathAndDescribesLifecycle(t *testing.T) {
+	detail := getToolInputDisplayDetail("browser", `{
+		"action":"navigate",
+		"session_id":"browser_1",
+		"tab_id":"tab_1",
+		"url":"https://example.com/private/path?token=secret"
+	}`)
+
+	require.Equal(t, "navigate:https://example.com", detail)
+	require.Equal(
+		t, "Running browser navigate: https://example.com",
+		getToolBranchDisplayDetail("Browser", detail, false),
+	)
+	require.Equal(
+		t, "Browser navigate completed: https://example.com",
+		getToolBranchDisplayDetail("Browser", detail, true),
+	)
+}
+
+func TestBrowserToolDisplayDetail_PreservesNonDefaultPort(t *testing.T) {
+	detail := getToolInputDisplayDetail("browser", `{
+		"action":"navigate",
+		"session_id":"browser_1",
+		"tab_id":"tab_1",
+		"url":"http://127.0.0.1:8080/news?token=secret"
+	}`)
+
+	require.Equal(t, "navigate:http://127.0.0.1:8080", detail)
+}
+
 func TestRenderTranscriptCells_CompactsConsecutiveManualCompactionEvents(t *testing.T) {
 	rendered := stripANSI(renderTranscriptCells([]transcriptCell{
 		manualCompactionTranscriptCell{state: manualCompactionState{Status: "running", Label: autoCompactionLabel}},

@@ -4,6 +4,7 @@ package browser
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -47,17 +48,14 @@ func (p *browserProcess) stop() error {
 	if p.cmd == nil || p.cmd.Process == nil {
 		return nil
 	}
-	pgid, err := syscall.Getpgid(p.cmd.Process.Pid)
-	if errors.Is(err, syscall.ESRCH) {
-		return nil
-	}
-	if err != nil {
+	if p.pgid == 0 {
+		err := p.cmd.Process.Kill()
+		if errors.Is(err, os.ErrProcessDone) {
+			return nil
+		}
 		return err
 	}
-	if p.pgid == 0 || pgid != p.pgid {
-		return nil
-	}
-	err = syscall.Kill(-pgid, syscall.SIGKILL)
+	err := syscall.Kill(-p.pgid, syscall.SIGKILL)
 	if errors.Is(err, syscall.ESRCH) {
 		return nil
 	}

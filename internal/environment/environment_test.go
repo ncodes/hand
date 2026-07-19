@@ -24,6 +24,7 @@ import (
 	envplanstore "github.com/wandxy/morph/internal/environment/planstore"
 	envsessionmessages "github.com/wandxy/morph/internal/environment/sessionmessages"
 	envsessionsearch "github.com/wandxy/morph/internal/environment/sessionsearch"
+	envtypes "github.com/wandxy/morph/internal/environment/types"
 	"github.com/wandxy/morph/internal/guardrails"
 	instruct "github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/memory"
@@ -179,6 +180,7 @@ func TestEnvironment_AllToolsExposePermissionMetadata(t *testing.T) {
 			Effects:       []permissions.Effect{permissions.EffectExternalSystem, permissions.EffectRead, permissions.EffectWrite},
 			OwnerRequired: true,
 		},
+		"browser": {},
 	}
 
 	for _, definition := range env.Tools().List() {
@@ -945,9 +947,10 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	require.NotNil(t, tools)
 
 	definitions := tools.List()
-	require.Len(t, definitions, 18)
+	require.Len(t, definitions, 19)
 	require.Equal(t, []string{
 		"automation",
+		"browser",
 		"list_files",
 		"memory_add",
 		"memory_delete",
@@ -1577,9 +1580,10 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 19)
+	require.Len(t, definitions, 20)
 	require.Equal(t, []string{
 		"automation",
+		"browser",
 		"list_files",
 		"memory_add",
 		"memory_delete",
@@ -1801,7 +1805,7 @@ func TestEnvironment_PrepareDefaultsUnsetWebProviderToNativeExtract(t *testing.T
 	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 18)
+	require.Len(t, definitions, 19)
 	require.False(t, definitions.Has("web_search"))
 	require.True(t, definitions.Has("web_extract"))
 }
@@ -1874,6 +1878,25 @@ func TestEnvironment_CurrentPlanAndHydratePlanHandleNilReceiver(t *testing.T) {
 		Steps: []envplanstore.PlanStep{{ID: "step-1", Content: "First", Status: envplanstore.PlanStatusInProgress}},
 	})
 	require.Equal(t, envplanstore.Plan{}, env.CurrentPlan("session-1"))
+}
+
+type browserServiceTestStub struct {
+	envtypes.BrowserService
+}
+
+func TestEnvironment_SetBrowserServiceInitializesRuntime(t *testing.T) {
+	var nilEnvironment *environment
+	nilEnvironment.SetBrowserService(nil)
+
+	service := &browserServiceTestStub{}
+	env := &environment{cfg: &config.Config{}}
+	env.SetBrowserService(service)
+
+	require.NotNil(t, env.runtime)
+	got, ok, err := env.runtime.BrowserService(gctx.Background())
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Same(t, service, got)
 }
 
 func TestEnvironment_CurrentPlanAndHydratePlanUseRuntimeStore(t *testing.T) {

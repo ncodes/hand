@@ -228,6 +228,14 @@ func (a *Agent) SetAutomationService(service envtypes.AutomationService) {
 	a.env.SetAutomationService(service)
 }
 
+func (a *Agent) SetBrowserService(service envtypes.BrowserService) {
+	if a == nil || a.env == nil {
+		return
+	}
+
+	a.env.SetBrowserService(service)
+}
+
 func (a *Agent) ListProviders(context.Context) (ProviderList, error) {
 	if a == nil {
 		return ProviderList{}, errors.New("agent is required")

@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 
+	"github.com/wandxy/morph/internal/browser"
 	planstore "github.com/wandxy/morph/internal/environment/planstore"
 	"github.com/wandxy/morph/internal/environment/process"
 	sesmsg "github.com/wandxy/morph/internal/environment/sessionmessages"
@@ -10,6 +11,7 @@ import (
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/memory"
 	"github.com/wandxy/morph/internal/memory/episodic"
+	"github.com/wandxy/morph/internal/permissions"
 	storage "github.com/wandxy/morph/internal/state/core"
 )
 
@@ -29,6 +31,7 @@ type Runtime interface {
 	// Session management
 	SearchSession(ctx context.Context, req sessrc.SessionSearchRequest) ([]sessrc.SessionSearchResult, error)
 	AutomationService(ctx context.Context) (AutomationService, bool, error)
+	BrowserService(ctx context.Context) (BrowserService, bool, error)
 
 	// Memory management
 	GetSessionMessages(ctx context.Context, req sesmsg.SessionMessagesRequest) (sesmsg.SessionMessagesResponse, error)
@@ -49,6 +52,28 @@ type Runtime interface {
 	MergePlan(string, []planstore.PartialPlanStep, string, bool) (planstore.Plan, error)
 	ClearPlan(string) planstore.Plan
 	HydratePlan(string, planstore.Plan)
+}
+
+type BrowserService interface {
+	ResolveOperations(context.Context, browser.Action, browser.ActionRequest) ([]permissions.Operation, error)
+	Status() browser.Status
+	Start(context.Context, browser.StartRequest) (browser.Session, error)
+	Stop(context.Context, string) (browser.Session, error)
+	Tabs(context.Context, string) ([]browser.Tab, error)
+	Open(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Focus(context.Context, browser.ActionRequest) (browser.Tab, error)
+	CloseTab(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Navigate(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Reload(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Snapshot(context.Context, browser.ActionRequest) (browser.Snapshot, error)
+	Click(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Type(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Press(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Scroll(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Select(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Wait(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Back(context.Context, browser.ActionRequest) (browser.Tab, error)
+	Forward(context.Context, browser.ActionRequest) (browser.Tab, error)
 }
 
 type AutomationService interface {

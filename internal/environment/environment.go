@@ -26,6 +26,7 @@ import (
 	statemanager "github.com/wandxy/morph/internal/state/manager"
 	"github.com/wandxy/morph/internal/tools"
 	automationtool "github.com/wandxy/morph/internal/tools/automation"
+	browsertool "github.com/wandxy/morph/internal/tools/browser"
 	"github.com/wandxy/morph/internal/tools/listfiles"
 	"github.com/wandxy/morph/internal/tools/memoryextract"
 	"github.com/wandxy/morph/internal/tools/memorysearch"
@@ -92,6 +93,7 @@ type Environment interface {
 	SetStateManager(*statemanager.Manager)
 	SetApprovalService(permissions.Approver)
 	SetAutomationService(envtypes.AutomationService)
+	SetBrowserService(envtypes.BrowserService)
 	SetModelClient(models.Client)
 }
 
@@ -304,6 +306,7 @@ func (e *environment) prepareTools() error {
 	definitions := tools.Definitions{
 		time.Definition(),
 		automationtool.Definition(e.runtime),
+		browsertool.Definition(e.runtime),
 		listfiles.Definition(e.runtime),
 		readfile.Definition(e.runtime),
 		searchfiles.Definition(e.runtime),
@@ -631,6 +634,16 @@ func (e *environment) SetAutomationService(service envtypes.AutomationService) {
 		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy(), e.stateMgr)
 	}
 	e.runtime.automation = service
+}
+
+func (e *environment) SetBrowserService(service envtypes.BrowserService) {
+	if e == nil {
+		return
+	}
+	if e.runtime == nil {
+		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy(), e.stateMgr)
+	}
+	e.runtime.browser = service
 }
 
 func (e *environment) SetModelClient(client models.Client) {

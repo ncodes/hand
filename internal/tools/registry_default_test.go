@@ -1011,6 +1011,145 @@ func TestDefaultRegistry_InvokeUsesApprovalDecisionError(t *testing.T) {
 	require.Contains(t, result.Error, "approval denied")
 }
 
+func TestDefaultRegistry_InvokeFindsTerminalBatchDenialBeforePrompting(t *testing.T) {
+	approver := &batchApprovalRecorder{}
+	registry := newTestDefaultRegistry(RegistryOptions{
+		PermissionPolicy: permissions.Policy{Rules: []permissions.Rule{
+			{Name: "ask browser", Resources: []permissions.Resource{permissions.ResourceBrowser}, Decision: permissions.DecisionAsk},
+			{Name: "deny network", Resources: []permissions.Resource{permissions.ResourceNetwork}, Decision: permissions.DecisionDeny},
+		}},
+		ApprovalService: approver,
+	})
+	require.NoError(t, registry.Register(Definition{
+		Name: "browser",
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return browserPermissionInputs(), nil
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			t.Fatal("handler must not run when one operation is denied")
+			return Result{}, nil
+		}),
+	}))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, Call{Name: "browser"})
+
+	require.NoError(t, err)
+	require.Contains(t, result.Error, permissions.ErrorCodeDenied)
+	require.Zero(t, approver.batchCalls)
+	require.Zero(t, approver.singleCalls)
+}
+
+func TestDefaultRegistry_InvokeApprovesMultiOperationBatchOnce(t *testing.T) {
+	approver := &batchApprovalRecorder{}
+	registry := newTestDefaultRegistry(RegistryOptions{
+		PermissionPolicy: permissions.Policy{Rules: []permissions.Rule{
+			{Name: "ask browser", Resources: []permissions.Resource{permissions.ResourceBrowser}, Decision: permissions.DecisionAsk},
+			{Name: "ask network", Resources: []permissions.Resource{permissions.ResourceNetwork}, Decision: permissions.DecisionAsk},
+		}},
+		ApprovalService: approver,
+	})
+	require.NoError(t, registry.Register(Definition{
+		Name: "browser",
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return browserPermissionInputs(), nil
+		},
+		Handler: HandlerFunc(func(ctx context.Context, _ Call) (Result, error) {
+			for _, input := range browserPermissionInputs() {
+				require.True(t, permissions.IsOperationAuthorized(ctx, input.Operation))
+			}
+			return Result{Output: "navigated"}, nil
+		}),
+	}))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, Call{Name: "browser"})
+
+	require.NoError(t, err)
+	require.Equal(t, "navigated", result.Output)
+	require.Equal(t, 1, approver.batchCalls)
+	require.Equal(t, 1, approver.commitCalls)
+	require.Zero(t, approver.singleCalls)
+	require.Len(t, approver.inputs, 2)
+}
+
+func TestDefaultRegistry_InvokeDoesNotRunHandlerWhenBatchCommitFails(t *testing.T) {
+	approver := &batchApprovalRecorder{commitErr: errors.New("approval grant already consumed")}
+	registry := newTestDefaultRegistry(RegistryOptions{
+		PermissionPolicy: permissions.Policy{Rules: []permissions.Rule{
+			{Name: "ask browser", Resources: []permissions.Resource{permissions.ResourceBrowser}, Decision: permissions.DecisionAsk},
+			{Name: "ask network", Resources: []permissions.Resource{permissions.ResourceNetwork}, Decision: permissions.DecisionAsk},
+		}},
+		ApprovalService: approver,
+	})
+	require.NoError(t, registry.Register(Definition{
+		Name: "browser",
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return browserPermissionInputs(), nil
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			t.Fatal("handler must not run when the prepared approval cannot commit")
+			return Result{}, nil
+		}),
+	}))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, Call{Name: "browser"})
+	require.NoError(t, err)
+	require.Contains(t, result.Error, "approval grant already consumed")
+	require.Equal(t, 1, approver.batchCalls)
+	require.Equal(t, 1, approver.commitCalls)
+}
+
+func TestDefaultRegistry_InvokeRejectsMultiOperationApprovalWithoutAtomicApprover(t *testing.T) {
+	approver := &approvalRecorder{}
+	registry := newTestDefaultRegistry(RegistryOptions{
+		PermissionPolicy: permissions.Policy{Rules: []permissions.Rule{
+			{Name: "ask browser", Resources: []permissions.Resource{permissions.ResourceBrowser}, Decision: permissions.DecisionAsk},
+			{Name: "ask network", Resources: []permissions.Resource{permissions.ResourceNetwork}, Decision: permissions.DecisionAsk},
+		}},
+		ApprovalService: approver,
+	})
+	require.NoError(t, registry.Register(Definition{
+		Name: "browser",
+		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
+			return browserPermissionInputs(), nil
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			t.Fatal("handler must not run without atomic batch approval")
+			return Result{}, nil
+		}),
+	}))
+	ctx := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor: permissions.Actor{Kind: permissions.ActorLocalOwner}, Surface: permissions.SurfaceTUI,
+	})
+
+	result, err := registry.Invoke(ctx, Call{Name: "browser"})
+
+	require.NoError(t, err)
+	require.Contains(t, result.Error, "approval service does not support atomic operation batches")
+	require.Equal(t, 0, approver.calls)
+}
+
+func browserPermissionInputs() []permissions.EvaluationInput {
+	return []permissions.EvaluationInput{
+		{Operation: permissions.Operation{
+			Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionUpdate,
+			Effects: []permissions.Effect{permissions.EffectWrite},
+		}},
+		{Operation: permissions.Operation{
+			Tool: "browser", Resource: permissions.ResourceNetwork, Action: permissions.ActionRead,
+			Effects: []permissions.Effect{permissions.EffectRead, permissions.EffectNetwork},
+		}},
+	}
+}
+
 func TestDefaultRegistry_SetApprovalServiceHandlesNilRegistry(t *testing.T) {
 	var registry *DefaultRegistry
 	registry.SetApprovalService(nil)
@@ -1037,9 +1176,43 @@ type approvalRecorder struct {
 	input     permissions.EvaluationInput
 	err       error
 	authorize func(permissions.EvaluationInput) error
+	calls     int
+}
+
+type batchApprovalRecorder struct {
+	inputs      []permissions.EvaluationInput
+	singleCalls int
+	batchCalls  int
+	commitCalls int
+	commitErr   error
+}
+
+func (r *batchApprovalRecorder) Authorize(_ context.Context, input permissions.EvaluationInput) error {
+	r.singleCalls++
+	r.inputs = []permissions.EvaluationInput{input}
+	return nil
+}
+
+func (r *batchApprovalRecorder) PrepareBatch(
+	_ context.Context,
+	inputs []permissions.EvaluationInput,
+) (permissions.BatchApproval, error) {
+	r.batchCalls++
+	r.inputs = append([]permissions.EvaluationInput(nil), inputs...)
+	return batchApprovalFunc(func(context.Context) error {
+		r.commitCalls++
+		return r.commitErr
+	}), nil
+}
+
+type batchApprovalFunc func(context.Context) error
+
+func (f batchApprovalFunc) Commit(ctx context.Context) error {
+	return f(ctx)
 }
 
 func (r *approvalRecorder) Authorize(_ context.Context, input permissions.EvaluationInput) error {
+	r.calls++
 	r.input = input
 	if r.authorize != nil {
 		return r.authorize(input)

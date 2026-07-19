@@ -57,6 +57,14 @@ type automationServiceBinder interface {
 	SetAutomationService(envtypes.AutomationService)
 }
 
+type browserServiceBinder interface {
+	SetBrowserService(envtypes.BrowserService)
+}
+
+type browserApprovalBinder interface {
+	SetApprover(permissions.Approver)
+}
+
 var newGatewayManager = func() gatewayManager {
 	return gateway.NewManager(gateway.Options{})
 }
@@ -245,6 +253,16 @@ var serveRPC = func(
 		return err
 	}
 	if browserRuntime != nil {
+		if provider, ok := agent.(permissionApprovalServiceProvider); ok {
+			if binder, ok := browserRuntime.(browserApprovalBinder); ok {
+				binder.SetApprover(provider.ApprovalService())
+			}
+		}
+		if service, serviceOK := browserRuntime.(envtypes.BrowserService); serviceOK {
+			if binder, ok := agent.(browserServiceBinder); ok {
+				binder.SetBrowserService(service)
+			}
+		}
 		defer func() {
 			if closeErr := closeBrowserService(browserRuntime); serveErr == nil {
 				serveErr = closeErr

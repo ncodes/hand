@@ -42,6 +42,27 @@ func TestNewRuntime_DefaultsRootToCWDAndNormalizesPolicy(t *testing.T) {
 	require.IsType(t, &planstore.MemoryPlanStore{}, runtime.plans)
 }
 
+func TestRuntime_BrowserServiceReportsAvailability(t *testing.T) {
+	var nilRuntime *Runtime
+	service, ok, err := nilRuntime.BrowserService(context.Background())
+	require.EqualError(t, err, "runtime is required")
+	require.False(t, ok)
+	require.Nil(t, service)
+
+	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)
+	service, ok, err = runtime.BrowserService(context.Background())
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Nil(t, service)
+
+	want := &browserServiceTestStub{}
+	runtime.browser = want
+	service, ok, err = runtime.BrowserService(context.Background())
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Same(t, want, service)
+}
+
 func TestNewRuntime_FallsBackWhenGetwdFails(t *testing.T) {
 	originalGetwd := getwd
 

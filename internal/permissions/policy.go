@@ -57,10 +57,11 @@ type Rule struct {
 }
 
 type EvaluationInput struct {
-	Authorization  AuthorizationContext
-	Operation      Operation
-	HardDenyReason string
-	ApprovalReason string
+	Authorization   AuthorizationContext
+	Operation       Operation
+	HardDenyReason  string
+	ApprovalSummary string
+	ApprovalReason  string
 }
 
 type Evaluation struct {

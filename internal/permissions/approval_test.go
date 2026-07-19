@@ -40,6 +40,81 @@ func TestApprovalService_AllowOnceResumesExactlyOneCoalescedInvocation(t *testin
 	require.Equal(t, permissions.GrantConsumed, grants[0].Status)
 }
 
+func TestApprovalService_AuthorizeBatchCreatesOrderIndependentCompositeGrant(t *testing.T) {
+	service, store := newApprovalService(t, permissions.ApprovalOptions{RequestTTL: time.Second})
+	ctx := approvalContext(context.Background(), "session-a")
+	network, err := permissions.NetworkTargetFromURL(
+		"https://example.com/news?token=secret", "GET", permissions.NetworkRequestNavigation,
+	)
+	require.NoError(t, err)
+	inputs := []permissions.EvaluationInput{
+		{Operation: permissions.Operation{
+			Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionUpdate,
+			Effects: []permissions.Effect{permissions.EffectWrite}, Target: "tab=one",
+		}},
+		{Operation: permissions.Operation{
+			Tool: "browser", Resource: permissions.ResourceNetwork, Action: permissions.ActionRead,
+			Effects: []permissions.Effect{permissions.EffectRead, permissions.EffectNetwork}, Network: &network,
+		}},
+	}
+	result := make(chan error, 1)
+	go func() { result <- service.AuthorizeBatch(ctx, inputs) }()
+	request := waitForPendingApproval(t, store)
+	require.Equal(t, permissions.ActionExecute, request.Action)
+	require.ElementsMatch(t, []permissions.Effect{
+		permissions.EffectRead, permissions.EffectWrite, permissions.EffectNetwork,
+	}, request.Effects)
+	require.Equal(t, "browser · approve 2 operations", request.Summary)
+	require.Contains(t, request.Reason, "GET https://example.com:443/news")
+	require.NotContains(t, request.Reason, "secret")
+	require.NotContains(t, request.Reason, network.QueryHash)
+	_, err = service.Resolve(context.Background(), request.ID, true, permissions.GrantSession)
+	require.NoError(t, err)
+	require.NoError(t, <-result)
+
+	reversed := []permissions.EvaluationInput{inputs[1], inputs[0]}
+	require.NoError(t, service.AuthorizeBatch(ctx, reversed))
+	requests, err := service.List(context.Background(), permissions.ApprovalQuery{})
+	require.NoError(t, err)
+	require.Len(t, requests, 1)
+}
+
+func TestApprovalService_PrepareBatchConsumesOnceGrantOnlyOnCommit(t *testing.T) {
+	service, store := newApprovalService(t, permissions.ApprovalOptions{RequestTTL: time.Second})
+	ctx := approvalContext(context.Background(), "session-a")
+	inputs := []permissions.EvaluationInput{
+		{Operation: permissions.Operation{
+			Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionUpdate,
+			Effects: []permissions.Effect{permissions.EffectWrite}, Target: "tab=one",
+		}},
+		{Operation: permissions.Operation{
+			Tool: "browser", Resource: permissions.ResourceNetwork, Action: permissions.ActionRead,
+			Effects: []permissions.Effect{permissions.EffectRead, permissions.EffectNetwork}, Target: "host=example.com",
+		}},
+	}
+	result := make(chan permissions.BatchApproval, 1)
+	errorsResult := make(chan error, 1)
+	go func() {
+		prepared, err := service.PrepareBatch(ctx, inputs)
+		result <- prepared
+		errorsResult <- err
+	}()
+	request := waitForPendingApproval(t, store)
+	_, err := service.Resolve(context.Background(), request.ID, true, permissions.GrantOnce)
+	require.NoError(t, err)
+	prepared := <-result
+	require.NoError(t, <-errorsResult)
+	grants, err := service.ListGrants(context.Background(), permissions.GrantQuery{})
+	require.NoError(t, err)
+	require.Equal(t, permissions.GrantActive, grants[0].Status)
+
+	require.NoError(t, prepared.Commit(ctx))
+	require.NoError(t, prepared.Commit(ctx))
+	grants, err = service.ListGrants(context.Background(), permissions.GrantQuery{})
+	require.NoError(t, err)
+	require.Equal(t, permissions.GrantConsumed, grants[0].Status)
+}
+
 func TestApprovalService_RateLimitsInteractivePromptsAndReportsMetrics(t *testing.T) {
 	service, store := newApprovalService(t, permissions.ApprovalOptions{
 		RequestTTL: time.Second,
