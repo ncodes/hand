@@ -134,6 +134,23 @@ See [Provider Auth](../guides/provider-auth).
 
 Full flag and enum reference: [Automation Reference](./automation). Walkthrough: [Automation Guide](../guides/automation).
 
+### `browser`: managed browser runtime
+
+| Subcommand | Usage | Notes |
+| --- | --- | --- |
+| `browser status` | `morph browser status [--json]` | Service, profile, and session counts |
+| `browser profiles` | `morph browser profiles [--json]` | Configured profile modes and readiness |
+| `browser sessions` | `morph browser sessions [--json]` | Active and terminal runtime sessions |
+| `browser start` | `morph browser start [profile] [--owner-session ID]` | Start an owned browser session |
+| `browser stop` | `morph browser stop <session-id> [--owner-session ID]` | Stop an owned browser session |
+| `browser config` | `morph browser config [--json]` | Effective enablement, network, and permission posture |
+| `browser auth rotate` | `morph browser auth rotate [--json]` | Replace the profile owner credential; restart the daemon and reconnect local clients |
+
+Browser commands authenticate to the daemon as the active profile owner. Claimed CLI metadata alone does not grant
+owner authority. Enabling the service and Browser capability makes the tool eligible; the effective permission preset
+and configured rules still authorize each browser operation. If the profile owner credential changes while the daemon
+is running, restart the daemon before retrying the command so both processes load the same credential.
+
 ### `config`: profile YAML
 
 | Subcommand | Usage |

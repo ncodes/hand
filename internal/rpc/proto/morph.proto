@@ -63,6 +63,16 @@ service PermissionService {
   rpc Prune(PrunePermissionApprovalsRequest) returns (PrunePermissionApprovalsResponse);
 }
 
+service BrowserService {
+  rpc Status(GetBrowserStatusRequest) returns (GetBrowserStatusResponse);
+  rpc ListProfiles(ListBrowserProfilesRequest) returns (ListBrowserProfilesResponse);
+  rpc ListSessions(ListBrowserSessionsRequest) returns (ListBrowserSessionsResponse);
+  rpc Start(StartBrowserRequest) returns (StartBrowserResponse);
+  rpc Stop(StopBrowserRequest) returns (StopBrowserResponse);
+  rpc ReadArtifact(ReadBrowserArtifactRequest) returns (stream ReadBrowserArtifactResponse);
+  rpc EffectiveConfig(GetBrowserEffectiveConfigRequest) returns (GetBrowserEffectiveConfigResponse);
+}
+
 message RespondRequest {
   string message = 1;
   string instruct = 2;
@@ -689,4 +699,83 @@ message PrunePermissionApprovalsResponse {
   google.protobuf.Timestamp request_cutoff = 3;
   google.protobuf.Timestamp grant_cutoff = 4;
   bool dry_run = 5;
+}
+
+message BrowserProfile {
+  string name = 1;
+  string mode = 2;
+  bool default = 3;
+  bool available = 4;
+}
+
+message BrowserSession {
+  string id = 1;
+  string profile = 2;
+  string profile_mode = 3;
+  string state = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp last_active = 6;
+  string error = 7;
+}
+
+message BrowserArtifact {
+  string handle = 1;
+  string kind = 2;
+  string name = 3;
+  string mime_type = 4;
+  int64 size = 5;
+  string profile = 6;
+  string session_id = 7;
+  string run_id = 8;
+  repeated string effects = 9;
+  bool sensitive = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp expires_at = 12;
+}
+
+message BrowserStatus {
+  bool enabled = 1;
+  repeated BrowserProfile profiles = 2;
+  repeated BrowserSession sessions = 3;
+}
+
+message GetBrowserStatusRequest {}
+message GetBrowserStatusResponse { BrowserStatus status = 1; }
+
+message ListBrowserProfilesRequest {}
+message ListBrowserProfilesResponse { repeated BrowserProfile profiles = 1; }
+
+message ListBrowserSessionsRequest {}
+message ListBrowserSessionsResponse { repeated BrowserSession sessions = 1; }
+
+message StartBrowserRequest {
+  string profile = 1;
+  string owner_session_id = 2;
+}
+message StartBrowserResponse { BrowserSession session = 1; }
+
+message StopBrowserRequest {
+  string id = 1;
+  string owner_session_id = 2;
+}
+message StopBrowserResponse { BrowserSession session = 1; }
+
+message ReadBrowserArtifactRequest {
+  string handle = 1;
+  string owner_session_id = 2;
+  string run_id = 3;
+}
+message ReadBrowserArtifactResponse {
+  BrowserArtifact artifact = 1;
+  bytes data = 2;
+}
+
+message GetBrowserEffectiveConfigRequest {}
+message GetBrowserEffectiveConfigResponse {
+  bool enabled = 1;
+  bool capability_enabled = 2;
+  string default_profile = 3;
+  bool network_strict = 4;
+  string permission_preset = 5;
+  bool executable_configured = 6;
 }

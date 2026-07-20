@@ -124,6 +124,9 @@ func getToolTranscriptBranchDisplayDetail(action string, detail toolTranscriptDe
 		textValue := str.String(detail.text)
 		return textValue.Trim()
 	}
+	if actionValue2.Trim() == "Browser" && detail.terminalStatus != "" {
+		return getBrowserToolTerminalBranchDetail(detail.text, detail.terminalStatus)
+	}
 
 	return getToolBranchDisplayDetail(action, detail.text, detail.completed)
 }
@@ -268,6 +271,16 @@ func getBrowserToolBranchDetail(detail string, completed bool) string {
 	if target != "" {
 		return verb + ": " + target
 	}
+	return verb
+}
+
+func getBrowserToolTerminalBranchDetail(detail string, status toolTranscriptTerminalStatus) string {
+	action, target, _ := strings.Cut(detail, ":")
+	verb := "Browser " + strings.ReplaceAll(action, "_", " ") + " " + string(status)
+	if target != "" {
+		return verb + ": " + target
+	}
+
 	return verb
 }
 

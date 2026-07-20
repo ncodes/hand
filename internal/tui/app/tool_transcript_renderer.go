@@ -41,7 +41,9 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 	interrupted := group.isInterrupted()
 
 	headerTitle := getToolTranscriptTitle(action, completed, group.details)
-	if failed {
+	if action == "Browser" {
+		headerTitle = getBrowserToolTranscriptTitle(group.details, completed, failed, interrupted)
+	} else if failed {
 		headerTitle = "Failed " + action
 	} else if interrupted {
 		headerTitle = "Interrupted " + action
@@ -370,6 +372,8 @@ func getToolTranscriptTitle(action string, completed bool, details []toolTranscr
 		return "Checking time"
 	case "Automation":
 		return getAutomationToolTranscriptTitle(details, completed)
+	case "Browser":
+		return getBrowserToolTranscriptTitle(details, completed, false, false)
 	}
 
 	if !completed {
@@ -391,6 +395,114 @@ func getToolTranscriptTitle(action string, completed bool, details []toolTranscr
 		actionValue8 := str.String(action)
 		return actionValue8.Trim()
 	}
+}
+
+func getBrowserToolTranscriptTitle(
+	details []toolTranscriptDetail,
+	completed bool,
+	failed bool,
+	interrupted bool,
+) string {
+	action := ""
+	for _, detail := range details {
+		candidate, _, _ := strings.Cut(detail.text, ":")
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" || candidate == "browser" {
+			continue
+		}
+		if action != "" && action != candidate {
+			return getBrowserToolFallbackTitle(completed, failed, interrupted)
+		}
+		action = candidate
+	}
+	label := getBrowserActionLabel(action)
+	if failed {
+		return label + " Failed"
+	}
+	if interrupted {
+		return label + " Interrupted"
+	}
+	if completed {
+		return getBrowserActionCompletedTitle(action)
+	}
+
+	return getBrowserActionPendingTitle(action)
+}
+
+func getBrowserToolFallbackTitle(completed, failed, interrupted bool) string {
+	switch {
+	case failed:
+		return "Browser Actions Failed"
+	case interrupted:
+		return "Browser Actions Interrupted"
+	case completed:
+		return "Completed Browser Actions"
+	default:
+		return "Running Browser Actions"
+	}
+}
+
+type browserActionTitles struct {
+	label     string
+	pending   string
+	completed string
+}
+
+var browserTranscriptActionTitles = map[string]browserActionTitles{
+	"status":         {label: "Browser Status", pending: "Checking Browser Status", completed: "Checked Browser Status"},
+	"start":          {label: "Browser Start", pending: "Starting Browser", completed: "Started Browser"},
+	"stop":           {label: "Browser Stop", pending: "Stopping Browser", completed: "Stopped Browser"},
+	"connect":        {label: "Browser Connection", pending: "Connecting Browser", completed: "Connected Browser"},
+	"profiles":       {label: "Browser Profile Listing", pending: "Listing Browser Profiles", completed: "Listed Browser Profiles"},
+	"tabs":           {label: "Browser Tab Listing", pending: "Listing Browser Tabs", completed: "Listed Browser Tabs"},
+	"open":           {label: "Browser Tab Opening", pending: "Opening Browser Tab", completed: "Opened Browser Tab"},
+	"focus":          {label: "Browser Tab Focus", pending: "Focusing Browser Tab", completed: "Focused Browser Tab"},
+	"close":          {label: "Browser Tab Closure", pending: "Closing Browser Tab", completed: "Closed Browser Tab"},
+	"navigate":       {label: "Browser Navigation", pending: "Navigating Browser", completed: "Navigated Browser"},
+	"reload":         {label: "Browser Reload", pending: "Reloading Browser", completed: "Reloaded Browser"},
+	"snapshot":       {label: "Browser Snapshot", pending: "Reading Browser Snapshot", completed: "Read Browser Snapshot"},
+	"screenshot":     {label: "Browser Screenshot", pending: "Capturing Browser Screenshot", completed: "Captured Browser Screenshot"},
+	"pdf":            {label: "Browser PDF", pending: "Creating Browser PDF", completed: "Created Browser PDF"},
+	"console":        {label: "Browser Console Read", pending: "Reading Browser Console", completed: "Read Browser Console"},
+	"click":          {label: "Browser Click", pending: "Clicking in Browser", completed: "Clicked in Browser"},
+	"type":           {label: "Browser Typing", pending: "Typing in Browser", completed: "Typed in Browser"},
+	"press":          {label: "Browser Key Press", pending: "Pressing Browser Key", completed: "Pressed Browser Key"},
+	"scroll":         {label: "Browser Scroll", pending: "Scrolling Browser", completed: "Scrolled Browser"},
+	"select":         {label: "Browser Selection", pending: "Selecting Browser Option", completed: "Selected Browser Option"},
+	"upload":         {label: "Browser Upload", pending: "Uploading in Browser", completed: "Uploaded in Browser"},
+	"download":       {label: "Browser Download", pending: "Downloading from Browser", completed: "Downloaded from Browser"},
+	"accept_dialog":  {label: "Browser Dialog Acceptance", pending: "Accepting Browser Dialog", completed: "Accepted Browser Dialog"},
+	"dismiss_dialog": {label: "Browser Dialog Dismissal", pending: "Dismissing Browser Dialog", completed: "Dismissed Browser Dialog"},
+	"wait":           {label: "Browser Wait", pending: "Waiting in Browser", completed: "Finished Browser Wait"},
+	"back":           {label: "Browser Back Navigation", pending: "Navigating Browser Back", completed: "Navigated Browser Back"},
+	"forward":        {label: "Browser Forward Navigation", pending: "Navigating Browser Forward", completed: "Navigated Browser Forward"},
+}
+
+func getBrowserActionLabel(action string) string {
+	if titles, ok := browserTranscriptActionTitles[action]; ok {
+		return titles.label
+	}
+	if action == "" {
+		return "Browser Action"
+	}
+
+	return "Browser " + strings.ReplaceAll(action, "_", " ")
+}
+
+func getBrowserActionPendingTitle(action string) string {
+	if titles, ok := browserTranscriptActionTitles[action]; ok {
+		return titles.pending
+	}
+
+	return "Running " + getBrowserActionLabel(action)
+}
+
+func getBrowserActionCompletedTitle(action string) string {
+	if titles, ok := browserTranscriptActionTitles[action]; ok {
+		return titles.completed
+	}
+
+	return "Completed " + getBrowserActionLabel(action)
 }
 
 func getAutomationToolTranscriptTitle(details []toolTranscriptDetail, completed bool) string {

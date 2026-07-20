@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -15,9 +16,12 @@ import (
 
 	agentapi "github.com/wandxy/morph/internal/agent"
 	"github.com/wandxy/morph/internal/automation"
+	"github.com/wandxy/morph/internal/browser"
 	models "github.com/wandxy/morph/internal/model"
 	"github.com/wandxy/morph/internal/permissions"
+	"github.com/wandxy/morph/internal/profile"
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
+	"github.com/wandxy/morph/internal/rpc/rpcauth"
 	"github.com/wandxy/morph/internal/rpc/rpcmeta"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
@@ -36,6 +40,7 @@ type Client struct {
 	Gateway     *GatewayService
 	Automation  *AutomationService
 	Permission  *PermissionService
+	Browser     *BrowserService
 }
 
 type SessionService struct {
@@ -60,6 +65,11 @@ type AutomationService struct {
 
 type PermissionService struct {
 	client      morphpb.PermissionServiceClient
+	reconnector rpcReconnector
+}
+
+type BrowserService struct {
+	client      morphpb.BrowserServiceClient
 	reconnector rpcReconnector
 }
 
@@ -213,6 +223,25 @@ type PermissionAPI interface {
 	PruneApprovals(context.Context, bool) (permissions.ApprovalPruneResult, error)
 }
 
+type BrowserEffectiveConfig struct {
+	Enabled              bool
+	CapabilityEnabled    bool
+	DefaultProfile       string
+	NetworkStrict        bool
+	PermissionPreset     permissions.Preset
+	ExecutableConfigured bool
+}
+
+type BrowserAPI interface {
+	Status(context.Context) (browser.Status, error)
+	Profiles(context.Context) ([]browser.Profile, error)
+	Sessions(context.Context) ([]browser.Session, error)
+	Start(context.Context, string, string) (browser.Session, error)
+	Stop(context.Context, string, string) (browser.Session, error)
+	ReadArtifact(context.Context, string, string, string) (browser.ArtifactContent, error)
+	EffectiveConfig(context.Context) (BrowserEffectiveConfig, error)
+}
+
 // ServiceAPI combines chat and session operations.
 type ServiceAPI interface {
 	ChatAPI
@@ -220,6 +249,7 @@ type ServiceAPI interface {
 	ModelAPI() ModelAPI
 	GatewayAPI() GatewayAPI
 	AutomationAPI() AutomationAPI
+	BrowserAPI() BrowserAPI
 }
 
 // ChatClient is a closable client that can run chat turns.
@@ -240,6 +270,7 @@ type Options struct {
 	Port              int
 	PermissionSurface permissions.Surface
 	PermissionPreset  permissions.Preset
+	OwnerCredential   []byte
 }
 
 // NewClient returns a client configured with the supplied dependencies.
@@ -255,11 +286,30 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 	}
 
 	target := fmt.Sprintf("%s:%d", address, opts.Port)
+	ownerCredential := append([]byte(nil), opts.OwnerCredential...)
+	if len(ownerCredential) == 0 && (opts.PermissionSurface == permissions.SurfaceCLI ||
+		opts.PermissionSurface == permissions.SurfaceTUI) {
+		active := profile.Active()
+		if strings.TrimSpace(active.HomeDir) != "" {
+			loadedCredential, loadErr := rpcauth.Load(active.HomeDir)
+			if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
+				return nil, fmt.Errorf(
+					"load RPC owner credential: %w; run morph browser auth rotate, then restart the daemon",
+					loadErr,
+				)
+			}
+			ownerCredential = loadedCredential
+		}
+	}
 	conn, err := grpc.NewClient(
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithChainUnaryInterceptor(permissionUnaryClientInterceptor(opts)),
-		grpc.WithChainStreamInterceptor(permissionStreamClientInterceptor(opts)),
+		grpc.WithChainUnaryInterceptor(
+			permissionUnaryClientInterceptor(opts), ownerUnaryClientInterceptor(ownerCredential),
+		),
+		grpc.WithChainStreamInterceptor(
+			permissionStreamClientInterceptor(opts), ownerStreamClientInterceptor(ownerCredential),
+		),
 	)
 	if err != nil {
 		return nil, err
@@ -274,6 +324,7 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 		Gateway:     newGatewayService(morphpb.NewGatewayServiceClient(conn), conn),
 		Automation:  newAutomationService(morphpb.NewAutomationServiceClient(conn), conn),
 		Permission:  newPermissionService(morphpb.NewPermissionServiceClient(conn), conn),
+		Browser:     newBrowserService(morphpb.NewBrowserServiceClient(conn), conn),
 	}, nil
 }
 
@@ -329,6 +380,10 @@ func NewPermissionService(client morphpb.PermissionServiceClient) *PermissionSer
 	return newPermissionService(client, nil)
 }
 
+func NewBrowserService(client morphpb.BrowserServiceClient) *BrowserService {
+	return newBrowserService(client, nil)
+}
+
 func newSessionService(client morphpb.SessionServiceClient, reconnector rpcReconnector) *SessionService {
 	return &SessionService{client: client, reconnector: reconnector}
 }
@@ -343,6 +398,10 @@ func newGatewayService(client morphpb.GatewayServiceClient, reconnector rpcRecon
 
 func newPermissionService(client morphpb.PermissionServiceClient, reconnector rpcReconnector) *PermissionService {
 	return &PermissionService{client: client, reconnector: reconnector}
+}
+
+func newBrowserService(client morphpb.BrowserServiceClient, reconnector rpcReconnector) *BrowserService {
+	return &BrowserService{client: client, reconnector: reconnector}
 }
 
 func newAutomationService(client morphpb.AutomationServiceClient, reconnector rpcReconnector) *AutomationService {
@@ -496,6 +555,14 @@ func (c *Client) PermissionAPI() PermissionAPI {
 	}
 
 	return c.Permission
+}
+
+func (c *Client) BrowserAPI() BrowserAPI {
+	if c == nil {
+		return nil
+	}
+
+	return c.Browser
 }
 
 func (c *Client) Close() error {

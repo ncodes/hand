@@ -12,6 +12,7 @@ import (
 
 	authcmd "github.com/wandxy/morph/cmd/auth"
 	automationcmd "github.com/wandxy/morph/cmd/automation"
+	browsercmd "github.com/wandxy/morph/cmd/browser"
 	daemoncmd "github.com/wandxy/morph/cmd/daemon"
 	doctorcmd "github.com/wandxy/morph/cmd/doctor"
 	gatewaycmd "github.com/wandxy/morph/cmd/gateway"
@@ -124,6 +125,7 @@ func newCommand() *cli.Command {
 		Commands: []*cli.Command{
 			automationcmd.NewCommand(),
 			authcmd.NewCommand(),
+			browsercmd.NewCommand(),
 			newDatabaseCommand(),
 			newVersionCommand(rootOutput),
 			configcmd.NewCommand(rootOutput),

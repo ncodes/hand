@@ -145,7 +145,7 @@ func (s *chromiumSession) Download(
 	if err != nil {
 		return BackendArtifact{}, err
 	}
-	defer os.RemoveAll(directory)
+	defer func() { _ = os.RemoveAll(directory) }()
 	actionCtx, done := s.newActionContext(ctx)
 	defer done()
 	browserCtx, err := s.getBrowserExecutorContext(actionCtx)

@@ -4,7 +4,7 @@ import browserdomain "github.com/wandxy/morph/internal/browser"
 
 func inputSchema() map[string]any {
 	branches := make([]any, 0, len(requestSpecs))
-	for _, action := range supportedActions() {
+	for _, action := range browserdomain.SupportedActions() {
 		spec := requestSpecs[action]
 		properties := map[string]any{
 			"action": map[string]any{"type": "string", "const": string(action)},
@@ -53,17 +53,5 @@ func maxLengthForField(name string) int {
 		return maxBrowserRefLength
 	default:
 		return maxBrowserIDLength
-	}
-}
-
-func supportedActions() []browserdomain.Action {
-	return []browserdomain.Action{
-		browserdomain.ActionStatus, browserdomain.ActionProfiles, browserdomain.ActionStart, browserdomain.ActionStop,
-		browserdomain.ActionTabs, browserdomain.ActionOpen, browserdomain.ActionFocus, browserdomain.ActionClose,
-		browserdomain.ActionNavigate, browserdomain.ActionReload, browserdomain.ActionSnapshot, browserdomain.ActionClick,
-		browserdomain.ActionScreenshot, browserdomain.ActionPDF, browserdomain.ActionConsole,
-		browserdomain.ActionType, browserdomain.ActionPress, browserdomain.ActionScroll, browserdomain.ActionSelect,
-		browserdomain.ActionUpload, browserdomain.ActionDownload, browserdomain.ActionAcceptDialog,
-		browserdomain.ActionDismissDialog, browserdomain.ActionWait, browserdomain.ActionBack, browserdomain.ActionForward,
 	}
 }

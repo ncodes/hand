@@ -108,6 +108,13 @@ func (p *egressProxy) Close(ctx context.Context) error {
 	if shutdownErr != nil {
 		shutdownErr = errors.Join(shutdownErr, p.server.Close())
 	}
+	return errors.Join(shutdownErr, p.closeConnections())
+}
+
+func (p *egressProxy) closeConnections() error {
+	if p == nil {
+		return nil
+	}
 	p.mu.Lock()
 	connections := make([]net.Conn, 0, len(p.connections))
 	for connection := range p.connections {
@@ -115,7 +122,6 @@ func (p *egressProxy) Close(ctx context.Context) error {
 	}
 	p.mu.Unlock()
 	var closeErrors []error
-	closeErrors = append(closeErrors, shutdownErr)
 	for _, connection := range connections {
 		if err := connection.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			closeErrors = append(closeErrors, err)
@@ -187,6 +193,10 @@ func (p *egressProxy) handleConnect(writer http.ResponseWriter, request *http.Re
 }
 
 func (p *egressProxy) handleHTTP(writer http.ResponseWriter, request *http.Request) {
+	if strings.EqualFold(strings.TrimSpace(request.Header.Get("Upgrade")), "websocket") {
+		http.Error(writer, "blocked proxy target", http.StatusForbidden)
+		return
+	}
 	if request.URL == nil || request.URL.Hostname() == "" {
 		http.Error(writer, "invalid proxy target", http.StatusBadRequest)
 		return
@@ -219,7 +229,7 @@ func (p *egressProxy) handleHTTP(writer http.ResponseWriter, request *http.Reque
 		http.Error(writer, "proxy request failed", http.StatusBadGateway)
 		return
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	copyProxyHeaders(writer.Header(), response.Header)
 	writer.WriteHeader(response.StatusCode)
 	_, _ = io.Copy(writer, response.Body)
@@ -303,8 +313,8 @@ func removeProxyHopHeaders(header http.Header) {
 }
 
 func proxyTunnel(left, right net.Conn) {
-	defer left.Close()
-	defer right.Close()
+	defer func() { _ = left.Close() }()
+	defer func() { _ = right.Close() }()
 	done := make(chan struct{}, 2)
 	copyConnection := func(destination net.Conn, source net.Conn) {
 		_, _ = io.Copy(destination, bufio.NewReader(source))

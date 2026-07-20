@@ -100,16 +100,28 @@ func TestEgressProxy_RejectsMalformedAndBlockedConnectTargets(t *testing.T) {
 	require.NoError(t, proxy.Close(context.Background()))
 }
 
+func TestEgressProxy_BlocksWebSocketUpgrades(t *testing.T) {
+	proxy := &egressProxy{policy: NetworkPolicy{Strict: false}}
+	request := httptest.NewRequest(http.MethodGet, "http://example.com/socket", nil)
+	request.Header.Set("Connection", "Upgrade")
+	request.Header.Set("Upgrade", "websocket")
+	recorder := httptest.NewRecorder()
+
+	proxy.handleHTTP(recorder, request)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code)
+}
+
 func TestEgressProxy_TunnelsAllowedConnectTarget(t *testing.T) {
 	echo, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer echo.Close()
+	t.Cleanup(func() { require.NoError(t, echo.Close()) })
 	go func() {
 		connection, acceptErr := echo.Accept()
 		if acceptErr != nil {
 			return
 		}
-		defer connection.Close()
+		defer func() { _ = connection.Close() }()
 		_, _ = io.Copy(connection, connection)
 	}()
 
@@ -117,7 +129,7 @@ func TestEgressProxy_TunnelsAllowedConnectTarget(t *testing.T) {
 	require.NoError(t, err)
 	connection, err := net.Dial("tcp", proxy.listener.Addr().String())
 	require.NoError(t, err)
-	defer connection.Close()
+	defer func() { require.NoError(t, connection.Close()) }()
 	_, err = fmt.Fprintf(
 		connection,
 		"CONNECT %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: %s\r\n\r\nping",
@@ -144,7 +156,7 @@ func TestEgressProxy_TunnelsAllowedConnectTarget(t *testing.T) {
 	_, err = io.ReadFull(reader, response)
 	require.NoError(t, err)
 	require.Equal(t, "pong", string(response))
-	require.NoError(t, proxy.Close(context.Background()))
+	require.NoError(t, proxy.closeConnections())
 	require.NoError(t, connection.SetReadDeadline(time.Now().Add(time.Second)))
 	_, err = reader.ReadByte()
 	require.Error(t, err)
@@ -153,6 +165,7 @@ func TestEgressProxy_TunnelsAllowedConnectTarget(t *testing.T) {
 		defer proxy.mu.Unlock()
 		return len(proxy.connections) == 0
 	}, time.Second, 10*time.Millisecond)
+	require.NoError(t, proxy.Close(context.Background()))
 }
 
 func TestSplitProxyAddress_DefaultsAndRejectsInvalidPorts(t *testing.T) {

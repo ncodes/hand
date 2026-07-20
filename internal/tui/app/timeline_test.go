@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentapi "github.com/wandxy/morph/internal/agent"
+	browserdomain "github.com/wandxy/morph/internal/browser"
 	"github.com/wandxy/morph/internal/rpc/client"
 	storage "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/trace"
@@ -20,6 +21,16 @@ import (
 	agentsession "github.com/wandxy/morph/pkg/agent/session"
 	"github.com/wandxy/morph/pkg/str"
 )
+
+func TestBrowserTranscriptActionTitles_CoverEverySupportedAction(t *testing.T) {
+	for _, action := range browserdomain.SupportedActions() {
+		titles, ok := browserTranscriptActionTitles[string(action)]
+		require.True(t, ok, "missing browser transcript title for %s", action)
+		require.NotEmpty(t, titles.label)
+		require.NotEmpty(t, titles.pending)
+		require.NotEmpty(t, titles.completed)
+	}
+}
 
 func transcriptCellPlainText(cell transcriptCell) string {
 	if cell == nil || cell.IsEmpty() {
@@ -964,6 +975,51 @@ func TestBrowserToolDisplayDetail_PresentsSafeArtifactMetadata(t *testing.T) {
 		getToolBranchDisplayDetail("Browser", detail, true),
 	)
 	require.NotContains(t, detail, "token")
+}
+
+func TestRenderBrowserTranscript_ShowsActionSpecificLifecycleStates(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		completed  bool
+		terminal   toolTranscriptTerminalStatus
+		wantTitle  string
+		wantBranch string
+	}{
+		{name: "pending", wantTitle: "Navigating Browser", wantBranch: "Running browser navigate"},
+		{name: "completed", completed: true, wantTitle: "Navigated Browser", wantBranch: "Browser navigate completed"},
+		{name: "failed", terminal: toolTranscriptTerminalStatusFailed, wantTitle: "Browser Navigation Failed", wantBranch: "Browser navigate failed"},
+		{name: "interrupted", terminal: toolTranscriptTerminalStatusInterrupted, wantTitle: "Browser Navigation Interrupted", wantBranch: "Browser navigate interrupted"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cell := toolTranscriptCell{
+				id: "call_1", action: "Browser", detail: "navigate:https://example.com",
+				completed: test.completed, terminalStatus: test.terminal,
+			}
+			group := toolTranscriptGroup{action: "Browser"}
+			group.add(cell)
+			rendered := stripANSI(renderToolTranscriptGroup(group, 0))
+			require.Contains(t, rendered, test.wantTitle)
+			require.Contains(t, rendered, test.wantBranch)
+			require.NotContains(t, rendered, "/private")
+		})
+	}
+}
+
+func TestBrowserTranscriptTitle_HandlesActionCatalogAndMixedGroups(t *testing.T) {
+	require.Equal(
+		t, "Capturing Browser Screenshot",
+		getBrowserToolTranscriptTitle([]toolTranscriptDetail{{text: "screenshot:artifact"}}, false, false, false),
+	)
+	require.Equal(
+		t, "Captured Browser Screenshot",
+		getBrowserToolTranscriptTitle([]toolTranscriptDetail{{text: "screenshot:artifact"}}, true, false, false),
+	)
+	require.Equal(
+		t, "Running Browser Actions",
+		getBrowserToolTranscriptTitle(
+			[]toolTranscriptDetail{{text: "navigate:url"}, {text: "snapshot:tab"}}, false, false, false,
+		),
+	)
 }
 
 func TestRenderTranscriptCells_CompactsConsecutiveManualCompactionEvents(t *testing.T) {

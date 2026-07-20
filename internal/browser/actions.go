@@ -459,7 +459,10 @@ func (s *Service) setNetworkAuthorizer(
 	if !ok {
 		return func() {}
 	}
-	return authorizing.SetNetworkAuthorizer(tabID, func(networkCtx context.Context, target permissions.NetworkTarget) error {
+	restoreAuthorizer := authorizing.SetNetworkAuthorizer(tabID, func(
+		networkCtx context.Context,
+		target permissions.NetworkTarget,
+	) error {
 		authorizationCtx, cancel := context.WithCancel(ctx)
 		stop := context.AfterFunc(networkCtx, cancel)
 		defer stop()
@@ -481,6 +484,15 @@ func (s *Service) setNetworkAuthorizer(
 		}
 		return errors.New("browser request did not resolve a network operation")
 	})
+	return func() {
+		restoreAuthorizer()
+		runtime.resourceMu.Lock()
+		proxy := runtime.proxy
+		runtime.resourceMu.Unlock()
+		if proxy != nil {
+			_ = proxy.closeConnections()
+		}
+	}
 }
 
 func (s *Service) getTabForResolution(

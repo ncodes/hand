@@ -11,6 +11,7 @@ import (
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"github.com/wandxy/morph/internal/config"
@@ -130,6 +131,11 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 		downloadRoot: opts.DownloadRoot,
 	}
 	actions := []chromedp.Action{
+		network.Enable(),
+		network.SetBypassServiceWorker(true),
+		network.SetBlockedURLs([]string{"ws://*", "wss://*"}),
+		page.Enable(),
+		installBrowserNetworkGuardAction(),
 		browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorDeny),
 		chromedp.ActionFunc(func(actionCtx context.Context) error {
 			_, _, _, _, _, err := browser.GetVersion().Do(actionCtx)
@@ -164,6 +170,13 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 		_ = session.Close(context.Background())
 		return nil, startCtx.Err()
 	}
+}
+
+func installBrowserNetworkGuardAction() chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		_, err := page.AddScriptToEvaluateOnNewDocument(browserNetworkGuardScript).Do(ctx)
+		return err
+	})
 }
 
 func (s *chromiumSession) getDownloadListener() func(any) {

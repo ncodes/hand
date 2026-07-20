@@ -12,6 +12,7 @@ import (
 	"github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/input"
+	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
 	cdpruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
@@ -484,6 +485,11 @@ func (s *chromiumSession) runInTab(ctx context.Context, tabID string, actions ..
 	}
 	if initialize {
 		actions = append([]chromedp.Action{
+			network.Enable(),
+			network.SetBypassServiceWorker(true),
+			network.SetBlockedURLs([]string{"ws://*", "wss://*"}),
+			page.Enable(),
+			installBrowserNetworkGuardAction(),
 			fetch.Enable().WithHandleAuthRequests(s.proxyUser != ""),
 			page.SetInterceptFileChooserDialog(true).WithCancel(true),
 			cdpruntime.Enable(),

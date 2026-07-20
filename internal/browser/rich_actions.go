@@ -76,7 +76,7 @@ func (s *Service) Upload(ctx context.Context, request ActionRequest) (Tab, error
 		return Tab{}, getActionError(ActionUpload, err)
 	}
 	stagingRoot := filepath.Join(temporaryRoot, "uploads", runtime.ID)
-	defer os.RemoveAll(stagingRoot)
+	defer func() { _ = os.RemoveAll(stagingRoot) }()
 	staged, err := stageUpload(ctx, request.Path, stagingRoot, s.cfg.Artifacts.MaxBytes)
 	if err != nil {
 		return Tab{}, getActionError(ActionUpload, err)

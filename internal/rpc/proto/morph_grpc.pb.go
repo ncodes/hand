@@ -1886,3 +1886,337 @@ var PermissionService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "internal/rpc/proto/morph.proto",
 }
+
+const (
+	BrowserService_Status_FullMethodName          = "/morph.v1.BrowserService/Status"
+	BrowserService_ListProfiles_FullMethodName    = "/morph.v1.BrowserService/ListProfiles"
+	BrowserService_ListSessions_FullMethodName    = "/morph.v1.BrowserService/ListSessions"
+	BrowserService_Start_FullMethodName           = "/morph.v1.BrowserService/Start"
+	BrowserService_Stop_FullMethodName            = "/morph.v1.BrowserService/Stop"
+	BrowserService_ReadArtifact_FullMethodName    = "/morph.v1.BrowserService/ReadArtifact"
+	BrowserService_EffectiveConfig_FullMethodName = "/morph.v1.BrowserService/EffectiveConfig"
+)
+
+// BrowserServiceClient is the client API for BrowserService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type BrowserServiceClient interface {
+	Status(ctx context.Context, in *GetBrowserStatusRequest, opts ...grpc.CallOption) (*GetBrowserStatusResponse, error)
+	ListProfiles(ctx context.Context, in *ListBrowserProfilesRequest, opts ...grpc.CallOption) (*ListBrowserProfilesResponse, error)
+	ListSessions(ctx context.Context, in *ListBrowserSessionsRequest, opts ...grpc.CallOption) (*ListBrowserSessionsResponse, error)
+	Start(ctx context.Context, in *StartBrowserRequest, opts ...grpc.CallOption) (*StartBrowserResponse, error)
+	Stop(ctx context.Context, in *StopBrowserRequest, opts ...grpc.CallOption) (*StopBrowserResponse, error)
+	ReadArtifact(ctx context.Context, in *ReadBrowserArtifactRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ReadBrowserArtifactResponse], error)
+	EffectiveConfig(ctx context.Context, in *GetBrowserEffectiveConfigRequest, opts ...grpc.CallOption) (*GetBrowserEffectiveConfigResponse, error)
+}
+
+type browserServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewBrowserServiceClient(cc grpc.ClientConnInterface) BrowserServiceClient {
+	return &browserServiceClient{cc}
+}
+
+func (c *browserServiceClient) Status(ctx context.Context, in *GetBrowserStatusRequest, opts ...grpc.CallOption) (*GetBrowserStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBrowserStatusResponse)
+	err := c.cc.Invoke(ctx, BrowserService_Status_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *browserServiceClient) ListProfiles(ctx context.Context, in *ListBrowserProfilesRequest, opts ...grpc.CallOption) (*ListBrowserProfilesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListBrowserProfilesResponse)
+	err := c.cc.Invoke(ctx, BrowserService_ListProfiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *browserServiceClient) ListSessions(ctx context.Context, in *ListBrowserSessionsRequest, opts ...grpc.CallOption) (*ListBrowserSessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListBrowserSessionsResponse)
+	err := c.cc.Invoke(ctx, BrowserService_ListSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *browserServiceClient) Start(ctx context.Context, in *StartBrowserRequest, opts ...grpc.CallOption) (*StartBrowserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartBrowserResponse)
+	err := c.cc.Invoke(ctx, BrowserService_Start_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *browserServiceClient) Stop(ctx context.Context, in *StopBrowserRequest, opts ...grpc.CallOption) (*StopBrowserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StopBrowserResponse)
+	err := c.cc.Invoke(ctx, BrowserService_Stop_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *browserServiceClient) ReadArtifact(ctx context.Context, in *ReadBrowserArtifactRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ReadBrowserArtifactResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &BrowserService_ServiceDesc.Streams[0], BrowserService_ReadArtifact_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ReadBrowserArtifactRequest, ReadBrowserArtifactResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type BrowserService_ReadArtifactClient = grpc.ServerStreamingClient[ReadBrowserArtifactResponse]
+
+func (c *browserServiceClient) EffectiveConfig(ctx context.Context, in *GetBrowserEffectiveConfigRequest, opts ...grpc.CallOption) (*GetBrowserEffectiveConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBrowserEffectiveConfigResponse)
+	err := c.cc.Invoke(ctx, BrowserService_EffectiveConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// BrowserServiceServer is the server API for BrowserService service.
+// All implementations must embed UnimplementedBrowserServiceServer
+// for forward compatibility.
+type BrowserServiceServer interface {
+	Status(context.Context, *GetBrowserStatusRequest) (*GetBrowserStatusResponse, error)
+	ListProfiles(context.Context, *ListBrowserProfilesRequest) (*ListBrowserProfilesResponse, error)
+	ListSessions(context.Context, *ListBrowserSessionsRequest) (*ListBrowserSessionsResponse, error)
+	Start(context.Context, *StartBrowserRequest) (*StartBrowserResponse, error)
+	Stop(context.Context, *StopBrowserRequest) (*StopBrowserResponse, error)
+	ReadArtifact(*ReadBrowserArtifactRequest, grpc.ServerStreamingServer[ReadBrowserArtifactResponse]) error
+	EffectiveConfig(context.Context, *GetBrowserEffectiveConfigRequest) (*GetBrowserEffectiveConfigResponse, error)
+	mustEmbedUnimplementedBrowserServiceServer()
+}
+
+// UnimplementedBrowserServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedBrowserServiceServer struct{}
+
+func (UnimplementedBrowserServiceServer) Status(context.Context, *GetBrowserStatusRequest) (*GetBrowserStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Status not implemented")
+}
+func (UnimplementedBrowserServiceServer) ListProfiles(context.Context, *ListBrowserProfilesRequest) (*ListBrowserProfilesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListProfiles not implemented")
+}
+func (UnimplementedBrowserServiceServer) ListSessions(context.Context, *ListBrowserSessionsRequest) (*ListBrowserSessionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSessions not implemented")
+}
+func (UnimplementedBrowserServiceServer) Start(context.Context, *StartBrowserRequest) (*StartBrowserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Start not implemented")
+}
+func (UnimplementedBrowserServiceServer) Stop(context.Context, *StopBrowserRequest) (*StopBrowserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
+}
+func (UnimplementedBrowserServiceServer) ReadArtifact(*ReadBrowserArtifactRequest, grpc.ServerStreamingServer[ReadBrowserArtifactResponse]) error {
+	return status.Error(codes.Unimplemented, "method ReadArtifact not implemented")
+}
+func (UnimplementedBrowserServiceServer) EffectiveConfig(context.Context, *GetBrowserEffectiveConfigRequest) (*GetBrowserEffectiveConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EffectiveConfig not implemented")
+}
+func (UnimplementedBrowserServiceServer) mustEmbedUnimplementedBrowserServiceServer() {}
+func (UnimplementedBrowserServiceServer) testEmbeddedByValue()                        {}
+
+// UnsafeBrowserServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to BrowserServiceServer will
+// result in compilation errors.
+type UnsafeBrowserServiceServer interface {
+	mustEmbedUnimplementedBrowserServiceServer()
+}
+
+func RegisterBrowserServiceServer(s grpc.ServiceRegistrar, srv BrowserServiceServer) {
+	// If the following call panics, it indicates UnimplementedBrowserServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&BrowserService_ServiceDesc, srv)
+}
+
+func _BrowserService_Status_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBrowserStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BrowserServiceServer).Status(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BrowserService_Status_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BrowserServiceServer).Status(ctx, req.(*GetBrowserStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BrowserService_ListProfiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListBrowserProfilesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BrowserServiceServer).ListProfiles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BrowserService_ListProfiles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BrowserServiceServer).ListProfiles(ctx, req.(*ListBrowserProfilesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BrowserService_ListSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListBrowserSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BrowserServiceServer).ListSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BrowserService_ListSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BrowserServiceServer).ListSessions(ctx, req.(*ListBrowserSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BrowserService_Start_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartBrowserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BrowserServiceServer).Start(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BrowserService_Start_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BrowserServiceServer).Start(ctx, req.(*StartBrowserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BrowserService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopBrowserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BrowserServiceServer).Stop(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BrowserService_Stop_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BrowserServiceServer).Stop(ctx, req.(*StopBrowserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BrowserService_ReadArtifact_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ReadBrowserArtifactRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(BrowserServiceServer).ReadArtifact(m, &grpc.GenericServerStream[ReadBrowserArtifactRequest, ReadBrowserArtifactResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type BrowserService_ReadArtifactServer = grpc.ServerStreamingServer[ReadBrowserArtifactResponse]
+
+func _BrowserService_EffectiveConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBrowserEffectiveConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BrowserServiceServer).EffectiveConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BrowserService_EffectiveConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BrowserServiceServer).EffectiveConfig(ctx, req.(*GetBrowserEffectiveConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// BrowserService_ServiceDesc is the grpc.ServiceDesc for BrowserService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var BrowserService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "morph.v1.BrowserService",
+	HandlerType: (*BrowserServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Status",
+			Handler:    _BrowserService_Status_Handler,
+		},
+		{
+			MethodName: "ListProfiles",
+			Handler:    _BrowserService_ListProfiles_Handler,
+		},
+		{
+			MethodName: "ListSessions",
+			Handler:    _BrowserService_ListSessions_Handler,
+		},
+		{
+			MethodName: "Start",
+			Handler:    _BrowserService_Start_Handler,
+		},
+		{
+			MethodName: "Stop",
+			Handler:    _BrowserService_Stop_Handler,
+		},
+		{
+			MethodName: "EffectiveConfig",
+			Handler:    _BrowserService_EffectiveConfig_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ReadArtifact",
+			Handler:       _BrowserService_ReadArtifact_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "internal/rpc/proto/morph.proto",
+}

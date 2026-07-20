@@ -101,6 +101,7 @@ func TestIsExactOperationAuthorized_RequiresCompleteOperationMatch(t *testing.T)
 	changed = operation
 	changed.OwnerRequired = false
 	require.False(t, IsExactOperationAuthorized(ctx, changed))
-	require.False(t, IsExactOperationAuthorized(nil, operation))
+	var emptyContext context.Context
+	require.False(t, IsExactOperationAuthorized(emptyContext, operation))
 	require.False(t, IsExactOperationAuthorized(ctx, Operation{}))
 }

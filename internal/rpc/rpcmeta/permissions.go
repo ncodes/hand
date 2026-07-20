@@ -16,6 +16,19 @@ const (
 )
 
 type authenticatedPermissionPrincipalKey struct{}
+type authenticatedLocalOwnerKey struct{}
+
+func WithAuthenticatedLocalOwner(ctx context.Context, principalID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	principalID = strings.TrimSpace(principalID)
+	if principalID == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, authenticatedLocalOwnerKey{}, principalID)
+}
 
 func WithAuthenticatedPermissionPrincipal(ctx context.Context, principalID string) context.Context {
 	if ctx == nil {
@@ -87,14 +100,15 @@ func PermissionPresetFromIncomingContext(ctx context.Context) (permissions.Prese
 
 func PermissionActorFromIncomingContext(ctx context.Context) permissions.Actor {
 	if ctx != nil {
+		if principalID, ok := ctx.Value(authenticatedLocalOwnerKey{}).(string); ok &&
+			strings.TrimSpace(principalID) != "" && isSupportedClientSurface(PermissionSurfaceFromIncomingContext(ctx)) &&
+			isLoopbackPeer(ctx) {
+			return permissions.Actor{Kind: permissions.ActorLocalOwner, ID: strings.TrimSpace(principalID)}
+		}
 		if principalID, ok := ctx.Value(authenticatedPermissionPrincipalKey{}).(string); ok &&
 			strings.TrimSpace(principalID) != "" {
 			return permissions.Actor{Kind: permissions.ActorRPCClient, ID: strings.TrimSpace(principalID)}
 		}
-	}
-	surface := PermissionSurfaceFromIncomingContext(ctx)
-	if isSupportedClientSurface(surface) && isLoopbackPeer(ctx) {
-		return permissions.Actor{Kind: permissions.ActorLocalOwner}
 	}
 
 	return permissions.Actor{Kind: permissions.ActorRPCClient}

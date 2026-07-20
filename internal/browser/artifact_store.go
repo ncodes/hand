@@ -136,19 +136,19 @@ func (s *artifactStore) metadata(handle string, owner Owner) (Artifact, error) {
 	}
 	handle = strings.TrimSpace(handle)
 	if !isArtifactHandle(handle) {
-		return Artifact{}, errors.New("browser artifact handle is invalid")
+		return Artifact{}, &Error{Code: ErrorInvalidRequest, Err: errors.New("browser artifact handle is invalid")}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	record, ok := s.records[handle]
 	if !ok {
-		return Artifact{}, errors.New("browser artifact not found")
+		return Artifact{}, &Error{Code: ErrorNotFound, Err: errors.New("browser artifact not found")}
 	}
 	if !sameArtifactOwner(record.Owner, owner) {
-		return Artifact{}, errors.New("browser artifact belongs to another owner")
+		return Artifact{}, &Error{Code: ErrorOwnership, Err: errors.New("browser artifact belongs to another owner")}
 	}
 	if !record.Artifact.ExpiresAt.After(s.now()) {
-		return Artifact{}, errors.New("browser artifact has expired")
+		return Artifact{}, &Error{Code: ErrorNotReady, Err: errors.New("browser artifact has expired")}
 	}
 	return cloneArtifact(record.Artifact), nil
 }

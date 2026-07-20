@@ -205,6 +205,26 @@ messages-only deployment, disable capabilities you do not need rather than relyi
 
 Environment overrides: `MORPH_CAP_FS`, `MORPH_CAP_NET`, `MORPH_CAP_EXEC`, `MORPH_CAP_MEM`, `MORPH_CAP_BROWSER`.
 
+### Browser owner authentication and network containment
+
+Local CLI and TUI browser management requires a profile-scoped owner credential in addition to loopback transport and
+the claimed surface. Invalid or overexposed credential files fail closed. Recover by running
+`morph browser auth rotate`, restarting the daemon, and reconnecting local clients.
+
+Each RPC proof is method-bound, request-bound, short-lived, and accepted once by a running daemon. The replay cache is
+kept in memory, so a daemon restart resets it; the 30-second proof lifetime bounds that restart window. Rotate the owner
+credential when a local process or captured diagnostic may have exposed a proof or the credential itself.
+
+Managed Chromium sends HTTP, HTTPS, and worker traffic through the authenticated egress proxy. The proxy enforces the
+resolved destination, including destinations reached through HTTPS CONNECT tunnels. Because a CONNECT proxy cannot
+distinguish HTTPS from WSS inside the encrypted tunnel, Morph separately disables WebSocket creation through browser-wide
+CDP URL blocking and an initialization script. HTTPS tunnels are closed when the authorizing browser action completes,
+preventing a page from retaining ambient CONNECT access between actions.
+
+Dedicated workers, shared workers, and service-worker registration are disabled in managed sessions. Worker-created
+WebSockets are not covered reliably by CDP blocked-URL rules and can travel inside CONNECT tunnels that the proxy cannot
+classify after TLS begins, so permitting workers would weaken the fail-closed network boundary.
+
 ### Filesystem roots (`fs`)
 
 File tools resolve paths against `fs.roots`. By default, roots include the process working directory when the daemon

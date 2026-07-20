@@ -90,6 +90,16 @@ func TestPermissionActor_ClassifiesOnlyLoopbackInteractiveClientsAsLocalOwner(t 
 			expects: permissions.ActorLocalOwner,
 		},
 		{
+			name: "unauthenticated loopback TUI spoof",
+			ctx: peer.NewContext(
+				metadata.NewIncomingContext(context.Background(), metadata.Pairs(
+					permissionSurfaceKey, string(permissions.SurfaceTUI),
+				)),
+				&peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 50051}},
+			),
+			expects: permissions.ActorRPCClient,
+		},
+		{
 			name: "remote TUI spoof",
 			ctx: incomingPermissionContext(
 				permissions.SurfaceTUI,
@@ -134,6 +144,7 @@ func incomingPermissionContext(surface permissions.Surface, address net.Addr) co
 	outgoing := WithOutgoingPermissionSurface(context.Background(), surface)
 	outgoingMetadata, _ := metadata.FromOutgoingContext(outgoing)
 	ctx := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+	ctx = WithAuthenticatedLocalOwner(ctx, "default")
 	if address != nil {
 		ctx = peer.NewContext(ctx, &peer.Peer{Addr: address})
 	}

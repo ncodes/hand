@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -106,6 +107,74 @@ func TestChromiumBackend_UsesAuthenticatedProxyAndCannotBypassStrictPolicy(t *te
 	require.NoError(t, strict.Close(context.Background()))
 }
 
+func TestChromiumBackend_BlocksUnarmedWebSockets(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	var socketRequests atomic.Int64
+	var socketUpgrade atomic.Value
+	var socketURL string
+	var secureSocketURL string
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/socket" {
+			socketRequests.Add(1)
+			socketUpgrade.Store(request.Header.Get("Upgrade"))
+			writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		_, _ = fmt.Fprintf(
+			writer,
+			`<html><body><script>
+window.blockedSockets = 0;
+window.workerSocketBlocked = false;
+for (const url of [%q, %q]) {
+  try { new WebSocket(url); } catch (_) { window.blockedSockets++; }
+}
+const workerSource = %q;
+try {
+  const worker = new Worker(URL.createObjectURL(new Blob([workerSource], {type: "text/javascript"})));
+  worker.onmessage = (event) => { window.workerSocketBlocked = event.data === "blocked"; };
+} catch (_) {
+  window.workerSocketBlocked = true;
+}
+</script></body></html>`,
+			socketURL,
+			secureSocketURL,
+			fmt.Sprintf(`
+try {
+  const socket = new WebSocket(%q);
+  socket.onopen = () => postMessage("open");
+  socket.onerror = () => postMessage("blocked");
+} catch (_) {
+  postMessage("blocked");
+}`, socketURL),
+		)
+	}))
+	defer fixture.Close()
+	socketURL = "ws" + strings.TrimPrefix(fixture.URL, "http") + "/socket"
+	secureSocketURL = "wss" + strings.TrimPrefix(fixture.URL, "http") + "/socket"
+
+	proxy, err := startEgressProxy(NetworkPolicy{Strict: false})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
+	session := startChromiumSession(t, executable, proxy)
+	restoreAuthorization := allowBackendNetworkRequests(session)
+	chromium := session.(*chromiumSession)
+	var blockedSockets int
+	var workerSocketBlocked bool
+	require.NoError(t, chromedp.Run(
+		chromium.ctx,
+		chromedp.Navigate(fixture.URL),
+		chromedp.Evaluate("window.blockedSockets", &blockedSockets),
+		chromedp.Poll("window.workerSocketBlocked === true", &workerSocketBlocked),
+	))
+	require.Equal(t, 2, blockedSockets)
+	require.True(t, workerSocketBlocked)
+	require.Zero(t, socketRequests.Load(), "upgrade=%q", socketUpgrade.Load())
+	restoreAuthorization()
+}
+
 func startChromiumSession(t *testing.T, executable string, proxy *egressProxy) BackendSession {
 	t.Helper()
 	username, password := proxy.authorization.credentials()
@@ -120,6 +189,7 @@ func startChromiumSession(t *testing.T, executable string, proxy *egressProxy) B
 		Timeout:      15 * time.Second,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, session.Close(context.Background())) })
 
 	return session
 }

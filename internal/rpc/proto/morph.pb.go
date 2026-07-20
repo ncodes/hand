@@ -6401,6 +6401,1022 @@ func (x *PrunePermissionApprovalsResponse) GetDryRun() bool {
 	return false
 }
 
+type BrowserProfile struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Mode          string                 `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`
+	Default       bool                   `protobuf:"varint,3,opt,name=default,proto3" json:"default,omitempty"`
+	Available     bool                   `protobuf:"varint,4,opt,name=available,proto3" json:"available,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BrowserProfile) Reset() {
+	*x = BrowserProfile{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[99]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowserProfile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowserProfile) ProtoMessage() {}
+
+func (x *BrowserProfile) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[99]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowserProfile.ProtoReflect.Descriptor instead.
+func (*BrowserProfile) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{99}
+}
+
+func (x *BrowserProfile) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *BrowserProfile) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *BrowserProfile) GetDefault() bool {
+	if x != nil {
+		return x.Default
+	}
+	return false
+}
+
+func (x *BrowserProfile) GetAvailable() bool {
+	if x != nil {
+		return x.Available
+	}
+	return false
+}
+
+type BrowserSession struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Profile       string                 `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
+	ProfileMode   string                 `protobuf:"bytes,3,opt,name=profile_mode,json=profileMode,proto3" json:"profile_mode,omitempty"`
+	State         string                 `protobuf:"bytes,4,opt,name=state,proto3" json:"state,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	LastActive    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_active,json=lastActive,proto3" json:"last_active,omitempty"`
+	Error         string                 `protobuf:"bytes,7,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BrowserSession) Reset() {
+	*x = BrowserSession{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[100]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowserSession) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowserSession) ProtoMessage() {}
+
+func (x *BrowserSession) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[100]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowserSession.ProtoReflect.Descriptor instead.
+func (*BrowserSession) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{100}
+}
+
+func (x *BrowserSession) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *BrowserSession) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *BrowserSession) GetProfileMode() string {
+	if x != nil {
+		return x.ProfileMode
+	}
+	return ""
+}
+
+func (x *BrowserSession) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *BrowserSession) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *BrowserSession) GetLastActive() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastActive
+	}
+	return nil
+}
+
+func (x *BrowserSession) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type BrowserArtifact struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Handle        string                 `protobuf:"bytes,1,opt,name=handle,proto3" json:"handle,omitempty"`
+	Kind          string                 `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	MimeType      string                 `protobuf:"bytes,4,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
+	Size          int64                  `protobuf:"varint,5,opt,name=size,proto3" json:"size,omitempty"`
+	Profile       string                 `protobuf:"bytes,6,opt,name=profile,proto3" json:"profile,omitempty"`
+	SessionId     string                 `protobuf:"bytes,7,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RunId         string                 `protobuf:"bytes,8,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	Effects       []string               `protobuf:"bytes,9,rep,name=effects,proto3" json:"effects,omitempty"`
+	Sensitive     bool                   `protobuf:"varint,10,opt,name=sensitive,proto3" json:"sensitive,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BrowserArtifact) Reset() {
+	*x = BrowserArtifact{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[101]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowserArtifact) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowserArtifact) ProtoMessage() {}
+
+func (x *BrowserArtifact) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[101]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowserArtifact.ProtoReflect.Descriptor instead.
+func (*BrowserArtifact) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{101}
+}
+
+func (x *BrowserArtifact) GetHandle() string {
+	if x != nil {
+		return x.Handle
+	}
+	return ""
+}
+
+func (x *BrowserArtifact) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *BrowserArtifact) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *BrowserArtifact) GetMimeType() string {
+	if x != nil {
+		return x.MimeType
+	}
+	return ""
+}
+
+func (x *BrowserArtifact) GetSize() int64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *BrowserArtifact) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *BrowserArtifact) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *BrowserArtifact) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *BrowserArtifact) GetEffects() []string {
+	if x != nil {
+		return x.Effects
+	}
+	return nil
+}
+
+func (x *BrowserArtifact) GetSensitive() bool {
+	if x != nil {
+		return x.Sensitive
+	}
+	return false
+}
+
+func (x *BrowserArtifact) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *BrowserArtifact) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+type BrowserStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Profiles      []*BrowserProfile      `protobuf:"bytes,2,rep,name=profiles,proto3" json:"profiles,omitempty"`
+	Sessions      []*BrowserSession      `protobuf:"bytes,3,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BrowserStatus) Reset() {
+	*x = BrowserStatus{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[102]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowserStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowserStatus) ProtoMessage() {}
+
+func (x *BrowserStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[102]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowserStatus.ProtoReflect.Descriptor instead.
+func (*BrowserStatus) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{102}
+}
+
+func (x *BrowserStatus) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *BrowserStatus) GetProfiles() []*BrowserProfile {
+	if x != nil {
+		return x.Profiles
+	}
+	return nil
+}
+
+func (x *BrowserStatus) GetSessions() []*BrowserSession {
+	if x != nil {
+		return x.Sessions
+	}
+	return nil
+}
+
+type GetBrowserStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBrowserStatusRequest) Reset() {
+	*x = GetBrowserStatusRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[103]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBrowserStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBrowserStatusRequest) ProtoMessage() {}
+
+func (x *GetBrowserStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[103]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBrowserStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetBrowserStatusRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{103}
+}
+
+type GetBrowserStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        *BrowserStatus         `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBrowserStatusResponse) Reset() {
+	*x = GetBrowserStatusResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[104]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBrowserStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBrowserStatusResponse) ProtoMessage() {}
+
+func (x *GetBrowserStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[104]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBrowserStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetBrowserStatusResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{104}
+}
+
+func (x *GetBrowserStatusResponse) GetStatus() *BrowserStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+type ListBrowserProfilesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBrowserProfilesRequest) Reset() {
+	*x = ListBrowserProfilesRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[105]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBrowserProfilesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBrowserProfilesRequest) ProtoMessage() {}
+
+func (x *ListBrowserProfilesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[105]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBrowserProfilesRequest.ProtoReflect.Descriptor instead.
+func (*ListBrowserProfilesRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{105}
+}
+
+type ListBrowserProfilesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Profiles      []*BrowserProfile      `protobuf:"bytes,1,rep,name=profiles,proto3" json:"profiles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBrowserProfilesResponse) Reset() {
+	*x = ListBrowserProfilesResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[106]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBrowserProfilesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBrowserProfilesResponse) ProtoMessage() {}
+
+func (x *ListBrowserProfilesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[106]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBrowserProfilesResponse.ProtoReflect.Descriptor instead.
+func (*ListBrowserProfilesResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{106}
+}
+
+func (x *ListBrowserProfilesResponse) GetProfiles() []*BrowserProfile {
+	if x != nil {
+		return x.Profiles
+	}
+	return nil
+}
+
+type ListBrowserSessionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBrowserSessionsRequest) Reset() {
+	*x = ListBrowserSessionsRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[107]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBrowserSessionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBrowserSessionsRequest) ProtoMessage() {}
+
+func (x *ListBrowserSessionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[107]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBrowserSessionsRequest.ProtoReflect.Descriptor instead.
+func (*ListBrowserSessionsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{107}
+}
+
+type ListBrowserSessionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sessions      []*BrowserSession      `protobuf:"bytes,1,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBrowserSessionsResponse) Reset() {
+	*x = ListBrowserSessionsResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[108]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBrowserSessionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBrowserSessionsResponse) ProtoMessage() {}
+
+func (x *ListBrowserSessionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[108]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBrowserSessionsResponse.ProtoReflect.Descriptor instead.
+func (*ListBrowserSessionsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{108}
+}
+
+func (x *ListBrowserSessionsResponse) GetSessions() []*BrowserSession {
+	if x != nil {
+		return x.Sessions
+	}
+	return nil
+}
+
+type StartBrowserRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Profile        string                 `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	OwnerSessionId string                 `protobuf:"bytes,2,opt,name=owner_session_id,json=ownerSessionId,proto3" json:"owner_session_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *StartBrowserRequest) Reset() {
+	*x = StartBrowserRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[109]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartBrowserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartBrowserRequest) ProtoMessage() {}
+
+func (x *StartBrowserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[109]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartBrowserRequest.ProtoReflect.Descriptor instead.
+func (*StartBrowserRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{109}
+}
+
+func (x *StartBrowserRequest) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *StartBrowserRequest) GetOwnerSessionId() string {
+	if x != nil {
+		return x.OwnerSessionId
+	}
+	return ""
+}
+
+type StartBrowserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Session       *BrowserSession        `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartBrowserResponse) Reset() {
+	*x = StartBrowserResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[110]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartBrowserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartBrowserResponse) ProtoMessage() {}
+
+func (x *StartBrowserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[110]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartBrowserResponse.ProtoReflect.Descriptor instead.
+func (*StartBrowserResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{110}
+}
+
+func (x *StartBrowserResponse) GetSession() *BrowserSession {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+type StopBrowserRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	OwnerSessionId string                 `protobuf:"bytes,2,opt,name=owner_session_id,json=ownerSessionId,proto3" json:"owner_session_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *StopBrowserRequest) Reset() {
+	*x = StopBrowserRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[111]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StopBrowserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StopBrowserRequest) ProtoMessage() {}
+
+func (x *StopBrowserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[111]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StopBrowserRequest.ProtoReflect.Descriptor instead.
+func (*StopBrowserRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{111}
+}
+
+func (x *StopBrowserRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *StopBrowserRequest) GetOwnerSessionId() string {
+	if x != nil {
+		return x.OwnerSessionId
+	}
+	return ""
+}
+
+type StopBrowserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Session       *BrowserSession        `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StopBrowserResponse) Reset() {
+	*x = StopBrowserResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[112]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StopBrowserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StopBrowserResponse) ProtoMessage() {}
+
+func (x *StopBrowserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[112]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StopBrowserResponse.ProtoReflect.Descriptor instead.
+func (*StopBrowserResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{112}
+}
+
+func (x *StopBrowserResponse) GetSession() *BrowserSession {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+type ReadBrowserArtifactRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Handle         string                 `protobuf:"bytes,1,opt,name=handle,proto3" json:"handle,omitempty"`
+	OwnerSessionId string                 `protobuf:"bytes,2,opt,name=owner_session_id,json=ownerSessionId,proto3" json:"owner_session_id,omitempty"`
+	RunId          string                 `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ReadBrowserArtifactRequest) Reset() {
+	*x = ReadBrowserArtifactRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[113]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadBrowserArtifactRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadBrowserArtifactRequest) ProtoMessage() {}
+
+func (x *ReadBrowserArtifactRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[113]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadBrowserArtifactRequest.ProtoReflect.Descriptor instead.
+func (*ReadBrowserArtifactRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{113}
+}
+
+func (x *ReadBrowserArtifactRequest) GetHandle() string {
+	if x != nil {
+		return x.Handle
+	}
+	return ""
+}
+
+func (x *ReadBrowserArtifactRequest) GetOwnerSessionId() string {
+	if x != nil {
+		return x.OwnerSessionId
+	}
+	return ""
+}
+
+func (x *ReadBrowserArtifactRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+type ReadBrowserArtifactResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Artifact      *BrowserArtifact       `protobuf:"bytes,1,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReadBrowserArtifactResponse) Reset() {
+	*x = ReadBrowserArtifactResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[114]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadBrowserArtifactResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadBrowserArtifactResponse) ProtoMessage() {}
+
+func (x *ReadBrowserArtifactResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[114]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadBrowserArtifactResponse.ProtoReflect.Descriptor instead.
+func (*ReadBrowserArtifactResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{114}
+}
+
+func (x *ReadBrowserArtifactResponse) GetArtifact() *BrowserArtifact {
+	if x != nil {
+		return x.Artifact
+	}
+	return nil
+}
+
+func (x *ReadBrowserArtifactResponse) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type GetBrowserEffectiveConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBrowserEffectiveConfigRequest) Reset() {
+	*x = GetBrowserEffectiveConfigRequest{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[115]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBrowserEffectiveConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBrowserEffectiveConfigRequest) ProtoMessage() {}
+
+func (x *GetBrowserEffectiveConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[115]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBrowserEffectiveConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetBrowserEffectiveConfigRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{115}
+}
+
+type GetBrowserEffectiveConfigResponse struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Enabled              bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	CapabilityEnabled    bool                   `protobuf:"varint,2,opt,name=capability_enabled,json=capabilityEnabled,proto3" json:"capability_enabled,omitempty"`
+	DefaultProfile       string                 `protobuf:"bytes,3,opt,name=default_profile,json=defaultProfile,proto3" json:"default_profile,omitempty"`
+	NetworkStrict        bool                   `protobuf:"varint,4,opt,name=network_strict,json=networkStrict,proto3" json:"network_strict,omitempty"`
+	PermissionPreset     string                 `protobuf:"bytes,5,opt,name=permission_preset,json=permissionPreset,proto3" json:"permission_preset,omitempty"`
+	ExecutableConfigured bool                   `protobuf:"varint,6,opt,name=executable_configured,json=executableConfigured,proto3" json:"executable_configured,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *GetBrowserEffectiveConfigResponse) Reset() {
+	*x = GetBrowserEffectiveConfigResponse{}
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[116]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBrowserEffectiveConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBrowserEffectiveConfigResponse) ProtoMessage() {}
+
+func (x *GetBrowserEffectiveConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[116]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBrowserEffectiveConfigResponse.ProtoReflect.Descriptor instead.
+func (*GetBrowserEffectiveConfigResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_morph_proto_rawDescGZIP(), []int{116}
+}
+
+func (x *GetBrowserEffectiveConfigResponse) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *GetBrowserEffectiveConfigResponse) GetCapabilityEnabled() bool {
+	if x != nil {
+		return x.CapabilityEnabled
+	}
+	return false
+}
+
+func (x *GetBrowserEffectiveConfigResponse) GetDefaultProfile() string {
+	if x != nil {
+		return x.DefaultProfile
+	}
+	return ""
+}
+
+func (x *GetBrowserEffectiveConfigResponse) GetNetworkStrict() bool {
+	if x != nil {
+		return x.NetworkStrict
+	}
+	return false
+}
+
+func (x *GetBrowserEffectiveConfigResponse) GetPermissionPreset() string {
+	if x != nil {
+		return x.PermissionPreset
+	}
+	return ""
+}
+
+func (x *GetBrowserEffectiveConfigResponse) GetExecutableConfigured() bool {
+	if x != nil {
+		return x.ExecutableConfigured
+	}
+	return false
+}
+
 type GetSessionStatusResponse_Context struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Offset        int32                  `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
@@ -6415,7 +7431,7 @@ type GetSessionStatusResponse_Context struct {
 
 func (x *GetSessionStatusResponse_Context) Reset() {
 	*x = GetSessionStatusResponse_Context{}
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[99]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6427,7 +7443,7 @@ func (x *GetSessionStatusResponse_Context) String() string {
 func (*GetSessionStatusResponse_Context) ProtoMessage() {}
 
 func (x *GetSessionStatusResponse_Context) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_morph_proto_msgTypes[99]
+	mi := &file_internal_rpc_proto_morph_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7015,7 +8031,77 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"\x06grants\x18\x02 \x01(\x03R\x06grants\x12A\n" +
 	"\x0erequest_cutoff\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\rrequestCutoff\x12=\n" +
 	"\fgrant_cutoff\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vgrantCutoff\x12\x17\n" +
-	"\adry_run\x18\x05 \x01(\bR\x06dryRun2M\n" +
+	"\adry_run\x18\x05 \x01(\bR\x06dryRun\"p\n" +
+	"\x0eBrowserProfile\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04mode\x18\x02 \x01(\tR\x04mode\x12\x18\n" +
+	"\adefault\x18\x03 \x01(\bR\adefault\x12\x1c\n" +
+	"\tavailable\x18\x04 \x01(\bR\tavailable\"\x81\x02\n" +
+	"\x0eBrowserSession\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aprofile\x18\x02 \x01(\tR\aprofile\x12!\n" +
+	"\fprofile_mode\x18\x03 \x01(\tR\vprofileMode\x12\x14\n" +
+	"\x05state\x18\x04 \x01(\tR\x05state\x129\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12;\n" +
+	"\vlast_active\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"lastActive\x12\x14\n" +
+	"\x05error\x18\a \x01(\tR\x05error\"\x80\x03\n" +
+	"\x0fBrowserArtifact\x12\x16\n" +
+	"\x06handle\x18\x01 \x01(\tR\x06handle\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x1b\n" +
+	"\tmime_type\x18\x04 \x01(\tR\bmimeType\x12\x12\n" +
+	"\x04size\x18\x05 \x01(\x03R\x04size\x12\x18\n" +
+	"\aprofile\x18\x06 \x01(\tR\aprofile\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\a \x01(\tR\tsessionId\x12\x15\n" +
+	"\x06run_id\x18\b \x01(\tR\x05runId\x12\x18\n" +
+	"\aeffects\x18\t \x03(\tR\aeffects\x12\x1c\n" +
+	"\tsensitive\x18\n" +
+	" \x01(\bR\tsensitive\x129\n" +
+	"\n" +
+	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"expires_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\x95\x01\n" +
+	"\rBrowserStatus\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x124\n" +
+	"\bprofiles\x18\x02 \x03(\v2\x18.morph.v1.BrowserProfileR\bprofiles\x124\n" +
+	"\bsessions\x18\x03 \x03(\v2\x18.morph.v1.BrowserSessionR\bsessions\"\x19\n" +
+	"\x17GetBrowserStatusRequest\"K\n" +
+	"\x18GetBrowserStatusResponse\x12/\n" +
+	"\x06status\x18\x01 \x01(\v2\x17.morph.v1.BrowserStatusR\x06status\"\x1c\n" +
+	"\x1aListBrowserProfilesRequest\"S\n" +
+	"\x1bListBrowserProfilesResponse\x124\n" +
+	"\bprofiles\x18\x01 \x03(\v2\x18.morph.v1.BrowserProfileR\bprofiles\"\x1c\n" +
+	"\x1aListBrowserSessionsRequest\"S\n" +
+	"\x1bListBrowserSessionsResponse\x124\n" +
+	"\bsessions\x18\x01 \x03(\v2\x18.morph.v1.BrowserSessionR\bsessions\"Y\n" +
+	"\x13StartBrowserRequest\x12\x18\n" +
+	"\aprofile\x18\x01 \x01(\tR\aprofile\x12(\n" +
+	"\x10owner_session_id\x18\x02 \x01(\tR\x0eownerSessionId\"J\n" +
+	"\x14StartBrowserResponse\x122\n" +
+	"\asession\x18\x01 \x01(\v2\x18.morph.v1.BrowserSessionR\asession\"N\n" +
+	"\x12StopBrowserRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12(\n" +
+	"\x10owner_session_id\x18\x02 \x01(\tR\x0eownerSessionId\"I\n" +
+	"\x13StopBrowserResponse\x122\n" +
+	"\asession\x18\x01 \x01(\v2\x18.morph.v1.BrowserSessionR\asession\"u\n" +
+	"\x1aReadBrowserArtifactRequest\x12\x16\n" +
+	"\x06handle\x18\x01 \x01(\tR\x06handle\x12(\n" +
+	"\x10owner_session_id\x18\x02 \x01(\tR\x0eownerSessionId\x12\x15\n" +
+	"\x06run_id\x18\x03 \x01(\tR\x05runId\"h\n" +
+	"\x1bReadBrowserArtifactResponse\x125\n" +
+	"\bartifact\x18\x01 \x01(\v2\x19.morph.v1.BrowserArtifactR\bartifact\x12\x12\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\"\"\n" +
+	" GetBrowserEffectiveConfigRequest\"\x9e\x02\n" +
+	"!GetBrowserEffectiveConfigResponse\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12-\n" +
+	"\x12capability_enabled\x18\x02 \x01(\bR\x11capabilityEnabled\x12'\n" +
+	"\x0fdefault_profile\x18\x03 \x01(\tR\x0edefaultProfile\x12%\n" +
+	"\x0enetwork_strict\x18\x04 \x01(\bR\rnetworkStrict\x12+\n" +
+	"\x11permission_preset\x18\x05 \x01(\tR\x10permissionPreset\x123\n" +
+	"\x15executable_configured\x18\x06 \x01(\bR\x14executableConfigured2M\n" +
 	"\fMorphService\x12=\n" +
 	"\aRespond\x12\x18.morph.v1.RespondRequest\x1a\x16.morph.v1.RespondEvent0\x012\xe0\x06\n" +
 	"\x0eSessionService\x12I\n" +
@@ -7063,7 +8149,15 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"ListGrants\x12%.morph.v1.ListPermissionGrantsRequest\x1a&.morph.v1.ListPermissionGrantsResponse\x12^\n" +
 	"\vRevokeGrant\x12&.morph.v1.RevokePermissionGrantRequest\x1a'.morph.v1.RevokePermissionGrantResponse\x12a\n" +
 	"\fDeleteRecord\x12'.morph.v1.DeletePermissionRecordRequest\x1a(.morph.v1.DeletePermissionRecordResponse\x12^\n" +
-	"\x05Prune\x12).morph.v1.PrunePermissionApprovalsRequest\x1a*.morph.v1.PrunePermissionApprovalsResponseB4Z2github.com/wandxy/morph/internal/rpc/proto;morphpbb\x06proto3"
+	"\x05Prune\x12).morph.v1.PrunePermissionApprovalsRequest\x1a*.morph.v1.PrunePermissionApprovalsResponse2\xf3\x04\n" +
+	"\x0eBrowserService\x12O\n" +
+	"\x06Status\x12!.morph.v1.GetBrowserStatusRequest\x1a\".morph.v1.GetBrowserStatusResponse\x12[\n" +
+	"\fListProfiles\x12$.morph.v1.ListBrowserProfilesRequest\x1a%.morph.v1.ListBrowserProfilesResponse\x12[\n" +
+	"\fListSessions\x12$.morph.v1.ListBrowserSessionsRequest\x1a%.morph.v1.ListBrowserSessionsResponse\x12F\n" +
+	"\x05Start\x12\x1d.morph.v1.StartBrowserRequest\x1a\x1e.morph.v1.StartBrowserResponse\x12C\n" +
+	"\x04Stop\x12\x1c.morph.v1.StopBrowserRequest\x1a\x1d.morph.v1.StopBrowserResponse\x12]\n" +
+	"\fReadArtifact\x12$.morph.v1.ReadBrowserArtifactRequest\x1a%.morph.v1.ReadBrowserArtifactResponse0\x01\x12j\n" +
+	"\x0fEffectiveConfig\x12*.morph.v1.GetBrowserEffectiveConfigRequest\x1a+.morph.v1.GetBrowserEffectiveConfigResponseB4Z2github.com/wandxy/morph/internal/rpc/proto;morphpbb\x06proto3"
 
 var (
 	file_internal_rpc_proto_morph_proto_rawDescOnce sync.Once
@@ -7078,7 +8172,7 @@ func file_internal_rpc_proto_morph_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_rpc_proto_morph_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_internal_rpc_proto_morph_proto_msgTypes = make([]protoimpl.MessageInfo, 101)
+var file_internal_rpc_proto_morph_proto_msgTypes = make([]protoimpl.MessageInfo, 119)
 var file_internal_rpc_proto_morph_proto_goTypes = []any{
 	(RespondEvent_Type)(0),                      // 0: morph.v1.RespondEvent.Type
 	(RespondEvent_Channel)(0),                   // 1: morph.v1.RespondEvent.Channel
@@ -7182,30 +8276,48 @@ var file_internal_rpc_proto_morph_proto_goTypes = []any{
 	(*DeletePermissionRecordResponse)(nil),      // 99: morph.v1.DeletePermissionRecordResponse
 	(*PrunePermissionApprovalsRequest)(nil),     // 100: morph.v1.PrunePermissionApprovalsRequest
 	(*PrunePermissionApprovalsResponse)(nil),    // 101: morph.v1.PrunePermissionApprovalsResponse
-	(*GetSessionStatusResponse_Context)(nil),    // 102: morph.v1.GetSessionStatusResponse.Context
-	nil,                                         // 103: morph.v1.AutomationPayload.MetadataEntry
-	(*timestamppb.Timestamp)(nil),               // 104: google.protobuf.Timestamp
+	(*BrowserProfile)(nil),                      // 102: morph.v1.BrowserProfile
+	(*BrowserSession)(nil),                      // 103: morph.v1.BrowserSession
+	(*BrowserArtifact)(nil),                     // 104: morph.v1.BrowserArtifact
+	(*BrowserStatus)(nil),                       // 105: morph.v1.BrowserStatus
+	(*GetBrowserStatusRequest)(nil),             // 106: morph.v1.GetBrowserStatusRequest
+	(*GetBrowserStatusResponse)(nil),            // 107: morph.v1.GetBrowserStatusResponse
+	(*ListBrowserProfilesRequest)(nil),          // 108: morph.v1.ListBrowserProfilesRequest
+	(*ListBrowserProfilesResponse)(nil),         // 109: morph.v1.ListBrowserProfilesResponse
+	(*ListBrowserSessionsRequest)(nil),          // 110: morph.v1.ListBrowserSessionsRequest
+	(*ListBrowserSessionsResponse)(nil),         // 111: morph.v1.ListBrowserSessionsResponse
+	(*StartBrowserRequest)(nil),                 // 112: morph.v1.StartBrowserRequest
+	(*StartBrowserResponse)(nil),                // 113: morph.v1.StartBrowserResponse
+	(*StopBrowserRequest)(nil),                  // 114: morph.v1.StopBrowserRequest
+	(*StopBrowserResponse)(nil),                 // 115: morph.v1.StopBrowserResponse
+	(*ReadBrowserArtifactRequest)(nil),          // 116: morph.v1.ReadBrowserArtifactRequest
+	(*ReadBrowserArtifactResponse)(nil),         // 117: morph.v1.ReadBrowserArtifactResponse
+	(*GetBrowserEffectiveConfigRequest)(nil),    // 118: morph.v1.GetBrowserEffectiveConfigRequest
+	(*GetBrowserEffectiveConfigResponse)(nil),   // 119: morph.v1.GetBrowserEffectiveConfigResponse
+	(*GetSessionStatusResponse_Context)(nil),    // 120: morph.v1.GetSessionStatusResponse.Context
+	nil,                                         // 121: morph.v1.AutomationPayload.MetadataEntry
+	(*timestamppb.Timestamp)(nil),               // 122: google.protobuf.Timestamp
 }
 var file_internal_rpc_proto_morph_proto_depIdxs = []int32{
 	0,   // 0: morph.v1.RespondEvent.type:type_name -> morph.v1.RespondEvent.Type
 	1,   // 1: morph.v1.RespondEvent.channel:type_name -> morph.v1.RespondEvent.Channel
-	104, // 2: morph.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
+	122, // 2: morph.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
 	5,   // 3: morph.v1.CreateSessionResponse.session:type_name -> morph.v1.SessionSummary
 	5,   // 4: morph.v1.ListSessionsResponse.sessions:type_name -> morph.v1.SessionSummary
 	5,   // 5: morph.v1.UnarchiveSessionResponse.session:type_name -> morph.v1.SessionSummary
 	5,   // 6: morph.v1.RenameSessionResponse.session:type_name -> morph.v1.SessionSummary
-	104, // 7: morph.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	122, // 7: morph.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
 	2,   // 8: morph.v1.RepairSessionRequest.type:type_name -> morph.v1.RepairSessionRequest.Type
 	24,  // 9: morph.v1.RepairSessionRequest.vector:type_name -> morph.v1.VectorRepairOption
 	2,   // 10: morph.v1.RepairSessionResponse.type:type_name -> morph.v1.RepairSessionRequest.Type
 	25,  // 11: morph.v1.RepairSessionResponse.vector:type_name -> morph.v1.VectorRepairResponse
 	26,  // 12: morph.v1.GetSessionStatusRequest.context:type_name -> morph.v1.GetSessionStatusRequestContext
-	102, // 13: morph.v1.GetSessionStatusResponse.context:type_name -> morph.v1.GetSessionStatusResponse.Context
-	104, // 14: morph.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
-	104, // 15: morph.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
-	104, // 16: morph.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
+	120, // 13: morph.v1.GetSessionStatusResponse.context:type_name -> morph.v1.GetSessionStatusResponse.Context
+	122, // 14: morph.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
+	122, // 15: morph.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
+	122, // 16: morph.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
 	30,  // 17: morph.v1.SessionTimelineMessage.tool_calls:type_name -> morph.v1.SessionTimelineToolCall
-	104, // 18: morph.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
+	122, // 18: morph.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
 	31,  // 19: morph.v1.GetSessionTimelineResponse.messages:type_name -> morph.v1.SessionTimelineMessage
 	32,  // 20: morph.v1.GetSessionTimelineResponse.trace_events:type_name -> morph.v1.SessionTimelineTraceEvent
 	37,  // 21: morph.v1.ListProvidersResponse.providers:type_name -> morph.v1.ProviderOption
@@ -7215,34 +8327,34 @@ var file_internal_rpc_proto_morph_proto_depIdxs = []int32{
 	46,  // 25: morph.v1.StartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
 	46,  // 26: morph.v1.StopGatewayResponse.status:type_name -> morph.v1.GatewayStatus
 	46,  // 27: morph.v1.RestartGatewayResponse.status:type_name -> morph.v1.GatewayStatus
-	104, // 28: morph.v1.GatewayPairingRequest.created_at:type_name -> google.protobuf.Timestamp
-	104, // 29: morph.v1.GatewayPairingRequest.last_seen_at:type_name -> google.protobuf.Timestamp
-	104, // 30: morph.v1.GatewayPairingRequest.expires_at:type_name -> google.protobuf.Timestamp
-	104, // 31: morph.v1.GatewayPairedSender.created_at:type_name -> google.protobuf.Timestamp
-	104, // 32: morph.v1.GatewayPairedSender.updated_at:type_name -> google.protobuf.Timestamp
+	122, // 28: morph.v1.GatewayPairingRequest.created_at:type_name -> google.protobuf.Timestamp
+	122, // 29: morph.v1.GatewayPairingRequest.last_seen_at:type_name -> google.protobuf.Timestamp
+	122, // 30: morph.v1.GatewayPairingRequest.expires_at:type_name -> google.protobuf.Timestamp
+	122, // 31: morph.v1.GatewayPairedSender.created_at:type_name -> google.protobuf.Timestamp
+	122, // 32: morph.v1.GatewayPairedSender.updated_at:type_name -> google.protobuf.Timestamp
 	55,  // 33: morph.v1.ListGatewayPairingsResponse.pending:type_name -> morph.v1.GatewayPairingRequest
 	56,  // 34: morph.v1.ListGatewayPairingsResponse.approved:type_name -> morph.v1.GatewayPairedSender
 	56,  // 35: morph.v1.ApproveGatewayPairingResponse.sender:type_name -> morph.v1.GatewayPairedSender
-	104, // 36: morph.v1.AutomationSchedule.at:type_name -> google.protobuf.Timestamp
-	103, // 37: morph.v1.AutomationPayload.metadata:type_name -> morph.v1.AutomationPayload.MetadataEntry
-	104, // 38: morph.v1.AutomationJobState.next_run_at:type_name -> google.protobuf.Timestamp
-	104, // 39: morph.v1.AutomationJobState.running_at:type_name -> google.protobuf.Timestamp
-	104, // 40: morph.v1.AutomationJobState.last_run_at:type_name -> google.protobuf.Timestamp
-	104, // 41: morph.v1.AutomationJobState.last_failure_notice_at:type_name -> google.protobuf.Timestamp
-	104, // 42: morph.v1.AutomationJob.created_at:type_name -> google.protobuf.Timestamp
-	104, // 43: morph.v1.AutomationJob.updated_at:type_name -> google.protobuf.Timestamp
+	122, // 36: morph.v1.AutomationSchedule.at:type_name -> google.protobuf.Timestamp
+	121, // 37: morph.v1.AutomationPayload.metadata:type_name -> morph.v1.AutomationPayload.MetadataEntry
+	122, // 38: morph.v1.AutomationJobState.next_run_at:type_name -> google.protobuf.Timestamp
+	122, // 39: morph.v1.AutomationJobState.running_at:type_name -> google.protobuf.Timestamp
+	122, // 40: morph.v1.AutomationJobState.last_run_at:type_name -> google.protobuf.Timestamp
+	122, // 41: morph.v1.AutomationJobState.last_failure_notice_at:type_name -> google.protobuf.Timestamp
+	122, // 42: morph.v1.AutomationJob.created_at:type_name -> google.protobuf.Timestamp
+	122, // 43: morph.v1.AutomationJob.updated_at:type_name -> google.protobuf.Timestamp
 	65,  // 44: morph.v1.AutomationJob.schedule:type_name -> morph.v1.AutomationSchedule
 	66,  // 45: morph.v1.AutomationJob.payload:type_name -> morph.v1.AutomationPayload
 	67,  // 46: morph.v1.AutomationJob.delivery:type_name -> morph.v1.AutomationDelivery
 	68,  // 47: morph.v1.AutomationJob.state:type_name -> morph.v1.AutomationJobState
-	104, // 48: morph.v1.AutomationRun.started_at:type_name -> google.protobuf.Timestamp
-	104, // 49: morph.v1.AutomationRun.ended_at:type_name -> google.protobuf.Timestamp
+	122, // 48: morph.v1.AutomationRun.started_at:type_name -> google.protobuf.Timestamp
+	122, // 49: morph.v1.AutomationRun.ended_at:type_name -> google.protobuf.Timestamp
 	70,  // 50: morph.v1.AutomationRun.usage:type_name -> morph.v1.AutomationUsage
-	104, // 51: morph.v1.GetAutomationStatusResponse.started_at:type_name -> google.protobuf.Timestamp
-	104, // 52: morph.v1.GetAutomationStatusResponse.next_wake_at:type_name -> google.protobuf.Timestamp
+	122, // 51: morph.v1.GetAutomationStatusResponse.started_at:type_name -> google.protobuf.Timestamp
+	122, // 52: morph.v1.GetAutomationStatusResponse.next_wake_at:type_name -> google.protobuf.Timestamp
 	69,  // 53: morph.v1.ListAutomationJobsResponse.jobs:type_name -> morph.v1.AutomationJob
-	104, // 54: morph.v1.AddAutomationJobRequest.created_at:type_name -> google.protobuf.Timestamp
-	104, // 55: morph.v1.AddAutomationJobRequest.updated_at:type_name -> google.protobuf.Timestamp
+	122, // 54: morph.v1.AddAutomationJobRequest.created_at:type_name -> google.protobuf.Timestamp
+	122, // 55: morph.v1.AddAutomationJobRequest.updated_at:type_name -> google.protobuf.Timestamp
 	65,  // 56: morph.v1.AddAutomationJobRequest.schedule:type_name -> morph.v1.AutomationSchedule
 	66,  // 57: morph.v1.AddAutomationJobRequest.payload:type_name -> morph.v1.AutomationPayload
 	67,  // 58: morph.v1.AddAutomationJobRequest.delivery:type_name -> morph.v1.AutomationDelivery
@@ -7255,103 +8367,129 @@ var file_internal_rpc_proto_morph_proto_depIdxs = []int32{
 	69,  // 65: morph.v1.UpdateAutomationJobResponse.job:type_name -> morph.v1.AutomationJob
 	71,  // 66: morph.v1.RunAutomationJobResponse.run:type_name -> morph.v1.AutomationRun
 	71,  // 67: morph.v1.ListAutomationRunsResponse.runs:type_name -> morph.v1.AutomationRun
-	104, // 68: morph.v1.PermissionApprovalRequest.created_at:type_name -> google.protobuf.Timestamp
-	104, // 69: morph.v1.PermissionApprovalRequest.expires_at:type_name -> google.protobuf.Timestamp
-	104, // 70: morph.v1.PermissionApprovalRequest.resolved_at:type_name -> google.protobuf.Timestamp
-	104, // 71: morph.v1.PermissionGrant.created_at:type_name -> google.protobuf.Timestamp
-	104, // 72: morph.v1.PermissionGrant.expires_at:type_name -> google.protobuf.Timestamp
-	104, // 73: morph.v1.PermissionGrant.consumed_at:type_name -> google.protobuf.Timestamp
-	104, // 74: morph.v1.PermissionGrant.revoked_at:type_name -> google.protobuf.Timestamp
+	122, // 68: morph.v1.PermissionApprovalRequest.created_at:type_name -> google.protobuf.Timestamp
+	122, // 69: morph.v1.PermissionApprovalRequest.expires_at:type_name -> google.protobuf.Timestamp
+	122, // 70: morph.v1.PermissionApprovalRequest.resolved_at:type_name -> google.protobuf.Timestamp
+	122, // 71: morph.v1.PermissionGrant.created_at:type_name -> google.protobuf.Timestamp
+	122, // 72: morph.v1.PermissionGrant.expires_at:type_name -> google.protobuf.Timestamp
+	122, // 73: morph.v1.PermissionGrant.consumed_at:type_name -> google.protobuf.Timestamp
+	122, // 74: morph.v1.PermissionGrant.revoked_at:type_name -> google.protobuf.Timestamp
 	86,  // 75: morph.v1.ListPermissionRequestsResponse.requests:type_name -> morph.v1.PermissionApprovalRequest
 	86,  // 76: morph.v1.GetPermissionRequestResponse.request:type_name -> morph.v1.PermissionApprovalRequest
 	86,  // 77: morph.v1.ResolvePermissionRequestResponse.request:type_name -> morph.v1.PermissionApprovalRequest
 	87,  // 78: morph.v1.ListPermissionGrantsResponse.grants:type_name -> morph.v1.PermissionGrant
 	87,  // 79: morph.v1.RevokePermissionGrantResponse.grant:type_name -> morph.v1.PermissionGrant
-	104, // 80: morph.v1.PrunePermissionApprovalsResponse.request_cutoff:type_name -> google.protobuf.Timestamp
-	104, // 81: morph.v1.PrunePermissionApprovalsResponse.grant_cutoff:type_name -> google.protobuf.Timestamp
-	3,   // 82: morph.v1.MorphService.Respond:input_type -> morph.v1.RespondRequest
-	6,   // 83: morph.v1.SessionService.Create:input_type -> morph.v1.CreateSessionRequest
-	8,   // 84: morph.v1.SessionService.List:input_type -> morph.v1.ListSessionsRequest
-	10,  // 85: morph.v1.SessionService.Use:input_type -> morph.v1.UseSessionRequest
-	12,  // 86: morph.v1.SessionService.Archive:input_type -> morph.v1.ArchiveSessionRequest
-	14,  // 87: morph.v1.SessionService.Unarchive:input_type -> morph.v1.UnarchiveSessionRequest
-	16,  // 88: morph.v1.SessionService.Rename:input_type -> morph.v1.RenameSessionRequest
-	18,  // 89: morph.v1.SessionService.Current:input_type -> morph.v1.CurrentSessionRequest
-	20,  // 90: morph.v1.SessionService.Compact:input_type -> morph.v1.CompactSessionRequest
-	22,  // 91: morph.v1.SessionService.Repair:input_type -> morph.v1.RepairSessionRequest
-	27,  // 92: morph.v1.SessionService.Status:input_type -> morph.v1.GetSessionStatusRequest
-	29,  // 93: morph.v1.SessionService.Timeline:input_type -> morph.v1.GetSessionTimelineRequest
-	34,  // 94: morph.v1.ModelService.RuntimeModel:input_type -> morph.v1.RuntimeModelRequest
-	36,  // 95: morph.v1.ModelService.ListProviders:input_type -> morph.v1.ListProvidersRequest
-	39,  // 96: morph.v1.ModelService.ListModels:input_type -> morph.v1.ListModelsRequest
-	42,  // 97: morph.v1.ModelService.SelectModel:input_type -> morph.v1.SelectModelRequest
-	44,  // 98: morph.v1.ModelService.SetProviderAPIKey:input_type -> morph.v1.SetProviderAPIKeyRequest
-	47,  // 99: morph.v1.GatewayService.Status:input_type -> morph.v1.GetGatewayStatusRequest
-	49,  // 100: morph.v1.GatewayService.Start:input_type -> morph.v1.StartGatewayRequest
-	51,  // 101: morph.v1.GatewayService.Stop:input_type -> morph.v1.StopGatewayRequest
-	53,  // 102: morph.v1.GatewayService.Restart:input_type -> morph.v1.RestartGatewayRequest
-	57,  // 103: morph.v1.GatewayService.ListPairings:input_type -> morph.v1.ListGatewayPairingsRequest
-	59,  // 104: morph.v1.GatewayService.ApprovePairing:input_type -> morph.v1.ApproveGatewayPairingRequest
-	61,  // 105: morph.v1.GatewayService.RevokePairing:input_type -> morph.v1.RevokeGatewayPairingRequest
-	63,  // 106: morph.v1.GatewayService.ClearPendingPairings:input_type -> morph.v1.ClearPendingGatewayPairingsRequest
-	72,  // 107: morph.v1.AutomationService.Status:input_type -> morph.v1.GetAutomationStatusRequest
-	74,  // 108: morph.v1.AutomationService.ListJobs:input_type -> morph.v1.ListAutomationJobsRequest
-	76,  // 109: morph.v1.AutomationService.AddJob:input_type -> morph.v1.AddAutomationJobRequest
-	78,  // 110: morph.v1.AutomationService.UpdateJob:input_type -> morph.v1.UpdateAutomationJobRequest
-	80,  // 111: morph.v1.AutomationService.RemoveJob:input_type -> morph.v1.RemoveAutomationJobRequest
-	82,  // 112: morph.v1.AutomationService.RunJob:input_type -> morph.v1.RunAutomationJobRequest
-	84,  // 113: morph.v1.AutomationService.ListRuns:input_type -> morph.v1.ListAutomationRunsRequest
-	88,  // 114: morph.v1.PermissionService.ListRequests:input_type -> morph.v1.ListPermissionRequestsRequest
-	90,  // 115: morph.v1.PermissionService.GetRequest:input_type -> morph.v1.GetPermissionRequestRequest
-	92,  // 116: morph.v1.PermissionService.ResolveRequest:input_type -> morph.v1.ResolvePermissionRequestRequest
-	94,  // 117: morph.v1.PermissionService.ListGrants:input_type -> morph.v1.ListPermissionGrantsRequest
-	96,  // 118: morph.v1.PermissionService.RevokeGrant:input_type -> morph.v1.RevokePermissionGrantRequest
-	98,  // 119: morph.v1.PermissionService.DeleteRecord:input_type -> morph.v1.DeletePermissionRecordRequest
-	100, // 120: morph.v1.PermissionService.Prune:input_type -> morph.v1.PrunePermissionApprovalsRequest
-	4,   // 121: morph.v1.MorphService.Respond:output_type -> morph.v1.RespondEvent
-	7,   // 122: morph.v1.SessionService.Create:output_type -> morph.v1.CreateSessionResponse
-	9,   // 123: morph.v1.SessionService.List:output_type -> morph.v1.ListSessionsResponse
-	11,  // 124: morph.v1.SessionService.Use:output_type -> morph.v1.UseSessionResponse
-	13,  // 125: morph.v1.SessionService.Archive:output_type -> morph.v1.ArchiveSessionResponse
-	15,  // 126: morph.v1.SessionService.Unarchive:output_type -> morph.v1.UnarchiveSessionResponse
-	17,  // 127: morph.v1.SessionService.Rename:output_type -> morph.v1.RenameSessionResponse
-	19,  // 128: morph.v1.SessionService.Current:output_type -> morph.v1.CurrentSessionResponse
-	21,  // 129: morph.v1.SessionService.Compact:output_type -> morph.v1.CompactSessionResponse
-	23,  // 130: morph.v1.SessionService.Repair:output_type -> morph.v1.RepairSessionResponse
-	28,  // 131: morph.v1.SessionService.Status:output_type -> morph.v1.GetSessionStatusResponse
-	33,  // 132: morph.v1.SessionService.Timeline:output_type -> morph.v1.GetSessionTimelineResponse
-	35,  // 133: morph.v1.ModelService.RuntimeModel:output_type -> morph.v1.RuntimeModelResponse
-	38,  // 134: morph.v1.ModelService.ListProviders:output_type -> morph.v1.ListProvidersResponse
-	41,  // 135: morph.v1.ModelService.ListModels:output_type -> morph.v1.ListModelsResponse
-	43,  // 136: morph.v1.ModelService.SelectModel:output_type -> morph.v1.SelectModelResponse
-	45,  // 137: morph.v1.ModelService.SetProviderAPIKey:output_type -> morph.v1.SetProviderAPIKeyResponse
-	48,  // 138: morph.v1.GatewayService.Status:output_type -> morph.v1.GetGatewayStatusResponse
-	50,  // 139: morph.v1.GatewayService.Start:output_type -> morph.v1.StartGatewayResponse
-	52,  // 140: morph.v1.GatewayService.Stop:output_type -> morph.v1.StopGatewayResponse
-	54,  // 141: morph.v1.GatewayService.Restart:output_type -> morph.v1.RestartGatewayResponse
-	58,  // 142: morph.v1.GatewayService.ListPairings:output_type -> morph.v1.ListGatewayPairingsResponse
-	60,  // 143: morph.v1.GatewayService.ApprovePairing:output_type -> morph.v1.ApproveGatewayPairingResponse
-	62,  // 144: morph.v1.GatewayService.RevokePairing:output_type -> morph.v1.RevokeGatewayPairingResponse
-	64,  // 145: morph.v1.GatewayService.ClearPendingPairings:output_type -> morph.v1.ClearPendingGatewayPairingsResponse
-	73,  // 146: morph.v1.AutomationService.Status:output_type -> morph.v1.GetAutomationStatusResponse
-	75,  // 147: morph.v1.AutomationService.ListJobs:output_type -> morph.v1.ListAutomationJobsResponse
-	77,  // 148: morph.v1.AutomationService.AddJob:output_type -> morph.v1.AddAutomationJobResponse
-	79,  // 149: morph.v1.AutomationService.UpdateJob:output_type -> morph.v1.UpdateAutomationJobResponse
-	81,  // 150: morph.v1.AutomationService.RemoveJob:output_type -> morph.v1.RemoveAutomationJobResponse
-	83,  // 151: morph.v1.AutomationService.RunJob:output_type -> morph.v1.RunAutomationJobResponse
-	85,  // 152: morph.v1.AutomationService.ListRuns:output_type -> morph.v1.ListAutomationRunsResponse
-	89,  // 153: morph.v1.PermissionService.ListRequests:output_type -> morph.v1.ListPermissionRequestsResponse
-	91,  // 154: morph.v1.PermissionService.GetRequest:output_type -> morph.v1.GetPermissionRequestResponse
-	93,  // 155: morph.v1.PermissionService.ResolveRequest:output_type -> morph.v1.ResolvePermissionRequestResponse
-	95,  // 156: morph.v1.PermissionService.ListGrants:output_type -> morph.v1.ListPermissionGrantsResponse
-	97,  // 157: morph.v1.PermissionService.RevokeGrant:output_type -> morph.v1.RevokePermissionGrantResponse
-	99,  // 158: morph.v1.PermissionService.DeleteRecord:output_type -> morph.v1.DeletePermissionRecordResponse
-	101, // 159: morph.v1.PermissionService.Prune:output_type -> morph.v1.PrunePermissionApprovalsResponse
-	121, // [121:160] is the sub-list for method output_type
-	82,  // [82:121] is the sub-list for method input_type
-	82,  // [82:82] is the sub-list for extension type_name
-	82,  // [82:82] is the sub-list for extension extendee
-	0,   // [0:82] is the sub-list for field type_name
+	122, // 80: morph.v1.PrunePermissionApprovalsResponse.request_cutoff:type_name -> google.protobuf.Timestamp
+	122, // 81: morph.v1.PrunePermissionApprovalsResponse.grant_cutoff:type_name -> google.protobuf.Timestamp
+	122, // 82: morph.v1.BrowserSession.created_at:type_name -> google.protobuf.Timestamp
+	122, // 83: morph.v1.BrowserSession.last_active:type_name -> google.protobuf.Timestamp
+	122, // 84: morph.v1.BrowserArtifact.created_at:type_name -> google.protobuf.Timestamp
+	122, // 85: morph.v1.BrowserArtifact.expires_at:type_name -> google.protobuf.Timestamp
+	102, // 86: morph.v1.BrowserStatus.profiles:type_name -> morph.v1.BrowserProfile
+	103, // 87: morph.v1.BrowserStatus.sessions:type_name -> morph.v1.BrowserSession
+	105, // 88: morph.v1.GetBrowserStatusResponse.status:type_name -> morph.v1.BrowserStatus
+	102, // 89: morph.v1.ListBrowserProfilesResponse.profiles:type_name -> morph.v1.BrowserProfile
+	103, // 90: morph.v1.ListBrowserSessionsResponse.sessions:type_name -> morph.v1.BrowserSession
+	103, // 91: morph.v1.StartBrowserResponse.session:type_name -> morph.v1.BrowserSession
+	103, // 92: morph.v1.StopBrowserResponse.session:type_name -> morph.v1.BrowserSession
+	104, // 93: morph.v1.ReadBrowserArtifactResponse.artifact:type_name -> morph.v1.BrowserArtifact
+	3,   // 94: morph.v1.MorphService.Respond:input_type -> morph.v1.RespondRequest
+	6,   // 95: morph.v1.SessionService.Create:input_type -> morph.v1.CreateSessionRequest
+	8,   // 96: morph.v1.SessionService.List:input_type -> morph.v1.ListSessionsRequest
+	10,  // 97: morph.v1.SessionService.Use:input_type -> morph.v1.UseSessionRequest
+	12,  // 98: morph.v1.SessionService.Archive:input_type -> morph.v1.ArchiveSessionRequest
+	14,  // 99: morph.v1.SessionService.Unarchive:input_type -> morph.v1.UnarchiveSessionRequest
+	16,  // 100: morph.v1.SessionService.Rename:input_type -> morph.v1.RenameSessionRequest
+	18,  // 101: morph.v1.SessionService.Current:input_type -> morph.v1.CurrentSessionRequest
+	20,  // 102: morph.v1.SessionService.Compact:input_type -> morph.v1.CompactSessionRequest
+	22,  // 103: morph.v1.SessionService.Repair:input_type -> morph.v1.RepairSessionRequest
+	27,  // 104: morph.v1.SessionService.Status:input_type -> morph.v1.GetSessionStatusRequest
+	29,  // 105: morph.v1.SessionService.Timeline:input_type -> morph.v1.GetSessionTimelineRequest
+	34,  // 106: morph.v1.ModelService.RuntimeModel:input_type -> morph.v1.RuntimeModelRequest
+	36,  // 107: morph.v1.ModelService.ListProviders:input_type -> morph.v1.ListProvidersRequest
+	39,  // 108: morph.v1.ModelService.ListModels:input_type -> morph.v1.ListModelsRequest
+	42,  // 109: morph.v1.ModelService.SelectModel:input_type -> morph.v1.SelectModelRequest
+	44,  // 110: morph.v1.ModelService.SetProviderAPIKey:input_type -> morph.v1.SetProviderAPIKeyRequest
+	47,  // 111: morph.v1.GatewayService.Status:input_type -> morph.v1.GetGatewayStatusRequest
+	49,  // 112: morph.v1.GatewayService.Start:input_type -> morph.v1.StartGatewayRequest
+	51,  // 113: morph.v1.GatewayService.Stop:input_type -> morph.v1.StopGatewayRequest
+	53,  // 114: morph.v1.GatewayService.Restart:input_type -> morph.v1.RestartGatewayRequest
+	57,  // 115: morph.v1.GatewayService.ListPairings:input_type -> morph.v1.ListGatewayPairingsRequest
+	59,  // 116: morph.v1.GatewayService.ApprovePairing:input_type -> morph.v1.ApproveGatewayPairingRequest
+	61,  // 117: morph.v1.GatewayService.RevokePairing:input_type -> morph.v1.RevokeGatewayPairingRequest
+	63,  // 118: morph.v1.GatewayService.ClearPendingPairings:input_type -> morph.v1.ClearPendingGatewayPairingsRequest
+	72,  // 119: morph.v1.AutomationService.Status:input_type -> morph.v1.GetAutomationStatusRequest
+	74,  // 120: morph.v1.AutomationService.ListJobs:input_type -> morph.v1.ListAutomationJobsRequest
+	76,  // 121: morph.v1.AutomationService.AddJob:input_type -> morph.v1.AddAutomationJobRequest
+	78,  // 122: morph.v1.AutomationService.UpdateJob:input_type -> morph.v1.UpdateAutomationJobRequest
+	80,  // 123: morph.v1.AutomationService.RemoveJob:input_type -> morph.v1.RemoveAutomationJobRequest
+	82,  // 124: morph.v1.AutomationService.RunJob:input_type -> morph.v1.RunAutomationJobRequest
+	84,  // 125: morph.v1.AutomationService.ListRuns:input_type -> morph.v1.ListAutomationRunsRequest
+	88,  // 126: morph.v1.PermissionService.ListRequests:input_type -> morph.v1.ListPermissionRequestsRequest
+	90,  // 127: morph.v1.PermissionService.GetRequest:input_type -> morph.v1.GetPermissionRequestRequest
+	92,  // 128: morph.v1.PermissionService.ResolveRequest:input_type -> morph.v1.ResolvePermissionRequestRequest
+	94,  // 129: morph.v1.PermissionService.ListGrants:input_type -> morph.v1.ListPermissionGrantsRequest
+	96,  // 130: morph.v1.PermissionService.RevokeGrant:input_type -> morph.v1.RevokePermissionGrantRequest
+	98,  // 131: morph.v1.PermissionService.DeleteRecord:input_type -> morph.v1.DeletePermissionRecordRequest
+	100, // 132: morph.v1.PermissionService.Prune:input_type -> morph.v1.PrunePermissionApprovalsRequest
+	106, // 133: morph.v1.BrowserService.Status:input_type -> morph.v1.GetBrowserStatusRequest
+	108, // 134: morph.v1.BrowserService.ListProfiles:input_type -> morph.v1.ListBrowserProfilesRequest
+	110, // 135: morph.v1.BrowserService.ListSessions:input_type -> morph.v1.ListBrowserSessionsRequest
+	112, // 136: morph.v1.BrowserService.Start:input_type -> morph.v1.StartBrowserRequest
+	114, // 137: morph.v1.BrowserService.Stop:input_type -> morph.v1.StopBrowserRequest
+	116, // 138: morph.v1.BrowserService.ReadArtifact:input_type -> morph.v1.ReadBrowserArtifactRequest
+	118, // 139: morph.v1.BrowserService.EffectiveConfig:input_type -> morph.v1.GetBrowserEffectiveConfigRequest
+	4,   // 140: morph.v1.MorphService.Respond:output_type -> morph.v1.RespondEvent
+	7,   // 141: morph.v1.SessionService.Create:output_type -> morph.v1.CreateSessionResponse
+	9,   // 142: morph.v1.SessionService.List:output_type -> morph.v1.ListSessionsResponse
+	11,  // 143: morph.v1.SessionService.Use:output_type -> morph.v1.UseSessionResponse
+	13,  // 144: morph.v1.SessionService.Archive:output_type -> morph.v1.ArchiveSessionResponse
+	15,  // 145: morph.v1.SessionService.Unarchive:output_type -> morph.v1.UnarchiveSessionResponse
+	17,  // 146: morph.v1.SessionService.Rename:output_type -> morph.v1.RenameSessionResponse
+	19,  // 147: morph.v1.SessionService.Current:output_type -> morph.v1.CurrentSessionResponse
+	21,  // 148: morph.v1.SessionService.Compact:output_type -> morph.v1.CompactSessionResponse
+	23,  // 149: morph.v1.SessionService.Repair:output_type -> morph.v1.RepairSessionResponse
+	28,  // 150: morph.v1.SessionService.Status:output_type -> morph.v1.GetSessionStatusResponse
+	33,  // 151: morph.v1.SessionService.Timeline:output_type -> morph.v1.GetSessionTimelineResponse
+	35,  // 152: morph.v1.ModelService.RuntimeModel:output_type -> morph.v1.RuntimeModelResponse
+	38,  // 153: morph.v1.ModelService.ListProviders:output_type -> morph.v1.ListProvidersResponse
+	41,  // 154: morph.v1.ModelService.ListModels:output_type -> morph.v1.ListModelsResponse
+	43,  // 155: morph.v1.ModelService.SelectModel:output_type -> morph.v1.SelectModelResponse
+	45,  // 156: morph.v1.ModelService.SetProviderAPIKey:output_type -> morph.v1.SetProviderAPIKeyResponse
+	48,  // 157: morph.v1.GatewayService.Status:output_type -> morph.v1.GetGatewayStatusResponse
+	50,  // 158: morph.v1.GatewayService.Start:output_type -> morph.v1.StartGatewayResponse
+	52,  // 159: morph.v1.GatewayService.Stop:output_type -> morph.v1.StopGatewayResponse
+	54,  // 160: morph.v1.GatewayService.Restart:output_type -> morph.v1.RestartGatewayResponse
+	58,  // 161: morph.v1.GatewayService.ListPairings:output_type -> morph.v1.ListGatewayPairingsResponse
+	60,  // 162: morph.v1.GatewayService.ApprovePairing:output_type -> morph.v1.ApproveGatewayPairingResponse
+	62,  // 163: morph.v1.GatewayService.RevokePairing:output_type -> morph.v1.RevokeGatewayPairingResponse
+	64,  // 164: morph.v1.GatewayService.ClearPendingPairings:output_type -> morph.v1.ClearPendingGatewayPairingsResponse
+	73,  // 165: morph.v1.AutomationService.Status:output_type -> morph.v1.GetAutomationStatusResponse
+	75,  // 166: morph.v1.AutomationService.ListJobs:output_type -> morph.v1.ListAutomationJobsResponse
+	77,  // 167: morph.v1.AutomationService.AddJob:output_type -> morph.v1.AddAutomationJobResponse
+	79,  // 168: morph.v1.AutomationService.UpdateJob:output_type -> morph.v1.UpdateAutomationJobResponse
+	81,  // 169: morph.v1.AutomationService.RemoveJob:output_type -> morph.v1.RemoveAutomationJobResponse
+	83,  // 170: morph.v1.AutomationService.RunJob:output_type -> morph.v1.RunAutomationJobResponse
+	85,  // 171: morph.v1.AutomationService.ListRuns:output_type -> morph.v1.ListAutomationRunsResponse
+	89,  // 172: morph.v1.PermissionService.ListRequests:output_type -> morph.v1.ListPermissionRequestsResponse
+	91,  // 173: morph.v1.PermissionService.GetRequest:output_type -> morph.v1.GetPermissionRequestResponse
+	93,  // 174: morph.v1.PermissionService.ResolveRequest:output_type -> morph.v1.ResolvePermissionRequestResponse
+	95,  // 175: morph.v1.PermissionService.ListGrants:output_type -> morph.v1.ListPermissionGrantsResponse
+	97,  // 176: morph.v1.PermissionService.RevokeGrant:output_type -> morph.v1.RevokePermissionGrantResponse
+	99,  // 177: morph.v1.PermissionService.DeleteRecord:output_type -> morph.v1.DeletePermissionRecordResponse
+	101, // 178: morph.v1.PermissionService.Prune:output_type -> morph.v1.PrunePermissionApprovalsResponse
+	107, // 179: morph.v1.BrowserService.Status:output_type -> morph.v1.GetBrowserStatusResponse
+	109, // 180: morph.v1.BrowserService.ListProfiles:output_type -> morph.v1.ListBrowserProfilesResponse
+	111, // 181: morph.v1.BrowserService.ListSessions:output_type -> morph.v1.ListBrowserSessionsResponse
+	113, // 182: morph.v1.BrowserService.Start:output_type -> morph.v1.StartBrowserResponse
+	115, // 183: morph.v1.BrowserService.Stop:output_type -> morph.v1.StopBrowserResponse
+	117, // 184: morph.v1.BrowserService.ReadArtifact:output_type -> morph.v1.ReadBrowserArtifactResponse
+	119, // 185: morph.v1.BrowserService.EffectiveConfig:output_type -> morph.v1.GetBrowserEffectiveConfigResponse
+	140, // [140:186] is the sub-list for method output_type
+	94,  // [94:140] is the sub-list for method input_type
+	94,  // [94:94] is the sub-list for extension type_name
+	94,  // [94:94] is the sub-list for extension extendee
+	0,   // [0:94] is the sub-list for field type_name
 }
 
 func init() { file_internal_rpc_proto_morph_proto_init() }
@@ -7370,9 +8508,9 @@ func file_internal_rpc_proto_morph_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_rpc_proto_morph_proto_rawDesc), len(file_internal_rpc_proto_morph_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   101,
+			NumMessages:   119,
 			NumExtensions: 0,
-			NumServices:   6,
+			NumServices:   7,
 		},
 		GoTypes:           file_internal_rpc_proto_morph_proto_goTypes,
 		DependencyIndexes: file_internal_rpc_proto_morph_proto_depIdxs,

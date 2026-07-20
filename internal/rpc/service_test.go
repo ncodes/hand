@@ -82,6 +82,7 @@ func TestService_RespondClassifiesLoopbackTUIClientAsLocalOwner(t *testing.T) {
 	outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
 	require.True(t, ok)
 	ctx := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+	ctx = rpcmeta.WithAuthenticatedLocalOwner(ctx, "default")
 	ctx = peer.NewContext(ctx, &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 50051}})
 	stream := &respondStreamServerStub{ctx: ctx}
 
@@ -134,6 +135,7 @@ func TestService_RespondAcceptsPermissionPresetOnlyFromLoopbackOwnerClient(t *te
 			outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
 			require.True(t, ok)
 			ctx := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+			ctx = rpcmeta.WithAuthenticatedLocalOwner(ctx, "default")
 			ctx = peer.NewContext(ctx, &peer.Peer{
 				Addr: &net.TCPAddr{IP: test.address, Port: 50051},
 			})
@@ -207,6 +209,7 @@ func incomingPermissionContext(
 	outgoingMetadata, ok := metadata.FromOutgoingContext(outgoing)
 	require.True(t, ok)
 	ctx := metadata.NewIncomingContext(context.Background(), outgoingMetadata)
+	ctx = rpcmeta.WithAuthenticatedLocalOwner(ctx, "default")
 
 	return peer.NewContext(ctx, &peer.Peer{
 		Addr: &net.TCPAddr{IP: address, Port: 50051},

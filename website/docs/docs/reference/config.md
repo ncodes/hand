@@ -358,6 +358,48 @@ Env JSON: `MORPH_RERANKER_OVERRIDES`.
 
 Gates tool visibility. See [Tools](../concepts/tools).
 
+## `browser`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `enabled` | bool | `false` |
+| `executable` | string | `""` (automatic discovery) |
+| `defaultProfile` | string | `"default"` |
+| `profileRoot` | string | Profile-owned browser profiles directory |
+| `temporaryRoot` | string | Profile-owned browser temporary directory |
+| `startTimeout` | duration | `15s` |
+| `inactivityTimeout` | duration | `10m` |
+| `cleanupInterval` | duration | `1m` |
+| `terminalRetention` | duration | `15m` |
+
+### `browser.profiles[]`
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `name` | string | Unique profile name |
+| `mode` | string | `managed_ephemeral` or `managed_persistent` |
+| `directory` | string | Required for `managed_persistent`; must remain under `profileRoot` |
+
+### `browser.network`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `strict` | `*bool` | `true` |
+| `developmentAllowedHosts` | `[]string` | `[]` |
+| `developmentAllowedCIDRs` | `[]string` | `[]` |
+
+### `browser.artifacts`
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `root` | string | Profile-owned artifact directory |
+| `maxBytes` | bytes | `25 MiB` |
+| `maxTotalBytes` | bytes | `250 MiB` |
+| `retention` | duration | `24h` |
+
+`browser.enabled` starts the daemon-owned service. `cap.browser` controls model-visible tool eligibility. Permission
+presets and rules authorize exact browser, network, and file operations after the capability check.
+
 ## `log`
 
 | Key | Type | Default |

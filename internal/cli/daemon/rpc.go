@@ -19,6 +19,7 @@ import (
 	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/profile"
 	morphrpc "github.com/wandxy/morph/internal/rpc"
+	"github.com/wandxy/morph/internal/rpc/rpcauth"
 	"github.com/wandxy/morph/internal/rpc/server"
 	morphruntime "github.com/wandxy/morph/internal/runtime"
 	"github.com/wandxy/morph/pkg/str"
@@ -44,6 +45,7 @@ var serveRPCShutdownTimeout = 5 * time.Second
 var postShutdownServeErrHook = func(err error) error { return err }
 
 var writeRuntimeMetadata = morphruntime.WriteActive
+var loadOrCreateOwnerCredential = rpcauth.LoadOrCreate
 
 var openRPCListener = openRPCListenerImpl
 
@@ -288,11 +290,27 @@ var serveRPC = func(
 	var gatewayCfg config.GatewayConfig
 	var pairingSecret string
 	var permissionPolicy permissions.Policy
+	var browserConfig config.BrowserConfig
+	var browserCapability bool
 	if cfg != nil {
 		gatewayCfg = cfg.Gateway
 		permissionPolicy = cfg.Permissions
+		browserConfig = cfg.Browser
+		browserCapability = cfg.Cap.Browser != nil && *cfg.Cap.Browser
 		pairingSecretValue := str.String(cfg.Gateway.PairingSecret)
 		pairingSecret = pairingSecretValue.Trim()
+	}
+	activeProfile := profile.Active()
+	var ownerCredential []byte
+	if strings.TrimSpace(activeProfile.HomeDir) != "" {
+		ownerCredential, err = loadOrCreateOwnerCredential(activeProfile.HomeDir)
+		if err != nil {
+			return err
+		}
+	}
+	var browserAPI morphrpc.BrowserAPI
+	if runtime, ok := browserRuntime.(morphrpc.BrowserAPI); ok {
+		browserAPI = runtime
 	}
 
 	grpcSrv := server.New(agent, server.Options{
@@ -302,7 +320,13 @@ var serveRPC = func(
 		GatewayConfig:        gatewayCfg,
 		GatewayRuntime:       manager,
 		Automation:           automationService,
+		Browser:              browserAPI,
+		BrowserConfig:        browserConfig,
+		BrowserCapability:    browserCapability,
 		PermissionPolicy:     permissionPolicy,
+		OwnerCredential:      ownerCredential,
+		OwnerPrincipal:       activeProfile.Name,
+		ProfileName:          activeProfile.Name,
 	})
 
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)

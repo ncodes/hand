@@ -49,7 +49,7 @@ func TestRemoteCDPRelay_PinsValidatedAddressAndRewritesDiscoveryURL(t *testing.T
 
 	response, err := http.Get(getRelayRequestURL(t, relay.URL(), "/json/version"))
 	require.NoError(t, err)
-	defer response.Body.Close()
+	defer func() { require.NoError(t, response.Body.Close()) }()
 	var discovery map[string]string
 	require.NoError(t, json.NewDecoder(response.Body).Decode(&discovery))
 	rewritten, err := url.Parse(discovery["webSocketDebuggerUrl"])
@@ -101,7 +101,7 @@ func TestRemoteCDPRelay_RewritesTargetArraysAndDropsFrontendURL(t *testing.T) {
 	require.NoError(t, err)
 	response, err := http.Get(getRelayRequestURL(t, relay.URL(), "/json/list"))
 	require.NoError(t, err)
-	defer response.Body.Close()
+	defer func() { require.NoError(t, response.Body.Close()) }()
 	var targets []map[string]any
 	require.NoError(t, json.NewDecoder(response.Body).Decode(&targets))
 	require.Len(t, targets, 1)

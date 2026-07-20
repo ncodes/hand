@@ -14,6 +14,7 @@ import (
 
 	"github.com/wandxy/morph/internal/permissions"
 	morphpb "github.com/wandxy/morph/internal/rpc/proto"
+	"github.com/wandxy/morph/internal/rpc/rpcmeta"
 	"github.com/wandxy/morph/internal/state/storememory"
 )
 
@@ -106,6 +107,7 @@ func permissionOperatorContext(surface string, address string) context.Context {
 		"x-morph-permission-surface",
 		surface,
 	))
+	ctx = rpcmeta.WithAuthenticatedLocalOwner(ctx, "default")
 	return peer.NewContext(ctx, &peer.Peer{
 		Addr: &net.TCPAddr{IP: net.ParseIP(address), Port: 50051},
 	})

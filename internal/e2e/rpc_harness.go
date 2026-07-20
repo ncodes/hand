@@ -8,7 +8,9 @@ import (
 	"sync"
 
 	morphagent "github.com/wandxy/morph/internal/agent"
+	"github.com/wandxy/morph/internal/profile"
 	rpcclient "github.com/wandxy/morph/internal/rpc/client"
+	"github.com/wandxy/morph/internal/rpc/rpcauth"
 	"github.com/wandxy/morph/pkg/str"
 	"google.golang.org/grpc"
 
@@ -37,6 +39,12 @@ func NewRPCHarness(ctx context.Context, opts HarnessOptions) (*RPCHarness, error
 	if err != nil {
 		return nil, err
 	}
+	activeProfile := profile.Active()
+	ownerCredential, err := rpcauth.LoadOrCreate(activeProfile.HomeDir)
+	if err != nil {
+		_ = base.Close()
+		return nil, err
+	}
 
 	lis, err := rpcListen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -60,6 +68,9 @@ func NewRPCHarness(ctx context.Context, opts HarnessOptions) (*RPCHarness, error
 	grpcServer := server.New(serviceAPI, server.Options{
 		Health:           true,
 		PermissionPolicy: base.cfg.Permissions,
+		OwnerCredential:  ownerCredential,
+		OwnerPrincipal:   activeProfile.Name,
+		ProfileName:      activeProfile.Name,
 	})
 
 	h := &RPCHarness{

@@ -11,6 +11,7 @@ import (
 
 	morphagent "github.com/wandxy/morph/internal/agent"
 	"github.com/wandxy/morph/internal/automation"
+	"github.com/wandxy/morph/internal/browser"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/gateway"
 	"github.com/wandxy/morph/internal/guardrails"
@@ -37,6 +38,10 @@ type Service struct {
 	morphpb.UnimplementedModelServiceServer
 	api                  morphagent.ServiceAPI
 	automation           AutomationAPI
+	browser              BrowserAPI
+	browserConfig        config.BrowserConfig
+	browserCapability    bool
+	profileName          string
 	runtimeModel         ModelRuntime
 	gatewayPairingSecret string
 	gatewayConfig        config.GatewayConfig
@@ -53,6 +58,10 @@ type ServiceOptions struct {
 	GatewayConfig        config.GatewayConfig
 	GatewayRuntime       GatewayRuntime
 	Automation           AutomationAPI
+	Browser              BrowserAPI
+	BrowserConfig        config.BrowserConfig
+	BrowserCapability    bool
+	ProfileName          string
 	PermissionPolicy     permissions.Policy
 }
 
@@ -80,6 +89,13 @@ type AutomationAPI interface {
 	Runs(context.Context, automation.RunQuery) (automation.RunList, error)
 }
 
+type BrowserAPI interface {
+	Status() browser.Status
+	Start(context.Context, browser.StartRequest) (browser.Session, error)
+	Stop(context.Context, string) (browser.Session, error)
+	ReadArtifact(context.Context, string) (browser.ArtifactContent, error)
+}
+
 // NewService creates a new RPC service that wraps the shared service interface.
 func NewService(api morphagent.ServiceAPI) *Service {
 	return NewServiceWithOptions(api, ServiceOptions{})
@@ -96,6 +112,10 @@ func NewServiceWithOptions(api morphagent.ServiceAPI, opts ServiceOptions) *Serv
 	return &Service{
 		api:                  api,
 		automation:           opts.Automation,
+		browser:              opts.Browser,
+		browserConfig:        opts.BrowserConfig,
+		browserCapability:    opts.BrowserCapability,
+		profileName:          strings.TrimSpace(opts.ProfileName),
 		runtimeModel:         normalizeModelRuntime(opts.RuntimeModel),
 		gatewayPairingSecret: gatewayPairingSecretValue.Trim(),
 		gatewayConfig:        opts.GatewayConfig,

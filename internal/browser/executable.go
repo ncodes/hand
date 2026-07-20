@@ -24,6 +24,10 @@ func discoverChromiumExecutable(configured string) (string, error) {
 	return "", errors.New("chromium executable not found; configure browser.executable")
 }
 
+func DiscoverChromiumExecutable(configured string) (string, error) {
+	return discoverChromiumExecutable(configured)
+}
+
 func resolveExecutable(candidate string) (string, error) {
 	if filepath.IsAbs(candidate) {
 		info, err := os.Stat(candidate)

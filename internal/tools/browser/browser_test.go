@@ -29,6 +29,7 @@ type browserServiceStub struct {
 	dispatchedAction  browserdomain.Action
 	dispatchedRequest browserdomain.ActionRequest
 	dispatchErr       error
+	statusCalls       int
 }
 
 func (s *browserServiceStub) ResolveOperations(
@@ -42,6 +43,7 @@ func (s *browserServiceStub) ResolveOperations(
 }
 
 func (s *browserServiceStub) Status() browserdomain.Status {
+	s.statusCalls++
 	return s.status
 }
 
@@ -240,7 +242,7 @@ func TestInputSchema_HasOneClosedBranchForEverySupportedAction(t *testing.T) {
 	branches, ok := schema["oneOf"].([]any)
 	require.True(t, ok)
 	require.Len(t, branches, len(requestSpecs))
-	require.Len(t, supportedActions(), len(requestSpecs))
+	require.Len(t, browserdomain.SupportedActions(), len(requestSpecs))
 
 	seen := make(map[string]struct{}, len(branches))
 	for _, rawBranch := range branches {
@@ -393,6 +395,82 @@ func TestDefinition_ResolvesPermissionsAndDispatchesTypedAction(t *testing.T) {
 	var tab browserdomain.Tab
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &tab))
 	require.Equal(t, "tab-1", tab.ID)
+}
+
+func TestDefinition_UsesPresetAndRulePolicyForUnattendedSurfaces(t *testing.T) {
+	operation := permissions.Operation{
+		Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionRead,
+		Effects: []permissions.Effect{permissions.EffectRead}, Target: "status",
+	}
+	call := tools.Call{Name: toolName, Input: `{"action":"status"}`}
+	tests := []struct {
+		name    string
+		policy  permissions.Policy
+		context permissions.AuthorizationContext
+		allowed bool
+	}{
+		{
+			name:   "approve denies automation by default",
+			policy: permissions.Policy{Preset: permissions.PresetApproveForMe},
+			context: permissions.AuthorizationContext{
+				Actor:       permissions.Actor{Kind: permissions.ActorAutomation, ID: "auto_news"},
+				SurfaceKind: permissions.SurfaceKindAutomation, Surface: permissions.SurfaceAutomation,
+			},
+		},
+		{
+			name:   "approve denies gateway by default",
+			policy: permissions.Policy{Preset: permissions.PresetApproveForMe},
+			context: permissions.AuthorizationContext{
+				Actor:       permissions.Actor{Kind: permissions.ActorGatewayUser, ID: "user"},
+				SurfaceKind: permissions.SurfaceKindGateway, Surface: permissions.SurfaceSlack,
+			},
+		},
+		{
+			name: "narrow rule enhances approve for one automation",
+			policy: permissions.Policy{Preset: permissions.PresetApproveForMe, Rules: []permissions.Rule{{
+				Name: "allow automation browser status", ActorKinds: []permissions.ActorKind{permissions.ActorAutomation},
+				ActorIDs: []string{"auto_news"}, Surfaces: []permissions.Surface{permissions.SurfaceAutomation},
+				Tools: []string{"browser"}, Resources: []permissions.Resource{permissions.ResourceBrowser},
+				Actions: []permissions.Action{permissions.ActionRead}, Decision: permissions.DecisionAllow,
+			}}},
+			context: permissions.AuthorizationContext{
+				Actor:       permissions.Actor{Kind: permissions.ActorAutomation, ID: "auto_news"},
+				SurfaceKind: permissions.SurfaceKindAutomation, Surface: permissions.SurfaceAutomation,
+			},
+			allowed: true,
+		},
+		{
+			name:   "full access permits automation",
+			policy: permissions.Policy{Preset: permissions.PresetFullAccess},
+			context: permissions.AuthorizationContext{
+				Actor:       permissions.Actor{Kind: permissions.ActorAutomation, ID: "auto_news"},
+				SurfaceKind: permissions.SurfaceKindAutomation, Surface: permissions.SurfaceAutomation,
+			},
+			allowed: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service := &browserServiceStub{operations: []permissions.Operation{operation}}
+			registry := tools.NewDefaultRegistry(tools.RegistryOptions{PermissionPolicy: test.policy})
+			require.NoError(t, registry.Register(Definition(&toolmocks.Runtime{
+				BrowserServiceValue: service, BrowserServiceOK: true,
+			})))
+			ctx := permissions.WithContext(context.Background(), test.context)
+
+			result, err := registry.Invoke(ctx, call)
+
+			require.NoError(t, err)
+			if test.allowed {
+				require.Empty(t, result.Error)
+				require.Equal(t, 1, service.statusCalls)
+				return
+			}
+			require.Contains(t, result.Error, permissions.ErrorCodeDenied)
+			require.Zero(t, service.statusCalls)
+		})
+	}
 }
 
 func TestDefinition_StatusDoesNotExposeBackendFailureDetails(t *testing.T) {

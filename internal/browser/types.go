@@ -40,6 +40,15 @@ const (
 	ActionForward       Action = "forward"
 )
 
+func SupportedActions() []Action {
+	return []Action{
+		ActionStatus, ActionProfiles, ActionStart, ActionStop, ActionTabs, ActionOpen, ActionFocus, ActionClose,
+		ActionNavigate, ActionReload, ActionSnapshot, ActionScreenshot, ActionPDF, ActionConsole, ActionClick,
+		ActionType, ActionPress, ActionScroll, ActionSelect, ActionUpload, ActionDownload, ActionAcceptDialog,
+		ActionDismissDialog, ActionWait, ActionBack, ActionForward,
+	}
+}
+
 type ErrorCode string
 
 const (

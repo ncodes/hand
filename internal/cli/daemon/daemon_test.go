@@ -1519,6 +1519,30 @@ func TestBuildBrowserService_SkipsDisabledRuntimeAndPropagatesConstructionFailur
 	require.Nil(t, service)
 }
 
+func TestServeRPC_LoadsOwnerCredentialFromActiveProfile(t *testing.T) {
+	originalProfile := profile.Active()
+	originalLoad := loadOrCreateOwnerCredential
+	t.Cleanup(func() {
+		profile.SetActive(originalProfile)
+		loadOrCreateOwnerCredential = originalLoad
+	})
+	home := t.TempDir()
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
+	expected := errors.New("owner credential failed")
+	loadOrCreateOwnerCredential = func(actual string) ([]byte, error) {
+		require.Equal(t, home, actual)
+		return nil, expected
+	}
+	cfg := config.NewDefaultConfig()
+	cfg.RPC.Address = "127.0.0.1"
+	cfg.RPC.Port = 0
+
+	err := serveRPC(
+		context.Background(), cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil,
+	)
+	require.ErrorIs(t, err, expected)
+}
+
 func TestCloseBrowserService_UsesBoundedContextAndReturnsFailure(t *testing.T) {
 	original := stopBrowserTimeout
 	stopBrowserTimeout = time.Second
@@ -1532,6 +1556,64 @@ func TestCloseBrowserService_UsesBoundedContextAndReturnsFailure(t *testing.T) {
 		return expected
 	}}
 	require.ErrorIs(t, closeBrowserService(service), expected)
+}
+
+func TestServeRPC_ClosesBrowserRuntimeDuringShutdown(t *testing.T) {
+	originalService := newBrowserService
+	originalServe := grpcServerServe
+	originalProfile := profile.Active()
+	t.Cleanup(func() {
+		newBrowserService = originalService
+		grpcServerServe = originalServe
+		profile.SetActive(originalProfile)
+	})
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: t.TempDir()})
+
+	closed := make(chan struct{})
+	newBrowserService = func(
+		context.Context,
+		config.BrowserConfig,
+		permissions.Checker,
+		browser.Backend,
+	) (browserService, error) {
+		return browserServiceStub{close: func(context.Context) error {
+			close(closed)
+			return nil
+		}}, nil
+	}
+	started := make(chan struct{})
+	grpcServerServe = func(server *grpc.Server, listener net.Listener) error {
+		close(started)
+		return server.Serve(listener)
+	}
+
+	cfg := config.NewDefaultConfig()
+	cfg.Browser.Enabled = true
+	cfg.RPC.Address = "127.0.0.1"
+	cfg.RPC.Port = 0
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg), nil)
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("RPC server did not start")
+	}
+	cancel()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("RPC server did not stop")
+	}
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("browser runtime was not closed")
+	}
 }
 
 func TestServeRPC_ReturnsNilWhenGRPCServeReturnsServerStopped(t *testing.T) {

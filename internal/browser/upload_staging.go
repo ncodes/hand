@@ -49,7 +49,7 @@ func stageUpload(ctx context.Context, sourcePath, stagingRoot string, maxBytes i
 	if err != nil {
 		return stagedUpload{}, err
 	}
-	defer source.Close()
+	defer func() { _ = source.Close() }()
 	name := nanoid.MustGenerate(uploadStagingPrefix) + getSafeUploadExtension(sourcePath)
 	destinationPath := filepath.Join(stagingRoot, name)
 	destination, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)

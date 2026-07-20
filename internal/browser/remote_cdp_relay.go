@@ -184,9 +184,10 @@ func (r *remoteCDPRelay) getTransport(port uint16) *http.Transport {
 
 func (r *remoteCDPRelay) directRequest(request *http.Request) {
 	scheme := r.endpoint.Scheme
-	if scheme == "ws" {
+	switch scheme {
+	case "ws":
 		scheme = "http"
-	} else if scheme == "wss" {
+	case "wss":
 		scheme = "https"
 	}
 	request.URL.Scheme = scheme

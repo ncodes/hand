@@ -156,13 +156,22 @@ func (s *Service) Start(ctx context.Context, request StartRequest) (Session, err
 	}
 	profile, ok := s.cfg.Profile(profileName)
 	if !ok {
-		return Session{}, errors.New("browser profile is not configured")
+		return Session{}, &Error{
+			Code: ErrorInvalidRequest, Operation: ActionStart,
+			Err: errors.New("browser profile is not configured"),
+		}
 	}
 	if !s.cfg.Enabled {
-		return Session{}, errors.New("browser service is disabled")
+		return Session{}, &Error{
+			Code: ErrorUnavailable, Operation: ActionStart,
+			Err: errors.New("browser service is disabled"),
+		}
 	}
 	if profile.Mode == config.BrowserProfileExistingSession {
-		return Session{}, errors.New("existing browser session profiles require explicit attachment support")
+		return Session{}, &Error{
+			Code: ErrorUnavailable, Operation: ActionStart,
+			Err: errors.New("existing browser session profiles require explicit attachment support"),
+		}
 	}
 	if err := s.authorizeStart(ctx, profile); err != nil {
 		return Session{}, err
@@ -176,7 +185,10 @@ func (s *Service) Start(ctx context.Context, request StartRequest) (Session, err
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return Session{}, errors.New("browser service is closed")
+		return Session{}, &Error{
+			Code: ErrorClosed, Operation: ActionStart,
+			Err: errors.New("browser service is closed"),
+		}
 	}
 	s.sessions[runtime.ID] = runtime
 	s.mu.Unlock()
@@ -219,7 +231,10 @@ func (s *Service) Start(ctx context.Context, request StartRequest) (Session, err
 	if s.closed || runtime.State == SessionStopping || runtime.State == SessionStopped {
 		s.mu.Unlock()
 		_ = s.cleanupRuntime(context.Background(), runtime)
-		return runtime.Session, errors.New("browser service closed during startup")
+		return runtime.Session, &Error{
+			Code: ErrorClosed, Operation: ActionStart,
+			Err: errors.New("browser service closed during startup"),
+		}
 	}
 	runtime.State = SessionReady
 	runtime.LastActive = s.now()
@@ -526,12 +541,12 @@ func (s *Service) getOwnedSession(id string, owner Owner) (*managedSession, erro
 	runtime, ok := s.sessions[id]
 	if !ok {
 		s.mu.RUnlock()
-		return nil, errors.New("browser session not found")
+		return nil, &Error{Code: ErrorNotFound, Err: errors.New("browser session not found")}
 	}
 	if runtime.Owner.Actor != owner.Actor || runtime.Owner.Profile != owner.Profile ||
 		runtime.Owner.SessionID != owner.SessionID {
 		s.mu.RUnlock()
-		return nil, errors.New("browser session belongs to another owner")
+		return nil, &Error{Code: ErrorOwnership, Err: errors.New("browser session belongs to another owner")}
 	}
 	s.mu.RUnlock()
 
