@@ -35,15 +35,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if err != nil {
 				return nil, err
 			}
-			operations, err := service.ResolveOperations(ctx, request.Action, actionRequestFromRequest(request))
-			if err != nil {
-				return nil, err
-			}
-			inputs := make([]permissions.EvaluationInput, len(operations))
-			for index, operation := range operations {
-				inputs[index] = permissions.EvaluationInput{Operation: operation}
-			}
-			return inputs, nil
+			return service.ResolvePermissionInputs(ctx, request.Action, actionRequestFromRequest(request))
 		},
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			request, err := decodeRequest(call.Input)

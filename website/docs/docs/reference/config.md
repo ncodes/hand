@@ -377,8 +377,39 @@ Gates tool visibility. See [Tools](../concepts/tools).
 | Key | Type | Notes |
 | --- | --- | --- |
 | `name` | string | Unique profile name |
-| `mode` | string | `managed_ephemeral` or `managed_persistent` |
+| `mode` | string | `managed_ephemeral`, `managed_persistent`, `remote_cdp`, or `existing_session` |
 | `directory` | string | Required for `managed_persistent`; must remain under `profileRoot` |
+| `cdpEndpoint` | string | HTTP(S) discovery or WS(S) endpoint for attached profiles |
+| `credentialRef` | string | Optional `env:VARIABLE` holding a Basic/Bearer value or bearer token |
+| `dataIdentity` | string | Stable, non-secret browser-data identity required for `existing_session` |
+| `attachmentScope` | string | Required for attached profiles: `targets`, `context`, or `browser` |
+| `browserContextId` | string | Required when `attachmentScope: context` |
+| `targetIds` | `[]string` | Required when `attachmentScope: targets` |
+
+`existing_session` cannot be the default profile. Select it explicitly when starting a browser session. A
+whole-browser attachment must use `attachmentScope: browser`, which intentionally grants visibility across browser
+contexts and is shown with a stronger warning.
+
+```yaml
+browser:
+  profiles:
+    - name: signed-in-work
+      mode: existing_session
+      cdpEndpoint: http://127.0.0.1:9222
+      credentialRef: env:MORPH_CDP_TOKEN
+      dataIdentity: chrome-work-profile
+      attachmentScope: context
+      browserContextId: context-id-from-cdp
+  network:
+    developmentAllowedHosts:
+      - 127.0.0.1
+```
+
+Changing the endpoint, credential value, data identity, or attachment scope changes the private approval fingerprint.
+Under `ask`, `approve`, and `custom`, attaching to `existing_session` always requires local-owner approval. Network
+actions on attached browsers require `full_access`. A loopback CDP endpoint also requires an explicit network exception
+such as the one above. That exception weakens loopback protection for browser traffic, so use it only for a trusted
+local CDP endpoint.
 
 ### `browser.network`
 

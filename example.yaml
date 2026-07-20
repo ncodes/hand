@@ -161,6 +161,10 @@
 #       directory: ""
 #       cdpEndpoint: ""
 #       credentialRef: ""
+#       dataIdentity: ""
+#       attachmentScope: ""
+#       browserContextId: ""
+#       targetIds: []
 #   network:
 #     strict: true
 #     developmentAllowedHosts: []

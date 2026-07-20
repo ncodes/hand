@@ -47,16 +47,20 @@ func TestBrowserAuthRotate_ReplacesCredentialAndRequiresRestart(t *testing.T) {
 	require.NoError(t, NewCommand().Run(context.Background(), []string{"browser", "auth", "rotate"}))
 	require.Equal(t, home, rotatedHome)
 	require.Contains(t, output.String(), "restart the daemon")
+	require.Contains(t, output.String(), "reapprove browser attachments")
 }
 
 func TestBrowserCommands_RenderStatusProfilesSessionsAndConfig(t *testing.T) {
 	now := time.Date(2026, 7, 19, 15, 0, 0, 0, time.Local)
 	api := &browserCommandAPI{
 		status: browserdomain.Status{
-			Enabled:  true,
-			Profiles: []browserdomain.Profile{{Name: "default", Mode: "managed_ephemeral", Default: true, Available: true}},
+			Enabled: true,
+			Profiles: []browserdomain.Profile{{
+				Name: "default", Mode: "managed_ephemeral", Default: true, Available: true, Warning: "profile warning",
+			}},
 			Sessions: []browserdomain.Session{{
-				ID: "browser_1", Profile: "default", State: browserdomain.SessionReady, LastActive: now,
+				ID: "browser_1", Profile: "default", State: browserdomain.SessionReady,
+				LastActive: now, Warning: "session warning",
 			}},
 		},
 		config: rpcclient.BrowserEffectiveConfig{
@@ -71,8 +75,8 @@ func TestBrowserCommands_RenderStatusProfilesSessionsAndConfig(t *testing.T) {
 		want string
 	}{
 		{args: []string{"browser", "status"}, want: "enabled: true\nprofiles: 1\nsessions: 1"},
-		{args: []string{"browser", "profiles"}, want: "default  managed_ephemeral  true     true"},
-		{args: []string{"browser", "sessions"}, want: "browser_1  default  ready"},
+		{args: []string{"browser", "profiles"}, want: "profile warning"},
+		{args: []string{"browser", "sessions"}, want: "session warning"},
 		{args: []string{"browser", "config"}, want: "permission preset: approve"},
 	} {
 		output := &bytes.Buffer{}
@@ -86,8 +90,10 @@ func TestBrowserCommands_RenderStatusProfilesSessionsAndConfig(t *testing.T) {
 func TestBrowserCommands_StartStopAndJSONOutput(t *testing.T) {
 	api := &browserCommandAPI{
 		status: browserdomain.Status{Enabled: true},
-		start:  browserdomain.Session{ID: "browser_1", State: browserdomain.SessionReady},
-		stop:   browserdomain.Session{ID: "browser_1", State: browserdomain.SessionStopped},
+		start: browserdomain.Session{
+			ID: "browser_1", State: browserdomain.SessionReady, Warning: "personal profile warning",
+		},
+		stop: browserdomain.Session{ID: "browser_1", State: browserdomain.SessionStopped},
 	}
 	configureBrowserCommandTest(t, api)
 	output := &bytes.Buffer{}
@@ -100,6 +106,7 @@ func TestBrowserCommands_StartStopAndJSONOutput(t *testing.T) {
 	require.Equal(t, "default", api.startProfile)
 	require.Equal(t, "main", api.startOwnerSession)
 	require.Contains(t, output.String(), "browser_1")
+	require.Contains(t, output.String(), "WARNING: personal profile warning")
 
 	output.Reset()
 	require.NoError(t, NewCommand().Run(context.Background(), []string{

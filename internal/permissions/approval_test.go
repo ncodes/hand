@@ -48,7 +48,7 @@ func TestApprovalService_AuthorizeBatchCreatesOrderIndependentCompositeGrant(t *
 	)
 	require.NoError(t, err)
 	inputs := []permissions.EvaluationInput{
-		{Operation: permissions.Operation{
+		{ApprovalReason: "Personal browser attachment exposes signed-in sessions.", Operation: permissions.Operation{
 			Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionUpdate,
 			Effects: []permissions.Effect{permissions.EffectWrite}, Target: "tab=one",
 		}},
@@ -65,6 +65,7 @@ func TestApprovalService_AuthorizeBatchCreatesOrderIndependentCompositeGrant(t *
 		permissions.EffectRead, permissions.EffectWrite, permissions.EffectNetwork,
 	}, request.Effects)
 	require.Equal(t, "browser · approve 2 operations", request.Summary)
+	require.Contains(t, request.Reason, "Personal browser attachment exposes signed-in sessions.")
 	require.Contains(t, request.Reason, "GET https://example.com:443/news")
 	require.NotContains(t, request.Reason, "secret")
 	require.NotContains(t, request.Reason, network.QueryHash)

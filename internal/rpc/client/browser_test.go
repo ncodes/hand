@@ -19,11 +19,13 @@ func TestBrowserService_TranslatesRPCOperations(t *testing.T) {
 	now := time.Date(2026, 7, 19, 14, 0, 0, 0, time.UTC)
 	stub := &browserServiceClientStub{
 		status: &morphpb.BrowserStatus{
-			Enabled:  true,
-			Profiles: []*morphpb.BrowserProfile{{Name: "default", Mode: "managed_ephemeral", Default: true, Available: true}},
+			Enabled: true,
+			Profiles: []*morphpb.BrowserProfile{{
+				Name: "default", Mode: "managed_ephemeral", Default: true, Available: true, Warning: "profile warning",
+			}},
 			Sessions: []*morphpb.BrowserSession{{
 				Id: "browser_1", Profile: "default", State: "ready",
-				CreatedAt: timestamppb.New(now), LastActive: timestamppb.New(now),
+				CreatedAt: timestamppb.New(now), LastActive: timestamppb.New(now), Warning: "session warning",
 			}},
 		},
 		artifact: &morphpb.BrowserArtifact{
@@ -38,9 +40,11 @@ func TestBrowserService_TranslatesRPCOperations(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, statusValue.Enabled)
 	require.Equal(t, now, statusValue.Sessions[0].CreatedAt)
+	require.Equal(t, "session warning", statusValue.Sessions[0].Warning)
 	profiles, err := service.Profiles(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, "default", profiles[0].Name)
+	require.Equal(t, "profile warning", profiles[0].Warning)
 	sessions, err := service.Sessions(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, browser.SessionReady, sessions[0].State)

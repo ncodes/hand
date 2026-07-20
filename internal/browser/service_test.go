@@ -13,9 +13,39 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/permissions"
+	"github.com/wandxy/morph/internal/state/storememory"
 )
 
 type checkerFunc func(context.Context, permissions.EvaluationInput) (permissions.Evaluation, error)
+
+var testAttachmentIdentityKey = []byte("0123456789abcdef0123456789abcdef")
+
+type recordingBatchApprover struct {
+	inputs  []permissions.EvaluationInput
+	commits int
+}
+
+type recordingBatchApproval struct {
+	approver *recordingBatchApprover
+}
+
+func (a *recordingBatchApprover) Authorize(_ context.Context, input permissions.EvaluationInput) error {
+	a.inputs = append(a.inputs, input)
+	return nil
+}
+
+func (a *recordingBatchApprover) PrepareBatch(
+	_ context.Context,
+	inputs []permissions.EvaluationInput,
+) (permissions.BatchApproval, error) {
+	a.inputs = append(a.inputs, inputs...)
+	return recordingBatchApproval{approver: a}, nil
+}
+
+func (a recordingBatchApproval) Commit(context.Context) error {
+	a.approver.commits++
+	return nil
+}
 
 func (f checkerFunc) Check(ctx context.Context, input permissions.EvaluationInput) (permissions.Evaluation, error) {
 	return f(ctx, input)
@@ -170,6 +200,7 @@ func TestService_StrictRemotePolicyBlocksBeforeBackendStart(t *testing.T) {
 	cfg := testBrowserConfig(t)
 	cfg.Profiles = []config.BrowserProfileConfig{{
 		Name: "remote", Mode: config.BrowserProfileRemoteCDP, CDPEndpoint: "http://127.0.0.1:9222",
+		AttachmentScope: config.BrowserAttachmentBrowser,
 	}}
 	cfg.DefaultProfile = "remote"
 	backend := &fakeBackend{}
@@ -179,7 +210,10 @@ func TestService_StrictRemotePolicyBlocksBeforeBackendStart(t *testing.T) {
 			permissions.SurfaceKindLocal: permissions.DecisionAllow,
 		},
 	}
-	service, err := NewService(context.Background(), cfg, permissions.NewEngine(policy), backend)
+	service, err := NewService(
+		context.Background(), cfg, permissions.NewEngine(policy), backend,
+		WithAttachmentIdentityKey(testAttachmentIdentityKey),
+	)
 	require.NoError(t, err)
 
 	_, err = service.Start(testBrowserContext("owner", "session"), StartRequest{})
@@ -194,11 +228,13 @@ func TestService_FullAccessCanUseExplicitRemoteEndpoint(t *testing.T) {
 	cfg := testBrowserConfig(t)
 	cfg.Profiles = []config.BrowserProfileConfig{{
 		Name: "remote", Mode: config.BrowserProfileRemoteCDP, CDPEndpoint: "http://127.0.0.1:9222",
+		AttachmentScope: config.BrowserAttachmentBrowser,
 	}}
 	cfg.DefaultProfile = "remote"
 	backend := &fakeBackend{}
 	service, err := NewService(
 		context.Background(), cfg, permissions.NewEngine(permissions.Policy{Preset: permissions.PresetFullAccess}), backend,
+		WithAttachmentIdentityKey(testAttachmentIdentityKey),
 	)
 	require.NoError(t, err)
 	ctx := permissions.WithPreset(testBrowserContext("owner", "session"), permissions.PresetFullAccess)
@@ -208,6 +244,7 @@ func TestService_FullAccessCanUseExplicitRemoteEndpoint(t *testing.T) {
 	require.Equal(t, SessionReady, session.State)
 	require.Equal(t, []Profile{{
 		Name: "remote", Mode: config.BrowserProfileRemoteCDP, Default: true, Available: true,
+		Warning: wholeBrowserWarning,
 	}}, service.Status().Profiles)
 	require.NotEqual(t, cfg.Profiles[0].CDPEndpoint, backend.options.CDPEndpoint)
 	require.Contains(t, backend.options.CDPEndpoint, "127.0.0.1:")
@@ -304,22 +341,224 @@ func TestService_CloseDuringStartupLeavesSessionStoppedAndClosesLateBackend(t *t
 	require.NoError(t, backend.session.closeCtxErr)
 }
 
-func TestService_ExistingSessionProfileIsUnavailable(t *testing.T) {
+func TestService_ExistingSessionProfileStartsWithFullAccess(t *testing.T) {
 	cfg := testBrowserConfig(t)
 	cfg.Profiles = []config.BrowserProfileConfig{{
 		Name: "personal", Mode: config.BrowserProfileExistingSession, CDPEndpoint: "http://127.0.0.1:9222",
+		DataIdentity: "daily-profile", AttachmentScope: config.BrowserAttachmentBrowser,
 	}}
 	cfg.DefaultProfile = "personal"
 	backend := &fakeBackend{}
-	service, err := NewService(context.Background(), cfg, allowChecker(), backend)
+	service, err := NewService(
+		context.Background(), cfg, permissions.NewEngine(permissions.Policy{Preset: permissions.PresetFullAccess}), backend,
+		WithAttachmentIdentityKey(testAttachmentIdentityKey),
+	)
 	require.NoError(t, err)
 	require.Equal(t, []Profile{{
-		Name: "personal", Mode: config.BrowserProfileExistingSession, Default: true, Available: false,
+		Name: "personal", Mode: config.BrowserProfileExistingSession, Default: true, Available: true,
+		Warning: existingSessionWarning + " " + wholeBrowserWarning,
 	}}, service.Status().Profiles)
-	_, err = service.Start(testBrowserContext("owner", "session"), StartRequest{})
-	require.EqualError(t, err, "existing browser session profiles require explicit attachment support")
-	require.Zero(t, backend.starts)
+	ctx := permissions.WithPreset(testBrowserContext("owner", "session"), permissions.PresetFullAccess)
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+	require.Equal(t, existingSessionWarning+" "+wholeBrowserWarning, session.Warning)
+	require.Equal(t, 1, backend.starts)
+	require.Empty(t, backend.options.Executable)
+	require.Empty(t, backend.options.DataDir)
 	require.NoError(t, service.Close(context.Background()))
+}
+
+func TestService_StatusMarksUnresolvedAttachmentUnavailable(t *testing.T) {
+	cfg := testBrowserConfig(t)
+	cfg.Profiles = append(cfg.Profiles, config.BrowserProfileConfig{
+		Name: "remote", Mode: config.BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
+		CredentialRef: "env:MISSING_CDP_TOKEN", AttachmentScope: config.BrowserAttachmentBrowser,
+	})
+	service, err := NewService(
+		context.Background(), cfg, allowChecker(), &fakeBackend{},
+		WithAttachmentIdentityKey(testAttachmentIdentityKey),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+
+	profiles := service.Status().Profiles
+	require.Len(t, profiles, 2)
+	require.True(t, profiles[0].Available)
+	require.False(t, profiles[1].Available)
+	require.Contains(t, profiles[1].Warning, "configuration is unavailable")
+}
+
+func TestService_ExistingSessionForcesCompositeApprovalAndBindsCredentialIdentity(t *testing.T) {
+	cfg := testBrowserConfig(t)
+	cfg.Network.Strict = new(false)
+	cfg.Profiles = append(cfg.Profiles, config.BrowserProfileConfig{
+		Name: "personal", Mode: config.BrowserProfileExistingSession, CDPEndpoint: "http://127.0.0.1:9222",
+		CredentialRef: "env:CDP_TOKEN", DataIdentity: "daily-profile",
+		AttachmentScope: config.BrowserAttachmentContext, BrowserContextID: "context-1",
+	})
+	backend := &fakeBackend{}
+	checker := permissions.NewEngine(permissions.Policy{
+		Default: permissions.DecisionAllow,
+		SurfaceKindDefaults: map[permissions.SurfaceKind]permissions.Decision{
+			permissions.SurfaceKindLocal: permissions.DecisionAllow,
+		},
+	})
+	service, err := NewService(
+		context.Background(), cfg, checker, backend,
+		WithAttachmentIdentityKey(testAttachmentIdentityKey),
+		WithCredentialResolver(func(string) (string, error) { return "token", nil }),
+	)
+	require.NoError(t, err)
+	approver := &recordingBatchApprover{}
+	service.SetApprover(approver)
+
+	session, err := service.Start(
+		testBrowserContext("owner", "session"), StartRequest{Profile: "personal"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, 1, approver.commits)
+	require.Len(t, approver.inputs, 2)
+	for _, input := range approver.inputs {
+		require.Equal(t, existingSessionWarning, input.ApprovalReason)
+		require.Contains(t, input.Operation.Effects, permissions.EffectCredentialBearing)
+		require.NotContains(t, input.Operation.Target, "token")
+		if input.Operation.Resource == permissions.ResourceBrowser {
+			require.Contains(t, input.Operation.Target, "attachment_id=")
+		}
+	}
+	require.Equal(t, config.BrowserAttachmentContext, backend.options.AttachmentScope)
+	require.Equal(t, "context-1", backend.options.BrowserContextID)
+	require.NoError(t, service.Close(context.Background()))
+	require.Equal(t, SessionReady, session.State)
+}
+
+func TestService_ExistingSessionUsesPreflightedCompositeApprovalWithoutPromptingAgain(t *testing.T) {
+	cfg := testBrowserConfig(t)
+	cfg.Network.Strict = new(false)
+	cfg.Profiles = append(cfg.Profiles, config.BrowserProfileConfig{
+		Name: "personal", Mode: config.BrowserProfileExistingSession, CDPEndpoint: "http://127.0.0.1:9222",
+		DataIdentity: "daily-profile", AttachmentScope: config.BrowserAttachmentContext,
+		BrowserContextID: "context-1",
+	})
+	backend := &fakeBackend{}
+	checker := permissions.NewEngine(permissions.Policy{
+		Default: permissions.DecisionAllow,
+		SurfaceKindDefaults: map[permissions.SurfaceKind]permissions.Decision{
+			permissions.SurfaceKindLocal: permissions.DecisionAllow,
+		},
+	})
+	service, err := NewService(
+		context.Background(), cfg, checker, backend,
+		WithAttachmentIdentityKey(testAttachmentIdentityKey),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	approver := &recordingBatchApprover{}
+	service.SetApprover(approver)
+	ctx := testBrowserContext("owner", "session")
+	inputs, err := service.ResolvePermissionInputs(
+		ctx, ActionStart, ActionRequest{Profile: "personal"},
+	)
+	require.NoError(t, err)
+	require.Len(t, inputs, 3)
+	operations := make([]permissions.Operation, len(inputs))
+	forcedApprovals := 0
+	for index, input := range inputs {
+		operations[index] = input.Operation
+		if input.ApprovalReason == existingSessionWarning {
+			forcedApprovals++
+		}
+	}
+	require.Equal(t, 2, forcedApprovals)
+
+	ctx = permissions.WithAuthorizedOperations(ctx, operations)
+	session, err := service.Start(ctx, StartRequest{Profile: "personal"})
+	require.NoError(t, err)
+	require.Equal(t, SessionReady, session.State)
+	require.Empty(t, approver.inputs)
+	require.Zero(t, approver.commits)
+	require.Equal(t, 1, backend.starts)
+}
+
+func TestService_ExistingSessionRevokedGrantCannotAuthorizeLaterStart(t *testing.T) {
+	cfg := testBrowserConfig(t)
+	cfg.Network.Strict = new(false)
+	cfg.Profiles = append(cfg.Profiles, config.BrowserProfileConfig{
+		Name: "personal", Mode: config.BrowserProfileExistingSession, CDPEndpoint: "http://127.0.0.1:9222",
+		DataIdentity: "daily-profile", AttachmentScope: config.BrowserAttachmentContext,
+		BrowserContextID: "context-1",
+	})
+	backend := &fakeBackend{}
+	checker := permissions.NewEngine(permissions.Policy{
+		Default: permissions.DecisionAllow,
+		SurfaceKindDefaults: map[permissions.SurfaceKind]permissions.Decision{
+			permissions.SurfaceKindLocal: permissions.DecisionAllow,
+		},
+	})
+	service, err := NewService(
+		context.Background(), cfg, checker, backend,
+		WithAttachmentIdentityKey(testAttachmentIdentityKey),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	approval, err := permissions.NewApprovalService(
+		storememory.NewStore(), permissions.ApprovalOptions{RequestTTL: time.Second},
+	)
+	require.NoError(t, err)
+	service.SetApprover(approval)
+	ctx := testBrowserContext("owner", "session")
+
+	firstResult := make(chan error, 1)
+	go func() {
+		_, startErr := service.Start(ctx, StartRequest{Profile: "personal"})
+		firstResult <- startErr
+	}()
+	firstRequest := waitForPendingBrowserApproval(t, approval)
+	require.Contains(t, firstRequest.Reason, existingSessionWarning)
+	resolved, err := approval.Resolve(context.Background(), firstRequest.ID, true, permissions.GrantSession)
+	require.NoError(t, err)
+	require.NoError(t, <-firstResult)
+	require.NotEmpty(t, resolved.GrantID)
+	status := service.Status()
+	require.Len(t, status.Sessions, 1)
+	_, err = service.Stop(ctx, status.Sessions[0].ID)
+	require.NoError(t, err)
+	_, err = approval.Revoke(context.Background(), resolved.GrantID)
+	require.NoError(t, err)
+
+	secondResult := make(chan error, 1)
+	go func() {
+		_, startErr := service.Start(ctx, StartRequest{Profile: "personal"})
+		secondResult <- startErr
+	}()
+	secondRequest := waitForPendingBrowserApproval(t, approval)
+	require.NotEqual(t, firstRequest.ID, secondRequest.ID)
+	require.Equal(t, 1, backend.starts)
+	_, err = approval.Resolve(context.Background(), secondRequest.ID, false, "")
+	require.NoError(t, err)
+	decision, ok := permissions.GetDecisionError(<-secondResult)
+	require.True(t, ok)
+	require.Equal(t, permissions.ErrorCodeDenied, decision.Code)
+	require.Equal(t, 1, backend.starts)
+}
+
+func waitForPendingBrowserApproval(
+	t *testing.T,
+	service *permissions.ApprovalService,
+) permissions.ApprovalRequest {
+	t.Helper()
+	var request permissions.ApprovalRequest
+	require.Eventually(t, func() bool {
+		requests, err := service.List(context.Background(), permissions.ApprovalQuery{
+			Status: permissions.ApprovalPending,
+		})
+		if err != nil || len(requests) == 0 {
+			return false
+		}
+		request = requests[0]
+		return true
+	}, time.Second, time.Millisecond)
+	return request
 }
 
 func TestService_AuthorizeAppliesNetworkHardDenyUnlessFullAccess(t *testing.T) {
@@ -345,6 +584,24 @@ func TestService_AuthorizeAppliesNetworkHardDenyUnlessFullAccess(t *testing.T) {
 	fullAccess := permissions.WithFullAccess(testBrowserContext("owner", "session"))
 	fullAccess = permissions.WithPreset(fullAccess, permissions.PresetFullAccess)
 	require.NoError(t, service.Authorize(fullAccess, request))
+	restricted := permissions.WithContext(context.Background(), permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner, ID: "owner"},
+		Surface: permissions.SurfaceTUI, Profile: "default", SessionID: "session",
+		Scope: permissions.PermissionScope{
+			Restricted: true, Resources: []permissions.Resource{permissions.ResourceBrowser},
+			Actions: []permissions.Action{permissions.ActionUpdate},
+			Effects: []permissions.Effect{
+				permissions.EffectRead, permissions.EffectWrite, permissions.EffectNetwork,
+				permissions.EffectExternalSystem,
+			},
+		},
+	})
+	restricted = permissions.WithPreset(restricted, permissions.PresetFullAccess)
+	restricted = permissions.WithFullAccess(restricted)
+	err = service.Authorize(restricted, request)
+	decision, ok = permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ReasonScopeExceeded, decision.Evaluation.ReasonCode)
 	require.NoError(t, service.Close(context.Background()))
 }
 

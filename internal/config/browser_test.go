@@ -223,7 +223,7 @@ func TestConfig_ValidateRejectsUnsafeBrowserProfiles(t *testing.T) {
 			mutate: func(cfg *Config) {
 				cfg.Browser.Profiles[0].Directory = filepath.Join(root, "ephemeral")
 			},
-			message: `browser profile "default": managed ephemeral profile cannot set directory, CDP endpoint, or credential reference`,
+			message: `browser profile "default": managed ephemeral profile cannot set attachment configuration`,
 		},
 		{
 			name: "persistent missing directory",
@@ -241,7 +241,7 @@ func TestConfig_ValidateRejectsUnsafeBrowserProfiles(t *testing.T) {
 				}}
 				cfg.Browser.DefaultProfile = "remote"
 			},
-			message: `browser profile "remote": remote CDP profile cannot set a directory`,
+			message: `browser profile "remote": attached browser profile cannot set a directory`,
 		},
 		{
 			name: "remote credentials",
@@ -252,7 +252,7 @@ func TestConfig_ValidateRejectsUnsafeBrowserProfiles(t *testing.T) {
 				}}
 				cfg.Browser.DefaultProfile = "remote"
 			},
-			message: `browser profile "remote": CDP credential references require attachment support`,
+			message: `browser profile "remote": CDP credential reference must use env:VARIABLE`,
 		},
 		{
 			name: "duplicate profiles",
@@ -278,6 +278,17 @@ func TestConfig_ValidateRejectsUnsafeBrowserProfiles(t *testing.T) {
 				cfg.Browser.DefaultProfile = "missing"
 			},
 			message: "browser default profile must reference a configured profile",
+		},
+		{
+			name: "existing session default",
+			mutate: func(cfg *Config) {
+				cfg.Browser.Profiles = []BrowserProfileConfig{{
+					Name: "personal", Mode: BrowserProfileExistingSession, CDPEndpoint: "https://example.com",
+					DataIdentity: "daily", AttachmentScope: BrowserAttachmentBrowser,
+				}}
+				cfg.Browser.DefaultProfile = "personal"
+			},
+			message: "browser default profile must not attach to an existing session",
 		},
 		{
 			name: "invalid profile mode",
@@ -325,14 +336,17 @@ func TestConfig_ValidateRejectsSymbolicLinkBrowserProfile(t *testing.T) {
 func TestConfigClone_BrowserConfigurationDoesNotAlias(t *testing.T) {
 	first := NewDefaultConfig()
 	first.Browser.Network.DevelopmentAllowedHosts = []string{"localhost"}
+	first.Browser.Profiles[0].TargetIDs = []string{"target-1"}
 	first.Browser.Profiles = append(first.Browser.Profiles, BrowserProfileConfig{Name: "other", Mode: BrowserProfileManagedEphemeral})
 	second := cloneConfig(*first)
 
 	first.Browser.Network.DevelopmentAllowedHosts[0] = "changed"
 	first.Browser.Profiles[0].Name = "changed"
+	first.Browser.Profiles[0].TargetIDs[0] = "changed"
 	*first.Browser.Network.Strict = false
 
 	require.Equal(t, []string{"localhost"}, second.Browser.Network.DevelopmentAllowedHosts)
 	require.Equal(t, DefaultBrowserProfileName, second.Browser.Profiles[0].Name)
+	require.Equal(t, []string{"target-1"}, second.Browser.Profiles[0].TargetIDs)
 	require.True(t, second.Browser.Network.StrictEnabled())
 }

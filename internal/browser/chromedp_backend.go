@@ -30,6 +30,7 @@ type networkAuthorization struct {
 type chromiumSession struct {
 	ctx                context.Context
 	cancelContext      context.CancelFunc
+	cancelBootstrap    context.CancelFunc
 	cancelAllocator    context.CancelFunc
 	process            *browserProcess
 	once               sync.Once
@@ -53,6 +54,11 @@ type chromiumSession struct {
 	downloadMaxBytes   int64
 	downloadLimitSent  bool
 	downloadRoot       string
+	attachmentScope    string
+	browserContextID   string
+	attachmentTargets  map[string]struct{}
+	quarantinedTargets map[string]struct{}
+	attached           bool
 	closeErr           error
 }
 
@@ -120,15 +126,29 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 		return nil, errors.New("browser profile mode is invalid")
 	}
 
-	browserCtx, cancelContext := chromedp.NewContext(allocatorCtx)
+	browserCtx, cancelContext, cancelBootstrap, err := prepareInitialBrowserContext(startCtx, allocatorCtx, opts)
+	if err != nil {
+		cancelAllocator()
+		return nil, err
+	}
+	if isAttachedProfile(opts.Mode) {
+		cancelContext = getAttachedContextCancel(browserCtx, cancelContext)
+	}
 	session := &chromiumSession{
-		ctx: browserCtx, cancelContext: cancelContext, cancelAllocator: cancelAllocator, process: process,
+		ctx: browserCtx, cancelContext: cancelContext, cancelBootstrap: cancelBootstrap,
+		cancelAllocator: cancelAllocator, process: process,
 		tabContexts: make(map[string]context.Context), tabCancels: make(map[string]context.CancelFunc),
 		networkAuthorizers: make(map[string]networkAuthorization), openingTabIDs: make(map[string]struct{}),
 		networkErrors: make(map[string]error), consoleMessages: make(map[string][]ConsoleMessage),
 		dialogResponses: make(map[string]dialogResponse), downloadEvents: make(chan any, 4),
 		proxyUser: opts.ProxyUser, proxySecret: opts.ProxySecret,
-		downloadRoot: opts.DownloadRoot,
+		downloadRoot:    opts.DownloadRoot,
+		attachmentScope: opts.AttachmentScope, browserContextID: opts.BrowserContextID,
+		attachmentTargets:  make(map[string]struct{}, len(opts.TargetIDs)),
+		quarantinedTargets: make(map[string]struct{}), attached: isAttachedProfile(opts.Mode),
+	}
+	for _, id := range opts.TargetIDs {
+		session.attachmentTargets[id] = struct{}{}
 	}
 	actions := []chromedp.Action{
 		network.Enable(),
@@ -169,6 +189,102 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 	case <-startCtx.Done():
 		_ = session.Close(context.Background())
 		return nil, startCtx.Err()
+	}
+}
+
+func prepareInitialBrowserContext(
+	ctx context.Context,
+	allocatorCtx context.Context,
+	opts LaunchOptions,
+) (context.Context, context.CancelFunc, context.CancelFunc, error) {
+	switch opts.AttachmentScope {
+	case config.BrowserAttachmentTargets:
+		if len(opts.TargetIDs) == 0 {
+			return nil, nil, nil, errors.New("target-scoped browser attachment requires a target ID")
+		}
+		browserCtx, cancel := chromedp.NewContext(
+			allocatorCtx, chromedp.WithTargetID(target.ID(opts.TargetIDs[0])),
+		)
+		return browserCtx, cancel, nil, nil
+	case config.BrowserAttachmentContext, config.BrowserAttachmentBrowser:
+		return prepareScopedBrowserContext(ctx, allocatorCtx, opts)
+	default:
+		browserCtx, cancel := chromedp.NewContext(allocatorCtx)
+		return browserCtx, cancel, nil, nil
+	}
+}
+
+func prepareScopedBrowserContext(
+	ctx context.Context,
+	allocatorCtx context.Context,
+	opts LaunchOptions,
+) (context.Context, context.CancelFunc, context.CancelFunc, error) {
+	bootstrapCtx, cancelBootstrap := chromedp.NewContext(allocatorCtx)
+	stop := context.AfterFunc(ctx, cancelBootstrap)
+	defer stop()
+	chromiumCtx := chromedp.FromContext(bootstrapCtx)
+	if chromiumCtx == nil || chromiumCtx.Allocator == nil {
+		cancelBootstrap()
+		return nil, nil, nil, errors.New("browser connection is unavailable")
+	}
+	if chromiumCtx.Browser == nil {
+		browser, err := chromiumCtx.Allocator.Allocate(bootstrapCtx)
+		if err != nil {
+			cancelBootstrap()
+			return nil, nil, nil, err
+		}
+		chromiumCtx.Browser = browser
+	}
+	infos, err := target.GetTargets().Do(cdp.WithExecutor(bootstrapCtx, chromiumCtx.Browser))
+	if err != nil {
+		cancelBootstrap()
+		return nil, nil, nil, err
+	}
+	selected := getAttachmentTarget(infos, opts.AttachmentScope, opts.BrowserContextID)
+	if selected == "" {
+		cancelBootstrap()
+		return nil, nil, nil, errors.New("configured browser attachment has no page target")
+	}
+	browserCtx, cancel := chromedp.NewContext(bootstrapCtx, chromedp.WithTargetID(selected))
+	return browserCtx, cancel, cancelBootstrap, nil
+}
+
+func getAttachmentTarget(infos []*target.Info, scope string, browserContextID string) target.ID {
+	var selected *target.Info
+	for _, info := range infos {
+		if info == nil || info.Type != "page" || info.Subtype != "" {
+			continue
+		}
+		if scope != config.BrowserAttachmentBrowser &&
+			(scope != config.BrowserAttachmentContext || string(info.BrowserContextID) != browserContextID) {
+			continue
+		}
+		if selected == nil || isPreferredAttachmentTarget(info, selected) {
+			selected = info
+		}
+	}
+	if selected == nil {
+		return ""
+	}
+	return selected.TargetID
+}
+
+func isPreferredAttachmentTarget(candidate, selected *target.Info) bool {
+	candidateBlank := candidate.URL == "about:blank"
+	selectedBlank := selected.URL == "about:blank"
+	if candidateBlank != selectedBlank {
+		return candidateBlank
+	}
+	return string(candidate.TargetID) < string(selected.TargetID)
+}
+
+func getAttachedContextCancel(ctx context.Context, cancel context.CancelFunc) context.CancelFunc {
+	return func() {
+		// chromedp cancellation closes a populated Target. Reverify this detach behavior before upgrading chromedp.
+		if chromiumCtx := chromedp.FromContext(ctx); chromiumCtx != nil {
+			chromiumCtx.Target = nil
+		}
+		cancel()
 	}
 }
 
@@ -216,11 +332,26 @@ func (s *chromiumSession) getDownloadListener() func(any) {
 
 func (s *chromiumSession) getUnexpectedTargetListener(ctx context.Context) func(any) {
 	return func(event any) {
+		if destroyed, ok := event.(*target.EventTargetDestroyed); ok {
+			s.mu.Lock()
+			delete(s.quarantinedTargets, string(destroyed.TargetID))
+			s.mu.Unlock()
+			return
+		}
 		created, ok := event.(*target.EventTargetCreated)
 		if !ok || created.TargetInfo == nil || created.TargetInfo.Type != "page" {
 			return
 		}
 		s.mu.Lock()
+		if s.attached {
+			if _, opening := s.openingTabIDs[string(created.TargetInfo.TargetID)]; opening {
+				s.mu.Unlock()
+				return
+			}
+			s.quarantinedTargets[string(created.TargetInfo.TargetID)] = struct{}{}
+			s.mu.Unlock()
+			return
+		}
 		if s.openingTargets > 0 {
 			s.openingTargets--
 			s.mu.Unlock()
@@ -396,8 +527,12 @@ func (s *chromiumSession) Close(context.Context) error {
 		if s.process != nil {
 			s.closeErr = s.process.stop()
 		}
+		s.preserveAttachedTargets()
 		if s.cancelContext != nil {
 			s.cancelContext()
+		}
+		if s.cancelBootstrap != nil {
+			s.cancelBootstrap()
 		}
 		if s.cancelAllocator != nil {
 			s.cancelAllocator()
@@ -405,4 +540,23 @@ func (s *chromiumSession) Close(context.Context) error {
 	})
 
 	return s.closeErr
+}
+
+func (s *chromiumSession) preserveAttachedTargets() {
+	if !s.attached {
+		return
+	}
+	s.mu.Lock()
+	contexts := make([]context.Context, 0, len(s.tabContexts)+1)
+	contexts = append(contexts, s.ctx)
+	for _, tabCtx := range s.tabContexts {
+		contexts = append(contexts, tabCtx)
+	}
+	s.mu.Unlock()
+	for _, ctx := range contexts {
+		// Keep attached tabs open when Morph releases its contexts. This depends on chromedp cancellation semantics.
+		if chromiumCtx := chromedp.FromContext(ctx); chromiumCtx != nil {
+			chromiumCtx.Target = nil
+		}
+	}
 }

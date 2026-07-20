@@ -91,6 +91,10 @@ func (c *Config) validateBrowserSettings() error {
 	if _, ok := names[c.Browser.DefaultProfile]; !ok {
 		return errors.New("browser default profile must reference a configured profile")
 	}
+	defaultProfile, _ := c.Browser.Profile(c.Browser.DefaultProfile)
+	if defaultProfile.Mode == BrowserProfileExistingSession {
+		return errors.New("browser default profile must not attach to an existing session")
+	}
 
 	return nil
 }
@@ -114,35 +118,77 @@ func validateBrowserNetwork(cfg BrowserNetworkConfig) error {
 func validateBrowserProfile(root string, profile BrowserProfileConfig) (string, error) {
 	switch profile.Mode {
 	case BrowserProfileManagedEphemeral:
-		if profile.Directory != "" || profile.CDPEndpoint != "" || profile.CredentialRef != "" {
-			return "", errors.New("managed ephemeral profile cannot set directory, CDP endpoint, or credential reference")
+		if hasBrowserAttachmentConfig(profile) || profile.Directory != "" {
+			return "", errors.New("managed ephemeral profile cannot set attachment configuration")
 		}
 		return "", nil
 	case BrowserProfileManagedPersistent:
 		if profile.Directory == "" {
 			return "", errors.New("managed persistent profile directory is required")
 		}
-		if profile.CDPEndpoint != "" || profile.CredentialRef != "" {
-			return "", errors.New("managed persistent profile cannot set CDP endpoint or credential reference")
+		if hasBrowserAttachmentConfig(profile) {
+			return "", errors.New("managed persistent profile cannot set attachment configuration")
 		}
 		return validateManagedProfilePath(root, profile.Directory)
 	case BrowserProfileRemoteCDP, BrowserProfileExistingSession:
-		if profile.Mode == BrowserProfileRemoteCDP && profile.Directory != "" {
-			return "", errors.New("remote CDP profile cannot set a directory")
+		if profile.Directory != "" {
+			return "", errors.New("attached browser profile cannot set a directory")
 		}
 		if profile.CDPEndpoint == "" {
 			return "", errors.New("CDP endpoint is required")
 		}
-		if profile.CredentialRef != "" {
-			return "", errors.New("CDP credential references require attachment support")
+		if profile.Mode == BrowserProfileExistingSession && profile.DataIdentity == "" {
+			return "", errors.New("existing session data identity is required")
+		}
+		if err := validateBrowserCredentialRef(profile.CredentialRef); err != nil {
+			return "", err
 		}
 		if err := validateCDPEndpoint(profile.CDPEndpoint); err != nil {
+			return "", err
+		}
+		if err := validateBrowserAttachmentScope(profile); err != nil {
 			return "", err
 		}
 		return "", nil
 	default:
 		return "", errors.New("mode must be one of: managed_ephemeral, managed_persistent, remote_cdp, existing_session")
 	}
+}
+
+func hasBrowserAttachmentConfig(profile BrowserProfileConfig) bool {
+	return profile.CDPEndpoint != "" || profile.CredentialRef != "" || profile.DataIdentity != "" ||
+		profile.AttachmentScope != "" || profile.BrowserContextID != "" || len(profile.TargetIDs) > 0
+}
+
+func validateBrowserCredentialRef(value string) error {
+	if value == "" {
+		return nil
+	}
+	name, ok := strings.CutPrefix(value, "env:")
+	if !ok || name == "" || strings.ContainsAny(name, "= \t\r\n") {
+		return errors.New("CDP credential reference must use env:VARIABLE")
+	}
+	return nil
+}
+
+func validateBrowserAttachmentScope(profile BrowserProfileConfig) error {
+	switch profile.AttachmentScope {
+	case BrowserAttachmentTargets:
+		if len(profile.TargetIDs) == 0 || profile.BrowserContextID != "" {
+			return errors.New("target attachment scope requires target IDs and no browser context ID")
+		}
+	case BrowserAttachmentContext:
+		if profile.BrowserContextID == "" || len(profile.TargetIDs) > 0 {
+			return errors.New("context attachment scope requires a browser context ID and no target IDs")
+		}
+	case BrowserAttachmentBrowser:
+		if profile.BrowserContextID != "" || len(profile.TargetIDs) > 0 {
+			return errors.New("browser attachment scope cannot set a browser context ID or target IDs")
+		}
+	default:
+		return errors.New("attachment scope must be one of: targets, context, browser")
+	}
+	return nil
 }
 
 func validateCDPEndpoint(raw string) error {

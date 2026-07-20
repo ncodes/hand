@@ -180,6 +180,7 @@ func browserProfileFromProto(value *morphpb.BrowserProfile) browser.Profile {
 
 	return browser.Profile{
 		Name: value.GetName(), Mode: value.GetMode(), Default: value.GetDefault(), Available: value.GetAvailable(),
+		Warning: value.GetWarning(),
 	}
 }
 
@@ -191,7 +192,7 @@ func browserSessionFromProto(value *morphpb.BrowserSession) browser.Session {
 	return browser.Session{
 		ID: value.GetId(), Profile: value.GetProfile(), ProfileMode: value.GetProfileMode(),
 		State: browser.SessionState(value.GetState()), CreatedAt: protoTimestampToTime(value.GetCreatedAt()),
-		LastActive: protoTimestampToTime(value.GetLastActive()), Error: value.GetError(),
+		LastActive: protoTimestampToTime(value.GetLastActive()), Error: value.GetError(), Warning: value.GetWarning(),
 	}
 }
 

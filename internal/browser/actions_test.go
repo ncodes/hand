@@ -1328,6 +1328,91 @@ func TestService_FileTransfersRejectRemoteBrowserProfiles(t *testing.T) {
 	require.Equal(t, ErrorUnavailable, browserErr.Code)
 }
 
+func TestService_RemoteNetworkActionsRequireFullAccess(t *testing.T) {
+	backend := newInteractiveBackendSession()
+	cfg := testBrowserConfig(t)
+	cfg.Network.Strict = new(false)
+	cfg.Profiles = []config.BrowserProfileConfig{{
+		Name: "remote", Mode: config.BrowserProfileRemoteCDP, CDPEndpoint: "http://127.0.0.1:9222",
+		AttachmentScope: config.BrowserAttachmentBrowser,
+	}}
+	cfg.DefaultProfile = "remote"
+	service, err := NewService(
+		context.Background(), cfg, allowChecker(), &interactiveBackend{session: backend},
+		WithAttachmentIdentityKey(testAttachmentIdentityKey),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	ctx := testBrowserContext("owner", "session")
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+
+	_, err = service.Open(ctx, ActionRequest{SessionID: session.ID, URL: "https://example.com"})
+	browserErr, ok := GetError(err)
+	require.True(t, ok)
+	require.Equal(t, ErrorUnavailable, browserErr.Code)
+	require.EqualError(
+		t, err, "remote browser network actions require full_access",
+	)
+	require.Len(t, backend.tabs, 1)
+
+	fullAccess := permissions.WithPreset(ctx, permissions.PresetFullAccess)
+	_, err = service.Open(fullAccess, ActionRequest{SessionID: session.ID, URL: "https://example.com"})
+	require.NoError(t, err)
+	require.Len(t, backend.tabs, 2)
+}
+
+func TestService_ExistingSessionOperationsRemainCredentialBearing(t *testing.T) {
+	backend := newInteractiveBackendSession()
+	cfg := testBrowserConfig(t)
+	cfg.Network.Strict = new(false)
+	cfg.Profiles = []config.BrowserProfileConfig{{
+		Name: "personal", Mode: config.BrowserProfileExistingSession,
+		CDPEndpoint: "http://127.0.0.1:9222", DataIdentity: "daily-profile",
+		AttachmentScope: config.BrowserAttachmentBrowser,
+	}}
+	cfg.DefaultProfile = "personal"
+	service, err := NewService(
+		context.Background(), cfg,
+		permissions.NewEngine(permissions.Policy{Preset: permissions.PresetFullAccess}),
+		&interactiveBackend{session: backend}, WithAttachmentIdentityKey(testAttachmentIdentityKey),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	ctx := permissions.WithPreset(testBrowserContext("owner", "session"), permissions.PresetFullAccess)
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+
+	operations, err := service.ResolveOperations(
+		ctx, ActionSnapshot, ActionRequest{SessionID: session.ID, TabID: "tab-1"},
+	)
+	require.NoError(t, err)
+	require.Len(t, operations, 1)
+	require.Contains(t, operations[0].Effects, permissions.EffectCredentialBearing)
+	require.Contains(t, operations[0].Target, "attachment_id=")
+}
+
+func TestIsBackendTabAllowed_EnforcesAttachmentScope(t *testing.T) {
+	tab := BackendTab{ID: "target-1", BrowserContextID: "context-1"}
+	runtime := &managedSession{}
+	require.True(t, isBackendTabAllowed(runtime, tab))
+
+	runtime.attachment.scope = config.BrowserAttachmentContext
+	runtime.attachment.contextID = "context-1"
+	require.True(t, isBackendTabAllowed(runtime, tab))
+	runtime.attachment.contextID = "context-2"
+	require.False(t, isBackendTabAllowed(runtime, tab))
+
+	runtime.attachment.scope = config.BrowserAttachmentTargets
+	runtime.attachment.targetIDs = map[string]struct{}{"target-1": {}}
+	require.True(t, isBackendTabAllowed(runtime, tab))
+	runtime.attachment.targetIDs = map[string]struct{}{}
+	require.False(t, isBackendTabAllowed(runtime, tab))
+
+	runtime.attachment.scope = "invalid"
+	require.False(t, isBackendTabAllowed(runtime, tab))
+}
+
 func TestService_RichActionsRejectBackendsWithoutRichCapabilities(t *testing.T) {
 	backend := newInteractiveBackendSession()
 	service, err := NewService(

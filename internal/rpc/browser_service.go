@@ -259,6 +259,7 @@ func (s *BrowserService) getStatus() browser.Status {
 		profiles = append(profiles, browser.Profile{
 			Name: profile.Name, Mode: profile.Mode,
 			Default: profile.Name == s.service.browserConfig.DefaultProfile,
+			Warning: browser.GetProfileWarning(profile),
 		})
 	}
 
@@ -325,14 +326,15 @@ func browserStatusToProto(value browser.Status) *morphpb.BrowserStatus {
 
 func browserProfileToProto(value browser.Profile) *morphpb.BrowserProfile {
 	return &morphpb.BrowserProfile{
-		Name: value.Name, Mode: value.Mode, Default: value.Default, Available: value.Available,
+		Name: value.Name, Mode: value.Mode, Default: value.Default, Available: value.Available, Warning: value.Warning,
 	}
 }
 
 func browserSessionToProto(value browser.Session) *morphpb.BrowserSession {
 	return &morphpb.BrowserSession{
 		Id: value.ID, Profile: value.Profile, ProfileMode: value.ProfileMode, State: string(value.State),
-		CreatedAt: timeToProto(value.CreatedAt), LastActive: timeToProto(value.LastActive), Error: value.Error,
+		CreatedAt: timeToProto(value.CreatedAt), LastActive: timeToProto(value.LastActive),
+		Error: value.Error, Warning: value.Warning,
 	}
 }
 

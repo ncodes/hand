@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"github.com/stretchr/testify/require"
 	"github.com/wandxy/morph/internal/config"
@@ -43,6 +44,202 @@ func TestChromiumBackend_RejectsInvalidLaunchConfiguration(t *testing.T) {
 		Timeout: time.Second, ProxyUser: "morph", ProxySecret: "secret",
 	})
 	require.EqualError(t, err, "browser proxy URL is required for proxy credentials")
+}
+
+func TestChromiumSession_AttachmentScopeRestrictsTargets(t *testing.T) {
+	first := &target.Info{TargetID: "target-1", BrowserContextID: "context-1"}
+	second := &target.Info{TargetID: "target-2", BrowserContextID: "context-2"}
+
+	session := &chromiumSession{
+		attachmentScope:   config.BrowserAttachmentTargets,
+		attachmentTargets: map[string]struct{}{"target-1": {}},
+	}
+	require.True(t, session.isTargetAllowed(first))
+	require.False(t, session.isTargetAllowed(second))
+
+	session.attachmentScope = config.BrowserAttachmentContext
+	session.browserContextID = "context-2"
+	require.False(t, session.isTargetAllowed(first))
+	require.True(t, session.isTargetAllowed(second))
+
+	session.attachmentScope = config.BrowserAttachmentBrowser
+	require.True(t, session.isTargetAllowed(first))
+	require.True(t, session.isTargetAllowed(second))
+}
+
+func TestChromiumSession_AttachedTargetsAreQuarantinedWithoutClosingThem(t *testing.T) {
+	session := &chromiumSession{
+		attached: true, attachmentScope: config.BrowserAttachmentBrowser,
+		quarantinedTargets: make(map[string]struct{}), openingTabIDs: make(map[string]struct{}),
+	}
+	info := &target.Info{TargetID: "human-tab", Type: "page"}
+
+	session.getUnexpectedTargetListener(context.Background())(&target.EventTargetCreated{TargetInfo: info})
+
+	require.Contains(t, session.quarantinedTargets, "human-tab")
+	require.False(t, session.isTargetAllowed(info))
+
+	session.getUnexpectedTargetListener(context.Background())(&target.EventTargetDestroyed{TargetID: info.TargetID})
+	require.NotContains(t, session.quarantinedTargets, "human-tab")
+
+	session.openingTabIDs["morph-tab"] = struct{}{}
+	session.getUnexpectedTargetListener(context.Background())(&target.EventTargetCreated{
+		TargetInfo: &target.Info{TargetID: "morph-tab", Type: "page"},
+	})
+	require.NotContains(t, session.quarantinedTargets, "morph-tab")
+}
+
+func TestGetAttachmentTarget_SelectsOnlyEligiblePage(t *testing.T) {
+	infos := []*target.Info{
+		nil,
+		{TargetID: "worker", Type: "worker", BrowserContextID: "context-1"},
+		{TargetID: "subtype", Type: "page", Subtype: "prerender", BrowserContextID: "context-1"},
+		{TargetID: "other", Type: "page", URL: "https://example.com", BrowserContextID: "context-2"},
+		{TargetID: "selected", Type: "page", URL: "https://example.com", BrowserContextID: "context-1"},
+		{TargetID: "blank", Type: "page", URL: "about:blank", BrowserContextID: "context-1"},
+	}
+
+	require.Equal(
+		t, target.ID("blank"),
+		getAttachmentTarget(infos, config.BrowserAttachmentContext, "context-1"),
+	)
+	require.Empty(t, getAttachmentTarget(infos, config.BrowserAttachmentContext, "missing"))
+	require.Equal(t, target.ID("blank"), getAttachmentTarget(infos, config.BrowserAttachmentBrowser, ""))
+	require.Equal(t, target.ID("a"), getAttachmentTarget([]*target.Info{
+		{TargetID: "z", Type: "page", URL: "https://example.com/z"},
+		{TargetID: "a", Type: "page", URL: "https://example.com/a"},
+	}, config.BrowserAttachmentBrowser, ""))
+}
+
+func TestGetAttachedContextCancel_PreservesExistingTarget(t *testing.T) {
+	ctx, cancel := chromedp.NewContext(context.Background())
+	chromiumCtx := chromedp.FromContext(ctx)
+	chromiumCtx.Target = &chromedp.Target{}
+
+	getAttachedContextCancel(ctx, cancel)()
+
+	require.Nil(t, chromiumCtx.Target)
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
+}
+
+func TestChromiumSession_PreservesAllAttachedTargetsOnShutdown(t *testing.T) {
+	rootCtx, cancelRoot := chromedp.NewContext(context.Background())
+	tabCtx, cancelTab := chromedp.NewContext(context.Background())
+	t.Cleanup(cancelRoot)
+	t.Cleanup(cancelTab)
+	chromedp.FromContext(rootCtx).Target = &chromedp.Target{}
+	chromedp.FromContext(tabCtx).Target = &chromedp.Target{}
+	session := &chromiumSession{
+		attached: true, ctx: rootCtx,
+		tabContexts: map[string]context.Context{"tab": tabCtx},
+	}
+
+	session.preserveAttachedTargets()
+
+	require.Nil(t, chromedp.FromContext(rootCtx).Target)
+	require.Nil(t, chromedp.FromContext(tabCtx).Target)
+}
+
+func TestPrepareInitialBrowserContext_ValidatesTargetScopeWithoutConnecting(t *testing.T) {
+	_, _, _, err := prepareInitialBrowserContext(
+		context.Background(), context.Background(),
+		LaunchOptions{AttachmentScope: config.BrowserAttachmentTargets},
+	)
+	require.EqualError(t, err, "target-scoped browser attachment requires a target ID")
+
+	allocatorCtx, cancelAllocator := chromedp.NewRemoteAllocator(
+		context.Background(), "ws://127.0.0.1:1/devtools/browser/unreachable",
+	)
+	defer cancelAllocator()
+	browserCtx, cancel, cancelBootstrap, err := prepareInitialBrowserContext(
+		context.Background(), allocatorCtx,
+		LaunchOptions{AttachmentScope: config.BrowserAttachmentTargets, TargetIDs: []string{"target-1"}},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, browserCtx)
+	require.NotNil(t, cancel)
+	require.Nil(t, cancelBootstrap)
+	cancel()
+
+	browserCtx, cancel, cancelBootstrap, err = prepareInitialBrowserContext(
+		context.Background(), allocatorCtx, LaunchOptions{},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, browserCtx)
+	require.NotNil(t, cancel)
+	require.Nil(t, cancelBootstrap)
+	cancel()
+
+	_, _, _, err = prepareInitialBrowserContext(
+		context.Background(), allocatorCtx,
+		LaunchOptions{
+			AttachmentScope:  config.BrowserAttachmentContext,
+			BrowserContextID: "context-1",
+		},
+	)
+	require.Error(t, err)
+}
+
+func TestPrepareInitialBrowserContext_SelectsConfiguredBrowserContext(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	session, err := (ChromiumBackend{}).Start(context.Background(), LaunchOptions{
+		Executable: executable,
+		Mode:       config.BrowserProfileManagedEphemeral,
+		DataDir:    t.TempDir(),
+		Timeout:    15 * time.Second,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, session.Close(context.Background())) })
+	chromium := session.(*chromiumSession)
+	chromium.mu.Lock()
+	chromium.attached = true
+	chromium.mu.Unlock()
+
+	contextOwner, cancelContextOwner := chromedp.NewContext(
+		chromium.ctx, chromedp.WithNewBrowserContext(),
+	)
+	require.NoError(t, chromedp.Run(contextOwner))
+	t.Cleanup(cancelContextOwner)
+	owner := chromedp.FromContext(contextOwner)
+	browserContextID := owner.BrowserContextID
+	targetID := owner.Target.TargetID
+
+	selectedCtx, cancelSelected, cancelBootstrap, err := prepareInitialBrowserContext(
+		context.Background(), chromium.ctx,
+		LaunchOptions{
+			AttachmentScope:  config.BrowserAttachmentContext,
+			BrowserContextID: string(browserContextID),
+		},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, cancelBootstrap)
+	t.Cleanup(cancelBootstrap)
+	var selected *target.Info
+	require.NoError(t, chromedp.Run(selectedCtx, chromedp.ActionFunc(func(ctx context.Context) error {
+		selected, err = target.GetTargetInfo().Do(ctx)
+		return err
+	})))
+	require.Equal(t, targetID, selected.TargetID)
+	require.Equal(t, browserContextID, selected.BrowserContextID)
+	getAttachedContextCancel(selectedCtx, cancelSelected)()
+	var retained *target.Info
+	require.NoError(t, chromedp.Run(contextOwner, chromedp.ActionFunc(func(ctx context.Context) error {
+		retained, err = target.GetTargetInfo().Do(ctx)
+		return err
+	})))
+	require.Equal(t, targetID, retained.TargetID)
+
+	_, _, _, err = prepareInitialBrowserContext(
+		context.Background(), chromium.ctx,
+		LaunchOptions{
+			AttachmentScope:  config.BrowserAttachmentContext,
+			BrowserContextID: "missing-context",
+		},
+	)
+	require.EqualError(t, err, "configured browser attachment has no page target")
 }
 
 func TestChromiumBackend_RedactsRemoteRelaySecretFromConnectionError(t *testing.T) {
@@ -98,7 +295,6 @@ func TestChromiumBackend_UsesAuthenticatedProxyAndCannotBypassStrictPolicy(t *te
 	strict, err := startEgressProxy(NetworkPolicy{Strict: true})
 	require.NoError(t, err)
 	session = startChromiumSession(t, executable, strict)
-	restoreAuthorization = allowBackendNetworkRequests(session)
 	chromium = session.(*chromiumSession)
 	_ = chromedp.Run(chromium.ctx, chromedp.Navigate(strictFixture.URL))
 	require.Zero(t, strictRequests.Load())

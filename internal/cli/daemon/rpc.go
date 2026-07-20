@@ -87,8 +87,9 @@ var newBrowserService = func(
 	cfg config.BrowserConfig,
 	checker permissions.Checker,
 	backend browser.Backend,
+	options ...browser.ServiceOption,
 ) (browserService, error) {
-	return browser.NewService(ctx, cfg, checker, backend)
+	return browser.NewService(ctx, cfg, checker, backend, options...)
 }
 
 var newAutomationService = func(
@@ -174,12 +175,18 @@ func buildAutomationService(
 		serviceOptions)
 }
 
-func buildBrowserService(ctx context.Context, cfg *config.Config) (browserService, error) {
+func buildBrowserService(ctx context.Context, cfg *config.Config, identityKey ...[]byte) (browserService, error) {
 	if cfg == nil || !cfg.Browser.Enabled {
 		return nil, nil
 	}
 
-	return newBrowserService(ctx, cfg.Browser, permissions.NewEngine(cfg.Permissions), browser.ChromiumBackend{})
+	options := make([]browser.ServiceOption, 0, 1)
+	if len(identityKey) > 0 && len(identityKey[0]) > 0 {
+		options = append(options, browser.WithAttachmentIdentityKey(identityKey[0]))
+	}
+	return newBrowserService(
+		ctx, cfg.Browser, permissions.NewEngine(cfg.Permissions), browser.ChromiumBackend{}, options...,
+	)
 }
 
 func closeBrowserService(service browserService) error {
@@ -250,7 +257,16 @@ var serveRPC = func(
 	manager gatewayManager,
 ) (serveErr error) {
 	defer func() { _ = lis.Close() }()
-	browserRuntime, err := buildBrowserService(ctx, cfg)
+	activeProfile := profile.Active()
+	var ownerCredential []byte
+	var err error
+	if strings.TrimSpace(activeProfile.HomeDir) != "" {
+		ownerCredential, err = loadOrCreateOwnerCredential(activeProfile.HomeDir)
+		if err != nil {
+			return err
+		}
+	}
+	browserRuntime, err := buildBrowserService(ctx, cfg, ownerCredential)
 	if err != nil {
 		return err
 	}
@@ -299,14 +315,6 @@ var serveRPC = func(
 		browserCapability = cfg.Cap.Browser != nil && *cfg.Cap.Browser
 		pairingSecretValue := str.String(cfg.Gateway.PairingSecret)
 		pairingSecret = pairingSecretValue.Trim()
-	}
-	activeProfile := profile.Active()
-	var ownerCredential []byte
-	if strings.TrimSpace(activeProfile.HomeDir) != "" {
-		ownerCredential, err = loadOrCreateOwnerCredential(activeProfile.HomeDir)
-		if err != nil {
-			return err
-		}
 	}
 	var browserAPI morphrpc.BrowserAPI
 	if runtime, ok := browserRuntime.(morphrpc.BrowserAPI); ok {

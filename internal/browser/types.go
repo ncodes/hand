@@ -119,6 +119,7 @@ type Session struct {
 	CreatedAt   time.Time    `json:"created_at"`
 	LastActive  time.Time    `json:"last_active"`
 	Error       string       `json:"error,omitempty"`
+	Warning     string       `json:"warning,omitempty"`
 }
 
 type Profile struct {
@@ -126,6 +127,7 @@ type Profile struct {
 	Mode      string `json:"mode"`
 	Default   bool   `json:"default"`
 	Available bool   `json:"available"`
+	Warning   string `json:"warning,omitempty"`
 }
 
 type Tab struct {
@@ -187,10 +189,11 @@ type ActionRequest struct {
 }
 
 type BackendTab struct {
-	ID     string
-	Title  string
-	URL    string
-	Active bool
+	ID               string
+	BrowserContextID string
+	Title            string
+	URL              string
+	Active           bool
 }
 
 type BackendSnapshotNode struct {
@@ -280,15 +283,18 @@ type Status struct {
 }
 
 type LaunchOptions struct {
-	Executable   string
-	Mode         string
-	DataDir      string
-	DownloadRoot string
-	CDPEndpoint  string
-	ProxyURL     string
-	ProxyUser    string
-	ProxySecret  string
-	Timeout      time.Duration
+	Executable       string
+	Mode             string
+	DataDir          string
+	DownloadRoot     string
+	CDPEndpoint      string
+	ProxyURL         string
+	ProxyUser        string
+	ProxySecret      string
+	AttachmentScope  string
+	BrowserContextID string
+	TargetIDs        []string
+	Timeout          time.Duration
 }
 
 type Backend interface {

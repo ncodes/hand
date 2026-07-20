@@ -44,7 +44,9 @@ func TestRemoteCDPRelay_PinsValidatedAddressAndRewritesDiscoveryURL(t *testing.T
 		},
 	}
 	endpoint = "ws://browser.invalid:" + strconv.FormatUint(port, 10)
-	relay, err := startRemoteCDPRelay(context.Background(), "http"+endpoint[2:], policy)
+	relay, err := startRemoteCDPRelay(
+		context.Background(), "http"+endpoint[2:], "Bearer upstream-secret", policy,
+	)
 	require.NoError(t, err)
 
 	response, err := http.Get(getRelayRequestURL(t, relay.URL(), "/json/version"))
@@ -66,7 +68,7 @@ func TestRemoteCDPRelay_PinsValidatedAddressAndRewritesDiscoveryURL(t *testing.T
 	require.NotContains(t, discovery["webSocketDebuggerUrl"], "browser.invalid")
 	forwarded := <-observed
 	require.Empty(t, forwarded.URL.Query().Get(localRelayTokenParameter))
-	require.Empty(t, forwarded.Header.Get("Authorization"))
+	require.Equal(t, "Bearer upstream-secret", forwarded.Header.Get("Authorization"))
 	require.GreaterOrEqual(t, resolverCalls, 2)
 	relay.setPolicy(NetworkPolicy{Strict: true})
 	response, err = http.Get(getRelayRequestURL(t, relay.URL(), "/json/version"))
@@ -97,7 +99,7 @@ func TestRemoteCDPRelay_RewritesTargetArraysAndDropsFrontendURL(t *testing.T) {
 	require.NoError(t, err)
 	endpoint = "ws://" + parsed.Host
 
-	relay, err := startRemoteCDPRelay(context.Background(), upstream.URL, NetworkPolicy{Strict: false})
+	relay, err := startRemoteCDPRelay(context.Background(), upstream.URL, "", NetworkPolicy{Strict: false})
 	require.NoError(t, err)
 	response, err := http.Get(getRelayRequestURL(t, relay.URL(), "/json/list"))
 	require.NoError(t, err)
@@ -124,7 +126,7 @@ func TestRemoteCDPRelay_RejectsDiscoveryOriginChange(t *testing.T) {
 		})
 	}))
 	defer upstream.Close()
-	relay, err := startRemoteCDPRelay(context.Background(), upstream.URL, NetworkPolicy{Strict: false})
+	relay, err := startRemoteCDPRelay(context.Background(), upstream.URL, "", NetworkPolicy{Strict: false})
 	require.NoError(t, err)
 
 	response, err := http.Get(getRelayRequestURL(t, relay.URL(), "/json/version"))
@@ -140,7 +142,7 @@ func TestRemoteCDPRelay_RejectsRedirectBeforeClientCanFollowIt(t *testing.T) {
 		writer.WriteHeader(http.StatusFound)
 	}))
 	defer upstream.Close()
-	relay, err := startRemoteCDPRelay(context.Background(), upstream.URL, NetworkPolicy{Strict: false})
+	relay, err := startRemoteCDPRelay(context.Background(), upstream.URL, "", NetworkPolicy{Strict: false})
 	require.NoError(t, err)
 
 	response, err := http.Get(getRelayRequestURL(t, relay.URL(), "/json/version"))
@@ -151,10 +153,10 @@ func TestRemoteCDPRelay_RejectsRedirectBeforeClientCanFollowIt(t *testing.T) {
 }
 
 func TestRemoteCDPRelay_RejectsInvalidUnsafeAndMalformedDiscoveryEndpoints(t *testing.T) {
-	_, err := startRemoteCDPRelay(context.Background(), "not-an-endpoint", NetworkPolicy{Strict: false})
+	_, err := startRemoteCDPRelay(context.Background(), "not-an-endpoint", "", NetworkPolicy{Strict: false})
 	require.EqualError(t, err, "browser CDP endpoint is invalid")
 	_, err = startRemoteCDPRelay(
-		context.Background(), "http://127.0.0.1:9222", NetworkPolicy{Strict: true},
+		context.Background(), "http://127.0.0.1:9222", "", NetworkPolicy{Strict: true},
 	)
 	require.EqualError(t, err, "browser target resolves to a blocked address")
 
@@ -175,7 +177,7 @@ func TestRemoteCDPRelay_RejectsInvalidUnsafeAndMalformedDiscoveryEndpoints(t *te
 			}))
 			defer upstream.Close()
 			relay, relayErr := startRemoteCDPRelay(
-				context.Background(), upstream.URL, NetworkPolicy{Strict: false},
+				context.Background(), upstream.URL, "", NetworkPolicy{Strict: false},
 			)
 			require.NoError(t, relayErr)
 			response, requestErr := http.Get(getRelayRequestURL(t, relay.URL(), "/json/version"))
@@ -195,7 +197,7 @@ func TestRemoteCDPRelay_PreservesDirectWebSocketPath(t *testing.T) {
 	parsed, err := url.Parse(upstream.URL)
 	require.NoError(t, err)
 	relay, err := startRemoteCDPRelay(
-		context.Background(), "ws://"+parsed.Host+"/devtools/browser/direct", NetworkPolicy{Strict: false},
+		context.Background(), "ws://"+parsed.Host+"/devtools/browser/direct", "", NetworkPolicy{Strict: false},
 	)
 	require.NoError(t, err)
 	require.Equal(t, "/devtools/browser/direct", mustParseURL(t, relay.URL()).Path)

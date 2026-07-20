@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,18 +19,20 @@ import (
 const browserSessionIDPrefix = "browser_"
 
 type Service struct {
-	cfg       config.BrowserConfig
-	checker   permissions.Checker
-	approver  permissions.Approver
-	backend   Backend
-	policy    NetworkPolicy
-	artifacts *artifactStore
-	now       func() time.Time
-	lifetime  context.Context
-	mu        sync.RWMutex
-	sessions  map[string]*managedSession
-	cancel    context.CancelFunc
-	closed    bool
+	cfg                   config.BrowserConfig
+	checker               permissions.Checker
+	approver              permissions.Approver
+	backend               Backend
+	policy                NetworkPolicy
+	artifacts             *artifactStore
+	attachmentIdentityKey []byte
+	resolveCredential     CredentialResolver
+	now                   func() time.Time
+	lifetime              context.Context
+	mu                    sync.RWMutex
+	sessions              map[string]*managedSession
+	cancel                context.CancelFunc
+	closed                bool
 }
 
 func (s *Service) SetApprover(approver permissions.Approver) {
@@ -58,6 +61,7 @@ type managedSession struct {
 	tabs         map[string]*managedTab
 	activeTabID  string
 	actionMu     sync.Mutex
+	attachment   attachment
 }
 
 type managedTab struct {
@@ -112,8 +116,9 @@ func NewService(
 	cleanupCtx, cancel := context.WithCancel(ctx)
 	service := &Service{
 		cfg: cfg, checker: checker, backend: backend, policy: policy,
-		now:      func() time.Time { return time.Now().UTC() },
-		sessions: make(map[string]*managedSession), lifetime: cleanupCtx, cancel: cancel,
+		now:               func() time.Time { return time.Now().UTC() },
+		resolveCredential: resolveEnvironmentCredential,
+		sessions:          make(map[string]*managedSession), lifetime: cleanupCtx, cancel: cancel,
 	}
 	for _, option := range options {
 		option(service)
@@ -121,6 +126,10 @@ func NewService(
 	if service.now == nil {
 		cancel()
 		return nil, errors.New("browser clock is required")
+	}
+	if service.resolveCredential == nil {
+		cancel()
+		return nil, errors.New("browser credential resolver is required")
 	}
 	service.artifacts, err = newArtifactStore(cfg.Artifacts, service.now)
 	if err != nil {
@@ -167,21 +176,19 @@ func (s *Service) Start(ctx context.Context, request StartRequest) (Session, err
 			Err: errors.New("browser service is disabled"),
 		}
 	}
-	if profile.Mode == config.BrowserProfileExistingSession {
-		return Session{}, &Error{
-			Code: ErrorUnavailable, Operation: ActionStart,
-			Err: errors.New("existing browser session profiles require explicit attachment support"),
-		}
+	attached, err := s.resolveAttachment(profile)
+	if err != nil {
+		return Session{}, &Error{Code: ErrorInvalidRequest, Operation: ActionStart, Err: err}
 	}
-	if err := s.authorizeStart(ctx, profile); err != nil {
+	if err := s.authorizeStart(ctx, profile, attached); err != nil {
 		return Session{}, err
 	}
 
 	now := s.now()
 	runtime := &managedSession{Session: Session{
 		ID: nanoid.MustGenerate(browserSessionIDPrefix), Profile: profile.Name, ProfileMode: profile.Mode,
-		State: SessionStarting, Owner: owner, CreatedAt: now, LastActive: now,
-	}, tabs: make(map[string]*managedTab)}
+		State: SessionStarting, Owner: owner, CreatedAt: now, LastActive: now, Warning: GetProfileWarning(profile),
+	}, tabs: make(map[string]*managedTab), attachment: attached}
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -266,6 +273,8 @@ func (s *Service) Stop(ctx context.Context, id string) (Session, error) {
 	s.mu.RUnlock()
 	operations, err := (permissions.BrowserRequest{
 		Profile: runtime.Profile, Action: string(ActionStop), OwnerID: runtime.Owner.Actor.ID,
+		ProfileMode: runtime.ProfileMode, AttachmentScope: runtime.attachment.scope,
+		AttachmentID: runtime.attachment.identity, Personal: runtime.ProfileMode == config.BrowserProfileExistingSession,
 	}).Operations()
 	if err != nil {
 		return Session{}, err
@@ -292,9 +301,18 @@ func (s *Service) Status() Status {
 	})
 	profiles := make([]Profile, 0, len(s.cfg.Profiles))
 	for _, profile := range s.cfg.Profiles {
+		available := s.cfg.Enabled
+		warning := GetProfileWarning(profile)
+		if isAttachedProfile(profile.Mode) {
+			_, err := s.resolveAttachment(profile)
+			available = available && err == nil
+			if err != nil {
+				warning = strings.TrimSpace(warning + " Browser attachment configuration is unavailable.")
+			}
+		}
 		profiles = append(profiles, Profile{
 			Name: profile.Name, Mode: profile.Mode, Default: profile.Name == s.cfg.DefaultProfile,
-			Available: s.cfg.Enabled && profile.Mode != config.BrowserProfileExistingSession,
+			Available: available, Warning: warning,
 		})
 	}
 	slices.SortFunc(profiles, func(left, right Profile) int {
@@ -363,29 +381,57 @@ func (s *Service) Close(ctx context.Context) error {
 	return errors.Join(closeErrors...)
 }
 
-func (s *Service) authorizeStart(ctx context.Context, profile config.BrowserProfileConfig) error {
-	operations, err := (permissions.BrowserRequest{
-		Profile: profile.Name, Action: string(ActionStart),
-	}).Operations()
+func (s *Service) authorizeStart(
+	ctx context.Context,
+	profile config.BrowserProfileConfig,
+	attached attachment,
+) error {
+	inputs, err := getStartEvaluationInputs(profile, attached)
 	if err != nil {
 		return err
 	}
-	if err := s.checkOperations(ctx, operations); err != nil {
-		return err
+	return s.checkEvaluationInputs(ctx, inputs)
+}
+
+func getStartEvaluationInputs(
+	profile config.BrowserProfileConfig,
+	attached attachment,
+) ([]permissions.EvaluationInput, error) {
+	personal := profile.Mode == config.BrowserProfileExistingSession
+	operations, err := (permissions.BrowserRequest{
+		Profile: profile.Name, ProfileMode: profile.Mode, Action: string(ActionStart), Personal: personal,
+		AttachmentScope: attached.scope, AttachmentID: attached.identity,
+	}).Operations()
+	if err != nil {
+		return nil, err
 	}
-	if profile.Mode != config.BrowserProfileRemoteCDP {
-		return nil
+	inputs := getEvaluationInputs(operations)
+	if profile.Mode != config.BrowserProfileRemoteCDP && !personal {
+		return inputs, nil
 	}
 	target, err := permissions.NetworkTargetFromURL(
 		profile.CDPEndpoint, "CONNECT", permissions.NetworkRequestCDP,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return s.Authorize(ctx, permissions.BrowserRequest{
-		Profile: profile.Name, Action: string(ActionConnect), Network: &target,
-	})
+	connect, err := (permissions.BrowserRequest{
+		Profile: profile.Name, ProfileMode: profile.Mode, Action: string(ActionConnect), Network: &target,
+		AttachmentScope: attached.scope, AttachmentID: attached.identity, Personal: personal,
+		CredentialBearing: profile.CredentialRef != "",
+	}).Operations()
+	if err != nil {
+		return nil, err
+	}
+	connectInputs := getEvaluationInputs(connect)
+	if personal {
+		for index := range connectInputs {
+			connectInputs[index].ApprovalReason = existingSessionWarning
+			connectInputs[index].ApprovalSummary = "Attach to signed-in browser profile " + profile.Name
+		}
+	}
+	return append(inputs, connectInputs...), nil
 }
 
 func (s *Service) prepareLaunch(
@@ -411,14 +457,20 @@ func (s *Service) prepareLaunch(
 		return LaunchOptions{}, err
 	}
 	launch.DownloadRoot = runtime.downloadRoot
-	if profile.Mode == config.BrowserProfileRemoteCDP {
+	if profile.Mode == config.BrowserProfileRemoteCDP || profile.Mode == config.BrowserProfileExistingSession {
 		proxyPolicy := s.getNetworkPolicy(fullAccess)
 		var err error
-		runtime.remoteRelay, err = startRemoteCDPRelay(ctx, profile.CDPEndpoint, proxyPolicy)
+		runtime.remoteRelay, err = startRemoteCDPRelay(
+			ctx, profile.CDPEndpoint, runtime.attachment.authorization, proxyPolicy,
+		)
 		if err != nil {
 			return LaunchOptions{}, err
 		}
 		launch.CDPEndpoint = runtime.remoteRelay.URL()
+		launch.AttachmentScope = runtime.attachment.scope
+		launch.BrowserContextID = runtime.attachment.contextID
+		launch.TargetIDs = slices.Collect(maps.Keys(runtime.attachment.targetIDs))
+		slices.Sort(launch.TargetIDs)
 		return launch, nil
 	}
 	executable, err := discoverChromiumExecutable(s.cfg.Executable)
@@ -561,12 +613,27 @@ func (s *Service) getRuntimeState(runtime *managedSession) SessionState {
 }
 
 func (s *Service) checkOperations(ctx context.Context, operations []permissions.Operation) error {
+	return s.checkEvaluationInputs(ctx, getEvaluationInputs(operations))
+}
+
+func getEvaluationInputs(operations []permissions.Operation) []permissions.EvaluationInput {
+	inputs := make([]permissions.EvaluationInput, 0, len(operations))
 	for _, operation := range operations {
+		inputs = append(inputs, permissions.EvaluationInput{Operation: operation})
+	}
+	return inputs
+}
+
+func (s *Service) checkEvaluationInputs(ctx context.Context, inputs []permissions.EvaluationInput) error {
+	asks := make([]permissions.EvaluationInput, 0, len(inputs))
+	for _, input := range inputs {
+		operation := input.Operation
 		operation, err := operation.Normalize()
 		if err != nil {
 			return err
 		}
-		if permissions.HasFullAccess(ctx) || permissions.IsExactOperationAuthorized(ctx, operation) {
+		input.Operation = operation
+		if permissions.IsExactOperationAuthorized(ctx, operation) {
 			continue
 		}
 		hardDeny := ""
@@ -575,9 +642,7 @@ func (s *Service) checkOperations(ctx context.Context, operations []permissions.
 				hardDeny = resolveErr.Error()
 			}
 		}
-		input := permissions.EvaluationInput{
-			Operation: operation, HardDenyReason: hardDeny,
-		}
+		input.HardDenyReason = hardDeny
 		evaluation, err := s.checker.Check(ctx, input)
 		if err == nil {
 			continue
@@ -586,19 +651,35 @@ func (s *Service) checkOperations(ctx context.Context, operations []permissions.
 		if !isDecisionError || decisionErr.Code != permissions.ErrorCodeApprovalRequired {
 			return err
 		}
-		s.mu.RLock()
-		approver := s.approver
-		s.mu.RUnlock()
-		if approver == nil {
-			return err
+		if input.ApprovalReason == "" {
+			input.ApprovalReason = evaluation.Reason
 		}
-		input.ApprovalReason = evaluation.Reason
-		if err := approver.Authorize(ctx, input); err != nil {
-			return err
+		asks = append(asks, input)
+	}
+	if len(asks) == 0 {
+		return nil
+	}
+	s.mu.RLock()
+	approver := s.approver
+	s.mu.RUnlock()
+	if approver == nil {
+		return &permissions.DecisionError{
+			Code:       permissions.ErrorCodeApprovalRequired,
+			Evaluation: permissions.Evaluation{Decision: permissions.DecisionAsk, Reason: asks[0].ApprovalReason},
 		}
 	}
-
-	return nil
+	if len(asks) == 1 {
+		return approver.Authorize(ctx, asks[0])
+	}
+	batchApprover, ok := approver.(permissions.BatchApprover)
+	if !ok {
+		return errors.New("approval service does not support atomic browser operation batches")
+	}
+	prepared, err := batchApprover.PrepareBatch(ctx, asks)
+	if err != nil {
+		return err
+	}
+	return prepared.Commit(ctx)
 }
 
 func (s *Service) cleanupInactive(ctx context.Context) {

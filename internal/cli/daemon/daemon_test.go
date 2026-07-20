@@ -1475,6 +1475,7 @@ func TestBuildBrowserService_WiresEnabledDaemonRuntime(t *testing.T) {
 		browserConfig config.BrowserConfig,
 		checker permissions.Checker,
 		backend browser.Backend,
+		_ ...browser.ServiceOption,
 	) (browserService, error) {
 		receivedConfig = browserConfig
 		receivedChecker = checker
@@ -1500,6 +1501,7 @@ func TestBuildBrowserService_SkipsDisabledRuntimeAndPropagatesConstructionFailur
 		config.BrowserConfig,
 		permissions.Checker,
 		browser.Backend,
+		...browser.ServiceOption,
 	) (browserService, error) {
 		called = true
 		return nil, expected
@@ -1575,6 +1577,7 @@ func TestServeRPC_ClosesBrowserRuntimeDuringShutdown(t *testing.T) {
 		config.BrowserConfig,
 		permissions.Checker,
 		browser.Backend,
+		...browser.ServiceOption,
 	) (browserService, error) {
 		return browserServiceStub{close: func(context.Context) error {
 			close(closed)
@@ -1649,6 +1652,7 @@ func TestServeRPC_WiresApprovalServiceIntoBrowserRuntime(t *testing.T) {
 		config.BrowserConfig,
 		permissions.Checker,
 		browser.Backend,
+		...browser.ServiceOption,
 	) (browserService, error) {
 		return browserRuntime, nil
 	}

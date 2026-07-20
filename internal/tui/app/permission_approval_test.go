@@ -60,6 +60,22 @@ func TestPermissionApprovalText_DisplaysExpiryInLocalTimezone(t *testing.T) {
 	require.NotContains(t, text, "12:00:00 UTC")
 }
 
+func TestPermissionApprovalText_DisplaysPersonalBrowserWarning(t *testing.T) {
+	text := permissionApprovalText(permissionApprovalMsg{
+		Status:  string(permissions.ApprovalPending),
+		Summary: "Attach to signed-in browser profile personal",
+		Reason:  "Personal browser attachment exposes signed-in sessions, cookies, and page data.",
+		Effects: []string{
+			string(permissions.EffectNetwork),
+			string(permissions.EffectCredentialBearing),
+			string(permissions.EffectExternalSystem),
+		},
+	})
+
+	require.Contains(t, text, "Reason: Personal browser attachment exposes signed-in sessions, cookies, and page data.")
+	require.NotContains(t, text, "[a] always")
+}
+
 func TestModel_PermissionApprovalSupportsSessionAlwaysDenyAndFailure(t *testing.T) {
 	for _, test := range []struct {
 		name     string

@@ -22,21 +22,27 @@ import (
 const maxCDPDiscoveryResponseBytes = 1 << 20
 
 type remoteCDPRelay struct {
-	authorization localAuthorization
-	listener      net.Listener
-	server        *http.Server
-	transport     *http.Transport
-	endpoint      *url.URL
-	policyMu      sync.RWMutex
-	policy        NetworkPolicy
-	addresses     []net.IP
-	mu            sync.Mutex
-	connections   map[net.Conn]struct{}
-	closeOnce     sync.Once
-	closeErr      error
+	authorization         localAuthorization
+	listener              net.Listener
+	server                *http.Server
+	transport             *http.Transport
+	endpoint              *url.URL
+	upstreamAuthorization string
+	policyMu              sync.RWMutex
+	policy                NetworkPolicy
+	addresses             []net.IP
+	mu                    sync.Mutex
+	connections           map[net.Conn]struct{}
+	closeOnce             sync.Once
+	closeErr              error
 }
 
-func startRemoteCDPRelay(ctx context.Context, rawEndpoint string, policy NetworkPolicy) (*remoteCDPRelay, error) {
+func startRemoteCDPRelay(
+	ctx context.Context,
+	rawEndpoint string,
+	upstreamAuthorization string,
+	policy NetworkPolicy,
+) (*remoteCDPRelay, error) {
 	authorization, err := newLocalAuthorization()
 	if err != nil {
 		return nil, err
@@ -64,7 +70,7 @@ func startRemoteCDPRelay(ctx context.Context, rawEndpoint string, policy Network
 	}
 	relay := &remoteCDPRelay{
 		authorization: authorization, listener: listener, endpoint: endpoint, policy: policy, addresses: addresses,
-		connections: make(map[net.Conn]struct{}),
+		upstreamAuthorization: upstreamAuthorization, connections: make(map[net.Conn]struct{}),
 	}
 	relay.transport = relay.getTransport(target.Port)
 	proxy := &httputil.ReverseProxy{
@@ -195,6 +201,9 @@ func (r *remoteCDPRelay) directRequest(request *http.Request) {
 	request.URL.User = r.endpoint.User
 	request.Host = r.endpoint.Host
 	request.Header.Del("Authorization")
+	if r.upstreamAuthorization != "" {
+		request.Header.Set("Authorization", r.upstreamAuthorization)
+	}
 }
 
 func (r *remoteCDPRelay) rewriteDiscoveryResponse(response *http.Response) error {

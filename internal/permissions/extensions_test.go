@@ -44,6 +44,16 @@ func TestBrowserRequest_PersonalProfileAddsCredentialEffectAndFingerprintIdentit
 	}).Operations()
 	require.NoError(t, err)
 	require.Contains(t, credential[0].Effects, EffectCredentialBearing)
+	network, err := NetworkTargetFromURL("https://example.com", "CONNECT", NetworkRequestCDP)
+	require.NoError(t, err)
+	attached, err := (BrowserRequest{
+		Profile: "personal", ProfileMode: "existing_session", AttachmentScope: "context",
+		AttachmentID: "private-digest", Action: "connect", Network: &network, Personal: true,
+	}).Operations()
+	require.NoError(t, err)
+	require.Contains(t, attached[0].Target, "attachment_id=private-digest")
+	require.Contains(t, attached[0].Effects, EffectCredentialBearing)
+	require.Contains(t, attached[1].Effects, EffectCredentialBearing)
 
 	_, err = (BrowserRequest{}).Operations()
 	require.EqualError(t, err, "browser profile and action are required")

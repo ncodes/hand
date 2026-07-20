@@ -706,6 +706,7 @@ message BrowserProfile {
   string mode = 2;
   bool default = 3;
   bool available = 4;
+  string warning = 5;
 }
 
 message BrowserSession {
@@ -716,6 +717,7 @@ message BrowserSession {
   google.protobuf.Timestamp created_at = 5;
   google.protobuf.Timestamp last_active = 6;
   string error = 7;
+  string warning = 8;
 }
 
 message BrowserArtifact {

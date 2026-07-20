@@ -527,7 +527,7 @@ func (s *ApprovalService) PrepareBatch(ctx context.Context, inputs []EvaluationI
 			Effects: effects, Target: "batch:" + hex.EncodeToString(digest[:]), OwnerRequired: ownerRequired,
 		},
 		ApprovalSummary: fmt.Sprintf("%s · approve %d operations", tool, len(inputs)),
-		ApprovalReason:  getBatchApprovalReason(operations),
+		ApprovalReason:  getBatchApprovalReason(inputs, operations),
 	}, false)
 	if err != nil {
 		return nil, err
@@ -879,8 +879,16 @@ func getBatchTool(operations []Operation) string {
 	return tool
 }
 
-func getBatchApprovalReason(operations []Operation) string {
+func getBatchApprovalReason(inputs []EvaluationInput, operations []Operation) string {
 	const maxPresentedOperations = 8
+	explicitReasons := make([]string, 0, len(inputs))
+	for _, input := range inputs {
+		reason := strings.TrimSpace(input.ApprovalReason)
+		if reason != "" && !slices.Contains(explicitReasons, reason) {
+			explicitReasons = append(explicitReasons, reason)
+		}
+	}
+	slices.Sort(explicitReasons)
 	limit := min(len(operations), maxPresentedOperations)
 	descriptions := make([]string, 0, limit+1)
 	for _, operation := range operations[:limit] {
@@ -893,7 +901,11 @@ func getBatchApprovalReason(operations []Operation) string {
 	if remaining := len(operations) - limit; remaining > 0 {
 		descriptions = append(descriptions, fmt.Sprintf("%d more operations", remaining))
 	}
-	return fmt.Sprintf("Approve all %d operations: %s", len(operations), strings.Join(descriptions, "; "))
+	details := fmt.Sprintf("Approve all %d operations: %s", len(operations), strings.Join(descriptions, "; "))
+	if len(explicitReasons) == 0 {
+		return details
+	}
+	return strings.Join(explicitReasons, "; ") + " " + details
 }
 
 func getSafeNetworkApprovalTarget(target NetworkTarget) string {

@@ -55,7 +55,7 @@ type Runtime interface {
 }
 
 type BrowserService interface {
-	ResolveOperations(context.Context, browser.Action, browser.ActionRequest) ([]permissions.Operation, error)
+	ResolvePermissionInputs(context.Context, browser.Action, browser.ActionRequest) ([]permissions.EvaluationInput, error)
 	Status() browser.Status
 	Start(context.Context, browser.StartRequest) (browser.Session, error)
 	Stop(context.Context, string) (browser.Session, error)

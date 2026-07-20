@@ -146,6 +146,14 @@ A browser profile describes how Morph obtains and isolates browser state.
 
 The default is an isolated ephemeral profile. Morph must never silently choose a personal browser profile.
 
+Attached profiles declare one structural scope:
+
+- `targets` limits control to explicit CDP target IDs and cannot create tabs;
+- `context` limits control to one browser context;
+- `browser` deliberately grants whole-browser visibility and displays a stronger warning.
+
+An `existing_session` profile cannot be the default. It must be selected explicitly.
+
 ### 6.2 Browser session
 
 A browser session is Morph's managed lifetime around a browser backend.
@@ -500,7 +508,13 @@ The relay:
 8. removes `devtoolsFrontendUrl` values that could lead clients outside the relay;
 9. handles both discovery objects and target arrays;
 10. rejects malformed or unknown discovery payload shapes;
-11. strips the local relay credential before forwarding upstream.
+11. strips the local relay credential before forwarding upstream;
+12. resolves optional upstream Basic/Bearer credentials from an `env:` reference;
+13. forwards the upstream credential without exposing it in the local relay URL or discovery response.
+
+The relay rechecks the current strict network posture on each request. Its resolved upstream addresses and credential
+identity are fixed when the attached session starts. After changing endpoint policy or rotating credentials, stop the
+attached session and start it again so address pinning, identity, and approval are recomputed together.
 
 Without rewriting `/json/version`, `/json/list`, and related discovery results, a client could follow a direct remote
 WebSocket URL and bypass the pinned relay.
@@ -827,6 +841,8 @@ These effects begin denied, paused, or quarantined. An authorized action must ex
 bind it to the current owner and action generation.
 
 This prevents a click intended to expand a menu from silently opening a download, popup, or permission prompt.
+In an attached session, a page target that was not created through Morph's authorized tab-opening path remains
+quarantined for that session. Destroying the target removes its quarantine record, but it never becomes an owned tab.
 
 ## 29. Upload safety
 
@@ -891,6 +907,18 @@ permission decision.
 
 Changing endpoint, credentials, profile identity, or attachment scope changes the fingerprint and prevents stale grant
 reuse.
+
+The keyed identity uses a domain-separated HMAC subkey derived from the profile-scoped owner credential. Credential
+rotation therefore invalidates old attachment fingerprints without placing secret material in approval text or traces.
+Stop attached sessions before rotating the credential, restart the daemon, and start the sessions again so the relay,
+credential identity, and approval all use the new key.
+
+Target-scoped attachments cannot create tabs. Context-scoped attachments filter every discovered or addressed target
+by its server-reported browser context. Whole-browser scope is accepted only when named explicitly and is visible in
+status output.
+
+Remote browser page traffic does not inherit the managed Chromium proxy boundary. Morph therefore rejects
+network-bearing actions on attached profiles unless `full_access` is active.
 
 ## 32. Secret handling
 

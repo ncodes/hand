@@ -364,6 +364,11 @@ func (c *Config) normalizeBrowser() {
 		profile.Directory = cleanOptionalPath(profile.Directory)
 		profile.CDPEndpoint = str.String(profile.CDPEndpoint).Trim()
 		profile.CredentialRef = str.String(profile.CredentialRef).Trim()
+		profile.DataIdentity = str.String(profile.DataIdentity).Trim()
+		profile.AttachmentScope = str.String(profile.AttachmentScope).Normalized()
+		profile.BrowserContextID = str.String(profile.BrowserContextID).Trim()
+		profile.TargetIDs = dedupeAndTrim(profile.TargetIDs)
+		slices.Sort(profile.TargetIDs)
 		profiles = append(profiles, profile)
 	}
 	if len(profiles) == 0 {

@@ -12,6 +12,12 @@ const (
 )
 
 const (
+	BrowserAttachmentTargets = "targets"
+	BrowserAttachmentContext = "context"
+	BrowserAttachmentBrowser = "browser"
+)
+
+const (
 	defaultBrowserStartTimeout       = 15 * time.Second
 	defaultBrowserInactivityTimeout  = 10 * time.Minute
 	defaultBrowserCleanupInterval    = time.Minute
@@ -37,11 +43,15 @@ type BrowserConfig struct {
 }
 
 type BrowserProfileConfig struct {
-	Name          string `yaml:"name"`
-	Mode          string `yaml:"mode"`
-	Directory     string `yaml:"directory"`
-	CDPEndpoint   string `yaml:"cdpEndpoint"`
-	CredentialRef string `yaml:"credentialRef"`
+	Name             string   `yaml:"name"`
+	Mode             string   `yaml:"mode"`
+	Directory        string   `yaml:"directory"`
+	CDPEndpoint      string   `yaml:"cdpEndpoint"`
+	CredentialRef    string   `yaml:"credentialRef"`
+	DataIdentity     string   `yaml:"dataIdentity"`
+	AttachmentScope  string   `yaml:"attachmentScope"`
+	BrowserContextID string   `yaml:"browserContextId"`
+	TargetIDs        []string `yaml:"targetIds"`
 }
 
 type BrowserNetworkConfig struct {

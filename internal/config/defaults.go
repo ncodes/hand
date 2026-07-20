@@ -237,6 +237,9 @@ func cloneConfig(cfg Config) Config {
 	cfg.Browser.Network.DevelopmentAllowedHosts = slices.Clone(cfg.Browser.Network.DevelopmentAllowedHosts)
 	cfg.Browser.Network.DevelopmentAllowedCIDRs = slices.Clone(cfg.Browser.Network.DevelopmentAllowedCIDRs)
 	cfg.Browser.Profiles = slices.Clone(cfg.Browser.Profiles)
+	for index := range cfg.Browser.Profiles {
+		cfg.Browser.Profiles[index].TargetIDs = slices.Clone(cfg.Browser.Profiles[index].TargetIDs)
+	}
 	cfg.Trace.Disk.Enabled = cloneBoolPtr(cfg.Trace.Disk.Enabled)
 	cfg.Trace.Database.Enabled = cloneBoolPtr(cfg.Trace.Database.Enabled)
 	cfg.TUI.ThinkingComposer = cloneBoolPtr(cfg.TUI.ThinkingComposer)

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/permissions"
 )
 
@@ -20,7 +21,46 @@ const (
 )
 
 func (s *Service) ResolveOperations(ctx context.Context, action Action, request ActionRequest) ([]permissions.Operation, error) {
-	return s.resolveOperations(ctx, action, request, true)
+	inputs, err := s.ResolvePermissionInputs(ctx, action, request)
+	if err != nil {
+		return nil, err
+	}
+	operations := make([]permissions.Operation, len(inputs))
+	for index, input := range inputs {
+		operations[index] = input.Operation
+	}
+	return operations, nil
+}
+
+func (s *Service) ResolvePermissionInputs(
+	ctx context.Context,
+	action Action,
+	request ActionRequest,
+) ([]permissions.EvaluationInput, error) {
+	if s == nil {
+		return nil, errors.New("browser service is required")
+	}
+	if action != ActionStart {
+		operations, err := s.resolveOperations(ctx, action, request, true)
+		if err != nil {
+			return nil, err
+		}
+		return getEvaluationInputs(operations), nil
+	}
+
+	profileName := strings.TrimSpace(request.Profile)
+	if profileName == "" {
+		profileName = s.cfg.DefaultProfile
+	}
+	profile, ok := s.cfg.Profile(profileName)
+	if !ok {
+		return nil, errors.New("browser profile is not configured")
+	}
+	attached, err := s.resolveAttachment(profile)
+	if err != nil {
+		return nil, err
+	}
+	return getStartEvaluationInputs(profile, attached)
 }
 
 func (s *Service) resolveOperations(
@@ -37,6 +77,20 @@ func (s *Service) resolveOperations(
 		profile = s.cfg.DefaultProfile
 	}
 	browserRequest := permissions.BrowserRequest{Profile: profile, Action: string(action)}
+	if action == ActionStart {
+		configured, ok := s.cfg.Profile(profile)
+		if !ok {
+			return nil, errors.New("browser profile is not configured")
+		}
+		attached, err := s.resolveAttachment(configured)
+		if err != nil {
+			return nil, err
+		}
+		browserRequest.ProfileMode = configured.Mode
+		browserRequest.AttachmentScope = attached.scope
+		browserRequest.AttachmentID = attached.identity
+		browserRequest.Personal = configured.Mode == config.BrowserProfileExistingSession
+	}
 
 	if requiresSession(action) {
 		owner, err := ownerFromContext(ctx)
@@ -52,7 +106,22 @@ func (s *Service) resolveOperations(
 		}
 		browserRequest.Profile = runtime.Profile
 		browserRequest.OwnerID = runtime.Owner.Actor.ID
-		browserRequest.Personal = runtime.ProfileMode == "existing_session"
+		browserRequest.ProfileMode = runtime.ProfileMode
+		browserRequest.AttachmentScope = runtime.attachment.scope
+		browserRequest.AttachmentID = runtime.attachment.identity
+		browserRequest.Personal = runtime.ProfileMode == config.BrowserProfileExistingSession
+		if action == ActionOpen && runtime.attachment.scope == config.BrowserAttachmentTargets {
+			return nil, &Error{
+				Code: ErrorUnavailable, Operation: action,
+				Err: errors.New("target-scoped browser attachment cannot create tabs"),
+			}
+		}
+		if isAttachedProfile(runtime.ProfileMode) && actionMayUseNetwork(action) && !isFullAccess(ctx) {
+			return nil, &Error{
+				Code: ErrorUnavailable, Operation: action,
+				Err: errors.New("remote browser network actions require full_access"),
+			}
+		}
 		if requiresTab(action) {
 			tab, err := s.getTabForResolution(ctx, runtime, request.TabID, lockSession)
 			if err != nil {
@@ -158,6 +227,13 @@ func (s *Service) Open(ctx context.Context, request ActionRequest) (Tab, error) 
 	backendTab, err := backend.OpenTab(ctx, request.URL)
 	if err != nil {
 		return Tab{}, getActionError(ActionOpen, err)
+	}
+	if !isBackendTabAllowed(runtime, backendTab) {
+		_ = backend.CloseTab(context.WithoutCancel(ctx), backendTab.ID)
+		return Tab{}, &Error{
+			Code: ErrorOwnership, Operation: ActionOpen,
+			Err: errors.New("created browser tab is outside the configured attachment scope"),
+		}
 	}
 	tab := s.setBackendTab(runtime, backendTab, true)
 	s.touchRuntime(runtime)
@@ -472,7 +548,9 @@ func (s *Service) setNetworkAuthorizer(
 		}
 		operations, err := (permissions.BrowserRequest{
 			Profile: runtime.Profile, Action: string(action), OwnerID: runtime.Owner.Actor.ID,
-			Personal: runtime.ProfileMode == "existing_session", Network: &target,
+			ProfileMode: runtime.ProfileMode, AttachmentScope: runtime.attachment.scope,
+			AttachmentID: runtime.attachment.identity,
+			Personal:     runtime.ProfileMode == config.BrowserProfileExistingSession, Network: &target,
 		}).Operations()
 		if err != nil {
 			return err
@@ -549,6 +627,9 @@ func (s *Service) setBackendTabs(runtime *managedSession, values []BackendTab) [
 	seen := make(map[string]struct{}, len(values))
 	result := make([]Tab, 0, len(values))
 	for _, value := range values {
+		if !isBackendTabAllowed(runtime, value) {
+			continue
+		}
 		seen[value.ID] = struct{}{}
 		tab := setBackendTabLocked(runtime, value)
 		result = append(result, tab.Tab)
@@ -562,6 +643,20 @@ func (s *Service) setBackendTabs(runtime *managedSession, values []BackendTab) [
 		return strings.Compare(left.ID, right.ID)
 	})
 	return result
+}
+
+func isBackendTabAllowed(runtime *managedSession, tab BackendTab) bool {
+	switch runtime.attachment.scope {
+	case "", config.BrowserAttachmentBrowser:
+		return true
+	case config.BrowserAttachmentContext:
+		return tab.BrowserContextID == runtime.attachment.contextID
+	case config.BrowserAttachmentTargets:
+		_, ok := runtime.attachment.targetIDs[tab.ID]
+		return ok
+	default:
+		return false
+	}
 }
 
 func (s *Service) setBackendTab(runtime *managedSession, value BackendTab, active bool) Tab {
@@ -749,6 +844,10 @@ func actionMayUseNetwork(action Action) bool {
 	default:
 		return false
 	}
+}
+
+func isAttachedProfile(mode string) bool {
+	return mode == config.BrowserProfileRemoteCDP || mode == config.BrowserProfileExistingSession
 }
 
 func isActionableRole(role string) bool {

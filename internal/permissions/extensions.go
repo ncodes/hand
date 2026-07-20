@@ -42,6 +42,9 @@ func (r MCPRequest) Operation() (Operation, error) {
 
 type BrowserRequest struct {
 	Profile           string
+	ProfileMode       string
+	AttachmentScope   string
+	AttachmentID      string
 	TabTarget         string
 	Action            string
 	Network           *NetworkTarget
@@ -106,10 +109,20 @@ func (r BrowserRequest) Operations() ([]Operation, error) {
 	if r.Profile == "" || r.Action == "" {
 		return nil, errors.New("browser profile and action are required")
 	}
-	target := getStructuredTarget(url.Values{
+	targetValues := url.Values{
 		"profile": {r.Profile}, "tab": {r.TabTarget},
 		"action": {r.Action}, "mode": {getBrowserMode(r.Personal)},
-	})
+	}
+	if r.ProfileMode != "" {
+		targetValues.Set("profile_mode", r.ProfileMode)
+	}
+	if r.AttachmentScope != "" {
+		targetValues.Set("attachment_scope", r.AttachmentScope)
+	}
+	if r.AttachmentID != "" {
+		targetValues.Set("attachment_id", r.AttachmentID)
+	}
+	target := getStructuredTarget(targetValues)
 	action, effects, ownerRequired, err := getBrowserPermission(r.Action)
 	if err != nil {
 		return nil, err
@@ -144,6 +157,9 @@ func (r BrowserRequest) Operations() ([]Operation, error) {
 			networkAction = ActionUpdate
 			networkEffects = []Effect{EffectWrite, EffectNetwork, EffectExternalSystem}
 		}
+		if r.Personal || r.CredentialBearing {
+			networkEffects = append(networkEffects, EffectCredentialBearing)
+		}
 		networkOperation, normalizeErr := (Operation{
 			Tool: "browser", Resource: ResourceNetwork, Action: networkAction,
 			Effects: networkEffects, Network: r.Network,
@@ -166,6 +182,9 @@ func (r BrowserRequest) Operations() ([]Operation, error) {
 		if r.Action == "download" || r.Action == "screenshot" || r.Action == "pdf" {
 			fileAction = ActionCreate
 			fileEffects = []Effect{EffectWrite}
+		}
+		if r.Personal || r.CredentialBearing {
+			fileEffects = append(fileEffects, EffectCredentialBearing)
 		}
 		fileOperation, normalizeErr := (Operation{
 			Tool: "browser", Resource: ResourceFile, Action: fileAction, Effects: fileEffects,

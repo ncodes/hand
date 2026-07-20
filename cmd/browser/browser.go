@@ -81,12 +81,15 @@ func newAuthCommand() *cli.Command {
 					return err
 				}
 				if cmd.Bool("json") {
-					return writeJSON(map[string]any{"rotated": true, "restart_required": true})
+					return writeJSON(map[string]any{
+						"rotated": true, "restart_required": true,
+						"browser_attachment_approvals_invalidated": true,
+					})
 				}
 
 				_, err := fmt.Fprintln(
 					browserOutput,
-					"rotated RPC owner credential; restart the daemon and reconnect local clients",
+					"rotated RPC owner credential; restart the daemon, reconnect local clients, and reapprove browser attachments",
 				)
 				return err
 			},
@@ -141,12 +144,13 @@ func newProfilesCommand() *cli.Command {
 			}
 
 			writer := tabwriter.NewWriter(browserOutput, 0, 4, 2, ' ', 0)
-			if _, err := fmt.Fprintln(writer, "NAME\tMODE\tDEFAULT\tAVAILABLE"); err != nil {
+			if _, err := fmt.Fprintln(writer, "NAME\tMODE\tDEFAULT\tAVAILABLE\tWARNING"); err != nil {
 				return err
 			}
 			for _, profile := range profiles {
 				if _, err := fmt.Fprintf(
-					writer, "%s\t%s\t%t\t%t\n", profile.Name, profile.Mode, profile.Default, profile.Available,
+					writer, "%s\t%s\t%t\t%t\t%s\n",
+					profile.Name, profile.Mode, profile.Default, profile.Available, profile.Warning,
 				); err != nil {
 					return err
 				}
@@ -175,13 +179,13 @@ func newSessionsCommand() *cli.Command {
 			}
 
 			writer := tabwriter.NewWriter(browserOutput, 0, 4, 2, ' ', 0)
-			if _, err := fmt.Fprintln(writer, "ID\tPROFILE\tSTATE\tLAST ACTIVE\tERROR"); err != nil {
+			if _, err := fmt.Fprintln(writer, "ID\tPROFILE\tSTATE\tLAST ACTIVE\tERROR\tWARNING"); err != nil {
 				return err
 			}
 			for _, session := range sessions {
 				if _, err := fmt.Fprintf(
-					writer, "%s\t%s\t%s\t%s\t%s\n", session.ID, session.Profile, session.State,
-					formatTime(session.LastActive), session.Error,
+					writer, "%s\t%s\t%s\t%s\t%s\t%s\n", session.ID, session.Profile, session.State,
+					formatTime(session.LastActive), session.Error, session.Warning,
 				); err != nil {
 					return err
 				}
@@ -214,6 +218,9 @@ func newStartCommand() *cli.Command {
 			}
 
 			_, err = fmt.Fprintln(browserOutput, session.ID)
+			if err == nil && session.Warning != "" {
+				_, err = fmt.Fprintln(browserOutput, "WARNING:", session.Warning)
+			}
 			return err
 		},
 	}

@@ -82,12 +82,13 @@ func TestValidateBrowserProfile_ValidatesModeSpecificSettings(t *testing.T) {
 			wantPath: persistent},
 		{name: "persistent endpoint", profile: BrowserProfileConfig{
 			Mode: BrowserProfileManagedPersistent, Directory: persistent, CDPEndpoint: "https://example.com",
-		}, wantErr: "managed persistent profile cannot set CDP endpoint or credential reference"},
+		}, wantErr: "managed persistent profile cannot set attachment configuration"},
 		{name: "remote", profile: BrowserProfileConfig{
-			Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
+			Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com", AttachmentScope: BrowserAttachmentBrowser,
 		}},
 		{name: "existing session", profile: BrowserProfileConfig{
-			Mode: BrowserProfileExistingSession, Directory: persistent, CDPEndpoint: "ws://localhost:9222",
+			Mode: BrowserProfileExistingSession, CDPEndpoint: "ws://localhost:9222", DataIdentity: "profile-1",
+			AttachmentScope: BrowserAttachmentBrowser,
 		}},
 	}
 	for _, test := range tests {
@@ -106,6 +107,60 @@ func TestValidateBrowserProfile_ValidatesModeSpecificSettings(t *testing.T) {
 			expected, canonicalErr := getCanonicalPath(test.wantPath)
 			require.NoError(t, canonicalErr)
 			require.Equal(t, expected, path)
+		})
+	}
+}
+
+func TestValidateBrowserProfile_RequiresExplicitAttachmentIdentityAndScope(t *testing.T) {
+	tests := []struct {
+		name    string
+		profile BrowserProfileConfig
+		wantErr string
+	}{
+		{
+			name: "credential reference", profile: BrowserProfileConfig{
+				Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
+				CredentialRef: "env:CDP_TOKEN", AttachmentScope: BrowserAttachmentBrowser,
+			},
+		},
+		{
+			name: "missing personal identity", profile: BrowserProfileConfig{
+				Mode: BrowserProfileExistingSession, CDPEndpoint: "https://example.com",
+				AttachmentScope: BrowserAttachmentBrowser,
+			}, wantErr: "existing session data identity is required",
+		},
+		{
+			name: "missing scope", profile: BrowserProfileConfig{
+				Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
+			}, wantErr: "attachment scope must be one of: targets, context, browser",
+		},
+		{
+			name: "target scope without targets", profile: BrowserProfileConfig{
+				Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
+				AttachmentScope: BrowserAttachmentTargets,
+			}, wantErr: "target attachment scope requires target IDs and no browser context ID",
+		},
+		{
+			name: "context scope without context", profile: BrowserProfileConfig{
+				Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
+				AttachmentScope: BrowserAttachmentContext,
+			}, wantErr: "context attachment scope requires a browser context ID and no target IDs",
+		},
+		{
+			name: "browser scope with target", profile: BrowserProfileConfig{
+				Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
+				AttachmentScope: BrowserAttachmentBrowser, TargetIDs: []string{"target-1"},
+			}, wantErr: "browser attachment scope cannot set a browser context ID or target IDs",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := validateBrowserProfile(t.TempDir(), test.profile)
+			if test.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, test.wantErr)
 		})
 	}
 }

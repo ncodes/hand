@@ -211,6 +211,9 @@ Local CLI and TUI browser management requires a profile-scoped owner credential 
 the claimed surface. Invalid or overexposed credential files fail closed. Recover by running
 `morph browser auth rotate`, restarting the daemon, and reconnecting local clients.
 
+Rotation changes the private browser-attachment identity key. Existing remote and personal-browser attachment grants
+no longer match, and attached sessions should be stopped before rotation and restarted after the daemon comes back.
+
 Each RPC proof is method-bound, request-bound, short-lived, and accepted once by a running daemon. The replay cache is
 kept in memory, so a daemon restart resets it; the 30-second proof lifetime bounds that restart window. Rotate the owner
 credential when a local process or captured diagnostic may have exposed a proof or the credential itself.
@@ -224,6 +227,15 @@ preventing a page from retaining ambient CONNECT access between actions.
 Dedicated workers, shared workers, and service-worker registration are disabled in managed sessions. Worker-created
 WebSockets are not covered reliably by CDP blocked-URL rules and can travel inside CONNECT tunnels that the proxy cannot
 classify after TLS begins, so permitting workers would weaken the fail-closed network boundary.
+
+Remote CDP and signed-in browser profiles connect through a local authenticated relay that pins the configured CDP
+origin, rejects redirects, and rewrites discovery WebSocket URLs through the same relay. CDP credentials are resolved
+from `env:` references and forwarded upstream without appearing in status, logs, traces, or approval text.
+
+An attached profile must explicitly limit authority to selected target IDs, one browser context, or the whole browser.
+Signed-in profiles cannot be selected as the default. Their connection requires local-owner approval unless
+`full_access` is active, and every later operation retains the `credential_bearing` effect. Remote page network
+actions fail closed under every preset except `full_access`.
 
 ### Filesystem roots (`fs`)
 

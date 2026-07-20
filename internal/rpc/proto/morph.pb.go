@@ -6407,6 +6407,7 @@ type BrowserProfile struct {
 	Mode          string                 `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`
 	Default       bool                   `protobuf:"varint,3,opt,name=default,proto3" json:"default,omitempty"`
 	Available     bool                   `protobuf:"varint,4,opt,name=available,proto3" json:"available,omitempty"`
+	Warning       string                 `protobuf:"bytes,5,opt,name=warning,proto3" json:"warning,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6469,6 +6470,13 @@ func (x *BrowserProfile) GetAvailable() bool {
 	return false
 }
 
+func (x *BrowserProfile) GetWarning() string {
+	if x != nil {
+		return x.Warning
+	}
+	return ""
+}
+
 type BrowserSession struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -6478,6 +6486,7 @@ type BrowserSession struct {
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	LastActive    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_active,json=lastActive,proto3" json:"last_active,omitempty"`
 	Error         string                 `protobuf:"bytes,7,opt,name=error,proto3" json:"error,omitempty"`
+	Warning       string                 `protobuf:"bytes,8,opt,name=warning,proto3" json:"warning,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6557,6 +6566,13 @@ func (x *BrowserSession) GetLastActive() *timestamppb.Timestamp {
 func (x *BrowserSession) GetError() string {
 	if x != nil {
 		return x.Error
+	}
+	return ""
+}
+
+func (x *BrowserSession) GetWarning() string {
+	if x != nil {
+		return x.Warning
 	}
 	return ""
 }
@@ -8031,12 +8047,13 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"\x06grants\x18\x02 \x01(\x03R\x06grants\x12A\n" +
 	"\x0erequest_cutoff\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\rrequestCutoff\x12=\n" +
 	"\fgrant_cutoff\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vgrantCutoff\x12\x17\n" +
-	"\adry_run\x18\x05 \x01(\bR\x06dryRun\"p\n" +
+	"\adry_run\x18\x05 \x01(\bR\x06dryRun\"\x8a\x01\n" +
 	"\x0eBrowserProfile\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04mode\x18\x02 \x01(\tR\x04mode\x12\x18\n" +
 	"\adefault\x18\x03 \x01(\bR\adefault\x12\x1c\n" +
-	"\tavailable\x18\x04 \x01(\bR\tavailable\"\x81\x02\n" +
+	"\tavailable\x18\x04 \x01(\bR\tavailable\x12\x18\n" +
+	"\awarning\x18\x05 \x01(\tR\awarning\"\x9b\x02\n" +
 	"\x0eBrowserSession\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aprofile\x18\x02 \x01(\tR\aprofile\x12!\n" +
@@ -8046,7 +8063,8 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12;\n" +
 	"\vlast_active\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"lastActive\x12\x14\n" +
-	"\x05error\x18\a \x01(\tR\x05error\"\x80\x03\n" +
+	"\x05error\x18\a \x01(\tR\x05error\x12\x18\n" +
+	"\awarning\x18\b \x01(\tR\awarning\"\x80\x03\n" +
 	"\x0fBrowserArtifact\x12\x16\n" +
 	"\x06handle\x18\x01 \x01(\tR\x06handle\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x12\n" +

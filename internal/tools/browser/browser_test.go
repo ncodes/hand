@@ -23,6 +23,7 @@ type browserServiceStub struct {
 	resolvedAction    browserdomain.Action
 	resolvedRequest   browserdomain.ActionRequest
 	operations        []permissions.Operation
+	permissionInputs  []permissions.EvaluationInput
 	resolveErr        error
 	status            browserdomain.Status
 	navigated         browserdomain.ActionRequest
@@ -32,14 +33,21 @@ type browserServiceStub struct {
 	statusCalls       int
 }
 
-func (s *browserServiceStub) ResolveOperations(
+func (s *browserServiceStub) ResolvePermissionInputs(
 	_ context.Context,
 	action browserdomain.Action,
 	request browserdomain.ActionRequest,
-) ([]permissions.Operation, error) {
+) ([]permissions.EvaluationInput, error) {
 	s.resolvedAction = action
 	s.resolvedRequest = request
-	return s.operations, s.resolveErr
+	if s.permissionInputs != nil || s.resolveErr != nil {
+		return s.permissionInputs, s.resolveErr
+	}
+	inputs := make([]permissions.EvaluationInput, len(s.operations))
+	for index, operation := range s.operations {
+		inputs[index] = permissions.EvaluationInput{Operation: operation}
+	}
+	return inputs, nil
 }
 
 func (s *browserServiceStub) Status() browserdomain.Status {
@@ -397,6 +405,30 @@ func TestDefinition_ResolvesPermissionsAndDispatchesTypedAction(t *testing.T) {
 	require.Equal(t, "tab-1", tab.ID)
 }
 
+func TestDefinition_PreservesPersonalBrowserApprovalWarning(t *testing.T) {
+	service := &browserServiceStub{permissionInputs: []permissions.EvaluationInput{{
+		ApprovalReason:  "Personal browser attachment exposes signed-in sessions, cookies, and page data.",
+		ApprovalSummary: "Attach to signed-in browser profile personal",
+		Operation: permissions.Operation{
+			Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionConnect,
+			Effects: []permissions.Effect{
+				permissions.EffectNetwork,
+				permissions.EffectCredentialBearing,
+				permissions.EffectExternalSystem,
+			},
+		},
+	}}}
+	definition := Definition(&toolmocks.Runtime{BrowserServiceValue: service, BrowserServiceOK: true})
+
+	inputs, err := definition.ResolvePermission(context.Background(), tools.Call{
+		Name: toolName, Input: `{"action":"start","profile":"personal"}`,
+	})
+	require.NoError(t, err)
+	require.Len(t, inputs, 1)
+	require.Contains(t, inputs[0].ApprovalReason, "signed-in sessions")
+	require.Contains(t, inputs[0].Operation.Effects, permissions.EffectCredentialBearing)
+}
+
 func TestDefinition_UsesPresetAndRulePolicyForUnattendedSurfaces(t *testing.T) {
 	operation := permissions.Operation{
 		Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionRead,
@@ -504,7 +536,11 @@ func TestSafeBrowserResultsRemoveURLSecrets(t *testing.T) {
 	require.Equal(t, "https://example.com/path", tabs[0].URL)
 	snapshot := getSafeSnapshot(browserdomain.Snapshot{URL: "https://example.com/page?secret=yes"})
 	require.Equal(t, "https://example.com/page", snapshot.URL)
-	require.Empty(t, getSafeSession(browserdomain.Session{Error: "secret backend detail"}).Error)
+	session := getSafeSession(browserdomain.Session{
+		Error: "secret backend detail", Warning: "Personal browser attachment is unsafe.",
+	})
+	require.Empty(t, session.Error)
+	require.Equal(t, "Personal browser attachment is unsafe.", session.Warning)
 }
 
 func TestDefinition_DispatchesEverySupportedAction(t *testing.T) {

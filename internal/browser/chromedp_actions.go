@@ -18,6 +18,7 @@ import (
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/kb"
+	"github.com/wandxy/morph/internal/config"
 )
 
 func (s *chromiumSession) ListTabs(ctx context.Context) ([]BackendTab, error) {
@@ -30,17 +31,18 @@ func (s *chromiumSession) ListTabs(ctx context.Context) ([]BackendTab, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	result := make([]BackendTab, 0, len(infos))
 	for _, info := range infos {
-		if info.Type != "page" || info.Subtype != "" {
+		if info.Type != "page" || info.Subtype != "" || !s.isTargetAllowed(info) {
 			continue
 		}
+		s.mu.Lock()
 		if s.activeTabID == "" {
 			s.activeTabID = string(info.TargetID)
 		}
-		result = append(result, backendTabFromTarget(info, s.activeTabID))
+		activeTabID := s.activeTabID
+		s.mu.Unlock()
+		result = append(result, backendTabFromTarget(info, activeTabID))
 	}
 	return result, nil
 }
@@ -56,14 +58,19 @@ func (s *chromiumSession) OpenTab(ctx context.Context, rawURL string) (BackendTa
 	if err != nil {
 		return BackendTab{}, err
 	}
-	id, err := target.CreateTarget("about:blank").Do(browserCtx)
+	create := target.CreateTarget("about:blank")
+	switch s.attachmentScope {
+	case config.BrowserAttachmentTargets:
+		return BackendTab{}, errors.New("target-scoped browser attachment cannot create tabs")
+	case config.BrowserAttachmentContext:
+		create = create.WithBrowserContextID(cdp.BrowserContextID(s.browserContextID))
+	}
+	id, err := create.Do(browserCtx)
 	if err != nil {
 		return BackendTab{}, errors.New("browser tab could not be created")
 	}
-	if err := waitForBrowserTarget(actionCtx, id); err != nil {
-		return BackendTab{}, errors.New("browser tab was not ready")
-	}
 	s.mu.Lock()
+	delete(s.quarantinedTargets, string(id))
 	s.openingTabIDs[string(id)] = struct{}{}
 	s.mu.Unlock()
 	defer func() {
@@ -71,6 +78,9 @@ func (s *chromiumSession) OpenTab(ctx context.Context, rawURL string) (BackendTa
 		delete(s.openingTabIDs, string(id))
 		s.mu.Unlock()
 	}()
+	if err := waitForBrowserTarget(actionCtx, id); err != nil {
+		return BackendTab{}, errors.New("browser tab was not ready")
+	}
 	if err := target.ActivateTarget(id).Do(browserCtx); err != nil {
 		return BackendTab{}, errors.New("browser tab could not be activated")
 	}
@@ -571,6 +581,9 @@ func (s *chromiumSession) getBackendTab(ctx context.Context, tabID string) (Back
 	if err != nil {
 		return BackendTab{}, err
 	}
+	if !s.isTargetAllowed(info) {
+		return BackendTab{}, errors.New("browser target is outside the configured attachment scope")
+	}
 	s.mu.Lock()
 	active := s.activeTabID
 	s.mu.Unlock()
@@ -628,7 +641,31 @@ func backendTabFromTarget(info *target.Info, activeTabID string) BackendTab {
 		return BackendTab{}
 	}
 	return BackendTab{
-		ID: string(info.TargetID), Title: info.Title, URL: info.URL, Active: string(info.TargetID) == activeTabID,
+		ID: string(info.TargetID), BrowserContextID: string(info.BrowserContextID),
+		Title: info.Title, URL: info.URL, Active: string(info.TargetID) == activeTabID,
+	}
+}
+
+func (s *chromiumSession) isTargetAllowed(info *target.Info) bool {
+	if info == nil {
+		return false
+	}
+	s.mu.Lock()
+	_, quarantined := s.quarantinedTargets[string(info.TargetID)]
+	s.mu.Unlock()
+	if quarantined {
+		return false
+	}
+	switch s.attachmentScope {
+	case "", config.BrowserAttachmentBrowser:
+		return true
+	case config.BrowserAttachmentContext:
+		return string(info.BrowserContextID) == s.browserContextID
+	case config.BrowserAttachmentTargets:
+		_, ok := s.attachmentTargets[string(info.TargetID)]
+		return ok
+	default:
+		return false
 	}
 }
 
