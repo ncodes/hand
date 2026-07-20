@@ -866,7 +866,12 @@ func (s *ApprovalService) incrementMetric(update func(*ApprovalMetrics)) {
 }
 
 func getApprovalSummary(operation Operation) string {
-	return fmt.Sprintf("%s · %s %s", operation.Tool, operation.Action, operation.Resource)
+	summary := fmt.Sprintf("%s · %s %s", operation.Tool, operation.Action, operation.Resource)
+	if operation.Network != nil {
+		summary += " " + getSafeNetworkApprovalTarget(*operation.Network)
+	}
+
+	return summary
 }
 
 func getBatchTool(operations []Operation) string {
@@ -892,11 +897,7 @@ func getBatchApprovalReason(inputs []EvaluationInput, operations []Operation) st
 	limit := min(len(operations), maxPresentedOperations)
 	descriptions := make([]string, 0, limit+1)
 	for _, operation := range operations[:limit] {
-		description := getApprovalSummary(operation)
-		if operation.Network != nil {
-			description += " " + getSafeNetworkApprovalTarget(*operation.Network)
-		}
-		descriptions = append(descriptions, description)
+		descriptions = append(descriptions, getApprovalSummary(operation))
 	}
 	if remaining := len(operations) - limit; remaining > 0 {
 		descriptions = append(descriptions, fmt.Sprintf("%d more operations", remaining))

@@ -445,7 +445,24 @@ func (r *DefaultRegistry) recordPermissionDecision(
 		Rule:          evaluation.Rule,
 		Preset:        string(evaluation.Preset),
 		OwnerRequired: operation.OwnerRequired,
+		Network:       getPermissionNetworkTracePayload(operation.Network),
 	})
+}
+
+func getPermissionNetworkTracePayload(target *permissions.NetworkTarget) *trace.PermissionNetworkTargetPayload {
+	if target == nil {
+		return nil
+	}
+
+	return &trace.PermissionNetworkTargetPayload{
+		Scheme:       target.Scheme,
+		Host:         target.Host,
+		Port:         target.Port,
+		Path:         target.Path,
+		Method:       target.Method,
+		RequestClass: string(target.RequestClass),
+		HasQuery:     target.QueryHash != "",
+	}
 }
 
 func getAuthorizationContext(ctx context.Context) permissions.AuthorizationContext {

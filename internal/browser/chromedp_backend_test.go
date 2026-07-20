@@ -757,6 +757,42 @@ func TestChromiumSession_NetworkAuthorizersAreScopedToTabs(t *testing.T) {
 	require.EqualError(t, session.consumeNetworkError("tab-2"), "second tab failed")
 }
 
+func TestChromiumSession_NetworkErrorsRequireActiveAuthorization(t *testing.T) {
+	session := &chromiumSession{
+		networkAuthorizers: make(map[string]networkAuthorization),
+		networkErrors:      make(map[string]error),
+	}
+	restore := session.SetNetworkAuthorizer("tab-1", func(context.Context, permissions.NetworkTarget) error {
+		return nil
+	})
+	authorization, ok := session.getNetworkAuthorization("tab-1")
+	require.True(t, ok)
+	authorization.cancel()
+	session.recordNetworkError("tab-1", authorization.id, context.Canceled)
+	require.Nil(t, session.consumeNetworkError("tab-1"))
+	restore()
+
+	session.recordNetworkError("tab-1", authorization.id, context.Canceled)
+	require.Nil(t, session.consumeNetworkError("tab-1"))
+
+	restore = session.SetNetworkAuthorizer("tab-1", func(context.Context, permissions.NetworkTarget) error {
+		return nil
+	})
+	authorization, ok = session.getNetworkAuthorization("tab-1")
+	require.True(t, ok)
+	restoreReplacement := session.SetNetworkAuthorizer("tab-1", func(context.Context, permissions.NetworkTarget) error {
+		return nil
+	})
+	session.recordNetworkError("tab-1", authorization.id, errors.New("replaced request failed"))
+	require.Nil(t, session.consumeNetworkError("tab-1"))
+	authorization, ok = session.getNetworkAuthorization("tab-1")
+	require.True(t, ok)
+	session.recordNetworkError("tab-1", authorization.id, errors.New("active request failed"))
+	require.EqualError(t, session.consumeNetworkError("tab-1"), "active request failed")
+	restoreReplacement()
+	restore()
+}
+
 func authorizeNetworkRequest(session *chromiumSession, tabID string) error {
 	authorization, ok := session.getNetworkAuthorization(tabID)
 	if !ok {

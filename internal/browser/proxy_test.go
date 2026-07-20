@@ -2,6 +2,7 @@ package browser
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -12,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,6 +74,39 @@ func TestEgressProxy_ForwardsAllowedHTTPAndRejectsBlockedTargets(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, response.StatusCode)
 	require.NoError(t, response.Body.Close())
 	require.NoError(t, blocked.Close(context.Background()))
+}
+
+func TestEgressProxy_LogsSafeUpstreamFailureDetails(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	require.NoError(t, listener.Close())
+
+	var output bytes.Buffer
+	originalLogger := log.Logger
+	log.Logger = zerolog.New(&output).Level(zerolog.DebugLevel)
+	t.Cleanup(func() { log.Logger = originalLogger })
+	proxy, err := startEgressProxy(NetworkPolicy{Strict: false})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
+	proxyURL, err := url.Parse(proxy.URL())
+	require.NoError(t, err)
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}}
+
+	response, err := client.Get("http://" + address + "/news?token=secret")
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadGateway, response.StatusCode)
+	require.NoError(t, response.Body.Close())
+	logOutput := output.String()
+	require.Contains(t, logOutput, "Browser proxy request to the upstream target failed")
+	require.Contains(t, logOutput, `"browser_network_stage":"proxy_upstream"`)
+	require.Contains(t, logOutput, `"network_host":"127.0.0.1"`)
+	require.Contains(t, logOutput, `"network_path":"/news"`)
+	require.Contains(t, logOutput, `"network_has_query":true`)
+	require.Contains(t, logOutput, "connection refused")
+	require.NotContains(t, logOutput, "token")
+	require.NotContains(t, logOutput, "secret")
 }
 
 func TestEgressProxy_RejectsMalformedAndBlockedConnectTargets(t *testing.T) {

@@ -515,6 +515,43 @@ func TestDefaultRegistry_InvokeRecordsUnknownActor(t *testing.T) {
 	require.Equal(t, permissions.ReasonPolicyDefault, payload.ReasonCode)
 }
 
+func TestDefaultRegistry_InvokeRecordsSafeStructuredNetworkTarget(t *testing.T) {
+	target, err := permissions.NetworkTargetFromURL(
+		"https://example.com/news?token=secret", "GET", permissions.NetworkRequestNavigation,
+	)
+	require.NoError(t, err)
+	registry := newTestDefaultRegistry(RegistryOptions{PermissionPolicy: permissions.Policy{
+		Default: permissions.DecisionAllow,
+	}})
+	require.NoError(t, registry.Register(Definition{
+		Name: "network_read",
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceNetwork, Action: permissions.ActionRead,
+			Effects: []permissions.Effect{permissions.EffectRead, permissions.EffectNetwork}, Network: &target,
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			return Result{Output: "ok"}, nil
+		}),
+	}))
+	recorder := &permissionTraceRecorder{}
+	ctx := WithTraceRecorder(context.Background(), recorder)
+
+	result, err := registry.Invoke(ctx, Call{Name: "network_read"})
+
+	require.NoError(t, err)
+	require.Equal(t, "ok", result.Output)
+	require.Len(t, recorder.events, 1)
+	payload := recorder.events[0].payload
+	require.Equal(t, &trace.PermissionNetworkTargetPayload{
+		Scheme: "https", Host: "example.com", Port: 443, Path: "/news",
+		Method: "GET", RequestClass: "navigation", HasQuery: true,
+	}, payload.Network)
+	raw, err := json.Marshal(payload)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "secret")
+	require.NotContains(t, string(raw), target.QueryHash)
+}
+
 func TestDefaultRegistry_InvokeClassifiedToolWithoutRecorder(t *testing.T) {
 	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.Register(Definition{

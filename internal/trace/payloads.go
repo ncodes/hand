@@ -29,18 +29,29 @@ type SafetyEventPayload struct {
 }
 
 type PermissionDecisionPayload struct {
-	ActorKind     string   `json:"actor_kind,omitempty"`
-	SurfaceKind   string   `json:"surface_kind,omitempty"`
-	Surface       string   `json:"surface,omitempty"`
-	Tool          string   `json:"tool,omitempty"`
-	Resource      string   `json:"resource,omitempty"`
-	Action        string   `json:"action,omitempty"`
-	Effects       []string `json:"effects,omitempty"`
-	Decision      string   `json:"decision,omitempty"`
-	ReasonCode    string   `json:"reason_code,omitempty"`
-	Rule          string   `json:"rule,omitempty"`
-	Preset        string   `json:"preset,omitempty"`
-	OwnerRequired bool     `json:"owner_required,omitempty"`
+	ActorKind     string                          `json:"actor_kind,omitempty"`
+	SurfaceKind   string                          `json:"surface_kind,omitempty"`
+	Surface       string                          `json:"surface,omitempty"`
+	Tool          string                          `json:"tool,omitempty"`
+	Resource      string                          `json:"resource,omitempty"`
+	Action        string                          `json:"action,omitempty"`
+	Effects       []string                        `json:"effects,omitempty"`
+	Decision      string                          `json:"decision,omitempty"`
+	ReasonCode    string                          `json:"reason_code,omitempty"`
+	Rule          string                          `json:"rule,omitempty"`
+	Preset        string                          `json:"preset,omitempty"`
+	OwnerRequired bool                            `json:"owner_required,omitempty"`
+	Network       *PermissionNetworkTargetPayload `json:"network,omitempty"`
+}
+
+type PermissionNetworkTargetPayload struct {
+	Scheme       string `json:"scheme,omitempty"`
+	Host         string `json:"host,omitempty"`
+	Port         uint16 `json:"port,omitempty"`
+	Path         string `json:"path,omitempty"`
+	Method       string `json:"method,omitempty"`
+	RequestClass string `json:"request_class,omitempty"`
+	HasQuery     bool   `json:"has_query,omitempty"`
 }
 
 type PermissionApprovalPayload struct {

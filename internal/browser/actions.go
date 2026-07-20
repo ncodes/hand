@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/permissions"
 )
@@ -539,6 +540,11 @@ func (s *Service) setNetworkAuthorizer(
 		networkCtx context.Context,
 		target permissions.NetworkTarget,
 	) error {
+		logEvent := addBrowserNetworkLogFields(log.Debug(), target).
+			Str("browser_session_id", runtime.ID).
+			Str("browser_tab_id", tabID).
+			Str("browser_action", string(action))
+		logEvent.Msg("Browser network authorization started")
 		authorizationCtx, cancel := context.WithCancel(ctx)
 		stop := context.AfterFunc(networkCtx, cancel)
 		defer stop()
@@ -557,7 +563,28 @@ func (s *Service) setNetworkAuthorizer(
 		}
 		for _, operation := range operations {
 			if operation.Resource == permissions.ResourceNetwork {
-				return s.checkOperations(authorizationCtx, []permissions.Operation{operation})
+				err = s.checkOperations(authorizationCtx, []permissions.Operation{operation})
+				if err == nil {
+					addBrowserNetworkLogFields(log.Debug(), target).
+						Str("browser_session_id", runtime.ID).
+						Str("browser_tab_id", tabID).
+						Str("browser_action", string(action)).
+						Msg("Browser network authorization completed")
+					return nil
+				}
+				level := log.Warn()
+				message := "Browser network authorization failed"
+				if errors.Is(err, context.Canceled) {
+					level = log.Debug()
+					message = "Browser network authorization was cancelled"
+				}
+				addBrowserNetworkLogFields(level, target).
+					Str("browser_session_id", runtime.ID).
+					Str("browser_tab_id", tabID).
+					Str("browser_action", string(action)).
+					Str("error", getSafeBrowserNetworkError(err)).
+					Msg(message)
+				return err
 			}
 		}
 		return errors.New("browser request did not resolve a network operation")

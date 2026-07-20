@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	stdlog "log"
 	"net"
 	"net/http"
 	"net/netip"
@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/wandxy/morph/internal/permissions"
 )
 
@@ -47,7 +49,7 @@ func startEgressProxy(policy NetworkPolicy) (*egressProxy, error) {
 	proxy.server = &http.Server{
 		Handler:           http.HandlerFunc(proxy.handle),
 		ReadHeaderTimeout: defaultProxyReadHeaderTimeout,
-		ErrorLog:          log.New(io.Discard, "", 0),
+		ErrorLog:          stdlog.New(io.Discard, "", 0),
 	}
 	go func() {
 		_ = proxy.server.Serve(listener)
@@ -145,6 +147,11 @@ func (p *egressProxy) handle(writer http.ResponseWriter, request *http.Request) 
 func (p *egressProxy) handleConnect(writer http.ResponseWriter, request *http.Request) {
 	host, port, err := splitProxyAddress(request.Host, 443)
 	if err != nil {
+		log.Warn().
+			Str("browser_network_stage", "proxy_connect_validation").
+			Str("network_method", http.MethodConnect).
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser proxy rejected an invalid CONNECT target")
 		http.Error(writer, "invalid proxy target", http.StatusBadRequest)
 		return
 	}
@@ -154,6 +161,10 @@ func (p *egressProxy) handleConnect(writer http.ResponseWriter, request *http.Re
 	}
 	upstream, err := p.dialTarget(request.Context(), target)
 	if err != nil {
+		addBrowserNetworkLogFields(log.Warn(), target).
+			Str("browser_network_stage", "proxy_connect").
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser proxy blocked or failed to connect to an upstream target")
 		http.Error(writer, "blocked proxy target", http.StatusForbidden)
 		return
 	}
@@ -170,6 +181,10 @@ func (p *egressProxy) handleConnect(writer http.ResponseWriter, request *http.Re
 	}
 	_, _ = buffer.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n")
 	if err := buffer.Flush(); err != nil {
+		addBrowserNetworkLogFields(log.Warn(), target).
+			Str("browser_network_stage", "proxy_connect_response").
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser proxy failed to establish a CONNECT tunnel")
 		_ = client.Close()
 		_ = upstream.Close()
 		return
@@ -186,6 +201,9 @@ func (p *egressProxy) handleConnect(writer http.ResponseWriter, request *http.Re
 		_ = upstream.Close()
 		return
 	}
+	addBrowserNetworkLogFields(log.Debug(), target).
+		Str("browser_network_stage", "proxy_connect").
+		Msg("Browser proxy established an upstream tunnel")
 	go func() {
 		proxyTunnel(client, upstream)
 		p.untrackConnections(client, upstream)
@@ -194,10 +212,18 @@ func (p *egressProxy) handleConnect(writer http.ResponseWriter, request *http.Re
 
 func (p *egressProxy) handleHTTP(writer http.ResponseWriter, request *http.Request) {
 	if strings.EqualFold(strings.TrimSpace(request.Header.Get("Upgrade")), "websocket") {
+		log.Warn().
+			Str("browser_network_stage", "proxy_http_validation").
+			Str("network_method", request.Method).
+			Msg("Browser proxy blocked a WebSocket upgrade")
 		http.Error(writer, "blocked proxy target", http.StatusForbidden)
 		return
 	}
 	if request.URL == nil || request.URL.Hostname() == "" {
+		log.Warn().
+			Str("browser_network_stage", "proxy_http_validation").
+			Str("network_method", request.Method).
+			Msg("Browser proxy rejected an invalid HTTP target")
 		http.Error(writer, "invalid proxy target", http.StatusBadRequest)
 		return
 	}
@@ -205,11 +231,20 @@ func (p *egressProxy) handleHTTP(writer http.ResponseWriter, request *http.Reque
 		request.URL.String(), request.Method, permissions.NetworkRequestSubresource,
 	)
 	if err != nil {
+		log.Warn().
+			Str("browser_network_stage", "proxy_http_validation").
+			Str("network_method", request.Method).
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser proxy rejected an invalid HTTP target")
 		http.Error(writer, "invalid proxy target", http.StatusBadRequest)
 		return
 	}
 	addresses, err := p.getPolicy().Resolve(request.Context(), target)
 	if err != nil {
+		addBrowserNetworkLogFields(log.Warn(), target).
+			Str("browser_network_stage", "proxy_policy").
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser proxy blocked a target by network policy")
 		http.Error(writer, "blocked proxy target", http.StatusForbidden)
 		return
 	}
@@ -226,6 +261,10 @@ func (p *egressProxy) handleHTTP(writer http.ResponseWriter, request *http.Reque
 	removeProxyHopHeaders(forward.Header)
 	response, err := transport.RoundTrip(forward)
 	if err != nil {
+		addBrowserNetworkLogFields(log.Warn(), target).
+			Str("browser_network_stage", "proxy_upstream").
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser proxy request to the upstream target failed")
 		http.Error(writer, "proxy request failed", http.StatusBadGateway)
 		return
 	}
@@ -233,6 +272,29 @@ func (p *egressProxy) handleHTTP(writer http.ResponseWriter, request *http.Reque
 	copyProxyHeaders(writer.Header(), response.Header)
 	writer.WriteHeader(response.StatusCode)
 	_, _ = io.Copy(writer, response.Body)
+	addBrowserNetworkLogFields(log.Debug(), target).
+		Str("browser_network_stage", "proxy_upstream").
+		Int("http_status", response.StatusCode).
+		Msg("Browser proxy request completed")
+}
+
+func addBrowserNetworkLogFields(event *zerolog.Event, target permissions.NetworkTarget) *zerolog.Event {
+	return event.
+		Str("network_scheme", target.Scheme).
+		Str("network_host", target.Host).
+		Uint16("network_port", target.Port).
+		Str("network_path", target.Path).
+		Str("network_method", target.Method).
+		Str("network_request_class", string(target.RequestClass)).
+		Bool("network_has_query", target.QueryHash != "")
+}
+
+func getSafeBrowserNetworkError(err error) string {
+	var urlError *url.Error
+	if errors.As(err, &urlError) && urlError.Err != nil {
+		return urlError.Err.Error()
+	}
+	return err.Error()
 }
 
 func (p *egressProxy) trackConnections(connections ...net.Conn) bool {

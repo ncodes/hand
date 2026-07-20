@@ -14,6 +14,7 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
+	"github.com/rs/zerolog/log"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/permissions"
 )
@@ -372,34 +373,70 @@ func (s *chromiumSession) getRequestListener(ctx context.Context, tabID string) 
 		switch value := event.(type) {
 		case *fetch.EventRequestPaused:
 			go func() {
-				authorization, ok := s.getNetworkAuthorization(tabID)
-				if !ok {
-					_ = chromedp.Run(ctx, fetch.FailRequest(value.RequestID, network.ErrorReasonBlockedByClient))
-					return
-				}
 				requestClass := permissions.NetworkRequestSubresource
 				if value.ResourceType == network.ResourceTypeDocument {
 					requestClass = permissions.NetworkRequestNavigation
 				}
 				target, err := permissions.NetworkTargetFromURL(value.Request.URL, value.Request.Method, requestClass)
-				if err == nil {
-					err = authorization.authorize(authorization.ctx, target)
+				if err != nil {
+					log.Warn().
+						Str("browser_tab_id", tabID).
+						Str("network_method", value.Request.Method).
+						Str("network_resource_type", string(value.ResourceType)).
+						Str("error", getSafeBrowserNetworkError(err)).
+						Msg("Browser intercepted an invalid network request")
+					_ = chromedp.Run(ctx, fetch.FailRequest(value.RequestID, network.ErrorReasonBlockedByClient))
+					return
 				}
+				addBrowserNetworkLogFields(log.Debug(), target).
+					Str("browser_tab_id", tabID).
+					Str("network_resource_type", string(value.ResourceType)).
+					Msg("Browser network request intercepted")
+				authorization, ok := s.getNetworkAuthorization(tabID)
+				if !ok {
+					addBrowserNetworkLogFields(log.Warn(), target).
+						Str("browser_tab_id", tabID).
+						Str("network_resource_type", string(value.ResourceType)).
+						Msg("Browser network request had no active authorizer")
+					_ = chromedp.Run(ctx, fetch.FailRequest(value.RequestID, network.ErrorReasonBlockedByClient))
+					return
+				}
+				err = authorization.authorize(authorization.ctx, target)
 				if err == nil {
 					err = authorization.ctx.Err()
 				}
 				if err != nil {
-					s.mu.Lock()
-					if s.networkErrors[tabID] == nil {
-						s.networkErrors[tabID] = err
+					level := log.Warn()
+					message := "Browser network request authorization failed"
+					if errors.Is(err, context.Canceled) {
+						level = log.Debug()
+						message = "Browser network request authorization was cancelled"
 					}
-					s.mu.Unlock()
+					addBrowserNetworkLogFields(level, target).
+						Str("browser_tab_id", tabID).
+						Uint64("browser_network_authorization_id", authorization.id).
+						Str("network_resource_type", string(value.ResourceType)).
+						Str("error", getSafeBrowserNetworkError(err)).
+						Msg(message)
+					s.recordNetworkError(tabID, authorization.id, err)
 					_ = chromedp.Run(ctx, fetch.FailRequest(value.RequestID, network.ErrorReasonBlockedByClient))
 					return
 				}
 				if err := s.continueAuthorizedRequest(ctx, tabID, authorization.id, value.RequestID); err != nil {
+					addBrowserNetworkLogFields(log.Warn(), target).
+						Str("browser_tab_id", tabID).
+						Uint64("browser_network_authorization_id", authorization.id).
+						Str("network_resource_type", string(value.ResourceType)).
+						Str("error", getSafeBrowserNetworkError(err)).
+						Msg("Browser failed to continue an authorized network request")
 					_ = chromedp.Run(ctx, fetch.FailRequest(value.RequestID, network.ErrorReasonBlockedByClient))
+					return
 				}
+				addBrowserNetworkLogFields(log.Debug(), target).
+					Str("browser_tab_id", tabID).
+					Uint64("browser_network_authorization_id", authorization.id).
+					Str("network_resource_type", string(value.ResourceType)).
+					Msg("Browser continued an authorized network request")
 			}()
 		case *fetch.EventAuthRequired:
 			response := &fetch.AuthChallengeResponse{Response: fetch.AuthChallengeResponseResponseCancelAuth}
@@ -499,6 +536,24 @@ func (s *chromiumSession) consumeNetworkError(tabID string) error {
 	err := s.networkErrors[tabID]
 	delete(s.networkErrors, tabID)
 	return err
+}
+
+func (s *chromiumSession) recordNetworkError(tabID string, authorizationID uint64, err error) {
+	if err == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	authorization, ok := s.getNetworkAuthorizationLocked(tabID)
+	if !ok || authorization.id != authorizationID || authorization.ctx.Err() != nil {
+		return
+	}
+	if s.networkErrors == nil {
+		s.networkErrors = make(map[string]error)
+	}
+	if s.networkErrors[tabID] == nil {
+		s.networkErrors[tabID] = err
+	}
 }
 
 func (s *chromiumSession) Health(ctx context.Context) error {

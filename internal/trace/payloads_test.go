@@ -82,6 +82,10 @@ func TestDecodePayload_DecodesPermissionDecision(t *testing.T) {
 		"rule":           "owner writes",
 		"preset":         "ask",
 		"owner_required": true,
+		"network": map[string]any{
+			"scheme": "https", "host": "example.com", "port": float64(443), "path": "/news",
+			"method": "GET", "request_class": "navigation", "has_query": true,
+		},
 	})
 
 	require.True(t, ok)
@@ -98,6 +102,10 @@ func TestDecodePayload_DecodesPermissionDecision(t *testing.T) {
 		Rule:          "owner writes",
 		Preset:        "ask",
 		OwnerRequired: true,
+		Network: &PermissionNetworkTargetPayload{
+			Scheme: "https", Host: "example.com", Port: 443, Path: "/news",
+			Method: "GET", RequestClass: "navigation", HasQuery: true,
+		},
 	}, payload)
 }
 

@@ -80,6 +80,33 @@ func TestApprovalService_AuthorizeBatchCreatesOrderIndependentCompositeGrant(t *
 	require.Len(t, requests, 1)
 }
 
+func TestApprovalService_SingleNetworkApprovalSummaryIncludesSafeTarget(t *testing.T) {
+	service, store := newApprovalService(t, permissions.ApprovalOptions{RequestTTL: time.Second})
+	ctx := approvalContext(context.Background(), "session-a")
+	network, err := permissions.NetworkTargetFromURL(
+		"https://example.com/news?token=secret", "GET", permissions.NetworkRequestNavigation,
+	)
+	require.NoError(t, err)
+	result := make(chan error, 1)
+	go func() {
+		result <- service.Authorize(ctx, permissions.EvaluationInput{Operation: permissions.Operation{
+			Tool: "browser", Resource: permissions.ResourceNetwork, Action: permissions.ActionRead,
+			Effects: []permissions.Effect{
+				permissions.EffectRead, permissions.EffectNetwork, permissions.EffectExternalSystem,
+			},
+			Network: &network,
+		}})
+	}()
+	request := waitForPendingApproval(t, store)
+
+	require.Equal(t, "browser · read network GET https://example.com:443/news", request.Summary)
+	require.NotContains(t, request.Summary, "secret")
+	require.NotContains(t, request.Summary, network.QueryHash)
+	_, err = service.Resolve(context.Background(), request.ID, true, permissions.GrantOnce)
+	require.NoError(t, err)
+	require.NoError(t, <-result)
+}
+
 func TestApprovalService_PrepareBatchConsumesOnceGrantOnlyOnCommit(t *testing.T) {
 	service, store := newApprovalService(t, permissions.ApprovalOptions{RequestTTL: time.Second})
 	ctx := approvalContext(context.Background(), "session-a")
