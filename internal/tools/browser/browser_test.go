@@ -245,31 +245,56 @@ func (s *browserServiceStub) dispatchTab(
 	return browserdomain.Tab{ID: request.TabID, SessionID: request.SessionID}, s.dispatchErr
 }
 
-func TestInputSchema_HasOneClosedBranchForEverySupportedAction(t *testing.T) {
+func TestInputSchema_HasProviderCompatibleActionCatalog(t *testing.T) {
 	schema := inputSchema()
-	branches, ok := schema["oneOf"].([]any)
-	require.True(t, ok)
-	require.Len(t, branches, len(requestSpecs))
+	require.Equal(t, "object", schema["type"])
+	require.Equal(t, false, schema["additionalProperties"])
+	require.Equal(t, []string{"action"}, schema["required"])
+	require.NotContains(t, schema, "oneOf")
 	require.Len(t, browserdomain.SupportedActions(), len(requestSpecs))
 
-	seen := make(map[string]struct{}, len(branches))
-	for _, rawBranch := range branches {
-		branch := rawBranch.(map[string]any)
-		require.Equal(t, false, branch["additionalProperties"])
-		properties := branch["properties"].(map[string]any)
-		actionSchema := properties["action"].(map[string]any)
-		action := actionSchema["const"].(string)
-		_, duplicate := seen[action]
-		require.False(t, duplicate)
-		seen[action] = struct{}{}
+	properties := schema["properties"].(map[string]any)
+	actionSchema := properties["action"].(map[string]any)
+	require.Equal(t, "string", actionSchema["type"])
+
+	actions := make([]string, 0, len(requestSpecs))
+	for _, action := range browserdomain.SupportedActions() {
+		actions = append(actions, string(action))
+		require.Contains(t, actionSchema["description"], string(action)+"[")
 	}
-	for action := range requestSpecs {
-		_, ok := seen[string(action)]
-		require.True(t, ok, "missing schema branch for %s", action)
-		_, ok = actionDispatchers[action]
+	require.Equal(t, actions, actionSchema["enum"])
+
+	expectedFields := map[string]struct{}{"action": {}}
+	for action, spec := range requestSpecs {
+		for _, field := range spec.allowed {
+			expectedFields[field] = struct{}{}
+		}
+		_, ok := actionDispatchers[action]
 		require.True(t, ok, "missing dispatcher for %s", action)
 	}
+	require.Len(t, properties, len(expectedFields))
+	for field := range expectedFields {
+		require.Contains(t, properties, field)
+	}
 	require.Len(t, actionDispatchers, len(requestSpecs))
+	requireSchemaOmitsUnsupportedStrictKeywords(t, schema)
+}
+
+func requireSchemaOmitsUnsupportedStrictKeywords(t *testing.T, value any) {
+	t.Helper()
+	switch typed := value.(type) {
+	case map[string]any:
+		for _, keyword := range []string{"oneOf", "allOf", "not", "const", "maxLength", "minimum", "maximum"} {
+			require.NotContains(t, typed, keyword)
+		}
+		for _, child := range typed {
+			requireSchemaOmitsUnsupportedStrictKeywords(t, child)
+		}
+	case []any:
+		for _, child := range typed {
+			requireSchemaOmitsUnsupportedStrictKeywords(t, child)
+		}
+	}
 }
 
 func TestDecodeRequest_RejectsMalformedAmbiguousAndOutOfRangeInputs(t *testing.T) {
@@ -281,6 +306,7 @@ func TestDecodeRequest_RejectsMalformedAmbiguousAndOutOfRangeInputs(t *testing.T
 		{name: "missing action", input: `{}`},
 		{name: "unsupported action", input: `{"action":"evaluate"}`},
 		{name: "wrong action field", input: `{"action":"status","url":"https://example.com"}`},
+		{name: "unknown null field", input: `{"action":"status","unknown":null}`},
 		{name: "missing field", input: `{"action":"navigate","session_id":"session","tab_id":"tab"}`},
 		{name: "null identity", input: `{"action":"focus","session_id":null,"tab_id":"tab"}`},
 		{name: "blank identity", input: `{"action":"focus","session_id":" ","tab_id":"tab"}`},
@@ -306,6 +332,30 @@ func TestDecodeRequest_RejectsMalformedAmbiguousAndOutOfRangeInputs(t *testing.T
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestDecodeRequest_IgnoresNullableFieldsFromStrictSchema(t *testing.T) {
+	decoded, err := decodeRequest(`{
+		"action":"status",
+		"profile":null,
+		"session_id":null,
+		"tab_id":null,
+		"url":null,
+		"path":null,
+		"ref":null,
+		"text":null,
+		"value":null,
+		"key":null,
+		"x":null,
+		"y":null,
+		"limit":null,
+		"condition":null,
+		"timeout_ms":null,
+		"replace":null,
+		"full_page":null
+	}`)
+	require.NoError(t, err)
+	require.Equal(t, browserdomain.ActionStatus, decoded.Action)
 }
 
 func TestDefinition_RichActionsUseCanonicalFileTargetsAndReturnOnlyArtifactMetadata(t *testing.T) {

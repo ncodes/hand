@@ -131,6 +131,11 @@ func decodeRequest(raw string) (request, error) {
 	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &fields); err != nil {
 		return request{}, errors.New("browser input must be valid JSON")
 	}
+	for name, value := range fields {
+		if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			delete(fields, name)
+		}
+	}
 	var action browserdomain.Action
 	if err := json.Unmarshal(fields["action"], &action); err != nil || action == "" {
 		return request{}, errors.New("browser action is required")

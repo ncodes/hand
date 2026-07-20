@@ -23,6 +23,7 @@ import (
 
 	models "github.com/wandxy/morph/internal/model"
 	modelprovider "github.com/wandxy/morph/internal/model/provider"
+	browsertool "github.com/wandxy/morph/internal/tools/browser"
 	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 	"github.com/wandxy/morph/pkg/logutils"
 )
@@ -1331,6 +1332,24 @@ func TestBuildResponsesTools_NormalizesStrictObjectSchema(t *testing.T) {
 	require.Contains(t, string(raw), `"required":["include_hidden","path"]`)
 	require.Contains(t, string(raw), `"include_hidden":{"type":["boolean","null"]}`)
 	require.Contains(t, string(raw), `"path":{"type":["string","null"]}`)
+}
+
+func TestBuildResponsesTools_NormalizesBrowserSchemaWithoutRootUnion(t *testing.T) {
+	definition := browsertool.Definition(nil)
+	tools := buildResponsesTools([]ToolDefinition{{
+		Name: definition.Name, Description: definition.Description, InputSchema: definition.InputSchema,
+	}})
+
+	raw, err := json.Marshal(tools)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), `"oneOf"`)
+	require.Contains(t, string(raw), `"strict":true`)
+
+	parameters := tools[0].OfFunction.Parameters
+	require.NotContains(t, parameters, "oneOf")
+	properties := parameters["properties"].(map[string]any)
+	require.NotEmpty(t, properties["action"].(map[string]any)["enum"])
+	require.Equal(t, []any{"string", "null"}, properties["session_id"].(map[string]any)["type"])
 }
 
 func TestNormalizeStrictJSONSchema_RecursesWithoutMutatingInput(t *testing.T) {

@@ -1,57 +1,77 @@
 package browser
 
-import browserdomain "github.com/wandxy/morph/internal/browser"
+import (
+	"strings"
+
+	browserdomain "github.com/wandxy/morph/internal/browser"
+)
 
 func inputSchema() map[string]any {
-	branches := make([]any, 0, len(requestSpecs))
-	for _, action := range browserdomain.SupportedActions() {
+	actions := browserdomain.SupportedActions()
+	actionNames := make([]string, 0, len(actions))
+	properties := map[string]any{}
+	for _, action := range actions {
+		actionNames = append(actionNames, string(action))
 		spec := requestSpecs[action]
-		properties := map[string]any{
-			"action": map[string]any{"type": "string", "const": string(action)},
-		}
 		for _, field := range spec.allowed {
 			if field == "action" {
 				continue
 			}
+			if _, exists := properties[field]; exists {
+				continue
+			}
 			properties[field] = schemaForField(field)
 		}
-		branches = append(branches, map[string]any{
-			"type": "object", "properties": properties, "required": spec.required, "additionalProperties": false,
-		})
 	}
-	return map[string]any{"oneOf": branches}
+	properties["action"] = map[string]any{
+		"type": "string", "enum": actionNames, "description": getActionFieldDescription(actions),
+	}
+	return map[string]any{
+		"type": "object", "properties": properties, "required": []string{"action"}, "additionalProperties": false,
+	}
+}
+
+func getActionFieldDescription(actions []browserdomain.Action) string {
+	var description strings.Builder
+	description.WriteString("Action fields, with optional fields marked by ?: ")
+	for index, action := range actions {
+		if index > 0 {
+			description.WriteString("; ")
+		}
+		description.WriteString(string(action))
+		description.WriteByte('[')
+		spec := requestSpecs[action]
+		required := make(map[string]struct{}, len(spec.required))
+		for _, field := range spec.required {
+			required[field] = struct{}{}
+		}
+		fieldIndex := 0
+		for _, field := range spec.allowed {
+			if field == "action" {
+				continue
+			}
+			if fieldIndex > 0 {
+				description.WriteString(", ")
+			}
+			description.WriteString(field)
+			if _, ok := required[field]; !ok {
+				description.WriteByte('?')
+			}
+			fieldIndex++
+		}
+		description.WriteByte(']')
+	}
+	description.WriteString(". Set unused fields to null.")
+	return description.String()
 }
 
 func schemaForField(name string) map[string]any {
 	switch name {
 	case "replace", "full_page":
 		return map[string]any{"type": "boolean"}
-	case "limit":
-		return map[string]any{"type": "integer", "minimum": 0, "maximum": 200}
-	case "x", "y":
-		return map[string]any{"type": "integer", "minimum": -100000, "maximum": 100000}
-	case "timeout_ms":
-		return map[string]any{"type": "integer", "minimum": 0, "maximum": 120000}
-	case "condition":
-		return map[string]any{"type": "string", "enum": []string{"load", "text", "url", "visible"}}
+	case "limit", "x", "y", "timeout_ms":
+		return map[string]any{"type": "integer"}
 	default:
-		return map[string]any{"type": "string", "maxLength": maxLengthForField(name)}
-	}
-}
-
-func maxLengthForField(name string) int {
-	switch name {
-	case "url", "path":
-		return maxBrowserURLLength
-	case "text":
-		return maxBrowserTextLength
-	case "value":
-		return maxBrowserValueLength
-	case "key":
-		return maxBrowserKeyLength
-	case "ref":
-		return maxBrowserRefLength
-	default:
-		return maxBrowserIDLength
+		return map[string]any{"type": "string"}
 	}
 }
