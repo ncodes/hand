@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/wandxy/morph/internal/brand"
+	modelprovider "github.com/wandxy/morph/internal/model/provider"
 	"github.com/wandxy/morph/pkg/str"
 )
 
@@ -131,6 +132,8 @@ func getNoticePanel(width int, names ...string) noticePanel {
 // getHeaderInfoRows returns the runtime metadata rows shown in the header.
 func getHeaderInfoRows(m model) []headerInfoRow {
 	info := m.runtimeInfo
+	modelName := getRuntimeValue(m.modelName, getRuntimeModelDisplayName(info.Provider, info.Model))
+
 	return []headerInfoRow{
 		{key: "version", value: getRuntimeValue(info.Version, "dev")},
 		{key: "commit", value: getRuntimeValue(info.Commit, "unknown")},
@@ -138,7 +141,7 @@ func getHeaderInfoRows(m model) []headerInfoRow {
 		{key: "session", value: getRuntimeValue(m.sessionID, "default")},
 		{key: "streaming", value: getRuntimeValue(info.Streaming, "on")},
 		{key: "provider", value: getRuntimeValue(info.Provider, "openrouter")},
-		{key: "model", value: getModelDisplayName(getRuntimeValue(m.modelName, info.Model))},
+		{key: "model", value: getModelDisplayName(modelName)},
 		{key: "summary", value: getModelDisplayName(info.SummaryModel)},
 		{key: "embedding", value: getModelDisplayName(info.EmbeddingModel)},
 		{key: "storage", value: getRuntimeValue(info.Storage, "sqlite")},
@@ -187,6 +190,17 @@ func getModelDisplayName(name string) string {
 	}
 
 	return name
+}
+
+func getRuntimeModelDisplayName(provider, modelID string) string {
+	if model, ok := modelprovider.DefaultRegistry().GetModel(provider, modelID); ok {
+		nameValue := str.String(model.Name)
+		if name := nameValue.Trim(); name != "" {
+			return name
+		}
+	}
+
+	return getModelDisplayName(modelID)
 }
 
 func getHeaderBrandText(info runtimeInfo) string {

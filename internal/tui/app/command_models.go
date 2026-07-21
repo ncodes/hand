@@ -976,7 +976,7 @@ func (m *model) applySelectedModelToRuntime(option rpcclient.ModelOption) {
 		return
 	}
 
-	m.modelName = getModelDisplayName(modelID)
+	m.modelName = getSelectedModelDisplayName(option)
 	m.runtimeInfo.Model = modelID
 	m.runtimeInfo.SummaryModel = modelID
 	providerValue4 := str.String(option.Provider)
@@ -989,6 +989,15 @@ func (m *model) applySelectedModelToRuntime(option rpcclient.ModelOption) {
 		}
 	}
 	m.setTranscriptContentForActiveTurn()
+}
+
+func getSelectedModelDisplayName(option rpcclient.ModelOption) string {
+	nameValue := str.String(option.Name)
+	if name := nameValue.Trim(); name != "" {
+		return name
+	}
+
+	return getRuntimeModelDisplayName(option.Provider, option.ID)
 }
 
 func orderModelsCommandOptions(models []rpcclient.ModelOption) []rpcclient.ModelOption {

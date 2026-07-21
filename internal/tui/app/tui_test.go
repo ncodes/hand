@@ -2895,6 +2895,12 @@ func TestGetModelDisplayName_RemovesProviderPrefix(t *testing.T) {
 	require.Equal(t, "GPT 5.5", getModelDisplayName(" GPT 5.5 "))
 }
 
+func TestGetRuntimeModelDisplayName_UsesCatalogName(t *testing.T) {
+	require.Equal(t, "GPT-5.5", getRuntimeModelDisplayName("openai-codex", "gpt-5.5"))
+	require.Equal(t, "OpenAI: GPT-5.5", getRuntimeModelDisplayName("openrouter", "openai/gpt-5.5"))
+	require.Equal(t, "custom-model", getRuntimeModelDisplayName("custom", "owner/custom-model"))
+}
+
 func TestGetMorphBannerColor_UsesLastColorForOutOfRangeIndex(t *testing.T) {
 	require.Equal(t, morphBannerColors[len(morphBannerColors)-1], getMorphBannerColor(-1))
 	require.Equal(t, morphBannerColors[len(morphBannerColors)-1], getMorphBannerColor(len(morphBannerColors)))
@@ -2987,6 +2993,17 @@ func TestModel_ViewRendersBottomStatusPanelBelowComposer(t *testing.T) {
 	require.NotEqual(t, -1, inputIndex)
 	require.NotEqual(t, -1, infoIndex)
 	require.Greater(t, infoIndex, inputIndex)
+}
+
+func TestModel_RenderBottomStatusPanelUsesCatalogModelName(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Models.Main.Provider = "openai-codex"
+	cfg.Models.Main.Name = "gpt-5.5"
+	runModel := newModelWithClientContextAndConfig(context.Background(), nil, cfg)
+
+	require.Equal(t, "gpt-5.5", runModel.runtimeInfo.Model)
+	require.Equal(t, "GPT-5.5", runModel.modelName)
+	require.Contains(t, stripANSI(runModel.renderBottomStatusPanel()), "GPT-5.5")
 }
 
 func TestModel_RenderInputUsesCompleteComposerFrame(t *testing.T) {

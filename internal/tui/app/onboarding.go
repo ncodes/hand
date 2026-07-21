@@ -1569,7 +1569,7 @@ func (m *model) applySetupModelSelectionToRuntime(option rpcclient.ModelOption) 
 	m.runtimeInfo.EmbeddingModel = info.EmbeddingModel
 	m.runtimeInfo.Storage = info.Storage
 	m.runtimeInfo.Streaming = info.Streaming
-	m.modelName = getModelDisplayName(info.Model)
+	m.modelName = getRuntimeModelDisplayName(info.Provider, info.Model)
 }
 
 func (m *model) refreshSetupModelRuntimeCmd(option rpcclient.ModelOption) tea.Cmd {

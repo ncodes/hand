@@ -855,6 +855,20 @@ func TestModel_ApplySelectedModelToRuntimeUsesCommandProviderFallback(t *testing
 	)
 }
 
+func TestModel_ApplySelectedModelToRuntimeUsesHumanFacingName(t *testing.T) {
+	runModel := newModel()
+	runModel.applySelectedModelToRuntime(rpcclient.ModelOption{
+		ID:       "gpt-5.5",
+		Name:     "GPT-5.5",
+		Provider: "openai-codex",
+	})
+
+	require.Equal(t, "GPT-5.5", runModel.modelName)
+	require.Equal(t, "gpt-5.5", runModel.runtimeInfo.Model)
+	require.Equal(t, "openai-codex", runModel.runtimeInfo.Provider)
+	require.Contains(t, stripANSI(runModel.renderBottomStatusPanel()), "GPT-5.5")
+}
+
 func modelsLoadedMessageFromBatch(t *testing.T, cmd tea.Cmd) modelsLoadedMsg {
 	t.Helper()
 
