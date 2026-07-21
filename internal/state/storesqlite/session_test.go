@@ -54,7 +54,14 @@ func TestSQLiteStore_SessionLifecycle(t *testing.T) {
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
 		{Role: morphmsg.RoleUser, Content: "first", CreatedAt: now},
-		{Role: morphmsg.RoleAssistant, Name: "bot", Content: "second", ToolCallID: "call-1", CreatedAt: now.Add(time.Second)},
+		{
+			Role:            morphmsg.RoleAssistant,
+			Name:            "bot",
+			Content:         "second",
+			ToolCallID:      "call-1",
+			SemanticContent: "semantic second",
+			CreatedAt:       now.Add(time.Second),
+		},
 	}))
 	require.NoError(t, store.Save(context.Background(), Session{
 		ID:        testSessionA,
@@ -73,10 +80,12 @@ func TestSQLiteStore_SessionLifecycle(t *testing.T) {
 	require.Equal(t, "first", messages[0].Content)
 	require.Equal(t, "bot", messages[1].Name)
 	require.Equal(t, "call-1", messages[1].ToolCallID)
+	require.Equal(t, "semantic second", messages[1].SemanticContent)
 	message, ok, err := store.GetMessage(context.Background(), testSessionB, 1)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "second", message.Content)
+	require.Equal(t, "semantic second", message.SemanticContent)
 
 	messages[0].Content = "mutated"
 	loadedAgain, ok, err := store.Get(context.Background(), testSessionB, base.SessionGetOptions{})
@@ -2679,14 +2688,17 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 				Content:   "plain text",
 			},
 			{
-				ID:        2,
-				SessionID: testSessionA,
-				Role:      string(morphmsg.RoleTool),
-				Name:      "process",
-				Content:   "running",
+				ID:              2,
+				SessionID:       testSessionA,
+				Role:            string(morphmsg.RoleTool),
+				Name:            "process",
+				Content:         "running",
+				SemanticContent: "stdout: running",
 			},
 		}).searchRows()
 		require.Len(t, rows, 2)
+		require.Equal(t, "plain text", rows[0].SemanticBody)
+		require.Equal(t, "stdout: running", rows[1].SemanticBody)
 
 		require.Nil(t, messageModelToSearchRows(messageModel{
 			ID:        3,
@@ -2742,7 +2754,9 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 		})
 		require.Len(t, rows, 2)
 		require.Equal(t, "assistant summary", rows[0].Body)
+		require.Equal(t, "assistant summary", rows[0].SemanticBody)
 		require.Equal(t, "process", rows[1].ToolName)
+		require.Empty(t, rows[1].SemanticBody)
 	})
 
 	t.Run("search tokenization drops punctuation-only segments", func(t *testing.T) {
@@ -2790,4 +2804,72 @@ func TestSQLiteStore_FTSErrorPathsFromBrokenIndex(t *testing.T) {
 		err = store.ClearMessages(context.Background(), testSessionA)
 		require.ErrorContains(t, err, "failed to delete session message search rows")
 	})
+}
+
+func TestSQLiteStore_VectorIndexStateErrors(t *testing.T) {
+	t.Run("append rolls back when initial state cannot be persisted", func(t *testing.T) {
+		store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+			Embedder:       &sqliteTestEmbeddingProvider{},
+			VectorStore:    &sqliteTestVectorStore{},
+			EmbeddingModel: "text-embedding-test",
+		}))
+		require.NoError(t, store.db.Migrator().DropTable(&vectorIndexStateModel{}))
+
+		err = store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role: morphmsg.RoleUser, Content: "hello",
+		}})
+
+		require.Error(t, err)
+		messages, loadErr := store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{})
+		require.NoError(t, loadErr)
+		require.Empty(t, messages)
+	})
+
+	t.Run("append remains successful when only the final state update fails", func(t *testing.T) {
+		store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+		provider := &sqliteTestEmbeddingProvider{}
+		provider.afterEmbed = func() {
+			require.NoError(t, store.db.Migrator().DropTable(&vectorIndexStateModel{}))
+		}
+		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+			Embedder:       provider,
+			VectorStore:    &sqliteTestVectorStore{},
+			EmbeddingModel: "text-embedding-test",
+		}))
+
+		err = store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role: morphmsg.RoleUser, Content: "hello",
+		}})
+
+		require.NoError(t, err)
+		messages, loadErr := store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{})
+		require.NoError(t, loadErr)
+		require.Len(t, messages, 1)
+	})
+
+	for _, operation := range []struct {
+		name string
+		run  func(*Store) error
+	}{
+		{name: "delete session", run: func(store *Store) error {
+			return store.Delete(context.Background(), testSessionA)
+		}},
+		{name: "clear messages", run: func(store *Store) error {
+			return store.ClearMessages(context.Background(), testSessionA)
+		}},
+	} {
+		t.Run(operation.name+" reports state cleanup errors", func(t *testing.T) {
+			store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+			require.NoError(t, err)
+			require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+			require.NoError(t, store.db.Migrator().DropTable(&vectorIndexStateModel{}))
+
+			require.Error(t, operation.run(store))
+		})
+	}
 }

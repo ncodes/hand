@@ -38,10 +38,11 @@ type input struct {
 // Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:        "process",
-		Description: "Start, inspect, read, stop, or list tracked background processes.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Exec: true},
+		Name:          "process",
+		Description:   "Start, inspect, read, stop, or list tracked background processes.",
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Exec: true},
+		SemanticIndex: tools.ProjectSemanticIndex(projectSemanticContent),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceProcess,
 			Action:   permissions.ActionManage,
@@ -131,6 +132,18 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			}
 		}),
 	}
+}
+
+func projectSemanticContent(call tools.Call, result tools.Result) string {
+	var request input
+	if err := json.Unmarshal([]byte(call.Input), &request); err != nil {
+		return ""
+	}
+	if str.String(request.Action).Normalized() != "read" {
+		return ""
+	}
+
+	return tools.ProjectJSONFieldsForSemanticIndex("stdout", "stderr")(call, result)
 }
 
 func resolvePermission(runtime envtypes.Runtime) tools.PermissionResolver {

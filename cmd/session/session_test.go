@@ -322,15 +322,18 @@ func TestNewCommandSessionRepairCallsRPC(t *testing.T) {
 	sessionOutput = &output
 
 	stub := &agentstub.AgentServiceStub{RepairResult: search.VectorRepairResult{
-		SessionsScanned: 2,
-		MessagesScanned: 3,
-		RowsScanned:     4,
-		MissingRows:     5,
-		StaleRows:       6,
-		UnchangedRows:   7,
-		RebuiltRows:     8,
-		DeletedSources:  9,
-		Batches:         10,
+		SessionsScanned:    2,
+		MessagesScanned:    3,
+		RowsScanned:        4,
+		MissingRows:        5,
+		StaleRows:          6,
+		UnchangedRows:      7,
+		RebuiltRows:        8,
+		DeletedSources:     9,
+		Batches:            10,
+		AttemptedSources:   11,
+		RecoveredSources:   12,
+		StillFailedSources: 13,
 	}}
 	newClient = func(context.Context, *config.Config) (sessionClient, error) {
 		return stub, nil
@@ -352,6 +355,9 @@ func TestNewCommandSessionRepairCallsRPC(t *testing.T) {
 		"Rebuilt rows:        8",
 		"Deleted sources:     9",
 		"Batches:             10",
+		"Attempted sources:   11",
+		"Recovered sources:   12",
+		"Still failed sources: 13",
 	} {
 		require.Contains(t, output.String(), expected)
 	}

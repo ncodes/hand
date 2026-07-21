@@ -2,6 +2,8 @@ package websearch
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 
 	"github.com/wandxy/morph/pkg/logutils"
 	"github.com/wandxy/morph/pkg/str"
@@ -36,11 +38,12 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 	opts := getWebSearchOptions(options)
 
 	return tools.Definition{
-		Name:         "web_search",
-		Description:  "Search the web for relevant pages. Use this for discovery and result-finding, not for full-page extraction.",
-		ParallelSafe: true,
-		Groups:       []string{"core"},
-		Requires:     tools.Capabilities{Network: true},
+		Name:          "web_search",
+		Description:   "Search the web for relevant pages. Use this for discovery and result-finding, not for full-page extraction.",
+		ParallelSafe:  true,
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Network: true},
+		SemanticIndex: tools.ProjectSemanticIndex(projectSemanticContent),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceNetwork,
 			Action:   permissions.ActionSearch,
@@ -113,6 +116,32 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 			return common.EncodeOutput(map[string]any{"results": results})
 		}),
 	}
+}
+
+func projectSemanticContent(_ tools.Call, result tools.Result) string {
+	var output struct {
+		Results []webintegration.SearchResult `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(result.Output), &output); err != nil {
+		return ""
+	}
+
+	lines := make([]string, 0, len(output.Results)*3)
+	for _, item := range output.Results {
+		for _, field := range []struct {
+			name  string
+			value string
+		}{
+			{name: "title", value: item.Title},
+			{name: "url", value: item.URL},
+			{name: "snippet", value: item.Snippet},
+		} {
+			if value := str.String(field.value).Trim(); value != "" {
+				lines = append(lines, field.name+": "+value)
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func getWebSearchOptions(options []Options) Options {

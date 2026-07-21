@@ -237,6 +237,16 @@ Production data: `<profile>/data/state.db`. See [Backups and State](../operation
 | `enabled` | bool | `true` |
 | `required` | bool | `true` |
 | `rebuildBatchSize` | int | `100` |
+| `maxInputBytes` | int | `2048` |
+| `maxDocumentBytes` | int | `32768` |
+
+`maxInputBytes` bounds each text chunk sent to the embedding provider. `maxDocumentBytes` bounds the semantic text
+accepted from one message before chunking. Morph splits larger eligible content at paragraph, line, and word
+boundaries, with a UTF-8-safe hard limit as the final fallback.
+
+`required` controls vector readiness and explicit repair failures. A transient embedding failure during a live turn
+does not discard an already persisted message. Morph records the vector source as failed so `morph session repair`
+can retry it.
 
 ## `memory`
 

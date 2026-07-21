@@ -472,6 +472,23 @@ func (c *Config) validateSearchVectorSettings() error {
 	if c.Search.Vector.RebuildBatchSize < 0 {
 		return errors.New("vector rebuild batch size must be non-negative")
 	}
+	if c.Search.Vector.MaxInputBytes < 0 {
+		return errors.New("vector max input bytes must be non-negative")
+	}
+	if c.Search.Vector.MaxDocumentBytes < 0 {
+		return errors.New("vector max document bytes must be non-negative")
+	}
+	maxInputBytes := c.Search.Vector.MaxInputBytes
+	if maxInputBytes == 0 {
+		maxInputBytes = constants.DefaultVectorMaxInputBytes
+	}
+	maxDocumentBytes := c.Search.Vector.MaxDocumentBytes
+	if maxDocumentBytes == 0 {
+		maxDocumentBytes = constants.DefaultVectorMaxDocumentBytes
+	}
+	if maxDocumentBytes < maxInputBytes {
+		return errors.New("vector max document bytes must be greater than or equal to max input bytes")
+	}
 	auth, err := c.ResolveEmbeddingModelAuth()
 	if err != nil {
 		return err

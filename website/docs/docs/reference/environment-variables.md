@@ -137,6 +137,8 @@ No `MORPH_*` override exists for `fs.noProfileAccess` or `compaction.recentSessi
 | `MORPH_SEARCH_VECTOR_ENABLED` | `search.vector.enabled` |
 | `MORPH_SEARCH_VECTOR_REQUIRED` | `search.vector.required` |
 | `MORPH_SEARCH_VECTOR_REBUILD_BATCH_SIZE` | `search.vector.rebuildBatchSize` |
+| `MORPH_SEARCH_VECTOR_MAX_INPUT_BYTES` | `search.vector.maxInputBytes` |
+| `MORPH_SEARCH_VECTOR_MAX_DOCUMENT_BYTES` | `search.vector.maxDocumentBytes` |
 | `MORPH_RERANKER_ENABLED` | `reranker.enabled` |
 | `MORPH_RERANKER_TYPE` | `reranker.type` |
 | `MORPH_RERANKER_MODEL` | `reranker.model` |

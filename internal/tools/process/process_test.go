@@ -30,6 +30,15 @@ func TestProcess_ToolRejectsInvalidJSON(t *testing.T) {
 	requireToolError(t, result.Error, "invalid_input", "invalid tool input")
 }
 
+func TestProjectSemanticContent_IndexesOnlyProcessReads(t *testing.T) {
+	result := tools.Result{Output: `{"process_id":"proc_1","stdout":"build passed","stderr":"warning","status":"running"}`}
+
+	content := projectSemanticContent(tools.Call{Input: `{"action":"read","process_id":"proc_1"}`}, result)
+
+	require.Equal(t, "stderr: warning\nstdout: build passed", content)
+	require.Empty(t, projectSemanticContent(tools.Call{Input: `{"action":"status","process_id":"proc_1"}`}, result))
+}
+
 func TestProcess_ToolValidatesAction(t *testing.T) {
 	definition := Definition(&toolmocks.Runtime{})
 
@@ -405,7 +414,7 @@ func TestProcess_ToolStatusReadAndStopRequireProcessID(t *testing.T) {
 }
 
 func TestProcess_ToolReadReturnsTrimmedOutput(t *testing.T) {
-	result, err := Definition(&toolmocks.Runtime{
+	runtime := &toolmocks.Runtime{
 		GetProcessFunc: func(sessionID string, processID string) (processenv.Info, error) {
 			require.Equal(t, "default", sessionID)
 			require.Equal(t, "proc_1", processID)
@@ -420,7 +429,12 @@ func TestProcess_ToolReadReturnsTrimmedOutput(t *testing.T) {
 			require.Equal(t, 0, *req.StderrCursor)
 			return processenv.Output{Stdout: "abcdef", Stderr: "uvwxyz", StdoutBytes: 6, StderrBytes: 6}, nil
 		},
-	}).Handler.Invoke(context.Background(), tools.Call{
+	}
+	registry := tools.NewDefaultRegistry()
+	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
+	require.NoError(t, registry.Register(Definition(runtime)))
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
 		Name:  "process",
 		Input: `{"action":"read","process_id":"proc_1","stdout_bytes":3,"stderr_bytes":2}`,
 	})
@@ -435,6 +449,7 @@ func TestProcess_ToolReadReturnsTrimmedOutput(t *testing.T) {
 	require.Equal(t, "uv", payload.Output.Stderr)
 	require.Equal(t, 3, payload.Output.NextStdoutCursor)
 	require.Equal(t, 2, payload.Output.NextStderrCursor)
+	require.Equal(t, "stderr: uv\nstdout: abc", result.SemanticContent)
 }
 
 func TestProcess_ToolReadTrimPreservesUTF8(t *testing.T) {

@@ -128,6 +128,8 @@ func configureMemoryStoreVectors(
 		VectorStore:         vectorStore,
 		EnableRerank:        storeSearchRerankEnabledOption(cfg),
 		EmbeddingModel:      cfg.Models.Embedding.Name,
+		MaxInputBytes:       cfg.Search.Vector.MaxInputBytes,
+		MaxDocumentBytes:    cfg.Search.Vector.MaxDocumentBytes,
 		RerankMaxCandidates: cfg.Reranker.MaxCandidates,
 		Required:            cfg.Search.Vector.Required,
 		Diagnostics:         cfg.Debug.Requests,
@@ -163,6 +165,8 @@ func configureSQLiteStoreVectors(
 		EnableRerank:        storeSearchRerankEnabledOption(cfg),
 		EmbeddingModel:      cfg.Models.Embedding.Name,
 		RebuildBatchSize:    cfg.Search.Vector.RebuildBatchSize,
+		MaxInputBytes:       cfg.Search.Vector.MaxInputBytes,
+		MaxDocumentBytes:    cfg.Search.Vector.MaxDocumentBytes,
 		RerankMaxCandidates: cfg.Reranker.MaxCandidates,
 		Required:            cfg.Search.Vector.Required,
 		Diagnostics:         cfg.Debug.Requests,
@@ -180,6 +184,19 @@ func validateSearchVectorConfig(cfg *config.Config) error {
 
 	if cfg.Search.Vector.RebuildBatchSize < 0 {
 		return errors.New("vector rebuild batch size must be non-negative")
+	}
+	if cfg.Search.Vector.MaxInputBytes < 0 {
+		return errors.New("vector max input bytes must be non-negative")
+	}
+	if cfg.Search.Vector.MaxDocumentBytes < 0 {
+		return errors.New("vector max document bytes must be non-negative")
+	}
+	chunking := search.NormalizeVectorChunkOptions(search.VectorChunkOptions{
+		MaxInputBytes:    cfg.Search.Vector.MaxInputBytes,
+		MaxDocumentBytes: cfg.Search.Vector.MaxDocumentBytes,
+	})
+	if chunking.MaxDocumentBytes < chunking.MaxInputBytes {
+		return errors.New("vector max document bytes must be greater than or equal to max input bytes")
 	}
 
 	if cfg.Reranker.MaxCandidates < 0 {
@@ -210,12 +227,17 @@ func defaultStoreEmbeddingProvider(cfg *config.Config) (search.Embedder, error) 
 	if err != nil {
 		return nil, err
 	}
+	chunking := search.NormalizeVectorChunkOptions(search.VectorChunkOptions{
+		MaxInputBytes:    cfg.Search.Vector.MaxInputBytes,
+		MaxDocumentBytes: cfg.Search.Vector.MaxDocumentBytes,
+	})
 
 	return search.NewEmbeddingProvider(search.EmbeddingProviderOptions{
-		Provider:    auth.Provider,
-		API:         auth.API,
-		APIKey:      auth.APIKey,
-		EndpointURL: auth.BaseURL,
+		Provider:          auth.Provider,
+		API:               auth.API,
+		APIKey:            auth.APIKey,
+		EndpointURL:       auth.BaseURL,
+		MaxInputTextBytes: chunking.MaxInputBytes,
 	})
 }
 

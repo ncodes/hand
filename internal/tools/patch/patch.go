@@ -39,10 +39,11 @@ type patchTarget struct {
 // Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:        "patch",
-		Description: "Apply a unified diff patch to absolute or workspace-relative paths, subject to the current permission policy.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Filesystem: true},
+		Name:          "patch",
+		Description:   "Apply a unified diff patch to absolute or workspace-relative paths, subject to the current permission policy.",
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Filesystem: true},
+		SemanticIndex: tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceFile,
 			Action:   permissions.ActionUpdate,

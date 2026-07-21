@@ -91,8 +91,9 @@ session used by the TUI and CLI. See [Gateways](./gateways).
 
 Because history is durable, you can find and revisit past work:
 
-- **Search** runs full-text search over message content and can also use vector similarity with reranking when vector
-  search is configured, including across sessions. See [Search and Traces](../guides/search-and-traces).
+- **Search** runs full-text search over complete message content and can also use vector similarity with reranking when
+  vector search is configured. Tool results contribute a bounded, tool-specific semantic projection instead of their
+  full transport payload. See [Search and Traces](../guides/search-and-traces).
 - **Timeline** hydrates a session for display: paginated messages together with the trace events recorded around them,
   which is how a client rebuilds a transcript view.
 - **Repair** rebuilds the vector index for a session when search results look stale or incomplete (`morph session repair`).

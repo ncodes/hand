@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,11 +56,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 	}
 
 	return tools.Definition{
-		Name:         "search_files",
-		Description:  "Search file contents at an absolute or workspace-relative path, subject to the current permission policy.",
-		ParallelSafe: true,
-		Groups:       []string{"core"},
-		Requires:     tools.Capabilities{Filesystem: true},
+		Name:          "search_files",
+		Description:   "Search file contents at an absolute or workspace-relative path, subject to the current permission policy.",
+		ParallelSafe:  true,
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Filesystem: true},
+		SemanticIndex: tools.ProjectSemanticIndex(projectSemanticContent),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceFile,
 			Action:   permissions.ActionSearch,
@@ -168,6 +170,21 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			})
 		}),
 	}
+}
+
+func projectSemanticContent(_ tools.Call, result tools.Result) string {
+	var output struct {
+		Matches []contentMatch `json:"matches"`
+	}
+	if err := json.Unmarshal([]byte(result.Output), &output); err != nil {
+		return ""
+	}
+
+	lines := make([]string, 0, len(output.Matches))
+	for _, match := range output.Matches {
+		lines = append(lines, fmt.Sprintf("%s:%d: %s", match.Path, match.Line, match.Text))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func searchWithFallback(

@@ -278,6 +278,11 @@ func (s *Store) deleteSessions(ctx context.Context, ids []string) ([]string, err
 		delete(s.sessions, id)
 		delete(s.messages, id)
 		delete(s.summaries, id)
+		for sourceID, state := range s.vectorStates {
+			if state.SessionID == id {
+				delete(s.vectorStates, sourceID)
+			}
+		}
 		if s.currentSession == id {
 			s.currentSession = ""
 		}
@@ -324,11 +329,26 @@ func (s *Store) AppendMessages(ctx context.Context, id string, messages []morphm
 		}
 	}
 	s.messages[id] = append(s.messages[id], copied...)
+	if s.vectors != nil {
+		now := time.Now().UTC()
+		for _, message := range copied {
+			state := getInitialVectorIndexState(id, message, s.vectors.Chunking, now)
+			s.vectorStates[state.SourceID] = state
+		}
+	}
 	session.UpdatedAt = time.Now().UTC()
 	s.sessions[id] = session
 	s.mu.Unlock()
 
-	return s.handleVectorStoreError(s.indexVectors(ctx, id, copied))
+	err := s.indexVectors(ctx, id, copied)
+	s.setVectorIndexResult(id, copied, err)
+	if err != nil {
+		applySafeErrorLog(s.logVectorEvent("online indexing failed"), err).
+			Str("session_id", id).
+			Int("message_count", len(copied)).
+			Msg("session vector indexing failed after message persistence")
+	}
+	return nil
 }
 
 func (s *Store) GetMessages(
@@ -813,6 +833,11 @@ func (s *Store) ClearMessages(ctx context.Context, id string) error {
 
 	delete(s.messages, id)
 	delete(s.summaries, id)
+	for sourceID, state := range s.vectorStates {
+		if state.SessionID == id {
+			delete(s.vectorStates, sourceID)
+		}
+	}
 	session.Compaction = base.SessionCompaction{}
 	session.UpdatedAt = time.Now().UTC()
 	s.sessions[id] = session

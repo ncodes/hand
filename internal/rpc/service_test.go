@@ -1794,15 +1794,18 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 
 func TestService_RepairSessionReturnsResult(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{RepairResult: search.VectorRepairResult{
-		SessionsScanned: 2,
-		MessagesScanned: 3,
-		RowsScanned:     4,
-		MissingRows:     5,
-		StaleRows:       6,
-		UnchangedRows:   7,
-		RebuiltRows:     8,
-		DeletedSources:  9,
-		Batches:         10,
+		SessionsScanned:    2,
+		MessagesScanned:    3,
+		RowsScanned:        4,
+		MissingRows:        5,
+		StaleRows:          6,
+		UnchangedRows:      7,
+		RebuiltRows:        8,
+		DeletedSources:     9,
+		Batches:            10,
+		AttemptedSources:   11,
+		RecoveredSources:   12,
+		StillFailedSources: 13,
 	}}
 	svc := newAllowedService(stub)
 
@@ -1827,6 +1830,9 @@ func TestService_RepairSessionReturnsResult(t *testing.T) {
 	require.EqualValues(t, 8, resp.GetVector().GetRebuiltRows())
 	require.EqualValues(t, 9, resp.GetVector().GetDeletedSources())
 	require.EqualValues(t, 10, resp.GetVector().GetBatches())
+	require.EqualValues(t, 11, resp.GetVector().GetAttemptedSources())
+	require.EqualValues(t, 12, resp.GetVector().GetRecoveredSources())
+	require.EqualValues(t, 13, resp.GetVector().GetStillFailedSources())
 }
 
 func TestService_RepairSessionRejectsInvalidState(t *testing.T) {

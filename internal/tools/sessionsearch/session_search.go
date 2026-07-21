@@ -29,6 +29,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		ParallelSafe:     true,
 		Groups:           []string{"core"},
 		Requires:         tools.Capabilities{Memory: true},
+		SemanticIndex:    tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceSession,
 			Action:   permissions.ActionSearch,

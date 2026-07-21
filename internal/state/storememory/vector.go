@@ -51,6 +51,16 @@ func (s *Store) ConfigureVectorStore(opts search.VectorStoreOptions) error {
 	if model == "" {
 		return errors.New("vector store embedding model is required")
 	}
+	if opts.MaxInputBytes < 0 || opts.MaxDocumentBytes < 0 {
+		return errors.New("vector store chunk limits must be greater than or equal to zero")
+	}
+	chunking := search.NormalizeVectorChunkOptions(search.VectorChunkOptions{
+		MaxInputBytes:    opts.MaxInputBytes,
+		MaxDocumentBytes: opts.MaxDocumentBytes,
+	})
+	if chunking.MaxDocumentBytes < chunking.MaxInputBytes {
+		return errors.New("vector store max document bytes must be greater than or equal to max input bytes")
+	}
 
 	rerankMax := opts.RerankMaxCandidates
 	if rerankMax < 0 {
@@ -79,6 +89,7 @@ func (s *Store) ConfigureVectorStore(opts search.VectorStoreOptions) error {
 		Diagnostics: opts.Diagnostics,
 		Rerank:      rerankEnabled,
 		Required:    opts.Required,
+		Chunking:    chunking,
 	}
 
 	return nil
@@ -86,6 +97,76 @@ func (s *Store) ConfigureVectorStore(opts search.VectorStoreOptions) error {
 
 func (s *Store) SupportsVectorSearch() bool {
 	return s != nil && s.vectors != nil
+}
+
+func getInitialVectorIndexState(
+	sessionID string,
+	message messages.Message,
+	chunking search.VectorChunkOptions,
+	now time.Time,
+) search.VectorIndexState {
+	status := search.VectorIndexSkipped
+	if len(search.VectorInputsFromIndexRows(
+		search.MessageIndexRowsFromMessage(sessionID, message),
+		chunking,
+	)) > 0 {
+		status = search.VectorIndexPending
+	}
+	return search.VectorIndexState{
+		SourceID:  search.SourceIDForMessage(sessionID, message.ID),
+		SessionID: sessionID,
+		MessageID: message.ID,
+		Status:    status,
+		UpdatedAt: now,
+	}
+}
+
+func (s *Store) setVectorIndexResult(sessionID string, values []messages.Message, indexErr error) {
+	if s == nil || s.vectors == nil || len(values) == 0 {
+		return
+	}
+	now := time.Now().UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, message := range values {
+		sourceID := search.SourceIDForMessage(sessionID, message.ID)
+		state, ok := s.vectorStates[sourceID]
+		if !ok {
+			state = getInitialVectorIndexState(sessionID, message, s.vectors.Chunking, now)
+		}
+		if state.Status == search.VectorIndexSkipped {
+			continue
+		}
+		state.Attempts++
+		state.UpdatedAt = now
+		if indexErr == nil {
+			state.Status = search.VectorIndexReady
+			state.ErrorKind = ""
+		} else {
+			state.Status = search.VectorIndexFailed
+			state.ErrorKind = "vector_index_failed"
+		}
+		s.vectorStates[sourceID] = state
+	}
+}
+
+func (s *Store) getRetryableVectorSourceIDs(inputs []search.VectorInput) []string {
+	if s == nil || len(inputs) == 0 {
+		return nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	retryable := make([]string, 0)
+	for _, input := range inputs {
+		state, ok := s.vectorStates[input.SourceID]
+		if ok && (state.Status == search.VectorIndexPending || state.Status == search.VectorIndexFailed) {
+			retryable = append(retryable, input.SourceID)
+		}
+	}
+
+	return base.UniqueStrings(retryable)
 }
 
 func (s *Store) searchMessagesHybrid(
@@ -306,6 +387,10 @@ func (s *Store) vectorMatchesToCandidates(
 
 	candidates := make([]*searchCandidate, 0, len(matches))
 	seen := make(map[string]struct{}, len(matches))
+	chunking := search.NormalizeVectorChunkOptions(search.VectorChunkOptions{})
+	if s.vectors != nil {
+		chunking = s.vectors.Chunking
+	}
 	for idx, match := range matches {
 		sessionID, messageID, ok := search.MessageRefFromSourceID(match.Record.SourceID)
 		if !ok {
@@ -321,8 +406,10 @@ func (s *Store) vectorMatchesToCandidates(
 		row, ok := search.MessageIndexRowForVectorRecord(
 			search.MessageIndexRowsFromMessage(sessionID, message),
 			match.Record.ID,
+			chunking,
 		)
-		if !ok || !search.MessageIndexRowMatchesSearchOptions(row, opts) {
+		if !ok || search.IsVectorRecordStale(match.Record, row.Body) ||
+			!search.MessageIndexRowMatchesSearchOptions(row, opts) {
 			continue
 		}
 
@@ -538,9 +625,13 @@ func (s *Store) vectorRecordsForMessages(
 	for _, message := range messages {
 		rows = append(rows, search.MessageIndexRowsFromMessage(sessionID, message)...)
 	}
-	inputs := search.VectorInputsFromIndexRows(rows)
+	inputs := search.VectorInputsFromIndexRows(rows, s.vectors.Chunking)
 	if len(inputs) == 0 {
 		return nil, nil
+	}
+	diagnostics := search.GetVectorInputDiagnostics(rows, inputs, s.vectors.Chunking)
+	if err := search.CheckVectorInputSizes(inputs, s.vectors.Chunking.MaxInputBytes); err != nil {
+		return nil, err
 	}
 
 	embeddingInputs := make([]search.EmbeddingInput, 0, len(inputs))
@@ -559,30 +650,46 @@ func (s *Store) vectorRecordsForMessages(
 		Inputs:       embeddingInputs,
 	}
 	modelValue2 := str.String(req.Model)
-	s.logVectorEvent("embedding started").
+	addVectorInputDiagnostics(s.logVectorEvent("embedding started"), diagnostics).
 		Int("input_count", len(req.Inputs)).
 		Int("message_count", len(messages)).
 		Int("row_count", len(inputs)).
+		Int("max_input_bytes", s.vectors.Chunking.MaxInputBytes).
+		Int("max_document_bytes", s.vectors.Chunking.MaxDocumentBytes).
+		Int("largest_input_bytes", search.GetMaxVectorInputBytes(inputs)).
+		Int("attempt_increment", 1).
+		Str("index_status", string(search.VectorIndexPending)).
 		Str("embedding_model", modelValue2.Trim()).
 		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Msg("session vector indexing embedding started for message rows")
 
 	result, err := s.vectors.Provider.Embed(ctx, req)
 	if err != nil {
-		applySafeErrorLog(s.logVectorEvent("embedding failed"), err).Msg("session vector embedding failed")
+		addVectorInputDiagnostics(applySafeErrorLog(s.logVectorEvent("embedding failed"), err), diagnostics).
+			Int("attempt_increment", 1).
+			Str("index_status", string(search.VectorIndexFailed)).
+			Msg("session vector embedding failed")
 		return nil, err
 	}
 	if err := search.ValidateEmbeddingResult(req, result); err != nil {
-		applySafeErrorLog(s.logVectorEvent("embedding validation failed"), err).
+		addVectorInputDiagnostics(
+			applySafeErrorLog(s.logVectorEvent("embedding validation failed"), err),
+			diagnostics,
+		).
+			Int("attempt_increment", 1).
+			Str("index_status", string(search.VectorIndexFailed)).
 			Msg("session vector embedding validation failed")
 		return nil, err
 	}
 	modelValue3 := str.String(result.Model)
-	s.logVectorEvent("embedding completed").
+	addVectorInputDiagnostics(s.logVectorEvent("embedding completed"), diagnostics).
 		Int("input_count", len(req.Inputs)).
 		Int("message_count", len(messages)).
 		Int("row_count", len(inputs)).
 		Int("dimensions", result.Dimensions).
+		Int("max_input_bytes", s.vectors.Chunking.MaxInputBytes).
+		Int("attempt_increment", 1).
+		Str("index_status", string(search.VectorIndexReady)).
 		Str("embedding_model", modelValue3.Trim()).
 		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Msg("session vector indexing embedding completed for message rows")

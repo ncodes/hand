@@ -29,6 +29,9 @@ func (r *testDefaultRegistry) Register(definition Definition) error {
 			Action:   permissions.ActionRead,
 		}
 	}
+	if definition.SemanticIndex.Mode == SemanticIndexUnset {
+		definition.SemanticIndex = SkipSemanticIndex()
+	}
 
 	return r.DefaultRegistry.Register(definition)
 }
@@ -65,6 +68,47 @@ func TestDefaultRegistry_InvokeCallsHand(t *testing.T) {
 	require.Equal(t, "hello", result.Output)
 }
 
+func TestDefaultRegistry_InvokeProjectsSuccessfulSemanticContent(t *testing.T) {
+	registry := newTestDefaultRegistry()
+	require.NoError(t, registry.Register(Definition{
+		Name: "read",
+		SemanticIndex: ProjectSemanticIndex(
+			ProjectJSONFieldsForSemanticIndex("path", "content"),
+		),
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			return Result{Output: `{"path":"notes.md","content":"useful text","bytes":11}`}, nil
+		}),
+	}))
+
+	result, err := registry.Invoke(context.Background(), Call{Name: "read"})
+
+	require.NoError(t, err)
+	require.JSONEq(t, `{"path":"notes.md","content":"useful text","bytes":11}`, result.Output)
+	require.Equal(t, "content: useful text\npath: notes.md", result.SemanticContent)
+}
+
+func TestDefaultRegistry_InvokeDoesNotProjectToolErrors(t *testing.T) {
+	registry := newTestDefaultRegistry()
+	projected := false
+	require.NoError(t, registry.Register(Definition{
+		Name: "read",
+		SemanticIndex: ProjectSemanticIndex(func(Call, Result) string {
+			projected = true
+			return "unexpected"
+		}),
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			return Result{Error: Error{Code: "failed", Message: "failed"}.String()}, nil
+		}),
+	}))
+
+	result, err := registry.Invoke(context.Background(), Call{Name: "read"})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Error)
+	require.Empty(t, result.SemanticContent)
+	require.False(t, projected)
+}
+
 func TestDefaultRegistry_ListReturnsSortedDefinitions(t *testing.T) {
 	registry := newTestDefaultRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) {
@@ -98,16 +142,18 @@ func TestDefaultRegistry_RegisterRequiresPermissionDeclaration(t *testing.T) {
 		"tool permission declaration is required",
 	)
 	require.NoError(t, registry.Register(Definition{
-		Name:    "static",
-		Handler: handler,
+		Name:          "static",
+		Handler:       handler,
+		SemanticIndex: SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceClock,
 			Action:   permissions.ActionRead,
 		},
 	}))
 	require.NoError(t, registry.Register(Definition{
-		Name:    "dynamic",
-		Handler: handler,
+		Name:          "dynamic",
+		Handler:       handler,
+		SemanticIndex: SkipSemanticIndex(),
 		ResolvePermission: func(context.Context, Call) ([]permissions.EvaluationInput, error) {
 			return []permissions.EvaluationInput{{Operation: permissions.Operation{
 				Resource: permissions.ResourceClock,
@@ -115,6 +161,41 @@ func TestDefaultRegistry_RegisterRequiresPermissionDeclaration(t *testing.T) {
 			}}}, nil
 		},
 	}))
+}
+
+func TestDefaultRegistry_RegisterRequiresSemanticIndexPolicy(t *testing.T) {
+	registry := NewDefaultRegistry()
+	definition := Definition{
+		Name: "echo",
+		Permission: permissions.Operation{
+			Resource: permissions.ResourceClock,
+			Action:   permissions.ActionRead,
+		},
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) { return Result{}, nil }),
+	}
+
+	require.EqualError(t, registry.Register(definition), "semantic index policy is required")
+	definition.SemanticIndex = ProjectSemanticIndex(nil)
+	require.EqualError(t, registry.Register(definition), "semantic index projector is required")
+	definition.SemanticIndex = SemanticIndexPolicy{Mode: SemanticIndexMode("invalid")}
+	require.EqualError(t, registry.Register(definition), "semantic index policy is invalid")
+	definition.SemanticIndex = SemanticIndexPolicy{
+		Mode:    SemanticIndexSkip,
+		Project: func(Call, Result) string { return "unexpected" },
+	}
+	require.EqualError(t, registry.Register(definition), "semantic index skip policy must not define a projector")
+}
+
+func TestProjectJSONFieldsForSemanticIndex_ProjectsNestedScalarsDeterministically(t *testing.T) {
+	project := ProjectJSONFieldsForSemanticIndex("title", "score", "active")
+
+	content := project(Call{}, Result{Output: `{
+		"items":[{"score":2,"title":" Second "},{"active":true,"ignored":"value"}],
+		"title":"First"
+	}`})
+
+	require.Equal(t, "score: 2\ntitle: Second\nactive: true\ntitle: First", content)
+	require.Empty(t, project(Call{}, Result{Output: "not-json"}))
 }
 
 func TestDefaultRegistry_RejectsDuplicateTools(t *testing.T) {
@@ -496,9 +577,10 @@ func TestDefaultRegistry_InvokeRecordsUnknownActor(t *testing.T) {
 	}})
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) { return Result{Output: "ok"}, nil })
 	require.NoError(t, registry.Register(Definition{
-		Name:       "write",
-		Permission: permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate},
-		Handler:    handler,
+		Name:          "write",
+		Permission:    permissions.Operation{Resource: permissions.ResourceFile, Action: permissions.ActionUpdate},
+		SemanticIndex: SkipSemanticIndex(),
+		Handler:       handler,
 	}))
 	recorder := &permissionTraceRecorder{}
 	ctx := WithTraceRecorder(context.Background(), recorder)

@@ -130,6 +130,9 @@ func TestStore_RepairVectorStore(t *testing.T) {
 		require.Equal(t, 1, result.MissingRows)
 		require.Equal(t, 1, result.RebuiltRows)
 		require.Equal(t, 1, result.Batches)
+		require.Equal(t, 1, result.AttemptedSources)
+		require.Equal(t, 1, result.RecoveredSources)
+		require.Zero(t, result.StillFailedSources)
 
 		list, err := vectorStore.List(context.Background(), search.VectorListRequest{
 			EmbeddingModel: "semantic-test",
@@ -140,6 +143,52 @@ func TestStore_RepairVectorStore(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, list.Records, 1)
+	})
+
+	t.Run("retries failed sources even when vector hashes are current", func(t *testing.T) {
+		store := NewStore()
+		vectorStore := vectormemory.NewStore()
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+			Embedder:       semanticTestEmbedder{},
+			VectorStore:    vectorStore,
+			EmbeddingModel: "semantic-test",
+		}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
+			Content: "retry this source",
+		}}))
+
+		sourceID := search.SourceIDForMessage(testSessionA, 1)
+		store.mu.Lock()
+		state := store.vectorStates[sourceID]
+		state.Status = search.VectorIndexFailed
+		state.ErrorKind = "vector_index_failed"
+		store.vectorStates[sourceID] = state
+		store.mu.Unlock()
+
+		result, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{SessionID: testSessionA})
+
+		require.NoError(t, err)
+		require.Zero(t, result.MissingRows)
+		require.Zero(t, result.StaleRows)
+		require.Equal(t, 1, result.AttemptedSources)
+		require.Equal(t, 1, result.RecoveredSources)
+		store.mu.RLock()
+		state = store.vectorStates[sourceID]
+		store.mu.RUnlock()
+		require.Equal(t, search.VectorIndexReady, state.Status)
+		require.Empty(t, state.ErrorKind)
+		require.Equal(t, 2, state.Attempts)
+
+		store.mu.Lock()
+		state.Status = search.VectorIndexPending
+		store.vectorStates[sourceID] = state
+		store.mu.Unlock()
+		result, err = store.RepairVectorStore(context.Background(), search.VectorRepairOptions{SessionID: testSessionA})
+		require.NoError(t, err)
+		require.Equal(t, 1, result.AttemptedSources)
+		require.Equal(t, 1, result.RecoveredSources)
 	})
 
 	t.Run("rebuilds stale vector rows", func(t *testing.T) {
@@ -252,6 +301,9 @@ func TestStore_RepairVectorStore(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, result.MissingRows)
 		require.Zero(t, result.RebuiltRows)
+		require.Equal(t, 1, result.AttemptedSources)
+		require.Zero(t, result.RecoveredSources)
+		require.Equal(t, 1, result.StillFailedSources)
 	})
 
 	t.Run("keeps existing stale rows after best effort provider errors", func(t *testing.T) {
@@ -364,7 +416,7 @@ func TestStore_RepairVectorBatch(t *testing.T) {
 		}}, false)
 		require.EqualError(t, err, "upsert failed")
 		require.Equal(t, 1, result.MissingRows)
-		require.Zero(t, result.RebuiltRows)
+		require.Equal(t, 1, result.RebuiltRows)
 		require.Len(t, vectorStore.deletes, 1)
 		require.Len(t, vectorStore.upserts, 1)
 	})

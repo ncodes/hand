@@ -112,7 +112,7 @@ func (s *Store) repairVectorBatch(
 	for _, message := range messages {
 		rows = append(rows, search.MessageIndexRowsFromMessage(sessionID, message)...)
 	}
-	inputs := search.VectorInputsFromIndexRows(rows)
+	inputs := search.VectorInputsFromIndexRows(rows, s.vectors.Chunking)
 	result.MessagesScanned = len(messages)
 	result.RowsScanned = len(inputs)
 	if len(inputs) == 0 {
@@ -127,28 +127,43 @@ func (s *Store) repairVectorBatch(
 		full,
 	)
 	result.Add(batchResult)
-	if err != nil || len(dirtySources) == 0 {
+	if err != nil {
 		return result, err
+	}
+	dirtySources = state.UniqueStrings(append(dirtySources, s.getRetryableVectorSourceIDs(inputs)...))
+	sort.Strings(dirtySources)
+	if len(dirtySources) == 0 {
+		return result, nil
 	}
 
 	dirtyMessages := search.MessagesBySourceID(sessionID, messages, dirtySources)
+	result.AttemptedSources = len(dirtySources)
 	records, err := s.vectorRecordsForMessages(ctx, sessionID, dirtyMessages)
 	if err != nil {
+		result.StillFailedSources = len(dirtySources)
+		s.setVectorIndexResult(sessionID, dirtyMessages, err)
 		return result, err
 	}
 
 	deleteErr := s.deleteVectorRows(ctx, dirtySources)
-	if err := s.upsertVectorRecords(ctx, records); err != nil {
-		return result, err
+	upsertErr := s.upsertVectorRecords(ctx, records)
+	repairErr := deleteErr
+	if repairErr == nil {
+		repairErr = upsertErr
 	}
-
+	s.setVectorIndexResult(sessionID, dirtyMessages, repairErr)
 	dirtyRows := make([]search.MessageIndexRow, 0, len(dirtyMessages))
 	for _, message := range dirtyMessages {
 		dirtyRows = append(dirtyRows, search.MessageIndexRowsFromMessage(sessionID, message)...)
 	}
 	result.DeletedSources = len(dirtySources)
-	result.RebuiltRows = len(search.VectorInputsFromIndexRows(dirtyRows))
+	result.RebuiltRows = len(search.VectorInputsFromIndexRows(dirtyRows, s.vectors.Chunking))
 	result.Batches = 1
+	if repairErr != nil {
+		result.StillFailedSources = len(dirtySources)
+		return result, repairErr
+	}
+	result.RecoveredSources = len(dirtySources)
 
-	return result, deleteErr
+	return result, nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/wandxy/morph/internal/constants"
@@ -556,6 +557,16 @@ func applyEnvOverrides(cfg *Config) {
 	if value := envValue95.Trim(); value != "" {
 		if batchSize, err := strconv.Atoi(value); err == nil {
 			cfg.Search.Vector.RebuildBatchSize = batchSize
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("MORPH_SEARCH_VECTOR_MAX_INPUT_BYTES")); value != "" {
+		if maxInputBytes, err := strconv.Atoi(value); err == nil {
+			cfg.Search.Vector.MaxInputBytes = maxInputBytes
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("MORPH_SEARCH_VECTOR_MAX_DOCUMENT_BYTES")); value != "" {
+		if maxDocumentBytes, err := strconv.Atoi(value); err == nil {
+			cfg.Search.Vector.MaxDocumentBytes = maxDocumentBytes
 		}
 	}
 	if value, ok := parseOptionalBoolEnv("MORPH_RERANKER_ENABLED"); ok {

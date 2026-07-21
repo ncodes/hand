@@ -203,7 +203,8 @@ func TestNewEnvironment_UsesConfiguredPermissionPolicyForObservation(t *testing.
 	}}}}
 	env := NewEnvironment(gctx.Background(), cfg).(*environment)
 	require.NoError(t, env.tools.Register(tools.Definition{
-		Name: "inspect",
+		Name:          "inspect",
+		SemanticIndex: tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceFile,
 			Action:   permissions.ActionRead,
@@ -972,6 +973,9 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	for _, definition := range definitions {
 		require.Equal(t, []string{"core"}, definition.Groups)
 	}
+	requireSemanticIndexModes(t, definitions,
+		"browser", "process", "read_file", "run_command", "search_files", "web_extract",
+	)
 	groups := tools.ListGroups()
 	require.Len(t, groups, 1)
 	require.Equal(t, "core", groups[0].Name)
@@ -1603,6 +1607,24 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 		"web_search",
 		"write_file",
 	}, definitions.Names())
+	requireSemanticIndexModes(t, definitions,
+		"browser", "process", "read_file", "run_command", "search_files", "web_extract", "web_search",
+	)
+}
+
+func requireSemanticIndexModes(t *testing.T, definitions tools.Definitions, projected ...string) {
+	t.Helper()
+	projectedSet := make(map[string]struct{}, len(projected))
+	for _, name := range projected {
+		projectedSet[name] = struct{}{}
+	}
+	for _, definition := range definitions {
+		want := tools.SemanticIndexSkip
+		if _, ok := projectedSet[definition.Name]; ok {
+			want = tools.SemanticIndexProject
+		}
+		require.Equal(t, want, definition.SemanticIndex.Mode, definition.Name)
+	}
 }
 
 func TestEnvironment_PrepareWrapsWebProviderWithCacheWhenConfigured(t *testing.T) {

@@ -211,6 +211,30 @@ func TestTurn_ExecuteToolCall_RecordsFailedOutcome(t *testing.T) {
 	payload, ok := traceSession.Events[1].Payload.(trace.ToolInvocationCompletedPayload)
 	require.True(t, ok)
 	require.True(t, payload.Failed)
+	require.Equal(t, "skipped", payload.SemanticProjectionStatus)
+}
+
+func TestTurn_ExecuteToolCall_RecordsSemanticProjectionMetadata(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	turn := &Turn{
+		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) morphmsg.Message {
+			message := toolExecutionTestMessage(toolCall, `{"output":"full result"}`)
+			message.SemanticContent = "semantic result"
+			return message
+		},
+	}
+
+	_, err := turn.executeToolCall(
+		context.Background(),
+		traceSession,
+		models.ToolCall{ID: "call-1", Name: "read_file", Input: `{}`},
+	)
+
+	require.NoError(t, err)
+	payload, ok := traceSession.Events[1].Payload.(trace.ToolInvocationCompletedPayload)
+	require.True(t, ok)
+	require.Equal(t, "projected", payload.SemanticProjectionStatus)
+	require.Equal(t, len("semantic result"), payload.SemanticContentBytes)
 }
 
 func TestTurn_ExecuteToolCalls_RunsAdjacentSafeGroupsInParallel(t *testing.T) {

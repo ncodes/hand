@@ -113,16 +113,17 @@ func (summaryModel) TableName() string {
 
 // messageModel describes active session messages in append order.
 type messageModel struct {
-	ID         uint   `gorm:"primaryKey"`
-	SessionID  string `gorm:"uniqueIndex:idx_session_messages_session_sequence,priority:1"`
-	Sequence   int    `gorm:"uniqueIndex:idx_session_messages_session_sequence,priority:2;not null"`
-	Role       string
-	Name       string
-	Content    string
-	ToolCalls  string `gorm:"type:text"`
-	ToolCallID string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID              uint   `gorm:"primaryKey"`
+	SessionID       string `gorm:"uniqueIndex:idx_session_messages_session_sequence,priority:1"`
+	Sequence        int    `gorm:"uniqueIndex:idx_session_messages_session_sequence,priority:2;not null"`
+	Role            string
+	Name            string
+	Content         string
+	SemanticContent string `gorm:"type:text"`
+	ToolCalls       string `gorm:"type:text"`
+	ToolCallID      string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type gatewayBindingModel struct {
@@ -479,6 +480,9 @@ func (s *Store) deleteSessions(ctx context.Context, ids []string) ([]string, err
 			if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
 				return err
 			}
+			if err := tx.Where("session_id = ?", id).Delete(&vectorIndexStateModel{}).Error; err != nil {
+				return err
+			}
 			if err := deleteSearchRows(tx, id); err != nil {
 				return err
 			}
@@ -555,6 +559,14 @@ func (s *Store) AppendMessages(ctx context.Context, id string, messages []morphm
 				if err := messageModels(records).searchRows().insert(tx); err != nil {
 					return err
 				}
+				if s.vectors != nil {
+					states := messageModels(records).getVectorIndexStates(s.vectors.Chunking)
+					if len(states) > 0 {
+						if err := tx.Create(&states).Error; err != nil {
+							return err
+						}
+					}
+				}
 			}
 
 			record.UpdatedAt = time.Now().UTC()
@@ -566,8 +578,17 @@ func (s *Store) AppendMessages(ctx context.Context, id string, messages []morphm
 		return err
 	}
 
-	if err := s.indexVectors(ctx, records); err != nil {
-		return s.handleVectorStoreError(err)
+	indexErr := s.indexVectors(ctx, records)
+	if err := s.setVectorIndexResult(ctx, records, indexErr); err != nil {
+		applySafeErrorLog(s.logVectorEvent("status update failed"), err).
+			Int("message_count", len(records)).
+			Msg("session vector index status update failed")
+	}
+	if indexErr != nil {
+		applySafeErrorLog(s.logVectorEvent("online indexing failed"), indexErr).
+			Str("session_id", id).
+			Int("message_count", len(records)).
+			Msg("session vector indexing failed after message persistence")
 	}
 
 	return nil
@@ -1234,6 +1255,9 @@ func (s *Store) ClearMessages(ctx context.Context, id string) error {
 		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("session_id = ?", id).Delete(&vectorIndexStateModel{}).Error; err != nil {
+			return err
+		}
 		if err := deleteSearchRows(tx, id); err != nil {
 			return err
 		}
@@ -1473,15 +1497,16 @@ func messagesToMessageModelsWithOffset(sessionID string, messages []morphmsg.Mes
 	records := make([]messageModel, 0, len(messages))
 	for i, message := range messages {
 		records = append(records, messageModel{
-			ID:         message.ID,
-			SessionID:  sessionID,
-			Sequence:   offset + i,
-			Role:       string(message.Role),
-			Name:       message.Name,
-			Content:    message.Content,
-			ToolCalls:  toolCallsToJSON(message.ToolCalls),
-			ToolCallID: message.ToolCallID,
-			CreatedAt:  message.CreatedAt,
+			ID:              message.ID,
+			SessionID:       sessionID,
+			Sequence:        offset + i,
+			Role:            string(message.Role),
+			Name:            message.Name,
+			Content:         message.Content,
+			SemanticContent: message.SemanticContent,
+			ToolCalls:       toolCallsToJSON(message.ToolCalls),
+			ToolCallID:      message.ToolCallID,
+			CreatedAt:       message.CreatedAt,
 		})
 	}
 
@@ -1497,13 +1522,14 @@ func (records messageModels) messages() []morphmsg.Message {
 	messages := make([]morphmsg.Message, 0, len(records))
 	for _, record := range records {
 		messages = append(messages, morphmsg.Message{
-			ID:         record.ID,
-			Role:       morphmsg.Role(record.Role),
-			Name:       record.Name,
-			Content:    record.Content,
-			ToolCalls:  jsonToToolCalls(record.ToolCalls),
-			ToolCallID: record.ToolCallID,
-			CreatedAt:  record.CreatedAt,
+			ID:              record.ID,
+			Role:            morphmsg.Role(record.Role),
+			Name:            record.Name,
+			Content:         record.Content,
+			SemanticContent: record.SemanticContent,
+			ToolCalls:       jsonToToolCalls(record.ToolCalls),
+			ToolCallID:      record.ToolCallID,
+			CreatedAt:       record.CreatedAt,
 		})
 	}
 
@@ -1711,13 +1737,14 @@ func (records messageModels) searchRows() searchRows {
 func messageModelToSearchRows(record messageModel) searchRows {
 	roleValue3 := str.String(record.Role)
 	rows := search.MessageIndexRowsFromMessage(record.SessionID, morphmsg.Message{
-		ID:         record.ID,
-		Role:       morphmsg.Role(roleValue3.Trim()),
-		Content:    record.Content,
-		Name:       record.Name,
-		ToolCallID: record.ToolCallID,
-		ToolCalls:  jsonToToolCalls(record.ToolCalls),
-		CreatedAt:  record.CreatedAt,
+		ID:              record.ID,
+		Role:            morphmsg.Role(roleValue3.Trim()),
+		Content:         record.Content,
+		SemanticContent: record.SemanticContent,
+		Name:            record.Name,
+		ToolCallID:      record.ToolCallID,
+		ToolCalls:       jsonToToolCalls(record.ToolCalls),
+		CreatedAt:       record.CreatedAt,
 	})
 	for idx := range rows {
 		rows[idx].UpdatedAt = record.UpdatedAt

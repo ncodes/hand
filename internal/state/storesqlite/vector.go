@@ -12,6 +12,8 @@ import (
 	base "github.com/wandxy/morph/internal/state/core"
 	"github.com/wandxy/morph/internal/state/search"
 	"github.com/wandxy/morph/pkg/str"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const defaultVectorStoreRebuildBatchSize = constants.DefaultVectorStoreRebuildBatchSize
@@ -55,6 +57,102 @@ type vectorConfig struct {
 
 type vectorInput = search.VectorInput
 
+type vectorIndexStateModel struct {
+	SourceID  string `gorm:"primaryKey;size:255"`
+	SessionID string `gorm:"index;size:255;not null"`
+	MessageID uint   `gorm:"index;not null"`
+	Status    string `gorm:"index;size:16;not null"`
+	Attempts  int    `gorm:"not null"`
+	ErrorKind string `gorm:"size:64"`
+	UpdatedAt time.Time
+}
+
+func (vectorIndexStateModel) TableName() string {
+	return "session_vector_index_states"
+}
+
+func (records messageModels) getVectorIndexStates(chunking search.VectorChunkOptions) []vectorIndexStateModel {
+	states := make([]vectorIndexStateModel, 0, len(records))
+	now := time.Now().UTC()
+	for _, record := range records {
+		status := search.VectorIndexSkipped
+		if len(search.VectorInputsFromIndexRows(messageModelToSearchRows(record), chunking)) > 0 {
+			status = search.VectorIndexPending
+		}
+		states = append(states, vectorIndexStateModel{
+			SourceID:  search.SourceIDForMessage(record.SessionID, record.ID),
+			SessionID: record.SessionID,
+			MessageID: record.ID,
+			Status:    string(status),
+			UpdatedAt: now,
+		})
+	}
+	return states
+}
+
+func (s *Store) setVectorIndexResult(ctx context.Context, records messageModels, indexErr error) error {
+	if s == nil || s.vectors == nil || len(records) == 0 {
+		return nil
+	}
+	status := search.VectorIndexReady
+	errorKind := ""
+	if indexErr != nil {
+		status = search.VectorIndexFailed
+		errorKind = "vector_index_failed"
+	}
+	now := time.Now().UTC()
+	states := make([]vectorIndexStateModel, 0, len(records))
+	for _, record := range records {
+		if len(search.VectorInputsFromIndexRows(messageModelToSearchRows(record), s.vectors.Chunking)) == 0 {
+			continue
+		}
+		states = append(states, vectorIndexStateModel{
+			SourceID:  search.SourceIDForMessage(record.SessionID, record.ID),
+			SessionID: record.SessionID,
+			MessageID: record.ID,
+			Status:    string(status),
+			Attempts:  1,
+			ErrorKind: errorKind,
+			UpdatedAt: now,
+		})
+	}
+	if len(states) == 0 {
+		return nil
+	}
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "source_id"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"status":     status,
+			"attempts":   gorm.Expr("attempts + 1"),
+			"error_kind": errorKind,
+			"updated_at": now,
+		}),
+	}).Create(&states).Error
+}
+
+func (s *Store) loadRetryableVectorSourceIDs(ctx context.Context, inputs []search.VectorInput) ([]string, error) {
+	if s == nil || s.db == nil || len(inputs) == 0 {
+		return nil, nil
+	}
+
+	sourceIDs := make([]string, 0, len(inputs))
+	for _, input := range inputs {
+		sourceIDs = append(sourceIDs, input.SourceID)
+	}
+	sourceIDs = base.UniqueStrings(sourceIDs)
+
+	var retryable []string
+	err := s.db.WithContext(ctx).
+		Model(&vectorIndexStateModel{}).
+		Where("source_id IN ? AND status IN ?", sourceIDs, []search.VectorIndexStatus{
+			search.VectorIndexPending,
+			search.VectorIndexFailed,
+		}).
+		Order("source_id asc").
+		Pluck("source_id", &retryable).Error
+	return retryable, err
+}
+
 // ConfigureVectorStore enables or disables vector indexing and hybrid search for this store.
 func (s *Store) ConfigureVectorStore(opts VectorStoreOptions) error {
 	if s == nil || s.db == nil {
@@ -75,6 +173,16 @@ func (s *Store) ConfigureVectorStore(opts VectorStoreOptions) error {
 	}
 	if model == "" {
 		return errors.New("vector store embedding model is required")
+	}
+	if opts.MaxInputBytes < 0 || opts.MaxDocumentBytes < 0 {
+		return errors.New("vector store chunk limits must be greater than or equal to zero")
+	}
+	chunking := search.NormalizeVectorChunkOptions(search.VectorChunkOptions{
+		MaxInputBytes:    opts.MaxInputBytes,
+		MaxDocumentBytes: opts.MaxDocumentBytes,
+	})
+	if chunking.MaxDocumentBytes < chunking.MaxInputBytes {
+		return errors.New("vector store max document bytes must be greater than or equal to max input bytes")
 	}
 	batchSize := opts.RebuildBatchSize
 	if batchSize < 0 {
@@ -109,6 +217,7 @@ func (s *Store) ConfigureVectorStore(opts VectorStoreOptions) error {
 			Diagnostics: opts.Diagnostics,
 			Rerank:      rerankEnabled,
 			Required:    opts.Required,
+			Chunking:    chunking,
 		},
 		batchSize: batchSize,
 	}
@@ -683,8 +792,8 @@ func (s *Store) vectorMatchesToCandidates(
 		if _, ok := seen[record.ID]; ok {
 			continue
 		}
-		row, ok := vectorRecordToSearchRow(record, match.Record.ID)
-		if !ok || !checkSearchRowMatchesOptions(row, opts) {
+		row, ok := vectorRecordToSearchRow(record, match.Record.ID, s.vectors.Chunking)
+		if !ok || search.IsVectorRecordStale(match.Record, row.Body) || !checkSearchRowMatchesOptions(row, opts) {
 			continue
 		}
 
@@ -821,8 +930,16 @@ func checkVectorRecordMatchesOptions(record messageModel, id string, opts base.S
 }
 
 // vectorRecordToSearchRow returns the searchable row represented by a vector record ID.
-func vectorRecordToSearchRow(record messageModel, vectorID string) (searchRow, bool) {
-	return search.MessageIndexRowForVectorRecord([]search.MessageIndexRow(messageModelToSearchRows(record)), vectorID)
+func vectorRecordToSearchRow(
+	record messageModel,
+	vectorID string,
+	chunking search.VectorChunkOptions,
+) (searchRow, bool) {
+	return search.MessageIndexRowForVectorRecord(
+		[]search.MessageIndexRow(messageModelToSearchRows(record)),
+		vectorID,
+		chunking,
+	)
 }
 
 // checkSearchRowMatchesOptions reports whether a searchable row satisfies non-text search filters.
@@ -849,9 +966,14 @@ func (s *Store) vectorRecordsForMessages(
 		return nil, nil
 	}
 
-	inputs := messageModels(records).searchRows().vectorInputs()
+	rows := messageModels(records).searchRows()
+	inputs := rows.vectorInputs(s.vectors.Chunking)
 	if len(inputs) == 0 {
 		return nil, nil
+	}
+	diagnostics := search.GetVectorInputDiagnostics([]search.MessageIndexRow(rows), inputs, s.vectors.Chunking)
+	if err := search.CheckVectorInputSizes(inputs, s.vectors.Chunking.MaxInputBytes); err != nil {
+		return nil, err
 	}
 
 	embeddingInputs := make([]search.EmbeddingInput, 0, len(inputs))
@@ -870,30 +992,46 @@ func (s *Store) vectorRecordsForMessages(
 		Inputs:       embeddingInputs,
 	}
 	modelValue4 := str.String(req.Model)
-	s.logVectorEvent("embedding started").
+	addVectorInputDiagnostics(s.logVectorEvent("embedding started"), diagnostics).
 		Int("input_count", len(req.Inputs)).
 		Int("message_count", len(records)).
 		Int("row_count", len(inputs)).
+		Int("max_input_bytes", s.vectors.Chunking.MaxInputBytes).
+		Int("max_document_bytes", s.vectors.Chunking.MaxDocumentBytes).
+		Int("largest_input_bytes", search.GetMaxVectorInputBytes(inputs)).
+		Int("attempt_increment", 1).
+		Str("index_status", string(search.VectorIndexPending)).
 		Str("embedding_model", modelValue4.Trim()).
 		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Msg("session vector indexing embedding started for message rows")
 
 	result, err := s.vectors.Provider.Embed(ctx, req)
 	if err != nil {
-		applySafeErrorLog(s.logVectorEvent("embedding failed"), err).Msg("session vector embedding failed")
+		addVectorInputDiagnostics(applySafeErrorLog(s.logVectorEvent("embedding failed"), err), diagnostics).
+			Int("attempt_increment", 1).
+			Str("index_status", string(search.VectorIndexFailed)).
+			Msg("session vector embedding failed")
 		return nil, err
 	}
 	if err := search.ValidateEmbeddingResult(req, result); err != nil {
-		applySafeErrorLog(s.logVectorEvent("embedding validation failed"), err).
+		addVectorInputDiagnostics(
+			applySafeErrorLog(s.logVectorEvent("embedding validation failed"), err),
+			diagnostics,
+		).
+			Int("attempt_increment", 1).
+			Str("index_status", string(search.VectorIndexFailed)).
 			Msg("session vector embedding validation failed")
 		return nil, err
 	}
 	modelValue5 := str.String(result.Model)
-	s.logVectorEvent("embedding completed").
+	addVectorInputDiagnostics(s.logVectorEvent("embedding completed"), diagnostics).
 		Int("input_count", len(req.Inputs)).
 		Int("message_count", len(records)).
 		Int("row_count", len(inputs)).
 		Int("dimensions", result.Dimensions).
+		Int("max_input_bytes", s.vectors.Chunking.MaxInputBytes).
+		Int("attempt_increment", 1).
+		Str("index_status", string(search.VectorIndexReady)).
 		Str("embedding_model", modelValue5.Trim()).
 		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Msg("session vector indexing embedding completed for message rows")
@@ -1036,8 +1174,8 @@ func (s *Store) handleVectorStoreError(err error) error {
 }
 
 // vectorInputs maps search rows to stable embedding inputs.
-func (rows searchRows) vectorInputs() []vectorInput {
-	return search.VectorInputsFromIndexRows([]search.MessageIndexRow(rows))
+func (rows searchRows) vectorInputs(chunking search.VectorChunkOptions) []vectorInput {
+	return search.VectorInputsFromIndexRows([]search.MessageIndexRow(rows), chunking)
 }
 
 // sourceIDs returns stable vector source IDs for active message models.

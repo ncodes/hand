@@ -28,10 +28,11 @@ type input struct {
 // Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:        "write_file",
-		Description: "Create or overwrite a text file at an absolute or workspace-relative path, subject to the current permission policy.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Filesystem: true},
+		Name:          "write_file",
+		Description:   "Create or overwrite a text file at an absolute or workspace-relative path, subject to the current permission policy.",
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Filesystem: true},
+		SemanticIndex: tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceFile,
 			Action:   permissions.ActionUpdate,

@@ -57,31 +57,48 @@ func TestMessageIndexRowsFromMessage(t *testing.T) {
 func TestMessageIndexRowForVectorRecord(t *testing.T) {
 	now := time.Now().UTC()
 	rows := []MessageIndexRow{{
-		CreatedAt: now,
-		UpdatedAt: now,
-		MessageID: 1,
-		SessionID: "ses_a",
-		Role:      string(morphmsg.RoleUser),
-		Body:      "first",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+		MessageID:    1,
+		SessionID:    "ses_a",
+		Role:         string(morphmsg.RoleUser),
+		Body:         "first",
+		SemanticBody: "first",
 	}, {
-		CreatedAt: now,
-		UpdatedAt: now,
-		MessageID: 1,
-		SessionID: "ses_a",
-		Role:      string(morphmsg.RoleUser),
-		ToolName:  "process",
-		Body:      "second",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+		MessageID:    1,
+		SessionID:    "ses_a",
+		Role:         string(morphmsg.RoleUser),
+		ToolName:     "process",
+		Body:         "second",
+		SemanticBody: "second",
 	}}
 
 	sourceID := string(SourceKindSessionMessage) + ":ses_a:1"
-	row, ok := MessageIndexRowForVectorRecord(rows, sourceID+":row:2")
+	row, ok := MessageIndexRowForVectorRecord(rows, sourceID+":row:2:chunk:1", VectorChunkOptions{})
 	require.True(t, ok)
 	require.Equal(t, "second", row.Body)
 
-	_, ok = MessageIndexRowForVectorRecord(rows, sourceID)
+	_, ok = MessageIndexRowForVectorRecord(rows, sourceID, VectorChunkOptions{})
 	require.False(t, ok)
-	_, ok = MessageIndexRowForVectorRecord(rows, sourceID+":row:3")
+	_, ok = MessageIndexRowForVectorRecord(rows, sourceID+":row:1", VectorChunkOptions{})
 	require.False(t, ok)
-	_, ok = MessageIndexRowForVectorRecord(nil, sourceID+":row:1")
+	_, ok = MessageIndexRowForVectorRecord(rows, sourceID+":row:3:chunk:1", VectorChunkOptions{})
 	require.False(t, ok)
+	_, ok = MessageIndexRowForVectorRecord(rows, sourceID+":row:1:chunk:2", VectorChunkOptions{})
+	require.False(t, ok)
+	_, ok = MessageIndexRowForVectorRecord(nil, sourceID+":row:1:chunk:1", VectorChunkOptions{})
+	require.False(t, ok)
+
+	for _, vectorID := range []string{
+		"wrong-source:row:1:chunk:1",
+		sourceID + ":row:not-a-number:chunk:1",
+		sourceID + ":row:0:chunk:1",
+		sourceID + ":row:1:chunk:not-a-number",
+		sourceID + ":row:1:chunk:0",
+	} {
+		_, ok = MessageIndexRowForVectorRecord(rows, vectorID, VectorChunkOptions{})
+		require.False(t, ok, vectorID)
+	}
 }

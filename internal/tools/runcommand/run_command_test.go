@@ -48,6 +48,7 @@ func TestRunCommand_ToolRunsCommand(t *testing.T) {
 	require.GreaterOrEqual(t, payload.ElapsedSeconds, 0.0)
 	require.GreaterOrEqual(t, payload.RemainingSeconds, 0.0)
 	require.LessOrEqual(t, payload.RemainingSeconds, float64(payload.TimeoutSeconds))
+	require.Equal(t, "stdout: hello", result.SemanticContent)
 }
 
 func TestRunCommand_ToolRejectsInvalidJSONInput(t *testing.T) {

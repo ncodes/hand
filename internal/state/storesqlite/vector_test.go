@@ -277,22 +277,17 @@ func TestSQLiteStore_SearchMessagesHybridPushesAndAppliesFilters(t *testing.T) {
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
-		Role:    morphmsg.RoleAssistant,
-		Content: "assistant summary",
-		ToolCalls: []morphmsg.ToolCall{{
-			ID:    "call-1",
-			Name:  "process",
-			Input: `{"action":"start"}`,
-		}},
-		CreatedAt: now,
+		Role:            morphmsg.RoleTool,
+		Name:            "process",
+		Content:         `{"stdout":"started","process_id":"ignored"}`,
+		SemanticContent: "stdout: started",
+		CreatedAt:       now,
 	}}))
-	require.Len(t, vectorStore.upserts[0], 2)
+	require.Len(t, vectorStore.upserts[0], 1)
 
-	contentRecord := vectorStore.upserts[0][0]
-	toolRecord := vectorStore.upserts[0][1]
+	toolRecord := vectorStore.upserts[0][0]
 	vectorStore.searchMatches = []search.VectorSearchMatch{
-		{Record: contentRecord, Score: 0.99},
-		{Record: toolRecord, Score: 0.98},
+		{Record: toolRecord, Score: 0.99},
 	}
 
 	results, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
@@ -345,18 +340,17 @@ func TestSQLiteStore_SearchMessagesHybridCollapsesDuplicateVectorRows(t *testing
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
-		Role:    morphmsg.RoleAssistant,
-		Content: "assistant summary",
-		ToolCalls: []morphmsg.ToolCall{
-			{ID: "call-1", Name: "process", Input: `{"action":"start"}`},
-			{ID: "call-2", Name: "search", Input: `{"query":"needle"}`},
-		},
-		CreatedAt: now,
+		Role:            morphmsg.RoleTool,
+		Name:            "search",
+		Content:         `{"matches":"full transcript remains available"}`,
+		SemanticContent: strings.Repeat("semantic chunk content ", 200),
+		CreatedAt:       now,
 	}}))
+	require.GreaterOrEqual(t, len(vectorStore.upserts[0]), 2)
 
 	vectorStore.searchMatches = []search.VectorSearchMatch{
-		{Record: vectorStore.upserts[0][2], Score: 0.99},
-		{Record: vectorStore.upserts[0][1], Score: 0.98},
+		{Record: vectorStore.upserts[0][1], Score: 0.99},
+		{Record: vectorStore.upserts[0][0], Score: 0.98},
 	}
 
 	results, err := store.SearchMessages(context.Background(), "", SearchMessageOptions{Query: "semantic"})
@@ -782,21 +776,21 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	})
 
 	t.Run("rejects vector row ids that cannot map to a search row", func(t *testing.T) {
-		_, ok := vectorRecordToSearchRow(messageModel{}, "bad")
+		_, ok := vectorRecordToSearchRow(messageModel{}, "bad", search.VectorChunkOptions{})
 		require.False(t, ok)
 		_, ok = vectorRecordToSearchRow(messageModel{
 			ID:        1,
 			SessionID: testSessionA,
 			Role:      string(morphmsg.RoleUser),
 			Content:   "hello",
-		}, "bad")
+		}, "bad", search.VectorChunkOptions{})
 		require.False(t, ok)
 		_, ok = vectorRecordToSearchRow(messageModel{
 			ID:        1,
 			SessionID: testSessionA,
 			Role:      string(morphmsg.RoleUser),
 			Content:   "hello",
-		}, "session_message:ses_test:1:row:abc")
+		}, "session_message:ses_test:1:row:abc", search.VectorChunkOptions{})
 		require.False(t, ok)
 	})
 }
@@ -844,6 +838,15 @@ func TestSQLiteStore_HybridVectorCandidateErrorPaths(t *testing.T) {
 	candidates, err = store.vectorMatchesToCandidates(context.Background(), "", SearchMessageOptions{}, matches)
 	require.NoError(t, err)
 	require.Len(t, candidates, 1)
+
+	stale := vectorStore.upserts[0][0]
+	stale.ContentHash = search.VectorContentHash("different body")
+	candidates, err = store.vectorMatchesToCandidates(context.Background(), "", SearchMessageOptions{}, []search.VectorSearchMatch{{
+		Record: stale,
+		Score:  1,
+	}})
+	require.NoError(t, err)
+	require.Empty(t, candidates)
 
 	_, err = store.messagesByRef(context.Background(), messageRefs{{SessionID: testSessionA, MessageID: 1}})
 	require.NoError(t, err)
@@ -893,25 +896,17 @@ func TestSQLiteStore_VectorStoreAppendAndRebuild(t *testing.T) {
 
 	require.Len(t, provider.requests, 1)
 	require.Equal(t, "text-embedding-test", provider.requests[0].Model)
-	require.Len(t, provider.requests[0].Inputs, 3)
+	require.Len(t, provider.requests[0].Inputs, 1)
 	require.Equal(t, "assistant summary", provider.requests[0].Inputs[0].Text)
-	require.Contains(t, provider.requests[0].Inputs[1].Text, "process")
-	require.Contains(t, provider.requests[0].Inputs[2].Text, "search")
 
 	require.Len(t, vectorStore.upserts, 1)
-	require.Len(t, vectorStore.upserts[0], 3)
+	require.Len(t, vectorStore.upserts[0], 1)
 	sourceID := vectorStore.upserts[0][0].SourceID
 	require.Equal(t, search.SourceKindSessionMessage, vectorStore.upserts[0][0].SourceKind)
-	require.Equal(t, sourceID+":row:1", vectorStore.upserts[0][0].ID)
-	require.Equal(t, sourceID+":row:2", vectorStore.upserts[0][1].ID)
-	require.Equal(t, sourceID+":row:3", vectorStore.upserts[0][2].ID)
-	require.Equal(t, sourceID, vectorStore.upserts[0][1].SourceID)
-	require.Equal(t, sourceID, vectorStore.upserts[0][2].SourceID)
+	require.Equal(t, sourceID+":row:1:chunk:1", vectorStore.upserts[0][0].ID)
 	require.Equal(t, testSessionA, vectorStore.upserts[0][0].SessionID)
 	require.Equal(t, string(morphmsg.RoleAssistant), vectorStore.upserts[0][0].Role)
 	require.Empty(t, vectorStore.upserts[0][0].ToolName)
-	require.Equal(t, "process", vectorStore.upserts[0][1].ToolName)
-	require.Equal(t, "search", vectorStore.upserts[0][2].ToolName)
 
 	require.NoError(t, store.RebuildVectorStore(context.Background(), testSessionA))
 	require.Len(t, vectorStore.deletes, 1)
@@ -937,6 +932,10 @@ func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
 			SourceKind: search.SourceKindSessionMessage,
 			SessionID:  testSessionA,
 		}}, vectorStore.deletes)
+
+		var stateCount int64
+		require.NoError(t, store.db.Model(&vectorIndexStateModel{}).Where("session_id = ?", testSessionA).Count(&stateCount).Error)
+		require.Zero(t, stateCount)
 	})
 
 	t.Run("delete session deletes vectors", func(t *testing.T) {
@@ -952,6 +951,10 @@ func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
 			SourceKind: search.SourceKindSessionMessage,
 			SessionID:  testSessionA,
 		}}, vectorStore.deletes)
+
+		var stateCount int64
+		require.NoError(t, store.db.Model(&vectorIndexStateModel{}).Where("session_id = ?", testSessionA).Count(&stateCount).Error)
+		require.Zero(t, stateCount)
 	})
 
 	t.Run("archive session keeps source vectors", func(t *testing.T) {
@@ -1058,7 +1061,63 @@ func TestSQLiteStore_VectorStoreBestEffortAndRequiredErrors(t *testing.T) {
 	err = requiredStore.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
 		{Role: morphmsg.RoleUser, Content: "required", CreatedAt: now},
 	})
-	require.ErrorIs(t, err, embedErr)
+	require.NoError(t, err)
+	var state vectorIndexStateModel
+	require.NoError(t, requiredStore.db.First(&state, "session_id = ?", testSessionA).Error)
+	require.Equal(t, string(search.VectorIndexFailed), state.Status)
+	require.Equal(t, 1, state.Attempts)
+}
+
+func TestSQLiteStore_AppendMessagesTracksReadyAndSkippedSemanticSourcesIndependently(t *testing.T) {
+	store, _ := sqliteVectorStoreTestStore(t)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "indexed prose"},
+		{Role: morphmsg.RoleTool, Name: "plan_tool", Content: `{"status":"complete"}`},
+	}))
+
+	var states []vectorIndexStateModel
+	require.NoError(t, store.db.Order("message_id asc").Find(&states).Error)
+	require.Len(t, states, 2)
+	require.Equal(t, string(search.VectorIndexReady), states[0].Status)
+	require.Equal(t, 1, states[0].Attempts)
+	require.Equal(t, string(search.VectorIndexSkipped), states[1].Status)
+	require.Zero(t, states[1].Attempts)
+}
+
+func TestSQLiteStore_AppendMessagesMarksSourceFailedWhenOneRuneExceedsByteLimit(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		Embedder:         &sqliteTestEmbeddingProvider{},
+		VectorStore:      &sqliteTestVectorStore{},
+		EmbeddingModel:   "text-embedding-test",
+		MaxInputBytes:    1,
+		MaxDocumentBytes: 1,
+	}))
+
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+		Role:    morphmsg.RoleUser,
+		Content: "🙂",
+	}}))
+
+	var state vectorIndexStateModel
+	require.NoError(t, store.db.First(&state, "session_id = ?", testSessionA).Error)
+	require.Equal(t, string(search.VectorIndexFailed), state.Status)
+	require.Equal(t, 1, state.Attempts)
+}
+
+func TestSQLiteStore_LoadRetryableVectorSourceIDsHandlesEmptyInputs(t *testing.T) {
+	values, err := (*Store)(nil).loadRetryableVectorSourceIDs(context.Background(), []search.VectorInput{{SourceID: "source"}})
+	require.NoError(t, err)
+	require.Nil(t, values)
+
+	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	values, err = store.loadRetryableVectorSourceIDs(context.Background(), nil)
+	require.NoError(t, err)
+	require.Nil(t, values)
 }
 
 func TestSQLiteStore_VectorStoreConfigurationValidation(t *testing.T) {
@@ -1080,6 +1139,29 @@ func TestSQLiteStore_VectorStoreConfigurationValidation(t *testing.T) {
 		Embedder:    &sqliteTestEmbeddingProvider{dimensions: 3},
 		VectorStore: &sqliteTestVectorStore{},
 	}), "vector store embedding model is required")
+	for _, test := range []struct {
+		name             string
+		maxInputBytes    int
+		maxDocumentBytes int
+		err              string
+	}{
+		{name: "negative max input bytes", maxInputBytes: -1, err: "vector store chunk limits must be greater than or equal to zero"},
+		{name: "negative max document bytes", maxDocumentBytes: -1, err: "vector store chunk limits must be greater than or equal to zero"},
+		{
+			name: "document limit below input limit", maxInputBytes: 2048, maxDocumentBytes: 1024,
+			err: "vector store max document bytes must be greater than or equal to max input bytes",
+		},
+	} {
+		t.Run("rejects "+test.name, func(t *testing.T) {
+			require.EqualError(t, store.ConfigureVectorStore(VectorStoreOptions{
+				Embedder:         &sqliteTestEmbeddingProvider{dimensions: 3},
+				VectorStore:      &sqliteTestVectorStore{},
+				EmbeddingModel:   "text-embedding-test",
+				MaxInputBytes:    test.maxInputBytes,
+				MaxDocumentBytes: test.maxDocumentBytes,
+			}), test.err)
+		})
+	}
 	require.EqualError(t, store.ConfigureVectorStore(VectorStoreOptions{
 		Embedder:         &sqliteTestEmbeddingProvider{dimensions: 3},
 		VectorStore:      &sqliteTestVectorStore{},
@@ -1177,7 +1259,7 @@ func TestSQLiteStore_VectorStorePostMutationErrors(t *testing.T) {
 }
 
 func TestSQLiteStore_VectorStoreHelperBranches(t *testing.T) {
-	require.Nil(t, searchRows(nil).vectorInputs())
+	require.Nil(t, searchRows(nil).vectorInputs(search.VectorChunkOptions{}))
 	require.Nil(t, messageModels(nil).sourceIDs())
 	require.Nil(t, getUniqueStrings(nil))
 	require.Equal(t, []string{"one", "two"}, getUniqueStrings([]string{" one ", "", "two", "one"}))
@@ -1229,7 +1311,7 @@ func TestSQLiteStore_VectorStoreRejectsInvalidEmbeddings(t *testing.T) {
 	err = store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
 		{Role: morphmsg.RoleUser, Content: "bad embedding", CreatedAt: now},
 	})
-	require.EqualError(t, err, "embedding content hash must match input text")
+	require.NoError(t, err)
 }
 
 func sqliteVectorStoreTestStore(t *testing.T) (*Store, *sqliteTestVectorStore) {
@@ -1279,6 +1361,7 @@ func sqliteSearchMatchedTexts(hits []base.SearchMessageHit) []string {
 
 type sqliteTestEmbeddingProvider struct {
 	err        error
+	afterEmbed func()
 	mutate     func(search.EmbeddingResult) search.EmbeddingResult
 	requests   []search.EmbeddingRequest
 	dimensions int
@@ -1286,6 +1369,9 @@ type sqliteTestEmbeddingProvider struct {
 
 func (p *sqliteTestEmbeddingProvider) Embed(_ context.Context, req search.EmbeddingRequest) (search.EmbeddingResult, error) {
 	p.requests = append(p.requests, req)
+	if p.afterEmbed != nil {
+		p.afterEmbed()
+	}
 	if p.err != nil {
 		return search.EmbeddingResult{}, p.err
 	}

@@ -8,6 +8,8 @@ type VectorStoreOptions struct {
 	EnableRerank        *bool
 	EmbeddingModel      string
 	RebuildBatchSize    int
+	MaxInputBytes       int
+	MaxDocumentBytes    int
 	RerankMaxCandidates int
 	Diagnostics         bool
 	Required            bool
@@ -23,4 +25,5 @@ type VectorConfig struct {
 	Diagnostics bool
 	Rerank      bool
 	Required    bool
+	Chunking    VectorChunkOptions
 }

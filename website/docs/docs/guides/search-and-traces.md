@@ -32,6 +32,12 @@ enabled, Morph runs a **hybrid** pass: lexical candidates and vector-similarity 
 Results are grouped by session, ranked by relevance (and recency when scores tie), and returned with short snippets.
 Cross-session search is useful for finding work you did in an older chat without switching sessions first.
 
+The transcript and full-text index preserve complete tool results. Vector indexing is more selective. Each tool
+declares whether its result has useful semantic meaning and, when it does, projects only stable human-readable fields.
+For example, file reads contribute path and content, command reads contribute output, and browser snapshots contribute
+page and accessibility text. Control results, session-search results, memory-tool results, tool-call arguments, ids,
+timestamps, and other transport metadata are not embedded.
+
 ### Loading specific messages
 
 When search finds a hit, the agent can follow up with `session_messages` to load message ranges, anchor windows around a
@@ -62,6 +68,15 @@ Or keep vector enabled but not mandatory:
 ```bash
 morph config set search.vector.required false
 ```
+
+Eligible semantic text is bounded before it reaches the embedding model. Morph limits one message projection to
+`search.vector.maxDocumentBytes` and splits it into deterministic chunks no larger than
+`search.vector.maxInputBytes`. This prevents a large browser snapshot or command result from exceeding a local
+embedding model's input limit while keeping the full original result in session history and lexical search.
+
+If online vector indexing fails, message persistence and the agent turn still complete. Morph records the source as
+failed and reports the failure through safe logs. `search.vector.required` still applies to startup readiness and
+explicit repair operations.
 
 **Reranking** reorders merged candidates. The default reranker type is `deterministic` (score-weighted fusion). You
 can switch to an LLM reranker or tune limits:
@@ -94,7 +109,8 @@ morph session repair
 morph session repair ses_review --full
 ```
 
-By default `repair` rebuilds only missing or stale vector artifacts; `--full` rebuilds everything repairable. See the
+By default `repair` rebuilds missing, stale, failed, and legacy-format vector artifacts; `--full` rebuilds everything
+repairable. The result distinguishes attempted sources, recovered sources, and sources that still failed. See the
 [Session Guide](./sessions#repairing-search-artifacts) for command output and when to use it.
 
 ## What Traces Capture

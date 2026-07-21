@@ -653,7 +653,13 @@ func TestMemoryStore_VectorSearchAppliesScopeRoleAndToolFilters(t *testing.T) {
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
 		{Role: morphmsg.RoleUser, Content: "The retention playbook is user-visible.", CreatedAt: now},
-		{Role: morphmsg.RoleTool, Name: "session_search", Content: "The retention playbook came from tool output.", CreatedAt: now.Add(time.Second)},
+		{
+			Role:            morphmsg.RoleTool,
+			Name:            "session_search",
+			Content:         "The retention playbook came from tool output.",
+			SemanticContent: "The retention playbook came from tool output.",
+			CreatedAt:       now.Add(time.Second),
+		},
 	}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []morphmsg.Message{
 		{Role: morphmsg.RoleUser, Content: "The retention playbook is in another session.", CreatedAt: now.Add(2 * time.Second)},

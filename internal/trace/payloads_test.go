@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 func TestDecodePayload_CoversAllKnownEventTypes(t *testing.T) {
@@ -185,8 +187,10 @@ func TestToolInvocationCompletedPayloadFrom_DecodesStructAndMapPayloads(t *testi
 	}, payload)
 
 	payload, ok = ToolInvocationCompletedPayloadFrom(map[string]any{
-		"tool_call_id": "call_2",
-		"name":         "plan_tool",
+		"tool_call_id":               "call_2",
+		"name":                       "plan_tool",
+		"semantic_projection_status": "skipped",
+		"semantic_content_bytes":     float64(0),
 		"plan_state": map[string]any{
 			"total_count":     float64(3),
 			"completed_count": float64(1),
@@ -203,8 +207,9 @@ func TestToolInvocationCompletedPayloadFrom_DecodesStructAndMapPayloads(t *testi
 
 	require.True(t, ok)
 	require.Equal(t, ToolInvocationCompletedPayload{
-		ToolCallID: "call_2",
-		Name:       "plan_tool",
+		ToolCallID:               "call_2",
+		Name:                     "plan_tool",
+		SemanticProjectionStatus: "skipped",
 		PlanState: &PlanToolState{
 			TotalCount:     3,
 			CompletedCount: 1,
@@ -267,6 +272,24 @@ func TestToolInvocationCompletedPayloadFrom_DerivesFailureFromContent(t *testing
 
 	require.True(t, ok)
 	require.True(t, payload.Failed)
+}
+
+func TestToolInvocationCompletedPayloadFrom_ReportsMessageSemanticProjection(t *testing.T) {
+	payload, ok := ToolInvocationCompletedPayloadFrom(morphmsg.Message{
+		ToolCallID:      "call_1",
+		Name:            "read_file",
+		Content:         `{"output":"full result"}`,
+		SemanticContent: "projected result",
+	})
+
+	require.True(t, ok)
+	require.Equal(t, "projected", payload.SemanticProjectionStatus)
+	require.Equal(t, len("projected result"), payload.SemanticContentBytes)
+
+	payload, ok = ToolInvocationCompletedPayloadFrom(morphmsg.Message{ToolCallID: "call_2", Name: "time"})
+	require.True(t, ok)
+	require.Equal(t, "skipped", payload.SemanticProjectionStatus)
+	require.Zero(t, payload.SemanticContentBytes)
 }
 
 func TestPlanToolOutputState_DecodesSummaryAndChanges(t *testing.T) {

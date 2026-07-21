@@ -15,6 +15,10 @@ const (
 	DefaultVectorRepairBatchSize = 100
 	// DefaultVectorStoreRebuildBatchSize is the fallback batch size for vector store rebuilds.
 	DefaultVectorStoreRebuildBatchSize = 100
+	// DefaultVectorMaxInputBytes bounds each embedding request input.
+	DefaultVectorMaxInputBytes = 2048
+	// DefaultVectorMaxDocumentBytes bounds semantic content indexed from one row.
+	DefaultVectorMaxDocumentBytes = 32768
 )
 
 const (

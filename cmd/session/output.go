@@ -73,6 +73,9 @@ func writeRepairResult(result search.VectorRepairResult) error {
 	appendSessionField(&output, "Rebuilt rows", strconv.Itoa(result.RebuiltRows))
 	appendSessionField(&output, "Deleted sources", strconv.Itoa(result.DeletedSources))
 	appendSessionField(&output, "Batches", strconv.Itoa(result.Batches))
+	appendSessionField(&output, "Attempted sources", strconv.Itoa(result.AttemptedSources))
+	appendSessionField(&output, "Recovered sources", strconv.Itoa(result.RecoveredSources))
+	appendSessionField(&output, "Still failed sources", strconv.Itoa(result.StillFailedSources))
 	return writeSessionOutput(output.String())
 }
 

@@ -23,11 +23,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 	}
 
 	return tools.Definition{
-		Name:         "read_file",
-		Description:  "Read a text file at an absolute or workspace-relative path, subject to the current permission policy.",
-		ParallelSafe: true,
-		Groups:       []string{"core"},
-		Requires:     tools.Capabilities{Filesystem: true},
+		Name:          "read_file",
+		Description:   "Read a text file at an absolute or workspace-relative path, subject to the current permission policy.",
+		ParallelSafe:  true,
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Filesystem: true},
+		SemanticIndex: tools.ProjectSemanticIndex(tools.ProjectJSONFieldsForSemanticIndex("path", "content")),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceFile,
 			Action:   permissions.ActionRead,

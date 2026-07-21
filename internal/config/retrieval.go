@@ -11,6 +11,8 @@ type SearchVectorConfig struct {
 	Enabled          bool `yaml:"enabled"`
 	Required         bool `yaml:"required"`
 	RebuildBatchSize int  `yaml:"rebuildBatchSize"`
+	MaxInputBytes    int  `yaml:"maxInputBytes"`
+	MaxDocumentBytes int  `yaml:"maxDocumentBytes"`
 }
 
 // RerankerConfig controls retrieval reranker type, model, limits, and overrides.

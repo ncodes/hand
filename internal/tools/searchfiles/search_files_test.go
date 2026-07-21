@@ -53,6 +53,11 @@ func TestSearchFiles_ToolUsesGoFallback(t *testing.T) {
 	require.Equal(t, 2, payload.Matches[0].Line)
 	require.Equal(t, 15, payload.Matches[0].Column)
 	require.Equal(t, `func main() { println("hello") }`, payload.Matches[0].Text)
+	require.Equal(t, `main.go:2: func main() { println("hello") }`, result.SemanticContent)
+}
+
+func TestProjectSemanticContent_RejectsMalformedOutput(t *testing.T) {
+	require.Empty(t, projectSemanticContent(tools.Call{}, tools.Result{Output: "not-json"}))
 }
 
 func TestSearchFiles_ToolRejectsInvalidJSONInput(t *testing.T) {

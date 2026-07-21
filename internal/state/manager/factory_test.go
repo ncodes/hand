@@ -328,6 +328,35 @@ func TestOpenStore_ValidatesVectorConfig(t *testing.T) {
 			err: "vector rebuild batch size must be non-negative",
 		},
 		{
+			name: "negative max input bytes",
+			cfg: config.Config{
+				Storage: config.StorageConfig{Backend: "sqlite"},
+				Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+				Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true, MaxInputBytes: -1}},
+			},
+			err: "vector max input bytes must be non-negative",
+		},
+		{
+			name: "negative max document bytes",
+			cfg: config.Config{
+				Storage: config.StorageConfig{Backend: "sqlite"},
+				Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+				Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true, MaxDocumentBytes: -1}},
+			},
+			err: "vector max document bytes must be non-negative",
+		},
+		{
+			name: "document limit below input limit",
+			cfg: config.Config{
+				Storage: config.StorageConfig{Backend: "sqlite"},
+				Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+				Search: config.SearchConfig{Vector: config.SearchVectorConfig{
+					Enabled: true, MaxInputBytes: 2048, MaxDocumentBytes: 1024,
+				}},
+			},
+			err: "vector max document bytes must be greater than or equal to max input bytes",
+		},
+		{
 			name: "missing api key",
 			cfg: config.Config{
 				Storage: config.StorageConfig{Backend: "sqlite"},
@@ -609,7 +638,7 @@ func TestOpenStore_BM25SearchWhenVectorDisabled(t *testing.T) {
 	}
 }
 
-func TestOpenStore_VectorErrorRequiredSemantics(t *testing.T) {
+func TestOpenStore_VectorErrorsDoNotFailMessagePersistence(t *testing.T) {
 	for _, backend := range []string{"memory", "sqlite"} {
 		for _, required := range []bool{false, true} {
 			name := backend + "_best_effort"
@@ -631,10 +660,6 @@ func TestOpenStore_VectorErrorRequiredSemantics(t *testing.T) {
 				}})
 
 				require.Len(t, provider.requests, 1)
-				if required {
-					require.EqualError(t, err, "embedding failed")
-					return
-				}
 				require.NoError(t, err)
 			})
 		}

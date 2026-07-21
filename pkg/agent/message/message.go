@@ -17,13 +17,14 @@ const (
 )
 
 type Message struct {
-	ID         uint
-	Role       Role
-	Content    string
-	Name       string
-	ToolCallID string
-	ToolCalls  []ToolCall
-	CreatedAt  time.Time
+	ID              uint
+	Role            Role
+	Content         string
+	Name            string
+	ToolCallID      string
+	ToolCalls       []ToolCall
+	SemanticContent string
+	CreatedAt       time.Time
 }
 
 type ToolCall struct {
@@ -70,6 +71,7 @@ func Normalize(message Message) (Message, error) {
 	name := nameValue.Trim()
 	contentValue2 := str.String(message.Content)
 	content := contentValue2.Trim()
+	semanticContent := str.String(message.SemanticContent).Trim()
 
 	if content == "" && (role != RoleAssistant || len(toolCalls) == 0) {
 		return Message{}, errors.New("message content is required")
@@ -80,13 +82,14 @@ func Normalize(message Message) (Message, error) {
 	}
 
 	normalized := Message{
-		ID:         message.ID,
-		Role:       role,
-		Content:    content,
-		Name:       name,
-		ToolCallID: toolCallID,
-		ToolCalls:  toolCalls,
-		CreatedAt:  message.CreatedAt.UTC(),
+		ID:              message.ID,
+		Role:            role,
+		Content:         content,
+		Name:            name,
+		ToolCallID:      toolCallID,
+		ToolCalls:       toolCalls,
+		SemanticContent: semanticContent,
+		CreatedAt:       message.CreatedAt.UTC(),
 	}
 
 	if normalized.CreatedAt.IsZero() {

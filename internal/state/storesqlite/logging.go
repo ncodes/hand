@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	base "github.com/wandxy/morph/internal/state/core"
+	"github.com/wandxy/morph/internal/state/search"
 	"github.com/wandxy/morph/pkg/logutils"
 	"github.com/wandxy/morph/pkg/str"
 )
@@ -44,6 +45,15 @@ func (s *Store) logSearchEvent(_ string, id string, opts base.SearchMessageOptio
 
 func (s *Store) logVectorEvent(_ string) *zerolog.Event {
 	return sessionSearchLog.Debug()
+}
+
+func addVectorInputDiagnostics(event *zerolog.Event, diagnostics search.VectorInputDiagnostics) *zerolog.Event {
+	return event.
+		Strs("source_ids", diagnostics.SourceIDs).
+		Strs("tool_names", diagnostics.ToolNames).
+		Int("source_count", len(diagnostics.SourceIDs)).
+		Int("chunk_count", diagnostics.ChunkCount).
+		Int("truncated_source_count", diagnostics.TruncatedSourceCount)
 }
 
 func applySafeErrorLog(event *zerolog.Event, err error) *zerolog.Event {

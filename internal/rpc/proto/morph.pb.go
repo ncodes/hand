@@ -1366,18 +1366,21 @@ func (x *VectorRepairOption) GetFull() bool {
 }
 
 type VectorRepairResponse struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	SessionsScanned int32                  `protobuf:"varint,1,opt,name=sessions_scanned,json=sessionsScanned,proto3" json:"sessions_scanned,omitempty"`
-	MessagesScanned int32                  `protobuf:"varint,2,opt,name=messages_scanned,json=messagesScanned,proto3" json:"messages_scanned,omitempty"`
-	RowsScanned     int32                  `protobuf:"varint,3,opt,name=rows_scanned,json=rowsScanned,proto3" json:"rows_scanned,omitempty"`
-	MissingRows     int32                  `protobuf:"varint,4,opt,name=missing_rows,json=missingRows,proto3" json:"missing_rows,omitempty"`
-	StaleRows       int32                  `protobuf:"varint,5,opt,name=stale_rows,json=staleRows,proto3" json:"stale_rows,omitempty"`
-	UnchangedRows   int32                  `protobuf:"varint,6,opt,name=unchanged_rows,json=unchangedRows,proto3" json:"unchanged_rows,omitempty"`
-	RebuiltRows     int32                  `protobuf:"varint,7,opt,name=rebuilt_rows,json=rebuiltRows,proto3" json:"rebuilt_rows,omitempty"`
-	DeletedSources  int32                  `protobuf:"varint,8,opt,name=deleted_sources,json=deletedSources,proto3" json:"deleted_sources,omitempty"`
-	Batches         int32                  `protobuf:"varint,9,opt,name=batches,proto3" json:"batches,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	SessionsScanned    int32                  `protobuf:"varint,1,opt,name=sessions_scanned,json=sessionsScanned,proto3" json:"sessions_scanned,omitempty"`
+	MessagesScanned    int32                  `protobuf:"varint,2,opt,name=messages_scanned,json=messagesScanned,proto3" json:"messages_scanned,omitempty"`
+	RowsScanned        int32                  `protobuf:"varint,3,opt,name=rows_scanned,json=rowsScanned,proto3" json:"rows_scanned,omitempty"`
+	MissingRows        int32                  `protobuf:"varint,4,opt,name=missing_rows,json=missingRows,proto3" json:"missing_rows,omitempty"`
+	StaleRows          int32                  `protobuf:"varint,5,opt,name=stale_rows,json=staleRows,proto3" json:"stale_rows,omitempty"`
+	UnchangedRows      int32                  `protobuf:"varint,6,opt,name=unchanged_rows,json=unchangedRows,proto3" json:"unchanged_rows,omitempty"`
+	RebuiltRows        int32                  `protobuf:"varint,7,opt,name=rebuilt_rows,json=rebuiltRows,proto3" json:"rebuilt_rows,omitempty"`
+	DeletedSources     int32                  `protobuf:"varint,8,opt,name=deleted_sources,json=deletedSources,proto3" json:"deleted_sources,omitempty"`
+	Batches            int32                  `protobuf:"varint,9,opt,name=batches,proto3" json:"batches,omitempty"`
+	AttemptedSources   int32                  `protobuf:"varint,10,opt,name=attempted_sources,json=attemptedSources,proto3" json:"attempted_sources,omitempty"`
+	RecoveredSources   int32                  `protobuf:"varint,11,opt,name=recovered_sources,json=recoveredSources,proto3" json:"recovered_sources,omitempty"`
+	StillFailedSources int32                  `protobuf:"varint,12,opt,name=still_failed_sources,json=stillFailedSources,proto3" json:"still_failed_sources,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *VectorRepairResponse) Reset() {
@@ -1469,6 +1472,27 @@ func (x *VectorRepairResponse) GetDeletedSources() int32 {
 func (x *VectorRepairResponse) GetBatches() int32 {
 	if x != nil {
 		return x.Batches
+	}
+	return 0
+}
+
+func (x *VectorRepairResponse) GetAttemptedSources() int32 {
+	if x != nil {
+		return x.AttemptedSources
+	}
+	return 0
+}
+
+func (x *VectorRepairResponse) GetRecoveredSources() int32 {
+	if x != nil {
+		return x.RecoveredSources
+	}
+	return 0
+}
+
+func (x *VectorRepairResponse) GetStillFailedSources() int32 {
+	if x != nil {
+		return x.StillFailedSources
 	}
 	return 0
 }
@@ -7614,7 +7638,7 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"\x06vector\x18\x02 \x01(\v2\x1e.morph.v1.VectorRepairResponseR\x06vector\"8\n" +
 	"\x12VectorRepairOption\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04full\x18\x02 \x01(\bR\x04full\"\xde\x02\n" +
+	"\x04full\x18\x02 \x01(\bR\x04full\"\xea\x03\n" +
 	"\x14VectorRepairResponse\x12)\n" +
 	"\x10sessions_scanned\x18\x01 \x01(\x05R\x0fsessionsScanned\x12)\n" +
 	"\x10messages_scanned\x18\x02 \x01(\x05R\x0fmessagesScanned\x12!\n" +
@@ -7625,7 +7649,11 @@ const file_internal_rpc_proto_morph_proto_rawDesc = "" +
 	"\x0eunchanged_rows\x18\x06 \x01(\x05R\runchangedRows\x12!\n" +
 	"\frebuilt_rows\x18\a \x01(\x05R\vrebuiltRows\x12'\n" +
 	"\x0fdeleted_sources\x18\b \x01(\x05R\x0edeletedSources\x12\x18\n" +
-	"\abatches\x18\t \x01(\x05R\abatches\"0\n" +
+	"\abatches\x18\t \x01(\x05R\abatches\x12+\n" +
+	"\x11attempted_sources\x18\n" +
+	" \x01(\x05R\x10attemptedSources\x12+\n" +
+	"\x11recovered_sources\x18\v \x01(\x05R\x10recoveredSources\x120\n" +
+	"\x14still_failed_sources\x18\f \x01(\x05R\x12stillFailedSources\"0\n" +
 	"\x1eGetSessionStatusRequestContext\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"]\n" +
 	"\x17GetSessionStatusRequest\x12B\n" +

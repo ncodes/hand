@@ -1503,15 +1503,18 @@ func (s *Service) Repair(
 	return &morphpb.RepairSessionResponse{
 		Type: morphpb.RepairSessionRequest_VECTOR,
 		Vector: &morphpb.VectorRepairResponse{
-			SessionsScanned: int32(result.SessionsScanned),
-			MessagesScanned: int32(result.MessagesScanned),
-			RowsScanned:     int32(result.RowsScanned),
-			MissingRows:     int32(result.MissingRows),
-			StaleRows:       int32(result.StaleRows),
-			UnchangedRows:   int32(result.UnchangedRows),
-			RebuiltRows:     int32(result.RebuiltRows),
-			DeletedSources:  int32(result.DeletedSources),
-			Batches:         int32(result.Batches),
+			SessionsScanned:    int32(result.SessionsScanned),
+			MessagesScanned:    int32(result.MessagesScanned),
+			RowsScanned:        int32(result.RowsScanned),
+			MissingRows:        int32(result.MissingRows),
+			StaleRows:          int32(result.StaleRows),
+			UnchangedRows:      int32(result.UnchangedRows),
+			RebuiltRows:        int32(result.RebuiltRows),
+			DeletedSources:     int32(result.DeletedSources),
+			Batches:            int32(result.Batches),
+			AttemptedSources:   int32(result.AttemptedSources),
+			RecoveredSources:   int32(result.RecoveredSources),
+			StillFailedSources: int32(result.StillFailedSources),
 		},
 	}, nil
 }

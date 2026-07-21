@@ -30,7 +30,8 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		Name: "plan_tool",
 		Description: "Read or update the current session plan for multi-step work. Omit `steps` to read the current" +
 			" plan without changing it. Provide `steps` to replace or merge plan items.",
-		Groups: []string{"core"},
+		Groups:        []string{"core"},
+		SemanticIndex: tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourcePlan,
 			Action:   permissions.ActionManage,

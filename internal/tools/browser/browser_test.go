@@ -33,6 +33,46 @@ type browserServiceStub struct {
 	statusCalls       int
 }
 
+func TestProjectSemanticContent_IndexesOnlyReadableBrowserResults(t *testing.T) {
+	t.Run("snapshot", func(t *testing.T) {
+		raw, err := json.Marshal(browserdomain.Snapshot{
+			TabID: "tab_1", URL: "https://example.com", Title: "Example",
+			Nodes: []browserdomain.SnapshotNode{{
+				Ref: "ref_1", Role: "button", Name: "Continue", Description: "Submit form",
+			}},
+		})
+		require.NoError(t, err)
+		content := projectSemanticContent(tools.Call{
+			Input: `{"action":"snapshot","session_id":"browser_1","tab_id":"tab_1"}`,
+		}, tools.Result{Output: string(raw)})
+
+		require.Contains(t, content, "url: https://example.com")
+		require.Contains(t, content, "title: Example")
+		require.Contains(t, content, "role: button")
+		require.Contains(t, content, "name: Continue")
+		require.NotContains(t, content, "tab_1")
+		require.NotContains(t, content, "ref_1")
+	})
+
+	t.Run("console", func(t *testing.T) {
+		raw, err := json.Marshal([]browserdomain.ConsoleMessage{{Level: browserdomain.ConsoleError, Text: "request failed"}})
+		require.NoError(t, err)
+		content := projectSemanticContent(tools.Call{
+			Input: `{"action":"console","session_id":"browser_1","tab_id":"tab_1"}`,
+		}, tools.Result{Output: string(raw)})
+
+		require.Equal(t, "level: error\ntext: request failed", content)
+	})
+
+	t.Run("control action", func(t *testing.T) {
+		content := projectSemanticContent(tools.Call{
+			Input: `{"action":"navigate","session_id":"browser_1","tab_id":"tab_1","url":"https://example.com"}`,
+		}, tools.Result{Output: `{"url":"https://example.com","title":"Example"}`})
+
+		require.Empty(t, content)
+	})
+}
+
 func (s *browserServiceStub) ResolvePermissionInputs(
 	_ context.Context,
 	action browserdomain.Action,

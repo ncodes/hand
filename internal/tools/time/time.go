@@ -19,11 +19,12 @@ var (
 // Definition returns the model-visible tool definition.
 func Definition() tools.Definition {
 	return tools.Definition{
-		Name:         "time",
-		Description:  "Returns the current server time in RFC3339 format.",
-		InputSchema:  common.ObjectSchema(nil),
-		ParallelSafe: true,
-		Groups:       []string{"core"},
+		Name:          "time",
+		Description:   "Returns the current server time in RFC3339 format.",
+		InputSchema:   common.ObjectSchema(nil),
+		ParallelSafe:  true,
+		Groups:        []string{"core"},
+		SemanticIndex: tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceClock,
 			Action:   permissions.ActionRead,

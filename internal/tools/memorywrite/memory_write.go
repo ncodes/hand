@@ -77,10 +77,11 @@ type deleteOutput struct {
 // AddDefinition returns the memory-write tool definition for adding memory.
 func AddDefinition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:        "memory_add",
-		Description: "Create a source-linked semantic or procedural memory candidate and run it through promotion.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Memory: true},
+		Name:          "memory_add",
+		Description:   "Create a source-linked semantic or procedural memory candidate and run it through promotion.",
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Memory: true},
+		SemanticIndex: tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceMemory,
 			Action:   permissions.ActionCreate,
@@ -152,10 +153,11 @@ func AddDefinition(runtime envtypes.Runtime) tools.Definition {
 // UpdateDefinition returns the memory-write tool definition for updating memory.
 func UpdateDefinition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:        "memory_update",
-		Description: "Replace an active semantic or procedural memory with a source-linked candidate through lifecycle promotion.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Memory: true},
+		Name:          "memory_update",
+		Description:   "Replace an active semantic or procedural memory with a source-linked candidate through lifecycle promotion.",
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Memory: true},
+		SemanticIndex: tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceMemory,
 			Action:   permissions.ActionUpdate,
@@ -221,10 +223,11 @@ func UpdateDefinition(runtime envtypes.Runtime) tools.Definition {
 // DeleteDefinition returns the memory-write tool definition for deleting memory.
 func DeleteDefinition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:        "memory_delete",
-		Description: "Delete a durable memory through the memory lifecycle.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Memory: true},
+		Name:          "memory_delete",
+		Description:   "Delete a durable memory through the memory lifecycle.",
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Memory: true},
+		SemanticIndex: tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceMemory,
 			Action:   permissions.ActionDelete,

@@ -35,11 +35,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 	}
 
 	return tools.Definition{
-		Name:         "list_files",
-		Description:  "List files and directories at an absolute or workspace-relative path, subject to the current permission policy.",
-		ParallelSafe: true,
-		Groups:       []string{"core"},
-		Requires:     tools.Capabilities{Filesystem: true},
+		Name:          "list_files",
+		Description:   "List files and directories at an absolute or workspace-relative path, subject to the current permission policy.",
+		ParallelSafe:  true,
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Filesystem: true},
+		SemanticIndex: tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceFile,
 			Action:   permissions.ActionList,

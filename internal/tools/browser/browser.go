@@ -16,12 +16,13 @@ const toolName = "browser"
 
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:         toolName,
-		Description:  "Operate an isolated, permission-aware browser using typed lifecycle, navigation, interaction, artifact, file-transfer, and dialog actions.",
-		InputSchema:  inputSchema(),
-		Groups:       []string{"core"},
-		Requires:     tools.Capabilities{Browser: true},
-		ParallelSafe: false,
+		Name:          toolName,
+		Description:   "Operate an isolated, permission-aware browser using typed lifecycle, navigation, interaction, artifact, file-transfer, and dialog actions.",
+		InputSchema:   inputSchema(),
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Browser: true},
+		ParallelSafe:  false,
+		SemanticIndex: tools.ProjectSemanticIndex(projectSemanticContent),
 		ResolvePermission: func(ctx context.Context, call tools.Call) ([]permissions.EvaluationInput, error) {
 			request, err := decodeRequest(call.Input)
 			if err != nil {
@@ -60,6 +61,24 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			}
 			return tools.Result{Output: string(raw)}, nil
 		}),
+	}
+}
+
+func projectSemanticContent(call tools.Call, result tools.Result) string {
+	request, err := decodeRequest(call.Input)
+	if err != nil {
+		return ""
+	}
+
+	switch request.Action {
+	case browserdomain.ActionSnapshot:
+		return tools.ProjectJSONFieldsForSemanticIndex(
+			"url", "title", "role", "name", "value", "description",
+		)(call, result)
+	case browserdomain.ActionConsole:
+		return tools.ProjectJSONFieldsForSemanticIndex("level", "text")(call, result)
+	default:
+		return ""
 	}
 }
 

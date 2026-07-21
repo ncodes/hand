@@ -81,6 +81,8 @@
 #     enabled: false
 #     required: false
 #     rebuildBatchSize: 100
+#     maxInputBytes: 2048
+#     maxDocumentBytes: 32768
 #   enableRerank: true
 # memory:
 #   enabled: true

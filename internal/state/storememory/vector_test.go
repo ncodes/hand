@@ -58,6 +58,31 @@ func TestStore_ConfigureVectorStore(t *testing.T) {
 		}), "vector store embedding model is required")
 	})
 
+	for _, test := range []struct {
+		name             string
+		maxInputBytes    int
+		maxDocumentBytes int
+		err              string
+	}{
+		{name: "negative max input bytes", maxInputBytes: -1, err: "vector store chunk limits must be greater than or equal to zero"},
+		{name: "negative max document bytes", maxDocumentBytes: -1, err: "vector store chunk limits must be greater than or equal to zero"},
+		{
+			name: "document limit below input limit", maxInputBytes: 2048, maxDocumentBytes: 1024,
+			err: "vector store max document bytes must be greater than or equal to max input bytes",
+		},
+	} {
+		t.Run("rejects "+test.name, func(t *testing.T) {
+			store := NewStore()
+			require.EqualError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+				Embedder:         semanticTestEmbedder{},
+				VectorStore:      &memoryTestVectorStore{},
+				EmbeddingModel:   "model",
+				MaxInputBytes:    test.maxInputBytes,
+				MaxDocumentBytes: test.maxDocumentBytes,
+			}), test.err)
+		})
+	}
+
 	t.Run("rejects negative rerank candidate limit", func(t *testing.T) {
 		store := NewStore()
 		require.EqualError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
@@ -137,7 +162,32 @@ func TestStore_SearchMessages(t *testing.T) {
 }
 
 func TestStore_AppendMessages(t *testing.T) {
-	t.Run("returns required vector upsert errors", func(t *testing.T) {
+	t.Run("tracks ready and skipped semantic sources independently", func(t *testing.T) {
+		store := NewStore()
+		vectorStore := &memoryTestVectorStore{}
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+			Embedder:       semanticTestEmbedder{},
+			VectorStore:    vectorStore,
+			EmbeddingModel: "semantic-test",
+		}))
+
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "indexed prose"},
+			{Role: morphmsg.RoleTool, Name: "plan_tool", Content: `{"status":"complete"}`},
+		}))
+
+		store.mu.RLock()
+		ready := store.vectorStates[search.SourceIDForMessage(testSessionA, 1)]
+		skipped := store.vectorStates[search.SourceIDForMessage(testSessionA, 2)]
+		store.mu.RUnlock()
+		require.Equal(t, search.VectorIndexReady, ready.Status)
+		require.Equal(t, 1, ready.Attempts)
+		require.Equal(t, search.VectorIndexSkipped, skipped.Status)
+		require.Zero(t, skipped.Attempts)
+	})
+
+	t.Run("does not fail persisted messages when required vector upsert fails", func(t *testing.T) {
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
 		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
@@ -151,8 +201,41 @@ func TestStore_AppendMessages(t *testing.T) {
 			Role:    morphmsg.RoleUser,
 			Content: "needle",
 		}})
-		require.EqualError(t, err, "upsert failed")
+		require.NoError(t, err)
+		store.mu.RLock()
+		state := store.vectorStates[search.SourceIDForMessage(testSessionA, 1)]
+		store.mu.RUnlock()
+		require.Equal(t, search.VectorIndexFailed, state.Status)
+		require.Equal(t, 1, state.Attempts)
 	})
+
+	t.Run("marks a source failed when one rune exceeds the byte limit", func(t *testing.T) {
+		store := NewStore()
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+			Embedder:         semanticTestEmbedder{},
+			VectorStore:      &memoryTestVectorStore{},
+			EmbeddingModel:   "semantic-test",
+			MaxInputBytes:    1,
+			MaxDocumentBytes: 1,
+		}))
+
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []morphmsg.Message{{
+			Role:    morphmsg.RoleUser,
+			Content: "🙂",
+		}}))
+
+		store.mu.RLock()
+		defer store.mu.RUnlock()
+		state := store.vectorStates[search.SourceIDForMessage(testSessionA, 1)]
+		require.Equal(t, search.VectorIndexFailed, state.Status)
+		require.Equal(t, 1, state.Attempts)
+	})
+}
+
+func TestStore_GetRetryableVectorSourceIDsHandlesEmptyInputs(t *testing.T) {
+	require.Nil(t, (*Store)(nil).getRetryableVectorSourceIDs([]search.VectorInput{{SourceID: "source"}}))
+	require.Nil(t, NewStore().getRetryableVectorSourceIDs(nil))
 }
 
 func TestStore_ClearMessages(t *testing.T) {
@@ -172,6 +255,11 @@ func TestStore_ClearMessages(t *testing.T) {
 
 		err := store.ClearMessages(context.Background(), testSessionA)
 		require.EqualError(t, err, "delete failed")
+
+		store.mu.RLock()
+		defer store.mu.RUnlock()
+		require.Empty(t, store.vectorStates)
+		require.Empty(t, store.messages[testSessionA])
 	})
 }
 
@@ -420,7 +508,7 @@ func TestStore_VectorMatchesToCandidates(t *testing.T) {
 	t.Run("skips missing messages", func(t *testing.T) {
 		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []search.VectorSearchMatch{{
 			Record: search.VectorRecord{
-				ID:       search.StableSessionMessageID(testSessionA, 99) + ":row:1",
+				ID:       search.StableSessionMessageID(testSessionA, 99) + ":row:1:chunk:1",
 				SourceID: search.StableSessionMessageID(testSessionA, 99),
 			},
 		}})
@@ -430,8 +518,19 @@ func TestStore_VectorMatchesToCandidates(t *testing.T) {
 	t.Run("skips invalid vector row ids", func(t *testing.T) {
 		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []search.VectorSearchMatch{{
 			Record: search.VectorRecord{
-				ID:       search.StableSessionMessageID(testSessionA, 1) + ":row:99",
+				ID:       search.StableSessionMessageID(testSessionA, 1) + ":row:99:chunk:1",
 				SourceID: search.StableSessionMessageID(testSessionA, 1),
+			},
+		}})
+		require.Empty(t, candidates)
+	})
+
+	t.Run("skips stale vector records", func(t *testing.T) {
+		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []search.VectorSearchMatch{{
+			Record: search.VectorRecord{
+				ID:          search.StableSessionMessageID(testSessionA, 1) + ":row:1:chunk:1",
+				SourceID:    search.StableSessionMessageID(testSessionA, 1),
+				ContentHash: search.VectorContentHash("different body"),
 			},
 		}})
 		require.Empty(t, candidates)
@@ -440,12 +539,14 @@ func TestStore_VectorMatchesToCandidates(t *testing.T) {
 	t.Run("deduplicates repeated message matches", func(t *testing.T) {
 		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []search.VectorSearchMatch{
 			{Record: search.VectorRecord{
-				ID:       search.StableSessionMessageID(testSessionA, 1) + ":row:1",
-				SourceID: search.StableSessionMessageID(testSessionA, 1),
+				ID:          search.StableSessionMessageID(testSessionA, 1) + ":row:1:chunk:1",
+				SourceID:    search.StableSessionMessageID(testSessionA, 1),
+				ContentHash: search.VectorContentHash("body"),
 			}},
 			{Record: search.VectorRecord{
-				ID:       search.StableSessionMessageID(testSessionA, 1) + ":row:1",
-				SourceID: search.StableSessionMessageID(testSessionA, 1),
+				ID:          search.StableSessionMessageID(testSessionA, 1) + ":row:1:chunk:1",
+				SourceID:    search.StableSessionMessageID(testSessionA, 1),
+				ContentHash: search.VectorContentHash("body"),
 			}},
 		})
 		require.Len(t, candidates, 1)

@@ -12,13 +12,14 @@ import (
 
 // MessageIndexRow is one searchable text row derived from a session message.
 type MessageIndexRow struct {
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	MessageID uint
-	SessionID string
-	Role      string
-	ToolName  string
-	Body      string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	MessageID    uint
+	SessionID    string
+	Role         string
+	ToolName     string
+	Body         string
+	SemanticBody string
 }
 
 // MessageIndexRowsFromMessage converts a message into the text rows used by lexical and vector search.
@@ -39,6 +40,7 @@ func MessageIndexRowsFromMessage(sessionID string, message morphmsg.Message) []M
 		if body != "" {
 			row := baseRow
 			row.Body = body
+			row.SemanticBody = body
 			rows = append(rows, row)
 		}
 		for _, toolCall := range message.ToolCalls {
@@ -63,6 +65,7 @@ func MessageIndexRowsFromMessage(sessionID string, message morphmsg.Message) []M
 		row := baseRow
 		row.ToolName = state.NormalizeMatchValue(message.Name)
 		row.Body = body
+		row.SemanticBody = str.String(message.SemanticContent).Trim()
 		return []MessageIndexRow{row}
 	default:
 		if body == "" {
@@ -70,12 +73,17 @@ func MessageIndexRowsFromMessage(sessionID string, message morphmsg.Message) []M
 		}
 		row := baseRow
 		row.Body = body
+		row.SemanticBody = body
 		return []MessageIndexRow{row}
 	}
 }
 
 // MessageIndexRowForVectorRecord returns the searchable row represented by a vector record ID.
-func MessageIndexRowForVectorRecord(rows []MessageIndexRow, vectorID string) (MessageIndexRow, bool) {
+func MessageIndexRowForVectorRecord(
+	rows []MessageIndexRow,
+	vectorID string,
+	options VectorChunkOptions,
+) (MessageIndexRow, bool) {
 	if len(rows) == 0 {
 		return MessageIndexRow{}, false
 	}
@@ -84,12 +92,30 @@ func MessageIndexRowForVectorRecord(rows []MessageIndexRow, vectorID string) (Me
 	if idx < 0 {
 		return MessageIndexRow{}, false
 	}
-	rowNumber, err := strconv.Atoi(vectorID[idx+5:])
+	parts := strings.Split(vectorID[idx+5:], ":chunk:")
+	if len(parts) != 2 {
+		return MessageIndexRow{}, false
+	}
+	rowNumber, err := strconv.Atoi(parts[0])
 	if err != nil || rowNumber <= 0 || rowNumber > len(rows) {
 		return MessageIndexRow{}, false
 	}
+	chunkNumber, err := strconv.Atoi(parts[1])
+	if err != nil || chunkNumber <= 0 {
+		return MessageIndexRow{}, false
+	}
 
-	return rows[rowNumber-1], true
+	row := rows[rowNumber-1]
+	if vectorID[:idx] != SourceIDForMessage(row.SessionID, row.MessageID) {
+		return MessageIndexRow{}, false
+	}
+	options = NormalizeVectorChunkOptions(options)
+	chunks, _ := ChunkVectorText(row.SemanticBody, options)
+	if chunkNumber > len(chunks) {
+		return MessageIndexRow{}, false
+	}
+	row.Body = chunks[chunkNumber-1]
+	return row, true
 }
 
 // MessageIndexRowMatchesSearchOptions reports whether a row satisfies non-text search filters.

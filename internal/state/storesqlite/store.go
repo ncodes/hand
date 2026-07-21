@@ -68,6 +68,9 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 	if err := ensureSearchIndex(db); err != nil {
 		return nil, err
 	}
+	if err := db.AutoMigrate(&vectorIndexStateModel{}); err != nil {
+		return nil, fmt.Errorf("failed to migrate vector index state: %w", err)
+	}
 	if err := db.AutoMigrate(&approvalRequestModel{}, &approvalGrantModel{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate permission db: %w", err)
 	}

@@ -153,9 +153,10 @@ type output struct {
 
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:        "automation",
-		Description: "Owner-only automation control: status, list, add, update, pause, resume, run, remove, and runs.",
-		Groups:      []string{"core"},
+		Name:          "automation",
+		Description:   "Owner-only automation control: status, list, add, update, pause, resume, run, remove, and runs.",
+		Groups:        []string{"core"},
+		SemanticIndex: tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource:      permissions.ResourceAutomation,
 			Action:        permissions.ActionManage,

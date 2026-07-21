@@ -45,8 +45,9 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			"Default timeout 30s, max 120s.",
 			"Kills the process (main/child/background) on timeout.",
 		),
-		Groups:   []string{"core"},
-		Requires: tools.Capabilities{Exec: true},
+		Groups:        []string{"core"},
+		Requires:      tools.Capabilities{Exec: true},
+		SemanticIndex: tools.ProjectSemanticIndex(tools.ProjectJSONFieldsForSemanticIndex("stdout", "stderr")),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceProcess,
 			Action:   permissions.ActionExecute,

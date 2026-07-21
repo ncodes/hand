@@ -88,6 +88,9 @@ func (r *DefaultRegistry) Register(def Definition) error {
 	if def.Permission.IsZero() && def.ResolvePermission == nil {
 		return errors.New("tool permission declaration is required")
 	}
+	if err := validateSemanticIndexPolicy(def.SemanticIndex); err != nil {
+		return err
+	}
 	def.Groups = normalizeNames(def.Groups)
 	def.Platforms = normalizeNames(def.Platforms)
 	if !def.Permission.IsZero() {
@@ -258,9 +261,33 @@ func (r *DefaultRegistry) Invoke(ctx context.Context, call Call) (Result, error)
 	if errorValue.Trim() != "" {
 		errorValue2 := str.String(result.Error)
 		result.Error = normalizeResultError(errorValue2.Trim())
+		return result, nil
+	}
+	if def.SemanticIndex.Mode == SemanticIndexProject {
+		result.SemanticContent = str.String(def.SemanticIndex.Project(call, result)).Trim()
 	}
 
 	return result, nil
+}
+
+func validateSemanticIndexPolicy(policy SemanticIndexPolicy) error {
+	switch policy.Mode {
+	case SemanticIndexSkip:
+		if policy.Project != nil {
+			return errors.New("semantic index skip policy must not define a projector")
+		}
+	case SemanticIndexProject:
+		if policy.Project == nil {
+			return errors.New("semantic index projector is required")
+		}
+	default:
+		if policy.Mode == SemanticIndexUnset {
+			return errors.New("semantic index policy is required")
+		}
+		return errors.New("semantic index policy is invalid")
+	}
+
+	return nil
 }
 
 func (r *DefaultRegistry) checkPermissions(

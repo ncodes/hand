@@ -218,6 +218,9 @@ message VectorRepairResponse {
   int32 rebuilt_rows = 7;
   int32 deleted_sources = 8;
   int32 batches = 9;
+  int32 attempted_sources = 10;
+  int32 recovered_sources = 11;
+  int32 still_failed_sources = 12;
 }
 
 message GetSessionStatusRequestContext {

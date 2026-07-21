@@ -84,6 +84,11 @@ func TestWebSearch_AppliesDefaultCount(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Len(t, payload.Results, 1)
 	require.Equal(t, "Go", payload.Results[0].Title)
+	require.Equal(t, "title: Go\nurl: https://go.dev\nsnippet: Docs", result.SemanticContent)
+}
+
+func TestProjectSemanticContent_RejectsMalformedOutput(t *testing.T) {
+	require.Empty(t, projectSemanticContent(tools.Call{}, tools.Result{Output: "not-json"}))
 }
 
 func TestWebSearch_ClampsCount(t *testing.T) {

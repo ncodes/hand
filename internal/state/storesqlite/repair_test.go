@@ -198,6 +198,9 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 		require.Equal(t, 2, result.RebuiltRows)
 		require.Equal(t, 2, result.DeletedSources)
 		require.Equal(t, 2, result.Batches)
+		require.Equal(t, 2, result.AttemptedSources)
+		require.Equal(t, 2, result.RecoveredSources)
+		require.Zero(t, result.StillFailedSources)
 		require.Len(t, provider.requests, 2)
 		require.Len(t, vectorStore.upserts, 2)
 	})
@@ -224,6 +227,51 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 		require.Zero(t, result.RebuiltRows)
 		require.Empty(t, provider.requests)
 		require.Empty(t, vectorStore.upserts)
+	})
+
+	t.Run("retries failed sources even when vector hashes are current", func(t *testing.T) {
+		store, provider, vectorStore := sqliteRepairTestStore(t)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		records := sqliteRepairSaveMessages(t, store, testSessionA, []morphmsg.Message{{
+			ID: 1, Role: morphmsg.RoleUser, Content: "retry this source", CreatedAt: now,
+		}})
+		vectorRecords, err := store.vectorRecordsForMessages(context.Background(), records)
+		require.NoError(t, err)
+		require.NoError(t, vectorStore.Upsert(context.Background(), vectorRecords))
+		require.NoError(t, store.db.Create(&vectorIndexStateModel{
+			SourceID:  messageToSourceID(testSessionA, 1),
+			SessionID: testSessionA,
+			MessageID: 1,
+			Status:    string(search.VectorIndexFailed),
+			Attempts:  1,
+			ErrorKind: "vector_index_failed",
+			UpdatedAt: now,
+		}).Error)
+		provider.requests = nil
+		vectorStore.upserts = nil
+
+		result, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{SessionID: testSessionA})
+
+		require.NoError(t, err)
+		require.Zero(t, result.MissingRows)
+		require.Zero(t, result.StaleRows)
+		require.Equal(t, 1, result.AttemptedSources)
+		require.Equal(t, 1, result.RecoveredSources)
+		require.Len(t, provider.requests, 1)
+		require.Len(t, vectorStore.upserts, 1)
+		var state vectorIndexStateModel
+		require.NoError(t, store.db.First(&state, "source_id = ?", messageToSourceID(testSessionA, 1)).Error)
+		require.Equal(t, string(search.VectorIndexReady), state.Status)
+		require.Empty(t, state.ErrorKind)
+		require.Equal(t, 2, state.Attempts)
+
+		require.NoError(t, store.db.Model(&state).Updates(map[string]any{
+			"status": search.VectorIndexPending,
+		}).Error)
+		result, err = store.RepairVectorStore(context.Background(), search.VectorRepairOptions{SessionID: testSessionA})
+		require.NoError(t, err)
+		require.Equal(t, 1, result.AttemptedSources)
+		require.Equal(t, 1, result.RecoveredSources)
 	})
 
 	t.Run("full repair rebuilds unchanged rows", func(t *testing.T) {
@@ -371,6 +419,20 @@ func sqliteRepairTestStore(
 	return store, provider, vectorStore
 }
 
+func TestSQLiteStore_RepairVectorStoreReturnsRetryStateLookupErrors(t *testing.T) {
+	store, _, _ := sqliteRepairTestStore(t)
+	store.vectors.Required = true
+	require.NoError(t, store.db.Create(&sessionModel{ID: testSessionA}).Error)
+	sqliteRepairSaveMessages(t, store, testSessionA, []morphmsg.Message{{
+		Role: morphmsg.RoleUser, Content: "hello",
+	}})
+	require.NoError(t, store.db.Migrator().DropTable(&vectorIndexStateModel{}))
+
+	_, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{SessionID: testSessionA})
+
+	require.Error(t, err)
+}
+
 func sqliteRepairStoreWithoutVectors(t *testing.T) *Store {
 	t.Helper()
 
@@ -378,7 +440,7 @@ func sqliteRepairStoreWithoutVectors(t *testing.T) *Store {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&sessionModel{}, &messageModel{}))
+	require.NoError(t, db.AutoMigrate(&sessionModel{}, &messageModel{}, &vectorIndexStateModel{}))
 
 	return &Store{db: db}
 }

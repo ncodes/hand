@@ -679,15 +679,18 @@ func TestClient_RepairSessionReturnsResult(t *testing.T) {
 	stub := &protomock.MorphServiceClientStub{RepairResp: &morphpb.RepairSessionResponse{
 		Type: morphpb.RepairSessionRequest_VECTOR,
 		Vector: &morphpb.VectorRepairResponse{
-			SessionsScanned: 2,
-			MessagesScanned: 3,
-			RowsScanned:     4,
-			MissingRows:     5,
-			StaleRows:       6,
-			UnchangedRows:   7,
-			RebuiltRows:     8,
-			DeletedSources:  9,
-			Batches:         10,
+			SessionsScanned:    2,
+			MessagesScanned:    3,
+			RowsScanned:        4,
+			MissingRows:        5,
+			StaleRows:          6,
+			UnchangedRows:      7,
+			RebuiltRows:        8,
+			DeletedSources:     9,
+			Batches:            10,
+			AttemptedSources:   11,
+			RecoveredSources:   12,
+			StillFailedSources: 13,
 		},
 	}}
 	client := NewSessionService(stub)
@@ -710,6 +713,9 @@ func TestClient_RepairSessionReturnsResult(t *testing.T) {
 	require.Equal(t, 8, result.RebuiltRows)
 	require.Equal(t, 9, result.DeletedSources)
 	require.Equal(t, 10, result.Batches)
+	require.Equal(t, 11, result.AttemptedSources)
+	require.Equal(t, 12, result.RecoveredSources)
+	require.Equal(t, 13, result.StillFailedSources)
 }
 
 func TestClient_RepairSessionRequiresClient(t *testing.T) {

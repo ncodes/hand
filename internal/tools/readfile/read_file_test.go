@@ -32,6 +32,7 @@ func TestReadFile_ToolReadsText(t *testing.T) {
 	require.Equal(t, "file.txt", payload.Path)
 	require.Equal(t, "hello", payload.Content)
 	require.Equal(t, 5, payload.Bytes)
+	require.Equal(t, "content: hello\npath: file.txt", result.SemanticContent)
 }
 
 func TestReadFile_ToolRejectsInvalidJSONInput(t *testing.T) {

@@ -335,13 +335,15 @@ type ToolInvocationStartedPayload struct {
 
 // ToolInvocationCompletedPayload is the trace payload for tool invocation completed.
 type ToolInvocationCompletedPayload struct {
-	ToolCallID   string            `json:"tool_call_id,omitempty"`
-	Name         string            `json:"name,omitempty"`
-	Content      string            `json:"content,omitempty"`
-	Detail       string            `json:"detail,omitempty"`
-	Failed       bool              `json:"failed,omitempty"`
-	PlanState    *PlanToolState    `json:"plan_state,omitempty"`
-	ProcessState *ProcessToolState `json:"process_state,omitempty"`
+	ToolCallID               string            `json:"tool_call_id,omitempty"`
+	Name                     string            `json:"name,omitempty"`
+	Content                  string            `json:"content,omitempty"`
+	Detail                   string            `json:"detail,omitempty"`
+	Failed                   bool              `json:"failed,omitempty"`
+	SemanticProjectionStatus string            `json:"semantic_projection_status,omitempty"`
+	SemanticContentBytes     int               `json:"semantic_content_bytes,omitempty"`
+	PlanState                *PlanToolState    `json:"plan_state,omitempty"`
+	ProcessState             *ProcessToolState `json:"process_state,omitempty"`
 }
 
 // DecodePayload converts a stored trace payload into its concrete event payload type.
@@ -524,11 +526,17 @@ func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPay
 		nameValue5 := str.String(value.Name)
 		toolCallIDValue2 := str.String(value.ToolCallID)
 		nameValue6 := str.String(value.Name)
+		semanticStatus := "skipped"
+		if value.SemanticContent != "" {
+			semanticStatus = "projected"
+		}
 		return ToolInvocationCompletedPayload{
-			ToolCallID: toolCallIDValue.Trim(),
-			Name:       nameValue5.Trim(),
-			Content:    value.Content,
-			Failed:     ToolInvocationFailed(value.Content),
+			ToolCallID:               toolCallIDValue.Trim(),
+			Name:                     nameValue5.Trim(),
+			Content:                  value.Content,
+			Failed:                   ToolInvocationFailed(value.Content),
+			SemanticProjectionStatus: semanticStatus,
+			SemanticContentBytes:     len(value.SemanticContent),
 		}, toolCallIDValue2.Trim() != "" || nameValue6.Trim() != ""
 	}
 
@@ -538,13 +546,19 @@ func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPay
 	}
 
 	result := ToolInvocationCompletedPayload{
-		ToolCallID:   PayloadString(fields, "tool_call_id", "ToolCallID", "id", "ID"),
-		Name:         PayloadString(fields, "name", "Name", "tool"),
-		Content:      PayloadString(fields, "content", "Content"),
-		Detail:       PayloadString(fields, "detail", "Detail"),
-		Failed:       payloadBool(fields, "failed", "Failed"),
-		PlanState:    planToolStateFromAny(fields["plan_state"]),
-		ProcessState: processToolStateFromAny(fields["process_state"]),
+		ToolCallID: PayloadString(fields, "tool_call_id", "ToolCallID", "id", "ID"),
+		Name:       PayloadString(fields, "name", "Name", "tool"),
+		Content:    PayloadString(fields, "content", "Content"),
+		Detail:     PayloadString(fields, "detail", "Detail"),
+		Failed:     payloadBool(fields, "failed", "Failed"),
+		SemanticProjectionStatus: PayloadString(
+			fields,
+			"semantic_projection_status",
+			"SemanticProjectionStatus",
+		),
+		SemanticContentBytes: payloadInteger(fields, "semantic_content_bytes", "SemanticContentBytes"),
+		PlanState:            planToolStateFromAny(fields["plan_state"]),
+		ProcessState:         processToolStateFromAny(fields["process_state"]),
 	}
 	result.Failed = result.Failed || ToolInvocationFailed(result.Content)
 
@@ -789,6 +803,15 @@ func payloadBool(fields map[string]any, keys ...string) bool {
 	}
 
 	return false
+}
+
+func payloadInteger(fields map[string]any, keys ...string) int {
+	for _, key := range keys {
+		if value, ok := fields[key]; ok {
+			return payloadInt(value)
+		}
+	}
+	return 0
 }
 
 func decodePayloadAs[T any](payload any) (T, bool) {

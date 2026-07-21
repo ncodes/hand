@@ -1241,8 +1241,10 @@ func TestInvokeToolWithEnvironmentAndSafety(t *testing.T) {
 	originalMarshal := jsonMarshal
 	t.Cleanup(func() { jsonMarshal = originalMarshal })
 	jsonMarshal = func(any) ([]byte, error) { return nil, errors.New("marshal failed") }
-	message = toolResultMessage(toolCall, map[string]any{"name": "lookup"})
+	message = toolResultMessage(toolCall, map[string]any{"name": "lookup"}, "")
 	require.JSONEq(t, `{"name":"lookup","error":"marshal failed"}`, message.Content)
+	message = toolResultMessage(toolCall, map[string]any{"name": "lookup"}, "semantic projection")
+	require.Equal(t, "semantic projection", message.SemanticContent)
 }
 
 func TestSanitizeToolOutputForModelRecordsSafety(t *testing.T) {

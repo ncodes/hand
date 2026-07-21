@@ -118,6 +118,8 @@ var DefaultConfig = Config{
 			Enabled:          constants.DefaultProfileSearchVectorEnabled,
 			Required:         constants.DefaultProfileSearchVectorRequired,
 			RebuildBatchSize: constants.DefaultVectorStoreRebuildBatchSize,
+			MaxInputBytes:    constants.DefaultVectorMaxInputBytes,
+			MaxDocumentBytes: constants.DefaultVectorMaxDocumentBytes,
 		},
 	},
 	Reranker: RerankerConfig{

@@ -100,8 +100,9 @@ morph session repair
 morph session repair ses_review --full
 ```
 
-By default `repair` only rebuilds missing or stale artifacts; `--full` rebuilds everything repairable. It prints how
-many rows were scanned, rebuilt, and so on. See [Search and Traces](./search-and-traces) for how session search works.
+By default `repair` rebuilds missing, stale, failed, and legacy-format vector artifacts; `--full` rebuilds everything
+repairable. It reports scanned and rebuilt rows together with attempted, recovered, and still-failed source counts.
+See [Search and Traces](./search-and-traces) for how session search works.
 
 ## Sessions Across Surfaces
 

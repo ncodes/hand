@@ -34,6 +34,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		Groups:           []string{"core"},
 		Requires:         tools.Capabilities{Memory: true},
 		UsageInstruction: instructions.BuildMemoryExtractGuidance(),
+		SemanticIndex:    tools.SkipSemanticIndex(),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceMemory,
 			Action:   permissions.ActionCreate,

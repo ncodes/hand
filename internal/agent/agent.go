@@ -726,7 +726,7 @@ func invokeToolWithEnvironment(
 	// the model sees a normal tool failure and the turn can complete cleanly.
 	if env == nil || env.Tools() == nil {
 		result["error"] = "tool registry is required"
-		return toolResultMessage(toolCall, result)
+		return toolResultMessage(toolCall, result, "")
 	}
 
 	// Web extraction can perform secondary summarization; thread the summary
@@ -753,7 +753,8 @@ func invokeToolWithEnvironment(
 		result["output"] = sanitizeToolOutputForModel(ctx, toolCall.Name, toolResult.Output, cfg)
 	}
 
-	return toolResultMessage(toolCall, result)
+	semanticContent := sanitizeToolOutputForModel(ctx, toolCall.Name, toolResult.SemanticContent, cfg)
+	return toolResultMessage(toolCall, result, semanticContent)
 }
 
 // sanitizeToolOutputForModel applies output guardrails before tool output is returned to the model.
@@ -809,7 +810,7 @@ func recordToolOutputSafety(
 }
 
 // toolResultMessage serializes a tool result map into the assistant conversation format.
-func toolResultMessage(toolCall models.ToolCall, result map[string]any) morphmsg.Message {
+func toolResultMessage(toolCall models.ToolCall, result map[string]any, semanticContent string) morphmsg.Message {
 	raw, marshalErr := jsonMarshal(result)
 	content := ""
 	if marshalErr != nil {
@@ -818,7 +819,13 @@ func toolResultMessage(toolCall models.ToolCall, result map[string]any) morphmsg
 		content = string(raw)
 	}
 
-	return morphmsg.Message{Role: morphmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: content}
+	return morphmsg.Message{
+		Role:            morphmsg.RoleTool,
+		Name:            toolCall.Name,
+		ToolCallID:      toolCall.ID,
+		Content:         content,
+		SemanticContent: str.String(semanticContent).Trim(),
+	}
 }
 
 // CreateSession creates or returns a named session through the state manager.

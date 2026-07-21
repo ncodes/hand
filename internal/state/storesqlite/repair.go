@@ -3,6 +3,7 @@ package storesqlite
 import (
 	"context"
 	"errors"
+	"sort"
 
 	"gorm.io/gorm"
 
@@ -132,7 +133,7 @@ func (s *Store) repairVectorBatch(
 		return result, nil
 	}
 
-	inputs := messageModels(records).searchRows().vectorInputs()
+	inputs := messageModels(records).searchRows().vectorInputs(s.vectors.Chunking)
 	result.MessagesScanned = len(records)
 	result.RowsScanned = len(inputs)
 	if len(inputs) == 0 {
@@ -141,26 +142,47 @@ func (s *Store) repairVectorBatch(
 
 	dirtySources, batchResult, err := search.DirtyVectorSources(ctx, lister, s.vectors.Model, inputs, full)
 	result.Add(batchResult)
-	if err != nil || len(dirtySources) == 0 {
+	if err != nil {
 		return result, err
+	}
+	retryableSources, err := s.loadRetryableVectorSourceIDs(ctx, inputs)
+	if err != nil {
+		return result, err
+	}
+	dirtySources = state.UniqueStrings(append(dirtySources, retryableSources...))
+	sort.Strings(dirtySources)
+	if len(dirtySources) == 0 {
+		return result, nil
 	}
 
 	dirtyRecords := getMessageModelsBySourceID(records, dirtySources)
+	result.AttemptedSources = len(dirtySources)
 	recordsToUpsert, err := s.vectorRecordsForMessages(ctx, dirtyRecords)
 	if err != nil {
+		result.StillFailedSources = len(dirtySources)
+		_ = s.setVectorIndexResult(ctx, dirtyRecords, err)
 		return result, err
 	}
 
 	deleteErr := s.deleteVectorRows(ctx, dirtySources)
-	if err := s.upsertVectorRecords(ctx, recordsToUpsert); err != nil {
-		return result, err
+	upsertErr := s.upsertVectorRecords(ctx, recordsToUpsert)
+	repairErr := deleteErr
+	if repairErr == nil {
+		repairErr = upsertErr
 	}
-
+	if statusErr := s.setVectorIndexResult(ctx, dirtyRecords, repairErr); repairErr == nil {
+		repairErr = statusErr
+	}
 	result.DeletedSources = len(dirtySources)
-	result.RebuiltRows = len(messageModels(dirtyRecords).searchRows().vectorInputs())
+	result.RebuiltRows = len(messageModels(dirtyRecords).searchRows().vectorInputs(s.vectors.Chunking))
 	result.Batches = 1
+	if repairErr != nil {
+		result.StillFailedSources = len(dirtySources)
+		return result, repairErr
+	}
+	result.RecoveredSources = len(dirtySources)
 
-	return result, deleteErr
+	return result, nil
 }
 
 // getMessageModelsBySourceID returns message records whose vector source IDs are marked dirty.

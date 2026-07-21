@@ -141,6 +141,7 @@ func TestWebExtract_ReturnsProviderResults(t *testing.T) {
 	require.True(t, payload.Results[0].Truncated)
 	require.True(t, payload.Results[0].DownloadTruncated)
 	require.Contains(t, result.Output, `"download_truncated":true`)
+	require.Equal(t, "content: Hello\ntitle: Example\nurl: https://example.com", result.SemanticContent)
 }
 
 func TestWebExtract_AskPresetRequiresApprovalBeforeProviderCall(t *testing.T) {

@@ -210,15 +210,18 @@ func (s *SessionService) Repair(
 	vector := resp.GetVector()
 
 	return RepairSessionResult{
-		SessionsScanned: int(vector.GetSessionsScanned()),
-		MessagesScanned: int(vector.GetMessagesScanned()),
-		RowsScanned:     int(vector.GetRowsScanned()),
-		MissingRows:     int(vector.GetMissingRows()),
-		StaleRows:       int(vector.GetStaleRows()),
-		UnchangedRows:   int(vector.GetUnchangedRows()),
-		RebuiltRows:     int(vector.GetRebuiltRows()),
-		DeletedSources:  int(vector.GetDeletedSources()),
-		Batches:         int(vector.GetBatches()),
+		SessionsScanned:    int(vector.GetSessionsScanned()),
+		MessagesScanned:    int(vector.GetMessagesScanned()),
+		RowsScanned:        int(vector.GetRowsScanned()),
+		MissingRows:        int(vector.GetMissingRows()),
+		StaleRows:          int(vector.GetStaleRows()),
+		UnchangedRows:      int(vector.GetUnchangedRows()),
+		RebuiltRows:        int(vector.GetRebuiltRows()),
+		DeletedSources:     int(vector.GetDeletedSources()),
+		Batches:            int(vector.GetBatches()),
+		AttemptedSources:   int(vector.GetAttemptedSources()),
+		RecoveredSources:   int(vector.GetRecoveredSources()),
+		StillFailedSources: int(vector.GetStillFailedSources()),
 	}, nil
 }
 

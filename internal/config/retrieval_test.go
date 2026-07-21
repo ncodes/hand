@@ -15,7 +15,8 @@ func TestLoad_UsesSessionSettingsFromConfig(t *testing.T) {
 	clearEnvKeys(t, "MORPH_STORAGE_BACKEND", "MORPH_SESSION_DEFAULT_IDLE_EXPIRY", "MORPH_SESSION_ARCHIVE_RETENTION",
 		"MORPH_SEARCH_VECTOR_ENABLED", "MORPH_MODEL_EMBEDDING_PROVIDER",
 		"MORPH_MODEL_EMBEDDING_MODEL", "MORPH_SEARCH_VECTOR_REQUIRED",
-		"MORPH_SEARCH_VECTOR_REBUILD_BATCH_SIZE", "MORPH_SEARCH_ENABLE_RERANK", "MORPH_RERANKER_ENABLED",
+		"MORPH_SEARCH_VECTOR_REBUILD_BATCH_SIZE", "MORPH_SEARCH_VECTOR_MAX_INPUT_BYTES",
+		"MORPH_SEARCH_VECTOR_MAX_DOCUMENT_BYTES", "MORPH_SEARCH_ENABLE_RERANK", "MORPH_RERANKER_ENABLED",
 		"MORPH_RERANKER_TYPE", "MORPH_RERANKER_MODEL", "MORPH_RERANKER_MAX_CANDIDATES",
 		"MORPH_RERANKER_MAX_CANDIDATE_TEXT_CHARS", "MORPH_RERANKER_MAX_OUTPUT_TOKENS")
 
@@ -36,6 +37,8 @@ search:
     enabled: true
     required: true
     rebuildBatchSize: 25
+    maxInputBytes: 1024
+    maxDocumentBytes: 16384
   enableRerank: false
 reranker:
   enabled: false
@@ -64,6 +67,8 @@ reranker:
 	require.Equal(t, "text-embedding-test", cfg.Models.Embedding.Name)
 	require.True(t, cfg.Search.Vector.Required)
 	require.Equal(t, 25, cfg.Search.Vector.RebuildBatchSize)
+	require.Equal(t, 1024, cfg.Search.Vector.MaxInputBytes)
+	require.Equal(t, 16384, cfg.Search.Vector.MaxDocumentBytes)
 	require.False(t, getBoolValueDefault(cfg.Search.EnableRerank, true))
 	require.False(t, getBoolValueDefault(cfg.Reranker.Enabled, true))
 	require.Equal(t, constants.RerankerLLM, cfg.Reranker.Type)
@@ -301,6 +306,28 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 				cfg.Search.Vector.RebuildBatchSize = -1
 			},
 			err: "vector rebuild batch size must be non-negative",
+		},
+		{
+			name: "negative max input bytes",
+			mutate: func(cfg *Config) {
+				cfg.Search.Vector.MaxInputBytes = -1
+			},
+			err: "vector max input bytes must be non-negative",
+		},
+		{
+			name: "negative max document bytes",
+			mutate: func(cfg *Config) {
+				cfg.Search.Vector.MaxDocumentBytes = -1
+			},
+			err: "vector max document bytes must be non-negative",
+		},
+		{
+			name: "document limit below input limit",
+			mutate: func(cfg *Config) {
+				cfg.Search.Vector.MaxInputBytes = 2048
+				cfg.Search.Vector.MaxDocumentBytes = 1024
+			},
+			err: "vector max document bytes must be greater than or equal to max input bytes",
 		},
 		{
 			name: "unsupported reranker",

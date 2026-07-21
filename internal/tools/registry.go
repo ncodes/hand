@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/permissions"
@@ -41,8 +44,9 @@ type Call struct {
 
 // Result is the structured output of a runtime tool invocation.
 type Result struct {
-	Output string
-	Error  string
+	Output          string
+	Error           string
+	SemanticContent string
 }
 
 // Handler executes a tool call.
@@ -58,6 +62,79 @@ func (f HandlerFunc) Invoke(ctx context.Context, call Call) (Result, error) {
 }
 
 type PermissionResolver func(context.Context, Call) ([]permissions.EvaluationInput, error)
+
+type SemanticIndexMode string
+
+const (
+	SemanticIndexUnset   SemanticIndexMode = ""
+	SemanticIndexSkip    SemanticIndexMode = "skip"
+	SemanticIndexProject SemanticIndexMode = "project"
+)
+
+type SemanticProjector func(Call, Result) string
+
+type SemanticIndexPolicy struct {
+	Mode    SemanticIndexMode
+	Project SemanticProjector
+}
+
+func SkipSemanticIndex() SemanticIndexPolicy {
+	return SemanticIndexPolicy{Mode: SemanticIndexSkip}
+}
+
+func ProjectSemanticIndex(project SemanticProjector) SemanticIndexPolicy {
+	return SemanticIndexPolicy{Mode: SemanticIndexProject, Project: project}
+}
+
+func ProjectJSONFieldsForSemanticIndex(fields ...string) SemanticProjector {
+	selected := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		selected[field] = struct{}{}
+	}
+
+	return func(_ Call, result Result) string {
+		var value any
+		if err := json.Unmarshal([]byte(result.Output), &value); err != nil {
+			return ""
+		}
+
+		lines := make([]string, 0)
+		collectSemanticFields(value, selected, &lines)
+		return strings.Join(lines, "\n")
+	}
+}
+
+func collectSemanticFields(value any, selected map[string]struct{}, lines *[]string) {
+	switch item := value.(type) {
+	case []any:
+		for _, child := range item {
+			collectSemanticFields(child, selected, lines)
+		}
+	case map[string]any:
+		keys := make([]string, 0, len(item))
+		for key := range item {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			child := item[key]
+			if _, ok := selected[key]; ok {
+				if scalar, ok := child.(string); ok {
+					if scalar = strings.TrimSpace(scalar); scalar != "" {
+						*lines = append(*lines, key+": "+scalar)
+					}
+					continue
+				}
+				switch child.(type) {
+				case float64, bool:
+					*lines = append(*lines, fmt.Sprintf("%s: %v", key, child))
+					continue
+				}
+			}
+			collectSemanticFields(child, selected, lines)
+		}
+	}
+}
 
 type PermissionResolutionError struct {
 	Code    string
@@ -136,6 +213,7 @@ type Definition struct {
 	Requires          Capabilities
 	Permission        permissions.Operation
 	ResolvePermission PermissionResolver
+	SemanticIndex     SemanticIndexPolicy
 	Platforms         []string
 	Handler           Handler
 }

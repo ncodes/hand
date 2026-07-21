@@ -33,6 +33,7 @@ func TestSQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
 	require.True(t, store.db.Migrator().HasTable(&stateModel{}))
 	require.True(t, store.db.Migrator().HasTable(&summaryModel{}))
 	require.True(t, store.db.Migrator().HasTable(&messageModel{}))
+	require.True(t, store.db.Migrator().HasTable(&vectorIndexStateModel{}))
 	require.True(t, store.db.Migrator().HasTable(&automationJobModel{}))
 	require.True(t, store.db.Migrator().HasTable(&automationRunModel{}))
 	require.True(t, store.db.Migrator().HasTable(&memoryItemModel{}))
@@ -107,6 +108,18 @@ func TestSQLiteStore_MigrationFailsOnReadOnlyDatabase(t *testing.T) {
 
 	_, err = NewStore("file:session.db?mode=ro")
 	require.ErrorContains(t, err, "failed to migrate session db")
+}
+
+func TestSQLiteStore_NewStoreFromDBReportsVectorStateMigrationErrors(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "session.db")))
+	require.NoError(t, err)
+	require.NoError(t, db.Exec(
+		"CREATE VIEW session_vector_index_states AS SELECT 'source' AS source_id",
+	).Error)
+
+	_, err = NewStoreFromDB(db)
+
+	require.ErrorContains(t, err, "failed to migrate vector index state")
 }
 
 func TestSQLiteStore_ConstructorsValidateInputs(t *testing.T) {

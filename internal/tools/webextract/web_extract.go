@@ -57,6 +57,9 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 		ParallelSafe: true,
 		Groups:       []string{"core"},
 		Requires:     tools.Capabilities{Network: true},
+		SemanticIndex: tools.ProjectSemanticIndex(tools.ProjectJSONFieldsForSemanticIndex(
+			"title", "url", "content", "text", "summary", "description",
+		)),
 		Permission: permissions.Operation{
 			Resource: permissions.ResourceNetwork,
 			Action:   permissions.ActionRead,

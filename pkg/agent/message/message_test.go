@@ -45,12 +45,13 @@ func TestNewMessage_DelegatesToNew(t *testing.T) {
 
 func TestNormalize_TrimsToolFieldsAndSetsTimestampWhenMissing(t *testing.T) {
 	message, err := Normalize(Message{
-		ID:         7,
-		Role:       RoleTool,
-		Content:    "  result  ",
-		Name:       "  time  ",
-		ToolCallID: "  call-1  ",
-		CreatedAt:  time.Time{},
+		ID:              7,
+		Role:            RoleTool,
+		Content:         "  result  ",
+		Name:            "  time  ",
+		ToolCallID:      "  call-1  ",
+		SemanticContent: "  current time  ",
+		CreatedAt:       time.Time{},
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint(7), message.ID)
@@ -58,6 +59,7 @@ func TestNormalize_TrimsToolFieldsAndSetsTimestampWhenMissing(t *testing.T) {
 	require.Equal(t, "result", message.Content)
 	require.Equal(t, "time", message.Name)
 	require.Equal(t, "call-1", message.ToolCallID)
+	require.Equal(t, "current time", message.SemanticContent)
 	require.False(t, message.CreatedAt.IsZero())
 }
 

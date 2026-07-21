@@ -23,15 +23,18 @@ type VectorRepairOptions struct {
 
 // VectorRepairResult reports what vector repair inspected and rebuilt.
 type VectorRepairResult struct {
-	SessionsScanned int
-	MessagesScanned int
-	RowsScanned     int
-	MissingRows     int
-	StaleRows       int
-	UnchangedRows   int
-	RebuiltRows     int
-	DeletedSources  int
-	Batches         int
+	SessionsScanned    int
+	MessagesScanned    int
+	RowsScanned        int
+	MissingRows        int
+	StaleRows          int
+	UnchangedRows      int
+	RebuiltRows        int
+	DeletedSources     int
+	Batches            int
+	AttemptedSources   int
+	RecoveredSources   int
+	StillFailedSources int
 }
 
 // Add merges another repair result into r.
@@ -49,6 +52,9 @@ func (r *VectorRepairResult) Add(other VectorRepairResult) {
 	r.RebuiltRows += other.RebuiltRows
 	r.DeletedSources += other.DeletedSources
 	r.Batches += other.Batches
+	r.AttemptedSources += other.AttemptedSources
+	r.RecoveredSources += other.RecoveredSources
+	r.StillFailedSources += other.StillFailedSources
 }
 
 // VectorRepairStore is implemented by stores that can repair session-message vector rows.

@@ -1139,14 +1139,20 @@ func (t *Turn) executeToolCall(
 
 	toolCtx := tools.WithTraceRecorder(t.getToolContext(ctx), traceSession)
 	toolMessage := t.invokeTool(toolCtx, toolCall)
+	semanticProjectionStatus := "skipped"
+	if toolMessage.SemanticContent != "" {
+		semanticProjectionStatus = "projected"
+	}
 
 	traceSession.Record(trace.EvtToolInvocationCompleted, trace.ToolInvocationCompletedPayload{
-		ToolCallID:   toolMessage.ToolCallID,
-		Name:         toolMessage.Name,
-		Content:      toolMessage.Content,
-		Failed:       trace.ToolInvocationFailed(toolMessage.Content),
-		PlanState:    getPlanToolOutputState(toolMessage.Name, toolMessage.Content),
-		ProcessState: getProcessToolOutputState(toolMessage.Name, toolMessage.Content),
+		ToolCallID:               toolMessage.ToolCallID,
+		Name:                     toolMessage.Name,
+		Content:                  toolMessage.Content,
+		Failed:                   trace.ToolInvocationFailed(toolMessage.Content),
+		SemanticProjectionStatus: semanticProjectionStatus,
+		SemanticContentBytes:     len(toolMessage.SemanticContent),
+		PlanState:                getPlanToolOutputState(toolMessage.Name, toolMessage.Content),
+		ProcessState:             getProcessToolOutputState(toolMessage.Name, toolMessage.Content),
 	})
 
 	agentLog.Info().
@@ -1154,6 +1160,8 @@ func (t *Turn) executeToolCall(
 		Str("tool_call_id", toolCall.ID).
 		Int("output_chars", len([]rune(toolMessage.Content))).
 		Int("output_bytes", len(toolMessage.Content)).
+		Str("semantic_projection_status", semanticProjectionStatus).
+		Int("semantic_content_bytes", len(toolMessage.SemanticContent)).
 		Msg("tool invocation completed")
 
 	return normalizeTurnMessage(toolMessage)
@@ -1200,7 +1208,7 @@ func (t *Turn) invokeToolWithLegacyRuntime(
 	result := map[string]any{"name": toolCall.Name}
 	if registry == nil {
 		result["error"] = "tool registry is required"
-		return toolResultMessage(toolCall, result)
+		return toolResultMessage(toolCall, result, "")
 	}
 
 	toolResult, err := registry.Invoke(ctx, tools.Call{
@@ -1221,7 +1229,8 @@ func (t *Turn) invokeToolWithLegacyRuntime(
 		result["output"] = sanitizeToolOutputForModel(ctx, toolCall.Name, toolResult.Output, t.cfg)
 	}
 
-	return toolResultMessage(toolCall, result)
+	semanticContent := sanitizeToolOutputForModel(ctx, toolCall.Name, toolResult.SemanticContent, t.cfg)
+	return toolResultMessage(toolCall, result, semanticContent)
 }
 
 func (t *Turn) invokeToolWithLegacyHook(ctx context.Context, toolCall models.ToolCall) (morphmsg.Message, bool) {

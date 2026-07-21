@@ -550,7 +550,8 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 		"MORPH_STORAGE_BACKEND", "MORPH_SESSION_DEFAULT_IDLE_EXPIRY", "MORPH_SESSION_ARCHIVE_RETENTION",
 		"MORPH_SEARCH_VECTOR_ENABLED", "MORPH_MODEL_EMBEDDING_PROVIDER",
 		"MORPH_MODEL_EMBEDDING_MODEL", "MORPH_SEARCH_VECTOR_REQUIRED",
-		"MORPH_SEARCH_VECTOR_REBUILD_BATCH_SIZE", "MORPH_SEARCH_ENABLE_RERANK", "MORPH_RERANKER_ENABLED",
+		"MORPH_SEARCH_VECTOR_REBUILD_BATCH_SIZE", "MORPH_SEARCH_VECTOR_MAX_INPUT_BYTES",
+		"MORPH_SEARCH_VECTOR_MAX_DOCUMENT_BYTES", "MORPH_SEARCH_ENABLE_RERANK", "MORPH_RERANKER_ENABLED",
 		"MORPH_RERANKER_TYPE", "MORPH_RERANKER_MODEL", "MORPH_RERANKER_MAX_CANDIDATES",
 		"MORPH_RERANKER_MAX_CANDIDATE_TEXT_CHARS", "MORPH_RERANKER_MAX_OUTPUT_TOKENS", "MORPH_RERANKER_OVERRIDES",
 		"MORPH_COMPACTION_ENABLED", "MORPH_COMPACTION_TRIGGER_PERCENT", "MORPH_COMPACTION_WARN_PERCENT",
@@ -580,6 +581,8 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	t.Setenv("MORPH_MODEL_EMBEDDING_MODEL", "text-embedding-test")
 	t.Setenv("MORPH_SEARCH_VECTOR_REQUIRED", "true")
 	t.Setenv("MORPH_SEARCH_VECTOR_REBUILD_BATCH_SIZE", "32")
+	t.Setenv("MORPH_SEARCH_VECTOR_MAX_INPUT_BYTES", "1024")
+	t.Setenv("MORPH_SEARCH_VECTOR_MAX_DOCUMENT_BYTES", "16384")
 	t.Setenv("MORPH_SEARCH_ENABLE_RERANK", "false")
 	t.Setenv("MORPH_RERANKER_ENABLED", "false")
 	t.Setenv("MORPH_RERANKER_TYPE", constants.RerankerLLM)
@@ -627,6 +630,8 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, "text-embedding-test", cfg.Models.Embedding.Name)
 	require.True(t, cfg.Search.Vector.Required)
 	require.Equal(t, 32, cfg.Search.Vector.RebuildBatchSize)
+	require.Equal(t, 1024, cfg.Search.Vector.MaxInputBytes)
+	require.Equal(t, 16384, cfg.Search.Vector.MaxDocumentBytes)
 	require.False(t, getBoolValueDefault(cfg.Search.EnableRerank, true))
 	require.False(t, getBoolValueDefault(cfg.Reranker.Enabled, true))
 	require.Equal(t, constants.RerankerLLM, cfg.Reranker.Type)
@@ -665,6 +670,20 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, 1000, cfg.Memory.Episodic.MaxWindowTokens)
 	require.Equal(t, 2, cfg.Memory.Episodic.MaxRetries)
 	require.False(t, getBoolValue(cfg.Memory.Write.Enabled))
+}
+
+func TestApplyEnvOverrides_IgnoresInvalidVectorByteLimits(t *testing.T) {
+	cfg := Config{Search: SearchConfig{Vector: SearchVectorConfig{
+		MaxInputBytes:    2048,
+		MaxDocumentBytes: 32768,
+	}}}
+	t.Setenv("MORPH_SEARCH_VECTOR_MAX_INPUT_BYTES", "invalid")
+	t.Setenv("MORPH_SEARCH_VECTOR_MAX_DOCUMENT_BYTES", "invalid")
+
+	applyEnvOverrides(&cfg)
+
+	require.Equal(t, 2048, cfg.Search.Vector.MaxInputBytes)
+	require.Equal(t, 32768, cfg.Search.Vector.MaxDocumentBytes)
 }
 
 func TestApplyEnvOverrides_WebProviderSpecificFallback(t *testing.T) {
