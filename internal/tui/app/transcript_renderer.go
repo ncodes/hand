@@ -99,13 +99,22 @@ func renderResolvedPermissionApproval(message permissionApprovalMsg, width int) 
 		status += " (" + message.Scope + ")"
 	}
 	statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.MutedText))
-	if message.Status == string(permissions.ApprovalDenied) {
+	renderedStatus := statusStyle.Render(status)
+	switch message.Status {
+	case string(permissions.ApprovalApproved):
+		icon := lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color(defaultTUITheme.ToolCompletedDot)).
+			Render(permissionStatusIcon)
+		renderedStatus = icon + " " + renderedStatus
+	case string(permissions.ApprovalDenied):
 		status = permissionStatusIcon + " " + status
 		statusStyle = statusStyle.
 			Bold(true).
 			Foreground(lipgloss.Color(defaultTUITheme.ToolDeletion))
+		renderedStatus = statusStyle.Render(status)
 	}
-	lines := []string{statusStyle.Render(status)}
+	lines := []string{renderedStatus}
 	lines = append(lines, renderPermissionApprovalField("Operation", message.Summary, width)...)
 
 	return strings.Join(lines, "\n")

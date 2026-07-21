@@ -223,6 +223,27 @@ func TestTranscriptRenderer_EmphasizesDeniedPermission(t *testing.T) {
 	require.Contains(t, stripANSI(rendered), "Operation  browser · start browser")
 }
 
+func TestTranscriptRenderer_EmphasizesApprovedPermission(t *testing.T) {
+	cell := tuiMessageToTranscriptCell(permissionApprovalMsg{
+		Status:  string(permissions.ApprovalApproved),
+		Scope:   string(permissions.GrantOnce),
+		Summary: "browser · start browser",
+	})
+
+	rendered := defaultTranscriptRenderer.RenderCell(cell, transcriptRenderContext{Width: 80})
+	approvedIcon := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(defaultTUITheme.ToolCompletedDot)).
+		Render(permissionStatusIcon)
+	approvedTitle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Render("Permission approved (once)")
+
+	require.Contains(t, rendered, approvedIcon+" "+approvedTitle)
+	require.Contains(t, stripANSI(rendered), permissionStatusIcon+" Permission approved (once)")
+	require.Contains(t, stripANSI(rendered), "Operation  browser · start browser")
+}
+
 func TestModel_PermissionApprovalSupportsSessionAlwaysDenyAndFailure(t *testing.T) {
 	for _, test := range []struct {
 		name     string
