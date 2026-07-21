@@ -127,7 +127,7 @@ func askForApprovalPresetRules() []Rule {
 			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
 			Effects:      []Effect{EffectExecution},
 			Decision:     DecisionAsk,
-			Reason:       "local process execution requires approval without an operating-system sandbox",
+			Reason:       "This action runs a program on your computer.",
 			toolRequired: true,
 		},
 		Rule{

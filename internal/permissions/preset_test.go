@@ -43,6 +43,7 @@ func TestPolicy_AskForApprovalPresetClassifiesOperations(t *testing.T) {
 		name      string
 		operation Operation
 		want      Decision
+		reason    string
 	}{
 		{
 			name: "workspace write",
@@ -72,7 +73,8 @@ func TestPolicy_AskForApprovalPresetClassifiesOperations(t *testing.T) {
 			operation: Operation{
 				Tool: "run_command", Resource: ResourceProcess, Action: ActionExecute, Effects: []Effect{EffectExecution},
 			},
-			want: DecisionAsk,
+			want:   DecisionAsk,
+			reason: "This action runs a program on your computer.",
 		},
 		{
 			name: "destructive",
@@ -91,6 +93,9 @@ func TestPolicy_AskForApprovalPresetClassifiesOperations(t *testing.T) {
 			})
 			require.Equal(t, test.want, evaluation.Decision)
 			require.Equal(t, PresetAskForApproval, evaluation.Preset)
+			if test.reason != "" {
+				require.Equal(t, test.reason, evaluation.Reason)
+			}
 		})
 	}
 
