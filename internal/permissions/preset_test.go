@@ -66,7 +66,17 @@ func TestPolicy_AskForApprovalPresetClassifiesOperations(t *testing.T) {
 			operation: Operation{
 				Tool: "web_extract", Resource: ResourceNetwork, Action: ActionRead, Effects: []Effect{EffectNetwork},
 			},
-			want: DecisionAsk,
+			want:   DecisionAsk,
+			reason: "This action connects to an online service to send or receive data.",
+		},
+		{
+			name: "browser network",
+			operation: Operation{
+				Tool: "browser", Resource: ResourceBrowser, Action: ActionUpdate,
+				Effects: []Effect{EffectWrite, EffectNetwork, EffectExternalSystem},
+			},
+			want:   DecisionAsk,
+			reason: "This browser action may load content from or send data to a website.",
 		},
 		{
 			name: "command execution",
@@ -82,7 +92,8 @@ func TestPolicy_AskForApprovalPresetClassifiesOperations(t *testing.T) {
 				Tool: "memory_delete", Resource: ResourceMemory, Action: ActionDelete,
 				Effects: []Effect{EffectDestructive},
 			},
-			want: DecisionAsk,
+			want:   DecisionAsk,
+			reason: "This action can permanently delete or overwrite data.",
 		},
 	}
 	for _, test := range tests {

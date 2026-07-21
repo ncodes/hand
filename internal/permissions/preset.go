@@ -131,11 +131,20 @@ func askForApprovalPresetRules() []Rule {
 			toolRequired: true,
 		},
 		Rule{
+			Name:         "preset.ask.browser_network",
+			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
+			Tools:        []string{"browser"},
+			Effects:      []Effect{EffectNetwork},
+			Decision:     DecisionAsk,
+			Reason:       "This browser action may load content from or send data to a website.",
+			toolRequired: true,
+		},
+		Rule{
 			Name:         "preset.ask.network",
 			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
 			Effects:      []Effect{EffectNetwork},
 			Decision:     DecisionAsk,
-			Reason:       "internet access requires approval",
+			Reason:       "This action connects to an online service to send or receive data.",
 			toolRequired: true,
 		},
 	)
@@ -156,7 +165,7 @@ func approveForMePresetRules() []Rule {
 			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
 			Effects:      []Effect{EffectDestructive},
 			Decision:     DecisionAsk,
-			Reason:       "destructive action requires approval",
+			Reason:       "This action can permanently delete or overwrite data.",
 			toolRequired: true,
 		},
 		{
@@ -164,7 +173,7 @@ func approveForMePresetRules() []Rule {
 			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
 			Effects:      []Effect{EffectCredentialBearing},
 			Decision:     DecisionAsk,
-			Reason:       "credential-bearing action requires approval",
+			Reason:       "This action can access or send credentials or signed-in account data.",
 			toolRequired: true,
 		},
 		{
@@ -172,7 +181,7 @@ func approveForMePresetRules() []Rule {
 			SurfaceKinds: []SurfaceKind{SurfaceKindLocal},
 			Effects:      []Effect{EffectPrivilegeChanging},
 			Decision:     DecisionAsk,
-			Reason:       "privilege-changing action requires approval",
+			Reason:       "This action can change permissions or security settings.",
 			toolRequired: true,
 		},
 		{
@@ -181,7 +190,7 @@ func approveForMePresetRules() []Rule {
 			Effects:      []Effect{EffectWrite},
 			TargetScopes: []TargetScope{TargetScopeExternal},
 			Decision:     DecisionAsk,
-			Reason:       "external file changes require approval",
+			Reason:       "This action changes files outside Morph's workspace.",
 			toolRequired: true,
 		},
 	}

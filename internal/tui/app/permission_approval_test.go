@@ -160,14 +160,14 @@ func TestPermissionApprovalText_SeparatesBatchOperations(t *testing.T) {
 	text := permissionApprovalText(permissionApprovalMsg{
 		Status:  string(permissions.ApprovalPending),
 		Summary: "browser · approve 2 operations",
-		Reason: "internet access requires approval Approve all 2 operations: " +
+		Reason: "This browser action may load content from or send data to a website. Approve all 2 operations: " +
 			"browser · update browser; browser · read network GET http://localhost:8089/",
 	})
 
 	require.Equal(t, strings.Join([]string{
 		"Permission approval required",
 		"Operation: browser · approve 2 operations",
-		"Reason: internet access requires approval",
+		"Reason: This browser action may load content from or send data to a website.",
 		"Operations:",
 		"1. browser · update browser",
 		"2. browser · read network GET http://localhost:8089/",
@@ -179,7 +179,7 @@ func TestTranscriptRenderer_FormatsPermissionApprovalAsScannableBlock(t *testing
 		Status:  string(permissions.ApprovalPending),
 		Summary: "browser · approve 2 operations",
 		Effects: []string{"external_system", "network", "read", "write"},
-		Reason: "internet access requires approval Approve all 2 operations: " +
+		Reason: "This browser action may load content from or send data to a website. Approve all 2 operations: " +
 			"browser · update browser; browser · read network GET http://localhost:8089/",
 		ExpiresAt: time.Date(2026, 7, 20, 21, 5, 42, 0, time.UTC),
 	})
@@ -193,7 +193,7 @@ func TestTranscriptRenderer_FormatsPermissionApprovalAsScannableBlock(t *testing
 	require.Contains(t, rendered, permissionStatusIcon+" Permission approval required\n  Operation")
 	require.Contains(t, rendered, "\n  Operation  browser · approve 2 operations\n")
 	require.Contains(t, rendered, "\n  Effects    external_system, network, read, write\n")
-	require.Contains(t, rendered, "\n  Reason     internet access requires approval\n")
+	require.Contains(t, rendered, "\n  Reason     This browser action may load content from or send data to a website.\n")
 	require.Contains(t, rendered, "\n  Operations\n    1. browser · update browser\n")
 	require.Contains(t, rendered, "\n    2. browser · read network GET http://localhost:8089/\n")
 	require.Contains(t, rendered, "\n  Expires    3m")
@@ -203,7 +203,7 @@ func TestTranscriptRenderer_FormatsPermissionApprovalAsScannableBlock(t *testing
 		Width: 40,
 		Now:   time.Date(2026, 7, 20, 21, 2, 42, 0, time.UTC),
 	}))
-	require.Contains(t, narrow, "  Reason     internet access requires\n             approval\n")
+	require.Contains(t, narrow, "  Reason     This browser action may\n             load content from or send\n             data to a website.\n")
 }
 
 func TestTranscriptRenderer_EmphasizesDeniedPermission(t *testing.T) {
