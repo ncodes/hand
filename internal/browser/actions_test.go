@@ -59,6 +59,7 @@ type interactiveBackendSession struct {
 	authorize      NetworkRequestAuthorizer
 	authorizedTabs []string
 	requestTarget  string
+	requestTargets []permissions.NetworkTarget
 	failAction     Action
 	screenshot     BackendArtifact
 	pdf            BackendArtifact
@@ -68,6 +69,14 @@ type interactiveBackendSession struct {
 	download       BackendArtifact
 	dialogAccepted []bool
 	dialogPrompts  []string
+	networkSettles []string
+}
+
+func (s *interactiveBackendSession) WaitForNetworkIdle(_ context.Context, tabID string, _ time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.networkSettles = append(s.networkSettles, tabID)
+	return nil
 }
 
 func (s *interactiveBackendSession) getFailure(action Action) error {
@@ -185,11 +194,25 @@ func (s *interactiveBackendSession) navigate(action Action, tabID, rawURL string
 	s.mu.Lock()
 	authorize := s.authorize
 	requestTarget := s.requestTarget
+	requestTargets := append([]permissions.NetworkTarget(nil), s.requestTargets...)
 	s.mu.Unlock()
+	if authorize != nil && len(requestTargets) > 0 {
+		results := make(chan error, len(requestTargets))
+		for _, target := range requestTargets {
+			go func(target permissions.NetworkTarget) {
+				results <- authorize(context.Background(), target)
+			}(target)
+		}
+		for range requestTargets {
+			if err := <-results; err != nil {
+				return BackendTab{}, err
+			}
+		}
+	}
 	if requestTarget == "" {
 		requestTarget = rawURL
 	}
-	if authorize != nil {
+	if authorize != nil && len(requestTargets) == 0 {
 		target, err := permissions.NetworkTargetFromURL(
 			requestTarget, "GET", permissions.NetworkRequestNavigation,
 		)
@@ -807,6 +830,50 @@ func TestService_NavigateApprovesServerObservedRedirect(t *testing.T) {
 	require.Equal(t, "https://93.184.216.35/next", tab.URL)
 }
 
+func TestService_NavigateBatchesConcurrentSafeSubresourceApprovals(t *testing.T) {
+	backendSession := newInteractiveBackendSession()
+	backendSession.requestTargets = []permissions.NetworkTarget{
+		{
+			Scheme: "https", Host: "93.184.216.35", Port: 443, Path: "/styles.css", Method: "GET",
+			RequestClass: permissions.NetworkRequestSubresource,
+		},
+		{
+			Scheme: "https", Host: "93.184.216.35", Port: 443, Path: "/app.js", Method: "GET",
+			RequestClass: permissions.NetworkRequestSubresource,
+		},
+	}
+	checker := checkerFunc(func(_ context.Context, input permissions.EvaluationInput) (permissions.Evaluation, error) {
+		if input.Operation.Network == nil ||
+			input.Operation.Network.RequestClass != permissions.NetworkRequestSubresource {
+			return permissions.Evaluation{Decision: permissions.DecisionAllow}, nil
+		}
+		evaluation := permissions.Evaluation{Decision: permissions.DecisionAsk, Reason: "approve page resources"}
+		return evaluation, &permissions.DecisionError{
+			Code: permissions.ErrorCodeApprovalRequired, Evaluation: evaluation,
+		}
+	})
+	service, err := NewService(
+		context.Background(), testBrowserConfig(t), checker,
+		&interactiveBackend{session: backendSession},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	approver := &recordingBatchApprover{}
+	service.SetApprover(approver)
+	ctx := testBrowserContext("owner", "session")
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+
+	_, err = service.Navigate(ctx, ActionRequest{
+		SessionID: session.ID, TabID: "tab-1", URL: "https://93.184.216.35/next",
+	})
+	require.NoError(t, err)
+	require.Len(t, approver.inputs, 2)
+	require.Equal(t, 1, approver.commits)
+	paths := []string{approver.inputs[0].Operation.Network.Path, approver.inputs[1].Operation.Network.Path}
+	require.ElementsMatch(t, []string{"/styles.css", "/app.js"}, paths)
+}
+
 func TestService_NavigateDoesNotMutateWhenRedirectApprovalFails(t *testing.T) {
 	backendSession := newInteractiveBackendSession()
 	backendSession.requestTarget = "https://93.184.216.36/redirect"
@@ -992,6 +1059,26 @@ func TestService_WaitReturnsStableTimeoutError(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, ErrorTimeout, browserErr.Code)
 	require.True(t, browserErr.Retryable)
+}
+
+func TestService_OpenKeepsNetworkAuthorizationUntilThePageSettles(t *testing.T) {
+	backendSession := newInteractiveBackendSession()
+	service, err := NewService(
+		context.Background(), testBrowserConfig(t), allowChecker(),
+		&interactiveBackend{session: backendSession},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	ctx := testBrowserContext("owner", "session")
+	session, err := service.Start(ctx, StartRequest{})
+	require.NoError(t, err)
+
+	_, err = service.Open(ctx, ActionRequest{SessionID: session.ID, URL: testPageURL + "/open"})
+	require.NoError(t, err)
+
+	backendSession.mu.Lock()
+	defer backendSession.mu.Unlock()
+	require.Equal(t, []string{"opened-tab"}, backendSession.networkSettles)
 }
 
 func TestService_CheckOperationsRequiresExactAdmissionEvidence(t *testing.T) {

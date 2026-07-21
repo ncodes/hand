@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/cdproto/cdp"
@@ -28,6 +29,12 @@ type networkAuthorization struct {
 	authorize NetworkRequestAuthorizer
 }
 
+type networkActivity struct {
+	pending int
+	last    time.Time
+	changed chan struct{}
+}
+
 type chromiumSession struct {
 	ctx                context.Context
 	cancelContext      context.CancelFunc
@@ -46,6 +53,7 @@ type chromiumSession struct {
 	nextAuthorization  uint64
 	openingTabIDs      map[string]struct{}
 	networkErrors      map[string]error
+	networkActivity    map[string]*networkActivity
 	consoleMessages    map[string][]ConsoleMessage
 	dialogResponses    map[string]dialogResponse
 	downloadEvents     chan any
@@ -140,7 +148,8 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 		cancelAllocator: cancelAllocator, process: process,
 		tabContexts: make(map[string]context.Context), tabCancels: make(map[string]context.CancelFunc),
 		networkAuthorizers: make(map[string]networkAuthorization), openingTabIDs: make(map[string]struct{}),
-		networkErrors: make(map[string]error), consoleMessages: make(map[string][]ConsoleMessage),
+		networkErrors: make(map[string]error), networkActivity: make(map[string]*networkActivity),
+		consoleMessages: make(map[string][]ConsoleMessage),
 		dialogResponses: make(map[string]dialogResponse), downloadEvents: make(chan any, 4),
 		proxyUser: opts.ProxyUser, proxySecret: opts.ProxySecret,
 		downloadRoot:    opts.DownloadRoot,
@@ -372,7 +381,9 @@ func (s *chromiumSession) getRequestListener(ctx context.Context, tabID string) 
 	return func(event any) {
 		switch value := event.(type) {
 		case *fetch.EventRequestPaused:
+			s.markNetworkRequestStarted(tabID)
 			go func() {
+				defer s.markNetworkRequestFinished(tabID)
 				requestClass := permissions.NetworkRequestSubresource
 				if value.ResourceType == network.ResourceTypeDocument {
 					requestClass = permissions.NetworkRequestNavigation
@@ -554,6 +565,73 @@ func (s *chromiumSession) recordNetworkError(tabID string, authorizationID uint6
 	if s.networkErrors[tabID] == nil {
 		s.networkErrors[tabID] = err
 	}
+}
+
+func (s *chromiumSession) WaitForNetworkIdle(ctx context.Context, tabID string, quietPeriod time.Duration) error {
+	if quietPeriod <= 0 {
+		return nil
+	}
+	for {
+		s.mu.Lock()
+		activity := s.getNetworkActivityLocked(tabID)
+		pending := activity.pending
+		quietFor := time.Since(activity.last)
+		changed := activity.changed
+		s.mu.Unlock()
+		if pending == 0 && quietFor >= quietPeriod {
+			return nil
+		}
+
+		wait := quietPeriod - quietFor
+		if wait <= 0 || pending > 0 {
+			wait = quietPeriod
+		}
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return context.Cause(ctx)
+		case <-changed:
+			timer.Stop()
+		case <-timer.C:
+		}
+	}
+}
+
+func (s *chromiumSession) markNetworkRequestStarted(tabID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	activity := s.getNetworkActivityLocked(tabID)
+	activity.pending++
+	s.signalNetworkActivityLocked(activity)
+}
+
+func (s *chromiumSession) markNetworkRequestFinished(tabID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	activity := s.getNetworkActivityLocked(tabID)
+	if activity.pending > 0 {
+		activity.pending--
+	}
+	s.signalNetworkActivityLocked(activity)
+}
+
+func (s *chromiumSession) getNetworkActivityLocked(tabID string) *networkActivity {
+	if s.networkActivity == nil {
+		s.networkActivity = make(map[string]*networkActivity)
+	}
+	activity := s.networkActivity[tabID]
+	if activity == nil {
+		activity = &networkActivity{last: time.Now(), changed: make(chan struct{})}
+		s.networkActivity[tabID] = activity
+	}
+	return activity
+}
+
+func (s *chromiumSession) signalNetworkActivityLocked(activity *networkActivity) {
+	activity.last = time.Now()
+	close(activity.changed)
+	activity.changed = make(chan struct{})
 }
 
 func (s *chromiumSession) Health(ctx context.Context) error {

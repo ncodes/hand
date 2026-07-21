@@ -113,6 +113,8 @@ func getSafeBrowserErrorMessage(code browserdomain.ErrorCode) string {
 		return "browser element reference is stale"
 	case browserdomain.ErrorTimeout:
 		return "browser operation timed out"
+	case browserdomain.ErrorCancelled:
+		return "browser operation was cancelled"
 	default:
 		return "browser operation failed"
 	}

@@ -383,6 +383,8 @@ func getBrowserGRPCError(err error) error {
 			return status.Error(codes.Unavailable, browserErr.Error())
 		case browser.ErrorTimeout:
 			return status.Error(codes.DeadlineExceeded, browserErr.Error())
+		case browser.ErrorCancelled:
+			return status.Error(codes.Canceled, browserErr.Error())
 		}
 	}
 	if errors.Is(err, context.Canceled) {

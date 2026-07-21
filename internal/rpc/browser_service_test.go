@@ -199,6 +199,7 @@ func TestGetBrowserGRPCError_MapsDomainFailures(t *testing.T) {
 		{name: "start failed", err: browserFailure(browser.ErrorStartFailed), code: codes.Unavailable},
 		{name: "health failed", err: browserFailure(browser.ErrorHealthFailed), code: codes.Unavailable},
 		{name: "timeout", err: browserFailure(browser.ErrorTimeout), code: codes.DeadlineExceeded},
+		{name: "browser canceled", err: browserFailure(browser.ErrorCancelled), code: codes.Canceled},
 		{name: "canceled", err: context.Canceled, code: codes.Canceled},
 		{name: "deadline", err: context.DeadlineExceeded, code: codes.DeadlineExceeded},
 		{name: "unknown", err: errors.New("unexpected failure"), code: codes.Internal},

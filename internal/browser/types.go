@@ -62,6 +62,7 @@ const (
 	ErrorNotReady       ErrorCode = "browser_not_ready"
 	ErrorStaleReference ErrorCode = "browser_stale_reference"
 	ErrorTimeout        ErrorCode = "browser_timeout"
+	ErrorCancelled      ErrorCode = "browser_cancelled"
 )
 
 type Error struct {
@@ -337,4 +338,8 @@ type NetworkRequestAuthorizer func(context.Context, permissions.NetworkTarget) e
 
 type NetworkAuthorizingBackendSession interface {
 	SetNetworkAuthorizer(string, NetworkRequestAuthorizer) func()
+}
+
+type NetworkSettlingBackendSession interface {
+	WaitForNetworkIdle(context.Context, string, time.Duration) error
 }

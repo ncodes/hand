@@ -709,7 +709,7 @@ func TestDefinition_ReportsRuntimeAndBrowserFailures(t *testing.T) {
 		browserdomain.ErrorInvalidRequest, browserdomain.ErrorUnavailable, browserdomain.ErrorStartFailed,
 		browserdomain.ErrorHealthFailed, browserdomain.ErrorNotFound, browserdomain.ErrorOwnership,
 		browserdomain.ErrorClosed, browserdomain.ErrorNotReady, browserdomain.ErrorStaleReference,
-		browserdomain.ErrorTimeout, "unknown",
+		browserdomain.ErrorTimeout, browserdomain.ErrorCancelled, "unknown",
 	} {
 		require.NotEmpty(t, getSafeBrowserErrorMessage(code))
 	}

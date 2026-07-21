@@ -17,6 +17,7 @@ import (
 const (
 	defaultActionTimeout = 15 * time.Second
 	maxActionTimeout     = 2 * time.Minute
+	networkQuietPeriod   = 50 * time.Millisecond
 	maxSnapshotNodes     = 500
 	maxSnapshotChars     = 30_000
 )
@@ -223,9 +224,9 @@ func (s *Service) Open(ctx context.Context, request ActionRequest) (Tab, error) 
 	if err := s.authorizeAction(ctx, ActionOpen, request, false); err != nil {
 		return Tab{}, err
 	}
-	restoreNetwork := s.setNetworkAuthorizer(ctx, runtime, backend, ActionOpen, "")
-	defer restoreNetwork()
-	backendTab, err := backend.OpenTab(ctx, request.URL)
+	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, backend, ActionOpen, "")
+	defer finishAction()
+	backendTab, err := backend.OpenTab(actionCtx, request.URL)
 	if err != nil {
 		return Tab{}, getActionError(ActionOpen, err)
 	}
@@ -235,6 +236,9 @@ func (s *Service) Open(ctx context.Context, request ActionRequest) (Tab, error) 
 			Code: ErrorOwnership, Operation: ActionOpen,
 			Err: errors.New("created browser tab is outside the configured attachment scope"),
 		}
+	}
+	if err := waitForNetworkSettlement(actionCtx, backend, backendTab.ID); err != nil {
+		return Tab{}, getActionError(ActionOpen, err)
 	}
 	tab := s.setBackendTab(runtime, backendTab, true)
 	s.touchRuntime(runtime)
@@ -446,10 +450,13 @@ func (s *Service) runNavigation(
 	if err != nil {
 		return Tab{}, err
 	}
-	restoreNetwork := s.setNetworkAuthorizer(ctx, runtime, backend, action, tab.ID)
-	defer restoreNetwork()
-	backendTab, err := run(ctx, backend, tab.ID)
+	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, backend, action, tab.ID)
+	defer finishAction()
+	backendTab, err := run(actionCtx, backend, tab.ID)
 	if err != nil {
+		return Tab{}, getActionError(action, err)
+	}
+	if err := waitForNetworkSettlement(actionCtx, backend, tab.ID); err != nil {
 		return Tab{}, getActionError(action, err)
 	}
 	result := s.setBackendTab(runtime, backendTab, true)
@@ -496,9 +503,12 @@ func (s *Service) runTabMutation(
 	if err != nil {
 		return Tab{}, err
 	}
-	restoreNetwork := s.setNetworkAuthorizer(ctx, runtime, backend, action, tab.ID)
-	defer restoreNetwork()
-	if err := run(ctx, backend, tab); err != nil {
+	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, backend, action, tab.ID)
+	defer finishAction()
+	if err := run(actionCtx, backend, tab); err != nil {
+		return Tab{}, getActionError(action, err)
+	}
+	if err := waitForNetworkSettlement(actionCtx, backend, tab.ID); err != nil {
 		return Tab{}, getActionError(action, err)
 	}
 	if action == ActionClose {
@@ -522,75 +532,99 @@ func (s *Service) runTabMutation(
 	return s.getTabCopy(runtime, tab.ID), nil
 }
 
+func (s *Service) prepareNetworkAction(
+	ctx context.Context,
+	runtime *managedSession,
+	backend InteractiveBackendSession,
+	action Action,
+	tabID string,
+) (context.Context, func()) {
+	if !actionMayUseNetwork(action) {
+		return ctx, func() {}
+	}
+	actionCtx, budget := newActionBudget(ctx, defaultActionTimeout)
+	restoreNetwork := s.setNetworkAuthorizer(actionCtx, runtime, backend, action, tabID, budget.Pause)
+	return actionCtx, func() {
+		restoreNetwork()
+		budget.Close()
+	}
+}
+
 func (s *Service) setNetworkAuthorizer(
 	ctx context.Context,
 	runtime *managedSession,
 	backend InteractiveBackendSession,
 	action Action,
 	tabID string,
+	pause func() func(),
 ) func() {
-	if !actionMayUseNetwork(action) {
-		return func() {}
-	}
 	authorizing, ok := backend.(NetworkAuthorizingBackendSession)
 	if !ok {
 		return func() {}
 	}
+	coordinator := newNetworkAuthorizationCoordinator(ctx, func(
+		authorizationCtx context.Context,
+		targets []permissions.NetworkTarget,
+	) error {
+		operations := make([]permissions.Operation, 0, len(targets))
+		for _, target := range targets {
+			values, err := (permissions.BrowserRequest{
+				Profile: runtime.Profile, Action: string(action), OwnerID: runtime.Owner.Actor.ID,
+				ProfileMode: runtime.ProfileMode, AttachmentScope: runtime.attachment.scope,
+				AttachmentID: runtime.attachment.identity,
+				Personal:     runtime.ProfileMode == config.BrowserProfileExistingSession, Network: &target,
+			}).Operations()
+			if err != nil {
+				return err
+			}
+			for _, operation := range values {
+				if operation.Resource == permissions.ResourceNetwork {
+					operations = append(operations, operation)
+				}
+			}
+		}
+		if len(operations) == 0 {
+			return errors.New("browser request did not resolve a network operation")
+		}
+		return s.checkOperations(authorizationCtx, operations)
+	}, pause)
 	restoreAuthorizer := authorizing.SetNetworkAuthorizer(tabID, func(
-		networkCtx context.Context,
-		target permissions.NetworkTarget,
+		networkCtx context.Context, target permissions.NetworkTarget,
 	) error {
 		logEvent := addBrowserNetworkLogFields(log.Debug(), target).
 			Str("browser_session_id", runtime.ID).
 			Str("browser_tab_id", tabID).
 			Str("browser_action", string(action))
 		logEvent.Msg("Browser network authorization started")
-		authorizationCtx, cancel := context.WithCancel(ctx)
-		stop := context.AfterFunc(networkCtx, cancel)
-		defer stop()
-		defer cancel()
 		if action == ActionDownload {
 			target.RequestClass = permissions.NetworkRequestDownload
 		}
-		operations, err := (permissions.BrowserRequest{
-			Profile: runtime.Profile, Action: string(action), OwnerID: runtime.Owner.Actor.ID,
-			ProfileMode: runtime.ProfileMode, AttachmentScope: runtime.attachment.scope,
-			AttachmentID: runtime.attachment.identity,
-			Personal:     runtime.ProfileMode == config.BrowserProfileExistingSession, Network: &target,
-		}).Operations()
-		if err != nil {
-			return err
+		err := coordinator.Authorize(networkCtx, target)
+		if err == nil {
+			addBrowserNetworkLogFields(log.Debug(), target).
+				Str("browser_session_id", runtime.ID).
+				Str("browser_tab_id", tabID).
+				Str("browser_action", string(action)).
+				Msg("Browser network authorization completed")
+			return nil
 		}
-		for _, operation := range operations {
-			if operation.Resource == permissions.ResourceNetwork {
-				err = s.checkOperations(authorizationCtx, []permissions.Operation{operation})
-				if err == nil {
-					addBrowserNetworkLogFields(log.Debug(), target).
-						Str("browser_session_id", runtime.ID).
-						Str("browser_tab_id", tabID).
-						Str("browser_action", string(action)).
-						Msg("Browser network authorization completed")
-					return nil
-				}
-				level := log.Warn()
-				message := "Browser network authorization failed"
-				if errors.Is(err, context.Canceled) {
-					level = log.Debug()
-					message = "Browser network authorization was cancelled"
-				}
-				addBrowserNetworkLogFields(level, target).
-					Str("browser_session_id", runtime.ID).
-					Str("browser_tab_id", tabID).
-					Str("browser_action", string(action)).
-					Str("error", getSafeBrowserNetworkError(err)).
-					Msg(message)
-				return err
-			}
+		level := log.Warn()
+		message := "Browser network authorization failed"
+		if errors.Is(err, context.Canceled) {
+			level = log.Debug()
+			message = "Browser network authorization was cancelled"
 		}
-		return errors.New("browser request did not resolve a network operation")
+		addBrowserNetworkLogFields(level, target).
+			Str("browser_session_id", runtime.ID).
+			Str("browser_tab_id", tabID).
+			Str("browser_action", string(action)).
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg(message)
+		return err
 	})
 	return func() {
 		restoreAuthorizer()
+		coordinator.Close()
 		runtime.resourceMu.Lock()
 		proxy := runtime.proxy
 		runtime.resourceMu.Unlock()
@@ -598,6 +632,14 @@ func (s *Service) setNetworkAuthorizer(
 			_ = proxy.closeConnections()
 		}
 	}
+}
+
+func waitForNetworkSettlement(ctx context.Context, backend InteractiveBackendSession, tabID string) error {
+	settling, ok := backend.(NetworkSettlingBackendSession)
+	if !ok {
+		return nil
+	}
+	return settling.WaitForNetworkIdle(ctx, tabID, networkQuietPeriod)
 }
 
 func (s *Service) getTabForResolution(
@@ -838,6 +880,12 @@ func getActionError(action Action, err error) error {
 	var browserErr *Error
 	if errors.As(err, &browserErr) {
 		return err
+	}
+	if errors.Is(err, errBrowserActionTimedOut) || errors.Is(err, context.DeadlineExceeded) {
+		return &Error{Code: ErrorTimeout, Operation: action, Retryable: true, Err: err}
+	}
+	if errors.Is(err, context.Canceled) {
+		return &Error{Code: ErrorCancelled, Operation: action, Retryable: true, Err: err}
 	}
 	return &Error{Code: ErrorUnavailable, Operation: action, Retryable: true, Err: err}
 }

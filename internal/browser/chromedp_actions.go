@@ -154,6 +154,7 @@ func (s *chromiumSession) CloseTab(ctx context.Context, tabID string) error {
 	delete(s.tabContexts, tabID)
 	delete(s.consoleMessages, tabID)
 	delete(s.dialogResponses, tabID)
+	delete(s.networkActivity, tabID)
 	s.mu.Unlock()
 	if cancel != nil {
 		cancel()
@@ -508,6 +509,12 @@ func (s *chromiumSession) runInTab(ctx context.Context, tabID string, actions ..
 	actionCtx, done := newBoundedActionContext(tabCtx, ctx)
 	defer done()
 	runErr := chromedp.Run(actionCtx, actions...)
+	if runErr != nil {
+		if cause := context.Cause(actionCtx); cause != nil &&
+			(errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded)) {
+			runErr = cause
+		}
+	}
 	if networkErr := s.consumeNetworkError(tabID); networkErr != nil {
 		return networkErr
 	}
@@ -600,16 +607,18 @@ func (s *chromiumSession) newActionContext(ctx context.Context) (context.Context
 }
 
 func newBoundedActionContext(parent, caller context.Context) (context.Context, func()) {
-	actionCtx, cancel := context.WithCancel(parent)
+	actionCtx, cancel := context.WithCancelCause(parent)
 	var stopCaller func() bool
 	if caller != nil {
-		stopCaller = context.AfterFunc(caller, cancel)
+		stopCaller = context.AfterFunc(caller, func() { cancel(context.Cause(caller)) })
 	}
 	var timeout *time.Timer
-	if caller == nil {
-		timeout = time.AfterFunc(defaultActionTimeout, cancel)
-	} else if _, hasDeadline := caller.Deadline(); !hasDeadline {
-		timeout = time.AfterFunc(defaultActionTimeout, cancel)
+	if actionBudgetFromContext(caller) == nil {
+		if caller == nil {
+			timeout = time.AfterFunc(defaultActionTimeout, func() { cancel(errBrowserActionTimedOut) })
+		} else if _, hasDeadline := caller.Deadline(); !hasDeadline {
+			timeout = time.AfterFunc(defaultActionTimeout, func() { cancel(errBrowserActionTimedOut) })
+		}
 	}
 	return actionCtx, func() {
 		if stopCaller != nil {
@@ -618,7 +627,7 @@ func newBoundedActionContext(parent, caller context.Context) (context.Context, f
 		if timeout != nil {
 			timeout.Stop()
 		}
-		cancel()
+		cancel(context.Canceled)
 	}
 }
 

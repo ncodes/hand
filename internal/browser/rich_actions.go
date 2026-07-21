@@ -51,7 +51,7 @@ func (s *Service) Console(ctx context.Context, request ActionRequest) ([]Console
 }
 
 func (s *Service) Upload(ctx context.Context, request ActionRequest) (Tab, error) {
-	runtime, _, backend, err := s.getRichRuntime(ctx, request.SessionID, ActionUpload)
+	runtime, interactive, backend, err := s.getRichRuntime(ctx, request.SessionID, ActionUpload)
 	if err != nil {
 		return Tab{}, err
 	}
@@ -77,11 +77,16 @@ func (s *Service) Upload(ctx context.Context, request ActionRequest) (Tab, error
 	}
 	stagingRoot := filepath.Join(temporaryRoot, "uploads", runtime.ID)
 	defer func() { _ = os.RemoveAll(stagingRoot) }()
-	staged, err := stageUpload(ctx, request.Path, stagingRoot, s.cfg.Artifacts.MaxBytes)
+	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, interactive, ActionUpload, tab.ID)
+	defer finishAction()
+	staged, err := stageUpload(actionCtx, request.Path, stagingRoot, s.cfg.Artifacts.MaxBytes)
 	if err != nil {
 		return Tab{}, getActionError(ActionUpload, err)
 	}
-	if err := backend.Upload(ctx, tab.ID, nodeID, staged.Path); err != nil {
+	if err := backend.Upload(actionCtx, tab.ID, nodeID, staged.Path); err != nil {
+		return Tab{}, getActionError(ActionUpload, err)
+	}
+	if err := waitForNetworkSettlement(actionCtx, interactive, tab.ID); err != nil {
 		return Tab{}, getActionError(ActionUpload, err)
 	}
 	s.bumpTabGeneration(runtime, tab.ID)
@@ -114,10 +119,13 @@ func (s *Service) Download(ctx context.Context, request ActionRequest) (Artifact
 	if err != nil {
 		return Artifact{}, err
 	}
-	restoreNetwork := s.setNetworkAuthorizer(ctx, runtime, interactive, ActionDownload, tab.ID)
-	defer restoreNetwork()
-	value, err := backend.Download(ctx, tab.ID, nodeID, s.cfg.Artifacts.MaxBytes)
+	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, interactive, ActionDownload, tab.ID)
+	defer finishAction()
+	value, err := backend.Download(actionCtx, tab.ID, nodeID, s.cfg.Artifacts.MaxBytes)
 	if err != nil {
+		return Artifact{}, getActionError(ActionDownload, err)
+	}
+	if err := waitForNetworkSettlement(actionCtx, interactive, tab.ID); err != nil {
 		return Artifact{}, getActionError(ActionDownload, err)
 	}
 	if value.Kind != ArtifactDownload {
@@ -383,9 +391,12 @@ func (s *Service) respondToDialog(
 	if err != nil {
 		return Tab{}, err
 	}
-	restoreNetwork := s.setNetworkAuthorizer(ctx, runtime, interactive, action, tab.ID)
-	defer restoreNetwork()
-	if err := backend.RespondToDialog(ctx, tab.ID, nodeID, accept, request.Text); err != nil {
+	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, interactive, action, tab.ID)
+	defer finishAction()
+	if err := backend.RespondToDialog(actionCtx, tab.ID, nodeID, accept, request.Text); err != nil {
+		return Tab{}, getActionError(action, err)
+	}
+	if err := waitForNetworkSettlement(actionCtx, interactive, tab.ID); err != nil {
 		return Tab{}, getActionError(action, err)
 	}
 	s.bumpTabGeneration(runtime, tab.ID)

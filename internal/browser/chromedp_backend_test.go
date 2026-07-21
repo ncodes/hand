@@ -824,3 +824,25 @@ func TestChromiumActionContextsRespectCallerCancellation(t *testing.T) {
 	require.ErrorIs(t, actionCtx.Err(), context.Canceled)
 	require.EqualError(t, session.runInTab(context.Background(), "tab"), "browser session is unavailable")
 }
+
+func TestChromiumSession_WaitForNetworkIdleTracksPendingRequests(t *testing.T) {
+	session := &chromiumSession{networkActivity: make(map[string]*networkActivity)}
+	session.markNetworkRequestStarted("tab-1")
+	result := make(chan error, 1)
+	go func() {
+		result <- session.WaitForNetworkIdle(context.Background(), "tab-1", 10*time.Millisecond)
+	}()
+
+	select {
+	case err := <-result:
+		t.Fatalf("network wait returned before the request finished: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	session.markNetworkRequestFinished("tab-1")
+	select {
+	case err := <-result:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("network wait did not finish after the request settled")
+	}
+}
