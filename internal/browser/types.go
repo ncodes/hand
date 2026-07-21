@@ -11,33 +11,34 @@ import (
 type Action string
 
 const (
-	ActionStatus        Action = "status"
-	ActionStart         Action = "start"
-	ActionStop          Action = "stop"
-	ActionConnect       Action = "connect"
-	ActionProfiles      Action = "profiles"
-	ActionTabs          Action = "tabs"
-	ActionOpen          Action = "open"
-	ActionFocus         Action = "focus"
-	ActionClose         Action = "close"
-	ActionNavigate      Action = "navigate"
-	ActionReload        Action = "reload"
-	ActionSnapshot      Action = "snapshot"
-	ActionScreenshot    Action = "screenshot"
-	ActionPDF           Action = "pdf"
-	ActionConsole       Action = "console"
-	ActionClick         Action = "click"
-	ActionType          Action = "type"
-	ActionPress         Action = "press"
-	ActionScroll        Action = "scroll"
-	ActionSelect        Action = "select"
-	ActionUpload        Action = "upload"
-	ActionDownload      Action = "download"
-	ActionAcceptDialog  Action = "accept_dialog"
-	ActionDismissDialog Action = "dismiss_dialog"
-	ActionWait          Action = "wait"
-	ActionBack          Action = "back"
-	ActionForward       Action = "forward"
+	ActionStatus         Action = "status"
+	ActionStart          Action = "start"
+	ActionStop           Action = "stop"
+	ActionConnect        Action = "connect"
+	ActionProfiles       Action = "profiles"
+	ActionTabs           Action = "tabs"
+	ActionOpen           Action = "open"
+	ActionFocus          Action = "focus"
+	ActionClose          Action = "close"
+	ActionNavigate       Action = "navigate"
+	ActionReload         Action = "reload"
+	ActionSnapshot       Action = "snapshot"
+	ActionScreenshot     Action = "screenshot"
+	ActionPDF            Action = "pdf"
+	ActionConsole        Action = "console"
+	ActionClick          Action = "click"
+	ActionType           Action = "type"
+	ActionPress          Action = "press"
+	ActionScroll         Action = "scroll"
+	ActionSelect         Action = "select"
+	ActionUpload         Action = "upload"
+	ActionDownload       Action = "download"
+	ActionExportArtifact Action = "export_artifact"
+	ActionAcceptDialog   Action = "accept_dialog"
+	ActionDismissDialog  Action = "dismiss_dialog"
+	ActionWait           Action = "wait"
+	ActionBack           Action = "back"
+	ActionForward        Action = "forward"
 )
 
 func SupportedActions() []Action {
@@ -45,7 +46,7 @@ func SupportedActions() []Action {
 		ActionStatus, ActionProfiles, ActionStart, ActionStop, ActionTabs, ActionOpen, ActionFocus, ActionClose,
 		ActionNavigate, ActionReload, ActionSnapshot, ActionScreenshot, ActionPDF, ActionConsole, ActionClick,
 		ActionType, ActionPress, ActionScroll, ActionSelect, ActionUpload, ActionDownload, ActionAcceptDialog,
-		ActionDismissDialog, ActionWait, ActionBack, ActionForward,
+		ActionExportArtifact, ActionDismissDialog, ActionWait, ActionBack, ActionForward,
 	}
 }
 
@@ -174,6 +175,7 @@ type ActionRequest struct {
 	TabID       string
 	URL         string
 	Path        string
+	Handle      string
 	FileTarget  string
 	Ref         string
 	Text        string

@@ -5,6 +5,8 @@ import (
 	"context"
 
 	cli "github.com/urfave/cli/v3"
+
+	tuiapp "github.com/wandxy/morph/internal/tui/app"
 )
 
 func Run(ctx context.Context, cmd *cli.Command) error {
@@ -16,6 +18,7 @@ func Run(ctx context.Context, cmd *cli.Command) error {
 		defer cleanup()
 	}
 
-	_, err = newProgram(model).Run()
+	finalModel, err := newProgram(model).Run()
+	tuiapp.CleanupTemporaryBrowserArtifacts(finalModel)
 	return err
 }

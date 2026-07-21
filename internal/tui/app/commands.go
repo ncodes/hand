@@ -17,6 +17,7 @@ var slashCommandDefinitions = []slashCommandDefinition{
 	{Name: "new-chat", Description: "Start a new chat session"},
 	{Name: "permissions", Description: "Choose a permission preset for this TUI session"},
 	{Name: "archive", Description: "Show archived chat sessions"},
+	{Name: "artifact", Description: "Open or save a browser artifact"},
 	{Name: "providers", Description: "Show supported model providers"},
 	{Name: "setup", Description: "Open setup"},
 }
@@ -26,6 +27,8 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 	switch input.Name {
 	case "archive":
 		cmd = m.startArchiveCommand()
+	case "artifact":
+		cmd = m.handleBrowserArtifactCommand(input.Args)
 	case "changelog":
 		cmd = m.showChangelogCommand()
 	case "chats":

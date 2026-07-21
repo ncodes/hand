@@ -270,6 +270,9 @@ type toolTranscriptCell struct {
 	completedAt    time.Time
 	completed      bool
 	terminalStatus toolTranscriptTerminalStatus
+	artifact       browserArtifact
+	hasArtifact    bool
+	artifactStatus string
 }
 
 type toolTranscriptDetail struct {
@@ -281,6 +284,9 @@ type toolTranscriptDetail struct {
 	completedAt    time.Time
 	completed      bool
 	terminalStatus toolTranscriptTerminalStatus
+	artifact       browserArtifact
+	hasArtifact    bool
+	artifactStatus string
 }
 
 type toolTranscriptGroup struct {
@@ -421,6 +427,9 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 			completedAt:    cell.completedAt,
 			completed:      cell.completed,
 			terminalStatus: cell.terminalStatus,
+			artifact:       cell.artifact,
+			hasArtifact:    cell.hasArtifact,
+			artifactStatus: cell.artifactStatus,
 		})
 	}
 }
@@ -451,6 +460,13 @@ func (group *toolTranscriptGroup) mergeToolTranscriptCell(id string, cell toolTr
 		}
 		if group.details[index].text == "" {
 			group.details[index].text = cell.detail
+		}
+		if cell.hasArtifact {
+			group.details[index].artifact = cell.artifact
+			group.details[index].hasArtifact = true
+		}
+		if cell.artifactStatus != "" {
+			group.details[index].artifactStatus = cell.artifactStatus
 		}
 		return
 	}

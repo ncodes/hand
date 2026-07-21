@@ -108,6 +108,11 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 			duration = ""
 		}
 		lines = append(lines, "  "+branchStyle.Render(branch)+" "+renderToolBranchDetail(detailText, duration, detailStyle))
+		if detail.hasArtifact {
+			for _, row := range renderBrowserArtifactRows(detail.artifact, detail.artifactStatus, ctx.Now) {
+				lines = append(lines, "    "+row)
+			}
+		}
 	}
 
 	return strings.Join(lines, "\n")
@@ -557,6 +562,10 @@ var browserTranscriptActionTitles = map[string]browserActionTitles{
 	"download": {
 		label: "Browser File Download", pending: "Downloading File from Browser", completed: "Downloaded File from Browser",
 		failed: "Failed to Download File from Browser", interrupted: "Browser File Download Interrupted",
+	},
+	"export_artifact": {
+		label: "Browser Artifact Export", pending: "Exporting Browser Artifact", completed: "Exported Browser Artifact",
+		failed: "Failed to Export Browser Artifact", interrupted: "Browser Artifact Export Interrupted",
 	},
 	"accept_dialog": {
 		label: "Browser Dialog Acceptance", pending: "Accepting Browser Dialog", completed: "Accepted Browser Dialog",

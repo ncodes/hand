@@ -93,10 +93,57 @@ func TestBrowserService_PropagatesRPCFailures(t *testing.T) {
 
 func TestBrowserService_PropagatesArtifactStreamFailure(t *testing.T) {
 	expected := errors.New("stream failed")
-	service := NewBrowserService(&browserServiceClientStub{streamErr: expected})
+	service := NewBrowserService(&browserServiceClientStub{
+		artifact: &morphpb.BrowserArtifact{Handle: "handle", Size: 3}, streamErr: expected,
+	})
 
 	_, err := service.ReadArtifact(context.Background(), "handle", "", "")
 	require.ErrorIs(t, err, expected)
+}
+
+func TestBrowserService_RejectsMalformedArtifactStreams(t *testing.T) {
+	tests := []struct {
+		name      string
+		responses []*morphpb.ReadBrowserArtifactResponse
+		want      string
+	}{
+		{
+			name: "missing metadata", responses: []*morphpb.ReadBrowserArtifactResponse{},
+			want: "morph: browser artifact stream is missing metadata",
+		},
+		{
+			name: "wrong handle", responses: []*morphpb.ReadBrowserArtifactResponse{{
+				Artifact: &morphpb.BrowserArtifact{Handle: "other", Size: 0},
+			}}, want: "morph: browser artifact stream handle does not match the request",
+		},
+		{
+			name: "data before metadata", responses: []*morphpb.ReadBrowserArtifactResponse{{Data: []byte("x")}},
+			want: "morph: browser artifact stream data arrived before metadata",
+		},
+		{
+			name: "repeated metadata", responses: []*morphpb.ReadBrowserArtifactResponse{
+				{Artifact: &morphpb.BrowserArtifact{Handle: "artifact_1", Size: 0}},
+				{Artifact: &morphpb.BrowserArtifact{Handle: "artifact_1", Size: 0}},
+			}, want: "morph: browser artifact stream repeated metadata",
+		},
+		{
+			name: "too much data", responses: []*morphpb.ReadBrowserArtifactResponse{{
+				Artifact: &morphpb.BrowserArtifact{Handle: "artifact_1", Size: 1}, Data: []byte("xx"),
+			}}, want: "morph: browser artifact stream exceeds metadata size",
+		},
+		{
+			name: "incomplete data", responses: []*morphpb.ReadBrowserArtifactResponse{{
+				Artifact: &morphpb.BrowserArtifact{Handle: "artifact_1", Size: 2}, Data: []byte("x"),
+			}}, want: "morph: browser artifact stream size does not match metadata",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service := NewBrowserService(&browserServiceClientStub{artifactResponses: test.responses})
+			_, err := service.ReadArtifact(context.Background(), "artifact_1", "default", "")
+			require.EqualError(t, err, test.want)
+		})
+	}
 }
 
 func TestBrowserService_RejectsMissingClientAndHandlesNilProtoValues(t *testing.T) {
@@ -111,13 +158,14 @@ func TestBrowserService_RejectsMissingClientAndHandlesNilProtoValues(t *testing.
 }
 
 type browserServiceClientStub struct {
-	status          *morphpb.BrowserStatus
-	artifact        *morphpb.BrowserArtifact
-	err             error
-	streamErr       error
-	startRequest    *morphpb.StartBrowserRequest
-	stopRequest     *morphpb.StopBrowserRequest
-	artifactRequest *morphpb.ReadBrowserArtifactRequest
+	status            *morphpb.BrowserStatus
+	artifact          *morphpb.BrowserArtifact
+	err               error
+	streamErr         error
+	startRequest      *morphpb.StartBrowserRequest
+	stopRequest       *morphpb.StopBrowserRequest
+	artifactRequest   *morphpb.ReadBrowserArtifactRequest
+	artifactResponses []*morphpb.ReadBrowserArtifactResponse
 }
 
 func (s *browserServiceClientStub) Status(
@@ -186,10 +234,14 @@ func (s *browserServiceClientStub) ReadArtifact(
 	if s.err != nil {
 		return nil, s.err
 	}
-	return &browserArtifactClientStream{responses: []*morphpb.ReadBrowserArtifactResponse{
-		{Artifact: s.artifact, Data: []byte("p")},
-		{Data: []byte("ng")},
-	}, err: s.streamErr}, nil
+	responses := s.artifactResponses
+	if responses == nil {
+		responses = []*morphpb.ReadBrowserArtifactResponse{
+			{Artifact: s.artifact, Data: []byte("p")},
+			{Data: []byte("ng")},
+		}
+	}
+	return &browserArtifactClientStream{responses: responses, err: s.streamErr}, nil
 }
 
 func (s *browserServiceClientStub) EffectiveConfig(

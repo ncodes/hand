@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"time"
 
 	browserdomain "github.com/wandxy/morph/internal/browser"
 	envtypes "github.com/wandxy/morph/internal/environment/types"
@@ -17,7 +18,7 @@ const toolName = "browser"
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:          toolName,
-		Description:   "Operate an isolated, permission-aware browser using typed lifecycle, navigation, interaction, artifact, file-transfer, and dialog actions.",
+		Description:   "Operate an isolated, permission-aware browser using typed lifecycle, navigation, interaction, artifact, file-transfer, and dialog actions. Artifact handles are temporary; use export_artifact to save an artifact to an authorized path.",
 		InputSchema:   inputSchema(),
 		Groups:        []string{"core"},
 		Requires:      tools.Capabilities{Browser: true},
@@ -178,10 +179,12 @@ var actionDispatchers = map[browserdomain.Action]actionDispatcher{
 		return getSafeSnapshot(snapshot), err
 	},
 	browserdomain.ActionScreenshot: func(ctx context.Context, service envtypes.BrowserService, value request) (any, error) {
-		return service.Screenshot(ctx, actionRequestFromRequest(value))
+		artifact, err := service.Screenshot(ctx, actionRequestFromRequest(value))
+		return getSafeArtifact(artifact), err
 	},
 	browserdomain.ActionPDF: func(ctx context.Context, service envtypes.BrowserService, value request) (any, error) {
-		return service.PDF(ctx, actionRequestFromRequest(value))
+		artifact, err := service.PDF(ctx, actionRequestFromRequest(value))
+		return getSafeArtifact(artifact), err
 	},
 	browserdomain.ActionConsole: func(ctx context.Context, service envtypes.BrowserService, value request) (any, error) {
 		return service.Console(ctx, actionRequestFromRequest(value))
@@ -193,13 +196,46 @@ var actionDispatchers = map[browserdomain.Action]actionDispatcher{
 	browserdomain.ActionSelect: getActionRequestDispatcher(envtypes.BrowserService.Select),
 	browserdomain.ActionUpload: getActionRequestDispatcher(envtypes.BrowserService.Upload),
 	browserdomain.ActionDownload: func(ctx context.Context, service envtypes.BrowserService, value request) (any, error) {
-		return service.Download(ctx, actionRequestFromRequest(value))
+		artifact, err := service.Download(ctx, actionRequestFromRequest(value))
+		return getSafeArtifact(artifact), err
+	},
+	browserdomain.ActionExportArtifact: func(
+		ctx context.Context,
+		service envtypes.BrowserService,
+		value request,
+	) (any, error) {
+		artifact, err := service.ExportArtifact(ctx, browserdomain.ArtifactExportRequest{
+			Handle: value.Handle, Path: value.Path, FileTarget: value.fileTarget, TargetScope: value.targetScope,
+		})
+		return artifactExportResult{safeArtifact: getSafeArtifact(artifact), SavedTo: value.Path}, err
 	},
 	browserdomain.ActionAcceptDialog:  getActionRequestDispatcher(envtypes.BrowserService.AcceptDialog),
 	browserdomain.ActionDismissDialog: getActionRequestDispatcher(envtypes.BrowserService.DismissDialog),
 	browserdomain.ActionWait:          getActionRequestDispatcher(envtypes.BrowserService.Wait),
 	browserdomain.ActionBack:          getActionRequestDispatcher(envtypes.BrowserService.Back),
 	browserdomain.ActionForward:       getActionRequestDispatcher(envtypes.BrowserService.Forward),
+}
+
+type artifactExportResult struct {
+	safeArtifact
+	SavedTo string `json:"saved_to"`
+}
+
+type safeArtifact struct {
+	Handle    string                     `json:"handle"`
+	Kind      browserdomain.ArtifactKind `json:"kind"`
+	Name      string                     `json:"name"`
+	MIMEType  string                     `json:"mime_type"`
+	Size      int64                      `json:"size"`
+	CreatedAt time.Time                  `json:"created_at"`
+	ExpiresAt time.Time                  `json:"expires_at"`
+}
+
+func getSafeArtifact(artifact browserdomain.Artifact) safeArtifact {
+	return safeArtifact{
+		Handle: artifact.Handle, Kind: artifact.Kind, Name: artifact.Name, MIMEType: artifact.MIMEType,
+		Size: artifact.Size, CreatedAt: artifact.CreatedAt, ExpiresAt: artifact.ExpiresAt,
+	}
 }
 
 func getActionRequestDispatcher(

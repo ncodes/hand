@@ -84,6 +84,7 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		return m, cmd, true
 	case sessionTimelineLoadedMsg:
 		m.chatSwitching = false
+		m.cleanupBrowserArtifactCopies()
 		next, cmd := m.handleAppEvent(hydrateTimelineEvent{Timeline: msg.Timeline})
 		return next, cmd, true
 	case sessionTimelineLoadFailedMsg:
@@ -107,6 +108,7 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		cmd := m.completeCompactSession(msg)
 		return m, cmd, true
 	case newChatCompletedMsg:
+		m.cleanupBrowserArtifactCopies()
 		cmd := m.completeNewChat(msg)
 		return m, cmd, true
 	case chatsLoadedMsg:
@@ -162,6 +164,12 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case toolInvocationCompletedMsg:
 		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 		return next, cmd, true
+	case browserArtifactActionResultMsg:
+		cmd := m.completeBrowserArtifactAction(msg)
+		return m, cmd, true
+	case browserArtifactExpiryMsg:
+		m.expireBrowserArtifactCopy(msg)
+		return m, nil, true
 	case safetyEventMsg:
 		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 		return next, cmd, true

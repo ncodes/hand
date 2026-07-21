@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -22,7 +23,9 @@ func TestNewCommand_ExposesBrowserOperatorCommands(t *testing.T) {
 	for _, child := range command.Commands {
 		names = append(names, child.Name)
 	}
-	require.ElementsMatch(t, []string{"status", "profiles", "sessions", "start", "stop", "config", "auth"}, names)
+	require.ElementsMatch(
+		t, []string{"status", "profiles", "sessions", "start", "stop", "config", "auth", "artifact"}, names,
+	)
 }
 
 func TestBrowserAuthRotate_ReplacesCredentialAndRequiresRestart(t *testing.T) {
@@ -131,6 +134,72 @@ func TestBrowserCommands_ValidateInputAndPropagateFailures(t *testing.T) {
 	require.EqualError(t, err, "browser RPC failed")
 }
 
+func TestBrowserArtifactGet_SavesValidatedContentWithoutOverwriting(t *testing.T) {
+	data := []byte("png")
+	api := &browserCommandAPI{artifact: browserdomain.ArtifactContent{
+		Artifact: browserdomain.Artifact{
+			Handle: "artifact_1", Kind: browserdomain.ArtifactScreenshot, Name: "screenshot.png",
+			MIMEType: "image/png", Size: int64(len(data)), ExpiresAt: time.Now().Add(time.Hour),
+		},
+		Data: data,
+	}}
+	configureBrowserCommandTest(t, api)
+	output := &bytes.Buffer{}
+	previous := SetOutput(output)
+	t.Cleanup(func() { SetOutput(previous) })
+	destination := filepath.Join(t.TempDir(), "captured.png")
+
+	require.NoError(t, NewCommand().Run(context.Background(), []string{
+		"browser", "artifact", "get", "artifact_1", "--output", destination,
+		"--owner-session", "default", "--run-id", "run_1",
+	}))
+	require.Equal(t, "artifact_1", api.artifactHandle)
+	require.Equal(t, "default", api.artifactOwnerSession)
+	require.Equal(t, "run_1", api.artifactRunID)
+	require.FileExists(t, destination)
+	saved, err := os.ReadFile(destination)
+	require.NoError(t, err)
+	require.Equal(t, data, saved)
+	require.Contains(t, output.String(), "saved screenshot.png")
+	require.Contains(t, output.String(), destination)
+
+	output.Reset()
+	jsonDestination := filepath.Join(filepath.Dir(destination), "captured-json.png")
+	require.NoError(t, NewCommand().Run(context.Background(), []string{
+		"browser", "artifact", "get", "artifact_1", "--output", jsonDestination, "--json",
+	}))
+	canonicalJSONDestination, err := browserdomain.ResolveArtifactExportPath(jsonDestination)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"handle":"artifact_1","kind":"screenshot","name":"screenshot.png","mime_type":"image/png",
+		"size":3,"created_at":"0001-01-01T00:00:00Z","expires_at":"`+
+		api.artifact.Artifact.ExpiresAt.Format(time.RFC3339Nano)+`","saved_to":"`+canonicalJSONDestination+`"
+	}`, output.String())
+	require.NotContains(t, output.String(), "session_id")
+	require.NotContains(t, output.String(), "source")
+	require.Equal(t, defaultOwnerSessionID, api.artifactOwnerSession)
+
+	err = NewCommand().Run(context.Background(), []string{
+		"browser", "artifact", "get", "artifact_1", "--output", destination,
+	})
+	require.ErrorIs(t, err, os.ErrExist)
+}
+
+func TestBrowserArtifactGet_ValidatesHandleAndPropagatesReadFailure(t *testing.T) {
+	api := &browserCommandAPI{}
+	configureBrowserCommandTest(t, api)
+	err := NewCommand().Run(context.Background(), []string{
+		"browser", "artifact", "get", "--output", filepath.Join(t.TempDir(), "artifact.bin"),
+	})
+	require.EqualError(t, err, "browser artifact handle is required")
+
+	api.err = errors.New("artifact retrieval failed")
+	err = NewCommand().Run(context.Background(), []string{
+		"browser", "artifact", "get", "artifact_1", "--output", filepath.Join(t.TempDir(), "artifact.bin"),
+	})
+	require.EqualError(t, err, "artifact retrieval failed")
+}
+
 func TestSetOutput_UsesDiscardForNilWriter(t *testing.T) {
 	previous := SetOutput(nil)
 	require.NotNil(t, previous)
@@ -152,15 +221,19 @@ func (c *browserCommandClient) Close() error {
 }
 
 type browserCommandAPI struct {
-	status            browserdomain.Status
-	config            rpcclient.BrowserEffectiveConfig
-	start             browserdomain.Session
-	stop              browserdomain.Session
-	err               error
-	startProfile      string
-	startOwnerSession string
-	stopID            string
-	stopOwnerSession  string
+	status               browserdomain.Status
+	config               rpcclient.BrowserEffectiveConfig
+	start                browserdomain.Session
+	stop                 browserdomain.Session
+	err                  error
+	startProfile         string
+	startOwnerSession    string
+	stopID               string
+	stopOwnerSession     string
+	artifact             browserdomain.ArtifactContent
+	artifactHandle       string
+	artifactOwnerSession string
+	artifactRunID        string
 }
 
 func (a *browserCommandAPI) Status(context.Context) (browserdomain.Status, error) {
@@ -196,12 +269,15 @@ func (a *browserCommandAPI) Stop(
 }
 
 func (a *browserCommandAPI) ReadArtifact(
-	context.Context,
-	string,
-	string,
-	string,
+	_ context.Context,
+	handle string,
+	ownerSession string,
+	runID string,
 ) (browserdomain.ArtifactContent, error) {
-	return browserdomain.ArtifactContent{}, a.err
+	a.artifactHandle = handle
+	a.artifactOwnerSession = ownerSession
+	a.artifactRunID = runID
+	return a.artifact, a.err
 }
 
 func (a *browserCommandAPI) EffectiveConfig(context.Context) (rpcclient.BrowserEffectiveConfig, error) {

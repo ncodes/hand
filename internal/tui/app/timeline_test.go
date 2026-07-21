@@ -988,6 +988,7 @@ func TestBrowserToolDisplayDetail_DescribesEverySupportedAction(t *testing.T) {
 		{action: browserdomain.ActionSelect, input: `{"action":"select","session_id":"browser_1","tab_id":"tab_1","ref":"g1e7","value":"secret option"}`, want: "select:Element g1e7"},
 		{action: browserdomain.ActionUpload, input: `{"action":"upload","session_id":"browser_1","tab_id":"tab_1","ref":"g1e7","path":"/secret/file.txt"}`, want: "upload:Element g1e7"},
 		{action: browserdomain.ActionDownload, input: `{"action":"download","session_id":"browser_1","tab_id":"tab_1","ref":"g1e7"}`, want: "download:Element g1e7"},
+		{action: browserdomain.ActionExportArtifact, input: `{"action":"export_artifact","handle":"artifact_1","path":"/secret/saved.png"}`, want: "export_artifact"},
 		{action: browserdomain.ActionAcceptDialog, input: `{"action":"accept_dialog","session_id":"browser_1","tab_id":"tab_1","ref":"dialog_1","text":"secret response"}`, want: "accept_dialog:Dialog dialog_1"},
 		{action: browserdomain.ActionDismissDialog, input: `{"action":"dismiss_dialog","session_id":"browser_1","tab_id":"tab_1","ref":"dialog_1"}`, want: "dismiss_dialog:Dialog dialog_1"},
 		{action: browserdomain.ActionWait, input: `{"action":"wait","session_id":"browser_1","tab_id":"tab_1","condition":"text","value":"secret text"}`, want: "wait:Text appears · Tab tab_1"},

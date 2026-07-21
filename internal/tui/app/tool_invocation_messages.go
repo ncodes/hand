@@ -125,7 +125,7 @@ func toolInvocationCompletedMsgFromMessage(
 	message morphmsg.Message,
 	completedAt time.Time,
 ) (toolInvocationCompletedMsg, bool) {
-	return newToolInvocationCompletedMsgWithState(
+	msg, ok := newToolInvocationCompletedMsgWithState(
 		message.ToolCallID,
 		message.Name,
 		getToolOutputDisplayDetail(message.Name, message.Content),
@@ -134,4 +134,9 @@ func toolInvocationCompletedMsgFromMessage(
 		getToolOutputProcessDisplayState(message.Name, message.Content),
 		completedAt,
 	)
+	if !ok {
+		return toolInvocationCompletedMsg{}, false
+	}
+	msg.Artifact = getBrowserArtifact(message.Name, message.Content)
+	return msg, true
 }

@@ -25,6 +25,7 @@ const (
 	commandViewKindPermissions    = "permissions"
 	commandViewKindProviderAPIKey = "provider-api-key"
 	commandViewKindProviders      = "providers"
+	commandViewKindArtifactSave   = "artifact-save"
 )
 
 type commandViewPayload struct {
@@ -98,7 +99,8 @@ func (m model) renderCommandView() string {
 		m.isPermissionApprovalCommandView() ||
 		m.isPermissionsCommandView() ||
 		m.isProvidersCommandView() ||
-		m.isProviderAPIKeyCommandView() {
+		m.isProviderAPIKeyCommandView() ||
+		m.isBrowserArtifactSaveCommandView() {
 		height++
 	}
 
@@ -177,6 +179,11 @@ func (m model) getCommandViewFrame() commandViewFrame {
 		content = m.renderProviderAPIKeyCommandViewContent(commandViewContent{
 			Width:  contentWidth,
 			Height: contentHeight,
+		})
+	}
+	if m.isBrowserArtifactSaveCommandView() {
+		content = m.renderBrowserArtifactSaveCommandViewContent(commandViewContent{
+			Width: contentWidth, Height: contentHeight,
 		})
 	}
 
@@ -363,6 +370,9 @@ func (m *model) updateCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if m.isProviderAPIKeyCommandView() {
 		return m.updateProviderAPIKeyCommandView(msg)
+	}
+	if m.isBrowserArtifactSaveCommandView() {
+		return m.updateBrowserArtifactSaveCommandView(msg)
 	}
 
 	offset := m.commandViewOffset
@@ -593,6 +603,11 @@ func (m model) renderCommandViewSelectionDocument() string {
 			Width:  m.getCommandViewContentWidth(),
 			Height: m.getCommandViewContentHeight(),
 			Offset: 0,
+		})
+	}
+	if m.isBrowserArtifactSaveCommandView() {
+		return m.renderBrowserArtifactSaveCommandViewContent(commandViewContent{
+			Width: m.getCommandViewContentWidth(), Height: m.getCommandViewContentHeight(),
 		})
 	}
 

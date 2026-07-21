@@ -556,13 +556,13 @@ func TestService_ResolveOperationsClassifiesEverySupportedAction(t *testing.T) {
 	for _, node := range snapshot.Nodes {
 		refs[node.Name] = node.Ref
 	}
+	artifact, err := service.Screenshot(ctx, ActionRequest{SessionID: session.ID, TabID: "tab-1"})
+	require.NoError(t, err)
+	exportRoot, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	exportPath := filepath.Join(exportRoot, "export.png")
 
-	for _, action := range []Action{
-		ActionStatus, ActionProfiles, ActionStart, ActionStop, ActionTabs, ActionOpen, ActionFocus, ActionClose,
-		ActionNavigate, ActionReload, ActionSnapshot, ActionScreenshot, ActionPDF, ActionConsole, ActionClick,
-		ActionType, ActionPress, ActionScroll, ActionSelect, ActionUpload, ActionDownload, ActionAcceptDialog,
-		ActionDismissDialog, ActionWait, ActionBack, ActionForward,
-	} {
+	for _, action := range SupportedActions() {
 		t.Run(string(action), func(t *testing.T) {
 			request := ActionRequest{
 				SessionID: session.ID, TabID: "tab-1",
@@ -582,6 +582,12 @@ func TestService_ResolveOperationsClassifiesEverySupportedAction(t *testing.T) {
 			}
 			if action == ActionOpen || action == ActionNavigate {
 				request.URL = testPageURL + "/target"
+			}
+			if action == ActionExportArtifact {
+				request = ActionRequest{
+					Handle: artifact.Handle, Path: exportPath, FileTarget: filepath.ToSlash(exportPath),
+					TargetScope: permissions.TargetScopeExternal,
+				}
 			}
 			if action == ActionStatus || action == ActionProfiles || action == ActionStart {
 				request.SessionID = ""

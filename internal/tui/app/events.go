@@ -45,6 +45,7 @@ type toolInvocationCompletedMsg struct {
 	PlanState    *trace.PlanToolState
 	ProcessState *trace.ProcessToolState
 	CompletedAt  time.Time
+	Artifact     *browserArtifact
 }
 
 type safetyEventMsg struct {
@@ -279,6 +280,7 @@ func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 			return nil, false
 		}
 
+		msg.Artifact = getBrowserArtifact(toolPayload.Name, toolPayload.Content)
 		return msg, true
 	}
 }

@@ -22,6 +22,13 @@ func (m *model) openTranscriptLinkAtMouse(msg tea.MouseClickMsg) (tea.Cmd, bool)
 	}
 
 	row := mouse.Y - m.getTranscriptTop()
+	if token, action, ok := getArtifactActionAtRenderedPosition(m.transcript.View(), row, mouse.X); ok {
+		artifact, found := m.getBrowserArtifactByToken(token)
+		if !found {
+			return m.setStatus("browser artifact action unavailable"), true
+		}
+		return m.startBrowserArtifactAction(artifact, action), true
+	}
 	if link, ok := linkAtRenderedPosition(m.transcript.View(), row, mouse.X); ok {
 		return m.runEffect(openLinkEffect{URL: link}), true
 	}

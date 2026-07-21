@@ -365,6 +365,10 @@ func (c *fakeTUIChatClient) ModelAPI() rpcclient.ModelAPI {
 	return c
 }
 
+func (c *fakeTUIChatClient) BrowserAPI() rpcclient.BrowserAPI {
+	return nil
+}
+
 func (c *fakeTUIChatClient) ListProviders(context.Context) (rpcclient.ProviderList, error) {
 	return rpcclient.ProviderList{}, nil
 }

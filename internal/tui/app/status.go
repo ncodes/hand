@@ -92,6 +92,7 @@ func (m model) statusExpireCmd() tea.Cmd {
 func (m model) confirmExit() (tea.Model, tea.Cmd) {
 	now := currentTime()
 	if !m.exitAt.IsZero() && now.Sub(m.exitAt) <= exitConfirmationWindow {
+		m.cleanupBrowserArtifactCopies()
 		return m, tea.Quit
 	}
 

@@ -51,6 +51,25 @@ func requireRespondEvent(
 	require.NotNil(t, event.GetTimestamp())
 }
 
+func TestGetRPCSafeToolResult_ForwardsOnlyBrowserArtifactMetadata(t *testing.T) {
+	content := getRPCSafeToolResult("browser", `{
+		"handle":"artifact_1","kind":"screenshot","name":"screenshot.png","mime_type":"image/png",
+		"size":3,"created_at":"2026-07-21T07:00:00Z","expires_at":"2026-07-22T07:00:00Z",
+		"profile":"default","session_id":"default","source":"https://example.com/private?token=secret",
+		"sensitive":true
+	}`)
+
+	require.JSONEq(t, `{
+		"handle":"artifact_1","kind":"screenshot","name":"screenshot.png","mime_type":"image/png",
+		"size":3,"created_at":"2026-07-21T07:00:00Z","expires_at":"2026-07-22T07:00:00Z"
+	}`, content)
+	require.NotContains(t, content, "profile")
+	require.NotContains(t, content, "session_id")
+	require.NotContains(t, content, "token=secret")
+	require.Empty(t, getRPCSafeToolResult("read_file", content))
+	require.Empty(t, getRPCSafeToolResult("browser", `{"url":"https://example.com"}`))
+}
+
 func TestNewService_ReturnsService(t *testing.T) {
 	require.NotNil(t, newAllowedService(nil))
 }

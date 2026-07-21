@@ -42,6 +42,15 @@ func (s *Service) ResolvePermissionInputs(
 	if s == nil {
 		return nil, errors.New("browser service is required")
 	}
+	if action == ActionExportArtifact {
+		operations, err := s.getArtifactExportOperations(ctx, ArtifactExportRequest{
+			Handle: request.Handle, Path: request.Path, FileTarget: request.FileTarget, TargetScope: request.TargetScope,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return getEvaluationInputs(operations), nil
+	}
 	if action != ActionStart {
 		operations, err := s.resolveOperations(ctx, action, request, true)
 		if err != nil {
@@ -891,7 +900,7 @@ func getActionError(action Action, err error) error {
 }
 
 func requiresSession(action Action) bool {
-	return action != ActionStatus && action != ActionProfiles && action != ActionStart
+	return action != ActionStatus && action != ActionProfiles && action != ActionStart && action != ActionExportArtifact
 }
 
 func requiresTab(action Action) bool {

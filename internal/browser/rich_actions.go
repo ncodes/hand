@@ -12,6 +12,13 @@ import (
 	"github.com/wandxy/morph/internal/permissions"
 )
 
+var (
+	publishArtifactExport              = os.Link
+	checkArtifactExportLinkUnsupported = isArtifactExportLinkUnsupported
+	writeArtifactExportContent         = writeAndSyncArtifactExportContent
+	removeArtifactExportTemporary      = os.Remove
+)
+
 func (s *Service) Screenshot(ctx context.Context, request ActionRequest) (Artifact, error) {
 	return s.captureArtifact(ctx, ActionScreenshot, request, func(
 		ctx context.Context, backend RichBackendSession, tabID string,
@@ -167,11 +174,7 @@ func (s *Service) ReadArtifact(ctx context.Context, handle string) (ArtifactCont
 	if err != nil {
 		return ArtifactContent{}, err
 	}
-	effects := append([]permissions.Effect{permissions.EffectRead}, artifact.Effects...)
-	operation, err := (permissions.Operation{
-		Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionRead,
-		Effects: effects, Target: "artifact:" + artifact.Handle, OwnerID: owner.Actor.ID,
-	}).Normalize()
+	operation, err := getArtifactReadOperation(owner, artifact)
 	if err != nil {
 		return ArtifactContent{}, err
 	}
@@ -190,16 +193,49 @@ func (s *Service) ExportArtifact(ctx context.Context, request ArtifactExportRequ
 	if err != nil {
 		return Artifact{}, err
 	}
-	if err := checkCanonicalFileTarget(request.Path, request.FileTarget); err != nil {
-		return Artifact{}, errors.New("browser artifact export target is invalid")
-	}
-	readOperation, err := (permissions.Operation{
-		Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionRead,
-		Effects: append([]permissions.Effect{permissions.EffectRead}, artifact.Effects...),
-		Target:  "artifact:" + artifact.Handle, OwnerID: owner.Actor.ID,
-	}).Normalize()
+	operations, err := getArtifactExportOperations(owner, artifact, request)
 	if err != nil {
 		return Artifact{}, err
+	}
+	if err := s.checkOperations(ctx, operations); err != nil {
+		return Artifact{}, err
+	}
+	content, err := s.artifacts.read(request.Handle, owner)
+	if err != nil {
+		return Artifact{}, err
+	}
+	if err := WriteArtifactExport(request.Path, content.Data); err != nil {
+		return Artifact{}, err
+	}
+	return content.Artifact, nil
+}
+
+func (s *Service) getArtifactExportOperations(
+	ctx context.Context,
+	request ArtifactExportRequest,
+) ([]permissions.Operation, error) {
+	owner, err := ownerFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	artifact, err := s.artifacts.metadata(request.Handle, owner)
+	if err != nil {
+		return nil, err
+	}
+	return getArtifactExportOperations(owner, artifact, request)
+}
+
+func getArtifactExportOperations(
+	owner Owner,
+	artifact Artifact,
+	request ArtifactExportRequest,
+) ([]permissions.Operation, error) {
+	if err := checkCanonicalFileTarget(request.Path, request.FileTarget); err != nil {
+		return nil, errors.New("browser artifact export target is invalid")
+	}
+	readOperation, err := getArtifactReadOperation(owner, artifact)
+	if err != nil {
+		return nil, err
 	}
 	fileOperation, err := (permissions.Operation{
 		Tool: "browser", Resource: permissions.ResourceFile, Action: permissions.ActionCreate,
@@ -207,22 +243,20 @@ func (s *Service) ExportArtifact(ctx context.Context, request ArtifactExportRequ
 		Target:  request.FileTarget, TargetScope: request.TargetScope, OwnerID: owner.Actor.ID,
 	}).Normalize()
 	if err != nil {
-		return Artifact{}, err
+		return nil, err
 	}
-	if err := s.checkOperations(ctx, []permissions.Operation{readOperation, fileOperation}); err != nil {
-		return Artifact{}, err
-	}
-	content, err := s.artifacts.read(request.Handle, owner)
-	if err != nil {
-		return Artifact{}, err
-	}
-	if err := writeArtifactExport(request.Path, content.Data); err != nil {
-		return Artifact{}, err
-	}
-	return content.Artifact, nil
+	return []permissions.Operation{readOperation, fileOperation}, nil
 }
 
-func writeArtifactExport(path string, data []byte) error {
+func getArtifactReadOperation(owner Owner, artifact Artifact) (permissions.Operation, error) {
+	return (permissions.Operation{
+		Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionRead,
+		Effects: append([]permissions.Effect{permissions.EffectRead}, artifact.Effects...),
+		Target:  "artifact:" + artifact.Handle, OwnerID: owner.Actor.ID,
+	}).Normalize()
+}
+
+func WriteArtifactExport(path string, data []byte) error {
 	path = filepath.Clean(path)
 	parent := filepath.Dir(path)
 	resolvedParent, err := filepath.EvalSymlinks(parent)
@@ -241,29 +275,76 @@ func writeArtifactExport(path string, data []byte) error {
 	defer func() {
 		_ = temporary.Close()
 		if remove {
-			_ = os.Remove(temporaryPath)
+			_ = removeArtifactExportTemporary(temporaryPath)
 		}
 	}()
 	if err := temporary.Chmod(0o600); err != nil {
 		return err
 	}
-	if _, err := temporary.Write(data); err != nil {
-		return err
-	}
-	if err := temporary.Sync(); err != nil {
+	if err := writeArtifactExportContent(temporary, data); err != nil {
 		return err
 	}
 	if err := temporary.Close(); err != nil {
 		return err
 	}
-	if err := os.Link(temporaryPath, path); err != nil {
+	if err := publishArtifactExport(temporaryPath, path); err != nil {
+		if !checkArtifactExportLinkUnsupported(err) {
+			return err
+		}
+		if err := writeArtifactExportExclusive(path, data); err != nil {
+			return err
+		}
+		if removeArtifactExportTemporary(temporaryPath) == nil {
+			remove = false
+		}
+		return nil
+	}
+	if removeArtifactExportTemporary(temporaryPath) == nil {
+		remove = false
+	}
+	return nil
+}
+
+func writeArtifactExportExclusive(path string, data []byte) error {
+	destination, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
 		return err
 	}
-	if err := os.Remove(temporaryPath); err != nil {
+	remove := true
+	defer func() {
+		_ = destination.Close()
+		if remove {
+			_ = os.Remove(path)
+		}
+	}()
+	if err := writeArtifactExportContent(destination, data); err != nil {
+		return err
+	}
+	if err := destination.Close(); err != nil {
 		return err
 	}
 	remove = false
 	return nil
+}
+
+func writeAndSyncArtifactExportContent(file *os.File, data []byte) error {
+	if _, err := file.Write(data); err != nil {
+		return err
+	}
+	return file.Sync()
+}
+
+func ResolveArtifactExportPath(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	absolute = filepath.Clean(absolute)
+	parent, err := filepath.EvalSymlinks(filepath.Dir(absolute))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(parent, filepath.Base(absolute)), nil
 }
 
 func isSamePath(left, right string) bool {

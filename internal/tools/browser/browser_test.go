@@ -29,6 +29,7 @@ type browserServiceStub struct {
 	navigated         browserdomain.ActionRequest
 	dispatchedAction  browserdomain.Action
 	dispatchedRequest browserdomain.ActionRequest
+	exportRequest     browserdomain.ArtifactExportRequest
 	dispatchErr       error
 	statusCalls       int
 }
@@ -241,6 +242,18 @@ func (s *browserServiceStub) Download(
 	return browserdomain.Artifact{Handle: "artifact_download", Kind: browserdomain.ArtifactDownload, Size: 8}, s.dispatchErr
 }
 
+func (s *browserServiceStub) ExportArtifact(
+	_ context.Context,
+	request browserdomain.ArtifactExportRequest,
+) (browserdomain.Artifact, error) {
+	s.dispatchedAction = browserdomain.ActionExportArtifact
+	s.exportRequest = request
+	return browserdomain.Artifact{
+		Handle: request.Handle, Kind: browserdomain.ArtifactScreenshot, Name: "screenshot.png", MIMEType: "image/png",
+		Size: 3,
+	}, s.dispatchErr
+}
+
 func (s *browserServiceStub) AcceptDialog(
 	_ context.Context,
 	request browserdomain.ActionRequest,
@@ -365,6 +378,9 @@ func TestDecodeRequest_RejectsMalformedAmbiguousAndOutOfRangeInputs(t *testing.T
 			strings.Repeat("x", maxBrowserTextLength+1) + `"}`},
 		{name: "large console limit", input: `{"action":"console","session_id":"session","tab_id":"tab","limit":201}`},
 		{name: "wrong rich field", input: `{"action":"pdf","session_id":"session","tab_id":"tab","full_page":true}`},
+		{name: "missing export handle", input: `{"action":"export_artifact","path":"saved.png"}`},
+		{name: "missing export path", input: `{"action":"export_artifact","handle":"artifact_1"}`},
+		{name: "foreign export field", input: `{"action":"export_artifact","handle":"artifact_1","path":"saved.png","session_id":"session"}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -372,6 +388,73 @@ func TestDecodeRequest_RejectsMalformedAmbiguousAndOutOfRangeInputs(t *testing.T
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestDefinition_ExportsArtifactToCanonicalAuthorizedPath(t *testing.T) {
+	root := t.TempDir()
+	service := &browserServiceStub{operations: []permissions.Operation{
+		{Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionRead},
+		{Tool: "browser", Resource: permissions.ResourceFile, Action: permissions.ActionCreate},
+	}}
+	runtime := &toolmocks.Runtime{
+		BrowserServiceValue: service, BrowserServiceOK: true,
+		FilePolicyValue: guardrails.FilesystemPolicy{Roots: []string{root}},
+	}
+	definition := Definition(runtime)
+	call := tools.Call{Name: toolName, Input: `{
+		"action":"export_artifact","handle":"artifact_1","path":"saved.png"
+	}`}
+
+	inputs, err := definition.ResolvePermission(context.Background(), call)
+	require.NoError(t, err)
+	require.Len(t, inputs, 2)
+	destination, err := browserdomain.ResolveArtifactExportPath(filepath.Join(root, "saved.png"))
+	require.NoError(t, err)
+	require.Equal(t, browserdomain.ActionExportArtifact, service.resolvedAction)
+	require.Equal(t, "artifact_1", service.resolvedRequest.Handle)
+	require.Equal(t, destination, service.resolvedRequest.Path)
+	require.Equal(t, filepath.ToSlash(destination), service.resolvedRequest.FileTarget)
+	require.Equal(t, permissions.TargetScopeWorkspace, service.resolvedRequest.TargetScope)
+
+	result, err := definition.Handler.Invoke(context.Background(), call)
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	require.Equal(t, browserdomain.ActionExportArtifact, service.dispatchedAction)
+	require.Equal(t, destination, service.exportRequest.Path)
+	require.Equal(t, filepath.ToSlash(destination), service.exportRequest.FileTarget)
+	require.JSONEq(t, `{
+		"handle":"artifact_1","kind":"screenshot","name":"screenshot.png","mime_type":"image/png","size":3,
+		"created_at":"0001-01-01T00:00:00Z","expires_at":"0001-01-01T00:00:00Z",
+		"saved_to":"`+destination+`"
+	}`, result.Output)
+}
+
+func TestDefinition_ExportArtifactClassifiesCanonicalSymlinkDestinationAsExternal(t *testing.T) {
+	root := t.TempDir()
+	external := t.TempDir()
+	link := filepath.Join(root, "external-link")
+	if err := os.Symlink(external, link); err != nil {
+		t.Skip("symbolic links unavailable")
+	}
+	service := &browserServiceStub{operations: []permissions.Operation{
+		{Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionRead},
+		{Tool: "browser", Resource: permissions.ResourceFile, Action: permissions.ActionCreate},
+	}}
+	runtime := &toolmocks.Runtime{
+		BrowserServiceValue: service, BrowserServiceOK: true,
+		FilePolicyValue: guardrails.FilesystemPolicy{Roots: []string{root}},
+	}
+	definition := Definition(runtime)
+	call := tools.Call{Name: toolName, Input: `{
+		"action":"export_artifact","handle":"artifact_1","path":"external-link/saved.png"
+	}`}
+
+	_, err := definition.ResolvePermission(context.Background(), call)
+	require.NoError(t, err)
+	canonicalExternal, err := filepath.EvalSymlinks(external)
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(canonicalExternal, "saved.png"), service.resolvedRequest.Path)
+	require.Equal(t, permissions.TargetScopeExternal, service.resolvedRequest.TargetScope)
 }
 
 func TestDecodeRequest_IgnoresNullableFieldsFromStrictSchema(t *testing.T) {
@@ -434,9 +517,11 @@ func TestDefinition_RichActionsUseCanonicalFileTargetsAndReturnOnlyArtifactMetad
 	require.NotContains(t, result.Output, "png")
 	require.JSONEq(t, `{
 		"handle":"artifact_screen","kind":"screenshot","name":"","mime_type":"","size":3,
-		"profile":"","session_id":"","source":"","effects":null,"sensitive":false,
 		"created_at":"0001-01-01T00:00:00Z","expires_at":"0001-01-01T00:00:00Z"
 	}`, result.Output)
+	require.NotContains(t, result.Output, "session_id")
+	require.NotContains(t, result.Output, "source")
+	require.NotContains(t, result.Output, "sensitive")
 	require.True(t, service.dispatchedRequest.FullPage)
 }
 

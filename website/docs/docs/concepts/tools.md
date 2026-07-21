@@ -38,6 +38,8 @@ Morph registers its built-in tools when the daemon prepares a profile's environm
 - **Utility / planning**: `time` and `plan_tool`.
 - **Automation**: an owner-only `automation` tool for creating and managing scheduled jobs conversationally. See
   [Automation](./automation).
+- **Browser**: one action-oriented `browser` tool for managed browsing, interaction, screenshots, PDFs, downloads,
+  and artifact export. It appears only when browser capability and runtime configuration allow it.
 
 Not all of these are present in every turn. The filesystem, shell, session-history, planning, and `time` tools are
 always registered; the web and memory tools are only registered when their subsystem is configured and enabled (see
@@ -108,6 +110,27 @@ Tool activity is streamed, not hidden. The `tool.invocation.started` and `tool.i
 [RPC](./daemon-and-rpc) to clients, and the TUI renders them inline so you can watch which tools run and what they
 return. The non-interactive CLI path does not render these trace events. The same tool events are also persisted to a
 session's timeline. See [Trace Events](../reference/trace-events).
+
+### Browser artifacts
+
+Screenshots, PDFs, and downloads return safe metadata plus a temporary artifact handle. The model does not receive the
+private backing path or raw bytes.
+
+The TUI shows the artifact name, size, remaining retention, and two controls:
+
+- **Open** retrieves the artifact on demand into a private temporary file and opens it with the operating system's
+  default application.
+- **Save As** retrieves it on demand and writes it to the selected destination without replacing an existing file.
+
+The keyboard equivalents are `/artifact open` and `/artifact save` for the most recent artifact. Supply a handle to
+operate on an earlier artifact in the transcript.
+
+The model can save an artifact with the browser tool's `export_artifact` action. That action requires the handle and a
+destination path. Morph authorizes both the artifact read and destination file creation before writing anything. Tool
+results include the safe destination path so the model can tell the user where the file was saved.
+
+Artifact handles stop working after their configured retention period. An expired, inaccessible, or differently owned
+artifact fails closed. Internal `.bin` storage paths are implementation details and should not be copied or exposed.
 
 ## Adding a Tool
 

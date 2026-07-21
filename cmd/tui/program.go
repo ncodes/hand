@@ -26,6 +26,7 @@ type tuiClient interface {
 	rpcclient.ChatAPI
 	SessionAPI() rpcclient.SessionAPI
 	ModelAPI() rpcclient.ModelAPI
+	BrowserAPI() rpcclient.BrowserAPI
 	Close() error
 }
 

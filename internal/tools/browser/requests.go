@@ -34,6 +34,7 @@ type request struct {
 	TabID       string                      `json:"tab_id,omitempty"`
 	URL         string                      `json:"url,omitempty"`
 	Path        string                      `json:"path,omitempty"`
+	Handle      string                      `json:"handle,omitempty"`
 	Ref         string                      `json:"ref,omitempty"`
 	Text        string                      `json:"text,omitempty"`
 	Value       string                      `json:"value,omitempty"`
@@ -90,6 +91,9 @@ var requestSpecs = map[browserdomain.Action]requestSpec{
 	browserdomain.ActionSelect:   tabValueRequestSpec("ref", "value"),
 	browserdomain.ActionUpload:   tabValueRequestSpec("ref", "path"),
 	browserdomain.ActionDownload: tabValueRequestSpec("ref"),
+	browserdomain.ActionExportArtifact: {
+		allowed: []string{"action", "handle", "path"}, required: []string{"action", "handle", "path"},
+	},
 	browserdomain.ActionAcceptDialog: {
 		allowed:  []string{"action", "session_id", "tab_id", "ref", "text"},
 		required: []string{"action", "session_id", "tab_id", "ref"},
@@ -211,6 +215,7 @@ func checkStringLengths(value request) error {
 		{name: "tab_id", value: value.TabID, limit: maxBrowserIDLength},
 		{name: "url", value: value.URL, limit: maxBrowserURLLength},
 		{name: "path", value: value.Path, limit: maxBrowserURLLength},
+		{name: "handle", value: value.Handle, limit: maxBrowserIDLength},
 		{name: "ref", value: value.Ref, limit: maxBrowserRefLength},
 		{name: "text", value: value.Text, limit: maxBrowserTextLength},
 		{name: "value", value: value.Value, limit: maxBrowserValueLength},
@@ -244,6 +249,8 @@ func getNonEmptyFields(action browserdomain.Action) []string {
 		return []string{"session_id", "tab_id", "ref", "path"}
 	case browserdomain.ActionDownload, browserdomain.ActionAcceptDialog, browserdomain.ActionDismissDialog:
 		return []string{"session_id", "tab_id", "ref"}
+	case browserdomain.ActionExportArtifact:
+		return []string{"handle", "path"}
 	case browserdomain.ActionPress:
 		return []string{"session_id", "tab_id", "key"}
 	case browserdomain.ActionScroll, browserdomain.ActionWait:
@@ -265,6 +272,8 @@ func getStringField(value request, name string) string {
 		return value.Ref
 	case "path":
 		return value.Path
+	case "handle":
+		return value.Handle
 	case "key":
 		return value.Key
 	default:
@@ -275,7 +284,7 @@ func getStringField(value request, name string) string {
 func actionRequestFromRequest(r request) browserdomain.ActionRequest {
 	return browserdomain.ActionRequest{
 		Profile: r.Profile, SessionID: r.SessionID, TabID: r.TabID, URL: r.URL, Ref: r.Ref,
-		Path: r.Path, FileTarget: r.fileTarget, TargetScope: r.targetScope,
+		Path: r.Path, Handle: r.Handle, FileTarget: r.fileTarget, TargetScope: r.targetScope,
 		Text: r.Text, Value: r.Value, Key: r.Key, X: r.X, Y: r.Y, Limit: r.Limit,
 		Condition: r.Condition, Timeout: time.Duration(r.TimeoutMS) * time.Millisecond,
 		Replace: r.Replace, FullPage: r.FullPage,
@@ -283,17 +292,29 @@ func actionRequestFromRequest(r request) browserdomain.ActionRequest {
 }
 
 func prepareRequest(runtime envtypes.Runtime, value request) (request, error) {
-	if value.Action != browserdomain.ActionUpload {
+	if value.Action != browserdomain.ActionUpload && value.Action != browserdomain.ActionExportArtifact {
 		return value, nil
 	}
 	policy := common.FilesystemPolicyFromRuntime(runtime)
 	resolved, err := policy.ResolveUnrestricted(value.Path)
 	if err != nil {
-		return request{}, getUploadPreparationError(err)
+		return request{}, getFilePreparationError(value.Action, err)
+	}
+	if value.Action == browserdomain.ActionExportArtifact {
+		value.Path, err = browserdomain.ResolveArtifactExportPath(resolved.Absolute)
+		if err != nil {
+			return request{}, getFilePreparationError(value.Action, err)
+		}
+		value.fileTarget = filepath.ToSlash(value.Path)
+		value.targetScope = permissions.TargetScopeExternal
+		if isBrowserExportWithinCanonicalRoot(resolved.Root, value.Path) {
+			value.targetScope = permissions.TargetScopeWorkspace
+		}
+		return value, nil
 	}
 	info, err := os.Lstat(resolved.Absolute)
 	if err != nil {
-		return request{}, getUploadPreparationError(err)
+		return request{}, getFilePreparationError(value.Action, err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
 		return request{}, errors.New("browser upload source must not be a symbolic link or junction")
@@ -311,6 +332,18 @@ func prepareRequest(runtime envtypes.Runtime, value request) (request, error) {
 	return value, nil
 }
 
+func isBrowserExportWithinCanonicalRoot(root string, path string) bool {
+	if root == "" {
+		return false
+	}
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return false
+	}
+	relative, err := filepath.Rel(canonicalRoot, path)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
 func getUploadPreparationError(err error) error {
 	if os.IsNotExist(err) {
 		return tools.NewPermissionResolutionError("browser_upload_not_found", "browser upload source was not found")
@@ -319,4 +352,11 @@ func getUploadPreparationError(err error) error {
 		return tools.NewPermissionResolutionError("browser_upload_unavailable", "browser upload source is not accessible")
 	}
 	return tools.NewPermissionResolutionError("browser_upload_invalid", "browser upload source is invalid")
+}
+
+func getFilePreparationError(action browserdomain.Action, err error) error {
+	if action == browserdomain.ActionUpload {
+		return getUploadPreparationError(err)
+	}
+	return tools.NewPermissionResolutionError("browser_export_invalid", "browser export destination is invalid")
 }

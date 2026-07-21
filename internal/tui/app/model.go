@@ -33,15 +33,19 @@ type model struct {
 	nameInput        textinput.Model
 	renameInput      textinput.Model
 	tuiState
-	chatClient       rpcclient.ChatAPI
-	sessionClient    rpcclient.SessionAPI
-	modelClient      rpcclient.ModelAPI
-	permissionClient rpcclient.PermissionAPI
-	timeline         sessionTimelineLoader
-	title            sessionTitleLoader
-	contextLoader    sessionContextLoader
-	chatCtx          context.Context
-	events           <-chan tea.Msg
+	chatClient        rpcclient.ChatAPI
+	sessionClient     rpcclient.SessionAPI
+	modelClient       rpcclient.ModelAPI
+	permissionClient  rpcclient.PermissionAPI
+	browserClient     rpcclient.BrowserAPI
+	artifactPathInput textinput.Model
+	pendingArtifact   browserArtifact
+	artifactCopies    map[string]browserArtifactCopy
+	timeline          sessionTimelineLoader
+	title             sessionTitleLoader
+	contextLoader     sessionContextLoader
+	chatCtx           context.Context
+	events            <-chan tea.Msg
 }
 
 // newModel builds the initial TUI state and sizes child components.
@@ -75,16 +79,18 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	runtimeInfo := runtimeInfoFromConfig(cfg)
 	activeProfile := profile.WithMetadataPaths(profile.Active())
 	appModel := model{
-		transcript:       newTranscript(),
-		input:            newInputComposer(),
-		apiKeyInput:      newProviderAPIKeyInput("API key"),
-		baseURLInput:     newSetupBaseURLInput(),
-		modelFilterInput: newModelFilterInput(),
-		nameInput:        newNameInput(),
-		renameInput:      newChatRenameInput(),
-		tuiState:         newTUIState(history, cfg.TUIThinkingComposerEnabled()),
-		chatClient:       client,
-		chatCtx:          ctx,
+		transcript:        newTranscript(),
+		input:             newInputComposer(),
+		apiKeyInput:       newProviderAPIKeyInput("API key"),
+		baseURLInput:      newSetupBaseURLInput(),
+		modelFilterInput:  newModelFilterInput(),
+		nameInput:         newNameInput(),
+		renameInput:       newChatRenameInput(),
+		artifactPathInput: newArtifactPathInput(),
+		tuiState:          newTUIState(history, cfg.TUIThinkingComposerEnabled()),
+		chatClient:        client,
+		chatCtx:           ctx,
+		artifactCopies:    make(map[string]browserArtifactCopy),
 	}
 	appModel.configEnvPath = activeProfile.EnvPath
 	appModel.configPath = activeProfile.ConfigPath
@@ -119,6 +125,12 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 		PermissionAPI() rpcclient.PermissionAPI
 	}); ok {
 		appModel.permissionClient = provider.PermissionAPI()
+	}
+	if browserClient, ok := client.(rpcclient.BrowserAPI); ok {
+		appModel.browserClient = browserClient
+	}
+	if provider, ok := client.(interface{ BrowserAPI() rpcclient.BrowserAPI }); ok {
+		appModel.browserClient = provider.BrowserAPI()
 	}
 	if timeline, ok := appModel.sessionClient.(sessionTimelineLoader); ok {
 		appModel.timeline = timeline

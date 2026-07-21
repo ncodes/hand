@@ -388,6 +388,7 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 		result := rpcToolInvocationCompletedPayload{
 			ToolCallID: toolCallIDValue.Trim(),
 			Name:       nameValue2.Trim(),
+			Content:    getRPCSafeToolResult(toolPayload.Name, toolPayload.Content),
 			Failed:     toolPayload.Failed,
 		}
 		result.PlanState = toolPayload.PlanState
@@ -529,9 +530,34 @@ func (p rpcToolInvocationStartedPayload) hasData() bool {
 type rpcToolInvocationCompletedPayload struct {
 	ToolCallID   string                  `json:"tool_call_id,omitempty"`
 	Name         string                  `json:"name,omitempty"`
+	Content      string                  `json:"content,omitempty"`
 	Failed       bool                    `json:"failed,omitempty"`
 	PlanState    *trace.PlanToolState    `json:"plan_state,omitempty"`
 	ProcessState *trace.ProcessToolState `json:"process_state,omitempty"`
+}
+
+func getRPCSafeToolResult(name string, content string) string {
+	if str.String(name).Normalized() != "browser" {
+		return ""
+	}
+	var artifact struct {
+		Handle    string               `json:"handle"`
+		Kind      browser.ArtifactKind `json:"kind"`
+		Name      string               `json:"name"`
+		MIMEType  string               `json:"mime_type"`
+		Size      int64                `json:"size"`
+		CreatedAt time.Time            `json:"created_at"`
+		ExpiresAt time.Time            `json:"expires_at"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(content)), &artifact); err != nil ||
+		strings.TrimSpace(artifact.Handle) == "" || artifact.Kind == "" || artifact.Size < 0 {
+		return ""
+	}
+	encoded, err := json.Marshal(artifact)
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
 }
 
 func (p rpcToolInvocationCompletedPayload) hasData() bool {

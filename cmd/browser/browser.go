@@ -12,6 +12,7 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
+	browserdomain "github.com/wandxy/morph/internal/browser"
 	morphcli "github.com/wandxy/morph/internal/cli"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/permissions"
@@ -63,10 +64,81 @@ func NewCommand() *cli.Command {
 			newStopCommand(),
 			newConfigCommand(),
 			newAuthCommand(),
+			newArtifactCommand(),
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return cli.ShowSubcommandHelp(cmd)
 		},
+	}
+}
+
+func newArtifactCommand() *cli.Command {
+	return &cli.Command{
+		Name: "artifact", Usage: "Retrieve browser artifacts",
+		Commands: []*cli.Command{newArtifactGetCommand()},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			return cli.ShowSubcommandHelp(cmd)
+		},
+	}
+}
+
+func newArtifactGetCommand() *cli.Command {
+	return &cli.Command{
+		Name: "get", Usage: "Save an artifact to a local file", ArgsUsage: "<handle>",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Required: true, Usage: "Destination file path"},
+			&cli.StringFlag{Name: "owner-session", Value: defaultOwnerSessionID, Usage: "Owner session identity"},
+			&cli.StringFlag{Name: "run-id", Usage: "Owner run identity"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			handle := str.String(cmd.Args().First()).Trim()
+			if handle == "" {
+				return errors.New("browser artifact handle is required")
+			}
+			api, closeClient, err := getBrowserAPI(ctx, cmd)
+			if err != nil {
+				return err
+			}
+			defer closeClient()
+			content, err := api.ReadArtifact(ctx, handle, cmd.String("owner-session"), cmd.String("run-id"))
+			if err != nil {
+				return err
+			}
+			destination, err := browserdomain.ResolveArtifactExportPath(cmd.String("output"))
+			if err != nil {
+				return err
+			}
+			if err := browserdomain.WriteArtifactExport(destination, content.Data); err != nil {
+				return err
+			}
+			if cmd.Bool("json") {
+				return writeJSON(newArtifactGetResult(content.Artifact, destination))
+			}
+
+			_, err = fmt.Fprintf(
+				browserOutput, "saved %s to %s (%d bytes, expires %s)\n",
+				content.Artifact.Name, destination, content.Artifact.Size, formatTime(content.Artifact.ExpiresAt),
+			)
+			return err
+		},
+	}
+}
+
+type artifactGetResult struct {
+	Handle    string                     `json:"handle"`
+	Kind      browserdomain.ArtifactKind `json:"kind"`
+	Name      string                     `json:"name"`
+	MIMEType  string                     `json:"mime_type"`
+	Size      int64                      `json:"size"`
+	CreatedAt time.Time                  `json:"created_at"`
+	ExpiresAt time.Time                  `json:"expires_at"`
+	SavedTo   string                     `json:"saved_to"`
+}
+
+func newArtifactGetResult(artifact browserdomain.Artifact, destination string) artifactGetResult {
+	return artifactGetResult{
+		Handle: artifact.Handle, Kind: artifact.Kind, Name: artifact.Name, MIMEType: artifact.MIMEType,
+		Size: artifact.Size, CreatedAt: artifact.CreatedAt, ExpiresAt: artifact.ExpiresAt, SavedTo: destination,
 	}
 }
 

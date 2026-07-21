@@ -240,7 +240,24 @@ Examples include:
 - download;
 - other bounded binary evidence.
 
-The model receives safe metadata and an artifact handle rather than raw bytes or an unrestricted local path.
+The model receives safe metadata and a temporary artifact handle rather than raw bytes or an unrestricted local path.
+The handle remains bound to the artifact owner and retention window.
+
+There are three authorized presentation paths:
+
+- The TUI can retrieve an image on demand, open a private temporary copy, or save it to a selected destination.
+- The CLI can stream an owned artifact with `morph browser artifact get <handle> --output <path>`.
+- The model can call `export_artifact` with a handle and destination path.
+
+All three paths reuse the browser artifact-read check. Saving also resolves and authorizes an exact file-create
+operation. Existing destination files are never replaced, and backing `.bin` paths remain private implementation
+details.
+
+Export prefers an atomic hard-link publish and falls back to exclusive creation only when the operating system reports
+that hard links are unambiguously unsupported. Some Linux filesystems report `EPERM` for both unsupported hard links
+and real permission failures. Morph deliberately fails closed there instead of treating a permission denial as safe
+fallback permission; exporting to those mounts may require choosing a different destination and copying the saved file
+with an operator-controlled command.
 
 ### 6.8 Admission receipt
 
@@ -547,6 +564,7 @@ Browser code must not create a separate policy language.
 | Open or navigate | `browser + update` | `read`, `write`, `network`, `external_system` | `network + read` |
 | Click, type, press, select, dialog response | `browser + update` | `write`, `network`, `external_system` | Actual network operation when one occurs |
 | Screenshot or PDF | `browser + create` | `read`, `write` | Internal artifact creation |
+| Export artifact | `browser + read`, `file + create` | Inherited artifact effects plus `write` | Exact artifact handle and canonical destination |
 | Download | `browser + create` | `read`, `write` | `network + create` |
 | Upload | `browser + update` | `read`, `write`, `external_system` | `file + read` |
 | Remote or personal attach | `browser + connect` | `network`, `credential_bearing`, `external_system` | `network + connect` and owner requirement |
@@ -878,6 +896,28 @@ Each artifact carries immutable labels:
 
 Retrieval and export cannot lower these labels. A screenshot from a signed-in profile does not become an ordinary
 low-risk file merely because it is now stored locally.
+
+Capture and export are separate operations. Capture writes only to Morph's bounded private store and returns a handle.
+Retrieval or export later rechecks the artifact owner, expiry, effects, and sensitivity. Export also checks the
+canonical destination and creates it with private permissions. It uses a temporary file and no-replace publication so
+failure does not leave a partial destination and an existing file is not silently overwritten.
+
+The TUI does not fetch artifact bytes merely to render the transcript. **Open** and **Save As** fetch on demand through
+the authenticated BrowserService. Opened copies live in private temporary directories and are reused until expiry,
+then removed on expiry, session change, or TUI exit, including signal-driven Bubble Tea shutdown. The server's
+single-artifact size limit bounds each copy, and the TUI keeps at most one cached copy per artifact handle. Saved copies
+belong to the user and are not removed by artifact retention cleanup.
+
+The CLI equivalent is:
+
+```bash
+morph browser artifact get artifact_abc123 \
+  --owner-session default \
+  --output ~/Desktop/screenshot.png
+```
+
+The model-facing equivalent is the `export_artifact` browser action. Its result reports `saved_to`, allowing the model
+to state the usable destination without learning Morph's backing artifact path.
 
 Quotas apply at multiple levels:
 

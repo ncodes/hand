@@ -458,6 +458,13 @@ func mergeToolTranscriptCells(existing toolTranscriptCell, completed toolTranscr
 	}
 	merged.completed = completed.completed
 	merged.terminalStatus = completed.terminalStatus
+	if completed.hasArtifact {
+		merged.artifact = completed.artifact
+		merged.hasArtifact = true
+	}
+	if completed.artifactStatus != "" {
+		merged.artifactStatus = completed.artifactStatus
+	}
 
 	return merged
 }

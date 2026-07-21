@@ -116,18 +116,37 @@ func (s *BrowserService) ReadArtifact(
 		return browser.ArtifactContent{}, err
 	}
 	var content browser.ArtifactContent
+	metadataReceived := false
 	for {
 		response, recvErr := stream.Recv()
 		if errors.Is(recvErr, io.EOF) {
+			if !metadataReceived {
+				return browser.ArtifactContent{}, errors.New("morph: browser artifact stream is missing metadata")
+			}
+			if content.Artifact.Handle != handle {
+				return browser.ArtifactContent{}, errors.New("morph: browser artifact stream handle does not match the request")
+			}
+			if content.Artifact.Size < 0 || int64(len(content.Data)) != content.Artifact.Size {
+				return browser.ArtifactContent{}, errors.New("morph: browser artifact stream size does not match metadata")
+			}
 			return content, nil
 		}
 		if recvErr != nil {
 			return browser.ArtifactContent{}, recvErr
 		}
 		if response.GetArtifact() != nil {
+			if metadataReceived {
+				return browser.ArtifactContent{}, errors.New("morph: browser artifact stream repeated metadata")
+			}
 			content.Artifact = browserArtifactFromProto(response.GetArtifact())
+			metadataReceived = true
+		} else if !metadataReceived {
+			return browser.ArtifactContent{}, errors.New("morph: browser artifact stream data arrived before metadata")
 		}
 		content.Data = append(content.Data, response.GetData()...)
+		if content.Artifact.Size >= 0 && int64(len(content.Data)) > content.Artifact.Size {
+			return browser.ArtifactContent{}, errors.New("morph: browser artifact stream exceeds metadata size")
+		}
 	}
 }
 

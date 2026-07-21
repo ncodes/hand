@@ -143,6 +143,7 @@ Full flag and enum reference: [Automation Reference](./automation). Walkthrough:
 | `browser sessions` | `morph browser sessions [--json]` | Active and terminal runtime sessions |
 | `browser start` | `morph browser start [profile] [--owner-session ID]` | Start an owned browser session |
 | `browser stop` | `morph browser stop <session-id> [--owner-session ID]` | Stop an owned browser session |
+| `browser artifact get` | `morph browser artifact get <handle> --output <path> [--owner-session ID]` | Save an owned artifact without replacing an existing file |
 | `browser config` | `morph browser config [--json]` | Effective enablement, network, and permission posture |
 | `browser auth rotate` | `morph browser auth rotate [--json]` | Replace the profile owner credential; restart the daemon, reconnect clients, and reapprove browser attachments |
 
@@ -151,6 +152,31 @@ owner authority. Enabling the service and Browser capability makes the tool elig
 and configured rules still authorize each browser operation. If the profile owner credential changes while the daemon
 is running, restart the daemon before retrying the command so both processes load the same credential. Rotation also
 changes the private attachment identity key, so existing remote and personal-browser attachment grants no longer match.
+
+Browser artifact handles are temporary and owner-bound. For an artifact created in a chat or automation session, pass
+the session that owns it:
+
+```bash
+morph browser artifact get artifact_abc123 \
+  --owner-session default \
+  --output ~/Desktop/screenshot.png
+```
+
+An artifact captured by a browser CLI operation uses the CLI owner session by default:
+
+```bash
+morph browser artifact get artifact_abc123 --output ~/Desktop/screenshot.png
+```
+
+The command streams bytes through the authenticated browser RPC, verifies the handle and size, and creates the output
+with private permissions. It does not overwrite an existing file. Use `--json` for safe metadata and `saved_to` output.
+
+If retrieval fails, check these conditions:
+
+- **Expired**: capture the artifact again or export it before its retention window ends.
+- **Access denied**: pass the chat or automation session that originally captured it with `--owner-session`.
+- **Destination exists**: choose a new output path. The command never replaces an existing file.
+- **Invalid destination**: use an existing parent directory that Morph can resolve to a canonical location.
 
 ### `config`: profile YAML
 
