@@ -282,7 +282,7 @@ func transcriptSelectionAutoScrollTickCmd() tea.Cmd {
 func (m *model) restoreTranscriptContentAfterSelection() {
 	offset := m.transcript.YOffset()
 	m.clearTranscriptSelection()
-	m.transcript.SetContent(m.renderTranscriptContent())
+	m.renderTranscriptIntoViewport()
 	m.transcript.SetYOffset(offset)
 }
 

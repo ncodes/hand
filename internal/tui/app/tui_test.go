@@ -2624,6 +2624,12 @@ func TestLoadSessionTitleCmdReturnsLoadedTitle(t *testing.T) {
 
 func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 	runModel := newModel()
+	oldCell := assistantTranscriptCell{text: "stale answer"}
+	runModel.messages = []transcriptCell{oldCell}
+	runModel.setTranscriptContent()
+	oldCacheKey := getTranscriptCellRenderCacheKeyForModel(&runModel, oldCell)
+	_, oldCellCached := runModel.transcriptCache.get(oldCacheKey)
+	require.True(t, oldCellCached)
 	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
 	originalTime := currentTime
 	currentTime = func() time.Time { return now }
@@ -2658,6 +2664,8 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 	require.Equal(t, "Daily Planning (default)", runModel.sessionTitle)
 	require.Contains(t, transcriptCellPlainTexts(runModel.messages), "Automatic compaction completed")
 	require.Contains(t, stripANSI(runModel.View().Content), "Automatic compaction completed")
+	_, oldCellCached = runModel.transcriptCache.get(oldCacheKey)
+	require.False(t, oldCellCached)
 	require.Equal(t, defaultStatus, runModel.status.Text())
 }
 
@@ -5759,9 +5767,9 @@ func TestWaitForResponseEventReturnsQueuedAndClosedMessages(t *testing.T) {
 
 	msg := waitForResponseEvent(9, events)()
 
-	require.Equal(t, responseEventMsg{
+	require.Equal(t, responseEventBatchMsg{
 		ResponseID: 9,
-		Message:    sessionErrorMsg{Message: "failed"},
+		Messages:   []tea.Msg{sessionErrorMsg{Message: "failed"}},
 	}, msg)
 
 	close(events)

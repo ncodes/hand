@@ -24,6 +24,9 @@ func TestModel_UpdateHandlesNewChatCommand(t *testing.T) {
 	runModel.stream.Add("streaming")
 	runModel.input.SetValue("/new-chat")
 	runModel.setTranscriptContent()
+	oldCacheKey := getTranscriptCellRenderCacheKeyForModel(&runModel, assistantTranscriptCell{text: "old transcript"})
+	_, oldCellCached := runModel.transcriptCache.get(oldCacheKey)
+	require.True(t, oldCellCached)
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
@@ -48,6 +51,8 @@ func TestModel_UpdateHandlesNewChatCommand(t *testing.T) {
 	require.False(t, runModel.responding)
 	require.False(t, runModel.showIntro)
 	require.Equal(t, "new chat created", runModel.status.Text())
+	_, oldCellCached = runModel.transcriptCache.get(oldCacheKey)
+	require.False(t, oldCellCached)
 
 	_ = sessionContextLoadedMessageFromBatch(t, cmd)
 	require.Equal(t, "session-new", client.contextSessionID)

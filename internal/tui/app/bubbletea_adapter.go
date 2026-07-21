@@ -48,6 +48,9 @@ func (m model) handleLifecycleMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case toolAnimationTickMsg:
 		next, cmd := m.updateToolAnimation()
 		return next, cmd, true
+	case streamingTranscriptFlushMsg:
+		next, cmd := m.flushStreamingTranscript(msg)
+		return next, cmd, true
 	case thinkingComposerTickMsg:
 		next, cmd := m.updateThinkingComposer()
 		return next, cmd, true
@@ -76,6 +79,9 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case responseEventMsg:
 		next, cmd := m.handleResponseEvent(msg)
 		return next, cmd, true
+	case responseEventBatchMsg:
+		next, cmd := m.handleResponseEventBatch(msg)
+		return next, cmd, true
 	case responseEventsClosedMsg:
 		cmd := m.handleResponseEventsClosed(msg)
 		return m, cmd, true
@@ -85,6 +91,7 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case sessionTimelineLoadedMsg:
 		m.chatSwitching = false
 		m.cleanupBrowserArtifactCopies()
+		m.transcriptCache.clear()
 		next, cmd := m.handleAppEvent(hydrateTimelineEvent{Timeline: msg.Timeline})
 		return next, cmd, true
 	case sessionTimelineLoadFailedMsg:
@@ -306,24 +313,70 @@ func (m model) handleTerminalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 }
 
 func (m model) handleResponseEvent(msg responseEventMsg) (tea.Model, tea.Cmd) {
+	return m.handleResponseEventBatch(responseEventBatchMsg{
+		ResponseID: msg.ResponseID,
+		Messages:   []tea.Msg{msg.Message},
+	})
+}
+
+func (m model) handleResponseEventBatch(msg responseEventBatchMsg) (tea.Model, tea.Cmd) {
 	if !m.isActiveResponse(msg.ResponseID) {
 		return m, nil
 	}
-	if _, ok := msg.Message.(sessionErrorMsg); ok {
-		if m.events != nil {
-			return m, waitForResponseEvent(msg.ResponseID, m.events)
+
+	m.beginTranscriptUpdate()
+	commands := make([]tea.Cmd, 0, len(msg.Messages)+2)
+	for _, event := range msg.Messages {
+		if _, ok := event.(sessionErrorMsg); ok {
+			continue
 		}
 
-		return m, nil
+		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: event})
+		m = next
+		if cmd != nil {
+			commands = append(commands, cmd)
+		}
+	}
+	completionPending := msg.Closed && m.pendingResponseCompletion != nil
+	if completionPending {
+		m.transcriptRenderSuppressed = false
+		m.transcriptRenderPending = false
+		m.transcriptResizePending = false
+	} else {
+		var flushCmd tea.Cmd
+		if isStreamingResponseBatch(msg.Messages) {
+			flushCmd = m.finishStreamingTranscriptUpdate(msg.ResponseID)
+		} else {
+			m.finishTranscriptUpdate()
+		}
+		if flushCmd != nil {
+			commands = append(commands, flushCmd)
+		}
 	}
 
-	next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg.Message})
-	m = next
-	if m.events != nil {
-		cmd = tea.Batch(cmd, waitForResponseEvent(msg.ResponseID, m.events))
+	if msg.Closed {
+		if cmd := m.handleResponseEventsClosed(responseEventsClosedMsg{ResponseID: msg.ResponseID}); cmd != nil {
+			commands = append(commands, cmd)
+		}
+	} else if m.events != nil {
+		commands = append(commands, waitForResponseEvent(msg.ResponseID, m.events))
 	}
 
-	return m, cmd
+	return m, tea.Batch(commands...)
+}
+
+func isStreamingResponseBatch(messages []tea.Msg) bool {
+	if len(messages) == 0 {
+		return false
+	}
+
+	for _, message := range messages {
+		if _, ok := message.(assistantTextDeltaMsg); !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (m model) handlePasteMsg(msg tea.PasteMsg) (tea.Model, tea.Cmd) {

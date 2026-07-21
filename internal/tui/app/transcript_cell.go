@@ -29,6 +29,7 @@ type transcriptRenderContext struct {
 	Width int
 	Frame int
 	Now   time.Time
+	Cache *transcriptRenderCache
 }
 
 type transcriptCell interface {
@@ -250,6 +251,16 @@ func renderTranscriptCellsWithWidth(cells []transcriptCell, width int) string {
 
 func renderTranscriptCellsWithFrame(cells []transcriptCell, width int, frame int) string {
 	ctx := transcriptRenderContext{Width: width, Frame: frame, Now: currentTime()}
+	return defaultTranscriptRenderer.RenderCells(cells, ctx)
+}
+
+func renderTranscriptCellsWithFrameAndCache(
+	cells []transcriptCell,
+	width int,
+	frame int,
+	cache *transcriptRenderCache,
+) string {
+	ctx := transcriptRenderContext{Width: width, Frame: frame, Now: currentTime(), Cache: cache}
 	return defaultTranscriptRenderer.RenderCells(cells, ctx)
 }
 
@@ -481,10 +492,28 @@ func flushToolTranscriptGroupWithContext(
 		return
 	}
 
-	if cell := renderToolTranscriptGroupWithContext(**group, ctx); cell != "" {
+	if cell := renderCachedToolTranscriptGroup(**group, ctx); cell != "" {
 		*rendered = append(*rendered, cell)
 	}
 	*group = nil
+}
+
+func renderCachedToolTranscriptGroup(group toolTranscriptGroup, ctx transcriptRenderContext) string {
+	if ctx.Cache == nil || isToolTranscriptGroupFrameAnimated(group) {
+		return renderToolTranscriptGroupWithContext(group, ctx)
+	}
+
+	key, ok := getToolTranscriptGroupRenderCacheKey(group, ctx)
+	if !ok {
+		return renderToolTranscriptGroupWithContext(group, ctx)
+	}
+	if rendered, ok := ctx.Cache.get(key); ok {
+		return rendered
+	}
+
+	rendered := renderToolTranscriptGroupWithContext(group, ctx)
+	ctx.Cache.set(key, rendered)
+	return rendered
 }
 
 func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {

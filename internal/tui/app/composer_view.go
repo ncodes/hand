@@ -8,6 +8,16 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+type transcriptLayoutState struct {
+	width             int
+	height            int
+	inputHeight       int
+	commandView       bool
+	commandViewHeight int
+	namePrompt        bool
+	profileSetup      bool
+}
+
 const (
 	inputFrameHorizontalPadding = 1
 	inputFrameVerticalPadding   = 0
@@ -99,6 +109,12 @@ func (m model) getInputFrameBorderColor() string {
 
 // resize distributes terminal rows between transcript and composer.
 func (m *model) resize() {
+	if m.transcriptRenderSuppressed {
+		m.transcriptResizePending = true
+		return
+	}
+	m.transcriptResizes++
+
 	wasAtBottom := m.transcript.AtBottom()
 
 	width := m.getMainPaneWidth()
@@ -106,6 +122,7 @@ func (m *model) resize() {
 	if m.shouldShowNamePrompt() || m.shouldShowProfileModelSetup() {
 		m.transcript.SetWidth(width)
 		m.transcript.SetHeight(max(m.height, 1))
+		m.transcriptLayout = m.getTranscriptLayoutState()
 		if wasAtBottom {
 			m.transcript.GotoBottom()
 		}
@@ -118,8 +135,29 @@ func (m *model) resize() {
 	m.input.SetHeight(inputHeight)
 	m.transcript.SetWidth(layout.Composer.Width)
 	m.transcript.SetHeight(layout.Transcript.Height)
+	m.transcriptLayout = m.getTranscriptLayoutState()
 	if wasAtBottom {
 		m.transcript.GotoBottom()
+	}
+}
+
+func (m *model) resizeTranscriptIfLayoutChanged() {
+	if m.transcriptLayout == m.getTranscriptLayoutState() {
+		return
+	}
+
+	m.resize()
+}
+
+func (m model) getTranscriptLayoutState() transcriptLayoutState {
+	return transcriptLayoutState{
+		width:             m.width,
+		height:            m.height,
+		inputHeight:       m.getInputHeight(),
+		commandView:       m.isCommandViewVisible(),
+		commandViewHeight: m.commandView.Height,
+		namePrompt:        m.shouldShowNamePrompt(),
+		profileSetup:      m.shouldShowProfileModelSetup(),
 	}
 }
 

@@ -35,6 +35,7 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 		cmd = m.startChatsCommand()
 	case "clear":
 		m.applyAction(clearTranscriptAction{})
+		m.transcriptCache.clear()
 		cmd = m.setStatus("transcript cleared")
 	case "compact":
 		cmd = m.startCompactSession()

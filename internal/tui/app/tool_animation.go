@@ -37,7 +37,7 @@ func (m *model) updateToolAnimation() (tea.Model, tea.Cmd) {
 			m.setTranscriptContentForActiveTurn()
 		}
 	}
-	m.resize()
+	m.resizeTranscriptIfLayoutChanged()
 
 	return *m, toolAnimationTickCmd()
 }

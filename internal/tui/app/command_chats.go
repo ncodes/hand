@@ -833,9 +833,7 @@ func (m *model) selectChatsCommandSession() (tea.Model, tea.Cmd) {
 	if m.sessionClient == nil || !ok {
 		return *m, m.setStatus("chat switch unavailable")
 	}
-	if m.responseCancel != nil {
-		m.responseCancel()
-	}
+	m.cancelResponseAndDrainEvents()
 	m.resetResponseState()
 	m.chatSwitching = true
 

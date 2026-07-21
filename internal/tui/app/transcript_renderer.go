@@ -188,13 +188,28 @@ func (renderer lipglossTranscriptRenderer) RenderCells(cells []transcriptCell, c
 		}
 
 		flushToolTranscriptGroupWithContext(&rendered, &toolGroup, ctx)
-		if renderedCell := renderer.RenderCell(cell, ctx); renderedCell != "" {
+		if renderedCell := renderer.renderCell(cell, ctx); renderedCell != "" {
 			rendered = append(rendered, renderedCell)
 		}
 	}
 	flushToolTranscriptGroupWithContext(&rendered, &toolGroup, ctx)
 
 	return strings.Join(rendered, "\n\n")
+}
+
+func (renderer lipglossTranscriptRenderer) renderCell(cell transcriptCell, ctx transcriptRenderContext) string {
+	if ctx.Cache == nil || !isTranscriptCellIdentityCacheable(cell) || isTranscriptCellFrameAnimated(cell) {
+		return renderer.RenderCell(cell, ctx)
+	}
+
+	key := getTranscriptCellRenderCacheKey(cell, ctx)
+	if rendered, ok := ctx.Cache.get(key); ok {
+		return rendered
+	}
+
+	rendered := renderer.RenderCell(cell, ctx)
+	ctx.Cache.set(key, rendered)
+	return rendered
 }
 
 func compactMatchedToolTranscriptCells(cells []transcriptCell) []transcriptCell {

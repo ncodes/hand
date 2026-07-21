@@ -46,6 +46,10 @@ type model struct {
 	contextLoader     sessionContextLoader
 	chatCtx           context.Context
 	events            <-chan tea.Msg
+	transcriptCache   *transcriptRenderCache
+	transcriptLayout  transcriptLayoutState
+	transcriptRenders uint64
+	transcriptResizes uint64
 }
 
 // newModel builds the initial TUI state and sizes child components.
@@ -91,6 +95,7 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 		chatClient:        client,
 		chatCtx:           ctx,
 		artifactCopies:    make(map[string]browserArtifactCopy),
+		transcriptCache:   newTranscriptRenderCache(defaultTranscriptRenderCacheCapacity),
 	}
 	appModel.configEnvPath = activeProfile.EnvPath
 	appModel.configPath = activeProfile.ConfigPath

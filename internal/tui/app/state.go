@@ -58,6 +58,12 @@ type tuiState struct {
 	pendingResponseCompletion  *responseCompletedMsg
 	toolAnimationFrame         int
 	toolAnimationActive        bool
+	transcriptRenderSuppressed bool
+	transcriptRenderPending    bool
+	transcriptResizePending    bool
+	streamingRenderAt          time.Time
+	streamingFlushPending      bool
+	streamingFlushDirty        bool
 	thinkingComposerFrame      int
 	thinkingComposerActive     bool
 	thinkingComposerEnabled    bool

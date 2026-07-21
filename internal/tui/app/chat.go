@@ -16,6 +16,20 @@ type responseEventMsg = tuirpc.ResponseEvent
 type responseEventsClosedMsg = tuirpc.ResponseEventsClosed
 type responseCompletedMsg = tuirpc.ResponseCompleted
 
+const responseEventBatchLimit = 64
+
+var streamingTranscriptRenderInterval = 33 * time.Millisecond
+
+type responseEventBatchMsg struct {
+	ResponseID int
+	Messages   []tea.Msg
+	Closed     bool
+}
+
+type streamingTranscriptFlushMsg struct {
+	ResponseID int
+}
+
 func respondToPromptCmd(
 	client rpcclient.ChatAPI,
 	responseID int,
@@ -60,7 +74,24 @@ func waitForResponseEvent(responseID int, events <-chan tea.Msg) tea.Cmd {
 			return responseEventsClosedMsg{ResponseID: responseID}
 		}
 
-		return responseEventMsg{ResponseID: responseID, Message: msg}
+		batch := responseEventBatchMsg{
+			ResponseID: responseID,
+			Messages:   []tea.Msg{msg},
+		}
+		for len(batch.Messages) < responseEventBatchLimit {
+			select {
+			case next, open := <-events:
+				if !open {
+					batch.Closed = true
+					return batch
+				}
+				batch.Messages = append(batch.Messages, next)
+			default:
+				return batch
+			}
+		}
+
+		return batch
 	}
 }
 
@@ -69,9 +100,7 @@ func (m *model) startResponse(prompt string, followTranscript bool) tea.Cmd {
 		return nil
 	}
 
-	if m.responseCancel != nil {
-		m.responseCancel()
-	}
+	m.cancelResponseAndDrainEvents()
 	responseCtx := m.chatCtx
 	if responseCtx == nil {
 		responseCtx = context.Background()
@@ -156,7 +185,6 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 	m.completeAssistantResponse(msg.Text, m.getCompletedResponseDuration())
 	m.resetResponseState()
 	if shouldFollowTranscript {
-		m.resize()
 		m.transcript.GotoBottom()
 	}
 	return tea.Batch(
@@ -170,13 +198,27 @@ func (m *model) cancelActiveResponse() tea.Cmd {
 		return nil
 	}
 
-	if m.responseCancel != nil {
-		m.responseCancel()
-	}
+	m.cancelResponseAndDrainEvents()
 	m.interruptRunningToolTranscriptCells(currentTime())
 	m.resetResponseState()
 
 	return m.setStatus("response cancelled")
+}
+
+func (m *model) cancelResponseAndDrainEvents() {
+	if m.responseCancel != nil {
+		m.responseCancel()
+	}
+	if m.events == nil {
+		return
+	}
+
+	events := m.events
+	m.events = nil
+	go func() {
+		for range events {
+		}
+	}()
 }
 
 func (m model) getCompletedResponseDuration() time.Duration {

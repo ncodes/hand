@@ -41,7 +41,7 @@ func (m *model) setTranscriptContent() {
 	}
 
 	m.clearTranscriptSelection()
-	m.transcript.SetContent(m.renderTranscriptContent())
+	m.renderTranscriptIntoViewport()
 	m.transcript.GotoBottom()
 }
 
@@ -52,8 +52,16 @@ func (m *model) setTranscriptContentForActiveTurn() {
 
 	offset := m.transcript.YOffset()
 	m.clearTranscriptSelection()
-	m.transcript.SetContent(m.renderTranscriptContent())
+	m.renderTranscriptIntoViewport()
 	m.transcript.SetYOffset(offset)
+}
+
+func (m *model) renderTranscriptIntoViewport() {
+	m.transcript.SetContent(m.renderTranscriptContent())
+	m.transcriptRenders++
+	if m.responding {
+		m.streamingRenderAt = currentTime()
+	}
 }
 
 func (m *model) refreshTranscriptContentAfterResize() {
@@ -64,7 +72,7 @@ func (m *model) refreshTranscriptContentAfterResize() {
 	offset := m.transcript.YOffset()
 	wasAtBottom := m.transcript.AtBottom()
 	m.clearTranscriptSelection()
-	m.transcript.SetContent(m.renderTranscriptContent())
+	m.renderTranscriptIntoViewport()
 	if wasAtBottom {
 		m.transcript.GotoBottom()
 		return
@@ -112,7 +120,7 @@ func (m model) renderTranscriptBodyCells(cells []transcriptCell) string {
 	if contentWidth <= 0 {
 		contentWidth = max(width, 1)
 	}
-	cellsText := renderTranscriptCellsWithFrame(cells, contentWidth, m.toolAnimationFrame)
+	cellsText := renderTranscriptCellsWithFrameAndCache(cells, contentWidth, m.toolAnimationFrame, m.transcriptCache)
 	cellsTextValue := str.String(cellsText)
 	if cellsTextValue.Trim() == "" {
 		return ""
@@ -584,13 +592,79 @@ func (m *model) setTranscriptContentAfterResponseCompletion() {
 }
 
 func (m *model) setTranscriptContentForResponseUpdate() {
-	m.resize()
+	if m.transcriptRenderSuppressed {
+		m.transcriptRenderPending = true
+		return
+	}
+	m.setTranscriptContentForResponseUpdateNow()
+}
+
+func (m *model) setTranscriptContentForResponseUpdateNow() {
+	m.resizeTranscriptIfLayoutChanged()
 	if m.responding && m.responseTranscriptFollow && !m.responseTranscriptScrolled {
 		m.setTranscriptContent()
 		return
 	}
 
 	m.setTranscriptContentForActiveTurn()
+}
+
+func (m *model) beginTranscriptUpdate() {
+	m.transcriptRenderSuppressed = true
+}
+
+func (m *model) finishTranscriptUpdate() {
+	m.transcriptRenderSuppressed = false
+	m.streamingFlushDirty = false
+	m.streamingFlushPending = false
+	m.flushDeferredTranscriptUpdate()
+}
+
+func (m *model) finishStreamingTranscriptUpdate(responseID int) tea.Cmd {
+	m.transcriptRenderSuppressed = false
+	now := currentTime()
+	if m.streamingRenderAt.IsZero() || !now.Before(m.streamingRenderAt.Add(streamingTranscriptRenderInterval)) {
+		m.streamingFlushDirty = false
+		m.streamingFlushPending = false
+		m.flushDeferredTranscriptUpdate()
+		return nil
+	}
+
+	m.streamingFlushDirty = true
+	if m.streamingFlushPending {
+		return nil
+	}
+
+	m.streamingFlushPending = true
+	delay := m.streamingRenderAt.Add(streamingTranscriptRenderInterval).Sub(now)
+	return tea.Tick(delay, func(time.Time) tea.Msg {
+		return streamingTranscriptFlushMsg{ResponseID: responseID}
+	})
+}
+
+func (m model) flushStreamingTranscript(msg streamingTranscriptFlushMsg) (tea.Model, tea.Cmd) {
+	if !m.isActiveResponse(msg.ResponseID) || !m.streamingFlushPending {
+		return m, nil
+	}
+
+	m.streamingFlushPending = false
+	m.streamingFlushDirty = false
+	m.flushDeferredTranscriptUpdate()
+	return m, nil
+}
+
+func (m *model) flushDeferredTranscriptUpdate() {
+	renderPending := m.transcriptRenderPending
+	resizePending := m.transcriptResizePending
+	m.transcriptRenderPending = false
+	m.transcriptResizePending = false
+
+	if resizePending || renderPending {
+		m.resize()
+	}
+	if renderPending {
+		m.setTranscriptContentForResponseUpdateNow()
+	}
 }
 
 func (m *model) completeReasoningTranscript(duration time.Duration) {

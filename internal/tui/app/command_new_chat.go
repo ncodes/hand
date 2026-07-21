@@ -55,14 +55,13 @@ func (m *model) completeNewChat(msg newChatCompletedMsg) tea.Cmd {
 		return m.setStatus("new chat failed")
 	}
 
-	if m.responseCancel != nil {
-		m.responseCancel()
-	}
+	m.cancelResponseAndDrainEvents()
 	m.applyAction(setSessionAction{
 		ID:    msg.Session.ID,
 		Title: getSessionDisplayName(msg.Session),
 	})
 	m.applyAction(clearTranscriptAction{})
+	m.transcriptCache.clear()
 	m.resetResponseState()
 	m.setTranscriptContent()
 	m.resize()
