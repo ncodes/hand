@@ -30,10 +30,12 @@ func (m *model) updateToolAnimation() (tea.Model, tea.Cmd) {
 	}
 
 	m.toolAnimationFrame++
-	if m.responding {
-		m.setTranscriptContentForResponseUpdate()
-	} else {
-		m.setTranscriptContentForActiveTurn()
+	if !m.selection.active {
+		if m.responding {
+			m.setTranscriptContentForResponseUpdate()
+		} else {
+			m.setTranscriptContentForActiveTurn()
+		}
 	}
 	m.resize()
 

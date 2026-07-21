@@ -5880,6 +5880,30 @@ func TestModel_UpdateAnimatesRunningToolTranscriptDot(t *testing.T) {
 	require.Contains(t, stripANSI(runModel.transcript.View()), "● Searched")
 }
 
+func TestModel_UpdateKeepsCompletedSelectionDuringToolAnimation(t *testing.T) {
+	runModel := newModel()
+	runModel.messages = []transcriptCell{toolTranscriptCell{
+		id:        "call_1",
+		action:    "Web Search",
+		startedAt: time.Now(),
+	}}
+	runModel.setTranscriptContent()
+	runModel.selection = transcriptSelection{
+		active:  true,
+		content: runModel.transcript.GetContent(),
+		start:   transcriptSelectionPoint{offset: 0},
+		end:     transcriptSelectionPoint{offset: 1},
+	}
+	runModel.applyTranscriptSelectionStyle()
+
+	updated, cmd := runModel.Update(toolAnimationTickMsg{})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.selection.active)
+	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
+}
+
 func TestModel_UpdateAnimatesThinkingComposerBorder(t *testing.T) {
 	originalInterval := thinkingComposerInterval
 	t.Cleanup(func() {
