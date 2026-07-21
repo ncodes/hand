@@ -644,16 +644,17 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts agentcore.RespondO
 		return "", err
 	}
 	opts.SessionID = session.ID
+	profileName := str.String(profile.Active().Name).Trim()
 	authorization, ok := permissions.FromContext(ctx)
 	if !ok {
 		ctx = permissions.WithContext(ctx, permissions.AuthorizationContext{
 			Actor:     permissions.Actor{Kind: permissions.ActorLocalOwner},
 			Surface:   permissions.SurfaceCLI,
-			Profile:   a.cfg.Name,
+			Profile:   profileName,
 			SessionID: session.ID,
 		})
 	} else {
-		authorization.Profile = a.cfg.Name
+		authorization.Profile = profileName
 		authorization.SessionID = session.ID
 		ctx = permissions.WithContext(ctx, authorization)
 	}

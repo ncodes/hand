@@ -122,8 +122,12 @@ func TestAgent_StartConfiguresApprovalRateLimit(t *testing.T) {
 }
 
 func TestAgent_RespondPropagatesAuthorizationContextToTools(t *testing.T) {
+	originalProfile := profile.Active()
+	t.Cleanup(func() { profile.SetActive(originalProfile) })
+
 	tests := []struct {
 		name            string
+		profileName     string
 		ctx             context.Context
 		wantActor       permissions.ActorKind
 		wantActorID     string
@@ -134,15 +138,17 @@ func TestAgent_RespondPropagatesAuthorizationContextToTools(t *testing.T) {
 	}{
 		{
 			name:            "defaults direct calls to local CLI owner",
+			profileName:     "default",
 			ctx:             context.Background(),
 			wantActor:       permissions.ActorLocalOwner,
 			wantSurfaceKind: permissions.SurfaceKindLocal,
 			wantSurface:     permissions.SurfaceCLI,
-			wantProfile:     "work",
+			wantProfile:     "default",
 			wantSessionID:   storage.DefaultSessionID,
 		},
 		{
-			name: "preserves trusted gateway actor",
+			name:        "preserves trusted gateway actor",
+			profileName: "default",
 			ctx: permissions.WithContext(context.Background(), permissions.AuthorizationContext{
 				Actor:     permissions.Actor{Kind: permissions.ActorGatewayUser, ID: "123"},
 				Surface:   permissions.SurfaceTelegram,
@@ -153,13 +159,23 @@ func TestAgent_RespondPropagatesAuthorizationContextToTools(t *testing.T) {
 			wantActorID:     "123",
 			wantSurfaceKind: permissions.SurfaceKindGateway,
 			wantSurface:     permissions.SurfaceTelegram,
-			wantProfile:     "work",
+			wantProfile:     "default",
+			wantSessionID:   storage.DefaultSessionID,
+		},
+		{
+			name:            "resolves the default profile instead of using the agent name",
+			ctx:             context.Background(),
+			wantActor:       permissions.ActorLocalOwner,
+			wantSurfaceKind: permissions.SurfaceKindLocal,
+			wantSurface:     permissions.SurfaceCLI,
+			wantProfile:     profile.DefaultName,
 			wantSessionID:   storage.DefaultSessionID,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			profile.SetActive(profile.Profile{Name: test.profileName})
 			originalOpen := OpenStateStore
 			originalNewEnvironment := NewEnvironment
 			t.Cleanup(func() {
@@ -183,7 +199,7 @@ func TestAgent_RespondPropagatesAuthorizationContextToTools(t *testing.T) {
 				{OutputText: "done"},
 			}}
 			core := NewAgent(context.Background(), &config.Config{
-				Name:     "work",
+				Name:     "Hand",
 				Platform: storage.SessionOriginSourceCLI,
 				Models: config.ModelsConfig{Main: config.MainModelConfig{
 					Name: "model", API: models.APIOpenAIResponses, ContextLength: 8192, Stream: &stream,
