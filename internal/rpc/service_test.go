@@ -906,6 +906,17 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			ok:        true,
 		},
 		{
+			name:      "failed tool invocation completed",
+			eventType: trace.EvtToolInvocationCompleted,
+			payload: map[string]any{
+				"ToolCallID": "call_3",
+				"Name":       "browser",
+				"Content":    `{"error":{"code":"permission_denied","message":"approval denied"}}`,
+			},
+			expected: map[string]any{"tool_call_id": "call_3", "name": "browser", "failed": true},
+			ok:       true,
+		},
+		{
 			name:      "plan output state",
 			eventType: trace.EvtToolInvocationCompleted,
 			payload: map[string]any{

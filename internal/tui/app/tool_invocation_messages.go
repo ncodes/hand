@@ -78,6 +78,7 @@ func newToolInvocationCompletedMsgWithState(
 	id string,
 	name string,
 	detail string,
+	failed bool,
 	planState *trace.PlanToolState,
 	processState *trace.ProcessToolState,
 	completedAt time.Time,
@@ -86,6 +87,7 @@ func newToolInvocationCompletedMsgWithState(
 	if !ok {
 		return toolInvocationCompletedMsg{}, false
 	}
+	msg.Failed = failed
 	msg.PlanState = planState
 	msg.ProcessState = processState
 	return msg, true
@@ -127,6 +129,7 @@ func toolInvocationCompletedMsgFromMessage(
 		message.ToolCallID,
 		message.Name,
 		getToolOutputDisplayDetail(message.Name, message.Content),
+		trace.ToolInvocationFailed(message.Content),
 		getToolOutputDisplayState(message.Name, message.Content),
 		getToolOutputProcessDisplayState(message.Name, message.Content),
 		completedAt,

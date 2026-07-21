@@ -95,7 +95,6 @@ type tuiState struct {
 	allowShell                 bool
 	selection                  transcriptSelection
 	pendingApprovalID          string
-	pendingApprovalAlways      bool
 	pendingApprovalOrder       []string
 	pendingApprovalMessages    map[string]permissionApprovalMsg
 	approvalMessageIndices     map[string]int

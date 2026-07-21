@@ -5555,6 +5555,25 @@ func TestModel_UpdateMarksRunningToolFailedWhenResponseFails(t *testing.T) {
 	require.Contains(t, rendered, "Adding automation One-time current time update")
 }
 
+func TestModel_ToolErrorCompletionRendersFailedState(t *testing.T) {
+	runModel := newModel()
+	runModel.applyTUIMessage(toolInvocationStartedMsg{
+		ID: "call_1", Name: "browser", Detail: "start:Profile default",
+	})
+	runModel.applyTUIMessage(toolInvocationCompletedMsg{
+		ID: "call_1", Name: "browser", Failed: true,
+	})
+
+	toolCell, ok := runModel.messages[0].(toolTranscriptCell)
+	require.True(t, ok)
+	require.False(t, toolCell.completed)
+	require.Equal(t, toolTranscriptTerminalStatusFailed, toolCell.terminalStatus)
+
+	rendered := stripANSI(renderTranscriptCells(runModel.messages))
+	require.Contains(t, rendered, "Failed to Start Browser")
+	require.NotContains(t, rendered, "Completed Browser Action")
+}
+
 func TestModel_UpdateInterruptsUnfinishedToolWhenResponseCompletes(t *testing.T) {
 	runModel := newModel()
 	runModel.responding = true

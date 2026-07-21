@@ -162,6 +162,45 @@ func TestTraceEventToTUIMessage_DerivesAutomationDetailFromTraceInput(t *testing
 	}, msg)
 }
 
+func TestTraceEventToTUIMessage_DerivesBrowserDetailFromTraceInput(t *testing.T) {
+	msg, ok := traceEventToTUIMessage(trace.Event{
+		Type: trace.EvtToolInvocationStarted,
+		Payload: map[string]any{
+			"id":    "call_1",
+			"name":  "browser",
+			"input": `{"action":"start","profile":"default"}`,
+		},
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "browser",
+		Detail: "start:Profile default",
+	}, msg)
+}
+
+func TestTraceEventToTUIMessage_RedactsSensitiveBrowserInput(t *testing.T) {
+	msg, ok := traceEventToTUIMessage(trace.Event{
+		Type: trace.EvtToolInvocationStarted,
+		Payload: map[string]any{
+			"id":   "call_1",
+			"name": "browser",
+			"input": `{
+				"action":"type","session_id":"browser_1","tab_id":"tab_1",
+				"ref":"g1e7","text":"secret value"
+			}`,
+		},
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "browser",
+		Detail: "type:Element g1e7",
+	}, msg)
+}
+
 func TestTraceEventToTUIMessage_ConvertsStreamedPlanInvocationStarted(t *testing.T) {
 	msg, ok := traceEventToTUIMessage(trace.Event{
 		Type: trace.EvtToolInvocationStarted,
@@ -454,6 +493,20 @@ func TestTraceEventToTUIMessage_ConvertsToolInvocationCompleted(t *testing.T) {
 
 	require.True(t, ok)
 	require.Equal(t, toolInvocationCompletedMsg{ID: "call_1", Name: "read_file"}, msg)
+}
+
+func TestTraceEventToTUIMessage_PreservesFailedToolOutcome(t *testing.T) {
+	msg, ok := traceEventToTUIMessage(trace.Event{
+		Type: trace.EvtToolInvocationCompleted,
+		Payload: map[string]any{
+			"tool_call_id": "call_1",
+			"name":         "browser",
+			"failed":       true,
+		},
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationCompletedMsg{ID: "call_1", Name: "browser", Failed: true}, msg)
 }
 
 func TestTraceEventToTUIMessage_ConvertsStreamedPlanInvocationCompleted(t *testing.T) {

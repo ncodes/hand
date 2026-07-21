@@ -339,6 +339,7 @@ type ToolInvocationCompletedPayload struct {
 	Name         string            `json:"name,omitempty"`
 	Content      string            `json:"content,omitempty"`
 	Detail       string            `json:"detail,omitempty"`
+	Failed       bool              `json:"failed,omitempty"`
 	PlanState    *PlanToolState    `json:"plan_state,omitempty"`
 	ProcessState *ProcessToolState `json:"process_state,omitempty"`
 }
@@ -516,6 +517,7 @@ func ToolInvocationStartedPayloadFrom(payload any) (ToolInvocationStartedPayload
 func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPayload, bool) {
 	switch value := payload.(type) {
 	case ToolInvocationCompletedPayload:
+		value.Failed = value.Failed || ToolInvocationFailed(value.Content)
 		return value, value.ToolCallID != "" || value.Name != ""
 	case morphmsg.Message:
 		toolCallIDValue := str.String(value.ToolCallID)
@@ -526,6 +528,7 @@ func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPay
 			ToolCallID: toolCallIDValue.Trim(),
 			Name:       nameValue5.Trim(),
 			Content:    value.Content,
+			Failed:     ToolInvocationFailed(value.Content),
 		}, toolCallIDValue2.Trim() != "" || nameValue6.Trim() != ""
 	}
 
@@ -539,11 +542,34 @@ func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPay
 		Name:         PayloadString(fields, "name", "Name", "tool"),
 		Content:      PayloadString(fields, "content", "Content"),
 		Detail:       PayloadString(fields, "detail", "Detail"),
+		Failed:       payloadBool(fields, "failed", "Failed"),
 		PlanState:    planToolStateFromAny(fields["plan_state"]),
 		ProcessState: processToolStateFromAny(fields["process_state"]),
 	}
+	result.Failed = result.Failed || ToolInvocationFailed(result.Content)
 
 	return result, result.ToolCallID != "" || result.Name != ""
+}
+
+func ToolInvocationFailed(content string) bool {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(strings.TrimSpace(content)), &fields); err != nil {
+		return false
+	}
+	raw, ok := fields["error"]
+	if !ok {
+		return false
+	}
+	rawText := strings.TrimSpace(string(raw))
+	if rawText == "" || rawText == "null" {
+		return false
+	}
+	var message string
+	if err := json.Unmarshal(raw, &message); err == nil {
+		return strings.TrimSpace(message) != ""
+	}
+
+	return true
 }
 
 // PlanToolInputState extracts plan state from a plan tool input payload.
@@ -753,6 +779,16 @@ func PayloadString(fields map[string]any, keys ...string) string {
 	}
 
 	return ""
+}
+
+func payloadBool(fields map[string]any, keys ...string) bool {
+	for _, key := range keys {
+		if value, ok := fields[key].(bool); ok {
+			return value
+		}
+	}
+
+	return false
 }
 
 func decodePayloadAs[T any](payload any) (T, bool) {

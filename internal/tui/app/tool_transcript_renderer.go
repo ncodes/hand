@@ -100,10 +100,27 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 			branch = "└"
 		}
 		detailText := getToolTranscriptBranchDisplayDetail(group.action, detail)
-		lines = append(lines, "  "+branchStyle.Render(branch)+" "+renderToolBranchDetail(detailText, renderToolTranscriptDuration(detail, ctx.Now), detailStyle))
+		if action == "Browser" && len(group.details) > 1 {
+			detailText = getBrowserToolGroupedBranchDetail(detail.text)
+		}
+		duration := renderToolTranscriptDuration(detail, ctx.Now)
+		if action == "Browser" && len(group.details) == 1 {
+			duration = ""
+		}
+		lines = append(lines, "  "+branchStyle.Render(branch)+" "+renderToolBranchDetail(detailText, duration, detailStyle))
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func getBrowserToolGroupedBranchDetail(detail string) string {
+	action, target, _ := strings.Cut(detail, ":")
+	label := strings.TrimPrefix(getBrowserActionLabel(strings.TrimSpace(action)), "Browser ")
+	if target == "" {
+		return label
+	}
+
+	return label + " · " + strings.TrimSpace(target)
 }
 
 func shouldRenderToolTranscriptBranches(action string) bool {
@@ -118,7 +135,14 @@ func shouldRenderToolTranscriptBranches(action string) bool {
 
 func shouldSkipToolTranscriptBranch(action string, completed bool, detail toolTranscriptDetail) bool {
 	actionValue5 := str.String(action)
-	if actionValue5.Trim() != "Plan" || !completed || detail.planState == nil {
+	switch actionValue5.Trim() {
+	case "Browser":
+		return getBrowserToolBranchDetail(detail.text, detail.completed) == ""
+	case "Plan":
+	default:
+		return false
+	}
+	if !completed || detail.planState == nil {
 		return false
 	}
 
@@ -407,7 +431,7 @@ func getBrowserToolTranscriptTitle(
 	for _, detail := range details {
 		candidate, _, _ := strings.Cut(detail.text, ":")
 		candidate = strings.TrimSpace(candidate)
-		if candidate == "" || candidate == "browser" {
+		if candidate == "" || strings.EqualFold(candidate, "browser") {
 			continue
 		}
 		if action != "" && action != candidate {
@@ -415,12 +439,11 @@ func getBrowserToolTranscriptTitle(
 		}
 		action = candidate
 	}
-	label := getBrowserActionLabel(action)
 	if failed {
-		return label + " Failed"
+		return getBrowserActionFailedTitle(action)
 	}
 	if interrupted {
-		return label + " Interrupted"
+		return getBrowserActionInterruptedTitle(action)
 	}
 	if completed {
 		return getBrowserActionCompletedTitle(action)
@@ -443,39 +466,118 @@ func getBrowserToolFallbackTitle(completed, failed, interrupted bool) string {
 }
 
 type browserActionTitles struct {
-	label     string
-	pending   string
-	completed string
+	label       string
+	pending     string
+	completed   string
+	failed      string
+	interrupted string
 }
 
 var browserTranscriptActionTitles = map[string]browserActionTitles{
-	"status":         {label: "Browser Status", pending: "Checking Browser Status", completed: "Checked Browser Status"},
-	"start":          {label: "Browser Start", pending: "Starting Browser", completed: "Started Browser"},
-	"stop":           {label: "Browser Stop", pending: "Stopping Browser", completed: "Stopped Browser"},
-	"connect":        {label: "Browser Connection", pending: "Connecting Browser", completed: "Connected Browser"},
-	"profiles":       {label: "Browser Profile Listing", pending: "Listing Browser Profiles", completed: "Listed Browser Profiles"},
-	"tabs":           {label: "Browser Tab Listing", pending: "Listing Browser Tabs", completed: "Listed Browser Tabs"},
-	"open":           {label: "Browser Tab Opening", pending: "Opening Browser Tab", completed: "Opened Browser Tab"},
-	"focus":          {label: "Browser Tab Focus", pending: "Focusing Browser Tab", completed: "Focused Browser Tab"},
-	"close":          {label: "Browser Tab Closure", pending: "Closing Browser Tab", completed: "Closed Browser Tab"},
-	"navigate":       {label: "Browser Navigation", pending: "Navigating Browser", completed: "Navigated Browser"},
-	"reload":         {label: "Browser Reload", pending: "Reloading Browser", completed: "Reloaded Browser"},
-	"snapshot":       {label: "Browser Snapshot", pending: "Reading Browser Snapshot", completed: "Read Browser Snapshot"},
-	"screenshot":     {label: "Browser Screenshot", pending: "Capturing Browser Screenshot", completed: "Captured Browser Screenshot"},
-	"pdf":            {label: "Browser PDF", pending: "Creating Browser PDF", completed: "Created Browser PDF"},
-	"console":        {label: "Browser Console Read", pending: "Reading Browser Console", completed: "Read Browser Console"},
-	"click":          {label: "Browser Click", pending: "Clicking in Browser", completed: "Clicked in Browser"},
-	"type":           {label: "Browser Typing", pending: "Typing in Browser", completed: "Typed in Browser"},
-	"press":          {label: "Browser Key Press", pending: "Pressing Browser Key", completed: "Pressed Browser Key"},
-	"scroll":         {label: "Browser Scroll", pending: "Scrolling Browser", completed: "Scrolled Browser"},
-	"select":         {label: "Browser Selection", pending: "Selecting Browser Option", completed: "Selected Browser Option"},
-	"upload":         {label: "Browser Upload", pending: "Uploading in Browser", completed: "Uploaded in Browser"},
-	"download":       {label: "Browser Download", pending: "Downloading from Browser", completed: "Downloaded from Browser"},
-	"accept_dialog":  {label: "Browser Dialog Acceptance", pending: "Accepting Browser Dialog", completed: "Accepted Browser Dialog"},
-	"dismiss_dialog": {label: "Browser Dialog Dismissal", pending: "Dismissing Browser Dialog", completed: "Dismissed Browser Dialog"},
-	"wait":           {label: "Browser Wait", pending: "Waiting in Browser", completed: "Finished Browser Wait"},
-	"back":           {label: "Browser Back Navigation", pending: "Navigating Browser Back", completed: "Navigated Browser Back"},
-	"forward":        {label: "Browser Forward Navigation", pending: "Navigating Browser Forward", completed: "Navigated Browser Forward"},
+	"status": {
+		label: "Browser Status", pending: "Checking Browser Status", completed: "Checked Browser Status",
+		failed: "Failed to Check Browser Status", interrupted: "Browser Status Check Interrupted",
+	},
+	"start": {
+		label: "Browser Start", pending: "Starting Browser", completed: "Started Browser",
+		failed: "Failed to Start Browser", interrupted: "Browser Start Interrupted",
+	},
+	"stop": {
+		label: "Browser Stop", pending: "Stopping Browser", completed: "Stopped Browser",
+		failed: "Failed to Stop Browser", interrupted: "Browser Stop Interrupted",
+	},
+	"profiles": {
+		label: "Browser Profile Listing", pending: "Listing Browser Profiles", completed: "Listed Browser Profiles",
+		failed: "Failed to List Browser Profiles", interrupted: "Browser Profile Listing Interrupted",
+	},
+	"tabs": {
+		label: "Browser Tab Listing", pending: "Listing Browser Tabs", completed: "Listed Browser Tabs",
+		failed: "Failed to List Browser Tabs", interrupted: "Browser Tab Listing Interrupted",
+	},
+	"open": {
+		label: "Browser Tab Opening", pending: "Opening Browser Tab", completed: "Opened Browser Tab",
+		failed: "Failed to Open Browser Tab", interrupted: "Browser Tab Opening Interrupted",
+	},
+	"focus": {
+		label: "Browser Tab Focus", pending: "Focusing Browser Tab", completed: "Focused Browser Tab",
+		failed: "Failed to Focus Browser Tab", interrupted: "Browser Tab Focus Interrupted",
+	},
+	"close": {
+		label: "Browser Tab Closure", pending: "Closing Browser Tab", completed: "Closed Browser Tab",
+		failed: "Failed to Close Browser Tab", interrupted: "Browser Tab Closure Interrupted",
+	},
+	"navigate": {
+		label: "Browser Navigation", pending: "Navigating Browser", completed: "Navigated Browser",
+		failed: "Browser Navigation Failed", interrupted: "Browser Navigation Interrupted",
+	},
+	"reload": {
+		label: "Browser Reload", pending: "Reloading Browser Page", completed: "Reloaded Browser Page",
+		failed: "Failed to Reload Browser Page", interrupted: "Browser Reload Interrupted",
+	},
+	"snapshot": {
+		label: "Browser Snapshot", pending: "Capturing Snapshot", completed: "Captured Snapshot",
+		failed: "Failed to Capture Snapshot", interrupted: "Snapshot Capture Interrupted",
+	},
+	"screenshot": {
+		label: "Browser Screenshot", pending: "Capturing Browser Screenshot", completed: "Captured Browser Screenshot",
+		failed: "Failed to Capture Browser Screenshot", interrupted: "Browser Screenshot Interrupted",
+	},
+	"pdf": {
+		label: "Browser PDF", pending: "Creating Browser PDF", completed: "Created Browser PDF",
+		failed: "Failed to Create Browser PDF", interrupted: "Browser PDF Creation Interrupted",
+	},
+	"console": {
+		label: "Browser Console Read", pending: "Reading Browser Console", completed: "Read Browser Console",
+		failed: "Failed to Read Browser Console", interrupted: "Browser Console Read Interrupted",
+	},
+	"click": {
+		label: "Browser Element Click", pending: "Clicking Browser Element", completed: "Clicked Browser Element",
+		failed: "Failed to Click Browser Element", interrupted: "Browser Element Click Interrupted",
+	},
+	"type": {
+		label: "Browser Element Typing", pending: "Typing into Browser Element", completed: "Typed into Browser Element",
+		failed: "Failed to Type into Browser Element", interrupted: "Browser Element Typing Interrupted",
+	},
+	"press": {
+		label: "Browser Key Press", pending: "Pressing Browser Key", completed: "Pressed Browser Key",
+		failed: "Failed to Press Browser Key", interrupted: "Browser Key Press Interrupted",
+	},
+	"scroll": {
+		label: "Browser Page Scroll", pending: "Scrolling Browser Page", completed: "Scrolled Browser Page",
+		failed: "Failed to Scroll Browser Page", interrupted: "Browser Page Scroll Interrupted",
+	},
+	"select": {
+		label: "Browser Option Selection", pending: "Selecting Browser Option", completed: "Selected Browser Option",
+		failed: "Failed to Select Browser Option", interrupted: "Browser Option Selection Interrupted",
+	},
+	"upload": {
+		label: "Browser File Upload", pending: "Uploading File to Browser", completed: "Uploaded File to Browser",
+		failed: "Failed to Upload File to Browser", interrupted: "Browser File Upload Interrupted",
+	},
+	"download": {
+		label: "Browser File Download", pending: "Downloading File from Browser", completed: "Downloaded File from Browser",
+		failed: "Failed to Download File from Browser", interrupted: "Browser File Download Interrupted",
+	},
+	"accept_dialog": {
+		label: "Browser Dialog Acceptance", pending: "Accepting Browser Dialog", completed: "Accepted Browser Dialog",
+		failed: "Failed to Accept Browser Dialog", interrupted: "Browser Dialog Acceptance Interrupted",
+	},
+	"dismiss_dialog": {
+		label: "Browser Dialog Dismissal", pending: "Dismissing Browser Dialog", completed: "Dismissed Browser Dialog",
+		failed: "Failed to Dismiss Browser Dialog", interrupted: "Browser Dialog Dismissal Interrupted",
+	},
+	"wait": {
+		label: "Browser Condition Wait", pending: "Waiting for Browser Condition", completed: "Browser Condition Satisfied",
+		failed: "Browser Wait Failed", interrupted: "Browser Wait Interrupted",
+	},
+	"back": {
+		label: "Browser Back Navigation", pending: "Navigating Back in Browser", completed: "Navigated Back in Browser",
+		failed: "Failed to Navigate Back in Browser", interrupted: "Browser Back Navigation Interrupted",
+	},
+	"forward": {
+		label: "Browser Forward Navigation", pending: "Navigating Forward in Browser", completed: "Navigated Forward in Browser",
+		failed: "Failed to Navigate Forward in Browser", interrupted: "Browser Forward Navigation Interrupted",
+	},
 }
 
 func getBrowserActionLabel(action string) string {
@@ -503,6 +605,22 @@ func getBrowserActionCompletedTitle(action string) string {
 	}
 
 	return "Completed " + getBrowserActionLabel(action)
+}
+
+func getBrowserActionFailedTitle(action string) string {
+	if titles, ok := browserTranscriptActionTitles[action]; ok {
+		return titles.failed
+	}
+
+	return getBrowserActionLabel(action) + " Failed"
+}
+
+func getBrowserActionInterruptedTitle(action string) string {
+	if titles, ok := browserTranscriptActionTitles[action]; ok {
+		return titles.interrupted
+	}
+
+	return getBrowserActionLabel(action) + " Interrupted"
 }
 
 func getAutomationToolTranscriptTitle(details []toolTranscriptDetail, completed bool) string {

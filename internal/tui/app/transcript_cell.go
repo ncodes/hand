@@ -68,6 +68,10 @@ type systemTranscriptCell struct {
 	text string
 }
 
+type permissionApprovalTranscriptCell struct {
+	message permissionApprovalMsg
+}
+
 type manualCompactionTranscriptCell struct {
 	state manualCompactionState
 }
@@ -205,6 +209,18 @@ func (cell systemTranscriptCell) PlainText() string {
 func (cell systemTranscriptCell) IsEmpty() bool {
 	textValue6 := str.String(cell.text)
 	return textValue6.Trim() == ""
+}
+
+func (cell permissionApprovalTranscriptCell) Kind() transcriptCellKind {
+	return transcriptCellSystem
+}
+
+func (cell permissionApprovalTranscriptCell) PlainText() string {
+	return permissionApprovalText(cell.message)
+}
+
+func (cell permissionApprovalTranscriptCell) IsEmpty() bool {
+	return strings.TrimSpace(cell.PlainText()) == ""
 }
 
 func (cell manualCompactionTranscriptCell) Kind() transcriptCellKind {

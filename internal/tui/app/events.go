@@ -41,6 +41,7 @@ type toolInvocationCompletedMsg struct {
 	ID           string
 	Name         string
 	Detail       string
+	Failed       bool
 	PlanState    *trace.PlanToolState
 	ProcessState *trace.ProcessToolState
 	CompletedAt  time.Time
@@ -269,6 +270,7 @@ func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 			toolPayload.ToolCallID,
 			toolPayload.Name,
 			toolPayload.Detail,
+			toolPayload.Failed,
 			toolPayload.PlanState,
 			toolPayload.ProcessState,
 			time.Time{},
@@ -282,7 +284,9 @@ func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 }
 
 func getSafeTraceToolInputDisplayDetail(name string, input string) string {
-	if normalizeToolDisplayName(name) != "automation" {
+	switch normalizeToolDisplayName(name) {
+	case "automation", "browser":
+	default:
 		return ""
 	}
 

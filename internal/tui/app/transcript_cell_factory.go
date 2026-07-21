@@ -19,6 +19,7 @@ type toolTranscriptCellInput struct {
 	StartedAt    time.Time
 	CompletedAt  time.Time
 	Completed    bool
+	Failed       bool
 }
 
 var defaultTranscriptCellFactory = transcriptCellFactory{}
@@ -54,7 +55,7 @@ func (transcriptCellFactory) Thought(duration time.Duration) transcriptCell {
 }
 
 func (transcriptCellFactory) Tool(input toolTranscriptCellInput) transcriptCell {
-	return newToolTranscriptCell(
+	cell := newToolTranscriptCell(
 		input.ID,
 		input.Name,
 		input.Detail,
@@ -64,6 +65,14 @@ func (transcriptCellFactory) Tool(input toolTranscriptCellInput) transcriptCell 
 		input.CompletedAt,
 		input.Completed,
 	)
+	toolCell, ok := cell.(toolTranscriptCell)
+	if !ok || !input.Failed {
+		return cell
+	}
+
+	toolCell.completed = false
+	toolCell.terminalStatus = toolTranscriptTerminalStatusFailed
+	return toolCell
 }
 
 func (transcriptCellFactory) Safety(msg safetyEventMsg) transcriptCell {
@@ -89,6 +98,16 @@ func (transcriptCellFactory) System(text string) transcriptCell {
 	}
 
 	return systemTranscriptCell{text: text}
+}
+
+func (transcriptCellFactory) PermissionApproval(message permissionApprovalMsg) transcriptCell {
+	message.Effects = append([]string(nil), message.Effects...)
+	cell := permissionApprovalTranscriptCell{message: message}
+	if cell.IsEmpty() {
+		return nil
+	}
+
+	return cell
 }
 
 func (transcriptCellFactory) ManualCompaction(state manualCompactionState) transcriptCell {
@@ -131,7 +150,8 @@ func (factory transcriptCellFactory) FromTUIMessage(msg any) transcriptCell {
 			PlanState:    value.PlanState,
 			ProcessState: value.ProcessState,
 			CompletedAt:  value.CompletedAt,
-			Completed:    true,
+			Completed:    !value.Failed,
+			Failed:       value.Failed,
 		})
 	case safetyEventMsg:
 		return factory.Safety(value)
@@ -140,7 +160,7 @@ func (factory transcriptCellFactory) FromTUIMessage(msg any) transcriptCell {
 	case manualCompactionMsg:
 		return factory.ManualCompaction(value.State)
 	case permissionApprovalMsg:
-		return factory.System(permissionApprovalText(value))
+		return factory.PermissionApproval(value)
 	default:
 		return nil
 	}
@@ -171,6 +191,7 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 		toolCall := toolCalls[toolCallIDValue.Trim()]
 		planState := mergePlanToolDisplayState(toolCall.planState, getToolOutputDisplayState(name, content))
 		processState := mergeProcessToolDisplayState(toolCall.processState, getToolOutputProcessDisplayState(name, content))
+		failed := trace.ToolInvocationFailed(content)
 		return factory.Tool(toolTranscriptCellInput{
 			ID:           message.ToolCallID,
 			Name:         name,
@@ -179,7 +200,8 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 			ProcessState: processState,
 			StartedAt:    toolCall.startedAt,
 			CompletedAt:  message.CreatedAt,
-			Completed:    true,
+			Completed:    !failed,
+			Failed:       failed,
 		})
 	default:
 		roleValue := str.String(string(message.Role))

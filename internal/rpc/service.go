@@ -388,6 +388,7 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 		result := rpcToolInvocationCompletedPayload{
 			ToolCallID: toolCallIDValue.Trim(),
 			Name:       nameValue2.Trim(),
+			Failed:     toolPayload.Failed,
 		}
 		result.PlanState = toolPayload.PlanState
 		result.ProcessState = toolPayload.ProcessState
@@ -528,6 +529,7 @@ func (p rpcToolInvocationStartedPayload) hasData() bool {
 type rpcToolInvocationCompletedPayload struct {
 	ToolCallID   string                  `json:"tool_call_id,omitempty"`
 	Name         string                  `json:"name,omitempty"`
+	Failed       bool                    `json:"failed,omitempty"`
 	PlanState    *trace.PlanToolState    `json:"plan_state,omitempty"`
 	ProcessState *trace.ProcessToolState `json:"process_state,omitempty"`
 }

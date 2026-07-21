@@ -1144,6 +1144,7 @@ func (t *Turn) executeToolCall(
 		ToolCallID:   toolMessage.ToolCallID,
 		Name:         toolMessage.Name,
 		Content:      toolMessage.Content,
+		Failed:       trace.ToolInvocationFailed(toolMessage.Content),
 		PlanState:    getPlanToolOutputState(toolMessage.Name, toolMessage.Content),
 		ProcessState: getProcessToolOutputState(toolMessage.Name, toolMessage.Content),
 	})

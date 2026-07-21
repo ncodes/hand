@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -273,17 +274,23 @@ func (m *model) updatePermissionApproval(message permissionApprovalMsg) {
 }
 
 func (m *model) setCurrentPendingApproval() {
+	previousID := m.pendingApprovalID
 	m.pendingApprovalID = ""
-	m.pendingApprovalAlways = false
 	for len(m.pendingApprovalOrder) > 0 {
 		id := m.pendingApprovalOrder[0]
 		message, ok := m.pendingApprovalMessages[id]
 		if ok {
 			m.pendingApprovalID = id
-			m.pendingApprovalAlways = isAlwaysApprovalAvailable(message.Effects)
+			if previousID != id || !m.isPermissionApprovalCommandView() {
+				m.showPermissionApprovalCommandView(message)
+			}
 			return
 		}
 		m.pendingApprovalOrder = m.pendingApprovalOrder[1:]
+	}
+	if m.isPermissionApprovalCommandView() {
+		next := m.hideCommandView()
+		*m = next
 	}
 }
 
@@ -306,22 +313,64 @@ func permissionApprovalText(message permissionApprovalMsg) string {
 		return text + " — " + message.Summary
 	}
 
-	parts := []string{"Permission approval required", message.Summary}
+	reason, operations := splitBatchApprovalReason(message.Reason)
+	parts := []string{"Permission approval required", "Operation: " + message.Summary}
 	if len(message.Effects) > 0 {
 		parts = append(parts, "Effects: "+strings.Join(message.Effects, ", "))
 	}
-	if message.Reason != "" {
-		parts = append(parts, "Reason: "+message.Reason)
+	if reason != "" {
+		parts = append(parts, "Reason: "+reason)
+	}
+	if len(operations) > 0 {
+		parts = append(parts, "Operations:")
+		for index, operation := range operations {
+			parts = append(parts, strconv.Itoa(index+1)+". "+operation)
+		}
 	}
 	if !message.ExpiresAt.IsZero() {
-		parts = append(parts, "Expires: "+message.ExpiresAt.In(time.Local).Format("15:04:05 MST"))
+		parts = append(parts, "Expires: "+formatApprovalTimeToGo(message.ExpiresAt, currentTime()))
 	}
-	choices := "[y] allow once  [s] session  [n] deny"
-	if isAlwaysApprovalAvailable(message.Effects) {
-		choices = "[y] allow once  [s] session  [a] always  [n] deny"
-	}
-	parts = append(parts, choices)
 	return strings.Join(parts, "\n")
+}
+
+func formatApprovalTimeToGo(expiresAt time.Time, now time.Time) string {
+	if now.IsZero() {
+		now = currentTime()
+	}
+	remaining := expiresAt.Sub(now)
+	if remaining <= 0 {
+		return "expired"
+	}
+
+	minutes := (remaining + time.Minute - time.Nanosecond) / time.Minute
+	return strconv.FormatInt(int64(minutes), 10) + "m"
+}
+
+func splitBatchApprovalReason(reason string) (string, []string) {
+	const (
+		batchPrefix = "Approve all "
+		separator   = " operations: "
+	)
+
+	reason = strings.TrimSpace(reason)
+	start := strings.LastIndex(reason, batchPrefix)
+	if start < 0 {
+		return reason, nil
+	}
+	batch := reason[start:]
+	separatorIndex := strings.Index(batch, separator)
+	if separatorIndex < len(batchPrefix) {
+		return reason, nil
+	}
+	if _, err := strconv.Atoi(batch[len(batchPrefix):separatorIndex]); err != nil {
+		return reason, nil
+	}
+	operationText := strings.TrimSpace(batch[separatorIndex+len(separator):])
+	if operationText == "" {
+		return reason, nil
+	}
+
+	return strings.TrimSpace(reason[:start]), strings.Split(operationText, "; ")
 }
 
 func isAlwaysApprovalAvailable(effects []string) bool {
@@ -338,7 +387,9 @@ func isAlwaysApprovalAvailable(effects []string) bool {
 
 func (m *model) addTranscriptMessage(msg any) {
 	if cell := tuiMessageToTranscriptCell(msg); cell != nil && !cell.IsEmpty() {
-		if toolCell, ok := cell.(toolTranscriptCell); ok && toolCell.completed && m.mergeCompletedToolTranscriptCell(toolCell) {
+		if toolCell, ok := cell.(toolTranscriptCell); ok &&
+			(toolCell.completed || toolCell.terminalStatus != "") &&
+			m.mergeTerminalToolTranscriptCell(toolCell) {
 			m.refreshTranscriptContentAfterMessageUpdate()
 			m.resize()
 			return
@@ -354,7 +405,7 @@ func (m *model) addTranscriptMessage(msg any) {
 	}
 }
 
-func (m *model) mergeCompletedToolTranscriptCell(completed toolTranscriptCell) bool {
+func (m *model) mergeTerminalToolTranscriptCell(completed toolTranscriptCell) bool {
 	idValue := str.String(completed.id)
 	id := idValue.Trim()
 	if id == "" {
@@ -405,8 +456,8 @@ func mergeToolTranscriptCells(existing toolTranscriptCell, completed toolTranscr
 	if idValue3.Trim() == "" {
 		merged.id = completed.id
 	}
-	merged.completed = true
-	merged.terminalStatus = ""
+	merged.completed = completed.completed
+	merged.terminalStatus = completed.terminalStatus
 
 	return merged
 }

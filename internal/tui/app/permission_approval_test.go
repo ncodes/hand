@@ -3,10 +3,12 @@ package tui
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/morph/internal/permissions"
@@ -27,7 +29,17 @@ func TestModel_PermissionApprovalPromptResolvesFromKeyboard(t *testing.T) {
 	updated, _ := runModel.handleAppEvent(applyTUIMessageEvent{Message: message})
 	require.Equal(t, "approval_1", updated.pendingApprovalID)
 	require.Len(t, updated.messages, 1)
-	require.Contains(t, updated.messages[0].PlainText(), "[y] allow once")
+	require.True(t, updated.isPermissionApprovalCommandView())
+	view := stripANSI(updated.renderCommandView())
+	require.Contains(t, view, "Permission approval")
+	require.Contains(t, view, "run_command · execute process")
+	require.Contains(t, view, "Allow once")
+	require.Contains(t, view, "approve this request only")
+	require.Contains(t, view, "Allow for session")
+	require.Contains(t, view, "remember this approval for this session")
+	require.Contains(t, view, "Deny")
+	require.Contains(t, view, "deny this request only")
+	require.NotContains(t, updated.messages[0].PlainText(), "[y] allow once")
 	require.NotContains(t, updated.messages[0].PlainText(), "printf secret")
 
 	modelValue, cmd, handled := updated.handleKeyPressMsg(tea.KeyPressMsg{Code: 'y', Text: "y"})
@@ -45,19 +57,87 @@ func TestModel_PermissionApprovalPromptResolvesFromKeyboard(t *testing.T) {
 	require.Contains(t, next.messages[0].PlainText(), "approved")
 }
 
-func TestPermissionApprovalText_DisplaysExpiryInLocalTimezone(t *testing.T) {
-	originalLocal := time.Local
-	time.Local = time.FixedZone("WAT", int(time.Hour/time.Second))
-	t.Cleanup(func() { time.Local = originalLocal })
+func TestModel_PermissionApprovalCommandViewNavigatesAndConfirms(t *testing.T) {
+	client := &permissionAPIStub{}
+	runModel := newModel()
+	runModel.permissionClient = client
+	runModel.applyTUIMessage(permissionApprovalMsg{
+		RequestID: "approval", Status: string(permissions.ApprovalPending), Summary: "read network",
+		Effects: []string{string(permissions.EffectNetwork)},
+	})
+
+	updated, _, handled := runModel.handleKeyPressMsg(tea.KeyPressMsg{Code: tea.KeyDown})
+	require.True(t, handled)
+	runModel = updated.(model)
+	require.Equal(t, 1, runModel.commandViewItemSelected)
+
+	updated, cmd, handled := runModel.handleKeyPressMsg(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.True(t, handled)
+	require.NotNil(t, cmd)
+	result := cmd().(permissionResolutionCompletedMsg)
+	require.NoError(t, result.Err)
+	require.True(t, client.approved)
+	require.Equal(t, permissions.GrantSession, client.scope)
+	require.True(t, updated.(model).isPermissionApprovalCommandView())
+}
+
+func TestModel_PermissionApprovalCommandViewResolvesMouseSelection(t *testing.T) {
+	client := &permissionAPIStub{}
+	runModel := newModel()
+	runModel.permissionClient = client
+	runModel.applyTUIMessage(permissionApprovalMsg{
+		RequestID: "approval", Status: string(permissions.ApprovalPending), Summary: "read network",
+		Effects: []string{string(permissions.EffectNetwork)},
+	})
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		X:      runModel.getCommandViewContentLeft(),
+		Y:      runModel.getCommandViewContentTop() + 2,
+		Button: tea.MouseLeft,
+	}))
+	require.NotNil(t, cmd)
+	result := cmd().(permissionResolutionCompletedMsg)
+	require.NoError(t, result.Err)
+	require.False(t, client.approved)
+	require.Empty(t, client.scope)
+	require.Equal(t, 2, updated.(model).commandViewItemSelected)
+}
+
+func TestModel_PermissionApprovalCommandViewCannotBeDismissed(t *testing.T) {
+	runModel := newModel()
+	runModel.applyTUIMessage(permissionApprovalMsg{
+		RequestID: "approval", Status: string(permissions.ApprovalPending), Summary: "operation",
+	})
+
+	updated, cmd, handled := runModel.handleKeyPressMsg(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.True(t, handled)
+	require.NotNil(t, cmd)
+	require.True(t, updated.(model).isPermissionApprovalCommandView())
+	require.Contains(t, updated.(model).status.Text(), "press n to deny")
+}
+
+func TestPermissionApprovalText_DisplaysExpiryTimeToGo(t *testing.T) {
+	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	originalCurrentTime := currentTime
+	currentTime = func() time.Time { return now }
+	t.Cleanup(func() { currentTime = originalCurrentTime })
 
 	text := permissionApprovalText(permissionApprovalMsg{
 		Status:    string(permissions.ApprovalPending),
 		Summary:   "web_extract · read network",
-		ExpiresAt: time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC),
+		ExpiresAt: now.Add(2*time.Minute + time.Second),
 	})
 
-	require.Contains(t, text, "Expires: 13:00:00 WAT")
-	require.NotContains(t, text, "12:00:00 UTC")
+	require.Contains(t, text, "Expires: 3m")
+}
+
+func TestFormatApprovalTimeToGo_RoundsUpToWholeMinutes(t *testing.T) {
+	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+
+	require.Equal(t, "3m", formatApprovalTimeToGo(now.Add(3*time.Minute), now))
+	require.Equal(t, "3m", formatApprovalTimeToGo(now.Add(2*time.Minute+time.Second), now))
+	require.Equal(t, "1m", formatApprovalTimeToGo(now.Add(time.Second), now))
+	require.Equal(t, "expired", formatApprovalTimeToGo(now, now))
 }
 
 func TestPermissionApprovalText_DisplaysPersonalBrowserWarning(t *testing.T) {
@@ -74,6 +154,73 @@ func TestPermissionApprovalText_DisplaysPersonalBrowserWarning(t *testing.T) {
 
 	require.Contains(t, text, "Reason: Personal browser attachment exposes signed-in sessions, cookies, and page data.")
 	require.NotContains(t, text, "[a] always")
+}
+
+func TestPermissionApprovalText_SeparatesBatchOperations(t *testing.T) {
+	text := permissionApprovalText(permissionApprovalMsg{
+		Status:  string(permissions.ApprovalPending),
+		Summary: "browser · approve 2 operations",
+		Reason: "internet access requires approval Approve all 2 operations: " +
+			"browser · update browser; browser · read network GET http://localhost:8089/",
+	})
+
+	require.Equal(t, strings.Join([]string{
+		"Permission approval required",
+		"Operation: browser · approve 2 operations",
+		"Reason: internet access requires approval",
+		"Operations:",
+		"1. browser · update browser",
+		"2. browser · read network GET http://localhost:8089/",
+	}, "\n"), text)
+}
+
+func TestTranscriptRenderer_FormatsPermissionApprovalAsScannableBlock(t *testing.T) {
+	cell := tuiMessageToTranscriptCell(permissionApprovalMsg{
+		Status:  string(permissions.ApprovalPending),
+		Summary: "browser · approve 2 operations",
+		Effects: []string{"external_system", "network", "read", "write"},
+		Reason: "internet access requires approval Approve all 2 operations: " +
+			"browser · update browser; browser · read network GET http://localhost:8089/",
+		ExpiresAt: time.Date(2026, 7, 20, 21, 5, 42, 0, time.UTC),
+	})
+
+	_, ok := cell.(permissionApprovalTranscriptCell)
+	require.True(t, ok)
+	rendered := stripANSI(defaultTranscriptRenderer.RenderCell(cell, transcriptRenderContext{
+		Width: 120,
+		Now:   time.Date(2026, 7, 20, 21, 2, 42, 0, time.UTC),
+	}))
+	require.Contains(t, rendered, permissionStatusIcon+" Permission approval required\n  Operation")
+	require.Contains(t, rendered, "\n  Operation  browser · approve 2 operations\n")
+	require.Contains(t, rendered, "\n  Effects    external_system, network, read, write\n")
+	require.Contains(t, rendered, "\n  Reason     internet access requires approval\n")
+	require.Contains(t, rendered, "\n  Operations\n    1. browser · update browser\n")
+	require.Contains(t, rendered, "\n    2. browser · read network GET http://localhost:8089/\n")
+	require.Contains(t, rendered, "\n  Expires    3m")
+	require.NotContains(t, rendered, "required browser · approve")
+
+	narrow := stripANSI(defaultTranscriptRenderer.RenderCell(cell, transcriptRenderContext{
+		Width: 40,
+		Now:   time.Date(2026, 7, 20, 21, 2, 42, 0, time.UTC),
+	}))
+	require.Contains(t, narrow, "  Reason     internet access requires\n             approval\n")
+}
+
+func TestTranscriptRenderer_EmphasizesDeniedPermission(t *testing.T) {
+	cell := tuiMessageToTranscriptCell(permissionApprovalMsg{
+		Status:  string(permissions.ApprovalDenied),
+		Summary: "browser · start browser",
+	})
+
+	rendered := defaultTranscriptRenderer.RenderCell(cell, transcriptRenderContext{Width: 80})
+	deniedTitle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(defaultTUITheme.ToolDeletion)).
+		Render(permissionStatusIcon + " Permission denied")
+
+	require.Contains(t, rendered, deniedTitle)
+	require.Contains(t, stripANSI(rendered), permissionStatusIcon+" Permission denied")
+	require.Contains(t, stripANSI(rendered), "Operation  browser · start browser")
 }
 
 func TestModel_PermissionApprovalSupportsSessionAlwaysDenyAndFailure(t *testing.T) {
@@ -125,7 +272,8 @@ func TestModel_PermissionApprovalHidesAndRejectsUnsafeAlwaysChoice(t *testing.T)
 		RequestID: "approval", Status: "pending", Summary: "credential update",
 		Effects: []string{string(permissions.EffectCredentialBearing)},
 	})
-	require.NotContains(t, runModel.messages[0].PlainText(), "[a] always")
+	require.NotContains(t, stripANSI(runModel.renderCommandView()), "Always allow")
+	require.NotContains(t, runModel.commandView.TitleRight, "a/")
 	updated, cmd, handled := runModel.handleKeyPressMsg(tea.KeyPressMsg{Code: 'a', Text: "a"})
 	require.True(t, handled)
 	require.NotNil(t, cmd)
@@ -141,17 +289,20 @@ func TestModel_PermissionApprovalQueuesIndependentRequests(t *testing.T) {
 		RequestID: "approval_2", Status: string(permissions.ApprovalPending), Summary: "second",
 	})
 	require.Equal(t, "approval_1", runModel.pendingApprovalID)
+	require.Equal(t, "first", runModel.commandView.TitleSubtext)
 	require.Len(t, runModel.messages, 2)
 
 	runModel.applyTUIMessage(permissionApprovalMsg{
 		RequestID: "approval_1", Status: string(permissions.ApprovalApproved), Summary: "first",
 	})
 	require.Equal(t, "approval_2", runModel.pendingApprovalID)
+	require.Equal(t, "second", runModel.commandView.TitleSubtext)
 
 	runModel.applyTUIMessage(permissionApprovalMsg{
 		RequestID: "approval_2", Status: string(permissions.ApprovalDenied), Summary: "second",
 	})
 	require.Empty(t, runModel.pendingApprovalID)
+	require.False(t, runModel.isCommandViewVisible())
 }
 
 func TestTraceEventToTUIMessage_DecodesPermissionApprovalLifecycle(t *testing.T) {

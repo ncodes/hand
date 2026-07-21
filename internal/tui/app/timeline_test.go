@@ -29,6 +29,14 @@ func TestBrowserTranscriptActionTitles_CoverEverySupportedAction(t *testing.T) {
 		require.NotEmpty(t, titles.label)
 		require.NotEmpty(t, titles.pending)
 		require.NotEmpty(t, titles.completed)
+		require.NotEmpty(t, titles.failed)
+		require.NotEmpty(t, titles.interrupted)
+
+		details := []toolTranscriptDetail{{text: string(action)}}
+		require.Equal(t, titles.pending, getBrowserToolTranscriptTitle(details, false, false, false))
+		require.Equal(t, titles.completed, getBrowserToolTranscriptTitle(details, true, false, false))
+		require.Equal(t, titles.failed, getBrowserToolTranscriptTitle(details, false, true, false))
+		require.Equal(t, titles.interrupted, getBrowserToolTranscriptTitle(details, false, false, true))
 	}
 }
 
@@ -943,13 +951,62 @@ func TestBrowserToolDisplayDetail_RedactsURLPathAndDescribesLifecycle(t *testing
 
 	require.Equal(t, "navigate:https://example.com", detail)
 	require.Equal(
-		t, "Running browser navigate: https://example.com",
+		t, "https://example.com",
 		getToolBranchDisplayDetail("Browser", detail, false),
 	)
 	require.Equal(
-		t, "Browser navigate completed: https://example.com",
+		t, "https://example.com",
 		getToolBranchDisplayDetail("Browser", detail, true),
 	)
+}
+
+func TestBrowserToolDisplayDetail_DescribesEverySupportedAction(t *testing.T) {
+	seen := make(map[browserdomain.Action]struct{})
+	for _, test := range []struct {
+		action browserdomain.Action
+		input  string
+		want   string
+	}{
+		{action: browserdomain.ActionStatus, input: `{"action":"status"}`, want: "status"},
+		{action: browserdomain.ActionProfiles, input: `{"action":"profiles"}`, want: "profiles"},
+		{action: browserdomain.ActionStart, input: `{"action":"start","profile":"default"}`, want: "start:Profile default"},
+		{action: browserdomain.ActionStop, input: `{"action":"stop","session_id":"browser_1"}`, want: "stop:Session browser_1"},
+		{action: browserdomain.ActionTabs, input: `{"action":"tabs","session_id":"browser_1"}`, want: "tabs:Session browser_1"},
+		{action: browserdomain.ActionOpen, input: `{"action":"open","session_id":"browser_1","url":"https://example.com/private?token=secret"}`, want: "open:https://example.com"},
+		{action: browserdomain.ActionFocus, input: `{"action":"focus","session_id":"browser_1","tab_id":"tab_1"}`, want: "focus:Tab tab_1"},
+		{action: browserdomain.ActionClose, input: `{"action":"close","session_id":"browser_1","tab_id":"tab_1"}`, want: "close:Tab tab_1"},
+		{action: browserdomain.ActionNavigate, input: `{"action":"navigate","session_id":"browser_1","tab_id":"tab_1","url":"https://example.com/private?token=secret"}`, want: "navigate:https://example.com"},
+		{action: browserdomain.ActionReload, input: `{"action":"reload","session_id":"browser_1","tab_id":"tab_1"}`, want: "reload:Tab tab_1"},
+		{action: browserdomain.ActionSnapshot, input: `{"action":"snapshot","session_id":"browser_1","tab_id":"tab_1"}`, want: "snapshot:Tab tab_1"},
+		{action: browserdomain.ActionScreenshot, input: `{"action":"screenshot","session_id":"browser_1","tab_id":"tab_1","full_page":true}`, want: "screenshot:Full page · Tab tab_1"},
+		{action: browserdomain.ActionPDF, input: `{"action":"pdf","session_id":"browser_1","tab_id":"tab_1"}`, want: "pdf:Tab tab_1"},
+		{action: browserdomain.ActionConsole, input: `{"action":"console","session_id":"browser_1","tab_id":"tab_1","limit":20}`, want: "console:Tab tab_1"},
+		{action: browserdomain.ActionClick, input: `{"action":"click","session_id":"browser_1","tab_id":"tab_1","ref":"g1e7"}`, want: "click:Element g1e7"},
+		{action: browserdomain.ActionType, input: `{"action":"type","session_id":"browser_1","tab_id":"tab_1","ref":"g1e7","text":"secret text"}`, want: "type:Element g1e7"},
+		{action: browserdomain.ActionPress, input: `{"action":"press","session_id":"browser_1","tab_id":"tab_1","key":"Enter"}`, want: "press:Tab tab_1"},
+		{action: browserdomain.ActionScroll, input: `{"action":"scroll","session_id":"browser_1","tab_id":"tab_1","y":800}`, want: "scroll:Tab tab_1"},
+		{action: browserdomain.ActionSelect, input: `{"action":"select","session_id":"browser_1","tab_id":"tab_1","ref":"g1e7","value":"secret option"}`, want: "select:Element g1e7"},
+		{action: browserdomain.ActionUpload, input: `{"action":"upload","session_id":"browser_1","tab_id":"tab_1","ref":"g1e7","path":"/secret/file.txt"}`, want: "upload:Element g1e7"},
+		{action: browserdomain.ActionDownload, input: `{"action":"download","session_id":"browser_1","tab_id":"tab_1","ref":"g1e7"}`, want: "download:Element g1e7"},
+		{action: browserdomain.ActionAcceptDialog, input: `{"action":"accept_dialog","session_id":"browser_1","tab_id":"tab_1","ref":"dialog_1","text":"secret response"}`, want: "accept_dialog:Dialog dialog_1"},
+		{action: browserdomain.ActionDismissDialog, input: `{"action":"dismiss_dialog","session_id":"browser_1","tab_id":"tab_1","ref":"dialog_1"}`, want: "dismiss_dialog:Dialog dialog_1"},
+		{action: browserdomain.ActionWait, input: `{"action":"wait","session_id":"browser_1","tab_id":"tab_1","condition":"text","value":"secret text"}`, want: "wait:Text appears · Tab tab_1"},
+		{action: browserdomain.ActionBack, input: `{"action":"back","session_id":"browser_1","tab_id":"tab_1"}`, want: "back:Tab tab_1"},
+		{action: browserdomain.ActionForward, input: `{"action":"forward","session_id":"browser_1","tab_id":"tab_1"}`, want: "forward:Tab tab_1"},
+	} {
+		t.Run(string(test.action), func(t *testing.T) {
+			detail := getToolInputDisplayDetail("browser", test.input)
+			require.Equal(t, test.want, detail)
+			for _, secret := range []string{"secret", "/private"} {
+				require.NotContains(t, detail, secret)
+			}
+		})
+		seen[test.action] = struct{}{}
+	}
+	for _, action := range browserdomain.SupportedActions() {
+		_, ok := seen[action]
+		require.True(t, ok, "missing browser transcript detail test for %s", action)
+	}
 }
 
 func TestBrowserToolDisplayDetail_PreservesNonDefaultPort(t *testing.T) {
@@ -963,6 +1020,41 @@ func TestBrowserToolDisplayDetail_PreservesNonDefaultPort(t *testing.T) {
 	require.Equal(t, "navigate:http://127.0.0.1:8080", detail)
 }
 
+func TestBrowserToolDisplayDetail_DescribesActionVariants(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "viewport screenshot",
+			input: `{"action":"screenshot","session_id":"browser_1","tab_id":"tab_1"}`,
+			want:  "screenshot:Viewport · Tab tab_1",
+		},
+		{
+			name:  "page load",
+			input: `{"action":"wait","session_id":"browser_1","tab_id":"tab_1","condition":"load"}`,
+			want:  "wait:Page load · Tab tab_1",
+		},
+		{
+			name:  "URL match",
+			input: `{"action":"wait","session_id":"browser_1","tab_id":"tab_1","condition":"url","value":"secret"}`,
+			want:  "wait:URL matches · Tab tab_1",
+		},
+		{
+			name:  "visible element",
+			input: `{"action":"wait","session_id":"browser_1","tab_id":"tab_1","condition":"visible","ref":"g1e7"}`,
+			want:  "wait:Element becomes visible · Element g1e7",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			detail := getToolInputDisplayDetail("browser", test.input)
+			require.Equal(t, test.want, detail)
+			require.NotContains(t, detail, "secret")
+		})
+	}
+}
+
 func TestBrowserToolDisplayDetail_PresentsSafeArtifactMetadata(t *testing.T) {
 	detail := getToolOutputDisplayDetail("browser", `{
 		"handle":"artifact_123","kind":"screenshot","name":"screenshot.png","size":2048,
@@ -971,7 +1063,7 @@ func TestBrowserToolDisplayDetail_PresentsSafeArtifactMetadata(t *testing.T) {
 	require.Equal(t, "screenshot:screenshot.png · artifact_123 · 2048 bytes", detail)
 	require.Equal(
 		t,
-		"Browser screenshot completed: screenshot.png · artifact_123 · 2048 bytes",
+		"screenshot.png · artifact_123 · 2048 bytes",
 		getToolBranchDisplayDetail("Browser", detail, true),
 	)
 	require.NotContains(t, detail, "token")
@@ -979,16 +1071,15 @@ func TestBrowserToolDisplayDetail_PresentsSafeArtifactMetadata(t *testing.T) {
 
 func TestRenderBrowserTranscript_ShowsActionSpecificLifecycleStates(t *testing.T) {
 	for _, test := range []struct {
-		name       string
-		completed  bool
-		terminal   toolTranscriptTerminalStatus
-		wantTitle  string
-		wantBranch string
+		name      string
+		completed bool
+		terminal  toolTranscriptTerminalStatus
+		wantTitle string
 	}{
-		{name: "pending", wantTitle: "Navigating Browser", wantBranch: "Running browser navigate"},
-		{name: "completed", completed: true, wantTitle: "Navigated Browser", wantBranch: "Browser navigate completed"},
-		{name: "failed", terminal: toolTranscriptTerminalStatusFailed, wantTitle: "Browser Navigation Failed", wantBranch: "Browser navigate failed"},
-		{name: "interrupted", terminal: toolTranscriptTerminalStatusInterrupted, wantTitle: "Browser Navigation Interrupted", wantBranch: "Browser navigate interrupted"},
+		{name: "pending", wantTitle: "Navigating Browser"},
+		{name: "completed", completed: true, wantTitle: "Navigated Browser"},
+		{name: "failed", terminal: toolTranscriptTerminalStatusFailed, wantTitle: "Browser Navigation Failed"},
+		{name: "interrupted", terminal: toolTranscriptTerminalStatusInterrupted, wantTitle: "Browser Navigation Interrupted"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			cell := toolTranscriptCell{
@@ -999,10 +1090,42 @@ func TestRenderBrowserTranscript_ShowsActionSpecificLifecycleStates(t *testing.T
 			group.add(cell)
 			rendered := stripANSI(renderToolTranscriptGroup(group, 0))
 			require.Contains(t, rendered, test.wantTitle)
-			require.Contains(t, rendered, test.wantBranch)
+			require.Contains(t, rendered, "└ https://example.com")
+			require.NotContains(t, rendered, "browser navigate")
 			require.NotContains(t, rendered, "/private")
 		})
 	}
+}
+
+func TestRenderBrowserTranscript_OmitsRedundantBranchAndDuration(t *testing.T) {
+	startedAt := time.Date(2026, 7, 20, 21, 0, 0, 0, time.UTC)
+	now := startedAt.Add(17 * time.Second)
+	cell := toolTranscriptCell{
+		id: "call_1", action: "Browser", detail: "start", startedAt: startedAt,
+	}
+	group := toolTranscriptGroup{action: "Browser"}
+	group.add(cell)
+
+	rendered := stripANSI(renderToolTranscriptGroupWithContext(
+		group,
+		transcriptRenderContext{Width: 80, Now: now},
+	))
+
+	require.Contains(t, rendered, "● Starting Browser (17s)")
+	require.NotContains(t, rendered, "└")
+	require.NotContains(t, rendered, "browser browser")
+}
+
+func TestRenderBrowserTranscript_LabelsMixedActions(t *testing.T) {
+	group := toolTranscriptGroup{action: "Browser"}
+	group.add(toolTranscriptCell{id: "call_1", action: "Browser", detail: "navigate:https://example.com"})
+	group.add(toolTranscriptCell{id: "call_2", action: "Browser", detail: "snapshot:Tab tab_1"})
+
+	rendered := stripANSI(renderToolTranscriptGroup(group, 0))
+
+	require.Contains(t, rendered, "● Running Browser Actions")
+	require.Contains(t, rendered, "├ Navigation · https://example.com")
+	require.Contains(t, rendered, "└ Snapshot · Tab tab_1")
 }
 
 func TestBrowserTranscriptTitle_HandlesActionCatalogAndMixedGroups(t *testing.T) {

@@ -192,6 +192,27 @@ func TestTurn_ExecuteToolCallsParallel_PreservesToolErrorPayloads(t *testing.T) 
 	require.Equal(t, `{"error":"blocked"}`, messages[1].Content)
 }
 
+func TestTurn_ExecuteToolCall_RecordsFailedOutcome(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	turn := &Turn{
+		invokeToolFn: func(_ context.Context, toolCall models.ToolCall) morphmsg.Message {
+			return toolExecutionTestMessage(toolCall, `{"error":"blocked"}`)
+		},
+	}
+
+	_, err := turn.executeToolCall(
+		context.Background(),
+		traceSession,
+		models.ToolCall{ID: "call-1", Name: "time", Input: "{}"},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, traceSession.Events, 2)
+	payload, ok := traceSession.Events[1].Payload.(trace.ToolInvocationCompletedPayload)
+	require.True(t, ok)
+	require.True(t, payload.Failed)
+}
+
 func TestTurn_ExecuteToolCalls_RunsAdjacentSafeGroupsInParallel(t *testing.T) {
 	completed := make(chan string, 4)
 	fourthStarted := make(chan struct{})

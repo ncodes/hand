@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/wordwrap"
 
+	"github.com/wandxy/morph/internal/permissions"
 	"github.com/wandxy/morph/internal/trace"
 	"github.com/wandxy/morph/pkg/str"
 )
@@ -45,6 +47,8 @@ func (lipglossTranscriptRenderer) RenderCell(cell transcriptCell, ctx transcript
 		return renderErrorTranscriptCell(value.message, ctx.Width)
 	case systemTranscriptCell:
 		return renderMarkdownForTranscript(value.text, ctx.Width)
+	case permissionApprovalTranscriptCell:
+		return renderPermissionApprovalTranscriptCell(value, ctx.Width, ctx.Now)
 	case manualCompactionTranscriptCell:
 		return renderManualCompactionCell(value, ctx)
 	case toolTranscriptCell:
@@ -54,6 +58,102 @@ func (lipglossTranscriptRenderer) RenderCell(cell transcriptCell, ctx transcript
 	default:
 		return ""
 	}
+}
+
+func renderPermissionApprovalTranscriptCell(cell permissionApprovalTranscriptCell, width int, now time.Time) string {
+	message := cell.message
+	if message.Status != string(permissions.ApprovalPending) {
+		return renderResolvedPermissionApproval(message, width)
+	}
+
+	reason, operations := splitBatchApprovalReason(message.Reason)
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground)).
+		Render(permissionStatusIcon + " Permission approval required")
+	lines := []string{title}
+	lines = append(lines, renderPermissionApprovalField("Operation", message.Summary, width)...)
+	if len(message.Effects) > 0 {
+		lines = append(lines, renderPermissionApprovalField("Effects", strings.Join(message.Effects, ", "), width)...)
+	}
+	if reason != "" {
+		lines = append(lines, renderPermissionApprovalField("Reason", reason, width)...)
+	}
+	if len(operations) > 0 {
+		lines = append(lines, renderPermissionApprovalOperations(operations, width)...)
+	}
+	if !message.ExpiresAt.IsZero() {
+		lines = append(lines, renderPermissionApprovalField(
+			"Expires",
+			formatApprovalTimeToGo(message.ExpiresAt, now),
+			width,
+		)...)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func renderResolvedPermissionApproval(message permissionApprovalMsg, width int) string {
+	status := "Permission " + message.Status
+	if message.Scope != "" {
+		status += " (" + message.Scope + ")"
+	}
+	statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.MutedText))
+	if message.Status == string(permissions.ApprovalDenied) {
+		status = permissionStatusIcon + " " + status
+		statusStyle = statusStyle.
+			Bold(true).
+			Foreground(lipgloss.Color(defaultTUITheme.ToolDeletion))
+	}
+	lines := []string{statusStyle.Render(status)}
+	lines = append(lines, renderPermissionApprovalField("Operation", message.Summary, width)...)
+
+	return strings.Join(lines, "\n")
+}
+
+func renderPermissionApprovalField(label string, value string, width int) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+
+	prefix := fmt.Sprintf("  %-9s  ", label)
+	styledPrefix := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Render(prefix)
+	wrapWidth := max(width-lipgloss.Width(prefix), 1)
+	wrapped := strings.Split(wordwrap.String(value, wrapWidth), "\n")
+	lines := make([]string, len(wrapped))
+	for index, line := range wrapped {
+		if index == 0 {
+			lines[index] = styledPrefix + line
+			continue
+		}
+		lines[index] = strings.Repeat(" ", lipgloss.Width(prefix)) + line
+	}
+
+	return lines
+}
+
+func renderPermissionApprovalOperations(operations []string, width int) []string {
+	title := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Render("  Operations")
+	lines := []string{title}
+	for index, operation := range operations {
+		prefix := fmt.Sprintf("    %d. ", index+1)
+		wrapWidth := max(width-lipgloss.Width(prefix), 1)
+		wrapped := strings.Split(wordwrap.String(operation, wrapWidth), "\n")
+		for lineIndex, line := range wrapped {
+			if lineIndex == 0 {
+				lines = append(lines, prefix+line)
+				continue
+			}
+			lines = append(lines, strings.Repeat(" ", lipgloss.Width(prefix))+line)
+		}
+	}
+
+	return lines
 }
 
 func (renderer lipglossTranscriptRenderer) RenderCells(cells []transcriptCell, ctx transcriptRenderContext) string {
@@ -112,7 +212,7 @@ func compactMatchedToolTranscriptCells(cells []transcriptCell) []transcriptCell 
 			continue
 		}
 
-		if toolCell.completed {
+		if toolCell.completed || toolCell.terminalStatus != "" {
 			if index, ok := toolIndexes[id]; ok {
 				if existing, existingOK := compacted[index].(toolTranscriptCell); existingOK {
 					compacted[index] = mergeToolTranscriptCells(existing, toolCell)

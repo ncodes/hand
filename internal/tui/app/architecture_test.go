@@ -370,6 +370,26 @@ func TestTranscriptCellFactory_BuildsToolCellsSharedByLiveAndHydratedPaths(t *te
 	require.Contains(t, livePlain, "list_files(include_hidden=false max_entries=50 path=. recursive=false) (5s)")
 }
 
+func TestTranscriptCellFactory_PreservesFailedToolOutcomeWhenHydrated(t *testing.T) {
+	cell := defaultTranscriptCellFactory.FromTimelineMessage(
+		morphmsg.Message{
+			Role:       morphmsg.RoleTool,
+			Name:       "browser",
+			ToolCallID: "call_1",
+			Content:    `{"error":{"code":"permission_denied","message":"approval denied"}}`,
+		},
+		map[string]timelineToolCallDetail{
+			"call_1": {detail: "start:Profile default"},
+		},
+	)
+
+	toolCell, ok := cell.(toolTranscriptCell)
+	require.True(t, ok)
+	require.False(t, toolCell.completed)
+	require.Equal(t, toolTranscriptTerminalStatusFailed, toolCell.terminalStatus)
+	require.Contains(t, stripANSI(renderTranscriptCells([]transcriptCell{cell})), "Failed to Start Browser")
+}
+
 func TestModel_HandleAppEventRoutesProductBehavior(t *testing.T) {
 	runModel := newModel()
 

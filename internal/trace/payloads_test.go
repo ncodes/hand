@@ -239,6 +239,36 @@ func TestToolInvocationCompletedPayloadFrom_DecodesStructAndMapPayloads(t *testi
 	}, payload)
 }
 
+func TestToolInvocationFailed_DetectsStructuredToolErrors(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		content string
+		failed  bool
+	}{
+		{name: "structured error", content: `{"name":"browser","error":{"code":"permission_denied","message":"approval denied"}}`, failed: true},
+		{name: "string error", content: `{"name":"browser","error":"failed"}`, failed: true},
+		{name: "empty error", content: `{"name":"browser","error":""}`},
+		{name: "null error", content: `{"name":"browser","error":null}`},
+		{name: "successful output", content: `{"name":"browser","output":"done"}`},
+		{name: "invalid content", content: `not json`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.failed, ToolInvocationFailed(test.content))
+		})
+	}
+}
+
+func TestToolInvocationCompletedPayloadFrom_DerivesFailureFromContent(t *testing.T) {
+	payload, ok := ToolInvocationCompletedPayloadFrom(ToolInvocationCompletedPayload{
+		ToolCallID: "call_1",
+		Name:       "browser",
+		Content:    `{"error":{"code":"permission_denied","message":"approval denied"}}`,
+	})
+
+	require.True(t, ok)
+	require.True(t, payload.Failed)
+}
+
 func TestPlanToolOutputState_DecodesSummaryAndChanges(t *testing.T) {
 	state := PlanToolOutputState(`{"summary":{"total":3,"completed":1},"changes":[{"index":2,"id":"step-2","action":"completed","fields":["status"]}]}`)
 

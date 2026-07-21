@@ -249,39 +249,106 @@ func getBrowserToolDisplayDetail(fields map[string]any) string {
 	if action == "" {
 		return "browser"
 	}
-	target := firstNonEmptyToolDisplay(
-		getMapString(fields, "url"), getMapString(fields, "ref"),
-		getMapString(fields, "tab_id"), getMapString(fields, "session_id"),
-	)
+	target := getBrowserToolDisplayTarget(action, fields)
 	if target == "" {
 		return action
 	}
-	if parsed, err := url.Parse(target); err == nil && parsed.Hostname() != "" {
-		target = parsed.Scheme + "://" + parsed.Host
-	}
+
 	return action + ":" + target
 }
 
-func getBrowserToolBranchDetail(detail string, completed bool) string {
-	action, target, _ := strings.Cut(detail, ":")
-	verb := "Running browser " + strings.ReplaceAll(action, "_", " ")
-	if completed {
-		verb = "Browser " + strings.ReplaceAll(action, "_", " ") + " completed"
+func getBrowserToolDisplayTarget(action string, fields map[string]any) string {
+	switch action {
+	case "status", "profiles":
+		return ""
+	case "start":
+		return getBrowserToolNamedTarget("Profile", getMapString(fields, "profile"))
+	case "stop", "tabs":
+		return getBrowserToolNamedTarget("Session", getMapString(fields, "session_id"))
+	case "open", "navigate":
+		return getBrowserToolURLTarget(getMapString(fields, "url"))
+	case "click", "type", "select", "upload", "download":
+		return getBrowserToolNamedTarget("Element", getMapString(fields, "ref"))
+	case "accept_dialog", "dismiss_dialog":
+		return getBrowserToolNamedTarget("Dialog", getMapString(fields, "ref"))
+	case "screenshot":
+		capture := "Viewport"
+		if fullPage, ok := fields["full_page"].(bool); ok && fullPage {
+			capture = "Full page"
+		}
+		return getBrowserToolDisplayParts(capture, getBrowserToolTabTarget(fields))
+	case "wait":
+		context := getBrowserToolTabTarget(fields)
+		if strings.TrimSpace(getMapString(fields, "condition")) == "visible" {
+			context = getBrowserToolNamedTarget("Element", getMapString(fields, "ref"))
+		}
+		return getBrowserToolDisplayParts(
+			getBrowserToolWaitTarget(getMapString(fields, "condition")),
+			context,
+		)
+	default:
+		return getBrowserToolTabTarget(fields)
 	}
-	if target != "" {
-		return verb + ": " + target
-	}
-	return verb
 }
 
-func getBrowserToolTerminalBranchDetail(detail string, status toolTranscriptTerminalStatus) string {
-	action, target, _ := strings.Cut(detail, ":")
-	verb := "Browser " + strings.ReplaceAll(action, "_", " ") + " " + string(status)
-	if target != "" {
-		return verb + ": " + target
+func getBrowserToolURLTarget(rawURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Hostname() == "" {
+		return ""
 	}
 
-	return verb
+	return parsed.Scheme + "://" + parsed.Host
+}
+
+func getBrowserToolTabTarget(fields map[string]any) string {
+	return getBrowserToolNamedTarget("Tab", getMapString(fields, "tab_id"))
+}
+
+func getBrowserToolNamedTarget(label string, value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+
+	return label + " " + value
+}
+
+func getBrowserToolDisplayParts(values ...string) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			parts = append(parts, value)
+		}
+	}
+
+	return strings.Join(parts, " · ")
+}
+
+func getBrowserToolWaitTarget(condition string) string {
+	switch strings.TrimSpace(condition) {
+	case "load":
+		return "Page load"
+	case "text":
+		return "Text appears"
+	case "url":
+		return "URL matches"
+	case "visible":
+		return "Element becomes visible"
+	default:
+		return "Condition"
+	}
+}
+
+func getBrowserToolBranchDetail(detail string, _ bool) string {
+	_, target, _ := strings.Cut(detail, ":")
+
+	return strings.TrimSpace(target)
+}
+
+func getBrowserToolTerminalBranchDetail(detail string, _ toolTranscriptTerminalStatus) string {
+	_, target, _ := strings.Cut(detail, ":")
+
+	return strings.TrimSpace(target)
 }
 
 func getAutomationToolDisplayDetail(fields map[string]any) string {

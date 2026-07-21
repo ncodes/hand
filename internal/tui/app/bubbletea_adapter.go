@@ -249,6 +249,10 @@ func (m model) handleTerminalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			return next, cmd, true
 		}
 		if m.isCommandViewVisible() {
+			if m.isPermissionApprovalCommandView() {
+				next, cmd := m.updateCommandView(msg)
+				return next, cmd, true
+			}
 			if m.startCommandViewSelection(msg) {
 				return m, nil, true
 			}
@@ -330,21 +334,6 @@ func (m model) handlePasteMsg(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
-	if m.pendingApprovalID != "" {
-		switch msg.Keystroke() {
-		case "y":
-			return m, m.resolvePermissionApproval(true, permissions.GrantOnce), true
-		case "s":
-			return m, m.resolvePermissionApproval(true, permissions.GrantSession), true
-		case "a":
-			if !m.pendingApprovalAlways {
-				return m, m.setStatus("always approval is unavailable for these effects"), true
-			}
-			return m, m.resolvePermissionApproval(true, permissions.GrantAlways), true
-		case "n":
-			return m, m.resolvePermissionApproval(false, ""), true
-		}
-	}
 	switch msg.Keystroke() {
 	case "ctrl+c":
 		next, cmd := m.confirmExit()
@@ -352,6 +341,9 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 	}
 	if m.isCommandViewVisible() {
 		if msg.Keystroke() == "esc" {
+			if m.isPermissionApprovalCommandView() {
+				return m, m.setStatus("select an approval option or press n to deny"), true
+			}
 			if m.isChatsCommandView() && (m.chatsArchiveConfirm || m.chatsRenaming) {
 				next, cmd := m.updateCommandView(msg)
 				return next, cmd, true
