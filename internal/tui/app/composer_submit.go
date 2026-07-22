@@ -59,7 +59,7 @@ func (m *model) submitPrompt() tea.Cmd {
 	switch input.Kind {
 	case composerInputPrompt:
 		cmd = m.addPromptHistory(input.Text)
-		followTranscript := m.transcript.AtBottom()
+		followTranscript := m.isTranscriptAtAbsoluteBottom()
 
 		m.applyAction(appendTranscriptCellAction{Cell: userTranscriptCell{text: input.Text}})
 		m.clearComposer()

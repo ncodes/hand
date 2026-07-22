@@ -133,8 +133,14 @@ func (m *model) scrollTranscriptSelection(direction int) {
 	previousOffset := m.transcript.YOffset()
 	switch {
 	case direction < 0:
+		if m.transcript.YOffset() == 0 {
+			m.expandTranscriptSelectionWindow(-1)
+		}
 		m.transcript.ScrollUp(1)
 	case direction > 0:
+		if m.transcript.AtBottom() {
+			m.expandTranscriptSelectionWindow(1)
+		}
 		m.transcript.ScrollDown(1)
 	}
 	m.markResponseTranscriptScrolled(previousOffset, false)
@@ -147,9 +153,11 @@ func (m model) transcriptSelectionScrollDirection(mouse tea.Mouse) int {
 
 	row := mouse.Y - m.getTranscriptTop()
 	switch {
-	case row <= 0 && m.transcript.YOffset() > 0:
+	case row <= 0 && (m.transcript.YOffset() > 0 ||
+		m.transcriptWindow.startBlock > 0 || m.transcriptWindow.startLine > 0):
 		return -1
-	case row >= m.transcript.Height()-1 && !m.transcript.AtBottom():
+	case row >= m.transcript.Height()-1 && (!m.transcript.AtBottom() ||
+		m.transcriptWindow.endBlock < m.transcriptWindow.totalBlocks):
 		return 1
 	default:
 		return 0
@@ -273,6 +281,87 @@ func (m model) isTranscriptSelectionDragActive() bool {
 	return m.selection.active && m.selection.dragging
 }
 
+func (m *model) expandTranscriptSelectionWindow(direction int) bool {
+	if !m.selection.active || direction == 0 {
+		return false
+	}
+
+	if direction < 0 {
+		return m.prependTranscriptSelectionWindow()
+	}
+
+	return m.appendTranscriptSelectionWindow()
+}
+
+func (m *model) prependTranscriptSelectionWindow() bool {
+	if m.transcriptWindow.startBlock == 0 && m.transcriptWindow.startLine == 0 {
+		return false
+	}
+
+	blocks := m.getTranscriptWindowBlocks()
+	start, startLine, added := m.moveTranscriptWindowPositionBackward(
+		blocks,
+		m.transcriptWindow.startBlock,
+		m.transcriptWindow.startLine,
+		max(m.transcript.Height(), 1),
+	)
+	lines, _ := m.renderTranscriptWindowForward(blocks, start, startLine, added)
+	if len(lines) == 0 {
+		return false
+	}
+
+	prefix := strings.Join(lines, "\n")
+	oldLineCount := m.transcript.TotalLineCount()
+	oldOffset := m.transcript.YOffset()
+	plainOffset := len(newRenderedTranscriptDocument(prefix).PlainText) + 1
+	m.selection.content = prefix + "\n" + m.selection.content
+	m.selection.start.offset += plainOffset
+	m.selection.end.offset += plainOffset
+	m.selection.start.line += len(lines)
+	m.selection.end.line += len(lines)
+	m.transcriptWindow.startBlock = start
+	m.transcriptWindow.startLine = startLine
+	m.applyTranscriptSelectionStyle()
+	m.transcript.SetYOffset(oldOffset + max(m.transcript.TotalLineCount()-oldLineCount, 0))
+
+	return true
+}
+
+func (m *model) appendTranscriptSelectionWindow() bool {
+	if m.transcriptWindow.endBlock >= m.transcriptWindow.totalBlocks {
+		return false
+	}
+
+	blocks := m.getTranscriptWindowBlocks()
+	lineCount := len(strings.Split(m.selection.content, "\n"))
+	block, line, _ := m.moveTranscriptWindowPositionForward(
+		blocks,
+		m.transcriptWindow.startBlock,
+		m.transcriptWindow.startLine,
+		lineCount,
+	)
+	lines, end := m.renderTranscriptWindowForward(
+		blocks,
+		block,
+		line,
+		max(m.transcript.Height(), 1),
+	)
+	if len(lines) == 0 {
+		return false
+	}
+
+	m.selection.content += "\n" + strings.Join(lines, "\n")
+	m.transcriptWindow.endBlock = end
+	m.applyTranscriptSelectionStyle()
+
+	return true
+}
+
+func (m *model) expandTranscriptSelectionToEdge(direction int) {
+	for m.expandTranscriptSelectionWindow(direction) {
+	}
+}
+
 func transcriptSelectionAutoScrollTickCmd() tea.Cmd {
 	return tea.Tick(transcriptSelectionAutoScrollInterval, func(time.Time) tea.Msg {
 		return transcriptSelectionAutoScrollTickMsg{}
@@ -280,10 +369,12 @@ func transcriptSelectionAutoScrollTickCmd() tea.Cmd {
 }
 
 func (m *model) restoreTranscriptContentAfterSelection() {
-	offset := m.transcript.YOffset()
+	startBlock := m.transcriptWindow.startBlock
+	startLine := m.transcriptWindow.startLine
 	m.clearTranscriptSelection()
+	m.transcriptWindow.startBlock = startBlock
+	m.transcriptWindow.startLine = startLine
 	m.renderTranscriptIntoViewport()
-	m.transcript.SetYOffset(offset)
 }
 
 func (m model) selectedTranscriptText() string {

@@ -115,7 +115,7 @@ func (m *model) resize() {
 	}
 	m.transcriptResizes++
 
-	wasAtBottom := m.transcript.AtBottom()
+	wasAtBottom := m.isTranscriptAtAbsoluteBottom()
 
 	width := m.getMainPaneWidth()
 	m.input.SetWidth(getInputInnerWidth(width))

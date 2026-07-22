@@ -550,9 +550,15 @@ func (m model) updateInputComposer(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) resizeAfterInputValueChange(previousValue string) {
 	previousMenuHeight := getCommandMenuHeightForValue(previousValue)
 	nextMenuHeight := m.getCommandMenuHeight()
-	shouldKeepHeaderVisible := m.transcript.YOffset() == 0 && nextMenuHeight > previousMenuHeight
+	position := m.getTranscriptWindowPosition()
+	previousTranscriptHeight := m.transcript.Height()
+	shouldKeepHeaderVisible := m.transcriptWindow.startBlock == 0 && m.transcriptWindow.startLine == 0 &&
+		m.transcript.YOffset() == 0 && nextMenuHeight > previousMenuHeight
 
 	m.resize()
+	if m.transcript.Height() != previousTranscriptHeight {
+		m.refreshTranscriptContentAtPosition(position)
+	}
 	if shouldKeepHeaderVisible {
 		m.transcript.GotoTop()
 	}

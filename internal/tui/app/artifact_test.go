@@ -221,6 +221,26 @@ func TestBrowserArtifact_ActionStateAndSaveCommandView(t *testing.T) {
 	require.Equal(t, "browser artifact opened", runModel.status.Text())
 }
 
+func TestBrowserArtifact_StatusInvalidatesRenderedTranscript(t *testing.T) {
+	runModel := newTranscriptWindowTestModel(80, 8)
+	runModel.messages = []transcriptCell{toolTranscriptCell{
+		id:          "call_1",
+		action:      "Browser",
+		detail:      "screenshot:page",
+		completed:   true,
+		artifact:    browserArtifact{Token: "token_1", Kind: browserdomain.ArtifactScreenshot},
+		hasArtifact: true,
+	}}
+	runModel.setTranscriptContent()
+	generation := runModel.transcriptGeneration
+
+	runModel.setBrowserArtifactStatus("token_1", "Artifact unavailable")
+	runModel.setTranscriptContent()
+
+	require.Equal(t, generation+1, runModel.transcriptGeneration)
+	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "Artifact unavailable")
+}
+
 func TestBrowserArtifact_ReadFailuresDoNotMutateCaptureState(t *testing.T) {
 	artifact := browserArtifact{Handle: "artifact_1", Kind: browserdomain.ArtifactScreenshot, Size: 3, Token: "token_1"}
 	result := readBrowserArtifactCmd(
@@ -318,12 +338,12 @@ func TestBrowserArtifact_MouseActionRequiresStructuredToolResult(t *testing.T) {
 	runModel.width = 100
 	runModel.height = 20
 	runModel.resize()
-	runModel.messages = []transcriptCell{toolTranscriptCell{
+	runModel.messages = transcriptWindowTestCells(300)
+	runModel.messages = append(runModel.messages, toolTranscriptCell{
 		id: "call_1", action: "Browser", detail: "screenshot:Full page", completed: true,
 		artifact: artifact, hasArtifact: true,
-	}}
+	})
 	runModel.setTranscriptContent()
-	runModel.transcript.GotoTop()
 	lines := strings.Split(stripANSI(runModel.transcript.View()), "\n")
 	row := indexLineContaining(lines, "Open")
 	require.NotEqual(t, -1, row)
@@ -339,9 +359,9 @@ func TestBrowserArtifact_MouseActionRequiresStructuredToolResult(t *testing.T) {
 	forged.width = 100
 	forged.height = 20
 	forged.resize()
-	forged.messages = []transcriptCell{assistantTranscriptCell{text: "Open Save As artifact_1"}}
+	forged.messages = transcriptWindowTestCells(300)
+	forged.messages = append(forged.messages, assistantTranscriptCell{text: "Open Save As artifact_1"})
 	forged.setTranscriptContent()
-	forged.transcript.GotoTop()
 	lines = strings.Split(stripANSI(forged.transcript.View()), "\n")
 	row = indexLineContaining(lines, "Open")
 	column = strings.Index(lines[row], "Open")

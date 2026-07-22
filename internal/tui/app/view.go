@@ -33,7 +33,7 @@ func (m model) renderJumpToBottom() string {
 	if m.shouldShowNamePrompt() || m.shouldShowProfileModelSetup() {
 		return ""
 	}
-	if m.transcript.AtBottom() || m.isCommandMenuVisible() || m.isCommandViewVisible() {
+	if m.isTranscriptAtAbsoluteBottom() || m.isCommandMenuVisible() || m.isCommandViewVisible() {
 		return ""
 	}
 
@@ -50,7 +50,7 @@ func (m model) renderJumpToBottom() string {
 }
 
 func (m model) clicksJumpToBottomIndicator(msg tea.MouseClickMsg) bool {
-	if msg.Button != tea.MouseLeft || m.transcript.AtBottom() || m.isCommandMenuVisible() || m.isCommandViewVisible() {
+	if msg.Button != tea.MouseLeft || m.isTranscriptAtAbsoluteBottom() || m.isCommandMenuVisible() || m.isCommandViewVisible() {
 		return false
 	}
 
@@ -63,9 +63,10 @@ func (m model) getJumpToBottomIndicatorRow() int {
 
 func (m *model) jumpTranscriptToBottom() {
 	if m.selection.active {
-		m.restoreTranscriptContentAfterSelection()
+		m.expandTranscriptSelectionToEdge(1)
+	} else {
+		m.renderTranscriptWindowForScroll(transcriptWindowTail)
 	}
-
 	m.transcript.GotoBottom()
 	if m.responding {
 		m.responseTranscriptFollow = true

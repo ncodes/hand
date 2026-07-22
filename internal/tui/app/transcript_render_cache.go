@@ -19,12 +19,13 @@ var encodeToolTranscriptGroupRenderIdentity = json.Marshal
 type transcriptRenderCacheKey struct {
 	identity [sha256.Size]byte
 	width    int
+	padding  int
 	dynamic  string
 }
 
 type transcriptRenderCacheEntry struct {
 	key   transcriptRenderCacheKey
-	value string
+	lines []string
 }
 
 type transcriptRenderCache struct {
@@ -73,26 +74,26 @@ func newTranscriptRenderCache(capacity int) *transcriptRenderCache {
 	}
 }
 
-func (cache *transcriptRenderCache) get(key transcriptRenderCacheKey) (string, bool) {
+func (cache *transcriptRenderCache) get(key transcriptRenderCacheKey) ([]string, bool) {
 	element, ok := cache.entries[key]
 	if !ok {
 		cache.misses++
-		return "", false
+		return nil, false
 	}
 
 	cache.hits++
 	cache.order.MoveToFront(element)
-	return element.Value.(transcriptRenderCacheEntry).value, true
+	return element.Value.(transcriptRenderCacheEntry).lines, true
 }
 
-func (cache *transcriptRenderCache) set(key transcriptRenderCacheKey, value string) {
+func (cache *transcriptRenderCache) set(key transcriptRenderCacheKey, lines []string) {
 	if element, ok := cache.entries[key]; ok {
-		element.Value = transcriptRenderCacheEntry{key: key, value: value}
+		element.Value = transcriptRenderCacheEntry{key: key, lines: lines}
 		cache.order.MoveToFront(element)
 		return
 	}
 
-	element := cache.order.PushFront(transcriptRenderCacheEntry{key: key, value: value})
+	element := cache.order.PushFront(transcriptRenderCacheEntry{key: key, lines: lines})
 	cache.entries[key] = element
 	if cache.order.Len() <= cache.capacity {
 		return
@@ -118,6 +119,7 @@ func getTranscriptCellRenderCacheKey(cell transcriptCell, ctx transcriptRenderCo
 	return transcriptRenderCacheKey{
 		identity: getTranscriptRenderIdentity(cell),
 		width:    ctx.Width,
+		padding:  ctx.Padding,
 		dynamic:  getTranscriptCellDynamicRenderValue(cell, ctx),
 	}
 }
@@ -141,6 +143,7 @@ func getToolTranscriptGroupRenderCacheKey(
 	return transcriptRenderCacheKey{
 		identity: identity,
 		width:    ctx.Width,
+		padding:  ctx.Padding,
 		dynamic:  strings.Join(dynamic, "\x00"),
 	}, true
 }

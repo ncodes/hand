@@ -41,7 +41,7 @@ func (m *model) setTranscriptContent() {
 	}
 
 	m.clearTranscriptSelection()
-	m.renderTranscriptIntoViewport()
+	m.renderTranscriptWindowIntoViewport(transcriptWindowTail)
 	m.transcript.GotoBottom()
 }
 
@@ -50,35 +50,40 @@ func (m *model) setTranscriptContentForActiveTurn() {
 		return
 	}
 
-	offset := m.transcript.YOffset()
+	startBlock := m.transcriptWindow.startBlock
+	startLine := m.transcriptWindow.startLine
 	m.clearTranscriptSelection()
+	m.transcriptWindow.startBlock = startBlock
+	m.transcriptWindow.startLine = startLine
 	m.renderTranscriptIntoViewport()
-	m.transcript.SetYOffset(offset)
 }
 
 func (m *model) renderTranscriptIntoViewport() {
-	m.transcript.SetContent(m.renderTranscriptContent())
-	m.transcriptRenders++
-	if m.responding {
-		m.streamingRenderAt = currentTime()
-	}
+	offset := m.transcript.YOffset()
+	prepended := m.renderTranscriptWindowIntoViewport(transcriptWindowCurrent)
+	m.transcript.SetYOffset(offset + prepended)
 }
 
 func (m *model) refreshTranscriptContentAfterResize() {
+	m.refreshTranscriptContentAtPosition(m.getTranscriptWindowPosition())
+}
+
+func (m *model) refreshTranscriptContentAtPosition(position transcriptWindowPosition) {
 	if m.isTranscriptSelectionDragActive() {
 		return
 	}
 
-	offset := m.transcript.YOffset()
-	wasAtBottom := m.transcript.AtBottom()
 	m.clearTranscriptSelection()
-	m.renderTranscriptIntoViewport()
-	if wasAtBottom {
+	if position.atBottom {
+		m.renderTranscriptWindowIntoViewport(transcriptWindowTail)
 		m.transcript.GotoBottom()
 		return
 	}
 
-	m.transcript.SetYOffset(offset)
+	m.transcriptWindow.startBlock = position.startBlock
+	m.transcriptWindow.startLine = position.startLine
+	prepended := m.renderTranscriptWindowIntoViewport(transcriptWindowCurrent)
+	m.transcript.SetYOffset(position.offset + prepended)
 }
 
 func (m *model) renderTranscriptContent() string {
@@ -120,34 +125,20 @@ func (m model) renderTranscriptBodyCells(cells []transcriptCell) string {
 	if contentWidth <= 0 {
 		contentWidth = max(width, 1)
 	}
-	cellsText := renderTranscriptCellsWithFrameAndCache(cells, contentWidth, m.toolAnimationFrame, m.transcriptCache)
+	padding := getPanelHorizontalPadding(width)
+	cellsText := renderTranscriptCellsWithPadding(
+		cells,
+		contentWidth,
+		padding,
+		m.toolAnimationFrame,
+		m.transcriptCache,
+	)
 	cellsTextValue := str.String(cellsText)
 	if cellsTextValue.Trim() == "" {
 		return ""
 	}
 
-	padding := getPanelHorizontalPadding(width)
-	if padding <= 0 {
-		return cellsText
-	}
-
-	return indentTranscriptBodyCells(cellsText, padding)
-}
-
-func indentTranscriptBodyCells(content string, padding int) string {
-	if padding <= 0 || content == "" {
-		return content
-	}
-
-	prefix := strings.Repeat(" ", padding)
-	lines := strings.Split(content, "\n")
-	for index := range lines {
-		if lines[index] != "" {
-			lines[index] = prefix + lines[index]
-		}
-	}
-
-	return strings.Join(lines, "\n")
+	return cellsText
 }
 
 func (m *model) updateTranscript(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -162,9 +153,21 @@ func (m *model) scrollTranscriptWithKey(msg tea.KeyPressMsg) bool {
 	switch msg.Key().Code {
 	case tea.KeyPgUp:
 		m.transcript.PageUp()
+		if m.transcript.YOffset() <= max(m.transcript.Height(), 1) {
+			m.shiftTranscriptWindowUp()
+		}
 	case tea.KeyPgDown:
 		m.transcript.PageDown()
+		if m.transcript.YOffset()+m.transcript.Height() >=
+			m.transcript.TotalLineCount()-max(m.transcript.Height(), 1) {
+			m.shiftTranscriptWindowDown()
+		}
 	case tea.KeyHome:
+		if m.selection.active {
+			m.expandTranscriptSelectionToEdge(-1)
+		} else {
+			m.renderTranscriptWindowForScroll(transcriptWindowHead)
+		}
 		m.transcript.GotoTop()
 	case tea.KeyEnd:
 		m.jumpTranscriptToBottom()
@@ -179,7 +182,16 @@ func (m *model) scrollTranscriptWithKey(msg tea.KeyPressMsg) bool {
 
 func (m *model) updateTranscriptWithScrollTracking(msg tea.Msg) (tea.Model, tea.Cmd) {
 	offset := m.transcript.YOffset()
+	wheel, isWheel := msg.(tea.MouseWheelMsg)
 	_, cmd := m.updateTranscript(msg)
+	if isWheel && wheel.Button == tea.MouseWheelUp && m.transcript.YOffset() <= max(m.transcript.Height(), 1) {
+		m.shiftTranscriptWindowUp()
+	}
+	if isWheel && wheel.Button == tea.MouseWheelDown &&
+		m.transcript.YOffset()+m.transcript.Height() >=
+			m.transcript.TotalLineCount()-max(m.transcript.Height(), 1) {
+		m.shiftTranscriptWindowDown()
+	}
 	m.markResponseTranscriptScrolled(offset, true)
 
 	return *m, cmd
@@ -189,7 +201,7 @@ func (m *model) markResponseTranscriptScrolled(previousOffset int, scrollInput b
 	if !m.responding {
 		return
 	}
-	if m.transcript.AtBottom() {
+	if m.isTranscriptAtAbsoluteBottom() {
 		m.responseTranscriptFollow = true
 		m.responseTranscriptScrolled = false
 		return

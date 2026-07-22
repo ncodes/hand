@@ -24,9 +24,10 @@ type hydrateTimelineEvent = tuievents.HydrateTimelineEvent
 func (m model) handleAppEvent(event tuiEvent) (model, tea.Cmd) {
 	switch value := event.(type) {
 	case viewportResizedEvent:
+		position := m.getTranscriptWindowPosition()
 		m.applyAction(setViewportSizeAction{Width: value.Width, Height: value.Height})
 		m.resize()
-		m.refreshTranscriptContentAfterResize()
+		m.refreshTranscriptContentAtPosition(position)
 		return m, nil
 	case submitComposerEvent:
 		cmd := m.submitPrompt()

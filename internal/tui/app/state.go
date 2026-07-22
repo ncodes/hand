@@ -38,6 +38,7 @@ type tuiState struct {
 	permissionPresetConfirm    bool
 	messages                   []transcriptCell
 	live                       transcriptCell
+	transcriptGeneration       uint64
 	showIntro                  bool
 	stream                     markdownStreamCollector
 	reasoningStartedAt         time.Time
@@ -100,6 +101,7 @@ type tuiState struct {
 	exitAt                     time.Time
 	allowShell                 bool
 	selection                  transcriptSelection
+	transcriptWindow           transcriptWindowState
 	pendingApprovalID          string
 	pendingApprovalOrder       []string
 	pendingApprovalMessages    map[string]permissionApprovalMsg

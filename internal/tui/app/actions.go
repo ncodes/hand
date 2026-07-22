@@ -94,6 +94,7 @@ func (action appendTranscriptCellAction) apply(state *tuiState) {
 	}
 
 	state.messages = append(state.messages, action.Cell)
+	state.transcriptGeneration++
 	state.showIntro = false
 }
 
@@ -103,6 +104,7 @@ func (action setTranscriptCellsAction) apply(state *tuiState) {
 	}
 
 	state.messages = cloneTranscriptCells(action.Cells)
+	state.transcriptGeneration++
 	state.showIntro = len(state.messages) == 0
 }
 
@@ -121,6 +123,7 @@ func (clearTranscriptAction) apply(state *tuiState) {
 
 	state.messages = nil
 	state.live = nil
+	state.transcriptGeneration++
 	state.showIntro = false
 	state.stream.Reset()
 	state.reasoningStartedAt = time.Time{}
@@ -137,6 +140,7 @@ func (action replaceTranscriptCellAction) apply(state *tuiState) {
 	}
 
 	state.messages[action.Index] = action.Cell
+	state.transcriptGeneration++
 }
 
 func (action setSessionTitleAction) apply(state *tuiState) {

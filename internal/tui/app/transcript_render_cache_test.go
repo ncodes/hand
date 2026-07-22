@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,9 +100,9 @@ func TestTranscriptRenderCache_InvalidatesPlanStateContent(t *testing.T) {
 	cache := newTranscriptRenderCache(16)
 	ctx := transcriptRenderContext{Width: 80, Now: time.Now(), Cache: cache}
 
-	first := renderCachedToolTranscriptGroup(group, ctx)
+	first := strings.Join(renderCachedToolTranscriptGroupLines(group, ctx), "\n")
 	state.TotalCount = 2
-	second := renderCachedToolTranscriptGroup(group, ctx)
+	second := strings.Join(renderCachedToolTranscriptGroupLines(group, ctx), "\n")
 
 	require.NotEqual(t, first, second)
 	require.Contains(t, stripANSI(first), "Found 1 task")
@@ -125,9 +126,9 @@ func TestTranscriptRenderCache_InvalidatesNestedProcessStateContent(t *testing.T
 	cache := newTranscriptRenderCache(16)
 	ctx := transcriptRenderContext{Width: 80, Now: time.Now(), Cache: cache}
 
-	first := renderCachedToolTranscriptGroup(group, ctx)
+	first := strings.Join(renderCachedToolTranscriptGroupLines(group, ctx), "\n")
 	exitCode = 1
-	second := renderCachedToolTranscriptGroup(group, ctx)
+	second := strings.Join(renderCachedToolTranscriptGroupLines(group, ctx), "\n")
 
 	require.NotEqual(t, first, second)
 	require.Contains(t, stripANSI(first), "exit 0")
@@ -151,11 +152,11 @@ func TestTranscriptRenderCache_BypassesToolGroupCacheWhenIdentityEncodingFails(t
 	})
 	cache := newTranscriptRenderCache(16)
 
-	rendered := renderCachedToolTranscriptGroup(group, transcriptRenderContext{
+	rendered := strings.Join(renderCachedToolTranscriptGroupLines(group, transcriptRenderContext{
 		Width: 80,
 		Now:   time.Now(),
 		Cache: cache,
-	})
+	}), "\n")
 
 	require.Contains(t, stripANSI(rendered), "Found 1 task")
 	require.Zero(t, cache.len())
@@ -168,14 +169,14 @@ func TestTranscriptRenderCache_EvictsLeastRecentlyUsedEntryAndClears(t *testing.
 	first := transcriptRenderCacheKey{identity: getTranscriptRenderIdentity("first")}
 	second := transcriptRenderCacheKey{identity: getTranscriptRenderIdentity("second")}
 	third := transcriptRenderCacheKey{identity: getTranscriptRenderIdentity("third")}
-	cache.set(first, "1")
-	cache.set(second, "2")
-	cache.set(first, "updated")
+	cache.set(first, []string{"1"})
+	cache.set(second, []string{"2"})
+	cache.set(first, []string{"updated"})
 	require.Equal(t, 2, cache.len())
 	value, ok := cache.get(first)
 	require.True(t, ok)
-	require.Equal(t, "updated", value)
-	cache.set(third, "3")
+	require.Equal(t, []string{"updated"}, value)
+	cache.set(third, []string{"3"})
 
 	_, ok = cache.get(second)
 	require.False(t, ok)
@@ -279,6 +280,42 @@ func TestTranscriptRenderCache_MatchesUncachedRenderer(t *testing.T) {
 	}
 }
 
+func TestTranscriptRenderCache_CachesPaddingInsideLines(t *testing.T) {
+	require.Equal(
+		t,
+		[]string{"  first", "", "  second"},
+		getPaddedTranscriptLines("first\n\nsecond", 2),
+	)
+
+	cache := newTranscriptRenderCache(8)
+	cells := []transcriptCell{
+		safetyTranscriptCell{action: "blocked"},
+	}
+
+	rendered := renderTranscriptCellsWithPadding(cells, 80, 2, 0, cache)
+
+	require.Equal(t, "  Safety: blocked", stripANSI(rendered))
+	require.Equal(t, uint64(1), cache.misses)
+	key := getTranscriptCellRenderCacheKey(cells[0], transcriptRenderContext{Width: 80, Padding: 2})
+	lines, ok := cache.get(key)
+	require.True(t, ok)
+	require.Equal(t, []string{"  Safety: blocked"}, stripANSILines(lines))
+}
+
+func TestGetPaddedTranscriptLinesHandlesEmptyAndUnpaddedContent(t *testing.T) {
+	require.Nil(t, getPaddedTranscriptLines("", 2))
+	require.Equal(t, []string{"first", "second"}, getPaddedTranscriptLines("first\nsecond", 0))
+}
+
+func stripANSILines(lines []string) []string {
+	plain := make([]string, len(lines))
+	for index, line := range lines {
+		plain[index] = stripANSI(line)
+	}
+
+	return plain
+}
+
 func completedToolTranscriptGroup(action string, detail toolTranscriptDetail) toolTranscriptGroup {
 	return toolTranscriptGroup{
 		action:       action,
@@ -295,7 +332,10 @@ func getTranscriptCellRenderCacheKeyForModel(runModel *model, cell transcriptCel
 		contentWidth = max(width, 1)
 	}
 
-	return getTranscriptCellRenderCacheKey(cell, transcriptRenderContext{Width: contentWidth})
+	return getTranscriptCellRenderCacheKey(cell, transcriptRenderContext{
+		Width:   contentWidth,
+		Padding: getPanelHorizontalPadding(width),
+	})
 }
 
 func getPointerFieldPath(valueType reflect.Type, visited map[reflect.Type]bool) (string, bool) {

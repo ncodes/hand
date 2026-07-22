@@ -33,23 +33,24 @@ type model struct {
 	nameInput        textinput.Model
 	renameInput      textinput.Model
 	tuiState
-	chatClient        rpcclient.ChatAPI
-	sessionClient     rpcclient.SessionAPI
-	modelClient       rpcclient.ModelAPI
-	permissionClient  rpcclient.PermissionAPI
-	browserClient     rpcclient.BrowserAPI
-	artifactPathInput textinput.Model
-	pendingArtifact   browserArtifact
-	artifactCopies    map[string]browserArtifactCopy
-	timeline          sessionTimelineLoader
-	title             sessionTitleLoader
-	contextLoader     sessionContextLoader
-	chatCtx           context.Context
-	events            <-chan tea.Msg
-	transcriptCache   *transcriptRenderCache
-	transcriptLayout  transcriptLayoutState
-	transcriptRenders uint64
-	transcriptResizes uint64
+	chatClient           rpcclient.ChatAPI
+	sessionClient        rpcclient.SessionAPI
+	modelClient          rpcclient.ModelAPI
+	permissionClient     rpcclient.PermissionAPI
+	browserClient        rpcclient.BrowserAPI
+	artifactPathInput    textinput.Model
+	pendingArtifact      browserArtifact
+	artifactCopies       map[string]browserArtifactCopy
+	timeline             sessionTimelineLoader
+	title                sessionTitleLoader
+	contextLoader        sessionContextLoader
+	chatCtx              context.Context
+	events               <-chan tea.Msg
+	transcriptCache      *transcriptRenderCache
+	transcriptBlockCache transcriptBlockCache
+	transcriptLayout     transcriptLayoutState
+	transcriptRenders    uint64
+	transcriptResizes    uint64
 }
 
 // newModel builds the initial TUI state and sizes child components.

@@ -2669,6 +2669,30 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 	require.Equal(t, defaultStatus, runModel.status.Text())
 }
 
+func TestModel_UpdateHydratesOnlyTailWindowForLongSession(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 20
+	runModel.resize()
+	messages := make([]agentapi.SessionTimelineMessage, 2_000)
+	for index := range messages {
+		messages[index] = agentapi.SessionTimelineMessage{Message: morphmsg.Message{
+			Role: morphmsg.RoleAssistant, Content: fmt.Sprintf("history-%04d", index),
+		}}
+	}
+
+	updated, cmd := runModel.Update(sessionTimelineLoadedMsg{Timeline: rpcclient.SessionTimeline{
+		SessionID: "default",
+		Messages:  messages,
+	}})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Len(t, runModel.messages, 2_000)
+	require.Less(t, runModel.transcriptCache.len(), 100)
+	require.Contains(t, stripANSI(runModel.transcript.View()), "history-1999")
+	require.NotContains(t, stripANSI(runModel.transcript.GetContent()), "history-0000")
+}
+
 func TestModel_ApplyTUIMessageRendersLiveAutoCompactionTrace(t *testing.T) {
 	runModel := newModel()
 
@@ -3240,13 +3264,14 @@ func TestModel_UpdateScrollsTranscriptWithPagingKeys(t *testing.T) {
 	}
 	runModel.setTranscriptContent()
 	bottomOffset := runModel.transcript.YOffset()
+	bottomView := runModel.transcript.View()
 	require.Greater(t, bottomOffset, 0)
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Less(t, runModel.transcript.YOffset(), bottomOffset)
+	require.NotEqual(t, bottomView, runModel.transcript.View())
 
 	updated, cmd = runModel.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
 
@@ -3276,6 +3301,7 @@ func TestModel_UpdateScrollsHeaderWithTranscript(t *testing.T) {
 		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
+	runModel.renderTranscriptWindowIntoViewport(transcriptWindowHead)
 	runModel.transcript.GotoTop()
 	require.Contains(t, stripANSI(runModel.transcript.View()), "Welcome, Kennedy")
 
@@ -3284,7 +3310,7 @@ func TestModel_UpdateScrollsHeaderWithTranscript(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "Welcome, Kennedy")
-	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "Welcome, Kennedy")
+	require.Contains(t, stripANSI(runModel.renderTranscriptContent()), "Welcome, Kennedy")
 }
 
 func TestModel_RenderTranscriptContentPreservesMainPaneHeader(t *testing.T) {
@@ -4246,16 +4272,16 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	runModel := newModel()
 	runModel.height = 40
 	runModel.resize()
-	runModel.messages = []transcriptCell{
+	runModel.messages = transcriptWindowTestCells(300)
+	runModel.messages = append(runModel.messages,
 		userTranscriptCell{text: "first"},
 		assistantTranscriptCell{text: "second"},
 		toolTranscriptTestCell("", "read_file", ""),
-	}
+	)
 	runModel.setTranscriptContent()
 	runModel.resize()
-	runModel.transcript.GotoTop()
-	firstRow := getTranscriptContentRow(t, runModel, "❯ first")
-	secondRow := getTranscriptContentRow(t, runModel, "second")
+	firstRow := getTranscriptContentRow(t, runModel, "❯ first") - runModel.transcript.YOffset()
+	secondRow := getTranscriptContentRow(t, runModel, "second") - runModel.transcript.YOffset()
 	require.GreaterOrEqual(t, runModel.transcript.Height(), 3)
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
@@ -4815,7 +4841,9 @@ func TestModel_SetTranscriptContentClearsMouseSelection(t *testing.T) {
 	runModel.applyTranscriptSelectionStyle()
 	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
 
-	runModel.messages = []transcriptCell{assistantTranscriptCell{text: "refreshed"}}
+	runModel.applyAction(setTranscriptCellsAction{Cells: []transcriptCell{
+		assistantTranscriptCell{text: "refreshed"},
+	}})
 	runModel.setTranscriptContent()
 
 	require.False(t, runModel.selection.active)
@@ -4974,7 +5002,7 @@ func TestModel_SubmitPromptPreservesTranscriptOffsetWhenAwayFromBottom(t *testin
 	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
 	require.False(t, runModel.transcript.AtBottom())
 	require.False(t, runModel.responseTranscriptFollow)
-	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "❯ hello")
+	require.Contains(t, stripANSI(runModel.renderTranscriptContent()), "❯ hello")
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "❯ hello")
 }
 
@@ -5229,7 +5257,7 @@ func TestModel_UpdatePreservesTranscriptScrollDuringActiveResponse(t *testing.T)
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
-	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "streamed")
+	require.Contains(t, stripANSI(runModel.renderTranscriptContent()), "streamed")
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "streamed")
 }
 
@@ -5443,7 +5471,7 @@ func TestModel_UpdateReenablesFollowModeWhenUserScrollsBackToBottom(t *testing.T
 	require.True(t, runModel.responseTranscriptScrolled)
 	require.False(t, runModel.responseTranscriptFollow)
 
-	for !runModel.transcript.AtBottom() {
+	for !runModel.isTranscriptAtAbsoluteBottom() {
 		updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyPgDown}))
 		require.Nil(t, cmd)
 		runModel = updated.(model)
@@ -5458,7 +5486,8 @@ func TestModel_UpdateReenablesFollowModeWhenUserScrollsBackToBottom(t *testing.T
 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.True(t, runModel.transcript.AtBottom())
+	require.True(t, runModel.isTranscriptAtAbsoluteBottom())
+	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "streamed")
 	require.Contains(t, stripANSI(runModel.transcript.View()), "streamed")
 }
 

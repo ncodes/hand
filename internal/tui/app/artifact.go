@@ -502,7 +502,7 @@ func (m *model) setBrowserArtifactStatus(token string, status string) {
 			continue
 		}
 		cell.artifactStatus = status
-		m.messages[index] = cell
+		m.applyAction(replaceTranscriptCellAction{Index: index, Cell: cell})
 		return
 	}
 }

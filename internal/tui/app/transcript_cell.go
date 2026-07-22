@@ -26,10 +26,11 @@ const (
 const userTranscriptPrompt = inputPrompt
 
 type transcriptRenderContext struct {
-	Width int
-	Frame int
-	Now   time.Time
-	Cache *transcriptRenderCache
+	Width   int
+	Padding int
+	Frame   int
+	Now     time.Time
+	Cache   *transcriptRenderCache
 }
 
 type transcriptCell interface {
@@ -264,6 +265,19 @@ func renderTranscriptCellsWithFrameAndCache(
 	return defaultTranscriptRenderer.RenderCells(cells, ctx)
 }
 
+func renderTranscriptCellsWithPadding(
+	cells []transcriptCell,
+	width int,
+	padding int,
+	frame int,
+	cache *transcriptRenderCache,
+) string {
+	ctx := transcriptRenderContext{
+		Width: width, Padding: padding, Frame: frame, Now: currentTime(), Cache: cache,
+	}
+	return defaultTranscriptRenderer.RenderCells(cells, ctx)
+}
+
 type toolTranscriptTerminalStatus string
 
 const (
@@ -492,35 +506,20 @@ func (group *toolTranscriptGroup) mergeToolTranscriptCell(id string, cell toolTr
 	}
 }
 
-func flushToolTranscriptGroupWithContext(
-	rendered *[]string,
-	group **toolTranscriptGroup,
-	ctx transcriptRenderContext,
-) {
-	if group == nil || *group == nil {
-		return
-	}
-
-	if cell := renderCachedToolTranscriptGroup(**group, ctx); cell != "" {
-		*rendered = append(*rendered, cell)
-	}
-	*group = nil
-}
-
-func renderCachedToolTranscriptGroup(group toolTranscriptGroup, ctx transcriptRenderContext) string {
+func renderCachedToolTranscriptGroupLines(group toolTranscriptGroup, ctx transcriptRenderContext) []string {
 	if ctx.Cache == nil || isToolTranscriptGroupFrameAnimated(group) {
-		return renderToolTranscriptGroupWithContext(group, ctx)
+		return getPaddedTranscriptLines(renderToolTranscriptGroupWithContext(group, ctx), ctx.Padding)
 	}
 
 	key, ok := getToolTranscriptGroupRenderCacheKey(group, ctx)
 	if !ok {
-		return renderToolTranscriptGroupWithContext(group, ctx)
+		return getPaddedTranscriptLines(renderToolTranscriptGroupWithContext(group, ctx), ctx.Padding)
 	}
 	if rendered, ok := ctx.Cache.get(key); ok {
 		return rendered
 	}
 
-	rendered := renderToolTranscriptGroupWithContext(group, ctx)
+	rendered := getPaddedTranscriptLines(renderToolTranscriptGroupWithContext(group, ctx), ctx.Padding)
 	ctx.Cache.set(key, rendered)
 	return rendered
 }

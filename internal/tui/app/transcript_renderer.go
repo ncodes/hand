@@ -166,10 +166,29 @@ func renderPermissionApprovalOperations(operations []string, width int) []string
 }
 
 func (renderer lipglossTranscriptRenderer) RenderCells(cells []transcriptCell, ctx transcriptRenderContext) string {
+	blocks := getTranscriptRenderBlocks(cells)
+	rendered := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		lines := block.renderLines(renderer, ctx)
+		if len(lines) > 0 {
+			rendered = append(rendered, strings.Join(lines, "\n"))
+		}
+	}
+
+	return strings.Join(rendered, "\n\n")
+}
+
+type transcriptRenderBlock struct {
+	cell        transcriptCell
+	toolGroup   toolTranscriptGroup
+	isToolGroup bool
+}
+
+func getTranscriptRenderBlocks(cells []transcriptCell) []transcriptRenderBlock {
 	cells = compactMatchedToolTranscriptCells(cells)
 	cells = compactConsecutiveProcessToolAttemptCells(cells)
 	cells = compactConsecutiveManualCompactionCells(cells)
-	rendered := make([]string, 0, len(cells))
+	blocks := make([]transcriptRenderBlock, 0, len(cells))
 	var toolGroup *toolTranscriptGroup
 	for _, cell := range cells {
 		if cell == nil || cell.IsEmpty() {
@@ -178,7 +197,7 @@ func (renderer lipglossTranscriptRenderer) RenderCells(cells []transcriptCell, c
 
 		if toolCell, ok := cell.(toolTranscriptCell); ok {
 			if toolGroup == nil || toolGroup.action != toolCell.action {
-				flushToolTranscriptGroupWithContext(&rendered, &toolGroup, ctx)
+				appendToolTranscriptRenderBlock(&blocks, &toolGroup)
 			}
 			if toolGroup == nil {
 				toolGroup = &toolTranscriptGroup{action: toolCell.action}
@@ -187,19 +206,37 @@ func (renderer lipglossTranscriptRenderer) RenderCells(cells []transcriptCell, c
 			continue
 		}
 
-		flushToolTranscriptGroupWithContext(&rendered, &toolGroup, ctx)
-		if renderedCell := renderer.renderCell(cell, ctx); renderedCell != "" {
-			rendered = append(rendered, renderedCell)
-		}
+		appendToolTranscriptRenderBlock(&blocks, &toolGroup)
+		blocks = append(blocks, transcriptRenderBlock{cell: cell})
 	}
-	flushToolTranscriptGroupWithContext(&rendered, &toolGroup, ctx)
+	appendToolTranscriptRenderBlock(&blocks, &toolGroup)
 
-	return strings.Join(rendered, "\n\n")
+	return blocks
 }
 
-func (renderer lipglossTranscriptRenderer) renderCell(cell transcriptCell, ctx transcriptRenderContext) string {
+func appendToolTranscriptRenderBlock(blocks *[]transcriptRenderBlock, group **toolTranscriptGroup) {
+	if *group == nil {
+		return
+	}
+
+	*blocks = append(*blocks, transcriptRenderBlock{toolGroup: **group, isToolGroup: true})
+	*group = nil
+}
+
+func (block transcriptRenderBlock) renderLines(
+	renderer lipglossTranscriptRenderer,
+	ctx transcriptRenderContext,
+) []string {
+	if block.isToolGroup {
+		return renderCachedToolTranscriptGroupLines(block.toolGroup, ctx)
+	}
+
+	return renderer.renderCellLines(block.cell, ctx)
+}
+
+func (renderer lipglossTranscriptRenderer) renderCellLines(cell transcriptCell, ctx transcriptRenderContext) []string {
 	if ctx.Cache == nil || !isTranscriptCellIdentityCacheable(cell) || isTranscriptCellFrameAnimated(cell) {
-		return renderer.RenderCell(cell, ctx)
+		return getPaddedTranscriptLines(renderer.RenderCell(cell, ctx), ctx.Padding)
 	}
 
 	key := getTranscriptCellRenderCacheKey(cell, ctx)
@@ -207,9 +244,29 @@ func (renderer lipglossTranscriptRenderer) renderCell(cell transcriptCell, ctx t
 		return rendered
 	}
 
-	rendered := renderer.RenderCell(cell, ctx)
+	rendered := getPaddedTranscriptLines(renderer.RenderCell(cell, ctx), ctx.Padding)
 	ctx.Cache.set(key, rendered)
 	return rendered
+}
+
+func getPaddedTranscriptLines(rendered string, padding int) []string {
+	if rendered == "" {
+		return nil
+	}
+
+	lines := strings.Split(rendered, "\n")
+	if padding <= 0 {
+		return lines
+	}
+
+	prefix := strings.Repeat(" ", padding)
+	for index := range lines {
+		if lines[index] != "" {
+			lines[index] = prefix + lines[index]
+		}
+	}
+
+	return lines
 }
 
 func compactMatchedToolTranscriptCells(cells []transcriptCell) []transcriptCell {
