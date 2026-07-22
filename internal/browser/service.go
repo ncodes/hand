@@ -13,10 +13,16 @@ import (
 
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/permissions"
+	"github.com/wandxy/morph/pkg/logutils"
 	"github.com/wandxy/morph/pkg/nanoid"
 )
 
-const browserSessionIDPrefix = "browser_"
+const (
+	browserSessionIDPrefix  = "browser_"
+	maxBrowserStartAttempts = 2
+)
+
+var browserLog = logutils.Module("browser")
 
 type Service struct {
 	cfg                   config.BrowserConfig
@@ -183,16 +189,67 @@ func (s *Service) Start(ctx context.Context, request StartRequest) (Session, err
 	if err := s.authorizeStart(ctx, profile, attached); err != nil {
 		return Session{}, err
 	}
+	fullAccess := isFullAccess(ctx)
+	sessionID := nanoid.MustGenerate(browserSessionIDPrefix)
+	createdAt := s.now()
+	for attempt := 1; attempt <= maxBrowserStartAttempts; attempt++ {
+		runtime, err := s.startRuntime(ctx, sessionID, createdAt, owner, profile, attached, fullAccess)
+		if err == nil {
+			logEvent := browserLog.Debug()
+			if attempt > 1 {
+				logEvent = browserLog.Info()
+			}
+			logEvent.
+				Str("browser_profile", profile.Name).
+				Str("browser_session_id", runtime.ID).
+				Int("browser_start_attempt", attempt).
+				Bool("browser_start_recovered", attempt > 1).
+				Msg("Browser session started")
+			return runtime.Session, nil
+		}
+		if !s.canRetryStart(ctx, err, attempt) {
+			browserLog.Warn().
+				Str("browser_profile", profile.Name).
+				Str("browser_session_id", runtime.ID).
+				Str("browser_error_code", string(getBrowserErrorCode(err))).
+				Int("browser_start_attempt", attempt).
+				Bool("browser_start_will_retry", false).
+				Msg("Browser session failed to start")
+			return runtime.Session, err
+		}
+		browserLog.Warn().
+			Str("browser_profile", profile.Name).
+			Str("browser_session_id", runtime.ID).
+			Str("browser_error_code", string(getBrowserErrorCode(err))).
+			Int("browser_start_attempt", attempt).
+			Int("browser_start_max_attempts", maxBrowserStartAttempts).
+			Bool("browser_start_will_retry", true).
+			Msg("Browser start attempt failed; retrying with a fresh session")
+	}
 
-	now := s.now()
+	return Session{}, &Error{
+		Code: ErrorStartFailed, Operation: ActionStart,
+		Err: errors.New("browser start attempts exhausted"),
+	}
+}
+
+func (s *Service) startRuntime(
+	ctx context.Context,
+	sessionID string,
+	createdAt time.Time,
+	owner Owner,
+	profile config.BrowserProfileConfig,
+	attached attachment,
+	fullAccess bool,
+) (*managedSession, error) {
 	runtime := &managedSession{Session: Session{
-		ID: nanoid.MustGenerate(browserSessionIDPrefix), Profile: profile.Name, ProfileMode: profile.Mode,
-		State: SessionStarting, Owner: owner, CreatedAt: now, LastActive: now, Warning: GetProfileWarning(profile),
+		ID: sessionID, Profile: profile.Name, ProfileMode: profile.Mode,
+		State: SessionStarting, Owner: owner, CreatedAt: createdAt, LastActive: s.now(), Warning: GetProfileWarning(profile),
 	}, tabs: make(map[string]*managedTab), attachment: attached}
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return Session{}, &Error{
+		return runtime, &Error{
 			Code: ErrorClosed, Operation: ActionStart,
 			Err: errors.New("browser service is closed"),
 		}
@@ -200,11 +257,11 @@ func (s *Service) Start(ctx context.Context, request StartRequest) (Session, err
 	s.sessions[runtime.ID] = runtime
 	s.mu.Unlock()
 
-	launch, err := s.prepareLaunch(ctx, profile, runtime, isFullAccess(ctx))
+	launch, err := s.prepareLaunch(ctx, profile, runtime, fullAccess)
 	if err != nil {
 		wrapped := &Error{Code: ErrorStartFailed, Operation: ActionStart, Err: err}
 		s.failStart(runtime, wrapped)
-		return runtime.Session, wrapped
+		return runtime, wrapped
 	}
 	startCtx, cancel := context.WithTimeout(ctx, s.cfg.StartTimeout)
 	stopLifetimeWait := context.AfterFunc(s.lifetime, cancel)
@@ -214,7 +271,7 @@ func (s *Service) Start(ctx context.Context, request StartRequest) (Session, err
 	if err != nil {
 		wrapped := &Error{Code: ErrorStartFailed, Operation: ActionStart, Retryable: true, Err: err}
 		s.failStart(runtime, wrapped)
-		return runtime.Session, wrapped
+		return runtime, wrapped
 	}
 	runtime.resourceMu.Lock()
 	if runtime.cleaned {
@@ -224,31 +281,49 @@ func (s *Service) Start(ctx context.Context, request StartRequest) (Session, err
 			Code: ErrorClosed, Operation: ActionStart, Err: errors.New("browser service closed during startup"),
 		}
 		s.failStart(runtime, cause)
-		return runtime.Session, cause
+		return runtime, cause
 	}
 	runtime.backend = backendSession
 	runtime.resourceMu.Unlock()
 	if err := backendSession.Health(startCtx); err != nil {
 		wrapped := &Error{Code: ErrorHealthFailed, Operation: ActionStart, Retryable: true, Err: err}
 		s.failStart(runtime, wrapped)
-		return runtime.Session, wrapped
+		return runtime, wrapped
 	}
 
 	s.mu.Lock()
 	if s.closed || runtime.State == SessionStopping || runtime.State == SessionStopped {
 		s.mu.Unlock()
 		_ = s.cleanupRuntime(context.Background(), runtime)
-		return runtime.Session, &Error{
+		return runtime, &Error{
 			Code: ErrorClosed, Operation: ActionStart,
 			Err: errors.New("browser service closed during startup"),
 		}
 	}
 	runtime.State = SessionReady
 	runtime.LastActive = s.now()
-	result := runtime.Session
 	s.mu.Unlock()
 
-	return result, nil
+	return runtime, nil
+}
+
+func (s *Service) canRetryStart(ctx context.Context, err error, attempt int) bool {
+	if attempt >= maxBrowserStartAttempts ||
+		ctx.Err() != nil ||
+		s.lifetime.Err() != nil ||
+		errors.Is(err, context.Canceled) {
+		return false
+	}
+	browserErr, ok := GetError(err)
+	return ok && browserErr.Retryable
+}
+
+func getBrowserErrorCode(err error) ErrorCode {
+	browserErr, ok := GetError(err)
+	if !ok {
+		return ""
+	}
+	return browserErr.Code
 }
 
 func (s *Service) Stop(ctx context.Context, id string) (Session, error) {

@@ -52,12 +52,16 @@ func (f checkerFunc) Check(ctx context.Context, input permissions.EvaluationInpu
 }
 
 type fakeBackend struct {
-	mu        sync.Mutex
-	starts    int
-	options   LaunchOptions
-	startErr  error
-	healthErr error
-	session   *fakeBackendSession
+	mu             sync.Mutex
+	starts         int
+	options        LaunchOptions
+	optionHistory  []LaunchOptions
+	startErr       error
+	startErrs      []error
+	healthErr      error
+	healthErrs     []error
+	session        *fakeBackendSession
+	sessionHistory []*fakeBackendSession
 }
 
 type fakeBackendSession struct {
@@ -84,10 +88,24 @@ func (b *fakeBackend) Start(_ context.Context, options LaunchOptions) (BackendSe
 	defer b.mu.Unlock()
 	b.starts++
 	b.options = options
+	b.optionHistory = append(b.optionHistory, options)
+	if len(b.startErrs) > 0 {
+		err := b.startErrs[0]
+		b.startErrs = b.startErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
 	if b.startErr != nil {
 		return nil, b.startErr
 	}
-	b.session = &fakeBackendSession{healthErr: b.healthErr}
+	healthErr := b.healthErr
+	if len(b.healthErrs) > 0 {
+		healthErr = b.healthErrs[0]
+		b.healthErrs = b.healthErrs[1:]
+	}
+	b.session = &fakeBackendSession{healthErr: healthErr}
+	b.sessionHistory = append(b.sessionHistory, b.session)
 	return b.session, nil
 }
 
@@ -176,9 +194,63 @@ func TestService_BackendFailureCleansResourcesAndReportsFailedState(t *testing.T
 	require.Equal(t, SessionFailed, session.State)
 	require.Equal(t, "launch failed", session.Error)
 	require.Len(t, service.Status().Sessions, 1)
+	require.Equal(t, maxBrowserStartAttempts, backend.starts)
 	entries, readErr := os.ReadDir(cfg.TemporaryRoot)
 	require.NoError(t, readErr)
 	require.Empty(t, entries)
+	require.NoError(t, service.Close(context.Background()))
+}
+
+func TestService_StartRecoversFromRetryableBackendFailure(t *testing.T) {
+	cfg := testBrowserConfig(t)
+	backend := &fakeBackend{startErrs: []error{errors.New("launch failed"), nil}}
+	permissionChecks := 0
+	checker := checkerFunc(func(context.Context, permissions.EvaluationInput) (permissions.Evaluation, error) {
+		permissionChecks++
+		return permissions.Evaluation{Decision: permissions.DecisionAllow}, nil
+	})
+	service, err := NewService(context.Background(), cfg, checker, backend)
+	require.NoError(t, err)
+
+	session, err := service.Start(testBrowserContext("owner", "session"), StartRequest{})
+	require.NoError(t, err)
+	require.Equal(t, SessionReady, session.State)
+	require.Equal(t, 2, backend.starts)
+	require.Equal(t, 1, permissionChecks)
+	require.Len(t, service.Status().Sessions, 1)
+	require.Len(t, backend.optionHistory, 2)
+	require.NotEqual(t, backend.optionHistory[0].DataDir, backend.optionHistory[1].DataDir)
+	require.NoDirExists(t, backend.optionHistory[0].DataDir)
+	require.DirExists(t, backend.options.DataDir)
+	require.NoError(t, service.Close(context.Background()))
+}
+
+func TestService_StartRecoversFromRetryableHealthFailure(t *testing.T) {
+	cfg := testBrowserConfig(t)
+	backend := &fakeBackend{healthErrs: []error{errors.New("not healthy"), nil}}
+	service, err := NewService(context.Background(), cfg, allowChecker(), backend)
+	require.NoError(t, err)
+
+	session, err := service.Start(testBrowserContext("owner", "session"), StartRequest{})
+	require.NoError(t, err)
+	require.Equal(t, SessionReady, session.State)
+	require.Equal(t, 2, backend.starts)
+	require.Len(t, backend.sessionHistory, 2)
+	require.Equal(t, 1, backend.sessionHistory[0].closed)
+	require.Zero(t, backend.sessionHistory[1].closed)
+	require.NoError(t, service.Close(context.Background()))
+}
+
+func TestService_StartDoesNotRetryCancellation(t *testing.T) {
+	cfg := testBrowserConfig(t)
+	backend := &fakeBackend{startErr: context.Canceled}
+	service, err := NewService(context.Background(), cfg, allowChecker(), backend)
+	require.NoError(t, err)
+
+	session, err := service.Start(testBrowserContext("owner", "session"), StartRequest{})
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, SessionFailed, session.State)
+	require.Equal(t, 1, backend.starts)
 	require.NoError(t, service.Close(context.Background()))
 }
 
@@ -192,6 +264,10 @@ func TestService_BackendHealthFailureClosesStartedBackend(t *testing.T) {
 	require.EqualError(t, err, "not healthy")
 	require.Equal(t, SessionFailed, session.State)
 	require.Equal(t, 1, backend.session.closed)
+	require.Len(t, backend.sessionHistory, maxBrowserStartAttempts)
+	for _, backendSession := range backend.sessionHistory {
+		require.Equal(t, 1, backendSession.closed)
+	}
 	require.NoDirExists(t, backend.options.DataDir)
 	require.NoError(t, service.Close(context.Background()))
 }
