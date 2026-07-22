@@ -41,6 +41,7 @@ type toolInvocationCompletedMsg struct {
 	ID           string
 	Name         string
 	Detail       string
+	Failure      string
 	Failed       bool
 	PlanState    *trace.PlanToolState
 	ProcessState *trace.ProcessToolState
@@ -280,6 +281,7 @@ func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 			return nil, false
 		}
 
+		msg.Failure = getToolFailureDisplayDetail(toolPayload.Name, toolPayload.Content)
 		msg.Artifact = getBrowserArtifact(toolPayload.Name, toolPayload.Content)
 		return msg, true
 	}

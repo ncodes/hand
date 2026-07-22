@@ -501,12 +501,16 @@ func TestTraceEventToTUIMessage_PreservesFailedToolOutcome(t *testing.T) {
 		Payload: map[string]any{
 			"tool_call_id": "call_1",
 			"name":         "browser",
+			"content":      `{"error":{"code":"browser_unavailable","message":"browser is unavailable","retryable":true}}`,
 			"failed":       true,
 		},
 	})
 
 	require.True(t, ok)
-	require.Equal(t, toolInvocationCompletedMsg{ID: "call_1", Name: "browser", Failed: true}, msg)
+	require.Equal(t, toolInvocationCompletedMsg{
+		ID: "call_1", Name: "browser", Failed: true,
+		Failure: "Browser is unavailable · retryable",
+	}, msg)
 }
 
 func TestTraceEventToTUIMessage_ConvertsStreamedPlanInvocationCompleted(t *testing.T) {

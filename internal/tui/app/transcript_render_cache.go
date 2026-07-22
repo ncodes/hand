@@ -54,6 +54,7 @@ type toolTranscriptDetailRenderIdentity struct {
 	CompletedAt    time.Time
 	Completed      bool
 	TerminalStatus toolTranscriptTerminalStatus
+	Failure        string
 	Artifact       browserArtifact
 	ArtifactToken  string
 	HasArtifact    bool
@@ -156,6 +157,7 @@ func getToolTranscriptGroupRenderIdentity(group toolTranscriptGroup) ([sha256.Si
 			CompletedAt:    detail.completedAt,
 			Completed:      detail.completed,
 			TerminalStatus: detail.terminalStatus,
+			Failure:        detail.failure,
 			Artifact:       detail.artifact,
 			ArtifactToken:  detail.artifact.Token,
 			HasArtifact:    detail.hasArtifact,

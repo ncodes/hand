@@ -387,7 +387,9 @@ func TestTranscriptCellFactory_PreservesFailedToolOutcomeWhenHydrated(t *testing
 	require.True(t, ok)
 	require.False(t, toolCell.completed)
 	require.Equal(t, toolTranscriptTerminalStatusFailed, toolCell.terminalStatus)
-	require.Contains(t, stripANSI(renderTranscriptCells([]transcriptCell{cell})), "Failed to Start Browser")
+	rendered := stripANSI(renderTranscriptCells([]transcriptCell{cell}))
+	require.Contains(t, rendered, "Failed to Start Browser")
+	require.Contains(t, rendered, "└ Profile default · Approval denied")
 }
 
 func TestModel_HandleAppEventRoutesProductBehavior(t *testing.T) {

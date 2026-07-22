@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/wandxy/morph/internal/guardrails"
 	"github.com/wandxy/morph/internal/trace"
@@ -69,6 +70,50 @@ func getToolOutputDisplayDetail(name string, output string) string {
 	return spec.outputDetail(fields)
 }
 
+func getToolFailureDisplayDetail(name string, output string) string {
+	if getToolActionName(name) != "Browser" {
+		return ""
+	}
+
+	var envelope struct {
+		Error json.RawMessage `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &envelope); err != nil || len(envelope.Error) == 0 {
+		return ""
+	}
+
+	var failure struct {
+		Message   string `json:"message"`
+		Retryable bool   `json:"retryable"`
+	}
+	if err := json.Unmarshal(envelope.Error, &failure); err != nil {
+		return ""
+	}
+
+	message := strings.TrimSpace(failure.Message)
+	if message == "" {
+		return ""
+	}
+
+	return formatToolFailureDisplayMessage(message, failure.Retryable)
+}
+
+func formatToolFailureDisplayMessage(message string, retryable bool) string {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return ""
+	}
+
+	messageRunes := []rune(message)
+	messageRunes[0] = unicode.ToUpper(messageRunes[0])
+	message = string(messageRunes)
+	if retryable {
+		message += " · retryable"
+	}
+
+	return message
+}
+
 func getToolOutputDisplayState(name string, output string) *trace.PlanToolState {
 	var fields map[string]any
 	outputValue2 := str.String(output)
@@ -125,7 +170,7 @@ func getToolTranscriptBranchDisplayDetail(action string, detail toolTranscriptDe
 		return textValue.Trim()
 	}
 	if actionValue2.Trim() == "Browser" && detail.terminalStatus != "" {
-		return getBrowserToolTerminalBranchDetail(detail.text, detail.terminalStatus)
+		return getBrowserToolTerminalBranchDetail(detail.text, detail.failure)
 	}
 
 	return getToolBranchDisplayDetail(action, detail.text, detail.completed)
@@ -345,10 +390,10 @@ func getBrowserToolBranchDetail(detail string, _ bool) string {
 	return strings.TrimSpace(target)
 }
 
-func getBrowserToolTerminalBranchDetail(detail string, _ toolTranscriptTerminalStatus) string {
+func getBrowserToolTerminalBranchDetail(detail string, failure string) string {
 	_, target, _ := strings.Cut(detail, ":")
 
-	return strings.TrimSpace(target)
+	return getBrowserToolDisplayParts(strings.TrimSpace(target), failure)
 }
 
 func getAutomationToolDisplayDetail(fields map[string]any) string {

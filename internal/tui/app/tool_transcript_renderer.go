@@ -101,7 +101,7 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 		}
 		detailText := getToolTranscriptBranchDisplayDetail(group.action, detail)
 		if action == "Browser" && len(group.details) > 1 {
-			detailText = getBrowserToolGroupedBranchDetail(detail.text)
+			detailText = getBrowserToolGroupedBranchDetail(detail)
 		}
 		duration := renderToolTranscriptDuration(detail, ctx.Now)
 		if action == "Browser" && len(group.details) == 1 {
@@ -118,14 +118,14 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 	return strings.Join(lines, "\n")
 }
 
-func getBrowserToolGroupedBranchDetail(detail string) string {
-	action, target, _ := strings.Cut(detail, ":")
+func getBrowserToolGroupedBranchDetail(detail toolTranscriptDetail) string {
+	action, target, _ := strings.Cut(detail.text, ":")
 	label := strings.TrimPrefix(getBrowserActionLabel(strings.TrimSpace(action)), "Browser ")
 	if target == "" {
-		return label
+		return getBrowserToolDisplayParts(label, detail.failure)
 	}
 
-	return label + " · " + strings.TrimSpace(target)
+	return getBrowserToolDisplayParts(label, strings.TrimSpace(target), detail.failure)
 }
 
 func shouldRenderToolTranscriptBranches(action string) bool {
@@ -142,6 +142,10 @@ func shouldSkipToolTranscriptBranch(action string, completed bool, detail toolTr
 	actionValue5 := str.String(action)
 	switch actionValue5.Trim() {
 	case "Browser":
+		if detail.terminalStatus != "" {
+			return getBrowserToolTerminalBranchDetail(detail.text, detail.failure) == ""
+		}
+
 		return getBrowserToolBranchDetail(detail.text, detail.completed) == ""
 	case "Plan":
 	default:

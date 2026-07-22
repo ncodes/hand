@@ -137,6 +137,7 @@ func toolInvocationCompletedMsgFromMessage(
 	if !ok {
 		return toolInvocationCompletedMsg{}, false
 	}
+	msg.Failure = getToolFailureDisplayDetail(message.Name, message.Content)
 	msg.Artifact = getBrowserArtifact(message.Name, message.Content)
 	return msg, true
 }

@@ -1070,6 +1070,20 @@ func TestBrowserToolDisplayDetail_PresentsSafeArtifactMetadata(t *testing.T) {
 	require.NotContains(t, detail, "token")
 }
 
+func TestBrowserToolFailureDisplayDetail_PresentsStructuredErrorsOnly(t *testing.T) {
+	require.Equal(
+		t,
+		"Browser is unavailable · retryable",
+		getToolFailureDisplayDetail(
+			"browser",
+			`{"error":{"code":"browser_unavailable","message":"browser is unavailable","retryable":true}}`,
+		),
+	)
+	require.Empty(t, getToolFailureDisplayDetail("browser", `{"error":"secret backend detail"}`))
+	require.Empty(t, getToolFailureDisplayDetail("read_file", `{"error":{"message":"access denied"}}`))
+	require.Empty(t, getToolFailureDisplayDetail("browser", "not-json"))
+}
+
 func TestRenderBrowserTranscript_ShowsActionSpecificLifecycleStates(t *testing.T) {
 	for _, test := range []struct {
 		name      string
@@ -1096,6 +1110,22 @@ func TestRenderBrowserTranscript_ShowsActionSpecificLifecycleStates(t *testing.T
 			require.NotContains(t, rendered, "/private")
 		})
 	}
+}
+
+func TestRenderBrowserTranscript_ShowsFailureReasonWithoutActionDetail(t *testing.T) {
+	group := toolTranscriptGroup{action: "Browser"}
+	group.add(toolTranscriptCell{
+		id:             "call_1",
+		action:         "Browser",
+		detail:         "browser",
+		failure:        "Browser is unavailable · retryable",
+		terminalStatus: toolTranscriptTerminalStatusFailed,
+	})
+
+	rendered := stripANSI(renderToolTranscriptGroup(group, 0))
+
+	require.Contains(t, rendered, "Browser Action Failed")
+	require.Contains(t, rendered, "└ Browser is unavailable · retryable")
 }
 
 func TestRenderBrowserTranscript_OmitsRedundantBranchAndDuration(t *testing.T) {

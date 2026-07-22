@@ -469,6 +469,9 @@ func mergeToolTranscriptCells(existing toolTranscriptCell, completed toolTranscr
 	}
 	merged.completed = completed.completed
 	merged.terminalStatus = completed.terminalStatus
+	if completed.failure != "" {
+		merged.failure = completed.failure
+	}
 	if completed.hasArtifact {
 		merged.artifact = completed.artifact
 		merged.hasArtifact = true
@@ -480,17 +483,18 @@ func mergeToolTranscriptCells(existing toolTranscriptCell, completed toolTranscr
 	return merged
 }
 
-func (m *model) failRunningToolTranscriptCells(failedAt time.Time) {
-	m.setRunningToolTranscriptCellsTerminal(failedAt, toolTranscriptTerminalStatusFailed)
+func (m *model) failRunningToolTranscriptCells(failedAt time.Time, failure string) {
+	m.setRunningToolTranscriptCellsTerminal(failedAt, toolTranscriptTerminalStatusFailed, failure)
 }
 
 func (m *model) interruptRunningToolTranscriptCells(interruptedAt time.Time) {
-	m.setRunningToolTranscriptCellsTerminal(interruptedAt, toolTranscriptTerminalStatusInterrupted)
+	m.setRunningToolTranscriptCellsTerminal(interruptedAt, toolTranscriptTerminalStatusInterrupted, "")
 }
 
 func (m *model) setRunningToolTranscriptCellsTerminal(
 	terminalAt time.Time,
 	status toolTranscriptTerminalStatus,
+	failure string,
 ) {
 	startIndex := m.responseStartMessageIndex
 	if startIndex < 0 || startIndex > len(m.messages) {
@@ -505,6 +509,9 @@ func (m *model) setRunningToolTranscriptCellsTerminal(
 		}
 		cell.terminalStatus = status
 		cell.completedAt = terminalAt
+		if cell.action == "Browser" {
+			cell.failure = failure
+		}
 		m.applyAction(replaceTranscriptCellAction{Index: index, Cell: cell})
 		changed = true
 	}

@@ -20,6 +20,7 @@ type toolTranscriptCellInput struct {
 	CompletedAt  time.Time
 	Completed    bool
 	Failed       bool
+	Failure      string
 	Artifact     *browserArtifact
 }
 
@@ -70,6 +71,10 @@ func (transcriptCellFactory) Tool(input toolTranscriptCellInput) transcriptCell 
 	if ok && input.Artifact != nil {
 		toolCell.artifact = *input.Artifact
 		toolCell.hasArtifact = true
+		cell = toolCell
+	}
+	if ok {
+		toolCell.failure = input.Failure
 		cell = toolCell
 	}
 	if !ok || !input.Failed {
@@ -158,6 +163,7 @@ func (factory transcriptCellFactory) FromTUIMessage(msg any) transcriptCell {
 			CompletedAt:  value.CompletedAt,
 			Completed:    !value.Failed,
 			Failed:       value.Failed,
+			Failure:      value.Failure,
 			Artifact:     value.Artifact,
 		})
 	case safetyEventMsg:
@@ -209,6 +215,7 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 			CompletedAt:  message.CreatedAt,
 			Completed:    !failed,
 			Failed:       failed,
+			Failure:      getToolFailureDisplayDetail(name, content),
 			Artifact:     getBrowserArtifact(name, content),
 		})
 	default:

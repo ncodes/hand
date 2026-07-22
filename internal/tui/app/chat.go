@@ -174,7 +174,8 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 
 	shouldFollowTranscript := m.responseTranscriptFollow && !m.responseTranscriptScrolled
 	if msg.Err != nil {
-		m.failRunningToolTranscriptCells(currentTime())
+		failure := formatToolFailureDisplayMessage(getUserFacingErrorMessage(msg.Err.Error()), false)
+		m.failRunningToolTranscriptCells(currentTime(), failure)
 		errorMsg := sessionErrorMsg{Message: msg.Err.Error()}
 		m.addTranscriptMessage(errorMsg)
 		m.resetResponseState()

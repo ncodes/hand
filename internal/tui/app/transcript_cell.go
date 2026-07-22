@@ -281,6 +281,7 @@ type toolTranscriptCell struct {
 	completedAt    time.Time
 	completed      bool
 	terminalStatus toolTranscriptTerminalStatus
+	failure        string
 	artifact       browserArtifact
 	hasArtifact    bool
 	artifactStatus string
@@ -295,6 +296,7 @@ type toolTranscriptDetail struct {
 	completedAt    time.Time
 	completed      bool
 	terminalStatus toolTranscriptTerminalStatus
+	failure        string
 	artifact       browserArtifact
 	hasArtifact    bool
 	artifactStatus string
@@ -384,6 +386,9 @@ func toolTranscriptPlainText(cell toolTranscriptCell) string {
 	} else if cell.terminalStatus != "" {
 		lines = append(lines, "status: "+string(cell.terminalStatus))
 	}
+	if cell.failure != "" {
+		lines = append(lines, "failure: "+cell.failure)
+	}
 
 	return fmt.Sprintf("Tool %s:\n%s", action, strings.Join(lines, "\n"))
 }
@@ -438,6 +443,7 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 			completedAt:    cell.completedAt,
 			completed:      cell.completed,
 			terminalStatus: cell.terminalStatus,
+			failure:        cell.failure,
 			artifact:       cell.artifact,
 			hasArtifact:    cell.hasArtifact,
 			artifactStatus: cell.artifactStatus,
@@ -462,6 +468,9 @@ func (group *toolTranscriptGroup) mergeToolTranscriptCell(id string, cell toolTr
 		}
 		if cell.terminalStatus != "" {
 			group.details[index].terminalStatus = cell.terminalStatus
+		}
+		if cell.failure != "" {
+			group.details[index].failure = cell.failure
 		}
 		if merged := mergePlanToolDisplayState(group.details[index].planState, cell.planState); merged != nil {
 			group.details[index].planState = merged

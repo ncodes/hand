@@ -5603,6 +5603,27 @@ func TestModel_UpdateMarksRunningToolFailedWhenResponseFails(t *testing.T) {
 	require.Contains(t, rendered, "Adding automation One-time current time update")
 }
 
+func TestModel_UpdateShowsResponseFailureOnRunningBrowserBranch(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.responseID = 2
+	runModel.events = make(chan tea.Msg)
+	runModel.applyTUIMessage(toolInvocationStartedMsg{
+		ID: "call_1", Name: "browser", Detail: "browser",
+	})
+
+	updated, cmd := runModel.Update(responseCompletedMsg{
+		ResponseID: 2,
+		Err:        errors.New("daemon unavailable"),
+	})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	rendered := stripANSI(renderTranscriptCells(runModel.messages))
+	require.Contains(t, rendered, "Browser Action Failed")
+	require.Contains(t, rendered, "└ Daemon unavailable")
+}
+
 func TestModel_ToolErrorCompletionRendersFailedState(t *testing.T) {
 	runModel := newModel()
 	runModel.applyTUIMessage(toolInvocationStartedMsg{
@@ -5650,7 +5671,9 @@ func TestModel_TerminalizesOnlyToolsFromActiveResponse(t *testing.T) {
 		finalize   func(*model)
 		wantStatus toolTranscriptTerminalStatus
 	}{
-		{name: "failed", finalize: func(value *model) { value.failRunningToolTranscriptCells(time.Now()) }, wantStatus: toolTranscriptTerminalStatusFailed},
+		{name: "failed", finalize: func(value *model) {
+			value.failRunningToolTranscriptCells(time.Now(), "")
+		}, wantStatus: toolTranscriptTerminalStatusFailed},
 		{name: "interrupted", finalize: func(value *model) { value.interruptRunningToolTranscriptCells(time.Now()) }, wantStatus: toolTranscriptTerminalStatusInterrupted},
 	} {
 		t.Run(test.name, func(t *testing.T) {
