@@ -2681,6 +2681,29 @@ func TestModel_ApplyTUIMessageRendersLiveAutoCompactionTrace(t *testing.T) {
 	require.Contains(t, stripANSI(runModel.View().Content), "Automatic compaction completed")
 }
 
+func TestModel_ApplyTUIMessageRefreshesContextAfterCompaction(t *testing.T) {
+	client := &fakeTUIChatClient{contextStatus: rpcclient.ContextStatus{
+		SessionID: "default",
+		Used:      77509,
+		Length:    128000,
+		UsedPct:   float64(77509) / 128000,
+	}}
+	runModel := newModelWithClient(client)
+	runModel.sessionID = "default"
+
+	cmd := runModel.applyTUIMessage(manualCompactionMsg{
+		State: manualCompactionState{Status: "succeeded", Label: autoCompactionLabel},
+	})
+
+	require.NotNil(t, cmd)
+	message, ok := cmd().(sessionContextLoadedMsg)
+	require.True(t, ok)
+	updated, _ := runModel.Update(message)
+	runModel = updated.(model)
+	require.Equal(t, 1, client.contextCalls)
+	require.Equal(t, "77,509 used · 61%", runModel.context)
+}
+
 func TestModel_UpdateReportsTimelineLoadFailure(t *testing.T) {
 	runModel := newModel()
 

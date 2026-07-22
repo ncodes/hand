@@ -148,8 +148,8 @@ type Turn struct {
 	// State identity, profile, and lineage for this run.
 	runCtx runcontext.Context
 
-	// Most recent actual prompt token count.
-	lastPromptTokens int
+	// Most recent provider measurement and the request prefix it covers.
+	compactionAnchor compaction.Anchor
 
 	// Tracks context size last evaluated for summary refresh.
 	summaryRefreshAttemptedMessageCount int
@@ -280,7 +280,7 @@ func (t *Turn) load(ctx context.Context, opts agentcore.RespondOptions) error {
 	t.sessionID = session.ID
 	t.sessionOrigin = storageSessionOriginFromAgentSessionOrigin(session.Origin)
 
-	t.lastPromptTokens = session.LastPromptTokens
+	t.compactionAnchor = compaction.Anchor{}
 	t.summaryRefreshAttemptedMessageCount = 0
 
 	// Optionally hydrate restored plan from session history.
@@ -579,7 +579,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 
 			// Trace summary application and preflight compaction/model events.
 			t.summary.RecordSummaryApplied(traceSession)
-			recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens, t.canCompactPersistedHistory())
+			recordPreflightCompactionTrace(traceSession, t.cfg, request, t.compactionAnchor, t.canCompactPersistedHistory())
 			recordModelRequest(traceSession, request)
 
 			agentLog.Info().
@@ -666,7 +666,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 				Msg("model response received")
 
 			// Record postflight token usage for usage/analytics.
-			if err := t.recordPostflightUsage(traceSession, resp); err != nil {
+			if err := t.recordPostflightUsage(traceSession, resp, len(request.Messages)); err != nil {
 				return agentcore.LoopDecision{}, err
 			}
 
@@ -841,17 +841,19 @@ func (t *Turn) maybeRefreshSummary(ctx context.Context, request models.Request, 
 	previousHistoryOffset := t.sessionHistoryOffset
 	t.summaryRefreshAttemptedMessageCount = messageCount
 	_ = t.summaryService.MaybeRefreshSummary(ctx, t.summary, summarizer.RefreshInput{
-		LastPromptTokens: t.lastPromptTokens,
-		Request:          request,
-		SessionID:        t.sessionID,
-		TraceSession:     traceSession,
+		Anchor:       t.compactionAnchor,
+		Request:      request,
+		SessionID:    t.sessionID,
+		TraceSession: traceSession,
 	})
 
 	t.trimSessionHistoryToSummary()
 
-	// Reset prompt tokens if session history offset changed.
+	// A trim changes the request lineage. Re-anchor after the next provider response
+	// and require message growth before another refresh attempt.
 	if t.sessionHistoryOffset != previousHistoryOffset {
-		t.lastPromptTokens = 0
+		t.compactionAnchor = compaction.Anchor{}
+		t.summaryRefreshAttemptedMessageCount = len(t.Context())
 	}
 }
 
@@ -1286,7 +1288,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 		trace.SummaryFallbackStartedPayload{RemainingIterations: budget.Remaining()},
 	)
 	t.summary.RecordSummaryApplied(traceSession)
-	recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens, t.canCompactPersistedHistory())
+	recordPreflightCompactionTrace(traceSession, t.cfg, request, t.compactionAnchor, t.canCompactPersistedHistory())
 	recordModelRequest(traceSession, request)
 
 	agentLog.Info().
@@ -1336,7 +1338,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 		Int("total_tokens", resp.TotalTokens).
 		Msg("summary fallback model response received")
 
-	if err := t.recordPostflightUsage(traceSession, resp); err != nil {
+	if err := t.recordPostflightUsage(traceSession, resp, len(request.Messages)); err != nil {
 		return "", err
 	}
 
@@ -1466,22 +1468,24 @@ func (t *Turn) Context() []morphmsg.Message {
 }
 
 // recordPostflightUsage persists post-model token usage for analytics and session tracking.
-func (t *Turn) recordPostflightUsage(traceSession trace.Session, resp *models.Response) error {
+func (t *Turn) recordPostflightUsage(traceSession trace.Session, resp *models.Response, messageCount int) error {
 	if t == nil || resp == nil || resp.PromptTokens <= 0 {
 		return nil
 	}
 
-	t.lastPromptTokens = resp.PromptTokens
 	if err := t.sessionStore.UpdateLastPromptTokens(t.ctx, t.sessionID, resp.PromptTokens); err != nil {
 		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return err
 	}
+	t.compactionAnchor = compaction.Anchor{PromptTokens: resp.PromptTokens, MessageCount: messageCount}
 
 	traceSession.Record(trace.EvtContextPostflightUsage, trace.ContextEventPayload{
-		Source:           compaction.ActualSource,
-		PromptTokens:     resp.PromptTokens,
-		CompletionTokens: resp.CompletionTokens,
-		TotalTokens:      resp.TotalTokens,
+		Source:             compaction.ActualSource,
+		PromptTokens:       resp.PromptTokens,
+		AnchorPromptTokens: resp.PromptTokens,
+		AnchorMessageCount: messageCount,
+		CompletionTokens:   resp.CompletionTokens,
+		TotalTokens:        resp.TotalTokens,
 	})
 
 	return nil

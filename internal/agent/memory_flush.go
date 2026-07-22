@@ -91,7 +91,7 @@ func (t *Turn) shouldFlushMemoryBeforeCompaction(request models.Request) bool {
 	}
 
 	return getCompactionEvaluator(t.cfg).
-		Evaluate(request, t.lastPromptTokens).
+		Evaluate(request, t.compactionAnchor).
 		Triggered()
 }
 

@@ -499,11 +499,14 @@ func Test_LoadSessionFile_ParsesContextSummaryAndCompactionEvents(t *testing.T) 
 			Type:      morphtrace.EvtContextPreflight,
 			Timestamp: now,
 			Payload: map[string]any{
-				"source":            "estimate",
-				"prompt_tokens":     144,
-				"context_limit":     1000,
-				"trigger_threshold": 800,
-				"warn_threshold":    650,
+				"source":               "anchored",
+				"prompt_tokens":        144,
+				"anchor_prompt_tokens": 120,
+				"anchor_message_count": 8,
+				"delta_prompt_tokens":  24,
+				"context_limit":        1000,
+				"trigger_threshold":    800,
+				"warn_threshold":       650,
 			},
 		},
 		morphtrace.Event{
@@ -538,8 +541,11 @@ func Test_LoadSessionFile_ParsesContextSummaryAndCompactionEvents(t *testing.T) 
 	require.NoError(t, err)
 	require.Len(t, detail.Timeline, 3)
 	require.NotNil(t, detail.Timeline[0].ContextEvent)
-	require.Equal(t, "estimate", detail.Timeline[0].ContextEvent.Source)
+	require.Equal(t, "anchored", detail.Timeline[0].ContextEvent.Source)
 	require.Equal(t, 144, detail.Timeline[0].ContextEvent.PromptTokens)
+	require.Equal(t, 120, detail.Timeline[0].ContextEvent.AnchorPromptTokens)
+	require.Equal(t, 8, detail.Timeline[0].ContextEvent.AnchorMessageCount)
+	require.Equal(t, 24, detail.Timeline[0].ContextEvent.DeltaPromptTokens)
 	require.Equal(t, 1000, detail.Timeline[0].ContextEvent.ContextLimit)
 	require.Equal(t, 800, detail.Timeline[0].ContextEvent.TriggerThreshold)
 	require.Equal(t, 650, detail.Timeline[0].ContextEvent.WarnThreshold)

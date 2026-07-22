@@ -34,22 +34,23 @@ func recordPreflightCompactionTrace(
 	traceSession trace.Session,
 	cfg *config.Config,
 	request models.Request,
-	lastPromptTokens int,
+	anchor compaction.Anchor,
 	canCompact bool,
 ) {
 	if !isCompactionEnabled(cfg) {
 		return
 	}
 
-	// The evaluator can use the last actual prompt token count when available,
-	// which keeps warning/trigger traces closer to provider accounting.
-	estimate := getCompactionEvaluator(cfg).Evaluate(request, lastPromptTokens)
+	estimate := getCompactionEvaluator(cfg).Evaluate(request, anchor)
 	payload := trace.ContextEventPayload{
-		Source:           estimate.Source,
-		PromptTokens:     estimate.PromptTokens,
-		ContextLimit:     estimate.ContextLimit,
-		TriggerThreshold: estimate.TriggerThreshold,
-		WarnThreshold:    estimate.WarnThreshold,
+		Source:             estimate.Source,
+		PromptTokens:       estimate.PromptTokens,
+		AnchorPromptTokens: estimate.AnchorPromptTokens,
+		AnchorMessageCount: estimate.AnchorMessageCount,
+		DeltaPromptTokens:  estimate.DeltaPromptTokens,
+		ContextLimit:       estimate.ContextLimit,
+		TriggerThreshold:   estimate.TriggerThreshold,
+		WarnThreshold:      estimate.WarnThreshold,
 	}
 
 	traceSession.Record(trace.EvtContextPreflight, payload)

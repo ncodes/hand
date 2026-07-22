@@ -44,10 +44,14 @@ func TestEstimateRequestRough_IncludesInstructionsMessagesAndTools(t *testing.T)
 
 func TestEvaluator_UsesActualPromptTokensWhenAvailable(t *testing.T) {
 	evaluator := NewEvaluator(100, 0.5, 0.9)
+	req := models.Request{Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}}}
 
-	estimate := evaluator.Evaluate(models.Request{Instructions: "hello"}, 77)
+	estimate := evaluator.Evaluate(req, Anchor{PromptTokens: 77, MessageCount: 1})
 	require.Equal(t, ActualSource, estimate.Source)
 	require.Equal(t, 77, estimate.PromptTokens)
+	require.Equal(t, 77, estimate.AnchorPromptTokens)
+	require.Equal(t, 1, estimate.AnchorMessageCount)
+	require.Zero(t, estimate.DeltaPromptTokens)
 	require.Equal(t, 50, estimate.TriggerThreshold)
 	require.Equal(t, 90, estimate.WarnThreshold)
 	require.True(t, estimate.Triggered())
@@ -63,39 +67,79 @@ func TestEvaluator_FallsBackToEstimatedPromptTokens(t *testing.T) {
 		}},
 	}
 
-	estimate := evaluator.Evaluate(req, 0)
+	estimate := evaluator.Evaluate(req, Anchor{})
 	require.Equal(t, EstimatedSource, estimate.Source)
 	require.Equal(t, EstimateRequestRough(req), estimate.PromptTokens)
 }
 
-func TestEvaluator_UsesEstimatedPromptTokensWhenCurrentRequestExceedsStoredActual(t *testing.T) {
-	evaluator := NewEvaluator(1000, 0.5, 0.6)
+func TestEvaluator_AnchorsIncidentUsageAndEstimatesOnlyAppendedMessages(t *testing.T) {
+	evaluator := NewEvaluator(128000, 0.85, 0.95)
 	req := models.Request{
-		Instructions: strings.Repeat("a", 600),
+		Instructions: strings.Repeat("a", 500000),
 		Messages: []morphmsg.Message{{
 			Role:    morphmsg.RoleUser,
-			Content: strings.Repeat("b", 600),
+			Content: "provider measured this message",
+		}, {
+			Role:    morphmsg.RoleTool,
+			Content: "small appended result",
 		}},
 	}
 
-	estimate := evaluator.Evaluate(req, 50)
-	require.Equal(t, EstimatedSource, estimate.Source)
-	require.Equal(t, EstimateRequestRough(req), estimate.PromptTokens)
-	require.Greater(t, estimate.PromptTokens, 50)
+	estimate := evaluator.Evaluate(req, Anchor{PromptTokens: 65350, MessageCount: 1})
+	require.Equal(t, AnchoredSource, estimate.Source)
+	require.Equal(t, 65350, estimate.AnchorPromptTokens)
+	require.Equal(t, 1, estimate.AnchorMessageCount)
+	require.Positive(t, estimate.DeltaPromptTokens)
+	require.Equal(t, 65350+estimate.DeltaPromptTokens, estimate.PromptTokens)
+	require.Greater(t, EstimateRequestRough(req), estimate.TriggerThreshold)
+	require.False(t, estimate.Triggered())
+
+	req.Instructions = ""
+	withoutInflatedInstructions := evaluator.Evaluate(req, Anchor{PromptTokens: 65350, MessageCount: 1})
+	require.Equal(t, estimate.PromptTokens, withoutInflatedInstructions.PromptTokens)
+	require.Equal(t, estimate.DeltaPromptTokens, withoutInflatedInstructions.DeltaPromptTokens)
 }
 
-func TestEvaluator_ReportsWarningAtBoundary(t *testing.T) {
-	evaluator := NewEvaluator(100, 0.5, 0.7)
+func TestEvaluator_AnchoredUsageCanCrossTrigger(t *testing.T) {
+	evaluator := NewEvaluator(128000, 0.85, 0.95)
+	req := models.Request{Messages: []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "measured"},
+		{Role: morphmsg.RoleTool, Content: strings.Repeat("x", 400)},
+	}}
 
-	estimate := evaluator.Evaluate(models.Request{}, 70)
-	require.True(t, estimate.Warning())
+	estimate := evaluator.Evaluate(req, Anchor{PromptTokens: 108790, MessageCount: 1})
+	require.Equal(t, AnchoredSource, estimate.Source)
 	require.True(t, estimate.Triggered())
+}
+
+func TestEvaluator_AnchoredUsageReportsWarningAtBoundary(t *testing.T) {
+	evaluator := NewEvaluator(1000, 0.9, 0.5)
+	req := models.Request{Messages: []morphmsg.Message{
+		{Role: morphmsg.RoleUser, Content: "measured"},
+		{Role: morphmsg.RoleTool, Content: "appended"},
+	}}
+	estimate := evaluator.Evaluate(req, Anchor{PromptTokens: 490, MessageCount: 1})
+	require.GreaterOrEqual(t, estimate.PromptTokens, 500)
+	require.Less(t, estimate.PromptTokens, 900)
+	require.True(t, estimate.Warning())
+	require.False(t, estimate.Triggered())
+}
+
+func TestEvaluator_InvalidAnchorFallsBackToFullEstimate(t *testing.T) {
+	evaluator := NewEvaluator(100, 0.5, 0.7)
+	req := models.Request{Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "hello"}}}
+
+	estimate := evaluator.Evaluate(req, Anchor{PromptTokens: 10, MessageCount: 2})
+	require.Equal(t, EstimatedSource, estimate.Source)
+	require.Equal(t, EstimateRequestRough(req), estimate.PromptTokens)
+	require.Zero(t, estimate.AnchorPromptTokens)
+	require.Zero(t, estimate.DeltaPromptTokens)
 }
 
 func TestNewEvaluator_DefaultsInvalidInputs(t *testing.T) {
 	evaluator := NewEvaluator(0, 0, 0)
 
-	estimate := evaluator.Evaluate(models.Request{}, 0)
+	estimate := evaluator.Evaluate(models.Request{}, Anchor{})
 	require.Equal(t, 128000, estimate.ContextLimit)
 	require.Equal(t, 108800, estimate.TriggerThreshold)
 	require.Equal(t, 121600, estimate.WarnThreshold)
@@ -117,7 +161,7 @@ func TestEstimateRequestRough_FallsBackToInstructionsWhenJSONMarshalFails(t *tes
 func TestEvaluator_NilReceiverUsesDefaults(t *testing.T) {
 	var evaluator *Evaluator
 
-	estimate := evaluator.Evaluate(models.Request{Instructions: "hello"}, 0)
+	estimate := evaluator.Evaluate(models.Request{Instructions: "hello"}, Anchor{})
 	require.Equal(t, EstimatedSource, estimate.Source)
 	require.Equal(t, EstimateRequestRough(models.Request{Instructions: "hello"}), estimate.PromptTokens)
 	require.Equal(t, 128000, estimate.ContextLimit)

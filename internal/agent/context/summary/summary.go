@@ -260,7 +260,7 @@ func (s *Service) refreshSummaryState(
 	// In automatic mode, persisted history may be compactable but the actual
 	// request may still be below threshold, so skip until the evaluator triggers.
 	if !force {
-		estimate := s.evaluator.Evaluate(input.Request, input.LastPromptTokens)
+		estimate := s.evaluator.Evaluate(input.Request, input.Anchor)
 		if !estimate.Triggered() {
 			return nil
 		}
@@ -444,9 +444,8 @@ func (s *Service) RecallSessionSummary(
 	}
 
 	summary, err := s.refreshRecallSummary(ctx, state, RefreshInput{
-		LastPromptTokens: session.LastPromptTokens,
-		SessionID:        session.ID,
-		TraceSession:     traceSession,
+		SessionID:    session.ID,
+		TraceSession: traceSession,
 	}, plan)
 	if err != nil {
 		return nil, err
@@ -508,9 +507,8 @@ func (s *Service) SummarizeSession(
 	}
 
 	if err := s.refreshSummaryState(ctx, state, RefreshInput{
-		LastPromptTokens: session.LastPromptTokens,
-		SessionID:        session.ID,
-		TraceSession:     traceSession,
+		SessionID:    session.ID,
+		TraceSession: traceSession,
 	}, true, plan); err != nil {
 		return nil, err
 	}

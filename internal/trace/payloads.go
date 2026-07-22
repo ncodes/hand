@@ -91,13 +91,16 @@ type SummaryFallbackStartedPayload struct {
 
 // ContextEventPayload is the trace payload for context event.
 type ContextEventPayload struct {
-	Source           string `json:"source,omitempty"`
-	PromptTokens     int    `json:"prompt_tokens,omitempty"`
-	CompletionTokens int    `json:"completion_tokens,omitempty"`
-	TotalTokens      int    `json:"total_tokens,omitempty"`
-	ContextLimit     int    `json:"context_limit,omitempty"`
-	TriggerThreshold int    `json:"trigger_threshold,omitempty"`
-	WarnThreshold    int    `json:"warn_threshold,omitempty"`
+	Source             string `json:"source,omitempty"`
+	PromptTokens       int    `json:"prompt_tokens,omitempty"`
+	AnchorPromptTokens int    `json:"anchor_prompt_tokens,omitempty"`
+	AnchorMessageCount int    `json:"anchor_message_count,omitempty"`
+	DeltaPromptTokens  int    `json:"delta_prompt_tokens,omitempty"`
+	CompletionTokens   int    `json:"completion_tokens,omitempty"`
+	TotalTokens        int    `json:"total_tokens,omitempty"`
+	ContextLimit       int    `json:"context_limit,omitempty"`
+	TriggerThreshold   int    `json:"trigger_threshold,omitempty"`
+	WarnThreshold      int    `json:"warn_threshold,omitempty"`
 }
 
 // SummaryEventPayload is the trace payload for summary event.

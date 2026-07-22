@@ -243,6 +243,9 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 		if value.State.isInProgress() {
 			return m.startToolAnimation()
 		}
+		if value.State.Status == "succeeded" {
+			return loadSessionContextCmd(m.chatCtx, m.contextLoader, m.getCurrentSessionID())
+		}
 	case permissionApprovalMsg:
 		m.updatePermissionApproval(value)
 	}

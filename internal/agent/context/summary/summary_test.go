@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/agent/context/compaction"
 	"github.com/wandxy/morph/internal/config"
 	instruct "github.com/wandxy/morph/internal/instructions"
 	"github.com/wandxy/morph/internal/mocks"
@@ -239,6 +240,36 @@ func TestService_MaybeRefreshSummary_SkipsWhenEstimateDoesNotTrigger(t *testing.
 	})
 	require.NoError(t, err)
 	require.Zero(t, client.CallCount)
+}
+
+func TestService_MaybeRefreshSummary_UsesAnchoredUsage(t *testing.T) {
+	client := &mocks.ModelClientStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	cfg := summaryTestConfig(true)
+	cfg.Models.Main.ContextLength = 1000
+	service := summaryTestService(cfg, client, store)
+	request := models.Request{
+		Instructions: strings.Repeat("x", 3000),
+		Messages: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "measured"},
+			{Role: morphmsg.RoleTool, Content: "small tail"},
+		},
+	}
+
+	err := service.MaybeRefreshSummary(context.Background(), &State{}, RefreshInput{
+		Anchor:       compaction.Anchor{PromptTokens: 20, MessageCount: 1},
+		Request:      request,
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: &mocks.TraceSessionStub{},
+	})
+
+	require.NoError(t, err)
+	require.Greater(t, compaction.EstimateRequestRough(request), 500)
+	require.Zero(t, client.CallCount)
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, storage.SessionCompaction{}, session.Compaction)
 }
 
 func TestService_MaybeRefreshSummary_SkipsWhenSummaryAlreadyCoversHistory(t *testing.T) {

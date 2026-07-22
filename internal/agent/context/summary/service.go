@@ -43,10 +43,10 @@ type Service struct {
 // RefreshInput contains the current model request and token state used to
 // decide whether summary compaction should run.
 type RefreshInput struct {
-	LastPromptTokens int
-	Request          models.Request
-	SessionID        string
-	TraceSession     traceRecorder
+	Anchor       compaction.Anchor
+	Request      models.Request
+	SessionID    string
+	TraceSession traceRecorder
 }
 
 // traceRecorder is the small trace surface summary refresh needs.

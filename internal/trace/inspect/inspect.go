@@ -248,13 +248,16 @@ type SummaryFallbackView struct {
 
 // ContextEventView is the trace-inspection view for context event.
 type ContextEventView struct {
-	Source           string `json:"source,omitempty"`
-	PromptTokens     int    `json:"prompt_tokens,omitempty"`
-	CompletionTokens int    `json:"completion_tokens,omitempty"`
-	TotalTokens      int    `json:"total_tokens,omitempty"`
-	ContextLimit     int    `json:"context_limit,omitempty"`
-	TriggerThreshold int    `json:"trigger_threshold,omitempty"`
-	WarnThreshold    int    `json:"warn_threshold,omitempty"`
+	Source             string `json:"source,omitempty"`
+	PromptTokens       int    `json:"prompt_tokens,omitempty"`
+	AnchorPromptTokens int    `json:"anchor_prompt_tokens,omitempty"`
+	AnchorMessageCount int    `json:"anchor_message_count,omitempty"`
+	DeltaPromptTokens  int    `json:"delta_prompt_tokens,omitempty"`
+	CompletionTokens   int    `json:"completion_tokens,omitempty"`
+	TotalTokens        int    `json:"total_tokens,omitempty"`
+	ContextLimit       int    `json:"context_limit,omitempty"`
+	TriggerThreshold   int    `json:"trigger_threshold,omitempty"`
+	WarnThreshold      int    `json:"warn_threshold,omitempty"`
 }
 
 // SummaryEventView is the trace-inspection view for summary event.
@@ -610,13 +613,16 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		morphtrace.EvtContextCompactionWarning, morphtrace.EvtContextPostflightUsage:
 		if payload, ok := typedPayload.(morphtrace.ContextEventPayload); payloadOK && ok {
 			timelineEvent.ContextEvent = &ContextEventView{
-				Source:           payload.Source,
-				PromptTokens:     payload.PromptTokens,
-				CompletionTokens: payload.CompletionTokens,
-				TotalTokens:      payload.TotalTokens,
-				ContextLimit:     payload.ContextLimit,
-				TriggerThreshold: payload.TriggerThreshold,
-				WarnThreshold:    payload.WarnThreshold,
+				Source:             payload.Source,
+				PromptTokens:       payload.PromptTokens,
+				AnchorPromptTokens: payload.AnchorPromptTokens,
+				AnchorMessageCount: payload.AnchorMessageCount,
+				DeltaPromptTokens:  payload.DeltaPromptTokens,
+				CompletionTokens:   payload.CompletionTokens,
+				TotalTokens:        payload.TotalTokens,
+				ContextLimit:       payload.ContextLimit,
+				TriggerThreshold:   payload.TriggerThreshold,
+				WarnThreshold:      payload.WarnThreshold,
 			}
 
 			return

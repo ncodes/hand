@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/agent/context/compaction"
 	"github.com/wandxy/morph/internal/agent/context/summary"
 	"github.com/wandxy/morph/internal/config"
 	envbudget "github.com/wandxy/morph/internal/environment/budget"
@@ -63,7 +65,7 @@ func TestTurn_LoadInitializesSessionState(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, turn.sessionID)
-	require.Equal(t, 12, turn.lastPromptTokens)
+	require.Equal(t, compaction.Anchor{}, turn.compactionAnchor)
 	require.Len(t, turn.sessionHistory, 1)
 	require.Equal(t, instruct.Instructions{{Name: "base", Value: "instructions"}}, turn.instructions)
 }
@@ -218,7 +220,7 @@ func TestTurn_RunCompletesAssistantResponse(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
-	require.Equal(t, 10, turn.lastPromptTokens)
+	require.Equal(t, compaction.Anchor{PromptTokens: 10, MessageCount: 1}, turn.compactionAnchor)
 	require.Len(t, turn.Messages(), 2)
 }
 
@@ -698,11 +700,6 @@ func TestTurn_HelperBranchEdges(t *testing.T) {
 	(&Turn{}).maybeRefreshSummary(context.Background(), models.Request{}, trace.NoopSession())
 	turn = &Turn{summaryService: summary.NewService(&config.Config{}, nil, nil, nil)}
 	turn.maybeRefreshSummary(context.Background(), models.Request{}, trace.NoopSession())
-	turn.summary = &summary.State{Current: &summary.SummaryState{SourceEndOffset: 1}}
-	turn.sessionHistory = []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "old"}}
-	turn.lastPromptTokens = 10
-	turn.maybeRefreshSummary(context.Background(), models.Request{Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "new"}}}, trace.NoopSession())
-	require.Zero(t, turn.lastPromptTokens)
 
 	require.Equal(t, storage.DefaultSessionID, (*Turn)(nil).getStateSessionID())
 	require.Empty(t, morphtools.SessionIDFromContext((*Turn)(nil).getToolContext(context.Background())))
@@ -784,6 +781,90 @@ func TestTurn_RecordModelReasoningCompletedBranches(t *testing.T) {
 	turn.recordModelReasoningCompleted(time.Unix(1, 0), time.Unix(2, 0))
 }
 
+func TestTurn_MaybeRefreshSummaryResetsAnchorAndGuardAfterTrim(t *testing.T) {
+	turn := &Turn{
+		summaryService: summary.NewService(&config.Config{}, nil, nil, nil),
+		summary:        &summary.State{Current: &summary.SummaryState{SourceEndOffset: 1}},
+		sessionHistory: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "old"}},
+		compactionAnchor: compaction.Anchor{
+			PromptTokens: 10,
+			MessageCount: 1,
+		},
+	}
+	request := models.Request{Messages: []morphmsg.Message{{Role: morphmsg.RoleUser, Content: "new"}}}
+
+	turn.maybeRefreshSummary(context.Background(), request, trace.NoopSession())
+
+	require.Equal(t, compaction.Anchor{}, turn.compactionAnchor)
+	require.Equal(t, 1, turn.sessionHistoryOffset)
+	require.Empty(t, turn.sessionHistory)
+	postTrimMessageCount := len(turn.Context())
+	require.Equal(t, postTrimMessageCount, turn.summaryRefreshAttemptedMessageCount)
+
+	turn.compactionAnchor = compaction.Anchor{PromptTokens: 20, MessageCount: postTrimMessageCount}
+	turn.maybeRefreshSummary(context.Background(), models.Request{
+		Messages: turn.Context(),
+	}, trace.NoopSession())
+	require.Equal(t, compaction.Anchor{PromptTokens: 20, MessageCount: postTrimMessageCount}, turn.compactionAnchor)
+}
+
+func TestTurn_MaybeRefreshSummaryCanCompactTwiceInOneTurn(t *testing.T) {
+	recentTail := 1
+	cfg := &config.Config{
+		Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 100}},
+		Compaction: config.CompactionConfig{
+			TriggerPercent:    0.5,
+			WarnPercent:       0.8,
+			RecentSessionTail: &recentTail,
+		},
+	}
+	history := make([]morphmsg.Message, 5)
+	for index := range history {
+		history[index] = morphmsg.Message{Role: morphmsg.RoleUser, Content: strings.Repeat("h", 100)}
+	}
+	store := &stateStoreStub{
+		session:  storage.Session{ID: storage.DefaultSessionID},
+		messages: morphmsg.CloneMessages(history),
+	}
+	client := &mocks.ModelClientStub{Responses: []*models.Response{
+		{OutputText: `{"session_summary":"first","current_task":"","discoveries":[],"open_questions":[],"next_actions":[]}`},
+		{OutputText: `{"session_summary":"second","current_task":"","discoveries":[],"open_questions":[],"next_actions":[]}`},
+	}}
+	state := &summary.State{}
+	turn := &Turn{
+		cfg:              cfg,
+		summaryService:   summary.NewService(cfg, client, client, store),
+		summary:          state,
+		sessionHistory:   morphmsg.CloneMessages(history),
+		sessionID:        storage.DefaultSessionID,
+		compactionAnchor: compaction.Anchor{PromptTokens: 60, MessageCount: len(history)},
+	}
+
+	turn.maybeRefreshSummary(context.Background(), models.Request{Messages: turn.Context()}, trace.NoopSession())
+
+	require.Equal(t, 1, client.CallCount)
+	require.Equal(t, 4, turn.sessionHistoryOffset)
+	require.Len(t, turn.sessionHistory, 1)
+	require.Equal(t, compaction.Anchor{}, turn.compactionAnchor)
+
+	newMessages := make([]morphmsg.Message, 4)
+	for index := range newMessages {
+		newMessages[index] = morphmsg.Message{Role: morphmsg.RoleUser, Content: strings.Repeat("n", 100)}
+	}
+	store.messages = append(store.messages, morphmsg.CloneMessages(newMessages)...)
+	turn.sessionHistory = append(turn.sessionHistory, morphmsg.CloneMessages(newMessages)...)
+
+	turn.maybeRefreshSummary(context.Background(), models.Request{Messages: turn.Context()}, trace.NoopSession())
+
+	require.Equal(t, 2, client.CallCount)
+	require.Equal(t, 8, turn.sessionHistoryOffset)
+	require.Len(t, turn.sessionHistory, 1)
+	require.NotNil(t, state.Current)
+	require.Equal(t, "second", state.Current.SessionSummary)
+	require.Equal(t, 8, state.Current.SourceEndOffset)
+	require.Equal(t, len(turn.Context()), turn.summaryRefreshAttemptedMessageCount)
+}
+
 func TestTurn_RecordPostflightUsageAndSafety(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	store := &sessionStoreStub{messagesByOffset: map[int][]morphmsg.Message{}}
@@ -798,11 +879,15 @@ func TestTurn_RecordPostflightUsageAndSafety(t *testing.T) {
 		PromptTokens:     5,
 		CompletionTokens: 2,
 		TotalTokens:      7,
-	})
+	}, 3)
 
 	require.NoError(t, err)
-	require.Equal(t, 5, turn.lastPromptTokens)
+	require.Equal(t, compaction.Anchor{PromptTokens: 5, MessageCount: 3}, turn.compactionAnchor)
 	require.Len(t, traceSession.Events, 1)
+	payload, ok := traceSession.Events[0].Payload.(trace.ContextEventPayload)
+	require.True(t, ok)
+	require.Equal(t, 5, payload.AnchorPromptTokens)
+	require.Equal(t, 3, payload.AnchorMessageCount)
 	require.Equal(t, "plain", turn.applyAssistantOutputSafety(traceSession, "plain", false))
 	require.Equal(t, "plain", (*Turn)(nil).applyAssistantOutputSafety(traceSession, "plain", false))
 	require.Equal(t, "plain", (&Turn{}).applyAssistantOutputSafety(traceSession, "plain", false))
@@ -813,8 +898,9 @@ func TestTurn_RecordPostflightUsageAndSafety(t *testing.T) {
 	turn.recordModelReasoningCompleted(time.Now(), time.Now().Add(time.Second))
 
 	turn.sessionStore = &sessionStoreStub{updateErr: errors.New("usage failed")}
-	err = turn.recordPostflightUsage(traceSession, &models.Response{PromptTokens: 1})
+	err = turn.recordPostflightUsage(traceSession, &models.Response{PromptTokens: 1}, 1)
 	require.EqualError(t, err, "usage failed")
+	require.Equal(t, compaction.Anchor{PromptTokens: 5, MessageCount: 3}, turn.compactionAnchor)
 }
 
 func TestTurn_SafetyPayloadHelpers(t *testing.T) {

@@ -5,20 +5,31 @@ import (
 
 	"github.com/wandxy/morph/internal/constants"
 	models "github.com/wandxy/morph/internal/model"
+	morphmsg "github.com/wandxy/morph/pkg/agent/message"
 )
 
 const (
 	ActualSource    = "actual"
+	AnchoredSource  = "anchored"
 	EstimatedSource = "estimated"
 )
 
+// Anchor identifies the request prefix measured by the model provider.
+type Anchor struct {
+	PromptTokens int
+	MessageCount int
+}
+
 // Estimate is a context budget reading used for warning and compaction decisions.
 type Estimate struct {
-	Source           string
-	PromptTokens     int
-	ContextLimit     int
-	TriggerThreshold int
-	WarnThreshold    int
+	Source             string
+	PromptTokens       int
+	AnchorPromptTokens int
+	AnchorMessageCount int
+	DeltaPromptTokens  int
+	ContextLimit       int
+	TriggerThreshold   int
+	WarnThreshold      int
 }
 
 // Triggered reports whether the estimate has crossed the compaction threshold.
@@ -87,37 +98,49 @@ func EstimateRequestRough(req models.Request) int {
 		Tools:        req.Tools,
 	}
 
-	raw, err := json.Marshal(payload)
+	return estimateJSONRough(payload, req.Instructions)
+}
+
+func estimateJSONRough(value any, fallback string) int {
+	raw, err := json.Marshal(value)
 	if err != nil {
-		return EstimateTextRough(req.Instructions)
+		return EstimateTextRough(fallback)
 	}
 
 	return EstimateTextRough(string(raw))
 }
 
-// Evaluate chooses actual prompt tokens when trustworthy, otherwise a rough request estimate.
-func (e *Evaluator) Evaluate(req models.Request, lastActualPromptTokens int) Estimate {
+// Evaluate anchors usage to the provider measurement and estimates only appended messages.
+func (e *Evaluator) Evaluate(req models.Request, anchor Anchor) Estimate {
 	if e == nil {
 		e = NewEvaluator(0, 0, 0)
 	}
 
-	estimatedPromptTokens := EstimateRequestRough(req)
 	estimate := Estimate{
 		ContextLimit:     e.contextLimit,
 		TriggerThreshold: e.triggerThreshold,
 		WarnThreshold:    e.warnThreshold,
 	}
-
-	// Actual provider usage is more authoritative, but only use it when it is at
-	// least as large as the local estimate. After compaction, callers clear stale
-	// actual counts so pre-compaction usage does not keep forcing warnings.
-	if lastActualPromptTokens > 0 && lastActualPromptTokens >= estimatedPromptTokens {
-		estimate.Source = ActualSource
-		estimate.PromptTokens = lastActualPromptTokens
+	if anchor.PromptTokens <= 0 || anchor.MessageCount < 0 || anchor.MessageCount > len(req.Messages) {
+		estimate.Source = EstimatedSource
+		estimate.PromptTokens = EstimateRequestRough(req)
 		return estimate
 	}
 
-	estimate.Source = EstimatedSource
-	estimate.PromptTokens = estimatedPromptTokens
+	estimate.AnchorPromptTokens = anchor.PromptTokens
+	estimate.AnchorMessageCount = anchor.MessageCount
+	if anchor.MessageCount == len(req.Messages) {
+		estimate.Source = ActualSource
+		estimate.PromptTokens = anchor.PromptTokens
+		return estimate
+	}
+
+	estimate.Source = AnchoredSource
+	estimate.DeltaPromptTokens = estimateMessagesRough(req.Messages[anchor.MessageCount:])
+	estimate.PromptTokens = anchor.PromptTokens + estimate.DeltaPromptTokens
 	return estimate
+}
+
+func estimateMessagesRough(messages []morphmsg.Message) int {
+	return estimateJSONRough(messages, "")
 }

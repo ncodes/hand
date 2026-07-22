@@ -3,11 +3,13 @@ package agent
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/morph/internal/agent/context/compaction"
 	"github.com/wandxy/morph/internal/agent/context/summary"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/mocks"
@@ -193,6 +195,27 @@ func TestTurn_ShouldFlushMemoryBeforeCompactionPrerequisites(t *testing.T) {
 	disabled := false
 	cfg.Compaction.Enabled = &disabled
 	require.False(t, turn.shouldFlushMemoryBeforeCompaction(models.Request{}))
+}
+
+func TestTurn_ShouldFlushMemoryBeforeCompactionUsesAnchoredUsage(t *testing.T) {
+	cfg := &config.Config{Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 1000}}}
+	cfg.Compaction.TriggerPercent = 0.5
+	turn := &Turn{
+		cfg:              cfg,
+		modelClient:      &mocks.ModelClientStub{},
+		toolRegistry:     &memoryFlushToolRegistryStub{definitions: []agenttool.Definition{{Name: "memory_add"}}},
+		compactionAnchor: compaction.Anchor{PromptTokens: 20, MessageCount: 1},
+	}
+	request := models.Request{
+		Instructions: "this deliberately inflates the full request estimate past the trigger " + strings.Repeat("x", 3000),
+		Messages: []morphmsg.Message{
+			{Role: morphmsg.RoleUser, Content: "measured"},
+			{Role: morphmsg.RoleTool, Content: "small tail"},
+		},
+	}
+
+	require.Greater(t, compaction.EstimateRequestRough(request), 500)
+	require.False(t, turn.shouldFlushMemoryBeforeCompaction(request))
 }
 
 func TestTurn_MaybeFlushMemoryBeforeCompactionRecordsFailure(t *testing.T) {
