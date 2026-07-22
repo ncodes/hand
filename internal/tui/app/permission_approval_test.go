@@ -213,12 +213,15 @@ func TestTranscriptRenderer_EmphasizesDeniedPermission(t *testing.T) {
 	})
 
 	rendered := defaultTranscriptRenderer.RenderCell(cell, transcriptRenderContext{Width: 80})
-	deniedTitle := lipgloss.NewStyle().
+	deniedIcon := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(defaultTUITheme.ToolDeletion)).
-		Render(permissionStatusIcon + " Permission denied")
+		Render(permissionStatusIcon)
+	deniedTitle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Render("Permission denied")
 
-	require.Contains(t, rendered, deniedTitle)
+	require.Contains(t, rendered, deniedIcon+" "+deniedTitle)
 	require.Contains(t, stripANSI(rendered), permissionStatusIcon+" Permission denied")
 	require.Contains(t, stripANSI(rendered), "Operation  browser · start browser")
 }
