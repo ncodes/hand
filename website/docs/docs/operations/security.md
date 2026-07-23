@@ -234,6 +234,17 @@ action, Morph can admit one only through a configured allow rule that explicitly
 `background` request class, method `CONNECT`, host, and port. Background requests never open an approval prompt and
 `full_access` alone does not authorize them.
 
+Managed Chromium recursively supervises pages, iframes, dedicated workers, shared workers, and service workers. Native
+WebSocket and worker APIs remain present. A WebSocket must pass its logical connection permission before the proxy can
+open the corresponding transport. Chromium carries both `ws` and `wss` through opaque proxy CONNECT tunnels, so the
+permission engine can match the logical URL while the proxy can constrain only the physical origin. If shared or
+service-worker traffic has no provable singular active owner, it is treated as background traffic and needs the exact
+configured rule described above.
+
+Morph retains QUIC disablement, non-proxied WebRTC UDP restrictions, and denied browser permission prompts. These
+controls contain transports and privileged browser surfaces that are outside the HTTP proxy's visibility. They are not
+permission grants and do not replace operation authorization.
+
 Remote CDP and signed-in browser profiles connect through a local authenticated relay that pins the configured CDP
 origin, rejects redirects, and rewrites discovery WebSocket URLs through the same relay. CDP credentials are resolved
 from `env:` references and forwarded upstream without appearing in status, logs, traces, or approval text.

@@ -600,6 +600,7 @@ func (s *Service) prepareLaunch(
 	}
 	launch.ProxyURL = runtime.proxy.chromiumURL()
 	launch.ProxyUser, launch.ProxySecret = runtime.proxy.authorization.credentials()
+	launch.transportPermits = runtime.permits
 
 	return launch, nil
 }

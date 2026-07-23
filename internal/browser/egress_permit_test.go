@@ -350,6 +350,62 @@ func TestTransportPermitLedger_NormalizesAndMergesEquivalentAuthority(t *testing
 	require.Equal(t, now.Add(30*time.Second), permit.expiresAt)
 }
 
+func TestTransportPermitLedger_RevokingGenerationClosesEveryPendingIntent(t *testing.T) {
+	ledger := newTestTransportPermitLedger(t, time.Now)
+	generation, err := ledger.beginGeneration(context.Background())
+	require.NoError(t, err)
+	target := permissions.NetworkTarget{
+		Scheme: "wss", Host: "socket.example", Port: 443, Path: "/events", Method: "CONNECT",
+		RequestClass: permissions.NetworkRequestWebSocket,
+	}
+	ledger.beginPending(target)
+	ledger.beginPending(target)
+	key, err := getPendingTransportTarget(target)
+	require.NoError(t, err)
+	require.Len(t, ledger.pending[key], 2)
+
+	require.NoError(t, ledger.revokeGeneration(generation))
+	require.Empty(t, ledger.pending)
+}
+
+func TestTransportPermitLedger_PendingIntentWaitsForDecisionAndHonorsCancellation(t *testing.T) {
+	target := permissions.NetworkTarget{
+		Scheme: "wss", Host: "socket.example", Port: 443, Path: "/events", Method: "GET",
+		RequestClass: permissions.NetworkRequestWebSocket,
+	}
+	ledger := newTestTransportPermitLedger(t, time.Now)
+	ledger.beginPending(target)()
+	waited, err := ledger.waitForPending(context.Background(), target)
+	require.NoError(t, err)
+	require.False(t, waited)
+
+	generation, err := ledger.beginGeneration(context.Background())
+	require.NoError(t, err)
+	finish := ledger.beginPending(target)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	waited, err = ledger.waitForPending(ctx, target)
+	require.ErrorIs(t, err, context.Canceled)
+	require.True(t, waited)
+	finish()
+	waited, err = ledger.waitForPending(context.Background(), target)
+	require.NoError(t, err)
+	require.True(t, waited)
+	require.Empty(t, ledger.pending)
+	require.NoError(t, ledger.revokeGeneration(generation))
+
+	invalid := permissions.NetworkTarget{Scheme: "ftp", Host: "socket.example", Method: "GET"}
+	ledger.beginPending(invalid)()
+	_, err = ledger.waitForPending(context.Background(), invalid)
+	require.EqualError(t, err, "permission network scheme must be one of: http, https, ws, wss")
+
+	var nilLedger *transportPermitLedger
+	nilLedger.beginPending(target)()
+	waited, err = nilLedger.waitForPending(context.Background(), target)
+	require.NoError(t, err)
+	require.False(t, waited)
+}
+
 func TestTransportPermitLease_RejectsInvalidAttachmentAndIsIdempotent(t *testing.T) {
 	var nilLease *transportPermitLease
 	require.Nil(t, nilLease.Addresses())

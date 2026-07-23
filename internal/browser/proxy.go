@@ -461,8 +461,30 @@ func (p *egressProxy) acquirePermit(
 	target permissions.NetworkTarget,
 ) (*transportPermitLease, error) {
 	lease, err := p.permits.acquire(target)
+	waitedForPending := false
+	for err != nil {
+		waited, waitErr := p.permits.waitForPending(ctx, target)
+		if waitErr != nil {
+			return nil, waitErr
+		}
+		if !waited {
+			break
+		}
+		waitedForPending = true
+		lease, err = p.permits.acquire(target)
+		if err == nil {
+			addBrowserNetworkLogFields(log.Debug(), target).
+				Str("browser_session_id", p.sessionID).
+				Uint64("transport_permit_generation", lease.generation).
+				Msg("Browser proxy acquired pending transport authority")
+		}
+	}
+	if waitedForPending {
+		return lease, err
+	}
 	var permitErr *transportPermitError
-	if err == nil || !errors.As(err, &permitErr) || permitErr.Failure != transportPermitMissing || p.background == nil {
+	if err == nil || !errors.As(err, &permitErr) || !isBackgroundEligiblePermitFailure(permitErr.Failure) ||
+		p.background == nil {
 		if err == nil {
 			addBrowserNetworkLogFields(log.Debug(), target).
 				Str("browser_session_id", p.sessionID).
@@ -484,6 +506,10 @@ func (p *egressProxy) acquirePermit(
 			Msg("Browser proxy acquired background transport authority")
 	}
 	return lease, err
+}
+
+func isBackgroundEligiblePermitFailure(failure transportPermitFailure) bool {
+	return failure == transportPermitMissing || failure == transportPermitMismatch
 }
 
 func addBrowserNetworkLogFields(event *zerolog.Event, target permissions.NetworkTarget) *zerolog.Event {

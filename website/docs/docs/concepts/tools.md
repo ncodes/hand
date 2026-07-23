@@ -41,6 +41,8 @@ Morph registers its built-in tools when the daemon prepares a profile's environm
 - **Browser**: one action-oriented `browser` tool for managed browsing, interaction, screenshots, PDFs, downloads,
   and artifact export. It appears only when browser capability and runtime configuration allow it. Managed-browser
   network requests pass permission evaluation and receive bounded proxy permits before Morph opens upstream sockets.
+  Native WebSocket, iframe, worker, shared-worker, and service-worker behavior remains available; denying one of their
+  network effects blocks the connection rather than removing the browser feature.
 
 Not all of these are present in every turn. The filesystem, shell, session-history, planning, and `time` tools are
 always registered; the web and memory tools are only registered when their subsystem is configured and enabled (see

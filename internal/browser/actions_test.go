@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -1625,6 +1626,70 @@ func TestService_NetworkPolicyDenialIsObservedBeforePermitInstallation(t *testin
 	require.Equal(t, permissions.ReasonHardDeny, observed.ReasonCode)
 	require.Equal(t, 1, resolveCalls)
 	require.Empty(t, ledger.permits)
+}
+
+func TestService_WebSocketAuthorizationUsesExactConnectOperation(t *testing.T) {
+	authorization := permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner, ID: "owner"},
+		Surface: permissions.SurfaceTUI, Profile: "default", SessionID: "session-1", RunID: "run-1",
+	}
+	ctx := permissions.WithContext(context.Background(), authorization)
+	policy := permissions.Policy{
+		Preset:              permissions.PresetCustom,
+		Default:             permissions.DecisionDeny,
+		SurfaceKindDefaults: map[permissions.SurfaceKind]permissions.Decision{},
+		SurfaceDefaults:     map[permissions.Surface]permissions.Decision{},
+		Rules: []permissions.Rule{{
+			Name:      "allow exact browser websocket",
+			Resources: []permissions.Resource{permissions.ResourceNetwork},
+			Actions:   []permissions.Action{permissions.ActionConnect},
+			Network: []permissions.NetworkSelector{{
+				Scheme: "ws", Host: "socket.example", Port: 80, PathPrefix: "/events",
+				Method: http.MethodGet, RequestClass: permissions.NetworkRequestWebSocket,
+			}},
+			Decision: permissions.DecisionAllow,
+		}}}
+	ledger := newTestTransportPermitLedger(t, time.Now)
+	proxy := &egressProxy{permits: ledger, policy: NetworkPolicy{
+		ResolveHost: func(context.Context, string) ([]netip.Addr, error) {
+			return []netip.Addr{netip.MustParseAddr("192.0.2.1")}, nil
+		},
+	}}
+	runtime := &managedSession{
+		Session: Session{ID: "browser-1", Profile: "default", Owner: Owner{Actor: authorization.Actor}},
+		permits: ledger, proxy: proxy,
+	}
+	service := &Service{checker: permissions.NewEngine(policy), now: time.Now}
+	generation, err := ledger.beginGeneration(ctx)
+	require.NoError(t, err)
+	target, err := permissions.NetworkTargetFromURL(
+		"ws://socket.example/events", http.MethodGet, permissions.NetworkRequestWebSocket,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, service.authorizeNetworkTargets(
+		ctx,
+		runtime,
+		ActionNavigate,
+		generation,
+		[]networkAuthorizationTarget{{Target: target, Count: 1}},
+	))
+	lease, err := ledger.acquire(target)
+	require.NoError(t, err)
+	lease.Release()
+	otherPath := target
+	otherPath.Path = "/other"
+	err = service.authorizeNetworkTargets(
+		ctx,
+		runtime,
+		ActionNavigate,
+		generation,
+		[]networkAuthorizationTarget{{Target: otherPath, Count: 1}},
+	)
+	decision, ok := permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.DecisionDeny, decision.Evaluation.Decision)
+	require.Len(t, ledger.permits, 1)
 }
 
 func TestIsBackendTabAllowed_EnforcesAttachmentScope(t *testing.T) {

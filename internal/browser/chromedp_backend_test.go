@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,12 +17,14 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
-	"github.com/chromedp/cdproto/runtime"
+	"github.com/chromedp/cdproto/fetch"
+	"github.com/chromedp/cdproto/security"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"github.com/stretchr/testify/require"
 	"github.com/wandxy/morph/internal/config"
 	"github.com/wandxy/morph/internal/permissions"
+	"golang.org/x/net/websocket"
 )
 
 func TestChromiumBackend_RejectsInvalidLaunchConfiguration(t *testing.T) {
@@ -76,19 +79,120 @@ func TestChromiumSession_AttachedTargetsAreQuarantinedWithoutClosingThem(t *test
 	}
 	info := &target.Info{TargetID: "human-tab", Type: "page"}
 
-	session.getUnexpectedTargetListener(context.Background())(&target.EventTargetCreated{TargetInfo: info})
+	session.getPageTargetLifecycleListener()(&target.EventTargetCreated{TargetInfo: info})
 
 	require.Contains(t, session.quarantinedTargets, "human-tab")
 	require.False(t, session.isTargetAllowed(info))
 
-	session.getUnexpectedTargetListener(context.Background())(&target.EventTargetDestroyed{TargetID: info.TargetID})
+	session.getPageTargetLifecycleListener()(&target.EventTargetDestroyed{TargetID: info.TargetID})
 	require.NotContains(t, session.quarantinedTargets, "human-tab")
 
 	session.openingTabIDs["morph-tab"] = struct{}{}
-	session.getUnexpectedTargetListener(context.Background())(&target.EventTargetCreated{
+	session.getPageTargetLifecycleListener()(&target.EventTargetCreated{
 		TargetInfo: &target.Info{TargetID: "morph-tab", Type: "page"},
 	})
 	require.NotContains(t, session.quarantinedTargets, "morph-tab")
+}
+
+func TestChromiumSession_OpeningTargetReadySignalPersistsUntilWaiter(t *testing.T) {
+	session := &chromiumSession{
+		openingTargets:  1,
+		openingTabIDs:   make(map[string]struct{}),
+		openingTabReady: make(map[string]chan struct{}),
+	}
+
+	session.mu.Lock()
+	require.True(t, session.claimOpeningTargetLocked("tab-1"))
+	session.mu.Unlock()
+	session.signalOpeningTargetReady("tab-1")
+	session.signalOpeningTargetReady("tab-1")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, session.waitForOpeningTargetReady(ctx, "tab-1"))
+}
+
+func TestChromiumSession_OpeningTargetReadinessRejectsUnarmedAndCancelledWaits(t *testing.T) {
+	session := &chromiumSession{
+		openingTabIDs:   make(map[string]struct{}),
+		openingTabReady: make(map[string]chan struct{}),
+	}
+
+	session.mu.Lock()
+	require.False(t, session.claimOpeningTargetLocked("unarmed"))
+	session.openingTargets = 1
+	require.True(t, session.claimOpeningTargetLocked("tab-1"))
+	require.True(t, session.claimOpeningTargetLocked("tab-1"))
+	session.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, session.waitForOpeningTargetReady(ctx, "tab-1"), context.Canceled)
+}
+
+func TestChromiumSession_PageTargetLifecycleListenerClassifiesManagedTargets(t *testing.T) {
+	session := &chromiumSession{
+		rootTabID:          "root",
+		tabContexts:        map[string]context.Context{"known": context.Background()},
+		quarantinedTargets: make(map[string]struct{}),
+		openingTabIDs:      make(map[string]struct{}),
+		openingTabReady:    make(map[string]chan struct{}),
+	}
+	listener := session.getPageTargetLifecycleListener()
+
+	listener(&target.EventTargetCreated{TargetInfo: &target.Info{TargetID: "worker", Type: "worker"}})
+	listener(&target.EventTargetCreated{TargetInfo: &target.Info{TargetID: "root", Type: "page"}})
+	listener(&target.EventTargetCreated{TargetInfo: &target.Info{TargetID: "known", Type: "page"}})
+	require.Empty(t, session.quarantinedTargets)
+
+	session.openingTargets = 1
+	listener(&target.EventTargetCreated{TargetInfo: &target.Info{TargetID: "opened", Type: "page"}})
+	require.Contains(t, session.openingTabIDs, "opened")
+	require.NotContains(t, session.quarantinedTargets, "opened")
+
+	listener(&target.EventTargetCreated{TargetInfo: &target.Info{TargetID: "popup", Type: "page"}})
+	require.Contains(t, session.quarantinedTargets, "popup")
+}
+
+func TestChromiumSession_RelatedTargetCleanupCancelsOwnedSessions(t *testing.T) {
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	secondCtx, cancelSecond := context.WithCancel(context.Background())
+	firstID := target.SessionID("session-1")
+	secondID := target.SessionID("session-2")
+	session := &chromiumSession{
+		tabContexts:     map[string]context.Context{"target-1": firstCtx},
+		tabCancels:      map[string]context.CancelFunc{"target-1": cancelFirst},
+		relatedSessions: map[target.SessionID]string{firstID: "target-1", secondID: "target-1"},
+		relatedTargets: map[string]*relatedTarget{"target-1": {
+			targetType: "page",
+			sessions: map[target.SessionID]*relatedTargetSession{
+				firstID:  {ctx: firstCtx, cancel: cancelFirst},
+				secondID: {ctx: secondCtx, cancel: cancelSecond},
+			},
+		}},
+	}
+
+	session.removeRelatedTargetSession(firstID)
+	require.ErrorIs(t, firstCtx.Err(), context.Canceled)
+	require.Contains(t, session.relatedTargets, "target-1")
+	require.Contains(t, session.tabContexts, "target-1")
+
+	session.removeRelatedTarget("target-1")
+	require.ErrorIs(t, secondCtx.Err(), context.Canceled)
+	require.Empty(t, session.relatedTargets)
+	require.Empty(t, session.relatedSessions)
+	require.Empty(t, session.tabContexts)
+	require.Empty(t, session.tabCancels)
+
+	session.removeRelatedTarget("missing")
+	session.removeRelatedTargetSession("")
+}
+
+func TestChromiumSession_GetEffectiveTabIDUsesRootOnlyWhenUnspecified(t *testing.T) {
+	session := &chromiumSession{rootTabID: "root"}
+
+	require.Equal(t, "tab-1", session.getEffectiveTabID("tab-1"))
+	require.Equal(t, "root", session.getEffectiveTabID(""))
 }
 
 func TestGetAttachmentTarget_SelectsOnlyEligiblePage(t *testing.T) {
@@ -187,20 +291,19 @@ func TestPrepareInitialBrowserContext_SelectsConfiguredBrowserContext(t *testing
 	if err != nil {
 		t.Skip("Chromium is not installed")
 	}
-	session, err := (ChromiumBackend{}).Start(context.Background(), LaunchOptions{
-		Executable: executable,
-		Mode:       config.BrowserProfileManagedEphemeral,
-		DataDir:    t.TempDir(),
-		Timeout:    15 * time.Second,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, session.Close(context.Background())) })
-	chromium := session.(*chromiumSession)
-	chromium.mu.Lock()
-	chromium.attached = true
-	chromium.mu.Unlock()
-
-	chromiumCtx := chromedp.FromContext(chromium.ctx)
+	allocatorOptions := append(
+		append([]chromedp.ExecAllocatorOption(nil), chromedp.DefaultExecAllocatorOptions[:]...),
+		chromedp.ExecPath(executable),
+		chromedp.UserDataDir(t.TempDir()),
+		chromedp.NoSandbox,
+		chromedp.DisableGPU,
+	)
+	allocatorCtx, cancelAllocator := chromedp.NewExecAllocator(context.Background(), allocatorOptions...)
+	t.Cleanup(cancelAllocator)
+	browserCtx, cancelBrowser := chromedp.NewContext(allocatorCtx)
+	t.Cleanup(cancelBrowser)
+	require.NoError(t, chromedp.Run(browserCtx))
+	chromiumCtx := chromedp.FromContext(browserCtx)
 	require.NotNil(t, chromiumCtx)
 	require.NotNil(t, chromiumCtx.Browser)
 	browserExecutor := cdp.WithExecutor(context.Background(), chromiumCtx.Browser)
@@ -216,7 +319,7 @@ func TestPrepareInitialBrowserContext_SelectsConfiguredBrowserContext(t *testing
 	require.NoError(t, err)
 
 	selectedCtx, cancelSelected, cancelBootstrap, err := prepareInitialBrowserContext(
-		context.Background(), chromium.ctx,
+		context.Background(), browserCtx,
 		LaunchOptions{
 			AttachmentScope:  config.BrowserAttachmentContext,
 			BrowserContextID: string(browserContextID),
@@ -238,7 +341,7 @@ func TestPrepareInitialBrowserContext_SelectsConfiguredBrowserContext(t *testing
 	require.Equal(t, targetID, retained.TargetID)
 
 	_, _, _, err = prepareInitialBrowserContext(
-		context.Background(), chromium.ctx,
+		context.Background(), browserCtx,
 		LaunchOptions{
 			AttachmentScope:  config.BrowserAttachmentContext,
 			BrowserContextID: "missing-context",
@@ -308,7 +411,7 @@ func TestChromiumBackend_UsesAuthenticatedProxyAndCannotBypassStrictPolicy(t *te
 	require.NoError(t, strict.Close(context.Background()))
 }
 
-func TestChromiumBackend_BlocksUnarmedWebSockets(t *testing.T) {
+func TestChromiumBackend_PreservesNativeFeaturesWhileDenyingUnarmedWebSockets(t *testing.T) {
 	executable, err := discoverChromiumExecutable("")
 	if err != nil {
 		t.Skip("Chromium is not installed")
@@ -327,18 +430,21 @@ func TestChromiumBackend_BlocksUnarmedWebSockets(t *testing.T) {
 		_, _ = fmt.Fprintf(
 			writer,
 			`<html><body><script>
+window.nativeFeatures = [
+  typeof WebSocket,
+  typeof Worker,
+  typeof SharedWorker,
+  typeof navigator.serviceWorker?.register
+];
 window.blockedSockets = 0;
 window.workerSocketBlocked = false;
 for (const url of [%q, %q]) {
-  try { new WebSocket(url); } catch (_) { window.blockedSockets++; }
+  const socket = new WebSocket(url);
+  socket.onerror = () => { window.blockedSockets++; };
 }
 const workerSource = %q;
-try {
-  const worker = new Worker(URL.createObjectURL(new Blob([workerSource], {type: "text/javascript"})));
-  worker.onmessage = (event) => { window.workerSocketBlocked = event.data === "blocked"; };
-} catch (_) {
-  window.workerSocketBlocked = true;
-}
+const worker = new Worker(URL.createObjectURL(new Blob([workerSource], {type: "text/javascript"})));
+worker.onmessage = (event) => { window.workerSocketBlocked = event.data === "blocked"; };
 </script></body></html>`,
 			socketURL,
 			secureSocketURL,
@@ -360,34 +466,503 @@ try {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
 	session := startChromiumSession(t, executable, proxy)
-	restoreAuthorization := allowBackendNetworkRequests(t, session, proxy)
+	generation, err := proxy.permits.beginGeneration(context.Background())
+	require.NoError(t, err)
+	restoreAuthorization := session.(NetworkAuthorizingBackendSession).SetNetworkAuthorizer(
+		"*",
+		func(ctx context.Context, target permissions.NetworkTarget) error {
+			if target.RequestClass == permissions.NetworkRequestWebSocket {
+				return errors.New("websocket denied")
+			}
+			addresses, resolveErr := proxy.getPolicy().Resolve(ctx, target)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			return proxy.permits.install(generation, []transportPermitInput{{
+				Target: target, Addresses: addresses, Uses: 1, ExpiresAt: time.Now().Add(time.Minute),
+			}})
+		},
+	)
 	chromium := session.(*chromiumSession)
 	var blockedSockets int
+	var socketsBlocked bool
 	var workerSocketBlocked bool
+	var nativeFeatures []string
 	require.NoError(t, chromedp.Run(
 		chromium.ctx,
 		chromedp.Navigate(fixture.URL),
-		chromedp.Evaluate("window.blockedSockets", &blockedSockets),
+		chromedp.Poll("window.blockedSockets === 2", &socketsBlocked),
 		chromedp.Poll("window.workerSocketBlocked === true", &workerSocketBlocked),
+		chromedp.Evaluate("window.blockedSockets", &blockedSockets),
+		chromedp.Evaluate("window.nativeFeatures", &nativeFeatures),
 	))
+	require.Equal(t, []string{"function", "function", "function", "function"}, nativeFeatures)
 	require.Equal(t, 2, blockedSockets)
 	require.True(t, workerSocketBlocked)
 	require.Zero(t, socketRequests.Load(), "upgrade=%q", socketUpgrade.Load())
 	restoreAuthorization()
+	require.NoError(t, proxy.permits.revokeGeneration(generation))
+}
+
+func TestChromiumBackend_RetainsTransportContainmentWithoutFeatureSuppression(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	proxy, err := startEgressProxy(NetworkPolicy{Strict: false})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
+	session := startChromiumSession(t, executable, proxy).(*chromiumSession)
+	session.process.mu.Lock()
+	arguments := slices.Clone(session.process.cmd.Args)
+	session.process.mu.Unlock()
+	require.Contains(t, arguments, "--disable-quic")
+	require.Contains(t, arguments, "--deny-permission-prompts")
+	require.Contains(t, arguments, "--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
+	require.Contains(t, arguments, "--webrtc-ip-handling-policy=disable_non_proxied_udp")
+	require.NotContains(t, arguments, "--disable-background-networking")
+	require.NotContains(t, arguments, "--disable-service-worker")
+}
+
+func TestChromiumBackend_PreservesNativeTransportAPIsWithoutDirectUDP(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	udp, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
+	require.NoError(t, err)
+	defer udp.Close()
+	tcp, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer tcp.Close()
+	udpPort := udp.LocalAddr().(*net.UDPAddr).Port
+	tcpPort := tcp.Addr().(*net.TCPAddr).Port
+
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(writer, `<!doctype html><script>
+window.transportTypes = [typeof RTCPeerConnection, typeof WebTransport];
+window.transportDone = false;
+(async () => {
+  const peer = new RTCPeerConnection({iceServers: [
+    {urls: "stun:127.0.0.1:%d"},
+    {urls: "turn:127.0.0.1:%d?transport=tcp", username: "morph", credential: "test"}
+  ]});
+  peer.createDataChannel("morph");
+  await peer.setLocalDescription(await peer.createOffer());
+  if (typeof WebTransport === "function") {
+    try {
+      const transport = new WebTransport("https://127.0.0.1:%d/");
+      transport.closed.catch(() => {});
+    } catch (_) {}
+  }
+  setTimeout(() => { peer.close(); window.transportDone = true; }, 750);
+})().catch(() => { window.transportDone = true; });
+</script>`, udpPort, tcpPort, udpPort)
+	}))
+	defer fixture.Close()
+
+	proxy, err := startEgressProxy(NetworkPolicy{Strict: false})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
+	session := startChromiumSession(t, executable, proxy)
+	restoreAuthorization := allowBackendNetworkRequests(t, session, proxy)
+	defer restoreAuthorization()
+
+	var types []string
+	require.NoError(t, chromedp.Run(
+		session.(*chromiumSession).ctx,
+		chromedp.Navigate(fixture.URL),
+		chromedp.Poll("window.transportDone === true", nil, chromedp.WithPollingTimeout(5*time.Second)),
+		chromedp.Evaluate("window.transportTypes", &types),
+	))
+	require.Equal(t, []string{"function", "function"}, types)
+
+	require.NoError(t, udp.SetReadDeadline(time.Now().Add(500*time.Millisecond)))
+	packet := make([]byte, 2048)
+	count, _, udpErr := udp.ReadFromUDP(packet)
+	require.Error(t, udpErr, "unexpected direct UDP packet: %x", packet[:count])
+	require.True(t, errors.Is(udpErr, os.ErrDeadlineExceeded))
+
+	require.NoError(t, tcp.(*net.TCPListener).SetDeadline(time.Now().Add(500*time.Millisecond)))
+	connection, tcpErr := tcp.Accept()
+	if connection != nil {
+		_ = connection.Close()
+	}
+	require.Error(t, tcpErr)
+	require.True(t, errors.Is(tcpErr, os.ErrDeadlineExceeded))
+}
+
+func TestChromiumBackend_AllowsPermissionBoundWebSocket(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	connected := make(chan struct{}, 1)
+	mux := http.NewServeMux()
+	mux.Handle("/socket", websocket.Handler(func(connection *websocket.Conn) {
+		select {
+		case connected <- struct{}{}:
+		default:
+		}
+		var message string
+		if receiveErr := websocket.Message.Receive(connection, &message); receiveErr != nil {
+			return
+		}
+		_ = websocket.Message.Send(connection, "echo:"+message)
+	}))
+	var socketURL string
+	mux.HandleFunc("/", func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(writer, `<!doctype html><script>
+window.socketResult = "";
+const socket = new WebSocket(%q);
+socket.onopen = () => socket.send("morph");
+socket.onmessage = (event) => { window.socketResult = event.data; socket.close(); };
+socket.onerror = () => { window.socketResult = "error"; };
+</script>`, socketURL)
+	})
+	fixture := httptest.NewServer(mux)
+	defer fixture.Close()
+	socketURL = "ws" + strings.TrimPrefix(fixture.URL, "http") + "/socket"
+
+	proxy, err := startEgressProxy(NetworkPolicy{Strict: false})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
+	session := startChromiumSession(t, executable, proxy)
+	generation, err := proxy.permits.beginGeneration(context.Background())
+	require.NoError(t, err)
+	var websocketAuthorizations atomic.Int64
+	observedWebSocket := make(chan permissions.NetworkTarget, 1)
+	restoreAuthorization := session.(NetworkAuthorizingBackendSession).SetNetworkAuthorizer(
+		"*",
+		func(ctx context.Context, target permissions.NetworkTarget) error {
+			if target.RequestClass == permissions.NetworkRequestWebSocket {
+				websocketAuthorizations.Add(1)
+				observedWebSocket <- target
+			}
+			addresses, resolveErr := proxy.getPolicy().Resolve(ctx, target)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			return proxy.permits.install(generation, []transportPermitInput{{
+				Target: target, Addresses: addresses, Uses: 1, ExpiresAt: time.Now().Add(time.Minute),
+			}})
+		},
+	)
+	defer func() {
+		restoreAuthorization()
+		require.NoError(t, proxy.permits.revokeGeneration(generation))
+	}()
+
+	var result string
+	require.NoError(t, chromedp.Run(
+		session.(*chromiumSession).ctx,
+		chromedp.Navigate(fixture.URL),
+		chromedp.Poll(`window.socketResult !== ""`, nil),
+		chromedp.Evaluate("window.socketResult", &result),
+	))
+	require.Equal(t, "echo:morph", result)
+	require.EqualValues(t, 1, websocketAuthorizations.Load())
+	observed := <-observedWebSocket
+	require.Equal(t, "ws", observed.Scheme)
+	require.Equal(t, http.MethodGet, observed.Method)
+	require.Equal(t, "/socket", observed.Path)
+	select {
+	case <-connected:
+	case <-time.After(time.Second):
+		t.Fatal("WebSocket upstream was not reached")
+	}
+}
+
+func TestChromiumBackend_AllowsPermissionBoundSecureWebSocket(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	connected := make(chan struct{}, 1)
+	socketServer := httptest.NewTLSServer(websocket.Handler(func(connection *websocket.Conn) {
+		select {
+		case connected <- struct{}{}:
+		default:
+		}
+		var message string
+		if receiveErr := websocket.Message.Receive(connection, &message); receiveErr != nil {
+			return
+		}
+		_ = websocket.Message.Send(connection, "secure:"+message)
+	}))
+	defer socketServer.Close()
+	socketURL := "wss" + strings.TrimPrefix(socketServer.URL, "https")
+	page := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(writer, `<!doctype html><script>
+window.socketResult = "";
+const socket = new WebSocket(%q);
+socket.onopen = () => socket.send("morph");
+socket.onmessage = (event) => { window.socketResult = event.data; socket.close(); };
+socket.onerror = () => { window.socketResult = "error"; };
+</script>`, socketURL)
+	}))
+	defer page.Close()
+
+	proxy, err := startEgressProxy(NetworkPolicy{Strict: false})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
+	session := startChromiumSession(t, executable, proxy)
+	generation, err := proxy.permits.beginGeneration(context.Background())
+	require.NoError(t, err)
+	var websocketAuthorizations atomic.Int64
+	observedWebSocket := make(chan permissions.NetworkTarget, 1)
+	restoreAuthorization := session.(NetworkAuthorizingBackendSession).SetNetworkAuthorizer(
+		"*",
+		func(ctx context.Context, target permissions.NetworkTarget) error {
+			if target.RequestClass == permissions.NetworkRequestWebSocket {
+				websocketAuthorizations.Add(1)
+				observedWebSocket <- target
+			}
+			addresses, resolveErr := proxy.getPolicy().Resolve(ctx, target)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			return proxy.permits.install(generation, []transportPermitInput{{
+				Target: target, Addresses: addresses, Uses: 1, ExpiresAt: time.Now().Add(time.Minute),
+			}})
+		},
+	)
+	defer func() {
+		restoreAuthorization()
+		require.NoError(t, proxy.permits.revokeGeneration(generation))
+	}()
+
+	var result string
+	require.NoError(t, chromedp.Run(
+		session.(*chromiumSession).ctx,
+		security.SetIgnoreCertificateErrors(true),
+		chromedp.Navigate(page.URL),
+		chromedp.Poll(`window.socketResult !== ""`, nil),
+		chromedp.Evaluate("window.socketResult", &result),
+	))
+	require.Equal(t, "secure:morph", result)
+	require.EqualValues(t, 1, websocketAuthorizations.Load())
+	observed := <-observedWebSocket
+	require.Equal(t, "wss", observed.Scheme)
+	require.Equal(t, http.MethodConnect, observed.Method)
+	require.Equal(t, "/", observed.Path)
+	select {
+	case <-connected:
+	case <-time.After(time.Second):
+		t.Fatal("secure WebSocket upstream was not reached")
+	}
+}
+
+func TestChromiumBackend_SupervisesNativeWorkerAndFrameTraffic(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	var iframeRequests atomic.Int64
+	var workerRequests atomic.Int64
+	var sharedWorkerRequests atomic.Int64
+	var serviceWorkerRequests atomic.Int64
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/iframe.html":
+			_, _ = io.WriteString(writer, `<script>
+fetch("/iframe-data").then((response) => response.text()).then((value) => parent.postMessage(value, "*"));
+</script>`)
+		case "/worker.js":
+			writer.Header().Set("Content-Type", "text/javascript")
+			_, _ = io.WriteString(writer, `
+fetch("/worker-data").then((response) => response.text()).then(postMessage);
+self.onmessage = () => {};
+`)
+		case "/shared-worker.js":
+			writer.Header().Set("Content-Type", "text/javascript")
+			_, _ = io.WriteString(writer, `
+self.onconnect = (event) => {
+  const port = event.ports[0];
+  fetch("/shared-worker-data").then((response) => response.text()).then((value) => port.postMessage(value));
+};
+`)
+		case "/service-worker.js":
+			writer.Header().Set("Content-Type", "text/javascript")
+			_, _ = io.WriteString(writer, `
+self.addEventListener("install", (event) => {
+  event.waitUntil(fetch("/service-worker-data").then(() => self.skipWaiting()));
+});
+`)
+		case "/iframe-data":
+			iframeRequests.Add(1)
+			_, _ = io.WriteString(writer, "iframe-ok")
+		case "/worker-data":
+			workerRequests.Add(1)
+			_, _ = io.WriteString(writer, "worker-ok")
+		case "/shared-worker-data":
+			sharedWorkerRequests.Add(1)
+			_, _ = io.WriteString(writer, "shared-worker-ok")
+		case "/service-worker-data":
+			serviceWorkerRequests.Add(1)
+			_, _ = io.WriteString(writer, "service-worker-ok")
+		default:
+			_, _ = io.WriteString(writer, `<!doctype html>
+<iframe src="/iframe.html"></iframe>
+<script>
+window.nativeResults = {iframe: "", worker: "", sharedWorker: "", serviceWorker: false};
+window.addEventListener("message", (event) => {
+  if (event.data === "iframe-ok") window.nativeResults.iframe = event.data;
+});
+const worker = new Worker("/worker.js");
+worker.onmessage = (event) => { window.nativeResults.worker = event.data; };
+const sharedWorker = new SharedWorker("/shared-worker.js");
+sharedWorker.port.onmessage = (event) => { window.nativeResults.sharedWorker = event.data; };
+sharedWorker.port.start();
+navigator.serviceWorker.register("/service-worker.js").then(() => {
+  window.nativeResults.serviceWorker = true;
+});
+</script>`)
+		}
+	}))
+	defer fixture.Close()
+
+	proxy, err := startEgressProxy(NetworkPolicy{Strict: false})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
+	session := startChromiumSession(t, executable, proxy)
+	restoreAuthorization := allowBackendNetworkRequests(t, session, proxy)
+	defer restoreAuthorization()
+	restoreBackground := allowBackendBackgroundOrigin(t, proxy, fixture.URL)
+	defer restoreBackground()
+
+	var ready bool
+	err = chromedp.Run(
+		session.(*chromiumSession).ctx,
+		chromedp.Navigate(fixture.URL),
+		chromedp.Poll(`
+window.nativeResults.iframe === "iframe-ok" &&
+window.nativeResults.worker === "worker-ok" &&
+window.nativeResults.sharedWorker === "shared-worker-ok" &&
+window.nativeResults.serviceWorker === true
+`, &ready, chromedp.WithPollingTimeout(10*time.Second)),
+	)
+	if err != nil {
+		var results map[string]any
+		_ = chromedp.Run(
+			session.(*chromiumSession).ctx,
+			chromedp.Evaluate("window.nativeResults", &results),
+		)
+		t.Fatalf(
+			"native worker traffic did not settle: %v; results=%v; requests=iframe:%d worker:%d shared:%d service:%d",
+			err,
+			results,
+			iframeRequests.Load(),
+			workerRequests.Load(),
+			sharedWorkerRequests.Load(),
+			serviceWorkerRequests.Load(),
+		)
+	}
+	require.Eventually(t, func() bool {
+		return iframeRequests.Load() > 0 &&
+			workerRequests.Load() > 0 &&
+			sharedWorkerRequests.Load() > 0 &&
+			serviceWorkerRequests.Load() > 0
+	}, 10*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool {
+		session := session.(*chromiumSession)
+		session.mu.Lock()
+		defer session.mu.Unlock()
+		types := make(map[string]bool)
+		for _, related := range session.relatedTargets {
+			types[related.targetType] = true
+		}
+		return types["worker"] && types["shared_worker"] && types["service_worker"]
+	}, 5*time.Second, 20*time.Millisecond)
+	chromium := session.(*chromiumSession)
+	chromium.mu.Lock()
+	sharedClientCount := -1
+	for _, related := range chromium.relatedTargets {
+		if related.targetType == "shared_worker" {
+			sharedClientCount = len(related.clientTabIDs)
+			break
+		}
+	}
+	chromium.mu.Unlock()
+	require.Zero(t, sharedClientCount)
+}
+
+func TestChromiumBackend_DeniesUnattributedWorkerTrafficWithoutSuppressingWorkers(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	var sharedRequests atomic.Int64
+	var serviceRequests atomic.Int64
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/shared-worker.js":
+			writer.Header().Set("Content-Type", "text/javascript")
+			_, _ = io.WriteString(writer, `
+self.onconnect = (event) => {
+  fetch("/shared-data").catch(() => {});
+  event.ports[0].postMessage("started");
+};
+`)
+		case "/service-worker.js":
+			writer.Header().Set("Content-Type", "text/javascript")
+			_, _ = io.WriteString(writer, `
+self.addEventListener("install", (event) => {
+  event.waitUntil(fetch("/service-data").catch(() => {}));
+});
+`)
+		case "/shared-data":
+			sharedRequests.Add(1)
+			_, _ = io.WriteString(writer, "unexpected")
+		case "/service-data":
+			serviceRequests.Add(1)
+			_, _ = io.WriteString(writer, "unexpected")
+		default:
+			_, _ = io.WriteString(writer, `<!doctype html><script>
+window.workerTypes = [typeof SharedWorker, typeof navigator.serviceWorker?.register];
+window.workersStarted = false;
+const shared = new SharedWorker("/shared-worker.js");
+shared.port.onmessage = () => { window.workersStarted = true; };
+shared.port.start();
+navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+</script>`)
+		}
+	}))
+	defer fixture.Close()
+
+	proxy, err := startEgressProxy(NetworkPolicy{Strict: false})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
+	session := startChromiumSession(t, executable, proxy)
+	restoreAuthorization := allowBackendNetworkRequests(t, session, proxy)
+	defer restoreAuthorization()
+
+	var types []string
+	require.NoError(t, chromedp.Run(
+		session.(*chromiumSession).ctx,
+		chromedp.Navigate(fixture.URL),
+		chromedp.Poll("window.workersStarted === true", nil, chromedp.WithPollingTimeout(5*time.Second)),
+		chromedp.Evaluate("window.workerTypes", &types),
+	))
+	require.Equal(t, []string{"function", "function"}, types)
+	require.Never(t, func() bool {
+		return sharedRequests.Load() > 0 || serviceRequests.Load() > 0
+	}, 500*time.Millisecond, 20*time.Millisecond)
 }
 
 func startChromiumSession(t *testing.T, executable string, proxy *egressProxy) BackendSession {
 	t.Helper()
 	username, password := proxy.authorization.credentials()
 	session, err := (ChromiumBackend{}).Start(context.Background(), LaunchOptions{
-		Executable:   executable,
-		Mode:         config.BrowserProfileManagedEphemeral,
-		DataDir:      t.TempDir(),
-		DownloadRoot: t.TempDir(),
-		ProxyURL:     proxy.chromiumURL(),
-		ProxyUser:    username,
-		ProxySecret:  password,
-		Timeout:      15 * time.Second,
+		Executable:       executable,
+		Mode:             config.BrowserProfileManagedEphemeral,
+		DataDir:          t.TempDir(),
+		DownloadRoot:     t.TempDir(),
+		ProxyURL:         proxy.chromiumURL(),
+		ProxyUser:        username,
+		ProxySecret:      password,
+		Timeout:          15 * time.Second,
+		transportPermits: proxy.permits,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, session.Close(context.Background())) })
@@ -421,7 +996,11 @@ func TestChromedpFork_AdoptsPausedWorkerTargetSession(t *testing.T) {
 	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path == "/worker.js" {
 			writer.Header().Set("Content-Type", "text/javascript")
-			_, _ = io.WriteString(writer, `self.workerReady = true`)
+			_, _ = io.WriteString(writer, `fetch("/worker-data")`)
+			return
+		}
+		if request.URL.Path == "/worker-data" {
+			_, _ = io.WriteString(writer, `worker data`)
 			return
 		}
 		writer.Header().Set("Content-Type", "text/html")
@@ -456,8 +1035,25 @@ func TestChromedpFork_AdoptsPausedWorkerTargetSession(t *testing.T) {
 	chromedp.ListenBrowser(browserCtx, listenForWorker)
 	chromedp.ListenTarget(browserCtx, listenForWorker)
 	require.NoError(t, chromedp.Run(browserCtx, chromedp.Navigate(fixture.URL)))
+	paused := make(chan *fetch.EventRequestPaused, 1)
+	chromedp.ListenTarget(browserCtx, func(event any) {
+		request, ok := event.(*fetch.EventRequestPaused)
+		if !ok {
+			return
+		}
+		if request.Request.URL == fixture.URL+"/worker-data" {
+			select {
+			case paused <- request:
+			default:
+			}
+		}
+		go func() {
+			_ = chromedp.Run(browserCtx, fetch.ContinueRequest(request.RequestID))
+		}()
+	})
 	require.NoError(t, chromedp.Run(
 		browserCtx,
+		fetch.Enable(),
 		target.SetAutoAttach(true, true).WithFlatten(true),
 		chromedp.Evaluate(`new Worker("/worker.js")`, nil),
 	))
@@ -473,16 +1069,24 @@ func TestChromedpFork_AdoptsPausedWorkerTargetSession(t *testing.T) {
 	childCtx, cancelChild := chromedp.NewContext(
 		browserCtx,
 		chromedp.WithExistingTargetSession(event.TargetInfo.TargetID, event.SessionID),
+		chromedp.WithExistingTargetSessionType(event.TargetInfo.Type),
+		chromedp.WithExistingTargetSessionWaitingForDebugger(event.WaitingForDebugger),
 	)
 	defer cancelChild()
 
 	var className string
 	require.NoError(t, chromedp.Run(
 		childCtx,
-		runtime.RunIfWaitingForDebugger(),
+		target.SetAutoAttach(true, true).WithFlatten(true),
 		chromedp.Evaluate("self.constructor.name", &className),
 	))
 	require.Equal(t, "DedicatedWorkerGlobalScope", className)
+	select {
+	case request := <-paused:
+		require.Equal(t, fixture.URL+"/worker-data", request.Request.URL)
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker request was not intercepted")
+	}
 }
 
 func TestChromiumBackend_InteractiveActionsCompleteLocalFixtureWorkflow(t *testing.T) {
@@ -490,7 +1094,11 @@ func TestChromiumBackend_InteractiveActionsCompleteLocalFixtureWorkflow(t *testi
 	if err != nil {
 		t.Skip("Chromium is not installed")
 	}
-	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	var popupRequests atomic.Int64
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/popup" {
+			popupRequests.Add(1)
+		}
 		_, _ = io.WriteString(writer, `<!doctype html>
 <html>
   <head><title>Browser fixture</title></head>
@@ -594,10 +1202,17 @@ func TestChromiumBackend_InteractiveActionsCompleteLocalFixtureWorkflow(t *testi
 	}, 3*time.Second, 20*time.Millisecond)
 	require.NoError(t, interactive.Click(context.Background(), tab.ID, uploadID))
 	require.NoError(t, interactive.Click(context.Background(), tab.ID, popupID))
-	require.Eventually(t, func() bool {
+	require.Never(t, func() bool {
 		current, listErr := interactive.ListTabs(context.Background())
-		return listErr == nil && len(current) == len(tabs)+1
+		return listErr != nil || len(current) != len(tabs)+1
+	}, 500*time.Millisecond, 20*time.Millisecond)
+	require.Eventually(t, func() bool {
+		session := session.(*chromiumSession)
+		session.mu.Lock()
+		defer session.mu.Unlock()
+		return len(session.quarantinedTargets) == 0
 	}, 3*time.Second, 20*time.Millisecond)
+	require.Zero(t, popupRequests.Load())
 
 	firstURL := fixture.URL + "/first"
 	secondURL := fixture.URL + "/second"
@@ -797,6 +1412,41 @@ func allowBackendNetworkRequests(t *testing.T, session BackendSession, proxy *eg
 	}
 }
 
+func allowBackendBackgroundOrigin(t *testing.T, proxy *egressProxy, rawURL string) func() {
+	t.Helper()
+	expected, err := permissions.NetworkTargetFromURL(
+		rawURL,
+		http.MethodConnect,
+		permissions.NetworkRequestBackground,
+	)
+	require.NoError(t, err)
+	expected.Path = "/"
+	generation, ok := proxy.permits.getActiveGeneration()
+	require.True(t, ok)
+	previous := proxy.background
+	proxy.background = func(
+		ctx context.Context,
+		target permissions.NetworkTarget,
+	) (*transportPermitLease, error) {
+		if target.Scheme != expected.Scheme || target.Host != expected.Host || target.Port != expected.Port {
+			return nil, errors.New("unexpected background origin")
+		}
+		addresses, resolveErr := proxy.getPolicy().Resolve(ctx, target)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		if installErr := proxy.permits.install(generation.ID, []transportPermitInput{{
+			Target: target, Addresses: addresses, Uses: 1, ExpiresAt: time.Now().Add(time.Minute),
+		}}); installErr != nil {
+			return nil, installErr
+		}
+		return proxy.permits.acquire(target)
+	}
+	return func() {
+		proxy.background = previous
+	}
+}
+
 func TestGetKeyInput_NormalizesNamedKeys(t *testing.T) {
 	tests := map[string]string{
 		"Enter": "\r", "Tab": "\t", "Escape": "\u001b", "Esc": "\u001b",
@@ -845,6 +1495,49 @@ func TestChromiumSession_NetworkAuthorizersAreScopedToTabs(t *testing.T) {
 	require.EqualError(t, session.consumeNetworkError("tab-1"), "first tab failed")
 	require.Nil(t, session.consumeNetworkError("tab-1"))
 	require.EqualError(t, session.consumeNetworkError("tab-2"), "second tab failed")
+}
+
+func TestChromiumSession_RelatedTargetAuthorizationRequiresUnambiguousOwnership(t *testing.T) {
+	session := &chromiumSession{
+		networkAuthorizers: make(map[string]networkAuthorization),
+		relatedTargets:     make(map[string]*relatedTarget),
+	}
+	restoreFirst := session.SetNetworkAuthorizer("tab-1", func(context.Context, permissions.NetworkTarget) error {
+		return errors.New("first")
+	})
+	defer restoreFirst()
+	restoreSecond := session.SetNetworkAuthorizer("tab-2", func(context.Context, permissions.NetworkTarget) error {
+		return errors.New("second")
+	})
+	defer restoreSecond()
+
+	session.relatedTargets["worker"] = &relatedTarget{
+		targetType: "worker",
+		ownerTabID: "tab-1",
+	}
+	authorization, tabID, ok := session.getRelatedNetworkAuthorization("worker")
+	require.True(t, ok)
+	require.Equal(t, "tab-1", tabID)
+	require.EqualError(t, authorization.authorize(authorization.ctx, permissions.NetworkTarget{}), "first")
+
+	session.relatedTargets["shared"] = &relatedTarget{
+		targetType: "shared_worker",
+		clientTabIDs: map[string]struct{}{
+			"tab-1": {},
+		},
+	}
+	authorization, tabID, ok = session.getRelatedNetworkAuthorization("shared")
+	require.True(t, ok)
+	require.Equal(t, "tab-1", tabID)
+	require.EqualError(t, authorization.authorize(authorization.ctx, permissions.NetworkTarget{}), "first")
+
+	session.relatedTargets["shared"].clientTabIDs["tab-2"] = struct{}{}
+	_, _, ok = session.getRelatedNetworkAuthorization("shared")
+	require.False(t, ok)
+
+	session.relatedTargets["service"] = &relatedTarget{targetType: "service_worker"}
+	_, _, ok = session.getRelatedNetworkAuthorization("service")
+	require.False(t, ok)
 }
 
 func TestChromiumSession_NetworkErrorsRequireActiveAuthorization(t *testing.T) {

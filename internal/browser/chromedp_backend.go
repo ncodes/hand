@@ -3,7 +3,9 @@ package browser
 import (
 	"context"
 	"errors"
+	"net/http"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
+	cdpruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"github.com/rs/zerolog/log"
@@ -35,6 +38,18 @@ type networkActivity struct {
 	changed chan struct{}
 }
 
+type relatedTarget struct {
+	targetType   string
+	ownerTabID   string
+	clientTabIDs map[string]struct{}
+	sessions     map[target.SessionID]*relatedTargetSession
+}
+
+type relatedTargetSession struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
 type chromiumSession struct {
 	ctx                context.Context
 	cancelContext      context.CancelFunc
@@ -51,10 +66,17 @@ type chromiumSession struct {
 	proxySecret        string
 	networkAuthorizers map[string]networkAuthorization
 	nextAuthorization  uint64
+	transportPermits   *transportPermitLedger
 	openingTabIDs      map[string]struct{}
+	openingTabReady    map[string]chan struct{}
 	networkErrors      map[string]error
 	networkActivity    map[string]*networkActivity
+	relatedTargets     map[string]*relatedTarget
+	relatedSessions    map[target.SessionID]string
+	pageSessions       map[target.SessionID]struct{}
+	rootTabID          string
 	consoleMessages    map[string][]ConsoleMessage
+	popupEvents        map[string]chan struct{}
 	dialogResponses    map[string]dialogResponse
 	downloadEvents     chan any
 	downloadArmed      bool
@@ -107,12 +129,13 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 			chromedp.UserDataDir(opts.DataDir),
 			chromedp.Flag("no-first-run", true),
 			chromedp.Flag("no-default-browser-check", true),
-			chromedp.Flag("disable-background-networking", true),
+			chromedp.Flag("disable-background-networking", false),
 			chromedp.Flag("disable-component-update", true),
 			chromedp.Flag("disable-sync", true),
 			chromedp.Flag("disable-quic", true),
 			chromedp.Flag("deny-permission-prompts", true),
 			chromedp.Flag("force-webrtc-ip-handling-policy", "disable_non_proxied_udp"),
+			chromedp.Flag("webrtc-ip-handling-policy", "disable_non_proxied_udp"),
 			chromedp.Flag("remote-debugging-address", "127.0.0.1"),
 			chromedp.ModifyCmdFunc(func(command *exec.Cmd) {
 				process.configure(command)
@@ -135,7 +158,16 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 		return nil, errors.New("browser profile mode is invalid")
 	}
 
-	browserCtx, cancelContext, cancelBootstrap, err := prepareInitialBrowserContext(startCtx, allocatorCtx, opts)
+	var browserCtx context.Context
+	var cancelContext context.CancelFunc
+	var cancelBootstrap context.CancelFunc
+	var err error
+	if opts.Mode == config.BrowserProfileManagedEphemeral ||
+		opts.Mode == config.BrowserProfileManagedPersistent {
+		browserCtx, cancelContext, cancelBootstrap, err = prepareManagedBrowserContext(startCtx, allocatorCtx)
+	} else {
+		browserCtx, cancelContext, cancelBootstrap, err = prepareInitialBrowserContext(startCtx, allocatorCtx, opts)
+	}
 	if err != nil {
 		cancelAllocator()
 		return nil, err
@@ -148,8 +180,11 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 		cancelAllocator: cancelAllocator, process: process,
 		tabContexts: make(map[string]context.Context), tabCancels: make(map[string]context.CancelFunc),
 		networkAuthorizers: make(map[string]networkAuthorization), openingTabIDs: make(map[string]struct{}),
+		transportPermits: opts.transportPermits, openingTabReady: make(map[string]chan struct{}),
 		networkErrors: make(map[string]error), networkActivity: make(map[string]*networkActivity),
-		consoleMessages: make(map[string][]ConsoleMessage),
+		relatedTargets: make(map[string]*relatedTarget), relatedSessions: make(map[target.SessionID]string),
+		pageSessions:    make(map[target.SessionID]struct{}),
+		consoleMessages: make(map[string][]ConsoleMessage), popupEvents: make(map[string]chan struct{}),
 		dialogResponses: make(map[string]dialogResponse), downloadEvents: make(chan any, 4),
 		proxyUser: opts.ProxyUser, proxySecret: opts.ProxySecret,
 		downloadRoot:    opts.DownloadRoot,
@@ -162,10 +197,7 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 	}
 	actions := []chromedp.Action{
 		network.Enable(),
-		network.SetBypassServiceWorker(true),
-		network.SetBlockedURLs().WithURLPatterns(getBlockedWebSocketPatterns()),
 		page.Enable(),
-		installBrowserNetworkGuardAction(),
 		browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorDeny),
 		chromedp.ActionFunc(func(actionCtx context.Context) error {
 			_, _, _, _, _, err := browser.GetVersion().Do(actionCtx)
@@ -173,6 +205,13 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 		}),
 	}
 	chromedp.ListenTarget(browserCtx, session.getRequestListener(browserCtx, ""))
+	if !session.attached {
+		chromedp.ListenTarget(browserCtx, session.getRelatedTargetListener(""))
+		chromedp.ListenBrowser(browserCtx, session.getBrowserRelatedTargetListener())
+		actions = append([]chromedp.Action{
+			target.SetAutoAttach(true, true).WithFlatten(true).WithFilter(getRelatedTargetFilter()),
+		}, actions...)
+	}
 	actions = append([]chromedp.Action{fetch.Enable().WithHandleAuthRequests(opts.ProxyUser != "")}, actions...)
 	ready := make(chan error, 1)
 	go func() {
@@ -193,7 +232,13 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 				return nil, err
 			}
 		}
-		chromedp.ListenBrowser(browserCtx, session.getUnexpectedTargetListener(browserCtx))
+		if chromiumCtx := chromedp.FromContext(browserCtx); chromiumCtx != nil && chromiumCtx.Target != nil {
+			session.rootTabID = string(chromiumCtx.Target.TargetID)
+			session.tabContexts[session.rootTabID] = browserCtx
+			chromedp.ListenTarget(browserCtx, session.getPageEffectListener(browserCtx, session.rootTabID))
+			chromedp.ListenTarget(browserCtx, session.getConsoleListener(session.rootTabID))
+		}
+		chromedp.ListenBrowser(browserCtx, session.getPageTargetLifecycleListener())
 		chromedp.ListenBrowser(browserCtx, session.getDownloadListener())
 		return session, nil
 	case <-startCtx.Done():
@@ -202,11 +247,62 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 	}
 }
 
-func getBlockedWebSocketPatterns() []*network.BlockPattern {
-	return []*network.BlockPattern{
-		{URLPattern: "ws://*:*/*", Block: true},
-		{URLPattern: "wss://*:*/*", Block: true},
+func prepareManagedBrowserContext(
+	ctx context.Context,
+	allocatorCtx context.Context,
+) (context.Context, context.CancelFunc, context.CancelFunc, error) {
+	bootstrapCtx, cancelBootstrap := chromedp.NewContext(allocatorCtx)
+	stop := context.AfterFunc(ctx, cancelBootstrap)
+	defer stop()
+	chromiumCtx := chromedp.FromContext(bootstrapCtx)
+	if chromiumCtx == nil || chromiumCtx.Allocator == nil {
+		cancelBootstrap()
+		return nil, nil, nil, errors.New("browser connection is unavailable")
 	}
+	browser, err := chromiumCtx.Allocator.Allocate(bootstrapCtx)
+	if err != nil {
+		cancelBootstrap()
+		return nil, nil, nil, err
+	}
+	chromiumCtx.Browser = browser
+	attached := make(chan *target.EventAttachedToTarget, 1)
+	listenerCtx, cancelListener := context.WithCancel(bootstrapCtx)
+	chromedp.ListenBrowser(listenerCtx, func(event any) {
+		attachedEvent, ok := event.(*target.EventAttachedToTarget)
+		if !ok || attachedEvent.TargetInfo == nil || attachedEvent.TargetInfo.Type != "page" ||
+			attachedEvent.TargetInfo.Subtype != "" {
+			return
+		}
+		select {
+		case attached <- attachedEvent:
+		default:
+		}
+	})
+	browserExecutor := cdp.WithExecutor(bootstrapCtx, browser)
+	if err := target.SetAutoAttach(true, true).
+		WithFlatten(true).
+		WithFilter(getBrowserRelatedTargetFilter()).
+		Do(browserExecutor); err != nil {
+		cancelListener()
+		cancelBootstrap()
+		return nil, nil, nil, err
+	}
+	var initial *target.EventAttachedToTarget
+	select {
+	case <-ctx.Done():
+		cancelListener()
+		cancelBootstrap()
+		return nil, nil, nil, ctx.Err()
+	case initial = <-attached:
+		cancelListener()
+	}
+	browserCtx, cancel := chromedp.NewContext(
+		bootstrapCtx,
+		chromedp.WithExistingTargetSession(initial.TargetInfo.TargetID, initial.SessionID),
+		chromedp.WithExistingTargetSessionType(initial.TargetInfo.Type),
+		chromedp.WithExistingTargetSessionWaitingForDebugger(initial.WaitingForDebugger),
+	)
+	return browserCtx, cancel, cancelBootstrap, nil
 }
 
 func prepareInitialBrowserContext(
@@ -305,13 +401,6 @@ func getAttachedContextCancel(ctx context.Context, cancel context.CancelFunc) co
 	}
 }
 
-func installBrowserNetworkGuardAction() chromedp.Action {
-	return chromedp.ActionFunc(func(ctx context.Context) error {
-		_, err := page.AddScriptToEvaluateOnNewDocument(browserNetworkGuardScript).Do(ctx)
-		return err
-	})
-}
-
 func (s *chromiumSession) getDownloadListener() func(any) {
 	return func(event any) {
 		s.mu.Lock()
@@ -347,12 +436,17 @@ func (s *chromiumSession) getDownloadListener() func(any) {
 	}
 }
 
-func (s *chromiumSession) getUnexpectedTargetListener(ctx context.Context) func(any) {
+func (s *chromiumSession) getPageTargetLifecycleListener() func(any) {
 	return func(event any) {
 		if destroyed, ok := event.(*target.EventTargetDestroyed); ok {
+			go s.removeRelatedTarget(string(destroyed.TargetID))
 			s.mu.Lock()
 			delete(s.quarantinedTargets, string(destroyed.TargetID))
+			delete(s.popupEvents, string(destroyed.TargetID))
 			s.mu.Unlock()
+			log.Debug().
+				Str("browser_target_id", string(destroyed.TargetID)).
+				Msg("Browser target supervision observed target destruction")
 			return
 		}
 		created, ok := event.(*target.EventTargetCreated)
@@ -360,37 +454,454 @@ func (s *chromiumSession) getUnexpectedTargetListener(ctx context.Context) func(
 			return
 		}
 		s.mu.Lock()
+		targetID := string(created.TargetInfo.TargetID)
+		if targetID == s.rootTabID || s.tabContexts[targetID] != nil {
+			s.mu.Unlock()
+			return
+		}
 		if s.attached {
-			if _, opening := s.openingTabIDs[string(created.TargetInfo.TargetID)]; opening {
+			if _, opening := s.openingTabIDs[targetID]; opening {
 				s.mu.Unlock()
 				return
 			}
-			s.quarantinedTargets[string(created.TargetInfo.TargetID)] = struct{}{}
+			s.quarantinedTargets[targetID] = struct{}{}
 			s.mu.Unlock()
 			return
 		}
-		if s.openingTargets > 0 {
-			s.openingTargets--
+		if s.claimOpeningTargetLocked(targetID) {
 			s.mu.Unlock()
 			return
 		}
+		s.quarantinedTargets[targetID] = struct{}{}
 		s.mu.Unlock()
-		go func() {
-			chromiumCtx := chromedp.FromContext(s.ctx)
-			if chromiumCtx != nil && chromiumCtx.Browser != nil {
-				_ = target.CloseTarget(created.TargetInfo.TargetID).Do(cdp.WithExecutor(ctx, chromiumCtx.Browser))
+		log.Debug().
+			Str("browser_target_id", targetID).
+			Msg("Browser target supervision quarantined an unexpected page")
+	}
+}
+
+func (s *chromiumSession) getRelatedTargetListener(ownerTabID string) func(any) {
+	return func(event any) {
+		switch value := event.(type) {
+		case *target.EventAttachedToTarget:
+			if value.TargetInfo == nil {
+				return
 			}
-		}()
+			go s.attachRelatedTarget(ownerTabID, value)
+		case *target.EventDetachedFromTarget:
+			go s.removeRelatedTargetSession(value.SessionID)
+		}
+	}
+}
+
+func (s *chromiumSession) handleBrowserPageTarget(event *target.EventAttachedToTarget) {
+	if s == nil || event == nil || event.TargetInfo == nil {
+		return
+	}
+	chromiumCtx := chromedp.FromContext(s.ctx)
+	if chromiumCtx != nil && chromiumCtx.Target != nil &&
+		chromiumCtx.Target.TargetID == event.TargetInfo.TargetID &&
+		chromiumCtx.Target.SessionID == event.SessionID {
+		_ = cdpruntime.RunIfWaitingForDebugger().Do(cdp.WithExecutor(context.Background(), chromiumCtx.Target))
+		return
+	}
+	targetID := string(event.TargetInfo.TargetID)
+	rootTarget := chromiumCtx != nil && chromiumCtx.Target != nil &&
+		chromiumCtx.Target.TargetID == event.TargetInfo.TargetID
+	if rootTarget && !event.WaitingForDebugger {
+		return
+	}
+	s.mu.Lock()
+	if _, handled := s.pageSessions[event.SessionID]; handled {
+		s.mu.Unlock()
+		return
+	}
+	s.pageSessions[event.SessionID] = struct{}{}
+	allowed := rootTarget
+	if !allowed {
+		allowed = s.claimOpeningTargetLocked(targetID)
+	}
+	if !allowed {
+		s.quarantinedTargets[targetID] = struct{}{}
+	}
+	s.mu.Unlock()
+	if !allowed {
+		log.Debug().
+			Str("browser_target_id", targetID).
+			Str("browser_target_session_id", string(event.SessionID)).
+			Msg("Browser target supervision quarantined an attached popup")
+	}
+	if allowed && !rootTarget {
+		s.attachRelatedTarget(targetID, event)
+		s.signalOpeningTargetReady(targetID)
+		return
+	}
+	popupCtx, cancel := chromedp.NewContext(
+		s.ctx,
+		chromedp.WithExistingTargetSession(event.TargetInfo.TargetID, event.SessionID),
+		chromedp.WithExistingTargetSessionType(event.TargetInfo.Type),
+		chromedp.WithExistingTargetSessionWaitingForDebugger(event.WaitingForDebugger),
+		chromedp.WithExistingTargetSessionResumeOnly(),
+	)
+	if err := chromedp.Run(popupCtx); err != nil {
+		cancel()
+		_ = chromedp.Cancel(popupCtx)
+		s.signalOpeningTargetReady(targetID)
+		log.Warn().
+			Str("browser_target_id", targetID).
+			Str("browser_target_session_id", string(event.SessionID)).
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser could not resume a newly attached page target")
+		return
+	}
+	cancel()
+	if err := chromedp.Cancel(popupCtx); err != nil {
+		s.signalOpeningTargetReady(targetID)
+		log.Warn().
+			Str("browser_target_id", targetID).
+			Str("browser_target_session_id", string(event.SessionID)).
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser could not release a resumed page target")
+		return
+	}
+	s.signalOpeningTargetReady(targetID)
+	if allowed {
+		return
+	}
+	browserCtx, err := s.getBrowserExecutorContext(context.Background())
+	if err != nil {
+		return
+	}
+	if err := target.CloseTarget(event.TargetInfo.TargetID).Do(browserCtx); err != nil {
+		log.Warn().
+			Str("browser_target_id", targetID).
+			Str("browser_target_session_id", string(event.SessionID)).
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser could not close a quarantined popup target")
+		return
+	}
+	if err := waitForTargetClosure(browserCtx, event.TargetInfo.TargetID); err != nil {
+		log.Warn().
+			Str("browser_target_id", targetID).
+			Str("browser_target_session_id", string(event.SessionID)).
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser could not confirm quarantined popup closure")
+		return
+	}
+	log.Debug().
+		Str("browser_target_id", targetID).
+		Str("browser_target_session_id", string(event.SessionID)).
+		Msg("Browser target supervision closed a quarantined popup")
+	s.mu.Lock()
+	delete(s.quarantinedTargets, targetID)
+	s.mu.Unlock()
+}
+
+func waitForTargetClosure(ctx context.Context, targetID target.ID) error {
+	waitCtx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		infos, err := target.GetTargets().Do(waitCtx)
+		if err != nil {
+			return err
+		}
+		if !slices.ContainsFunc(infos, func(info *target.Info) bool {
+			return info != nil && info.TargetID == targetID
+		}) {
+			return nil
+		}
+		select {
+		case <-waitCtx.Done():
+			return context.Cause(waitCtx)
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *chromiumSession) claimOpeningTargetLocked(targetID string) bool {
+	if _, opening := s.openingTabIDs[targetID]; opening {
+		return true
+	}
+	if s.openingTargets <= 0 {
+		return false
+	}
+	s.openingTargets--
+	s.openingTabIDs[targetID] = struct{}{}
+	if s.openingTabReady[targetID] == nil {
+		s.openingTabReady[targetID] = make(chan struct{})
+	}
+	return true
+}
+
+func (s *chromiumSession) signalOpeningTargetReady(targetID string) {
+	s.mu.Lock()
+	ready := s.openingTabReady[targetID]
+	if ready != nil {
+		select {
+		case <-ready:
+		default:
+			close(ready)
+		}
+	}
+	s.mu.Unlock()
+}
+
+func (s *chromiumSession) waitForOpeningTargetReady(ctx context.Context, targetID string) error {
+	s.mu.Lock()
+	ready := s.openingTabReady[targetID]
+	if ready == nil {
+		ready = make(chan struct{})
+		s.openingTabReady[targetID] = ready
+	}
+	s.mu.Unlock()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-ready:
+		return nil
+	}
+}
+
+func (s *chromiumSession) getBrowserRelatedTargetListener() func(any) {
+	return func(event any) {
+		switch value := event.(type) {
+		case *target.EventAttachedToTarget:
+			if value.TargetInfo == nil {
+				return
+			}
+			switch value.TargetInfo.Type {
+			case "page":
+				go s.handleBrowserPageTarget(value)
+			case "shared_worker":
+				go s.attachRelatedTarget("", value)
+			}
+		case *target.EventDetachedFromTarget:
+			s.mu.Lock()
+			delete(s.pageSessions, value.SessionID)
+			s.mu.Unlock()
+			go s.removeRelatedTargetSession(value.SessionID)
+		}
+	}
+}
+
+func (s *chromiumSession) attachRelatedTarget(
+	ownerTabID string,
+	event *target.EventAttachedToTarget,
+) {
+	if s == nil || event == nil || event.TargetInfo == nil || event.SessionID == "" {
+		return
+	}
+	if ownerTabID == "" && !isSharedRelatedTarget(event.TargetInfo.Type) {
+		s.mu.Lock()
+		ownerTabID = s.rootTabID
+		s.mu.Unlock()
+	}
+	log.Debug().
+		Str("browser_target_id", string(event.TargetInfo.TargetID)).
+		Str("browser_target_session_id", string(event.SessionID)).
+		Str("browser_parent_tab_id", ownerTabID).
+		Str("browser_target_type", event.TargetInfo.Type).
+		Bool("browser_target_waiting_for_debugger", event.WaitingForDebugger).
+		Msg("Browser related target supervision preparing")
+	childCtx, cancel := chromedp.NewContext(
+		s.ctx,
+		chromedp.WithExistingTargetSession(event.TargetInfo.TargetID, event.SessionID),
+		chromedp.WithExistingTargetSessionType(event.TargetInfo.Type),
+		chromedp.WithExistingTargetSessionWaitingForDebugger(event.WaitingForDebugger),
+	)
+	targetID := string(event.TargetInfo.TargetID)
+	relatedSession := &relatedTargetSession{ctx: childCtx, cancel: cancel}
+	s.mu.Lock()
+	if _, exists := s.relatedSessions[event.SessionID]; exists {
+		s.mu.Unlock()
+		cancel()
+		return
+	}
+	related := s.relatedTargets[targetID]
+	if related == nil {
+		related = &relatedTarget{
+			targetType: event.TargetInfo.Type,
+			sessions:   make(map[target.SessionID]*relatedTargetSession),
+		}
+		s.relatedTargets[targetID] = related
+	}
+	if isSharedRelatedTarget(event.TargetInfo.Type) {
+		if related.clientTabIDs == nil {
+			related.clientTabIDs = make(map[string]struct{})
+		}
+		if ownerTabID != "" {
+			related.clientTabIDs[ownerTabID] = struct{}{}
+		}
+	} else if related.ownerTabID == "" {
+		related.ownerTabID = ownerTabID
+	}
+	related.sessions[event.SessionID] = relatedSession
+	s.relatedSessions[event.SessionID] = targetID
+	if event.TargetInfo.Type == "page" && s.tabContexts[targetID] == nil {
+		s.tabContexts[targetID] = childCtx
+		s.tabCancels[targetID] = cancel
+	}
+	s.mu.Unlock()
+
+	chromedp.ListenTarget(childCtx, s.getRelatedRequestListener(childCtx, targetID))
+	chromedp.ListenTarget(childCtx, s.getRelatedTargetListener(ownerTabID))
+	if event.TargetInfo.Type == "page" {
+		chromedp.ListenTarget(childCtx, s.getPageEffectListener(childCtx, targetID))
+		chromedp.ListenTarget(childCtx, s.getConsoleListener(targetID))
+	}
+	actions := make([]chromedp.Action, 0, 4)
+	if supportsTargetFetchInterception(event.TargetInfo.Type) {
+		actions = append(actions, fetch.Enable().WithHandleAuthRequests(s.proxyUser != ""))
+	}
+	if supportsRelatedTargetChildren(event.TargetInfo.Type) {
+		actions = append(
+			actions,
+			target.SetAutoAttach(true, true).WithFlatten(true).WithFilter(getRelatedTargetFilter()),
+		)
+	}
+	if event.TargetInfo.Type == "page" {
+		actions = append(actions,
+			page.SetInterceptFileChooserDialog(true).WithCancel(true),
+			cdpruntime.Enable(),
+		)
+	}
+	if err := chromedp.Run(childCtx, actions...); err != nil {
+		log.Warn().
+			Str("browser_target_id", targetID).
+			Str("browser_target_session_id", string(event.SessionID)).
+			Str("browser_parent_tab_id", ownerTabID).
+			Str("browser_target_type", event.TargetInfo.Type).
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser related target setup failed")
+		s.removeRelatedTargetSession(event.SessionID)
+		return
+	}
+	log.Debug().
+		Str("browser_target_id", targetID).
+		Str("browser_target_session_id", string(event.SessionID)).
+		Str("browser_parent_tab_id", ownerTabID).
+		Str("browser_target_type", event.TargetInfo.Type).
+		Msg("Browser related target supervision started")
+}
+
+func isSharedRelatedTarget(targetType string) bool {
+	return targetType == "shared_worker" || targetType == "service_worker"
+}
+
+func supportsRelatedTargetChildren(targetType string) bool {
+	switch targetType {
+	case "page", "iframe", "worker", "shared_worker":
+		return true
+	default:
+		return false
+	}
+}
+
+func supportsTargetFetchInterception(targetType string) bool {
+	return targetType == "page" || targetType == "iframe"
+}
+
+func getRelatedTargetFilter() target.Filter {
+	return target.Filter{
+		{Type: "iframe"},
+		{Type: "worker"},
+		{Type: "service_worker"},
+		{Exclude: true},
+	}
+}
+
+func getBrowserRelatedTargetFilter() target.Filter {
+	return target.Filter{
+		{Type: "page"},
+		{Type: "shared_worker"},
+		{Exclude: true},
+	}
+}
+
+func (s *chromiumSession) removeRelatedTargetSession(sessionID target.SessionID) {
+	if s == nil || sessionID == "" {
+		return
+	}
+	s.mu.Lock()
+	targetID := s.relatedSessions[sessionID]
+	delete(s.relatedSessions, sessionID)
+	related := s.relatedTargets[targetID]
+	var relatedSession *relatedTargetSession
+	if related != nil {
+		relatedSession = related.sessions[sessionID]
+		delete(related.sessions, sessionID)
+		if len(related.sessions) == 0 {
+			delete(s.relatedTargets, targetID)
+			if relatedSession != nil && s.tabContexts[targetID] == relatedSession.ctx {
+				delete(s.tabContexts, targetID)
+				delete(s.tabCancels, targetID)
+			}
+		}
+	}
+	s.mu.Unlock()
+	if relatedSession != nil {
+		relatedSession.cancel()
+	}
+}
+
+func (s *chromiumSession) removeRelatedTarget(targetID string) {
+	if s == nil || targetID == "" {
+		return
+	}
+	s.mu.Lock()
+	related := s.relatedTargets[targetID]
+	if related == nil {
+		s.mu.Unlock()
+		return
+	}
+	delete(s.relatedTargets, targetID)
+	delete(s.tabContexts, targetID)
+	delete(s.tabCancels, targetID)
+	sessions := make([]*relatedTargetSession, 0, len(related.sessions))
+	for sessionID, relatedSession := range related.sessions {
+		delete(s.relatedSessions, sessionID)
+		sessions = append(sessions, relatedSession)
+	}
+	s.mu.Unlock()
+	for _, relatedSession := range sessions {
+		relatedSession.cancel()
 	}
 }
 
 func (s *chromiumSession) getRequestListener(ctx context.Context, tabID string) func(any) {
+	return s.getRequestListenerWithAuthorization(ctx, func() (networkAuthorization, string, bool) {
+		effectiveTabID := s.getEffectiveTabID(tabID)
+		authorization, ok := s.getNetworkAuthorization(effectiveTabID)
+		if !ok && tabID == "" {
+			authorization, ok = s.getNetworkAuthorization("")
+		}
+		return authorization, effectiveTabID, ok
+	})
+}
+
+func (s *chromiumSession) getRelatedRequestListener(ctx context.Context, targetID string) func(any) {
+	return s.getRequestListenerWithAuthorization(ctx, func() (networkAuthorization, string, bool) {
+		return s.getRelatedNetworkAuthorization(targetID)
+	})
+}
+
+func (s *chromiumSession) getRequestListenerWithAuthorization(
+	ctx context.Context,
+	resolveAuthorization func() (networkAuthorization, string, bool),
+) func(any) {
 	return func(event any) {
 		switch value := event.(type) {
 		case *fetch.EventRequestPaused:
-			s.markNetworkRequestStarted(tabID)
 			go func() {
-				defer s.markNetworkRequestFinished(tabID)
+				authorization, tabID, ok := resolveAuthorization()
+				activityID := tabID
+				if activityID == "" {
+					activityID = string(value.RequestID)
+				}
+				s.markNetworkRequestStarted(activityID)
+				defer s.markNetworkRequestFinished(activityID)
 				requestClass := permissions.NetworkRequestSubresource
 				if value.RedirectedRequestID != "" {
 					requestClass = permissions.NetworkRequestRedirect
@@ -412,7 +923,6 @@ func (s *chromiumSession) getRequestListener(ctx context.Context, tabID string) 
 					Str("browser_tab_id", tabID).
 					Str("network_resource_type", string(value.ResourceType)).
 					Msg("Browser network request intercepted")
-				authorization, ok := s.getNetworkAuthorization(tabID)
 				if !ok {
 					addBrowserNetworkLogFields(log.Warn(), target).
 						Str("browser_tab_id", tabID).
@@ -468,8 +978,114 @@ func (s *chromiumSession) getRequestListener(ctx context.Context, tabID string) 
 			go func() {
 				_ = chromedp.Run(ctx, fetch.ContinueWithAuth(value.RequestID, response))
 			}()
+		case *network.EventWebSocketCreated:
+			s.authorizeWebSocket(resolveAuthorization, value.URL)
 		}
 	}
+}
+
+func (s *chromiumSession) authorizeWebSocket(
+	resolveAuthorization func() (networkAuthorization, string, bool),
+	rawURL string,
+) {
+	authorization, tabID, ok := resolveAuthorization()
+	if !ok {
+		return
+	}
+	target, err := permissions.NetworkTargetFromURL(
+		rawURL,
+		getWebSocketPermissionMethod(rawURL),
+		permissions.NetworkRequestWebSocket,
+	)
+	if err != nil {
+		log.Warn().
+			Str("browser_tab_id", tabID).
+			Str("error", getSafeBrowserNetworkError(err)).
+			Msg("Browser observed an invalid WebSocket target")
+		return
+	}
+	finishPending := func() {}
+	if s.transportPermits != nil {
+		finishPending = s.transportPermits.beginPending(target)
+	}
+	go func() {
+		defer finishPending()
+		activityID := tabID
+		if activityID == "" {
+			activityID = target.Host
+		}
+		s.markNetworkRequestStarted(activityID)
+		defer s.markNetworkRequestFinished(activityID)
+		addBrowserNetworkLogFields(log.Debug(), target).
+			Str("browser_tab_id", tabID).
+			Uint64("browser_network_authorization_id", authorization.id).
+			Msg("Browser WebSocket authorization started")
+		err := authorization.authorize(authorization.ctx, target)
+		if err == nil {
+			err = authorization.ctx.Err()
+		}
+		if err != nil {
+			addBrowserNetworkLogFields(log.Warn(), target).
+				Str("browser_tab_id", tabID).
+				Uint64("browser_network_authorization_id", authorization.id).
+				Str("error", getSafeBrowserNetworkError(err)).
+				Msg("Browser WebSocket authorization failed")
+			s.recordNetworkError(tabID, authorization.id, err)
+			return
+		}
+		addBrowserNetworkLogFields(log.Debug(), target).
+			Str("browser_tab_id", tabID).
+			Uint64("browser_network_authorization_id", authorization.id).
+			Msg("Browser WebSocket authorization completed")
+	}()
+}
+
+func getWebSocketPermissionMethod(rawURL string) string {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(rawURL)), "wss:") {
+		return http.MethodConnect
+	}
+	return http.MethodGet
+}
+
+func (s *chromiumSession) getEffectiveTabID(tabID string) string {
+	if tabID != "" {
+		return tabID
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.rootTabID
+}
+
+func (s *chromiumSession) getRelatedNetworkAuthorization(
+	targetID string,
+) (networkAuthorization, string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	related := s.relatedTargets[targetID]
+	if related == nil {
+		return networkAuthorization{}, "", false
+	}
+	if !isSharedRelatedTarget(related.targetType) {
+		authorization, ok := s.getNetworkAuthorizationLocked(related.ownerTabID)
+		return authorization, related.ownerTabID, ok
+	}
+	var selected networkAuthorization
+	selectedTabID := ""
+	for tabID := range related.clientTabIDs {
+		authorization, ok := s.getNetworkAuthorizationLocked(tabID)
+		if !ok {
+			continue
+		}
+		if selected.authorize != nil && selected.id != authorization.id {
+			return networkAuthorization{}, "", false
+		}
+		selected = authorization
+		selectedTabID = tabID
+	}
+	if selected.authorize == nil {
+		return networkAuthorization{}, "", false
+	}
+	return selected, selectedTabID, true
 }
 
 func (s *chromiumSession) getNetworkAuthorization(tabID string) (networkAuthorization, bool) {
@@ -666,6 +1282,7 @@ func (s *chromiumSession) Close(context.Context) error {
 		return nil
 	}
 	s.once.Do(func() {
+		s.closeRelatedTargets()
 		if s.process != nil {
 			s.closeErr = s.process.stop()
 		}
@@ -682,6 +1299,22 @@ func (s *chromiumSession) Close(context.Context) error {
 	})
 
 	return s.closeErr
+}
+
+func (s *chromiumSession) closeRelatedTargets() {
+	s.mu.Lock()
+	sessions := make([]*relatedTargetSession, 0, len(s.relatedSessions))
+	for _, related := range s.relatedTargets {
+		for _, relatedSession := range related.sessions {
+			sessions = append(sessions, relatedSession)
+		}
+	}
+	s.relatedTargets = make(map[string]*relatedTarget)
+	s.relatedSessions = make(map[target.SessionID]string)
+	s.mu.Unlock()
+	for _, relatedSession := range sessions {
+		relatedSession.cancel()
+	}
 }
 
 func (s *chromiumSession) preserveAttachedTargets() {

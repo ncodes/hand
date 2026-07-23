@@ -71,6 +71,12 @@ type permitGeneration struct {
 	stop     func() bool
 }
 
+type pendingTransportIntent struct {
+	generation uint64
+	done       chan struct{}
+	closed     bool
+}
+
 type activePermitGeneration struct {
 	ID      uint64
 	Context context.Context
@@ -85,6 +91,7 @@ type transportPermitLedger struct {
 	nextPermit     uint64
 	generations    map[uint64]*permitGeneration
 	permits        map[uint64]*transportPermit
+	pending        map[permissions.NetworkTarget][]*pendingTransportIntent
 	closed         bool
 }
 
@@ -113,6 +120,94 @@ func newTransportPermitLedger(now func() time.Time) *transportPermitLedger {
 	return &transportPermitLedger{
 		now: now, capacity: defaultTransportPermitCapacity,
 		generations: make(map[uint64]*permitGeneration), permits: make(map[uint64]*transportPermit),
+		pending: make(map[permissions.NetworkTarget][]*pendingTransportIntent),
+	}
+}
+
+func (l *transportPermitLedger) beginPending(target permissions.NetworkTarget) func() {
+	if l == nil {
+		return func() {}
+	}
+	target, err := getPendingTransportTarget(target)
+	if err != nil {
+		return func() {}
+	}
+	l.mu.Lock()
+	var generationID uint64
+	for id := l.nextGeneration; id > 0; id-- {
+		if generation := l.generations[id]; generation != nil && generation.ctx.Err() == nil {
+			generationID = id
+			break
+		}
+	}
+	if generationID == 0 || l.closed {
+		l.mu.Unlock()
+		return func() {}
+	}
+	intent := &pendingTransportIntent{generation: generationID, done: make(chan struct{})}
+	l.pending[target] = append(l.pending[target], intent)
+	l.mu.Unlock()
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			l.mu.Lock()
+			if !intent.closed {
+				intent.closed = true
+				close(intent.done)
+			}
+			l.mu.Unlock()
+		})
+	}
+}
+
+func (l *transportPermitLedger) waitForPending(
+	ctx context.Context,
+	target permissions.NetworkTarget,
+) (bool, error) {
+	if l == nil {
+		return false, nil
+	}
+	target, err := getPendingTransportTarget(target)
+	if err != nil {
+		return false, err
+	}
+	l.mu.Lock()
+	intents := l.pending[target]
+	if len(intents) == 0 {
+		l.mu.Unlock()
+		return false, nil
+	}
+	intent := intents[0]
+	l.mu.Unlock()
+
+	select {
+	case <-intent.done:
+	case <-ctx.Done():
+		return true, ctx.Err()
+	}
+	l.mu.Lock()
+	l.removePendingIntentLocked(target, intent)
+	l.mu.Unlock()
+	return true, nil
+}
+
+func (l *transportPermitLedger) removePendingIntentLocked(
+	target permissions.NetworkTarget,
+	intent *pendingTransportIntent,
+) {
+	intents := l.pending[target]
+	for index, current := range intents {
+		if current != intent {
+			continue
+		}
+		intents = append(intents[:index], intents[index+1:]...)
+		if len(intents) == 0 {
+			delete(l.pending, target)
+		} else {
+			l.pending[target] = intents
+		}
+		return
 	}
 }
 
@@ -340,7 +435,7 @@ func (l *transportPermitLedger) acquire(target permissions.NetworkTarget) (*tran
 	if l == nil {
 		return nil, &transportPermitError{Failure: transportPermitMissing}
 	}
-	normalized, err := target.Normalize()
+	normalized, err := getProxyPermitTarget(target)
 	if err != nil {
 		return nil, err
 	}
@@ -481,6 +576,24 @@ func (l *transportPermitLedger) removeGenerationLocked(generationID uint64) []ne
 		}
 		delete(l.permits, permitID)
 	}
+	for target, intents := range l.pending {
+		retained := intents[:0]
+		for _, intent := range intents {
+			if intent.generation != generationID {
+				retained = append(retained, intent)
+				continue
+			}
+			if !intent.closed {
+				intent.closed = true
+				close(intent.done)
+			}
+		}
+		if len(retained) == 0 {
+			delete(l.pending, target)
+		} else {
+			l.pending[target] = retained
+		}
+	}
 	delete(l.generations, generationID)
 	return connections
 }
@@ -587,12 +700,21 @@ func getProxyPermitTarget(target permissions.NetworkTarget) (permissions.Network
 	if err != nil {
 		return permissions.NetworkTarget{}, err
 	}
-	if target.Scheme == "https" || target.Scheme == "wss" {
+	if target.Scheme == "https" || target.Scheme == "ws" || target.Scheme == "wss" {
 		target.Scheme = "https"
 		target.Path = "/"
 		target.QueryHash = ""
 		target.Method = "CONNECT"
 	}
+	return target, nil
+}
+
+func getPendingTransportTarget(target permissions.NetworkTarget) (permissions.NetworkTarget, error) {
+	target, err := getProxyPermitTarget(target)
+	if err != nil {
+		return permissions.NetworkTarget{}, err
+	}
+	target.RequestClass = ""
 	return target, nil
 }
 

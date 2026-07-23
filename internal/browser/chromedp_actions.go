@@ -76,8 +76,12 @@ func (s *chromiumSession) OpenTab(ctx context.Context, rawURL string) (BackendTa
 	defer func() {
 		s.mu.Lock()
 		delete(s.openingTabIDs, string(id))
+		delete(s.openingTabReady, string(id))
 		s.mu.Unlock()
 	}()
+	if err := s.waitForOpeningTargetReady(actionCtx, string(id)); err != nil {
+		return BackendTab{}, errors.New("browser tab supervision was not ready")
+	}
 	if err := waitForBrowserTarget(actionCtx, id); err != nil {
 		return BackendTab{}, errors.New("browser tab was not ready")
 	}
@@ -155,6 +159,7 @@ func (s *chromiumSession) CloseTab(ctx context.Context, tabID string) error {
 	delete(s.consoleMessages, tabID)
 	delete(s.dialogResponses, tabID)
 	delete(s.networkActivity, tabID)
+	delete(s.popupEvents, tabID)
 	s.mu.Unlock()
 	if cancel != nil {
 		cancel()
@@ -303,9 +308,43 @@ func isSensitiveDOMNode(node *cdp.Node) bool {
 }
 
 func (s *chromiumSession) Click(ctx context.Context, tabID string, backendNodeID int64) error {
-	return s.runOnNode(ctx, tabID, backendNodeID, func(nodeIDs []cdp.NodeID) chromedp.Action {
-		return chromedp.Click(nodeIDs, chromedp.ByNodeID)
-	})
+	popup := s.getPopupEvent(tabID)
+
+drainPopupEvents:
+	for {
+		select {
+		case <-popup:
+		default:
+			break drainPopupEvents
+		}
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	clickCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		result <- s.runOnNode(clickCtx, tabID, backendNodeID, func(nodeIDs []cdp.NodeID) chromedp.Action {
+			return chromedp.Click(nodeIDs, chromedp.ByNodeID)
+		})
+	}()
+	select {
+	case err := <-result:
+		return err
+	case <-popup:
+		select {
+		case err := <-result:
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(3 * time.Second):
+			return errors.New("browser popup could not be quarantined")
+		}
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (s *chromiumSession) Type(ctx context.Context, tabID string, backendNodeID int64, text string, replace bool) error {
@@ -495,16 +534,20 @@ func (s *chromiumSession) runInTab(ctx context.Context, tabID string, actions ..
 		}
 	}
 	if initialize {
-		actions = append([]chromedp.Action{
+		setup := []chromedp.Action{
 			network.Enable(),
-			network.SetBypassServiceWorker(true),
-			network.SetBlockedURLs().WithURLPatterns(getBlockedWebSocketPatterns()),
 			page.Enable(),
-			installBrowserNetworkGuardAction(),
 			fetch.Enable().WithHandleAuthRequests(s.proxyUser != ""),
 			page.SetInterceptFileChooserDialog(true).WithCancel(true),
 			cdpruntime.Enable(),
-		}, actions...)
+		}
+		if !s.attached {
+			setup = append(
+				setup,
+				target.SetAutoAttach(true, true).WithFlatten(true).WithFilter(getRelatedTargetFilter()),
+			)
+		}
+		actions = append(setup, actions...)
 	}
 	actionCtx, done := newBoundedActionContext(tabCtx, ctx)
 	defer done()
@@ -529,6 +572,9 @@ func (s *chromiumSession) getTabContext(tabID string) (context.Context, bool) {
 	}
 	tabCtx, cancel := chromedp.NewContext(s.ctx, chromedp.WithTargetID(target.ID(tabID)))
 	chromedp.ListenTarget(tabCtx, s.getRequestListener(tabCtx, tabID))
+	if !s.attached {
+		chromedp.ListenTarget(tabCtx, s.getRelatedTargetListener(tabID))
+	}
 	chromedp.ListenTarget(tabCtx, s.getPageEffectListener(tabCtx, tabID))
 	chromedp.ListenTarget(tabCtx, s.getConsoleListener(tabID))
 	s.tabContexts[tabID] = tabCtx
@@ -538,6 +584,13 @@ func (s *chromiumSession) getTabContext(tabID string) (context.Context, bool) {
 
 func (s *chromiumSession) getPageEffectListener(ctx context.Context, tabID string) func(any) {
 	return func(event any) {
+		if _, ok := event.(*page.EventWindowOpen); ok {
+			select {
+			case s.getPopupEvent(tabID) <- struct{}{}:
+			default:
+			}
+			return
+		}
 		opening, ok := event.(*page.EventJavascriptDialogOpening)
 		if !ok {
 			return
@@ -561,6 +614,18 @@ func (s *chromiumSession) getPageEffectListener(ctx context.Context, tabID strin
 			}
 		}()
 	}
+}
+
+func (s *chromiumSession) getPopupEvent(tabID string) chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.popupEvents == nil {
+		s.popupEvents = make(map[string]chan struct{})
+	}
+	if s.popupEvents[tabID] == nil {
+		s.popupEvents[tabID] = make(chan struct{}, 1)
+	}
+	return s.popupEvents[tabID]
 }
 
 func getDialogConsoleMessage(event *page.EventJavascriptDialogOpening, armed, accepted bool) ConsoleMessage {

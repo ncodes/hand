@@ -149,7 +149,10 @@ func (r BrowserRequest) Operations() ([]Operation, error) {
 		}
 		networkAction := ActionRead
 		networkEffects := []Effect{EffectRead, EffectNetwork, EffectExternalSystem}
-		if r.Action == "download" {
+		if r.Network.RequestClass == NetworkRequestWebSocket {
+			networkAction = ActionConnect
+			networkEffects = []Effect{EffectWrite, EffectNetwork, EffectExternalSystem}
+		} else if r.Action == "download" {
 			networkAction = ActionCreate
 		} else if r.Action == "connect" {
 			networkAction = ActionConnect
@@ -236,7 +239,7 @@ func isBrowserNetworkClass(action string, requestClass NetworkRequestClass) bool
 	switch action {
 	case "open", "navigate", "reload", "back", "forward":
 		return requestClass == NetworkRequestNavigation || requestClass == NetworkRequestRedirect ||
-			requestClass == NetworkRequestSubresource
+			requestClass == NetworkRequestSubresource || requestClass == NetworkRequestWebSocket
 	case "download":
 		return requestClass == NetworkRequestDownload || requestClass == NetworkRequestRedirect
 	case "connect":

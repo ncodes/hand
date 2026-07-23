@@ -298,6 +298,7 @@ type LaunchOptions struct {
 	BrowserContextID string
 	TargetIDs        []string
 	Timeout          time.Duration
+	transportPermits *transportPermitLedger
 }
 
 type Backend interface {

@@ -335,30 +335,29 @@ func TestEgressProxy_TunnelsAllowedConnectTarget(t *testing.T) {
 	require.NoError(t, proxy.Close(context.Background()))
 }
 
-func TestEgressProxy_RequestsBackgroundAuthorityOnlyWhenNoPermitCandidateExists(t *testing.T) {
+func TestEgressProxy_RequestsBackgroundAuthorityWhenNoPermitMatches(t *testing.T) {
 	ledger := newTestTransportPermitLedger(t, time.Now)
 	proxy := &egressProxy{permits: ledger}
 	target := permissions.NetworkTarget{
 		Scheme: "https", Host: "background.example", Port: 443, Path: "/", Method: http.MethodConnect,
 		RequestClass: permissions.NetworkRequestSubresource,
 	}
-	backgroundCalls := 0
+	var backgroundTargets []permissions.NetworkTarget
 	proxy.background = func(
 		_ context.Context,
 		requested permissions.NetworkTarget,
 	) (*transportPermitLease, error) {
-		backgroundCalls++
+		backgroundTargets = append(backgroundTargets, requested)
 		require.Equal(t, permissions.NetworkRequestBackground, requested.RequestClass)
-		require.Equal(t, target.Scheme, requested.Scheme)
-		require.Equal(t, target.Host, requested.Host)
-		require.Equal(t, target.Port, requested.Port)
-		require.Equal(t, target.Method, requested.Method)
 		return nil, errors.New("background denied")
 	}
 
 	_, err := proxy.acquirePermit(context.Background(), target)
 	require.EqualError(t, err, "background denied")
-	require.Equal(t, 1, backgroundCalls)
+	require.Equal(t, []permissions.NetworkTarget{{
+		Scheme: "https", Host: "background.example", Port: 443, Path: "/", Method: http.MethodConnect,
+		RequestClass: permissions.NetworkRequestBackground,
+	}}, backgroundTargets)
 
 	generation, err := ledger.beginGeneration(context.Background())
 	require.NoError(t, err)
@@ -373,7 +372,122 @@ func TestEgressProxy_RequestsBackgroundAuthorityOnlyWhenNoPermitCandidateExists(
 	}
 	_, err = proxy.acquirePermit(context.Background(), target)
 	requirePermitFailure(t, err, transportPermitExhausted)
-	require.Equal(t, 1, backgroundCalls)
+	require.Len(t, backgroundTargets, 1)
+
+	mismatched := target
+	mismatched.Path = "/other"
+	mismatched.Method = http.MethodGet
+	_, err = proxy.acquirePermit(context.Background(), mismatched)
+	requirePermitFailure(t, err, transportPermitExhausted)
+	require.Len(t, backgroundTargets, 1)
+
+	mismatched.Host = "other.example"
+	_, err = proxy.acquirePermit(context.Background(), mismatched)
+	require.EqualError(t, err, "background denied")
+	require.Equal(t, "other.example", backgroundTargets[1].Host)
+}
+
+func TestEgressProxy_WaitsForLogicalWebSocketAuthorityBeforeOpeningPhysicalTunnel(t *testing.T) {
+	ledger := newTestTransportPermitLedger(t, time.Now)
+	generation, err := ledger.beginGeneration(context.Background())
+	require.NoError(t, err)
+	proxy := &egressProxy{permits: ledger}
+	logical := permissions.NetworkTarget{
+		Scheme: "wss", Host: "socket.example", Port: 443, Path: "/events", Method: http.MethodConnect,
+		RequestClass: permissions.NetworkRequestWebSocket,
+	}
+	physical := permissions.NetworkTarget{
+		Scheme: "https", Host: "socket.example", Port: 443, Path: "/", Method: http.MethodConnect,
+		RequestClass: permissions.NetworkRequestSubresource,
+	}
+	finish := ledger.beginPending(logical)
+	result := make(chan struct {
+		lease *transportPermitLease
+		err   error
+	}, 1)
+	go func() {
+		lease, acquireErr := proxy.acquirePermit(context.Background(), physical)
+		result <- struct {
+			lease *transportPermitLease
+			err   error
+		}{lease: lease, err: acquireErr}
+	}()
+	select {
+	case <-result:
+		t.Fatal("proxy did not wait for pending WebSocket authority")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	require.NoError(t, ledger.install(generation, []transportPermitInput{{
+		Target: logical, Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.1")},
+	}}))
+	finish()
+	acquired := <-result
+	require.NoError(t, acquired.err)
+	require.Equal(t, []netip.Addr{netip.MustParseAddr("192.0.2.1")}, acquired.lease.Addresses())
+	acquired.lease.Release()
+}
+
+func TestEgressProxy_DeniedPendingWebSocketDoesNotFallBackToBackgroundAuthority(t *testing.T) {
+	ledger := newTestTransportPermitLedger(t, time.Now)
+	_, err := ledger.beginGeneration(context.Background())
+	require.NoError(t, err)
+	backgroundCalls := 0
+	proxy := &egressProxy{
+		permits: ledger,
+		background: func(context.Context, permissions.NetworkTarget) (*transportPermitLease, error) {
+			backgroundCalls++
+			return nil, errors.New("unexpected background authorization")
+		},
+	}
+	logical := permissions.NetworkTarget{
+		Scheme: "ws", Host: "socket.example", Port: 80, Path: "/events", Method: http.MethodGet,
+		RequestClass: permissions.NetworkRequestWebSocket,
+	}
+	physical := permissions.NetworkTarget{
+		Scheme: "ws", Host: "socket.example", Port: 80, Path: "/events", Method: http.MethodGet,
+		RequestClass: permissions.NetworkRequestWebSocket,
+	}
+	finish := ledger.beginPending(logical)
+	result := make(chan error, 1)
+	go func() {
+		_, acquireErr := proxy.acquirePermit(context.Background(), physical)
+		result <- acquireErr
+	}()
+	finish()
+
+	requirePermitFailure(t, <-result, transportPermitMissing)
+	require.Zero(t, backgroundCalls)
+}
+
+func TestEgressProxy_CancelledPendingWebSocketDoesNotFallBackToBackgroundAuthority(t *testing.T) {
+	ledger := newTestTransportPermitLedger(t, time.Now)
+	_, err := ledger.beginGeneration(context.Background())
+	require.NoError(t, err)
+	backgroundCalls := 0
+	proxy := &egressProxy{
+		permits: ledger,
+		background: func(context.Context, permissions.NetworkTarget) (*transportPermitLease, error) {
+			backgroundCalls++
+			return nil, errors.New("unexpected background authorization")
+		},
+	}
+	target := permissions.NetworkTarget{
+		Scheme: "wss", Host: "socket.example", Port: 443, Path: "/events", Method: http.MethodConnect,
+		RequestClass: permissions.NetworkRequestWebSocket,
+	}
+	finish := ledger.beginPending(target)
+	defer finish()
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, acquireErr := proxy.acquirePermit(ctx, target)
+		result <- acquireErr
+	}()
+	cancel()
+
+	require.ErrorIs(t, <-result, context.Canceled)
+	require.Zero(t, backgroundCalls)
 }
 
 func TestEgressProxy_ClassifiesUnattributedPlainHTTPAsBackgroundConnection(t *testing.T) {

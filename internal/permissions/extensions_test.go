@@ -152,6 +152,30 @@ func TestBrowserRequest_MapsActionsToConcreteOperations(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ActionRead, navigationSubresource[1].Action)
 	require.Equal(t, NetworkRequestSubresource, navigationSubresource[1].Network.RequestClass)
+	websocket, err := NetworkTargetFromURL(
+		"ws://example.com/events", "GET", NetworkRequestWebSocket,
+	)
+	require.NoError(t, err)
+	navigationWebSocket, err := (BrowserRequest{
+		Profile: "default", Action: "navigate", Network: &websocket,
+	}).Operations()
+	require.NoError(t, err)
+	require.Equal(t, ActionConnect, navigationWebSocket[1].Action)
+	require.ElementsMatch(
+		t,
+		[]Effect{EffectWrite, EffectNetwork, EffectExternalSystem},
+		navigationWebSocket[1].Effects,
+	)
+	secureWebSocket, err := NetworkTargetFromURL(
+		"wss://example.com/events", "CONNECT", NetworkRequestWebSocket,
+	)
+	require.NoError(t, err)
+	clickWebSocket, err := (BrowserRequest{
+		Profile: "default", Action: "click", Network: &secureWebSocket,
+	}).Operations()
+	require.NoError(t, err)
+	require.Equal(t, ActionConnect, clickWebSocket[1].Action)
+	require.Equal(t, "CONNECT", clickWebSocket[1].Network.Method)
 
 	_, err = (BrowserRequest{Profile: "default", Action: "navigate"}).Operations()
 	require.EqualError(t, err, "browser action requires a structured network target")

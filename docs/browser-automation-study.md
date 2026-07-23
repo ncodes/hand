@@ -847,25 +847,32 @@ secret value.
 
 A WebSocket begins with a network connection and then permits ongoing bidirectional writes.
 
-Ordinary navigation approval must not silently authorize an indefinite WebSocket. The proxy supports permit-bound
-plain `ws` upgrades. A `wss` connection uses an origin-level CONNECT permit because TLS hides the handshake path from
-the proxy.
+Ordinary navigation approval must not silently authorize an indefinite WebSocket. CDP retains the exact logical `ws`
+or `wss` target for permission matching. Managed Chromium routes both schemes through CONNECT, so the proxy permit is
+origin-level and cannot claim to see the handshake path inside that tunnel.
 
-The permit is bound to:
+The logical decision and its physical transport permit are jointly bound to:
 
 - session;
-- origin and path;
-- resolved destination;
+- exact logical origin and path;
+- physical origin and pinned resolved destination;
 - authorization generation;
 - lifetime and cancellation.
 
-When the permit ends, its connection closes. Morph consumes `wandxy/chromedp v0.16.0-morph.1`, based on upstream
-`chromedp v0.16.0`, which adds `WithExistingTargetSession` for flattened child-target CDP sessions. The compatibility
-probe proves that Morph can adopt a paused worker session, install CDP domains, resume it, and detach cleanly.
+When the permit ends, its connection closes. Morph consumes `wandxy/chromedp v0.16.0-morph.5`, based on upstream
+`chromedp v0.16.0`. The fork lets Morph atomically adopt or reuse a flattened target session that Morph already
+attached and paused. It contains no Morph policy, permission, ownership, or proxy logic.
 
-Managed sessions still retain browser-side WebSocket and worker restrictions. The fork removes the executor-routing
-blocker, but it does not by itself prove production recursive ownership, permission attribution, permit lifetime, or
-direct-UDP containment. Those restrictions remain until their separate acceptance gates pass.
+Managed Chromium recursively supervises pages, iframes, dedicated workers, shared workers, and service workers.
+WebSocket creation is observed through CDP and resolved as an exact logical connection operation. Chromium routes both
+`ws` and `wss` through opaque proxy CONNECT tunnels, so the proxy sees only the physical origin. A pending-authority
+bridge makes the proxy wait for the logical WebSocket decision before it opens that tunnel. Denial, cancellation, or
+generation revocation is terminal and cannot fall back to a broader background rule.
+
+Morph does not replace the page's WebSocket or worker APIs. A deterministic Chromium corpus proves those native
+features remain available, while denied effects open no upstream connection. Shared or service-worker traffic with no
+provable singular active owner remains unattributed and needs an exact configured background rule during a live
+generation. It does not inherit an unrelated tab's permission.
 
 ## 28. Asynchronous browser effects
 
