@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -193,6 +194,34 @@ func TestChromiumSession_GetEffectiveTabIDUsesRootOnlyWhenUnspecified(t *testing
 
 	require.Equal(t, "tab-1", session.getEffectiveTabID("tab-1"))
 	require.Equal(t, "root", session.getEffectiveTabID(""))
+}
+
+func TestChromiumSession_SetRootTargetContextRegistersRootBeforeTargetSupervision(t *testing.T) {
+	ctx, cancel := chromedp.NewContext(context.Background())
+	t.Cleanup(cancel)
+	chromiumCtx := chromedp.FromContext(ctx)
+	chromiumCtx.Target = &chromedp.Target{TargetID: "root"}
+	session := &chromiumSession{
+		tabContexts:     make(map[string]context.Context),
+		consoleMessages: make(map[string][]ConsoleMessage),
+	}
+
+	require.NoError(t, session.setRootTargetContext(ctx))
+
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	require.Equal(t, "root", session.rootTabID)
+	require.True(t, ctx == session.tabContexts["root"])
+}
+
+func TestChromiumSession_SetRootTargetContextRejectsUnavailableTarget(t *testing.T) {
+	session := &chromiumSession{tabContexts: make(map[string]context.Context)}
+
+	require.EqualError(
+		t,
+		session.setRootTargetContext(context.Background()),
+		"browser root target is unavailable",
+	)
 }
 
 func TestGetAttachmentTarget_SelectsOnlyEligiblePage(t *testing.T) {
@@ -826,10 +855,30 @@ navigator.serviceWorker.register("/service-worker.js").then(() => {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
 	session := startChromiumSession(t, executable, proxy)
-	restoreAuthorization := allowBackendNetworkRequests(t, session, proxy)
+	var authorizedPaths sync.Map
+	restoreAuthorization := allowBackendNetworkRequestsWithObserver(
+		t,
+		session,
+		proxy,
+		func(target permissions.NetworkTarget) {
+			authorizedPaths.Store(target.Path, struct{}{})
+		},
+	)
 	defer restoreAuthorization()
 	restoreBackground := allowBackendBackgroundOrigin(t, proxy, fixture.URL)
-	defer restoreBackground()
+	background := proxy.background
+	var backgroundRequests atomic.Int64
+	proxy.background = func(
+		ctx context.Context,
+		target permissions.NetworkTarget,
+	) (*transportPermitLease, error) {
+		backgroundRequests.Add(1)
+		return background(ctx, target)
+	}
+	defer func() {
+		proxy.background = background
+		restoreBackground()
+	}()
 
 	var ready bool
 	err = chromedp.Run(
@@ -874,6 +923,9 @@ window.nativeResults.serviceWorker === true
 		}
 		return types["worker"] && types["shared_worker"] && types["service_worker"]
 	}, 5*time.Second, 20*time.Millisecond)
+	_, workerDataAuthorized := authorizedPaths.Load("/worker-data")
+	require.True(t, workerDataAuthorized)
+	require.Positive(t, backgroundRequests.Load())
 	chromium := session.(*chromiumSession)
 	chromium.mu.Lock()
 	sharedClientCount := -1
@@ -1390,6 +1442,15 @@ func getBackendSnapshotNode(snapshot BackendSnapshot, role, name string) Backend
 }
 
 func allowBackendNetworkRequests(t *testing.T, session BackendSession, proxy *egressProxy) func() {
+	return allowBackendNetworkRequestsWithObserver(t, session, proxy, nil)
+}
+
+func allowBackendNetworkRequestsWithObserver(
+	t *testing.T,
+	session BackendSession,
+	proxy *egressProxy,
+	observe func(permissions.NetworkTarget),
+) func() {
 	t.Helper()
 	authorizing, ok := session.(NetworkAuthorizingBackendSession)
 	if !ok {
@@ -1398,6 +1459,9 @@ func allowBackendNetworkRequests(t *testing.T, session BackendSession, proxy *eg
 	generation, err := proxy.permits.beginGeneration(context.Background())
 	require.NoError(t, err)
 	restore := authorizing.SetNetworkAuthorizer("*", func(ctx context.Context, target permissions.NetworkTarget) error {
+		if observe != nil {
+			observe(target)
+		}
 		addresses, err := proxy.getPolicy().Resolve(ctx, target)
 		if err != nil {
 			return err

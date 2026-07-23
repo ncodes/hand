@@ -867,12 +867,16 @@ Managed Chromium recursively supervises pages, iframes, dedicated workers, share
 WebSocket creation is observed through CDP and resolved as an exact logical connection operation. Chromium routes both
 `ws` and `wss` through opaque proxy CONNECT tunnels, so the proxy sees only the physical origin. A pending-authority
 bridge makes the proxy wait for the logical WebSocket decision before it opens that tunnel. Denial, cancellation, or
-generation revocation is terminal and cannot fall back to a broader background rule.
+generation revocation after that logical intent is registered is terminal and cannot fall back to a broader background
+rule. If the physical CONNECT reaches the proxy before CDP reports the WebSocket, it has no logical WebSocket authority;
+without a separately configured background rule it is denied and must be retried.
 
 Morph does not replace the page's WebSocket or worker APIs. A deterministic Chromium corpus proves those native
 features remain available, while denied effects open no upstream connection. Shared or service-worker traffic with no
 provable singular active owner remains unattributed and needs an exact configured background rule during a live
-generation. It does not inherit an unrelated tab's permission.
+generation. A different plain HTTP tuple on an origin with another permit can enter that background evaluation, but it
+does not inherit or consume the mismatched permit. The explicit background rule deliberately grants broader
+origin-level authority. Without it, the request fails closed.
 
 ## 28. Asynchronous browser effects
 

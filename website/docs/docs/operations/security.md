@@ -229,10 +229,12 @@ only host, port, and pinned addresses because the encrypted tunnel hides the inn
 use and concurrency budgets and are revoked with the browser action. Revocation, cancellation, policy changes, session
 shutdown, and daemon shutdown close connections owned by the affected permit.
 
-Browser background CONNECT attempts that lack a logical-request permit are denied by default. During a live browser
-action, Morph can admit one only through a configured allow rule that explicitly matches `network`, `connect`, the
-`background` request class, method `CONNECT`, host, and port. Background requests never open an approval prompt and
-`full_access` alone does not authorize them.
+Browser background traffic that lacks an exact logical-request permit is denied by default. This includes a missing
+permit and an unattributed plain HTTP tuple that differs from another permit on the same origin. During a live browser
+action, Morph can admit that traffic only through a configured allow rule that explicitly matches `network`, `connect`,
+the `background` request class, method `CONNECT`, host, and port. The request receives no authority from the missing or
+mismatched permit. Configuring this origin-level rule deliberately grants broader unattributed access than an exact
+page-request rule. Background requests never open an approval prompt, and `full_access` alone does not authorize them.
 
 Managed Chromium recursively supervises pages, iframes, dedicated workers, shared workers, and service workers. Native
 WebSocket and worker APIs remain present. A WebSocket must pass its logical connection permission before the proxy can

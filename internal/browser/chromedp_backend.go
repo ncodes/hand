@@ -213,6 +213,9 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 		}, actions...)
 	}
 	actions = append([]chromedp.Action{fetch.Enable().WithHandleAuthRequests(opts.ProxyUser != "")}, actions...)
+	actions = append([]chromedp.Action{
+		chromedp.ActionFunc(session.setRootTargetContext),
+	}, actions...)
 	ready := make(chan error, 1)
 	go func() {
 		ready <- chromedp.Run(browserCtx, actions...)
@@ -232,12 +235,6 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 				return nil, err
 			}
 		}
-		if chromiumCtx := chromedp.FromContext(browserCtx); chromiumCtx != nil && chromiumCtx.Target != nil {
-			session.rootTabID = string(chromiumCtx.Target.TargetID)
-			session.tabContexts[session.rootTabID] = browserCtx
-			chromedp.ListenTarget(browserCtx, session.getPageEffectListener(browserCtx, session.rootTabID))
-			chromedp.ListenTarget(browserCtx, session.getConsoleListener(session.rootTabID))
-		}
 		chromedp.ListenBrowser(browserCtx, session.getPageTargetLifecycleListener())
 		chromedp.ListenBrowser(browserCtx, session.getDownloadListener())
 		return session, nil
@@ -245,6 +242,21 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 		_ = session.Close(context.Background())
 		return nil, startCtx.Err()
 	}
+}
+
+func (s *chromiumSession) setRootTargetContext(ctx context.Context) error {
+	chromiumCtx := chromedp.FromContext(ctx)
+	if chromiumCtx == nil || chromiumCtx.Target == nil {
+		return errors.New("browser root target is unavailable")
+	}
+	rootTabID := string(chromiumCtx.Target.TargetID)
+	s.mu.Lock()
+	s.rootTabID = rootTabID
+	s.tabContexts[rootTabID] = ctx
+	s.mu.Unlock()
+	chromedp.ListenTarget(ctx, s.getPageEffectListener(ctx, rootTabID))
+	chromedp.ListenTarget(ctx, s.getConsoleListener(rootTabID))
+	return nil
 }
 
 func prepareManagedBrowserContext(

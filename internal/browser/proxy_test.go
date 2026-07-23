@@ -387,6 +387,42 @@ func TestEgressProxy_RequestsBackgroundAuthorityWhenNoPermitMatches(t *testing.T
 	require.Equal(t, "other.example", backgroundTargets[1].Host)
 }
 
+func TestEgressProxy_ReclassifiesPlainHTTPPermitMismatchOnlyThroughBackgroundAuthority(t *testing.T) {
+	ledger := newTestTransportPermitLedger(t, time.Now)
+	generation, err := ledger.beginGeneration(context.Background())
+	require.NoError(t, err)
+	allowed := permissions.NetworkTarget{
+		Scheme: "http", Host: "example.test", Port: 80, Path: "/allowed", Method: http.MethodGet,
+		RequestClass: permissions.NetworkRequestSubresource,
+	}
+	require.NoError(t, ledger.install(generation, []transportPermitInput{{
+		Target: allowed, Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.1")}, Uses: 1,
+		ExpiresAt: time.Now().Add(time.Minute),
+	}}))
+	var backgroundTarget permissions.NetworkTarget
+	proxy := &egressProxy{
+		permits: ledger,
+		background: func(
+			_ context.Context,
+			target permissions.NetworkTarget,
+		) (*transportPermitLease, error) {
+			backgroundTarget = target
+			return nil, errors.New("background denied")
+		},
+	}
+	mismatched := allowed
+	mismatched.Path = "/different"
+
+	_, err = proxy.acquirePermit(context.Background(), mismatched)
+
+	require.EqualError(t, err, "background denied")
+	require.Equal(t, permissions.NetworkRequestBackground, backgroundTarget.RequestClass)
+	require.Equal(t, http.MethodConnect, backgroundTarget.Method)
+	require.Equal(t, "/", backgroundTarget.Path)
+	require.Equal(t, allowed.Host, backgroundTarget.Host)
+	require.Equal(t, allowed.Port, backgroundTarget.Port)
+}
+
 func TestEgressProxy_WaitsForLogicalWebSocketAuthorityBeforeOpeningPhysicalTunnel(t *testing.T) {
 	ledger := newTestTransportPermitLedger(t, time.Now)
 	generation, err := ledger.beginGeneration(context.Background())
