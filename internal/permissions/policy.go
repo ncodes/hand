@@ -19,6 +19,7 @@ const (
 	ReasonOwnerRequired      = "owner_required"
 	ReasonFullAccess         = "full_access"
 	ReasonScopeExceeded      = "scope_exceeded"
+	ReasonBackgroundRule     = "background_rule_required"
 )
 
 type Policy struct {
@@ -65,11 +66,12 @@ type EvaluationInput struct {
 }
 
 type Evaluation struct {
-	Decision   Decision
-	ReasonCode string
-	Reason     string
-	Rule       string
-	Preset     Preset
+	Decision              Decision
+	ReasonCode            string
+	Reason                string
+	Rule                  string
+	Preset                Preset
+	MatchedConfiguredRule bool
 }
 
 func (p *Policy) Normalize() {
@@ -219,6 +221,19 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 			Preset:     preset,
 		}
 	}
+	if preset == PresetFullAccess && operation.Network != nil &&
+		operation.Network.RequestClass == NetworkRequestBackground {
+		if rule, ok := getMatchingRule(p.Rules, authorization, operation); ok {
+			return Evaluation{
+				Decision:              rule.Decision,
+				ReasonCode:            ReasonRuleMatched,
+				Reason:                rule.Reason,
+				Rule:                  rule.Name,
+				Preset:                preset,
+				MatchedConfiguredRule: true,
+			}
+		}
+	}
 	if preset == PresetFullAccess {
 		return Evaluation{Decision: DecisionAllow, ReasonCode: ReasonFullAccess, Preset: preset}
 	}
@@ -229,11 +244,12 @@ func (p Policy) Evaluate(input EvaluationInput) Evaluation {
 	var evaluation Evaluation
 	if rule, ok := getMatchingRule(p.Rules, authorization, operation); ok {
 		evaluation = Evaluation{
-			Decision:   rule.Decision,
-			ReasonCode: ReasonRuleMatched,
-			Reason:     rule.Reason,
-			Rule:       rule.Name,
-			Preset:     preset,
+			Decision:              rule.Decision,
+			ReasonCode:            ReasonRuleMatched,
+			Reason:                rule.Reason,
+			Rule:                  rule.Name,
+			Preset:                preset,
+			MatchedConfiguredRule: true,
 		}
 	} else if rule, ok := getMatchingRule(p.presetRules, authorization, operation); ok {
 		evaluation = Evaluation{
@@ -280,6 +296,9 @@ func getMatchingRule(rules []Rule, authorization AuthorizationContext, operation
 	selectedPriority := -1
 	selectedSpecificity := -1
 	for _, rule := range rules {
+		if !isEligibleBackgroundRule(rule, operation) {
+			continue
+		}
 		if !rule.matches(authorization, operation) {
 			continue
 		}
@@ -295,6 +314,25 @@ func getMatchingRule(rules []Rule, authorization AuthorizationContext, operation
 	}
 
 	return selected, selectedPriority >= 0
+}
+
+func isEligibleBackgroundRule(rule Rule, operation Operation) bool {
+	if operation.Network == nil || operation.Network.RequestClass != NetworkRequestBackground {
+		return true
+	}
+	if rule.Decision != DecisionAllow {
+		return true
+	}
+	if !slices.Contains(rule.Resources, ResourceNetwork) || !slices.Contains(rule.Actions, ActionConnect) {
+		return false
+	}
+	for _, selector := range rule.Network {
+		if selector.Scheme == "" && selector.Host != "" && selector.Port != 0 && selector.Method == "CONNECT" &&
+			selector.RequestClass == NetworkRequestBackground && selector.Matches(*operation.Network) {
+			return true
+		}
+	}
+	return false
 }
 
 func getDefaultSurfaceKindDecisions() map[SurfaceKind]Decision {

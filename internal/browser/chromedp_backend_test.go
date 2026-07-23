@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"github.com/stretchr/testify/require"
@@ -198,14 +200,20 @@ func TestPrepareInitialBrowserContext_SelectsConfiguredBrowserContext(t *testing
 	chromium.attached = true
 	chromium.mu.Unlock()
 
-	contextOwner, cancelContextOwner := chromedp.NewContext(
-		chromium.ctx, chromedp.WithNewBrowserContext(),
-	)
-	require.NoError(t, chromedp.Run(contextOwner))
-	t.Cleanup(cancelContextOwner)
-	owner := chromedp.FromContext(contextOwner)
-	browserContextID := owner.BrowserContextID
-	targetID := owner.Target.TargetID
+	chromiumCtx := chromedp.FromContext(chromium.ctx)
+	require.NotNil(t, chromiumCtx)
+	require.NotNil(t, chromiumCtx.Browser)
+	browserExecutor := cdp.WithExecutor(context.Background(), chromiumCtx.Browser)
+	browserContextID, err := target.CreateBrowserContext().Do(browserExecutor)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, target.DisposeBrowserContext(browserContextID).Do(browserExecutor))
+	})
+	targetID, err := target.CreateTarget("about:blank").
+		WithBrowserContextID(browserContextID).
+		WithNewWindow(true).
+		Do(browserExecutor)
+	require.NoError(t, err)
 
 	selectedCtx, cancelSelected, cancelBootstrap, err := prepareInitialBrowserContext(
 		context.Background(), chromium.ctx,
@@ -225,11 +233,8 @@ func TestPrepareInitialBrowserContext_SelectsConfiguredBrowserContext(t *testing
 	require.Equal(t, targetID, selected.TargetID)
 	require.Equal(t, browserContextID, selected.BrowserContextID)
 	getAttachedContextCancel(selectedCtx, cancelSelected)()
-	var retained *target.Info
-	require.NoError(t, chromedp.Run(contextOwner, chromedp.ActionFunc(func(ctx context.Context) error {
-		retained, err = target.GetTargetInfo().Do(ctx)
-		return err
-	})))
+	retained, err := target.GetTargetInfo().WithTargetID(targetID).Do(browserExecutor)
+	require.NoError(t, err)
 	require.Equal(t, targetID, retained.TargetID)
 
 	_, _, _, err = prepareInitialBrowserContext(
@@ -276,7 +281,7 @@ func TestChromiumBackend_UsesAuthenticatedProxyAndCannotBypassStrictPolicy(t *te
 	permissive, err := startEgressProxy(NetworkPolicy{Strict: false})
 	require.NoError(t, err)
 	session := startChromiumSession(t, executable, permissive)
-	restoreAuthorization := allowBackendNetworkRequests(session)
+	restoreAuthorization := allowBackendNetworkRequests(t, session, permissive)
 	chromium := session.(*chromiumSession)
 	require.NoError(t, chromedp.Run(chromium.ctx, chromedp.Navigate(fixture.URL)))
 	require.Positive(t, permissiveRequests.Load())
@@ -355,7 +360,7 @@ try {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
 	session := startChromiumSession(t, executable, proxy)
-	restoreAuthorization := allowBackendNetworkRequests(session)
+	restoreAuthorization := allowBackendNetworkRequests(t, session, proxy)
 	chromium := session.(*chromiumSession)
 	var blockedSockets int
 	var workerSocketBlocked bool
@@ -408,6 +413,78 @@ func TestChromiumBackend_StartsAvailableChromium(t *testing.T) {
 	require.NoError(t, session.Close(context.Background()))
 }
 
+func TestChromedpFork_AdoptsPausedWorkerTargetSession(t *testing.T) {
+	executable, err := discoverChromiumExecutable("")
+	if err != nil {
+		t.Skip("Chromium is not installed")
+	}
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/worker.js" {
+			writer.Header().Set("Content-Type", "text/javascript")
+			_, _ = io.WriteString(writer, `self.workerReady = true`)
+			return
+		}
+		writer.Header().Set("Content-Type", "text/html")
+		_, _ = io.WriteString(writer, `<!doctype html><title>Worker fixture</title>`)
+	}))
+	defer fixture.Close()
+
+	allocatorOptions := append(
+		append([]chromedp.ExecAllocatorOption(nil), chromedp.DefaultExecAllocatorOptions[:]...),
+		chromedp.ExecPath(executable),
+		chromedp.UserDataDir(t.TempDir()),
+		chromedp.NoSandbox,
+		chromedp.DisableGPU,
+	)
+	allocatorCtx, cancelAllocator := chromedp.NewExecAllocator(context.Background(), allocatorOptions...)
+	defer cancelAllocator()
+	browserCtx, cancelBrowser := chromedp.NewContext(allocatorCtx)
+	defer cancelBrowser()
+	require.NoError(t, chromedp.Run(browserCtx))
+
+	attached := make(chan *target.EventAttachedToTarget, 1)
+	listenForWorker := func(event any) {
+		if event, ok := event.(*target.EventAttachedToTarget); ok {
+			if event.TargetInfo.Type == "worker" {
+				select {
+				case attached <- event:
+				default:
+				}
+			}
+		}
+	}
+	chromedp.ListenBrowser(browserCtx, listenForWorker)
+	chromedp.ListenTarget(browserCtx, listenForWorker)
+	require.NoError(t, chromedp.Run(browserCtx, chromedp.Navigate(fixture.URL)))
+	require.NoError(t, chromedp.Run(
+		browserCtx,
+		target.SetAutoAttach(true, true).WithFlatten(true),
+		chromedp.Evaluate(`new Worker("/worker.js")`, nil),
+	))
+
+	var event *target.EventAttachedToTarget
+	select {
+	case event = <-attached:
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker target was not attached")
+	}
+	require.True(t, event.WaitingForDebugger)
+
+	childCtx, cancelChild := chromedp.NewContext(
+		browserCtx,
+		chromedp.WithExistingTargetSession(event.TargetInfo.TargetID, event.SessionID),
+	)
+	defer cancelChild()
+
+	var className string
+	require.NoError(t, chromedp.Run(
+		childCtx,
+		runtime.RunIfWaitingForDebugger(),
+		chromedp.Evaluate("self.constructor.name", &className),
+	))
+	require.Equal(t, "DedicatedWorkerGlobalScope", className)
+}
+
 func TestChromiumBackend_InteractiveActionsCompleteLocalFixtureWorkflow(t *testing.T) {
 	executable, err := discoverChromiumExecutable("")
 	if err != nil {
@@ -438,7 +515,7 @@ func TestChromiumBackend_InteractiveActionsCompleteLocalFixtureWorkflow(t *testi
 	session := startChromiumSession(t, executable, proxy)
 	t.Cleanup(func() { require.NoError(t, session.Close(context.Background())) })
 	interactive := session.(InteractiveBackendSession)
-	restoreAuthorization := allowBackendNetworkRequests(session)
+	restoreAuthorization := allowBackendNetworkRequests(t, session, proxy)
 	defer restoreAuthorization()
 
 	tabs, err := interactive.ListTabs(context.Background())
@@ -636,7 +713,7 @@ func TestChromiumBackend_RichArtifactUploadDialogAndDownloadWorkflow(t *testing.
 	t.Cleanup(func() { require.NoError(t, proxy.Close(context.Background())) })
 	session := startChromiumSession(t, executable, proxy)
 	t.Cleanup(func() { require.NoError(t, session.Close(context.Background())) })
-	restore := allowBackendNetworkRequests(session)
+	restore := allowBackendNetworkRequests(t, session, proxy)
 	defer restore()
 	interactive := session.(InteractiveBackendSession)
 	rich := session.(RichBackendSession)
@@ -697,14 +774,27 @@ func getBackendSnapshotNode(snapshot BackendSnapshot, role, name string) Backend
 	return BackendSnapshotNode{}
 }
 
-func allowBackendNetworkRequests(session BackendSession) func() {
+func allowBackendNetworkRequests(t *testing.T, session BackendSession, proxy *egressProxy) func() {
+	t.Helper()
 	authorizing, ok := session.(NetworkAuthorizingBackendSession)
 	if !ok {
 		return func() {}
 	}
-	return authorizing.SetNetworkAuthorizer("*", func(context.Context, permissions.NetworkTarget) error {
-		return nil
+	generation, err := proxy.permits.beginGeneration(context.Background())
+	require.NoError(t, err)
+	restore := authorizing.SetNetworkAuthorizer("*", func(ctx context.Context, target permissions.NetworkTarget) error {
+		addresses, err := proxy.getPolicy().Resolve(ctx, target)
+		if err != nil {
+			return err
+		}
+		return proxy.permits.install(generation, []transportPermitInput{{
+			Target: target, Addresses: addresses, Uses: 1, ExpiresAt: time.Now().Add(time.Minute),
+		}})
 	})
+	return func() {
+		restore()
+		require.NoError(t, proxy.permits.revokeGeneration(generation))
+	}
 }
 
 func TestGetKeyInput_NormalizesNamedKeys(t *testing.T) {

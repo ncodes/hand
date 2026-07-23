@@ -54,6 +54,7 @@ type managedSession struct {
 	Session
 	backend      BackendSession
 	proxy        *egressProxy
+	permits      *transportPermitLedger
 	remoteRelay  *remoteCDPRelay
 	lease        *profileLease
 	dataDir      string
@@ -245,7 +246,8 @@ func (s *Service) startRuntime(
 	runtime := &managedSession{Session: Session{
 		ID: sessionID, Profile: profile.Name, ProfileMode: profile.Mode,
 		State: SessionStarting, Owner: owner, CreatedAt: createdAt, LastActive: s.now(), Warning: GetProfileWarning(profile),
-	}, tabs: make(map[string]*managedTab), attachment: attached}
+	}, tabs: make(map[string]*managedTab), attachment: attached, permits: newTransportPermitLedger(s.now)}
+	runtime.permits.sessionID = runtime.ID
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -338,7 +340,6 @@ func (s *Service) Stop(ctx context.Context, id string) (Session, error) {
 	if err != nil {
 		return Session{}, err
 	}
-	s.setRuntimePolicy(ctx, runtime)
 	s.mu.RLock()
 	if runtime.State == SessionStopped {
 		result := runtime.Session
@@ -406,6 +407,8 @@ func (s *Service) Touch(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	runtime.actionMu.Lock()
+	defer runtime.actionMu.Unlock()
 	s.setRuntimePolicy(ctx, runtime)
 	s.mu.Lock()
 	if runtime.State != SessionReady {
@@ -465,7 +468,7 @@ func (s *Service) authorizeStart(
 	if err != nil {
 		return err
 	}
-	return s.checkEvaluationInputs(ctx, inputs)
+	return s.checkEvaluationInputs(ctx, inputs, true)
 }
 
 func getStartEvaluationInputs(
@@ -500,9 +503,10 @@ func getStartEvaluationInputs(
 		return nil, err
 	}
 	connectInputs := getEvaluationInputs(connect)
-	if personal {
-		for index := range connectInputs {
-			connectInputs[index].ApprovalReason = existingSessionWarning
+	warning := GetProfileWarning(profile)
+	for index := range connectInputs {
+		connectInputs[index].ApprovalReason = warning
+		if personal {
 			connectInputs[index].ApprovalSummary = "Attach to signed-in browser profile " + profile.Name
 		}
 	}
@@ -583,9 +587,16 @@ func (s *Service) prepareLaunch(
 	}
 	launch.DataDir = runtime.dataDir
 	proxyPolicy := s.getNetworkPolicy(fullAccess)
-	runtime.proxy, err = startEgressProxy(proxyPolicy)
+	runtime.proxy, err = startEgressProxyWithLedger(proxyPolicy, runtime.permits)
 	if err != nil {
 		return LaunchOptions{}, err
+	}
+	runtime.proxy.sessionID = runtime.ID
+	runtime.proxy.background = func(
+		ctx context.Context,
+		target permissions.NetworkTarget,
+	) (*transportPermitLease, error) {
+		return s.authorizeBackgroundConnect(ctx, runtime, target)
 	}
 	launch.ProxyURL = runtime.proxy.chromiumURL()
 	launch.ProxyUser, launch.ProxySecret = runtime.proxy.authorization.credentials()
@@ -643,6 +654,8 @@ func (s *Service) cleanupRuntime(ctx context.Context, runtime *managedSession) e
 		}
 		if runtime.proxy != nil {
 			cleanupErrors = append(cleanupErrors, runtime.proxy.Close(ctx))
+		} else if runtime.permits != nil {
+			cleanupErrors = append(cleanupErrors, runtime.permits.close())
 		}
 		if runtime.remoteRelay != nil {
 			cleanupErrors = append(cleanupErrors, runtime.remoteRelay.Close(ctx))
@@ -688,7 +701,11 @@ func (s *Service) getRuntimeState(runtime *managedSession) SessionState {
 }
 
 func (s *Service) checkOperations(ctx context.Context, operations []permissions.Operation) error {
-	return s.checkEvaluationInputs(ctx, getEvaluationInputs(operations))
+	return s.checkEvaluationInputs(ctx, getEvaluationInputs(operations), true)
+}
+
+func (s *Service) checkResolvedOperations(ctx context.Context, operations []permissions.Operation) error {
+	return s.checkEvaluationInputs(ctx, getEvaluationInputs(operations), false)
 }
 
 func getEvaluationInputs(operations []permissions.Operation) []permissions.EvaluationInput {
@@ -699,7 +716,11 @@ func getEvaluationInputs(operations []permissions.Operation) []permissions.Evalu
 	return inputs
 }
 
-func (s *Service) checkEvaluationInputs(ctx context.Context, inputs []permissions.EvaluationInput) error {
+func (s *Service) checkEvaluationInputs(
+	ctx context.Context,
+	inputs []permissions.EvaluationInput,
+	resolveNetworkTargets bool,
+) error {
 	asks := make([]permissions.EvaluationInput, 0, len(inputs))
 	for _, input := range inputs {
 		operation := input.Operation
@@ -711,14 +732,13 @@ func (s *Service) checkEvaluationInputs(ctx context.Context, inputs []permission
 		if permissions.IsExactOperationAuthorized(ctx, operation) {
 			continue
 		}
-		hardDeny := ""
-		if operation.Network != nil {
+		if resolveNetworkTargets && operation.Network != nil {
 			if _, resolveErr := s.policy.Resolve(ctx, *operation.Network); resolveErr != nil {
-				hardDeny = resolveErr.Error()
+				input.HardDenyReason = resolveErr.Error()
 			}
 		}
-		input.HardDenyReason = hardDeny
 		evaluation, err := s.checker.Check(ctx, input)
+		permissions.ObserveDecision(ctx, operation, evaluation)
 		if err == nil {
 			continue
 		}

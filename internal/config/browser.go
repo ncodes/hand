@@ -43,15 +43,16 @@ type BrowserConfig struct {
 }
 
 type BrowserProfileConfig struct {
-	Name             string   `yaml:"name"`
-	Mode             string   `yaml:"mode"`
-	Directory        string   `yaml:"directory"`
-	CDPEndpoint      string   `yaml:"cdpEndpoint"`
-	CredentialRef    string   `yaml:"credentialRef"`
-	DataIdentity     string   `yaml:"dataIdentity"`
-	AttachmentScope  string   `yaml:"attachmentScope"`
-	BrowserContextID string   `yaml:"browserContextId"`
-	TargetIDs        []string `yaml:"targetIds"`
+	Name                       string   `yaml:"name"`
+	Mode                       string   `yaml:"mode"`
+	Directory                  string   `yaml:"directory"`
+	CDPEndpoint                string   `yaml:"cdpEndpoint"`
+	CredentialRef              string   `yaml:"credentialRef"`
+	DataIdentity               string   `yaml:"dataIdentity"`
+	AttachmentScope            string   `yaml:"attachmentScope"`
+	BrowserContextID           string   `yaml:"browserContextId"`
+	TargetIDs                  []string `yaml:"targetIds"`
+	AcknowledgeUnmanagedEgress bool     `yaml:"acknowledgeUnmanagedEgress"`
 }
 
 type BrowserNetworkConfig struct {

@@ -634,6 +634,19 @@ func TestDefaultRegistry_InvokeRecordsSafeStructuredNetworkTarget(t *testing.T) 
 	require.NotContains(t, string(raw), target.QueryHash)
 }
 
+func TestGetPermissionNetworkTracePayload_OmitsCredentialBearingPath(t *testing.T) {
+	target, err := permissions.NetworkTargetFromURL(
+		"https://example.com/users/private-id?token=secret", "POST", permissions.NetworkRequestSubresource,
+	)
+	require.NoError(t, err)
+
+	payload := getPermissionNetworkTracePayload(&target, true)
+
+	require.Equal(t, "example.com", payload.Host)
+	require.Empty(t, payload.Path)
+	require.True(t, payload.HasQuery)
+}
+
 func TestDefaultRegistry_InvokeClassifiedToolWithoutRecorder(t *testing.T) {
 	registry := newTestDefaultRegistry()
 	require.NoError(t, registry.Register(Definition{

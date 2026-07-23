@@ -16,10 +16,15 @@ type networkAuthorizationRequest struct {
 	result chan error
 }
 
+type networkAuthorizationTarget struct {
+	Target permissions.NetworkTarget
+	Count  int
+}
+
 type networkAuthorizationCoordinator struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
-	authorize func(context.Context, []permissions.NetworkTarget) error
+	authorize func(context.Context, []networkAuthorizationTarget) error
 	pause     func() func()
 	requests  chan networkAuthorizationRequest
 	done      chan struct{}
@@ -28,7 +33,7 @@ type networkAuthorizationCoordinator struct {
 
 func newNetworkAuthorizationCoordinator(
 	ctx context.Context,
-	authorize func(context.Context, []permissions.NetworkTarget) error,
+	authorize func(context.Context, []networkAuthorizationTarget) error,
 	pause func() func(),
 ) *networkAuthorizationCoordinator {
 	coordinatorCtx, cancel := context.WithCancel(ctx)
@@ -114,7 +119,7 @@ func (c *networkAuthorizationCoordinator) run() {
 		if len(batch) == 0 {
 			continue
 		}
-		targets := getUniqueNetworkTargets(batch)
+		targets := getNetworkAuthorizationTargets(batch)
 		resume := func() {}
 		if c.pause != nil {
 			resume = c.pause()
@@ -141,15 +146,16 @@ func getActiveNetworkAuthorizationRequests(
 	return active
 }
 
-func getUniqueNetworkTargets(batch []networkAuthorizationRequest) []permissions.NetworkTarget {
-	seen := make(map[permissions.NetworkTarget]struct{}, len(batch))
-	targets := make([]permissions.NetworkTarget, 0, len(batch))
+func getNetworkAuthorizationTargets(batch []networkAuthorizationRequest) []networkAuthorizationTarget {
+	indices := make(map[permissions.NetworkTarget]int, len(batch))
+	targets := make([]networkAuthorizationTarget, 0, len(batch))
 	for _, request := range batch {
-		if _, ok := seen[request.target]; ok {
+		if index, ok := indices[request.target]; ok {
+			targets[index].Count++
 			continue
 		}
-		seen[request.target] = struct{}{}
-		targets = append(targets, request.target)
+		indices[request.target] = len(targets)
+		targets = append(targets, networkAuthorizationTarget{Target: request.target, Count: 1})
 	}
 	return targets
 }

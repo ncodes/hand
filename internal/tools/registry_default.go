@@ -241,6 +241,7 @@ func (r *DefaultRegistry) Invoke(ctx context.Context, call Call) (Result, error)
 	if !ok {
 		return Result{Error: Error{Code: "tool_not_registered", Message: "tool is not registered"}.String()}, nil
 	}
+	ctx = permissions.WithDecisionObserver(ctx, r.recordPermissionDecision)
 	var result Result
 	var blocked bool
 	ctx, result, blocked = r.checkPermissions(ctx, def, call)
@@ -321,7 +322,7 @@ func (r *DefaultRegistry) checkPermissions(
 		r.permissions.Preset(ctx) == permissions.PresetApproveForMe
 	for _, input := range inputs {
 		evaluation, checkErr := r.permissions.Check(ctx, input)
-		r.recordPermissionDecision(ctx, input.Operation, evaluation)
+		permissions.ObserveDecision(ctx, input.Operation, evaluation)
 		decisionErr, ok := permissions.GetDecisionError(checkErr)
 		if !ok {
 			if propagateAuthorization {
@@ -380,7 +381,7 @@ func (r *DefaultRegistry) checkPermissions(
 	if selected == nil {
 		for _, input := range askInputs {
 			recheck := r.permissions.Evaluate(ctx, input)
-			r.recordPermissionDecision(ctx, input.Operation, recheck)
+			permissions.ObserveDecision(ctx, input.Operation, recheck)
 			if recheck.Decision == permissions.DecisionDeny {
 				selected = &permissions.DecisionError{Code: permissions.ErrorCodeDenied, Evaluation: recheck}
 				break
@@ -472,16 +473,22 @@ func (r *DefaultRegistry) recordPermissionDecision(
 		Rule:          evaluation.Rule,
 		Preset:        string(evaluation.Preset),
 		OwnerRequired: operation.OwnerRequired,
-		Network:       getPermissionNetworkTracePayload(operation.Network),
+		Network: getPermissionNetworkTracePayload(
+			operation.Network,
+			slices.Contains(operation.Effects, permissions.EffectCredentialBearing),
+		),
 	})
 }
 
-func getPermissionNetworkTracePayload(target *permissions.NetworkTarget) *trace.PermissionNetworkTargetPayload {
+func getPermissionNetworkTracePayload(
+	target *permissions.NetworkTarget,
+	credentialBearing bool,
+) *trace.PermissionNetworkTargetPayload {
 	if target == nil {
 		return nil
 	}
 
-	return &trace.PermissionNetworkTargetPayload{
+	payload := &trace.PermissionNetworkTargetPayload{
 		Scheme:       target.Scheme,
 		Host:         target.Host,
 		Port:         target.Port,
@@ -490,6 +497,10 @@ func getPermissionNetworkTracePayload(target *permissions.NetworkTarget) *trace.
 		RequestClass: string(target.RequestClass),
 		HasQuery:     target.QueryHash != "",
 	}
+	if credentialBearing {
+		payload.Path = ""
+	}
+	return payload
 }
 
 func getAuthorizationContext(ctx context.Context) permissions.AuthorizationContext {

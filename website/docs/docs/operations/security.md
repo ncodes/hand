@@ -218,19 +218,29 @@ Each RPC proof is method-bound, request-bound, short-lived, and accepted once by
 kept in memory, so a daemon restart resets it; the 30-second proof lifetime bounds that restart window. Rotate the owner
 credential when a local process or captured diagnostic may have exposed a proof or the credential itself.
 
-Managed Chromium sends HTTP, HTTPS, and worker traffic through the authenticated egress proxy. The proxy enforces the
-resolved destination, including destinations reached through HTTPS CONNECT tunnels. Because a CONNECT proxy cannot
-distinguish HTTPS from WSS inside the encrypted tunnel, Morph separately disables WebSocket creation through browser-wide
-CDP URL blocking and an initialization script. HTTPS tunnels are closed when the authorizing browser action completes,
-preventing a page from retaining ambient CONNECT access between actions.
+Managed Chromium sends HTTP and HTTPS traffic through an authenticated, fail-closed egress proxy. Proxy authentication
+identifies the managed browser but does not authorize a destination. A CDP-visible logical request must first pass the
+permission engine and network guardrails. Morph then installs a short-lived transport permit containing the accepted
+destination and pinned resolved IP addresses. The proxy opens an upstream socket only when it can atomically acquire a
+matching permit.
 
-Dedicated workers, shared workers, and service-worker registration are disabled in managed sessions. Worker-created
-WebSockets are not covered reliably by CDP blocked-URL rules and can travel inside CONNECT tunnels that the proxy cannot
-classify after TLS begins, so permitting workers would weaken the fail-closed network boundary.
+Plain HTTP permits match the observable method, host, port, path, and query identity. An HTTPS CONNECT permit matches
+only host, port, and pinned addresses because the encrypted tunnel hides the inner method and path. Permits have bounded
+use and concurrency budgets and are revoked with the browser action. Revocation, cancellation, policy changes, session
+shutdown, and daemon shutdown close connections owned by the affected permit.
+
+Browser background CONNECT attempts that lack a logical-request permit are denied by default. During a live browser
+action, Morph can admit one only through a configured allow rule that explicitly matches `network`, `connect`, the
+`background` request class, method `CONNECT`, host, and port. Background requests never open an approval prompt and
+`full_access` alone does not authorize them.
 
 Remote CDP and signed-in browser profiles connect through a local authenticated relay that pins the configured CDP
 origin, rejects redirects, and rewrites discovery WebSocket URLs through the same relay. CDP credentials are resolved
 from `env:` references and forwarded upstream without appearing in status, logs, traces, or approval text.
+
+Every attached profile must set `acknowledgeUnmanagedEgress: true`. Attached browsers do not use Morph's managed egress
+proxy, so unrelated targets, browser services, existing connections, and direct UDP remain outside Morph's network
+enforcement. The acknowledgement is mandatory even under `full_access`; it is disclosure, not permission.
 
 An attached profile must explicitly limit authority to selected target IDs, one browser context, or the whole browser.
 Signed-in profiles cannot be selected as the default. Their connection requires local-owner approval unless
@@ -375,12 +385,13 @@ current policy and matching grant before every run: removing a rule or revoking 
 records an actionable run error without changing the job.
 
 `morph doctor` reports invalid permission rules, the `full_access` preset, impossible unattended `ask` defaults, and
-stale active grants. `full_access` is deliberately unsafe: it bypasses permission denials, command guardrails, and
-filesystem-root boundaries so Morph can act across the computer. Unlike `ask` and `approve`, it applies to
-**every** actor and surface, not just the local owner, so it also removes the deny-by-default posture on gateway,
-automation and RPC calls. The daemon startup panel, TUI, and readiness diagnostics identify this preset
-prominently. Unattended denials fail immediately without persisting an approval request; authorize them with a narrow
-`allow` rule rather than a post-hoc approval.
+stale active grants. `full_access` is deliberately unsafe: for caller-attributed operations it bypasses permission
+denials, command guardrails, and filesystem-root boundaries so Morph can act across the computer. Unlike `ask` and
+`approve`, it applies to **every** actor and surface, not just the local owner, so it also removes the deny-by-default
+posture on gateway, automation and RPC calls. The daemon startup panel, TUI, and readiness diagnostics identify this
+preset prominently. Unattributed browser background egress still requires an exact configured allow rule. Unattended
+denials fail immediately without persisting an approval request; authorize them with a narrow `allow` rule rather than
+a post-hoc approval.
 
 Manage requests and grants with `morph permissions …`; see [CLI Reference: permissions](../reference/cli#permissions-approvals-and-grants)
 and [Troubleshooting: Permissions and Approvals](../guides/troubleshooting#permissions-and-approvals).

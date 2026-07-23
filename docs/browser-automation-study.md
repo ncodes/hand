@@ -154,6 +154,9 @@ Attached profiles declare one structural scope:
 
 An `existing_session` profile cannot be the default. It must be selected explicitly.
 
+Both attached modes require `acknowledgeUnmanagedEgress: true`. The setting confirms that the operator understands the
+attached browser is outside Morph's managed egress proxy. It is not an authorization rule or approval grant.
+
 ### 6.2 Browser session
 
 A browser session is Morph's managed lifetime around a browser backend.
@@ -461,7 +464,9 @@ Managed Chromium starts with controls that reduce ambient behavior and bypass pa
 - proxy bypass disabled, including Chromium's normal loopback exception;
 - an authenticated per-session egress proxy.
 
-These flags are defense in depth. The egress boundary remains the authority for network destinations.
+These flags are defense in depth. QUIC and non-proxied WebRTC UDP remain disabled so traffic cannot bypass the TCP
+proxy. Browser permission prompts remain denied by default. The egress proxy and its permission-bound permit ledger,
+not a Chromium flag, are the authority for upstream connections.
 
 ## 13. Why CDP observation alone is not an egress boundary
 
@@ -494,20 +499,32 @@ The proxy:
 
 - listens only on loopback;
 - requires `Proxy-Authorization`;
-- resolves the requested hostname through browser network policy;
-- rejects blocked resolved addresses;
-- dials only validated IP addresses;
+- requires a current action-scoped transport permit before opening an upstream connection;
+- consumes the resolved address set already validated during permit preparation;
+- rejects missing, mismatched, expired, exhausted, revoked, or over-concurrent permits;
+- dials only the pinned validated IP addresses;
 - strips proxy credentials and hop-by-hop headers before forwarding;
 - supports ordinary HTTP and CONNECT tunnels;
 - tracks open connections for shutdown;
-- closes tunnels when session cleanup runs.
+- closes permit-owned connections when authority ends or policy changes;
+- closes all remaining tunnels when session cleanup runs.
 
 Chromium does not accept credentials embedded in `--proxy-server`. Morph responds only to CDP events whose
 authentication source is the proxy. Origin-server authentication challenges are cancelled, preventing the proxy
 secret from being sent to a website.
 
-The proxy policy is read per request. A session does not permanently inherit the permission posture of the call that
-started it.
+The effective proxy policy is snapshotted when a serialized action begins. A policy change invalidates the runtime's
+permit generations and closes their connections. A session does not permanently inherit the permission posture of the
+call that started it.
+
+Plain HTTP permits carry exact method, host, port, path, query identity, pinned addresses, expiry, and a non-returnable
+request count. HTTPS CONNECT permits carry origin, pinned addresses, expiry, a bounded dial count, and bounded
+concurrency. The proxy does not claim to see an encrypted HTTPS path or distinguish HTTPS from WSS after CONNECT.
+
+A browser-internal CONNECT that has no logical-request permit is classified as `background`. It is denied unless a
+live action exists and a direct configured rule explicitly allows `network + connect` for that background host and
+port. The rule must specify method `CONNECT` and request class `background`; broad defaults, preset rules, and
+`full_access` without that exact configured rule is insufficient. Background evaluation does not prompt.
 
 ## 15. Pinned remote CDP relay
 
@@ -830,8 +847,9 @@ secret value.
 
 A WebSocket begins with a network connection and then permits ongoing bidirectional writes.
 
-Ordinary navigation approval must not silently authorize an indefinite WebSocket. The design requires a broader exact
-`network + connect` operation for that connection.
+Ordinary navigation approval must not silently authorize an indefinite WebSocket. The proxy supports permit-bound
+plain `ws` upgrades. A `wss` connection uses an origin-level CONNECT permit because TLS hides the handshake path from
+the proxy.
 
 The permit is bound to:
 
@@ -841,7 +859,13 @@ The permit is bound to:
 - authorization generation;
 - lifetime and cancellation.
 
-When the permit ends, the connection closes unless a current broader authorization still covers it.
+When the permit ends, its connection closes. Morph consumes `wandxy/chromedp v0.16.0-morph.1`, based on upstream
+`chromedp v0.16.0`, which adds `WithExistingTargetSession` for flattened child-target CDP sessions. The compatibility
+probe proves that Morph can adopt a paused worker session, install CDP domains, resume it, and detach cleanly.
+
+Managed sessions still retain browser-side WebSocket and worker restrictions. The fork removes the executor-routing
+blocker, but it does not by itself prove production recursive ownership, permission attribution, permit lifetime, or
+direct-UDP containment. Those restrictions remain until their separate acceptance gates pass.
 
 ## 28. Asynchronous browser effects
 
@@ -960,6 +984,10 @@ status output.
 Remote browser page traffic does not inherit the managed Chromium proxy boundary. Morph therefore rejects
 network-bearing actions on attached profiles unless `full_access` is active.
 
+Every `remote_cdp` and `existing_session` profile must also set `acknowledgeUnmanagedEgress: true`. Status, start, CLI,
+RPC, and approval output repeat that attached browsers are outside the managed egress proxy. The acknowledgement does
+not authorize the connection and does not make attached page traffic permit-bound.
+
 ## 32. Secret handling
 
 Sensitive values include:
@@ -1046,8 +1074,10 @@ established rather than bypassing them.
 4. Policy allows or asks according to the effective preset and rules.
 5. The service verifies the owned session.
 6. Chromium sends the request through the authenticated proxy.
-7. The proxy validates the resolved public destination.
-8. The tab advances its generation after navigation.
+7. Morph resolves and validates the destination once, pins the accepted addresses, and installs a bounded permit.
+8. The proxy consumes the matching permit and dials only a pinned address.
+9. The permit and connection are revoked when the action ends.
+10. The tab advances its generation after navigation.
 
 ### Example B: redirect to a metadata address
 
@@ -1132,6 +1162,11 @@ Every local egress and CDP relay channel has a per-session credential that is re
 
 The proxy or relay dials only addresses validated for that exact target, preventing a second uncontrolled resolution.
 
+### Invariant 7a: proxy authentication is not network authority
+
+An authenticated managed-browser proxy request without a matching live transport permit is denied before any upstream
+socket is opened.
+
 ### Invariant 8: redirects receive new decisions
 
 Authority for one origin does not automatically cover a redirected origin.
@@ -1170,6 +1205,7 @@ Morph never silently attaches to a user's ordinary browser or expands approved a
 | Network normalization and blocked addresses | `internal/browser/policy_test.go` |
 | Authenticated proxy forwarding, CONNECT buffering, policy changes, cleanup | `internal/browser/proxy_test.go` |
 | Real Chromium proxy routing and strict no-bypass behavior | `internal/browser/chromedp_backend_test.go` |
+| Forked flattened-session adoption and clean detachment | `TestChromedpFork_AdoptsPausedWorkerTargetSession` |
 | CDP address pinning, authentication, object and array rewriting, fail-closed payloads | `internal/browser/remote_cdp_relay_test.go` |
 | Session ownership, lifecycle failures, inactivity, retention, and domain authorization | `internal/browser/service_test.go` |
 | Browser action-to-operation mapping | `internal/permissions/extensions_test.go` |

@@ -102,6 +102,26 @@ func TestBrowserService_ReportsDisabledConfiguredStateWithoutRuntime(t *testing.
 	require.Equal(t, codes.FailedPrecondition, status.Code(err))
 }
 
+func TestBrowserService_ReportsUnmanagedEgressWarningWithoutRuntime(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Browser.Profiles = []config.BrowserProfileConfig{{
+		Name: "remote", Mode: config.BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
+		AttachmentScope: config.BrowserAttachmentBrowser, AcknowledgeUnmanagedEgress: true,
+	}}
+	cfg.Browser.DefaultProfile = "remote"
+	service := NewBrowserService(newAllowedServiceWithOptions(nil, ServiceOptions{
+		BrowserConfig: cfg.Browser, ProfileName: "default",
+	}))
+
+	response, err := service.Status(
+		permissionOperatorContext("cli", "127.0.0.1"),
+		&morphpb.GetBrowserStatusRequest{},
+	)
+
+	require.NoError(t, err)
+	require.Contains(t, response.GetStatus().GetProfiles()[0].GetWarning(), "do not use Morph's managed egress proxy")
+}
+
 func TestBrowserService_RequiresAuthenticatedOwnerAndRejectsMalformedRequests(t *testing.T) {
 	service := newBrowserRPCService(&browserRPCStub{}, true)
 	ownerCtx := permissionOperatorContext("cli", "127.0.0.1")

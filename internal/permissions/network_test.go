@@ -23,6 +23,15 @@ func TestNetworkTargetFromURL_NormalizesIdentity(t *testing.T) {
 	require.EqualError(t, err, "permission network port is invalid")
 }
 
+func TestNetworkTarget_NormalizesBackgroundRequestClass(t *testing.T) {
+	target, err := (NetworkTarget{
+		Scheme: "https", Host: "BACKGROUND.EXAMPLE.", Port: 443, Path: "/", Method: "connect",
+		RequestClass: " BACKGROUND ",
+	}).Normalize()
+	require.NoError(t, err)
+	require.Equal(t, NetworkRequestBackground, target.RequestClass)
+}
+
 func TestNetworkTargetFromURL_BindsCanonicalQueryWithoutExposingValues(t *testing.T) {
 	first, err := NetworkTargetFromURL(
 		"https://example.com/news?token=top-secret&page=2", "GET", NetworkRequestNavigation,
@@ -131,6 +140,71 @@ func TestPolicy_NetworkSelectorUsesSegmentSafeMatching(t *testing.T) {
 		Operation:     Operation{Resource: ResourceNetwork, Action: ActionRead, Network: &target},
 	})
 	require.NotEqual(t, DecisionAllow, denied.Decision)
+}
+
+func TestPolicy_BackgroundNetworkRequiresExplicitStructuredConfiguredRule(t *testing.T) {
+	target := NetworkTarget{
+		Scheme: "https", Host: "background.example", Port: 443, Path: "/", Method: "CONNECT",
+		RequestClass: NetworkRequestBackground,
+	}
+	input := EvaluationInput{
+		Authorization: AuthorizationContext{Actor: Actor{Kind: ActorLocalOwner}, Surface: SurfaceTUI},
+		Operation: Operation{
+			Tool: "browser", Resource: ResourceNetwork, Action: ActionConnect,
+			Effects: []Effect{EffectNetwork, EffectExternalSystem}, Network: &target,
+		},
+	}
+	broad := Policy{Rules: []Rule{{
+		Name: "broad", Resources: []Resource{ResourceNetwork}, Actions: []Action{ActionConnect},
+		Network: []NetworkSelector{{Host: "background.example"}}, Decision: DecisionAllow,
+	}}}
+	evaluation := broad.Evaluate(input)
+	require.NotEqual(t, DecisionAllow, evaluation.Decision)
+	require.False(t, evaluation.MatchedConfiguredRule)
+
+	schemeSpecific := Policy{Rules: []Rule{{
+		Name: "misleading background scheme", Resources: []Resource{ResourceNetwork}, Actions: []Action{ActionConnect},
+		Network: []NetworkSelector{{
+			Scheme: "https", Host: "background.example", Port: 443, Method: "CONNECT",
+			RequestClass: NetworkRequestBackground,
+		}}, Decision: DecisionAllow,
+	}}}
+	evaluation = schemeSpecific.Evaluate(input)
+	require.NotEqual(t, DecisionAllow, evaluation.Decision)
+	require.False(t, evaluation.MatchedConfiguredRule)
+
+	exact := Policy{Rules: []Rule{{
+		Name: "exact background", Resources: []Resource{ResourceNetwork}, Actions: []Action{ActionConnect},
+		Network: []NetworkSelector{{
+			Host: "background.example", Port: 443, Method: "CONNECT", RequestClass: NetworkRequestBackground,
+		}}, Decision: DecisionAllow,
+	}}}
+	evaluation = exact.Evaluate(input)
+	require.Equal(t, DecisionAllow, evaluation.Decision)
+	require.True(t, evaluation.MatchedConfiguredRule)
+	require.Equal(t, "exact background", evaluation.Rule)
+
+	denied := exact
+	denied.Rules = append(denied.Rules, Rule{
+		Name: "deny browser background", Resources: []Resource{ResourceNetwork},
+		Decision: DecisionDeny,
+	})
+	evaluation = denied.Evaluate(input)
+	require.Equal(t, DecisionDeny, evaluation.Decision)
+	require.Equal(t, "deny browser background", evaluation.Rule)
+
+	fullAccess := exact
+	fullAccess.Preset = PresetFullAccess
+	evaluation = fullAccess.Evaluate(input)
+	require.Equal(t, DecisionAllow, evaluation.Decision)
+	require.True(t, evaluation.MatchedConfiguredRule)
+	require.Equal(t, "exact background", evaluation.Rule)
+
+	fullAccess = broad
+	fullAccess.Preset = PresetFullAccess
+	evaluation = fullAccess.Evaluate(input)
+	require.Equal(t, DecisionAllow, evaluation.Decision)
+	require.False(t, evaluation.MatchedConfiguredRule)
 }
 
 func TestPermissionScope_RequiresStructuredNetworkSelectors(t *testing.T) {

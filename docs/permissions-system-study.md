@@ -578,13 +578,14 @@ stored in the profile.
 |---|---|---|
 | `ask` | Ask for approval | Evaluates configured rules first, then allows the interactive local owner while asking for execution, network access, destructive work, credential-bearing work, privilege changes, and writes outside workspace roots |
 | `approve` | Approve for me | Evaluates configured rules first, then allows the interactive local owner while asking only for destructive work, credential-bearing work, privilege changes, and writes outside workspace roots |
-| `full_access` | Full access | Allows every actor and surface without consulting rules, defaults, ownership, hard-deny reasons, command policy, or filesystem roots |
+| `full_access` | Full access | Allows every actor and surface without ordinary rule, default, ownership, hard-deny, command-policy, or filesystem-root checks. Unattributed browser background egress still requires an exact configured allow rule |
 | `custom` | Custom | Uses only `default`, surface defaults, and `rules` from the profile |
 
 For `ask` and `approve`, all surface-kind defaults are rebuilt as deny. Their built-in rules carve out local-owner
 behavior only; gateway, automation, and RPC work therefore remains denied unless a configured rule explicitly allows
 the operation. A configured rule can also narrow local behavior or override a built-in `ask`. `full_access` ignores
-configured rules. The TUI, CLI, and daemon label `ask` or `approve` with rules as `(customized)`.
+configured rules for caller-attributed operations. Unattributed browser background egress is the narrow exception
+described above. The TUI, CLI, and daemon label `ask` or `approve` with rules as `(customized)`.
 
 The active preset can come from the profile or a trusted per-request context override. The TUI persists preset changes
 to the profile and attaches the selected preset to its RPC calls. The server still derives actor identity independently;
@@ -646,8 +647,10 @@ When omitted:
   - RPC -> deny
 
 These defaults describe the custom policy. The `ask` and `approve` presets replace configured defaults with their own
-deny-by-default baseline while retaining configured rules as a higher-priority layer. `full_access` ignores both rules
-and defaults. Every resulting decision is enforced immediately through the permission engine.
+deny-by-default baseline while retaining configured rules as a higher-priority layer. `full_access` ignores rules and
+defaults for caller-attributed operations. Unattributed browser background egress is the deliberate exception: an exact
+configured allow rule is required because a coincident full-access action does not prove who caused that connection.
+Every resulting decision is enforced immediately through the permission engine.
 
 The retention fields govern audit-history cleanup, not whether a pending request or active grant remains usable. Negative
 retention values are invalid. A zero value means “use the default,” so zero does not disable cleanup. Cleanup interval and

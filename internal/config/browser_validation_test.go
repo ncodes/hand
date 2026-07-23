@@ -85,10 +85,11 @@ func TestValidateBrowserProfile_ValidatesModeSpecificSettings(t *testing.T) {
 		}, wantErr: "managed persistent profile cannot set attachment configuration"},
 		{name: "remote", profile: BrowserProfileConfig{
 			Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com", AttachmentScope: BrowserAttachmentBrowser,
+			AcknowledgeUnmanagedEgress: true,
 		}},
 		{name: "existing session", profile: BrowserProfileConfig{
 			Mode: BrowserProfileExistingSession, CDPEndpoint: "ws://localhost:9222", DataIdentity: "profile-1",
-			AttachmentScope: BrowserAttachmentBrowser,
+			AttachmentScope: BrowserAttachmentBrowser, AcknowledgeUnmanagedEgress: true,
 		}},
 	}
 	for _, test := range tests {
@@ -121,6 +122,7 @@ func TestValidateBrowserProfile_RequiresExplicitAttachmentIdentityAndScope(t *te
 			name: "credential reference", profile: BrowserProfileConfig{
 				Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
 				CredentialRef: "env:CDP_TOKEN", AttachmentScope: BrowserAttachmentBrowser,
+				AcknowledgeUnmanagedEgress: true,
 			},
 		},
 		{
@@ -151,6 +153,12 @@ func TestValidateBrowserProfile_RequiresExplicitAttachmentIdentityAndScope(t *te
 				Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
 				AttachmentScope: BrowserAttachmentBrowser, TargetIDs: []string{"target-1"},
 			}, wantErr: "browser attachment scope cannot set a browser context ID or target IDs",
+		},
+		{
+			name: "unacknowledged unmanaged egress", profile: BrowserProfileConfig{
+				Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
+				AttachmentScope: BrowserAttachmentBrowser,
+			}, wantErr: "attached browser profile must acknowledge unmanaged egress",
 		},
 	}
 	for _, test := range tests {

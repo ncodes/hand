@@ -296,7 +296,7 @@ the **gateway** **listener** check. See [Safety and Guardrails](../concepts/safe
 
 | Check | PASS | WARN | FAIL |
 | --- | --- | --- | --- |
-| policy | Policy validates | Effective preset is `full_access` (bypasses permission rules, command guardrails, and filesystem roots) | Policy fails validation (bad decision, duplicate rule name, and the like) |
+| policy | Policy validates | Effective preset is `full_access` (bypasses ordinary permission rules, command guardrails, and filesystem roots; unattributed browser background egress still requires an exact allow rule) | Policy fails validation (bad decision, duplicate rule name, and the like) |
 | unattended approvals | Every non-local surface/surface-kind default is `allow` or `deny` | - | A gateway, automation, or RPC default is `ask`; that surface cannot wait for an interactive prompt |
 | grants | Active grants are current | Store could not be opened for inspection, or some active grants are already expired (stale) | Store opened but doesn't support permission records, or listing grants failed |
 

@@ -498,7 +498,7 @@ func (s *chromiumSession) runInTab(ctx context.Context, tabID string, actions ..
 		actions = append([]chromedp.Action{
 			network.Enable(),
 			network.SetBypassServiceWorker(true),
-			network.SetBlockedURLs([]string{"ws://*", "wss://*"}),
+			network.SetBlockedURLs().WithURLPatterns(getBlockedWebSocketPatterns()),
 			page.Enable(),
 			installBrowserNetworkGuardAction(),
 			fetch.Enable().WithHandleAuthRequests(s.proxyUser != ""),

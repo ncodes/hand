@@ -16,6 +16,9 @@ import (
 
 const existingSessionWarning = "Personal browser attachment exposes signed-in sessions, cookies, and page data."
 const wholeBrowserWarning = "Whole-browser attachment can control every visible browser context and target."
+const unmanagedEgressWarning = "Attached browsers do not use Morph's managed egress proxy; " +
+	"unrelated targets, browser services, existing connections, and direct UDP remain outside Morph's network enforcement. " +
+	"The full_access preset does not provide managed network containment."
 const attachmentIdentityKeyDomain = "morph/browser-attachment-identity/v1"
 
 type CredentialResolver func(string) (string, error)
@@ -49,6 +52,9 @@ func WithCredentialResolver(resolve CredentialResolver) ServiceOption {
 func (s *Service) resolveAttachment(profile config.BrowserProfileConfig) (attachment, error) {
 	if profile.Mode != config.BrowserProfileRemoteCDP && profile.Mode != config.BrowserProfileExistingSession {
 		return attachment{}, nil
+	}
+	if !profile.AcknowledgeUnmanagedEgress {
+		return attachment{}, errors.New("attached browser profile must acknowledge unmanaged egress")
 	}
 	if len(s.attachmentIdentityKey) < 32 {
 		return attachment{}, errors.New("browser attachment identity key is unavailable")
@@ -121,7 +127,10 @@ func getAuthorizationHeader(credential string) (string, error) {
 }
 
 func GetProfileWarning(profile config.BrowserProfileConfig) string {
-	warnings := make([]string, 0, 2)
+	warnings := make([]string, 0, 3)
+	if profile.Mode == config.BrowserProfileRemoteCDP || profile.Mode == config.BrowserProfileExistingSession {
+		warnings = append(warnings, unmanagedEgressWarning)
+	}
 	if profile.Mode == config.BrowserProfileExistingSession {
 		warnings = append(warnings, existingSessionWarning)
 	}

@@ -9,6 +9,9 @@ type authorizationContextKey struct{}
 type fullAccessContextKey struct{}
 type presetContextKey struct{}
 type authorizedOperationsContextKey struct{}
+type decisionObserverContextKey struct{}
+
+type DecisionObserver func(context.Context, Operation, Evaluation)
 
 func WithContext(ctx context.Context, authorization AuthorizationContext) context.Context {
 	if ctx == nil {
@@ -76,6 +79,28 @@ func PresetFromContext(ctx context.Context) (Preset, bool) {
 
 	preset, ok := ctx.Value(presetContextKey{}).(Preset)
 	return preset, ok && isValidPreset(preset)
+}
+
+func WithDecisionObserver(ctx context.Context, observer DecisionObserver) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if observer == nil {
+		return ctx
+	}
+
+	return context.WithValue(ctx, decisionObserverContextKey{}, observer)
+}
+
+func ObserveDecision(ctx context.Context, operation Operation, evaluation Evaluation) {
+	if ctx == nil {
+		return
+	}
+
+	observer, _ := ctx.Value(decisionObserverContextKey{}).(DecisionObserver)
+	if observer != nil {
+		observer(ctx, operation, evaluation)
+	}
 }
 
 func WithAuthorizedOperations(ctx context.Context, operations []Operation) context.Context {

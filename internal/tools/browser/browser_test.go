@@ -582,7 +582,8 @@ func TestDefinition_ResolvesPermissionsAndDispatchesTypedAction(t *testing.T) {
 
 func TestDefinition_PreservesPersonalBrowserApprovalWarning(t *testing.T) {
 	service := &browserServiceStub{permissionInputs: []permissions.EvaluationInput{{
-		ApprovalReason:  "Personal browser attachment exposes signed-in sessions, cookies, and page data.",
+		ApprovalReason: "Attached browsers do not use Morph's managed egress proxy. " +
+			"Personal browser attachment exposes signed-in sessions, cookies, and page data.",
 		ApprovalSummary: "Attach to signed-in browser profile personal",
 		Operation: permissions.Operation{
 			Tool: "browser", Resource: permissions.ResourceBrowser, Action: permissions.ActionConnect,
@@ -600,6 +601,7 @@ func TestDefinition_PreservesPersonalBrowserApprovalWarning(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, inputs, 1)
+	require.Contains(t, inputs[0].ApprovalReason, "do not use Morph's managed egress proxy")
 	require.Contains(t, inputs[0].ApprovalReason, "signed-in sessions")
 	require.Contains(t, inputs[0].Operation.Effects, permissions.EffectCredentialBearing)
 }

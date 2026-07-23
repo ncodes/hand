@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1427,7 +1428,7 @@ func TestService_RemoteNetworkActionsRequireFullAccess(t *testing.T) {
 	cfg.Network.Strict = new(false)
 	cfg.Profiles = []config.BrowserProfileConfig{{
 		Name: "remote", Mode: config.BrowserProfileRemoteCDP, CDPEndpoint: "http://127.0.0.1:9222",
-		AttachmentScope: config.BrowserAttachmentBrowser,
+		AttachmentScope: config.BrowserAttachmentBrowser, AcknowledgeUnmanagedEgress: true,
 	}}
 	cfg.DefaultProfile = "remote"
 	service, err := NewService(
@@ -1462,7 +1463,7 @@ func TestService_ExistingSessionOperationsRemainCredentialBearing(t *testing.T) 
 	cfg.Profiles = []config.BrowserProfileConfig{{
 		Name: "personal", Mode: config.BrowserProfileExistingSession,
 		CDPEndpoint: "http://127.0.0.1:9222", DataIdentity: "daily-profile",
-		AttachmentScope: config.BrowserAttachmentBrowser,
+		AttachmentScope: config.BrowserAttachmentBrowser, AcknowledgeUnmanagedEgress: true,
 	}}
 	cfg.DefaultProfile = "personal"
 	service, err := NewService(
@@ -1483,6 +1484,147 @@ func TestService_ExistingSessionOperationsRemainCredentialBearing(t *testing.T) 
 	require.Len(t, operations, 1)
 	require.Contains(t, operations[0].Effects, permissions.EffectCredentialBearing)
 	require.Contains(t, operations[0].Target, "attachment_id=")
+}
+
+func TestService_BackgroundConnectRequiresExactConfiguredRule(t *testing.T) {
+	authorization := permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner, ID: "owner"},
+		Surface: permissions.SurfaceTUI, Profile: "default", SessionID: "session-1", RunID: "run-1",
+	}
+	ctx := permissions.WithContext(context.Background(), authorization)
+	var observed permissions.Evaluation
+	ctx = permissions.WithDecisionObserver(ctx, func(
+		_ context.Context,
+		_ permissions.Operation,
+		evaluation permissions.Evaluation,
+	) {
+		observed = evaluation
+	})
+	target := permissions.NetworkTarget{
+		Scheme: "https", Host: "background.example", Port: 443, Path: "/", Method: "CONNECT",
+		RequestClass: permissions.NetworkRequestSubresource,
+	}
+	policy := permissions.Policy{Preset: permissions.PresetCustom, Rules: []permissions.Rule{{
+		Name:      "allow exact browser background connection",
+		Resources: []permissions.Resource{permissions.ResourceNetwork},
+		Actions:   []permissions.Action{permissions.ActionConnect},
+		Network: []permissions.NetworkSelector{{
+			Host: "background.example", Port: 443, Method: "CONNECT",
+			RequestClass: permissions.NetworkRequestBackground,
+		}},
+		Decision: permissions.DecisionAllow,
+	}}}
+	ledger := newTestTransportPermitLedger(t, time.Now)
+	resolveCalls := 0
+	proxy := &egressProxy{permits: ledger, policy: NetworkPolicy{
+		ResolveHost: func(context.Context, string) ([]netip.Addr, error) {
+			resolveCalls++
+			return []netip.Addr{netip.MustParseAddr("192.0.2.1")}, nil
+		},
+	}}
+	runtime := &managedSession{
+		Session: Session{ID: "browser-1", Owner: Owner{Actor: authorization.Actor}},
+		permits: ledger, proxy: proxy,
+	}
+	service := &Service{checker: permissions.NewEngine(policy), now: time.Now}
+	_, err := ledger.beginGeneration(ctx)
+	require.NoError(t, err)
+	lease, err := service.authorizeBackgroundConnect(ctx, runtime, target)
+	require.NoError(t, err)
+	lease.Release()
+	require.Equal(t, permissions.DecisionAllow, observed.Decision)
+	require.Equal(t, "allow exact browser background connection", observed.Rule)
+	require.True(t, observed.MatchedConfiguredRule)
+	require.Equal(t, 1, resolveCalls)
+
+	fullAccess := permissions.WithPreset(permissions.WithFullAccess(ctx), permissions.PresetFullAccess)
+	otherLedger := newTestTransportPermitLedger(t, time.Now)
+	runtime.permits = otherLedger
+	runtime.proxy.permits = otherLedger
+	_, err = otherLedger.beginGeneration(fullAccess)
+	require.NoError(t, err)
+	lease, err = service.authorizeBackgroundConnect(fullAccess, runtime, target)
+	require.NoError(t, err)
+	lease.Release()
+	require.Equal(t, 2, resolveCalls)
+
+	idleLedger := newTestTransportPermitLedger(t, time.Now)
+	runtime.permits = idleLedger
+	runtime.proxy.permits = idleLedger
+	_, err = service.authorizeBackgroundConnect(fullAccess, runtime, target)
+	require.ErrorIs(t, err, errBackgroundAuthorityUnavailable)
+	require.Equal(t, 2, resolveCalls)
+
+	var denied permissions.Evaluation
+	deniedCtx := permissions.WithDecisionObserver(fullAccess, func(
+		_ context.Context,
+		_ permissions.Operation,
+		evaluation permissions.Evaluation,
+	) {
+		denied = evaluation
+	})
+	deniedLedger := newTestTransportPermitLedger(t, time.Now)
+	runtime.permits = deniedLedger
+	runtime.proxy.permits = deniedLedger
+	_, err = deniedLedger.beginGeneration(deniedCtx)
+	require.NoError(t, err)
+	deniedService := &Service{
+		checker: permissions.NewEngine(permissions.Policy{Preset: permissions.PresetFullAccess}), now: time.Now,
+	}
+	_, err = deniedService.authorizeBackgroundConnect(deniedCtx, runtime, target)
+	require.ErrorIs(t, err, errBackgroundRuleRequired)
+	require.Equal(t, permissions.DecisionDeny, denied.Decision)
+	require.Equal(t, permissions.ReasonBackgroundRule, denied.ReasonCode)
+	require.Equal(t, 2, resolveCalls)
+}
+
+func TestService_NetworkPolicyDenialIsObservedBeforePermitInstallation(t *testing.T) {
+	authorization := permissions.AuthorizationContext{
+		Actor:   permissions.Actor{Kind: permissions.ActorLocalOwner, ID: "owner"},
+		Surface: permissions.SurfaceTUI, Profile: "default", SessionID: "session-1", RunID: "run-1",
+	}
+	ctx := permissions.WithContext(context.Background(), authorization)
+	var observed permissions.Evaluation
+	ctx = permissions.WithDecisionObserver(ctx, func(
+		_ context.Context,
+		_ permissions.Operation,
+		evaluation permissions.Evaluation,
+	) {
+		observed = evaluation
+	})
+	resolveCalls := 0
+	ledger := newTestTransportPermitLedger(t, time.Now)
+	proxy := &egressProxy{permits: ledger, policy: NetworkPolicy{
+		Strict: true,
+		ResolveHost: func(context.Context, string) ([]netip.Addr, error) {
+			resolveCalls++
+			return []netip.Addr{netip.MustParseAddr("127.0.0.1")}, nil
+		},
+	}}
+	runtime := &managedSession{
+		Session: Session{ID: "browser-1", Profile: "default", Owner: Owner{Actor: authorization.Actor}},
+		permits: ledger, proxy: proxy,
+	}
+	service := &Service{
+		checker: permissions.NewEngine(permissions.Policy{Default: permissions.DecisionAllow}), now: time.Now,
+	}
+	generation, err := ledger.beginGeneration(ctx)
+	require.NoError(t, err)
+	target := permissions.NetworkTarget{
+		Scheme: "https", Host: "public.example", Port: 443, Path: "/", Method: "GET",
+		RequestClass: permissions.NetworkRequestNavigation,
+	}
+
+	err = service.authorizeNetworkTargets(ctx, runtime, ActionNavigate, generation, []networkAuthorizationTarget{{
+		Target: target, Count: 1,
+	}})
+	decision, ok := permissions.GetDecisionError(err)
+	require.True(t, ok)
+	require.Equal(t, permissions.ReasonHardDeny, decision.Evaluation.ReasonCode)
+	require.Equal(t, permissions.DecisionDeny, observed.Decision)
+	require.Equal(t, permissions.ReasonHardDeny, observed.ReasonCode)
+	require.Equal(t, 1, resolveCalls)
+	require.Empty(t, ledger.permits)
 }
 
 func TestIsBackendTabAllowed_EnforcesAttachmentScope(t *testing.T) {

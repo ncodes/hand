@@ -22,6 +22,10 @@ const (
 	maxSnapshotChars     = 30_000
 )
 
+var errBackgroundAuthorityUnavailable = errors.New("browser background connection has no active action authority")
+var errBackgroundRuleRequired = errors.New("browser background connection requires an explicit structured allow rule")
+var errBackgroundNetworkPolicyDenied = errors.New("browser background connection denied by network policy")
+
 func (s *Service) ResolveOperations(ctx context.Context, action Action, request ActionRequest) ([]permissions.Operation, error) {
 	inputs, err := s.ResolvePermissionInputs(ctx, action, request)
 	if err != nil {
@@ -233,7 +237,10 @@ func (s *Service) Open(ctx context.Context, request ActionRequest) (Tab, error) 
 	if err := s.authorizeAction(ctx, ActionOpen, request, false); err != nil {
 		return Tab{}, err
 	}
-	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, backend, ActionOpen, "")
+	actionCtx, finishAction, err := s.prepareNetworkAction(ctx, runtime, backend, ActionOpen, "")
+	if err != nil {
+		return Tab{}, getActionError(ActionOpen, err)
+	}
 	defer finishAction()
 	backendTab, err := backend.OpenTab(actionCtx, request.URL)
 	if err != nil {
@@ -436,7 +443,6 @@ func (s *Service) getInteractiveRuntime(
 	if !ok {
 		return nil, nil, &Error{Code: ErrorUnavailable, Operation: action, Err: errors.New("browser backend does not support interaction")}
 	}
-	s.setRuntimePolicy(ctx, runtime)
 	return runtime, backend, nil
 }
 
@@ -459,7 +465,10 @@ func (s *Service) runNavigation(
 	if err != nil {
 		return Tab{}, err
 	}
-	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, backend, action, tab.ID)
+	actionCtx, finishAction, err := s.prepareNetworkAction(ctx, runtime, backend, action, tab.ID)
+	if err != nil {
+		return Tab{}, getActionError(action, err)
+	}
 	defer finishAction()
 	backendTab, err := run(actionCtx, backend, tab.ID)
 	if err != nil {
@@ -512,7 +521,10 @@ func (s *Service) runTabMutation(
 	if err != nil {
 		return Tab{}, err
 	}
-	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, backend, action, tab.ID)
+	actionCtx, finishAction, err := s.prepareNetworkAction(ctx, runtime, backend, action, tab.ID)
+	if err != nil {
+		return Tab{}, getActionError(action, err)
+	}
 	defer finishAction()
 	if err := run(actionCtx, backend, tab); err != nil {
 		return Tab{}, getActionError(action, err)
@@ -547,16 +559,21 @@ func (s *Service) prepareNetworkAction(
 	backend InteractiveBackendSession,
 	action Action,
 	tabID string,
-) (context.Context, func()) {
+) (context.Context, func(), error) {
 	if !actionMayUseNetwork(action) {
-		return ctx, func() {}
+		return ctx, func() {}, nil
 	}
+	s.setRuntimePolicy(ctx, runtime)
 	actionCtx, budget := newActionBudget(ctx, defaultActionTimeout)
-	restoreNetwork := s.setNetworkAuthorizer(actionCtx, runtime, backend, action, tabID, budget.Pause)
+	restoreNetwork, err := s.setNetworkAuthorizer(actionCtx, runtime, backend, action, tabID, budget.Pause)
+	if err != nil {
+		budget.Close()
+		return nil, nil, err
+	}
 	return actionCtx, func() {
 		restoreNetwork()
 		budget.Close()
-	}
+	}, nil
 }
 
 func (s *Service) setNetworkAuthorizer(
@@ -566,36 +583,24 @@ func (s *Service) setNetworkAuthorizer(
 	action Action,
 	tabID string,
 	pause func() func(),
-) func() {
+) (func(), error) {
 	authorizing, ok := backend.(NetworkAuthorizingBackendSession)
 	if !ok {
-		return func() {}
+		return func() {}, nil
+	}
+	generationID := uint64(0)
+	if runtime.proxy != nil {
+		var err error
+		generationID, err = runtime.permits.beginGeneration(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 	coordinator := newNetworkAuthorizationCoordinator(ctx, func(
 		authorizationCtx context.Context,
-		targets []permissions.NetworkTarget,
+		targets []networkAuthorizationTarget,
 	) error {
-		operations := make([]permissions.Operation, 0, len(targets))
-		for _, target := range targets {
-			values, err := (permissions.BrowserRequest{
-				Profile: runtime.Profile, Action: string(action), OwnerID: runtime.Owner.Actor.ID,
-				ProfileMode: runtime.ProfileMode, AttachmentScope: runtime.attachment.scope,
-				AttachmentID: runtime.attachment.identity,
-				Personal:     runtime.ProfileMode == config.BrowserProfileExistingSession, Network: &target,
-			}).Operations()
-			if err != nil {
-				return err
-			}
-			for _, operation := range values {
-				if operation.Resource == permissions.ResourceNetwork {
-					operations = append(operations, operation)
-				}
-			}
-		}
-		if len(operations) == 0 {
-			return errors.New("browser request did not resolve a network operation")
-		}
-		return s.checkOperations(authorizationCtx, operations)
+		return s.authorizeNetworkTargets(authorizationCtx, runtime, action, generationID, targets)
 	}, pause)
 	restoreAuthorizer := authorizing.SetNetworkAuthorizer(tabID, func(
 		networkCtx context.Context, target permissions.NetworkTarget,
@@ -634,13 +639,161 @@ func (s *Service) setNetworkAuthorizer(
 	return func() {
 		restoreAuthorizer()
 		coordinator.Close()
-		runtime.resourceMu.Lock()
-		proxy := runtime.proxy
-		runtime.resourceMu.Unlock()
-		if proxy != nil {
-			_ = proxy.closeConnections()
+		if generationID != 0 {
+			if err := runtime.permits.revokeGeneration(generationID); err != nil {
+				log.Warn().
+					Str("browser_session_id", runtime.ID).
+					Uint64("transport_permit_generation", generationID).
+					Msg("Browser transport authority revocation completed with connection cleanup errors")
+				return
+			}
+			log.Debug().
+				Str("browser_session_id", runtime.ID).
+				Uint64("transport_permit_generation", generationID).
+				Msg("Browser transport authority revoked")
+		}
+	}, nil
+}
+
+func (s *Service) authorizeNetworkTargets(
+	ctx context.Context,
+	runtime *managedSession,
+	action Action,
+	generationID uint64,
+	targets []networkAuthorizationTarget,
+) error {
+	operations := make([]permissions.Operation, 0, len(targets))
+	for _, request := range targets {
+		target := request.Target
+		values, err := (permissions.BrowserRequest{
+			Profile: runtime.Profile, Action: string(action), OwnerID: runtime.Owner.Actor.ID,
+			ProfileMode: runtime.ProfileMode, AttachmentScope: runtime.attachment.scope,
+			AttachmentID: runtime.attachment.identity,
+			Personal:     runtime.ProfileMode == config.BrowserProfileExistingSession, Network: &target,
+		}).Operations()
+		if err != nil {
+			return err
+		}
+		found := false
+		for _, operation := range values {
+			if operation.Resource == permissions.ResourceNetwork {
+				operations = append(operations, operation)
+				found = true
+				break
+			}
+		}
+		if !found {
+			return errors.New("browser request did not resolve a network operation")
 		}
 	}
+	if runtime.proxy == nil {
+		return s.checkOperations(ctx, operations)
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		resolvedAt := s.now()
+		freshUntil := resolvedAt.Add(defaultResolutionFreshness)
+		permitInputs := make([]transportPermitInput, 0, len(targets))
+		policy := runtime.proxy.getPolicy()
+		for index, request := range targets {
+			addresses, err := policy.Resolve(ctx, request.Target)
+			if err != nil {
+				input := permissions.EvaluationInput{Operation: operations[index], HardDenyReason: err.Error()}
+				if checkErr := s.checkEvaluationInputs(ctx, []permissions.EvaluationInput{input}, false); checkErr != nil {
+					return checkErr
+				}
+				return err
+			}
+			permitInputs = append(permitInputs, transportPermitInput{
+				Target: request.Target, Addresses: addresses, Uses: request.Count,
+				ExpiresAt: resolvedAt.Add(defaultTransportPermitTTL), FreshUntil: freshUntil,
+			})
+		}
+		reservation, err := runtime.permits.reserve(generationID, len(permitInputs))
+		if err != nil {
+			return err
+		}
+		if err := s.checkResolvedOperations(ctx, operations); err != nil {
+			reservation.Cancel()
+			return err
+		}
+		if !freshUntil.After(s.now()) {
+			reservation.Cancel()
+			continue
+		}
+		if err := reservation.Commit(permitInputs); err != nil {
+			return err
+		}
+		log.Debug().
+			Str("browser_session_id", runtime.ID).
+			Uint64("transport_permit_generation", generationID).
+			Int("transport_permit_count", len(permitInputs)).
+			Time("transport_permit_expires_at", freshUntil).
+			Msg("Browser transport authority installed")
+		return nil
+	}
+	return errors.New("browser network resolution expired during authorization")
+}
+
+func (s *Service) authorizeBackgroundConnect(
+	ctx context.Context,
+	runtime *managedSession,
+	target permissions.NetworkTarget,
+) (*transportPermitLease, error) {
+	generation, ok := runtime.permits.getActiveGeneration()
+	if !ok {
+		return nil, errBackgroundAuthorityUnavailable
+	}
+	target.Method = "CONNECT"
+	target.RequestClass = permissions.NetworkRequestBackground
+	target, err := target.Normalize()
+	if err != nil {
+		return nil, err
+	}
+	operation, err := (permissions.Operation{
+		Tool: "browser", Resource: permissions.ResourceNetwork, Action: permissions.ActionConnect,
+		Effects: []permissions.Effect{permissions.EffectNetwork, permissions.EffectExternalSystem},
+		Network: &target, OwnerID: runtime.Owner.Actor.ID,
+	}).Normalize()
+	if err != nil {
+		return nil, err
+	}
+	evaluation, err := s.checker.Check(generation.Context, permissions.EvaluationInput{Operation: operation})
+	if err != nil {
+		permissions.ObserveDecision(generation.Context, operation, evaluation)
+		return nil, err
+	}
+	if evaluation.Decision != permissions.DecisionAllow || !evaluation.MatchedConfiguredRule {
+		permissions.ObserveDecision(generation.Context, operation, permissions.Evaluation{
+			Decision: permissions.DecisionDeny, ReasonCode: permissions.ReasonBackgroundRule,
+			Reason: errBackgroundRuleRequired.Error(), Preset: evaluation.Preset,
+		})
+		return nil, errBackgroundRuleRequired
+	}
+	addresses, err := runtime.proxy.getPolicy().Resolve(ctx, target)
+	if err != nil {
+		permissions.ObserveDecision(generation.Context, operation, permissions.Evaluation{
+			Decision: permissions.DecisionDeny, ReasonCode: permissions.ReasonHardDeny,
+			Reason: errBackgroundNetworkPolicyDenied.Error(), Rule: evaluation.Rule, Preset: evaluation.Preset,
+			MatchedConfiguredRule: true,
+		})
+		return nil, fmt.Errorf("%w: %v", errBackgroundNetworkPolicyDenied, err)
+	}
+	permissions.ObserveDecision(generation.Context, operation, evaluation)
+	if err := runtime.permits.install(generation.ID, []transportPermitInput{{
+		Target: target, Addresses: addresses, Uses: 1, ExpiresAt: s.now().Add(defaultTransportPermitTTL),
+	}}); err != nil {
+		return nil, err
+	}
+	lease, err := runtime.permits.acquire(target)
+	if err != nil {
+		return nil, err
+	}
+	addBrowserNetworkLogFields(log.Debug(), target).
+		Str("browser_session_id", runtime.ID).
+		Str("permission_rule", evaluation.Rule).
+		Msg("Browser background connection received explicit transport authority")
+	return lease, nil
 }
 
 func waitForNetworkSettlement(ctx context.Context, backend InteractiveBackendSession, tabID string) error {

@@ -167,6 +167,7 @@
 #       attachmentScope: ""
 #       browserContextId: ""
 #       targetIds: []
+#       acknowledgeUnmanagedEgress: false
 #   network:
 #     strict: true
 #     developmentAllowedHosts: []

@@ -22,19 +22,37 @@ import (
 )
 
 const defaultProxyReadHeaderTimeout = 10 * time.Second
+const proxyDenialLogWindow = 5 * time.Second
+
+type proxyDenial struct {
+	last       time.Time
+	suppressed int
+}
 
 type egressProxy struct {
 	authorization localAuthorization
+	sessionID     string
+	permits       *transportPermitLedger
+	background    func(context.Context, permissions.NetworkTarget) (*transportPermitLease, error)
 	listener      net.Listener
 	server        *http.Server
 	policyMu      sync.RWMutex
 	policy        NetworkPolicy
+	policyKey     string
 	mu            sync.Mutex
 	closed        bool
 	connections   map[net.Conn]struct{}
+	denials       map[string]proxyDenial
 }
 
 func startEgressProxy(policy NetworkPolicy) (*egressProxy, error) {
+	return startEgressProxyWithLedger(policy, nil)
+}
+
+func startEgressProxyWithLedger(
+	policy NetworkPolicy,
+	ledger *transportPermitLedger,
+) (*egressProxy, error) {
 	authorization, err := newLocalAuthorization()
 	if err != nil {
 		return nil, err
@@ -43,8 +61,12 @@ func startEgressProxy(policy NetworkPolicy) (*egressProxy, error) {
 	if err != nil {
 		return nil, err
 	}
+	if ledger == nil {
+		ledger = newTransportPermitLedger(time.Now)
+	}
 	proxy := &egressProxy{
 		authorization: authorization, policy: policy, listener: listener, connections: make(map[net.Conn]struct{}),
+		permits: ledger, policyKey: getNetworkPolicyKey(policy), denials: make(map[string]proxyDenial),
 	}
 	proxy.server = &http.Server{
 		Handler:           http.HandlerFunc(proxy.handle),
@@ -82,9 +104,18 @@ func (p *egressProxy) setPolicy(policy NetworkPolicy) {
 	if p == nil {
 		return
 	}
+	policyKey := getNetworkPolicyKey(policy)
 	p.policyMu.Lock()
+	changed := p.policyKey != policyKey
 	p.policy = policy
+	p.policyKey = policyKey
 	p.policyMu.Unlock()
+	if changed {
+		_ = p.permits.invalidate()
+		log.Debug().
+			Str("browser_session_id", p.sessionID).
+			Msg("Browser proxy invalidated transport authority after a network policy change")
+	}
 }
 
 func (p *egressProxy) getPolicy() NetworkPolicy {
@@ -92,6 +123,15 @@ func (p *egressProxy) getPolicy() NetworkPolicy {
 	defer p.policyMu.RUnlock()
 
 	return p.policy
+}
+
+func getNetworkPolicyKey(policy NetworkPolicy) string {
+	values := []string{strconv.FormatBool(policy.Strict)}
+	values = append(values, policy.AllowedHosts...)
+	for _, prefix := range policy.AllowedCIDRs {
+		values = append(values, prefix.String())
+	}
+	return strings.Join(values, "\x00")
 }
 
 func (p *egressProxy) Close(ctx context.Context) error {
@@ -110,7 +150,7 @@ func (p *egressProxy) Close(ctx context.Context) error {
 	if shutdownErr != nil {
 		shutdownErr = errors.Join(shutdownErr, p.server.Close())
 	}
-	return errors.Join(shutdownErr, p.closeConnections())
+	return errors.Join(shutdownErr, p.closeConnections(), p.permits.close())
 }
 
 func (p *egressProxy) closeConnections() error {
@@ -159,12 +199,29 @@ func (p *egressProxy) handleConnect(writer http.ResponseWriter, request *http.Re
 		Scheme: "https", Host: host, Port: port, Path: "/", Method: http.MethodConnect,
 		RequestClass: permissions.NetworkRequestSubresource,
 	}
-	upstream, err := p.dialTarget(request.Context(), target)
+	lease, err := p.acquirePermit(request.Context(), target)
+	if err != nil {
+		p.logPermitDenial(target, err, "Browser proxy denied CONNECT without transport authority")
+		http.Error(writer, "blocked proxy target", http.StatusForbidden)
+		return
+	}
+	releaseLease := true
+	defer func() {
+		if releaseLease {
+			lease.Release()
+		}
+	}()
+	upstream, err := dialResolvedTarget(request.Context(), lease.Addresses(), target.Port)
 	if err != nil {
 		addBrowserNetworkLogFields(log.Warn(), target).
 			Str("browser_network_stage", "proxy_connect").
 			Str("error", getSafeBrowserNetworkError(err)).
 			Msg("Browser proxy blocked or failed to connect to an upstream target")
+		http.Error(writer, "blocked proxy target", http.StatusForbidden)
+		return
+	}
+	if err := lease.Attach(upstream); err != nil {
+		_ = upstream.Close()
 		http.Error(writer, "blocked proxy target", http.StatusForbidden)
 		return
 	}
@@ -176,6 +233,11 @@ func (p *egressProxy) handleConnect(writer http.ResponseWriter, request *http.Re
 	}
 	client, buffer, err := hijacker.Hijack()
 	if err != nil {
+		_ = upstream.Close()
+		return
+	}
+	if err := lease.Attach(client); err != nil {
+		_ = client.Close()
 		_ = upstream.Close()
 		return
 	}
@@ -207,18 +269,17 @@ func (p *egressProxy) handleConnect(writer http.ResponseWriter, request *http.Re
 	go func() {
 		proxyTunnel(client, upstream)
 		p.untrackConnections(client, upstream)
+		lease.Release()
+		addBrowserNetworkLogFields(log.Debug(), target).
+			Str("browser_session_id", p.sessionID).
+			Str("browser_network_stage", "proxy_connect").
+			Msg("Browser proxy closed an upstream tunnel")
 	}()
+	releaseLease = false
 }
 
 func (p *egressProxy) handleHTTP(writer http.ResponseWriter, request *http.Request) {
-	if strings.EqualFold(strings.TrimSpace(request.Header.Get("Upgrade")), "websocket") {
-		log.Warn().
-			Str("browser_network_stage", "proxy_http_validation").
-			Str("network_method", request.Method).
-			Msg("Browser proxy blocked a WebSocket upgrade")
-		http.Error(writer, "blocked proxy target", http.StatusForbidden)
-		return
-	}
+	webSocket := strings.EqualFold(strings.TrimSpace(request.Header.Get("Upgrade")), "websocket")
 	if request.URL == nil || request.URL.Hostname() == "" {
 		log.Warn().
 			Str("browser_network_stage", "proxy_http_validation").
@@ -239,26 +300,49 @@ func (p *egressProxy) handleHTTP(writer http.ResponseWriter, request *http.Reque
 		http.Error(writer, "invalid proxy target", http.StatusBadRequest)
 		return
 	}
-	addresses, err := p.getPolicy().Resolve(request.Context(), target)
+	if webSocket {
+		target.Scheme = "ws"
+		target.RequestClass = permissions.NetworkRequestWebSocket
+	}
+	lease, err := p.acquirePermit(request.Context(), target)
 	if err != nil {
-		addBrowserNetworkLogFields(log.Warn(), target).
-			Str("browser_network_stage", "proxy_policy").
-			Str("error", getSafeBrowserNetworkError(err)).
-			Msg("Browser proxy blocked a target by network policy")
+		p.logPermitDenial(target, err, "Browser proxy denied HTTP without transport authority")
 		http.Error(writer, "blocked proxy target", http.StatusForbidden)
 		return
 	}
+	releaseLease := true
+	defer func() {
+		if releaseLease {
+			lease.Release()
+		}
+	}()
+	var upstream net.Conn
 	transport := &http.Transport{
 		Proxy: nil,
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			return dialResolvedTarget(ctx, addresses, target.Port)
+			connection, dialErr := dialResolvedTarget(ctx, lease.Addresses(), target.Port)
+			if dialErr != nil {
+				return nil, dialErr
+			}
+			if attachErr := lease.Attach(connection); attachErr != nil {
+				_ = connection.Close()
+				return nil, attachErr
+			}
+			upstream = connection
+			return connection, nil
 		},
 	}
 	defer transport.CloseIdleConnections()
 	forward := request.Clone(request.Context())
 	forward.RequestURI = ""
 	forward.Host = request.URL.Host
-	removeProxyHopHeaders(forward.Header)
+	if webSocket {
+		forward.URL.Scheme = "http"
+		forward.Header.Del("Proxy-Authorization")
+		forward.Header.Del("Proxy-Connection")
+	} else {
+		removeProxyHopHeaders(forward.Header)
+	}
 	response, err := transport.RoundTrip(forward)
 	if err != nil {
 		addBrowserNetworkLogFields(log.Warn(), target).
@@ -266,6 +350,54 @@ func (p *egressProxy) handleHTTP(writer http.ResponseWriter, request *http.Reque
 			Str("error", getSafeBrowserNetworkError(err)).
 			Msg("Browser proxy request to the upstream target failed")
 		http.Error(writer, "proxy request failed", http.StatusBadGateway)
+		return
+	}
+	if webSocket && response.StatusCode == http.StatusSwitchingProtocols {
+		stream, ok := response.Body.(io.ReadWriteCloser)
+		if !ok || upstream == nil {
+			_ = response.Body.Close()
+			http.Error(writer, "proxy transport unavailable", http.StatusBadGateway)
+			return
+		}
+		hijacker, ok := writer.(http.Hijacker)
+		if !ok {
+			_ = response.Body.Close()
+			http.Error(writer, "proxy transport unavailable", http.StatusInternalServerError)
+			return
+		}
+		client, buffer, hijackErr := hijacker.Hijack()
+		if hijackErr != nil {
+			_ = response.Body.Close()
+			return
+		}
+		if err := lease.Attach(client); err != nil {
+			_ = client.Close()
+			_ = response.Body.Close()
+			return
+		}
+		_, _ = fmt.Fprintf(buffer, "HTTP/1.1 %d %s\r\n", response.StatusCode, http.StatusText(response.StatusCode))
+		_ = response.Header.Write(buffer)
+		_, _ = buffer.WriteString("\r\n")
+		if err := buffer.Flush(); err != nil {
+			_ = client.Close()
+			_ = response.Body.Close()
+			return
+		}
+		if !p.trackConnections(client, upstream) {
+			_ = client.Close()
+			_ = response.Body.Close()
+			return
+		}
+		go func() {
+			proxyUpgrade(client, stream)
+			p.untrackConnections(client, upstream)
+			lease.Release()
+			addBrowserNetworkLogFields(log.Debug(), target).
+				Str("browser_session_id", p.sessionID).
+				Str("browser_network_stage", "proxy_websocket").
+				Msg("Browser proxy closed an upstream WebSocket")
+		}()
+		releaseLease = false
 		return
 	}
 	defer func() { _ = response.Body.Close() }()
@@ -278,12 +410,87 @@ func (p *egressProxy) handleHTTP(writer http.ResponseWriter, request *http.Reque
 		Msg("Browser proxy request completed")
 }
 
+func getTransportPermitFailure(err error) string {
+	var permitErr *transportPermitError
+	if errors.As(err, &permitErr) {
+		return string(permitErr.Failure)
+	}
+	if errors.Is(err, errBackgroundAuthorityUnavailable) {
+		return "no_live_authority"
+	}
+	if errors.Is(err, errBackgroundRuleRequired) {
+		return "explicit_rule_required"
+	}
+	if errors.Is(err, errBackgroundNetworkPolicyDenied) {
+		return "network_policy_denied"
+	}
+	if decision, ok := permissions.GetDecisionError(err); ok {
+		return decision.Code
+	}
+	return "background_denied"
+}
+
+func (p *egressProxy) logPermitDenial(target permissions.NetworkTarget, err error, message string) {
+	failure := getTransportPermitFailure(err)
+	key := target.Scheme + "\x00" + target.Host + "\x00" + strconv.Itoa(int(target.Port)) + "\x00" + failure
+	now := time.Now()
+	p.mu.Lock()
+	if p.denials == nil {
+		p.denials = make(map[string]proxyDenial)
+	}
+	denial := p.denials[key]
+	if !denial.last.IsZero() && now.Sub(denial.last) < proxyDenialLogWindow {
+		denial.suppressed++
+		p.denials[key] = denial
+		p.mu.Unlock()
+		return
+	}
+	suppressed := denial.suppressed
+	p.denials[key] = proxyDenial{last: now}
+	p.mu.Unlock()
+	addBrowserNetworkLogFields(log.Warn(), target).
+		Str("browser_session_id", p.sessionID).
+		Str("browser_network_stage", "proxy_permit").
+		Str("transport_permit_failure", failure).
+		Int("suppressed_attempts", suppressed).
+		Msg(message)
+}
+
+func (p *egressProxy) acquirePermit(
+	ctx context.Context,
+	target permissions.NetworkTarget,
+) (*transportPermitLease, error) {
+	lease, err := p.permits.acquire(target)
+	var permitErr *transportPermitError
+	if err == nil || !errors.As(err, &permitErr) || permitErr.Failure != transportPermitMissing || p.background == nil {
+		if err == nil {
+			addBrowserNetworkLogFields(log.Debug(), target).
+				Str("browser_session_id", p.sessionID).
+				Uint64("transport_permit_generation", lease.generation).
+				Msg("Browser proxy acquired transport authority")
+		}
+		return lease, err
+	}
+	backgroundTarget := target
+	backgroundTarget.Path = "/"
+	backgroundTarget.QueryHash = ""
+	backgroundTarget.Method = http.MethodConnect
+	backgroundTarget.RequestClass = permissions.NetworkRequestBackground
+	lease, err = p.background(ctx, backgroundTarget)
+	if err == nil {
+		addBrowserNetworkLogFields(log.Debug(), target).
+			Str("browser_session_id", p.sessionID).
+			Uint64("transport_permit_generation", lease.generation).
+			Msg("Browser proxy acquired background transport authority")
+	}
+	return lease, err
+}
+
 func addBrowserNetworkLogFields(event *zerolog.Event, target permissions.NetworkTarget) *zerolog.Event {
 	return event.
 		Str("network_scheme", target.Scheme).
 		Str("network_host", target.Host).
 		Uint16("network_port", target.Port).
-		Str("network_path", target.Path).
 		Str("network_method", target.Method).
 		Str("network_request_class", string(target.RequestClass)).
 		Bool("network_has_query", target.QueryHash != "")
@@ -292,9 +499,26 @@ func addBrowserNetworkLogFields(event *zerolog.Event, target permissions.Network
 func getSafeBrowserNetworkError(err error) string {
 	var urlError *url.Error
 	if errors.As(err, &urlError) && urlError.Err != nil {
-		return urlError.Err.Error()
+		return getSafeBrowserNetworkError(urlError.Err)
 	}
-	return err.Error()
+	if decision, ok := permissions.GetDecisionError(err); ok {
+		return decision.Code
+	}
+	if errors.Is(err, context.Canceled) {
+		return "cancelled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+	var dnsError *net.DNSError
+	if errors.As(err, &dnsError) {
+		return "dns_failed"
+	}
+	var operationError *net.OpError
+	if errors.As(err, &operationError) {
+		return "network_operation_failed"
+	}
+	return "network_error"
 }
 
 func (p *egressProxy) trackConnections(connections ...net.Conn) bool {
@@ -316,14 +540,6 @@ func (p *egressProxy) untrackConnections(connections ...net.Conn) {
 	for _, connection := range connections {
 		delete(p.connections, connection)
 	}
-}
-
-func (p *egressProxy) dialTarget(ctx context.Context, target permissions.NetworkTarget) (net.Conn, error) {
-	addresses, err := p.getPolicy().Resolve(ctx, target)
-	if err != nil {
-		return nil, err
-	}
-	return dialResolvedTarget(ctx, addresses, target.Port)
 }
 
 func dialResolvedTarget(ctx context.Context, addresses []netip.Addr, port uint16) (net.Conn, error) {
@@ -380,6 +596,19 @@ func proxyTunnel(left, right net.Conn) {
 	done := make(chan struct{}, 2)
 	copyConnection := func(destination net.Conn, source net.Conn) {
 		_, _ = io.Copy(destination, bufio.NewReader(source))
+		done <- struct{}{}
+	}
+	go copyConnection(left, right)
+	go copyConnection(right, left)
+	<-done
+}
+
+func proxyUpgrade(left net.Conn, right io.ReadWriteCloser) {
+	defer func() { _ = left.Close() }()
+	defer func() { _ = right.Close() }()
+	done := make(chan struct{}, 2)
+	copyConnection := func(destination io.Writer, source io.Reader) {
+		_, _ = io.Copy(destination, source)
 		done <- struct{}{}
 	}
 	go copyConnection(left, right)

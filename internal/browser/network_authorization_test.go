@@ -16,13 +16,13 @@ func TestNetworkAuthorizationCoordinator_BatchesCompatibleSafeSubresources(t *te
 	defer cancel()
 
 	var mu sync.Mutex
-	var batches [][]permissions.NetworkTarget
+	var batches [][]networkAuthorizationTarget
 	coordinator := newNetworkAuthorizationCoordinator(ctx, func(
 		_ context.Context,
-		targets []permissions.NetworkTarget,
+		targets []networkAuthorizationTarget,
 	) error {
 		mu.Lock()
-		batches = append(batches, append([]permissions.NetworkTarget(nil), targets...))
+		batches = append(batches, append([]networkAuthorizationTarget(nil), targets...))
 		mu.Unlock()
 		return nil
 	}, nil)
@@ -48,6 +48,42 @@ func TestNetworkAuthorizationCoordinator_BatchesCompatibleSafeSubresources(t *te
 	defer mu.Unlock()
 	require.Len(t, batches, 1)
 	require.Len(t, batches[0], 2)
+	require.Equal(t, 1, batches[0][0].Count)
+	require.Equal(t, 1, batches[0][1].Count)
+}
+
+func TestNetworkAuthorizationCoordinator_PreservesDuplicateRequestCount(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	authorized := make(chan []networkAuthorizationTarget, 1)
+	coordinator := newNetworkAuthorizationCoordinator(ctx, func(
+		_ context.Context,
+		targets []networkAuthorizationTarget,
+	) error {
+		authorized <- targets
+		return nil
+	}, nil)
+	defer coordinator.Close()
+
+	target := permissions.NetworkTarget{
+		Scheme: "http", Host: "localhost", Port: 8089, Path: "/app.js", Method: "GET",
+		RequestClass: permissions.NetworkRequestSubresource,
+	}
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for range 2 {
+		go func() {
+			<-start
+			results <- coordinator.Authorize(context.Background(), target)
+		}()
+	}
+	close(start)
+
+	require.NoError(t, <-results)
+	require.NoError(t, <-results)
+	targets := <-authorized
+	require.Equal(t, []networkAuthorizationTarget{{Target: target, Count: 2}}, targets)
 }
 
 func TestNetworkAuthorizationCoordinator_SeparatesIncompatibleRequests(t *testing.T) {
@@ -55,13 +91,13 @@ func TestNetworkAuthorizationCoordinator_SeparatesIncompatibleRequests(t *testin
 	defer cancel()
 
 	var mu sync.Mutex
-	var batches [][]permissions.NetworkTarget
+	var batches [][]networkAuthorizationTarget
 	coordinator := newNetworkAuthorizationCoordinator(ctx, func(
 		_ context.Context,
-		targets []permissions.NetworkTarget,
+		targets []networkAuthorizationTarget,
 	) error {
 		mu.Lock()
-		batches = append(batches, append([]permissions.NetworkTarget(nil), targets...))
+		batches = append(batches, append([]networkAuthorizationTarget(nil), targets...))
 		mu.Unlock()
 		return nil
 	}, nil)
@@ -101,10 +137,10 @@ func TestNetworkAuthorizationCoordinator_DoesNotAuthorizeCancelledRequests(t *te
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	authorized := make(chan []permissions.NetworkTarget, 1)
+	authorized := make(chan []networkAuthorizationTarget, 1)
 	coordinator := newNetworkAuthorizationCoordinator(ctx, func(
 		_ context.Context,
-		targets []permissions.NetworkTarget,
+		targets []networkAuthorizationTarget,
 	) error {
 		authorized <- targets
 		return nil
@@ -149,7 +185,7 @@ func TestNetworkAuthorizationCoordinator_PausesTheActionBudget(t *testing.T) {
 	releaseAuthorization := make(chan struct{})
 	coordinator := newNetworkAuthorizationCoordinator(actionCtx, func(
 		_ context.Context,
-		_ []permissions.NetworkTarget,
+		_ []networkAuthorizationTarget,
 	) error {
 		close(authorizationStarted)
 		<-releaseAuthorization

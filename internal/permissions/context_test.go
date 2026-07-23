@@ -105,3 +105,30 @@ func TestIsExactOperationAuthorized_RequiresCompleteOperationMatch(t *testing.T)
 	require.False(t, IsExactOperationAuthorized(emptyContext, operation))
 	require.False(t, IsExactOperationAuthorized(ctx, Operation{}))
 }
+
+func TestObserveDecision_NotifiesContextObserver(t *testing.T) {
+	operation := Operation{Resource: ResourceNetwork, Action: ActionRead}
+	evaluation := Evaluation{Decision: DecisionAllow, Rule: "allow network"}
+	var observedOperation Operation
+	var observedEvaluation Evaluation
+	ctx := WithDecisionObserver(context.Background(), func(
+		_ context.Context,
+		operation Operation,
+		evaluation Evaluation,
+	) {
+		observedOperation = operation
+		observedEvaluation = evaluation
+	})
+
+	ObserveDecision(ctx, operation, evaluation)
+
+	require.Equal(t, operation, observedOperation)
+	require.Equal(t, evaluation, observedEvaluation)
+}
+
+func TestObserveDecision_HandlesMissingObserver(t *testing.T) {
+	require.NotPanics(t, func() {
+		ObserveDecision(context.Background(), Operation{}, Evaluation{})
+		ObserveDecision(nil, Operation{}, Evaluation{})
+	})
+}

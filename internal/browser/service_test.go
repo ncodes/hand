@@ -276,7 +276,7 @@ func TestService_StrictRemotePolicyBlocksBeforeBackendStart(t *testing.T) {
 	cfg := testBrowserConfig(t)
 	cfg.Profiles = []config.BrowserProfileConfig{{
 		Name: "remote", Mode: config.BrowserProfileRemoteCDP, CDPEndpoint: "http://127.0.0.1:9222",
-		AttachmentScope: config.BrowserAttachmentBrowser,
+		AttachmentScope: config.BrowserAttachmentBrowser, AcknowledgeUnmanagedEgress: true,
 	}}
 	cfg.DefaultProfile = "remote"
 	backend := &fakeBackend{}
@@ -304,7 +304,7 @@ func TestService_FullAccessCanUseExplicitRemoteEndpoint(t *testing.T) {
 	cfg := testBrowserConfig(t)
 	cfg.Profiles = []config.BrowserProfileConfig{{
 		Name: "remote", Mode: config.BrowserProfileRemoteCDP, CDPEndpoint: "http://127.0.0.1:9222",
-		AttachmentScope: config.BrowserAttachmentBrowser,
+		AttachmentScope: config.BrowserAttachmentBrowser, AcknowledgeUnmanagedEgress: true,
 	}}
 	cfg.DefaultProfile = "remote"
 	backend := &fakeBackend{}
@@ -320,7 +320,7 @@ func TestService_FullAccessCanUseExplicitRemoteEndpoint(t *testing.T) {
 	require.Equal(t, SessionReady, session.State)
 	require.Equal(t, []Profile{{
 		Name: "remote", Mode: config.BrowserProfileRemoteCDP, Default: true, Available: true,
-		Warning: wholeBrowserWarning,
+		Warning: unmanagedEgressWarning + " " + wholeBrowserWarning,
 	}}, service.Status().Profiles)
 	require.NotEqual(t, cfg.Profiles[0].CDPEndpoint, backend.options.CDPEndpoint)
 	require.Contains(t, backend.options.CDPEndpoint, "127.0.0.1:")
@@ -422,6 +422,7 @@ func TestService_ExistingSessionProfileStartsWithFullAccess(t *testing.T) {
 	cfg.Profiles = []config.BrowserProfileConfig{{
 		Name: "personal", Mode: config.BrowserProfileExistingSession, CDPEndpoint: "http://127.0.0.1:9222",
 		DataIdentity: "daily-profile", AttachmentScope: config.BrowserAttachmentBrowser,
+		AcknowledgeUnmanagedEgress: true,
 	}}
 	cfg.DefaultProfile = "personal"
 	backend := &fakeBackend{}
@@ -432,12 +433,12 @@ func TestService_ExistingSessionProfileStartsWithFullAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []Profile{{
 		Name: "personal", Mode: config.BrowserProfileExistingSession, Default: true, Available: true,
-		Warning: existingSessionWarning + " " + wholeBrowserWarning,
+		Warning: unmanagedEgressWarning + " " + existingSessionWarning + " " + wholeBrowserWarning,
 	}}, service.Status().Profiles)
 	ctx := permissions.WithPreset(testBrowserContext("owner", "session"), permissions.PresetFullAccess)
 	session, err := service.Start(ctx, StartRequest{})
 	require.NoError(t, err)
-	require.Equal(t, existingSessionWarning+" "+wholeBrowserWarning, session.Warning)
+	require.Equal(t, unmanagedEgressWarning+" "+existingSessionWarning+" "+wholeBrowserWarning, session.Warning)
 	require.Equal(t, 1, backend.starts)
 	require.Empty(t, backend.options.Executable)
 	require.Empty(t, backend.options.DataDir)
@@ -449,6 +450,7 @@ func TestService_StatusMarksUnresolvedAttachmentUnavailable(t *testing.T) {
 	cfg.Profiles = append(cfg.Profiles, config.BrowserProfileConfig{
 		Name: "remote", Mode: config.BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
 		CredentialRef: "env:MISSING_CDP_TOKEN", AttachmentScope: config.BrowserAttachmentBrowser,
+		AcknowledgeUnmanagedEgress: true,
 	})
 	service, err := NewService(
 		context.Background(), cfg, allowChecker(), &fakeBackend{},
@@ -471,6 +473,7 @@ func TestService_ExistingSessionForcesCompositeApprovalAndBindsCredentialIdentit
 		Name: "personal", Mode: config.BrowserProfileExistingSession, CDPEndpoint: "http://127.0.0.1:9222",
 		CredentialRef: "env:CDP_TOKEN", DataIdentity: "daily-profile",
 		AttachmentScope: config.BrowserAttachmentContext, BrowserContextID: "context-1",
+		AcknowledgeUnmanagedEgress: true,
 	})
 	backend := &fakeBackend{}
 	checker := permissions.NewEngine(permissions.Policy{
@@ -494,8 +497,9 @@ func TestService_ExistingSessionForcesCompositeApprovalAndBindsCredentialIdentit
 	require.NoError(t, err)
 	require.Equal(t, 1, approver.commits)
 	require.Len(t, approver.inputs, 2)
+	warning := unmanagedEgressWarning + " " + existingSessionWarning
 	for _, input := range approver.inputs {
-		require.Equal(t, existingSessionWarning, input.ApprovalReason)
+		require.Equal(t, warning, input.ApprovalReason)
 		require.Contains(t, input.Operation.Effects, permissions.EffectCredentialBearing)
 		require.NotContains(t, input.Operation.Target, "token")
 		if input.Operation.Resource == permissions.ResourceBrowser {
@@ -514,7 +518,7 @@ func TestService_ExistingSessionUsesPreflightedCompositeApprovalWithoutPrompting
 	cfg.Profiles = append(cfg.Profiles, config.BrowserProfileConfig{
 		Name: "personal", Mode: config.BrowserProfileExistingSession, CDPEndpoint: "http://127.0.0.1:9222",
 		DataIdentity: "daily-profile", AttachmentScope: config.BrowserAttachmentContext,
-		BrowserContextID: "context-1",
+		BrowserContextID: "context-1", AcknowledgeUnmanagedEgress: true,
 	})
 	backend := &fakeBackend{}
 	checker := permissions.NewEngine(permissions.Policy{
@@ -541,7 +545,7 @@ func TestService_ExistingSessionUsesPreflightedCompositeApprovalWithoutPrompting
 	forcedApprovals := 0
 	for index, input := range inputs {
 		operations[index] = input.Operation
-		if input.ApprovalReason == existingSessionWarning {
+		if input.ApprovalReason == unmanagedEgressWarning+" "+existingSessionWarning {
 			forcedApprovals++
 		}
 	}
@@ -562,7 +566,7 @@ func TestService_ExistingSessionRevokedGrantCannotAuthorizeLaterStart(t *testing
 	cfg.Profiles = append(cfg.Profiles, config.BrowserProfileConfig{
 		Name: "personal", Mode: config.BrowserProfileExistingSession, CDPEndpoint: "http://127.0.0.1:9222",
 		DataIdentity: "daily-profile", AttachmentScope: config.BrowserAttachmentContext,
-		BrowserContextID: "context-1",
+		BrowserContextID: "context-1", AcknowledgeUnmanagedEgress: true,
 	})
 	backend := &fakeBackend{}
 	checker := permissions.NewEngine(permissions.Policy{
@@ -857,6 +861,59 @@ func TestService_OwnerCanChangeSessionEgressPolicyAcrossRuns(t *testing.T) {
 	require.True(t, runtime.proxy.getPolicy().Strict)
 	require.NoError(t, service.Touch(fullAccess, session.ID))
 	require.False(t, runtime.proxy.getPolicy().Strict)
+	require.NoError(t, service.Close(context.Background()))
+}
+
+func TestService_TouchWaitsForActiveActionBeforeChangingEgressPolicy(t *testing.T) {
+	cfg := testBrowserConfig(t)
+	service, err := NewService(context.Background(), cfg, allowChecker(), &fakeBackend{})
+	require.NoError(t, err)
+	fullAccess := permissions.WithPreset(testBrowserContext("owner", "session"), permissions.PresetFullAccess)
+	fullAccess = permissions.WithFullAccess(fullAccess)
+	session, err := service.Start(fullAccess, StartRequest{})
+	require.NoError(t, err)
+	runtime := service.sessions[session.ID]
+	require.False(t, runtime.proxy.getPolicy().Strict)
+
+	runtime.actionMu.Lock()
+	touchResult := make(chan error, 1)
+	go func() {
+		touchResult <- service.Touch(testBrowserContext("owner", "session"), session.ID)
+	}()
+	require.Never(t, func() bool {
+		return runtime.proxy.getPolicy().Strict
+	}, 50*time.Millisecond, 5*time.Millisecond)
+	runtime.actionMu.Unlock()
+
+	require.NoError(t, <-touchResult)
+	require.True(t, runtime.proxy.getPolicy().Strict)
+	require.NoError(t, service.Close(context.Background()))
+}
+
+func TestService_DeniedStopDoesNotChangeEgressPolicy(t *testing.T) {
+	cfg := testBrowserConfig(t)
+	checker := checkerFunc(func(_ context.Context, input permissions.EvaluationInput) (permissions.Evaluation, error) {
+		if input.Operation.Action != permissions.ActionStop {
+			return permissions.Evaluation{Decision: permissions.DecisionAllow}, nil
+		}
+		evaluation := permissions.Evaluation{Decision: permissions.DecisionDeny}
+		return evaluation, &permissions.DecisionError{
+			Code: permissions.ErrorCodeDenied, Evaluation: evaluation,
+		}
+	})
+	service, err := NewService(context.Background(), cfg, checker, &fakeBackend{})
+	require.NoError(t, err)
+	fullAccess := permissions.WithPreset(testBrowserContext("owner", "session"), permissions.PresetFullAccess)
+	fullAccess = permissions.WithFullAccess(fullAccess)
+	session, err := service.Start(fullAccess, StartRequest{})
+	require.NoError(t, err)
+	runtime := service.sessions[session.ID]
+	require.False(t, runtime.proxy.getPolicy().Strict)
+
+	_, err = service.Stop(testBrowserContext("owner", "session"), session.ID)
+	require.Error(t, err)
+	require.False(t, runtime.proxy.getPolicy().Strict)
+	require.Equal(t, SessionReady, service.getRuntimeState(runtime))
 	require.NoError(t, service.Close(context.Background()))
 }
 

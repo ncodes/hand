@@ -100,7 +100,7 @@ without requiring you to reproduce their built-in behavior:
 | --- | --- | --- |
 | `ask` | Ask for approval | Local owner allowed by default, but execution and network effects require approval; configured rules apply first |
 | `approve` | Approve for me | Local owner allowed by default; only destructive, credential-bearing, privilege-changing, and external-write effects require approval; configured rules apply first |
-| `full_access` | Full access | Bypasses permission rules entirely, including configured rules; see below |
+| `full_access` | Full access | Bypasses ordinary permission rules; unattributed browser background egress remains denied unless an exact configured rule allows it; see below |
 | `custom` | Custom | Uses only your profile's configured rules and defaults |
 
 `ask` and `approve` default every surface kind to `deny`. They add `allow` and `ask` behavior only for the local owner.

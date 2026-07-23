@@ -149,6 +149,9 @@ func validateBrowserProfile(root string, profile BrowserProfileConfig) (string, 
 		if err := validateBrowserAttachmentScope(profile); err != nil {
 			return "", err
 		}
+		if !profile.AcknowledgeUnmanagedEgress {
+			return "", errors.New("attached browser profile must acknowledge unmanaged egress")
+		}
 		return "", nil
 	default:
 		return "", errors.New("mode must be one of: managed_ephemeral, managed_persistent, remote_cdp, existing_session")
@@ -157,7 +160,8 @@ func validateBrowserProfile(root string, profile BrowserProfileConfig) (string, 
 
 func hasBrowserAttachmentConfig(profile BrowserProfileConfig) bool {
 	return profile.CDPEndpoint != "" || profile.CredentialRef != "" || profile.DataIdentity != "" ||
-		profile.AttachmentScope != "" || profile.BrowserContextID != "" || len(profile.TargetIDs) > 0
+		profile.AttachmentScope != "" || profile.BrowserContextID != "" || len(profile.TargetIDs) > 0 ||
+		profile.AcknowledgeUnmanagedEgress
 }
 
 func validateBrowserCredentialRef(value string) error {

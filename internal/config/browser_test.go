@@ -195,6 +195,7 @@ func TestConfig_ValidateRejectsUnsafeBrowserProfiles(t *testing.T) {
 			mutate: func(cfg *Config) {
 				cfg.Browser.Profiles = []BrowserProfileConfig{{
 					Name: "remote", Mode: BrowserProfileRemoteCDP, CDPEndpoint: "https://user:secret@example.com",
+					AcknowledgeUnmanagedEgress: true,
 				}}
 				cfg.Browser.DefaultProfile = "remote"
 			},
@@ -213,6 +214,7 @@ func TestConfig_ValidateRejectsUnsafeBrowserProfiles(t *testing.T) {
 			mutate: func(cfg *Config) {
 				cfg.Browser.Profiles = []BrowserProfileConfig{{
 					Name: "remote", Mode: BrowserProfileRemoteCDP, CDPEndpoint: "ftp://example.com",
+					AcknowledgeUnmanagedEgress: true,
 				}}
 				cfg.Browser.DefaultProfile = "remote"
 			},
@@ -249,6 +251,7 @@ func TestConfig_ValidateRejectsUnsafeBrowserProfiles(t *testing.T) {
 				cfg.Browser.Profiles = []BrowserProfileConfig{{
 					Name: "remote", Mode: BrowserProfileRemoteCDP,
 					CDPEndpoint: "https://example.com", CredentialRef: "BROWSER_CDP_TOKEN",
+					AcknowledgeUnmanagedEgress: true,
 				}}
 				cfg.Browser.DefaultProfile = "remote"
 			},
@@ -285,6 +288,7 @@ func TestConfig_ValidateRejectsUnsafeBrowserProfiles(t *testing.T) {
 				cfg.Browser.Profiles = []BrowserProfileConfig{{
 					Name: "personal", Mode: BrowserProfileExistingSession, CDPEndpoint: "https://example.com",
 					DataIdentity: "daily", AttachmentScope: BrowserAttachmentBrowser,
+					AcknowledgeUnmanagedEgress: true,
 				}}
 				cfg.Browser.DefaultProfile = "personal"
 			},

@@ -39,7 +39,8 @@ Morph registers its built-in tools when the daemon prepares a profile's environm
 - **Automation**: an owner-only `automation` tool for creating and managing scheduled jobs conversationally. See
   [Automation](./automation).
 - **Browser**: one action-oriented `browser` tool for managed browsing, interaction, screenshots, PDFs, downloads,
-  and artifact export. It appears only when browser capability and runtime configuration allow it.
+  and artifact export. It appears only when browser capability and runtime configuration allow it. Managed-browser
+  network requests pass permission evaluation and receive bounded proxy permits before Morph opens upstream sockets.
 
 Not all of these are present in every turn. The filesystem, shell, session-history, planning, and `time` tools are
 always registered; the web and memory tools are only registered when their subsystem is configured and enabled (see

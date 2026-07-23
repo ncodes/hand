@@ -24,6 +24,7 @@ const (
 	NetworkRequestWebSocket   NetworkRequestClass = "websocket"
 	NetworkRequestDownload    NetworkRequestClass = "download"
 	NetworkRequestCDP         NetworkRequestClass = "cdp"
+	NetworkRequestBackground  NetworkRequestClass = "background"
 )
 
 type NetworkTarget struct {
@@ -335,5 +336,6 @@ func isValidNetworkRequestClass(value NetworkRequestClass) bool {
 		NetworkRequestWebSocket,
 		NetworkRequestDownload,
 		NetworkRequestCDP,
+		NetworkRequestBackground,
 	}, value)
 }

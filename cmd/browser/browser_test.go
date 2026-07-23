@@ -59,11 +59,12 @@ func TestBrowserCommands_RenderStatusProfilesSessionsAndConfig(t *testing.T) {
 		status: browserdomain.Status{
 			Enabled: true,
 			Profiles: []browserdomain.Profile{{
-				Name: "default", Mode: "managed_ephemeral", Default: true, Available: true, Warning: "profile warning",
+				Name: "remote", Mode: "remote_cdp", Default: true, Available: true,
+				Warning: "Attached browsers do not use Morph's managed egress proxy.",
 			}},
 			Sessions: []browserdomain.Session{{
-				ID: "browser_1", Profile: "default", State: browserdomain.SessionReady,
-				LastActive: now, Warning: "session warning",
+				ID: "browser_1", Profile: "remote", State: browserdomain.SessionReady,
+				LastActive: now, Warning: "Attached browsers do not use Morph's managed egress proxy.",
 			}},
 		},
 		config: rpcclient.BrowserEffectiveConfig{
@@ -78,8 +79,8 @@ func TestBrowserCommands_RenderStatusProfilesSessionsAndConfig(t *testing.T) {
 		want string
 	}{
 		{args: []string{"browser", "status"}, want: "enabled: true\nprofiles: 1\nsessions: 1"},
-		{args: []string{"browser", "profiles"}, want: "profile warning"},
-		{args: []string{"browser", "sessions"}, want: "session warning"},
+		{args: []string{"browser", "profiles"}, want: "do not use Morph's managed egress proxy"},
+		{args: []string{"browser", "sessions"}, want: "do not use Morph's managed egress proxy"},
 		{args: []string{"browser", "config"}, want: "permission preset: approve"},
 	} {
 		output := &bytes.Buffer{}

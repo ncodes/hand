@@ -25,7 +25,7 @@ func TestService_ResolveAttachmentBindsCredentialIdentityAndScope(t *testing.T) 
 		Name: "personal", Mode: config.BrowserProfileExistingSession,
 		CDPEndpoint: "https://Browser.Example:443", CredentialRef: "env:CDP_TOKEN",
 		DataIdentity: "daily-profile", AttachmentScope: config.BrowserAttachmentTargets,
-		TargetIDs: []string{"target-b", "target-a"},
+		TargetIDs: []string{"target-b", "target-a"}, AcknowledgeUnmanagedEgress: true,
 	}
 
 	first, err := service.resolveAttachment(profile)
@@ -74,10 +74,27 @@ func TestAttachmentCredentialsValidateSafeAuthorizationValues(t *testing.T) {
 	require.EqualError(t, err, "browser CDP credential is invalid")
 }
 
+func TestService_ResolveAttachmentRequiresUnmanagedEgressAcknowledgement(t *testing.T) {
+	service, err := NewService(
+		context.Background(), testBrowserConfig(t), allowChecker(), &fakeBackend{},
+		WithAttachmentIdentityKey(testAttachmentIdentityKey),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Close(context.Background())) })
+	_, err = service.resolveAttachment(config.BrowserProfileConfig{
+		Mode: config.BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
+		AttachmentScope: config.BrowserAttachmentBrowser,
+	})
+	require.EqualError(t, err, "attached browser profile must acknowledge unmanaged egress")
+	require.Contains(t, GetProfileWarning(config.BrowserProfileConfig{
+		Mode: config.BrowserProfileRemoteCDP, AttachmentScope: config.BrowserAttachmentBrowser,
+	}), "do not use Morph's managed egress proxy")
+}
+
 func TestService_ResolveAttachmentFailsClosedWithoutIdentityOrCredential(t *testing.T) {
 	profile := config.BrowserProfileConfig{
 		Mode: config.BrowserProfileRemoteCDP, CDPEndpoint: "https://example.com",
-		AttachmentScope: config.BrowserAttachmentBrowser,
+		AttachmentScope: config.BrowserAttachmentBrowser, AcknowledgeUnmanagedEgress: true,
 	}
 	service, err := NewService(context.Background(), testBrowserConfig(t), allowChecker(), &fakeBackend{})
 	require.NoError(t, err)

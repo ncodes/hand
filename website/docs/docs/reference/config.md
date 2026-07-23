@@ -170,7 +170,7 @@ Concept and decision model: [Permissions](../concepts/permissions). Operator gui
 | `permissions.default` | string | `"deny"` | Fallback decision (`allow`, `ask`, `deny`) when nothing else matches. Only used by `custom`. |
 | `permissions.surfaceKinds` | `map[string]string` | `local: ask`, `gateway: deny`, `automation: deny`, `rpc: deny` | Default decision per surface kind. Only used by `custom`. |
 | `permissions.surfaces` | `map[string]string` | `{}` | Default decision per concrete surface (`cli`, `tui`, `telegram`, `slack`, `http`, `automation`, `rpc`); takes precedence over `surfaceKinds`. Only used by `custom`. |
-| `permissions.rules` | `[]Rule` | `[]` | Explicit rules evaluated before the `ask` or `approve` preset rules. Also used directly by `custom`. Ignored by `full_access`. Matching is not array order. |
+| `permissions.rules` | `[]Rule` | `[]` | Explicit rules evaluated before the `ask` or `approve` preset rules. Also used directly by `custom`. Normally ignored by `full_access`; the browser background-egress gate still requires an exact configured allow rule because that traffic has no caller attribution. Matching is not array order. |
 | `permissions.approvalRateLimit` | int | `10` | Max approval prompts per actor+surface within `approvalRateWindow` before further requests are rate-limited. |
 | `permissions.approvalRateWindow` | duration | `1m` | Window for `approvalRateLimit`. |
 | `permissions.requestRetention` | duration | `720h` (30d) | How long resolved approval requests are kept before `prune` deletes them. |
@@ -178,8 +178,9 @@ Concept and decision model: [Permissions](../concepts/permissions). Operator gui
 | `permissions.cleanupInterval` | duration | `1h` | How often the background prune sweep runs. |
 | `permissions.cleanupBatchSize` | int | `100` | Max records deleted **per record type** in one prune sweep: up to this many grants and up to this many requests, so up to `2 ×` this value total. |
 
-`full_access` is validated but deliberately unsafe: it bypasses permission rules, command guardrails, and filesystem-root
-boundaries. `morph permissions preset full-access` requires `--yes` to set it.
+`full_access` is validated but deliberately unsafe: it bypasses ordinary permission rules, command guardrails, and
+filesystem-root boundaries. Unattributed browser background egress still requires an exact configured allow rule.
+`morph permissions preset full-access` requires `--yes` to set it.
 
 ### Rule fields
 
@@ -395,6 +396,7 @@ Gates tool visibility. See [Tools](../concepts/tools).
 | `attachmentScope` | string | Required for attached profiles: `targets`, `context`, or `browser` |
 | `browserContextId` | string | Required when `attachmentScope: context` |
 | `targetIds` | `[]string` | Required when `attachmentScope: targets` |
+| `acknowledgeUnmanagedEgress` | bool | Must be `true` for `remote_cdp` and `existing_session` profiles |
 
 `existing_session` cannot be the default profile. Select it explicitly when starting a browser session. A
 whole-browser attachment must use `attachmentScope: browser`, which intentionally grants visibility across browser
@@ -410,6 +412,7 @@ browser:
       dataIdentity: chrome-work-profile
       attachmentScope: context
       browserContextId: context-id-from-cdp
+      acknowledgeUnmanagedEgress: true
   network:
     developmentAllowedHosts:
       - 127.0.0.1
@@ -419,7 +422,9 @@ Changing the endpoint, credential value, data identity, or attachment scope chan
 Under `ask`, `approve`, and `custom`, attaching to `existing_session` always requires local-owner approval. Network
 actions on attached browsers require `full_access`. A loopback CDP endpoint also requires an explicit network exception
 such as the one above. That exception weakens loopback protection for browser traffic, so use it only for a trusted
-local CDP endpoint.
+local CDP endpoint. Attached browsers do not use Morph's managed egress proxy. Their unrelated targets, browser
+services, existing connections, and direct UDP traffic remain outside Morph's managed network enforcement. The
+required acknowledgement records that the operator accepts this boundary; it does not grant permission.
 
 ### `browser.network`
 

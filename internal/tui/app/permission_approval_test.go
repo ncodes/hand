@@ -144,7 +144,8 @@ func TestPermissionApprovalText_DisplaysPersonalBrowserWarning(t *testing.T) {
 	text := permissionApprovalText(permissionApprovalMsg{
 		Status:  string(permissions.ApprovalPending),
 		Summary: "Attach to signed-in browser profile personal",
-		Reason:  "Personal browser attachment exposes signed-in sessions, cookies, and page data.",
+		Reason: "Attached browsers do not use Morph's managed egress proxy. " +
+			"Personal browser attachment exposes signed-in sessions, cookies, and page data.",
 		Effects: []string{
 			string(permissions.EffectNetwork),
 			string(permissions.EffectCredentialBearing),
@@ -152,7 +153,8 @@ func TestPermissionApprovalText_DisplaysPersonalBrowserWarning(t *testing.T) {
 		},
 	})
 
-	require.Contains(t, text, "Reason: Personal browser attachment exposes signed-in sessions, cookies, and page data.")
+	require.Contains(t, text, "Reason: Attached browsers do not use Morph's managed egress proxy.")
+	require.Contains(t, text, "Personal browser attachment exposes signed-in sessions, cookies, and page data.")
 	require.NotContains(t, text, "[a] always")
 }
 

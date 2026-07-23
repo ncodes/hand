@@ -84,7 +84,10 @@ func (s *Service) Upload(ctx context.Context, request ActionRequest) (Tab, error
 	}
 	stagingRoot := filepath.Join(temporaryRoot, "uploads", runtime.ID)
 	defer func() { _ = os.RemoveAll(stagingRoot) }()
-	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, interactive, ActionUpload, tab.ID)
+	actionCtx, finishAction, err := s.prepareNetworkAction(ctx, runtime, interactive, ActionUpload, tab.ID)
+	if err != nil {
+		return Tab{}, getActionError(ActionUpload, err)
+	}
 	defer finishAction()
 	staged, err := stageUpload(actionCtx, request.Path, stagingRoot, s.cfg.Artifacts.MaxBytes)
 	if err != nil {
@@ -126,7 +129,10 @@ func (s *Service) Download(ctx context.Context, request ActionRequest) (Artifact
 	if err != nil {
 		return Artifact{}, err
 	}
-	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, interactive, ActionDownload, tab.ID)
+	actionCtx, finishAction, err := s.prepareNetworkAction(ctx, runtime, interactive, ActionDownload, tab.ID)
+	if err != nil {
+		return Artifact{}, getActionError(ActionDownload, err)
+	}
 	defer finishAction()
 	value, err := backend.Download(actionCtx, tab.ID, nodeID, s.cfg.Artifacts.MaxBytes)
 	if err != nil {
@@ -472,7 +478,10 @@ func (s *Service) respondToDialog(
 	if err != nil {
 		return Tab{}, err
 	}
-	actionCtx, finishAction := s.prepareNetworkAction(ctx, runtime, interactive, action, tab.ID)
+	actionCtx, finishAction, err := s.prepareNetworkAction(ctx, runtime, interactive, action, tab.ID)
+	if err != nil {
+		return Tab{}, getActionError(action, err)
+	}
 	defer finishAction()
 	if err := backend.RespondToDialog(actionCtx, tab.ID, nodeID, accept, request.Text); err != nil {
 		return Tab{}, getActionError(action, err)

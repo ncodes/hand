@@ -163,7 +163,7 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 	actions := []chromedp.Action{
 		network.Enable(),
 		network.SetBypassServiceWorker(true),
-		network.SetBlockedURLs([]string{"ws://*", "wss://*"}),
+		network.SetBlockedURLs().WithURLPatterns(getBlockedWebSocketPatterns()),
 		page.Enable(),
 		installBrowserNetworkGuardAction(),
 		browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorDeny),
@@ -199,6 +199,13 @@ func (ChromiumBackend) Start(ctx context.Context, opts LaunchOptions) (BackendSe
 	case <-startCtx.Done():
 		_ = session.Close(context.Background())
 		return nil, startCtx.Err()
+	}
+}
+
+func getBlockedWebSocketPatterns() []*network.BlockPattern {
+	return []*network.BlockPattern{
+		{URLPattern: "ws://*:*/*", Block: true},
+		{URLPattern: "wss://*:*/*", Block: true},
 	}
 }
 
@@ -385,7 +392,9 @@ func (s *chromiumSession) getRequestListener(ctx context.Context, tabID string) 
 			go func() {
 				defer s.markNetworkRequestFinished(tabID)
 				requestClass := permissions.NetworkRequestSubresource
-				if value.ResourceType == network.ResourceTypeDocument {
+				if value.RedirectedRequestID != "" {
+					requestClass = permissions.NetworkRequestRedirect
+				} else if value.ResourceType == network.ResourceTypeDocument {
 					requestClass = permissions.NetworkRequestNavigation
 				}
 				target, err := permissions.NetworkTargetFromURL(value.Request.URL, value.Request.Method, requestClass)
